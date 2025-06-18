@@ -18,11 +18,16 @@ jobs:
        id-token: write
        contents: read
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: '20'
           submodules: true
           lfs: false
+      - name: Install dependencies
+        run: npm install
+      - name: Build React app
+        run: npm run build
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token
