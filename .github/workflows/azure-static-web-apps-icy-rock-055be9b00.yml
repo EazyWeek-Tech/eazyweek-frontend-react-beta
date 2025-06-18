@@ -26,6 +26,8 @@ jobs:
           lfs: false
       - name: Install dependencies
         run: npm install
+      - name: Make Vite executable (workaround for permission denied)
+        run: chmod +x node_modules/.bin/vite
       - name: Build React app
         run: npm run build
       - name: Install OIDC Client from Core Package
