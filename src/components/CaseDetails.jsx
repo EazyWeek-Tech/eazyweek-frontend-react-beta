@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import GeneralTab from "./CaseDetails/GeneralTab";
-import IssuesTab from "./CaseDetails/issuesTab";
+import IssuesTab from "./CaseDetails/IssuesTab";
 import SLATab from "./CaseDetails/SLATab";
 import JourneyTab from "./CaseDetails/JourneyTab";
 import ExpenseTab from "./CaseDetails/ExpenseTab";
