@@ -42,6 +42,8 @@ function App() {
 
   const navigate = useNavigate();
 
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
+
   const handleLoginSuccess = (user) => {
     setUser(user);
     navigate("/cases", { replace: true }); // ✅ redirect to /cases
@@ -67,7 +69,7 @@ function App() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("https://localhost:44317/api/Employees", {
+      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -84,7 +86,7 @@ function App() {
   const fetchCases = async (filters) => {
     try {
       const res = await fetch(
-        "https://localhost:44317/api/CaseOperation/CaseDB",
+        `${API_BASE_URL}/api/CaseOperation/CaseDB`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
