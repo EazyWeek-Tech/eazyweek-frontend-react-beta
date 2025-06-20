@@ -23,13 +23,14 @@ const CaseDetailsPage = () => {
   const expenseRef = useRef();
   const journeyRef = useRef();
   const slaRef = useRef();
-  
+
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
         const response = await fetch(
-          `https://localhost:44317/api/CaseOperation/CaseDetails/${caseNumber}`
+          `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`
         );
         const data = await response.json();
 const userId = sessionStorage.getItem("userid");
@@ -156,7 +157,7 @@ const userId = sessionStorage.getItem("userid");
     console.log("Payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const res = await fetch("https://localhost:44317/api/CaseOperation", {
+      const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
