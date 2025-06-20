@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "proxy": "http://localhost:44317",
+  "proxy": "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

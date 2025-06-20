@@ -7,7 +7,7 @@ const Login = ({ onLoginSuccess }) => {
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
 
-  const API_BASE_URL = "https://localhost:44317";
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
