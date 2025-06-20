@@ -1,5 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 
+const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 const IssuesTab = forwardRef(({ data }, ref) => {
   const [formValues, setFormValues] = useState({ ...data });
   const [employees, setEmployees] = useState([]);
@@ -19,7 +20,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
     const fetchResponses = async () => {
       try {
         const res = await fetch(
-          `https://localhost:44317/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`,
+          `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`,
           { method: "GET", headers: { "Content-Type": "application/json" } }
         );
         const result = await res.json();
@@ -34,7 +35,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const response = await fetch("https://localhost:44317/api/Employees");
+        const response = await fetch(`${API_BASE_URL}/api/Employees`);
         const result = await response.json();
         const valid = result.filter((e) => e.employeeCode && e.employeeName !== "Assign To");
         setEmployees(valid);
@@ -60,7 +61,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
 
   const fetchTherapists = async () => {
     try {
-      const response = await fetch("https://localhost:44317/api/CaseDropDown/Medium/Doctors");
+      const response = await fetch(`${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`);
       const result = await response.json();
       setTherapists(result.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
     } catch (error) {

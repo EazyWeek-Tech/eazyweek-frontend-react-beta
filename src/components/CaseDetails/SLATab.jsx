@@ -1,6 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useParams } from "react-router-dom";
-
+const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 const SLATab = forwardRef((_, ref) => {
   const { caseNumber } = useParams();
   const [ideal, setIdeal] = useState({});
@@ -33,7 +33,7 @@ const getSecondValueFromRange = (range) => {
   useEffect(() => {
     const fetchSLA = async () => {
       try {
-        const response = await fetch(`https://localhost:44317/api/CaseOperation/CaseDetails/${caseNumber}`);
+        const response = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`);
         const data = await response.json();
 
         setIdeal({
@@ -59,7 +59,7 @@ const getSecondValueFromRange = (range) => {
 
     const fetchActualSLA = async () => {
       try {
-        const res = await fetch(`https://localhost:44317/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
+        const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
         const data = await res.json();
 
         if (Array.isArray(data)) {
