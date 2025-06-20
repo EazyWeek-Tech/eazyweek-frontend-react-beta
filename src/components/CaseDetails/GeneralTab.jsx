@@ -9,7 +9,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
   const [customerSearchText, setCustomerSearchText] = useState("");
   const [customerOptions, setCustomerOptions] = useState([]);
   const [initialSourceFetched, setInitialSourceFetched] = useState(false);
-
+ const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
   useImperativeHandle(ref, () => ({
     getGeneralData: () => formValues,
   }));
@@ -31,7 +31,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
         return;
       }
 
-      fetch(`https://localhost:44317/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(customerSearchText)}`)
+      fetch(`${API_BASE_URL}/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(customerSearchText)}`)
         .then(res => res.json())
         .then(setCustomerOptions)
         .catch(() => setCustomerOptions([]));
@@ -49,7 +49,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   const fetchCaseMediums = async () => {
     try {
-      const response = await fetch("https://localhost:44317/api/CaseDropDown/Medium");
+      const response = await fetch(`${API_BASE_URL}/api/CaseDropDown/Medium`);
       const result = await response.json();
       setCaseMediums(result);
     } catch (error) {
@@ -60,7 +60,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
   const fetchCaseSources = async (mediumCode, categoryCode) => {
     try {
       const res = await fetch(
-        `https://localhost:44317/api/CaseDropDown/Medium/Source?CategoryCode=${categoryCode}&MediumCode=${mediumCode}`
+        `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${categoryCode}&MediumCode=${mediumCode}`
       );
       const data = await res.json();
       setCaseSources(data);
@@ -71,7 +71,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   const fetchServices = async () => {
     try {
-      const res = await fetch("https://localhost:44317/api/CaseDropDown/Service");
+      const res = await fetch(`${API_BASE_URL}/api/CaseDropDown/Service`);
       const data = await res.json();
       setServices(data);
     } catch (error) {
@@ -81,7 +81,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   const fetchServiceCategories = async () => {
     try {
-      const res = await fetch("https://localhost:44317/api/CaseCategory/CaseServiceCategory");
+      const res = await fetch(`${API_BASE_URL}/api/CaseCategory/CaseServiceCategory`);
       const data = await res.json();
       setServiceCategories(data);
     } catch (error) {

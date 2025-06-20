@@ -1,5 +1,6 @@
 import React, { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 
+const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 const JourneyTab = forwardRef(({ caseNo }, ref) => {
   const [journeyData, setJourneyData] = useState([]);
 
@@ -12,7 +13,7 @@ const JourneyTab = forwardRef(({ caseNo }, ref) => {
       if (!caseNo) return;
       try {
         const response = await fetch(
-          `https://localhost:44317/api/CaseOperation/CaseJourney/${caseNo}`,
+          `${API_BASE_URL}/api/CaseOperation/CaseJourney/${caseNo}`,
           {
             method: "GET",
             headers: {

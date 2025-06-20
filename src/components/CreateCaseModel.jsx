@@ -27,6 +27,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
   const toastRef = useRef(null);
 
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
+
   useEffect(() => {
     if (toastRef.current) {
       toastRef.current.style.display = "none";
@@ -35,7 +37,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchCategories = async () => {
       try {
         const response = await fetch(
-          "https://localhost:44317/api/CaseCategory/CaseCategory",
+          `${API_BASE_URL}/api/CaseCategory/CaseCategory`,
           {
             method: "GET",
             headers: {
@@ -58,7 +60,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchCaseMediums = async () => {
       try {
         const response = await fetch(
-          "https://localhost:44317/api/CaseDropDown/Medium",
+          `${API_BASE_URL}/api/CaseDropDown/Medium`,
           {
             method: "GET",
             headers: {
@@ -79,7 +81,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchServices = async () => {
       try {
         const response = await fetch(
-          "https://localhost:44317/api/CaseDropDown/Service",
+          `${API_BASE_URL}/api/CaseDropDown/Service`,
           {
             method: "GET",
             headers: {
@@ -99,7 +101,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchTherapists = async () => {
       try {
         const response = await fetch(
-          "https://localhost:44317/api/CaseDropDown/Medium/Doctors",
+          `${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`,
           {
             method: "GET",
             headers: {
@@ -121,7 +123,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchServiceCategories = async () => {
       try {
         const response = await fetch(
-          "https://localhost:44317/api/CaseCategory/CaseServiceCategory",
+          `${API_BASE_URL}/api/CaseCategory/CaseServiceCategory`,
           {
             method: "GET",
             headers: {
@@ -140,7 +142,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
     const fetchEmployees = async () => {
       try {
-        const response = await fetch("https://localhost:44317/api/Employees", {
+        const response = await fetch(`${API_BASE_URL}/api/Employees`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -177,7 +179,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
         try {
           const res = await fetch(
-            `https://localhost:44317/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(
+            `${API_BASE_URL}/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(
               customerSearchText
             )}`,
             {
@@ -217,7 +219,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       selectedSubSubSubCategoryCode
     ) {
       const fetchCaseOperationDetails = async () => {
-        const url = `https://localhost:44317/api/CaseOperation/${selectedCategoryCode}/${selectedSubCategoryCode}/${selectedSubSubCategoryCode}/${selectedSubSubSubCategoryCode}`;
+        const url = `${API_BASE_URL}/api/CaseOperation/${selectedCategoryCode}/${selectedSubCategoryCode}/${selectedSubSubCategoryCode}/${selectedSubSubSubCategoryCode}`;
 
         try {
           const response = await fetch(url, {
@@ -417,7 +419,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       const response = await fetch(
-        "https://localhost:44317/api/CaseOperation",
+        `${API_BASE_URL}/api/CaseOperation`,
         {
           method: "POST",
           headers: {
@@ -517,7 +519,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       const response = await fetch(
-        "https://localhost:44317/api/CaseOperation",
+        `${API_BASE_URL}/api/CaseOperation`,
         {
           method: "POST",
           headers: {
@@ -632,7 +634,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
                 try {
                   const res = await fetch(
-                    `https://localhost:44317/api/CaseCategory/CaseSubCategory?CategoryCode=${code}`,
+                    `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?CategoryCode=${code}`,
                     {
                       method: "GET",
                       headers: {
@@ -651,7 +653,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 // Fetch Products
                 try {
                   const prodRes = await fetch(
-                    `https://localhost:44317/api/CaseDropDown/Product?CategoryCode=${code}`,
+                    `${API_BASE_URL}/api/CaseDropDown/Product?CategoryCode=${code}`,
                     {
                       method: "GET",
                       headers: {
@@ -669,7 +671,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
                 try {
                   const specificRes = await fetch(
-                    `https://localhost:44317/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${code}`,
+                    `${API_BASE_URL}/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${code}`,
                     {
                       method: "GET",
                       headers: {
@@ -725,7 +727,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
                 try {
                   const res = await fetch(
-                    `https://localhost:44317/api/CaseCategory/CaseSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${code}`,
+                    `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${code}`,
                     {
                       method: "GET",
                       headers: {
@@ -779,7 +781,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 // Fetch Sub Sub Sub Categories
                 try {
                   const res = await fetch(
-                    `https://localhost:44317/api/CaseCategory/CaseSubSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${selectedSubCategoryCode}&SubSubCategoryCode=${code}`,
+                    `${API_BASE_URL}/api/CaseCategory/CaseSubSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${selectedSubCategoryCode}&SubSubCategoryCode=${code}`,
                     {
                       method: "GET",
                       headers: {
@@ -860,7 +862,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 if (selectedCategoryCode && mediumValue) {
                   try {
                     const res = await fetch(
-                      `https://localhost:44317/api/CaseDropDown/Medium/Source?CategoryCode=${selectedCategoryCode}&MediumCode=${mediumValue}`,
+                      `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${selectedCategoryCode}&MediumCode=${mediumValue}`,
                       {
                         method: "GET",
                         headers: {

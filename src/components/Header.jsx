@@ -21,11 +21,12 @@ const Header = ({ onToggleSidebar, onLogout }) => {
     navigate("/login", { replace: true });
   };
 
+ const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
   const fullName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "User";
   const centerName = user?.centerName ?? "Clinic";
   const userEmail = user?.userName ?? "user@clinic.com";
   const imageSrc = user?.empImageName
-    ? `https://localhost:44317/uploads/${user.empImageName}`
+    ? `${API_BASE_URL}/uploads/${user.empImageName}`
     : "images/user.png";
 
   return (
