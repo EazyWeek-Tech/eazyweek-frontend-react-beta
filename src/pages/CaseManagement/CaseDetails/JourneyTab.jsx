@@ -1,7 +1,6 @@
 import React, { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { API_BASE_URL } from "../../../config";
 
-const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 const JourneyTab = forwardRef(({ caseNo }, ref) => {
   const [journeyData, setJourneyData] = useState([]);
 
