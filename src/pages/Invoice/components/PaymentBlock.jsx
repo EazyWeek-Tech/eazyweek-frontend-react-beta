@@ -155,7 +155,7 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="width: 33%; text-align: left; vertical-align: middle;">
-            <img src="logo.jpg" alt="Logo" style="max-height: 80px;" />
+            <img src="/images/bright.png" alt="Logo" style="max-height: 80px;" />
           </td>
           <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
             Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
@@ -553,13 +553,11 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
         </div>
 
         {payments.length > 0 && (
-        <div className="frmdiv" style={{ textAlign: 'center', marginTop: '20px' }}>
-          <div className="frmdiv" style={{ textAlign: 'center', marginTop: '20px' }}>
+          <div className="frmdiv" style={{ textAlign: 'center' }}>
     <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled}>
       Complete Invoice
     </button>
   </div>
-        </div>
       )}
 
 

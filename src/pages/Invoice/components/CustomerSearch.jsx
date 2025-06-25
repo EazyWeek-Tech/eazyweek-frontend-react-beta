@@ -78,7 +78,19 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
 
   return (
     <div className="cstsearch">
-      <div className="sectttl">Customer Search</div>
+      <div className='custtl'>
+          <div className="sectttl">Customer Search</div>
+      {selectedCustomer && (
+        <div
+          className={selectedCustomer.status === 'Citizen' ? 'nstatus' : 'nstatus expat'}
+          style={{ fontWeight: 'bold' }}
+        >
+          Nationality status is {selectedCustomer.status}
+        </div>
+      )}
+        
+      </div>
+      
       <form className="cstfrm">
         {['mobile', 'name', 'email'].map((field) => (
           <div className="frmdiv" style={{ position: 'relative' }} key={field}>
@@ -106,14 +118,7 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
         ))}
       </form>
 
-      {selectedCustomer && (
-        <div
-          className={selectedCustomer.status === 'Citizen' ? 'nstatus' : 'nstatus expat'}
-          style={{ marginTop: '10px', fontWeight: 'bold' }}
-        >
-          {selectedCustomer.status}
-        </div>
-      )}
+      
     </div>
   );
 };
