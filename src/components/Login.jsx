@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from "../config";
 
 const Login = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState("");
@@ -6,8 +7,6 @@ const Login = ({ onLoginSuccess }) => {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
-
-  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +41,7 @@ const Login = ({ onLoginSuccess }) => {
         if (remember) {
   localStorage.setItem("user", JSON.stringify(user));
 } else {
-  sessionStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("user", JSON.stringify(user));
 }
 
         onLoginSuccess(user);
@@ -61,7 +60,7 @@ const Login = ({ onLoginSuccess }) => {
             <div className="form active">
               <div className="l-logo">
                 <img
-                  src="https://insightuat.azurewebsites.net/ImageAssets/HomeLogo.png"
+                  src="/images/HomeLogo.png"
                   alt="Logo"
                   width="180"
                 />

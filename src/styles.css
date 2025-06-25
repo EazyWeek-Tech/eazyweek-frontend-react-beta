@@ -484,16 +484,7 @@ letter-spacing: -0.6%;
           /*Login Page starts*/
          
         
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: url(https://insightuat.azurewebsites.net/ImageAssets/BGFinal.png) no-repeat center left;
-            background-size: cover;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: .3s ease-out;
-        }
+      
 
         .overlay:before{
             content:'';

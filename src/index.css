@@ -78,7 +78,6 @@ html {
 }
 
 body {
-  background: #f6f7fa;
   font-family: 'Inter';
   font-size: 12px;
 }
@@ -122,6 +121,8 @@ a {
 
 .ot-wrapper {
   display: flex;
+    background: #f6f7fa;
+
   gap: 10px;
 }
 .rhs-sect {
@@ -234,9 +235,8 @@ li i {
 }
 .lhs-nav .mlti-sub-mnu.expand {
   display: none;
-}
-.lhs-nav.expand .lhs-mnu li.multi-li > a:after,
-.lhs-nav:hover .lhs-mnu li.multi-li > a:after {
+}.lhs-nav.expand .lhs-mnu li.multi-li > div:after,
+.lhs-nav:hover .lhs-mnu li.multi-li > div:after {
   display: block;
 }
 .lhs-mnu {
@@ -244,7 +244,7 @@ li i {
   padding: 20px 8px;
 }
 
-.lhs-mnu li > a {
+.lhs-mnu li > a, .lhs-mnu li > div {
   font-family: "Inter";
   font-weight: 500;
   display: flex;
@@ -254,13 +254,16 @@ li i {
   line-height: 20px;
   color: var(--white-color);
   position: relative;
+  cursor: pointer;
 }
 
-.lhs-mnu li > a > i {
+.lhs-mnu li > a > i, .lhs-mnu li > div > i {
   font-size: 22px;
 }
 
-.lhs-mnu li.multi-li > a:after {
+.lhs-mnu li.multi-li.expnd > div.mlti-sub-mnu:after{display: none;}
+
+ .lhs-mnu li.multi-li > div:after{
   content: "";
   display: none;
   position: absolute;
@@ -273,8 +276,7 @@ li i {
   transform: rotate(135deg);
   transition: all ease 300ms;
 }
-
-.lhs-mnu li.multi-li.expnd > a:after {
+ .lhs-mnu li.multi-li.expnd > div:after {
   transform: rotate(-45deg);
   transition: all ease 300ms;
 }
@@ -543,17 +545,7 @@ li i {
 
 /*Login Page starts*/
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: url(https://insightuat.azurewebsites.net/ImageAssets/BGFinal.png)
-    no-repeat center left;
-  background-size: cover;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.3s ease-out;
-}
+
 
 .overlay:before {
   content: "";
@@ -1771,8 +1763,11 @@ button.disabled {
   padding: 12px 20px;
   border-radius: 5px;
   color: #fff;
-  font-weight: bold;
+  font-weight: 700;
+  font-size: 14px;
   z-index: 9999;
+  text-align: center;
+  line-height: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
