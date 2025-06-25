@@ -21,7 +21,6 @@ function App() {
 
   const handleLoginSuccess = (user) => {
     setUser(user);
-<<<<<<< HEAD
     navigate("/cases", { replace: true }); // ✅ redirect to /cases
   };
 
@@ -102,9 +101,7 @@ function App() {
     } catch (err) {
       console.error("Failed to fetch cases:", err);
     }
-=======
     navigate("/dashboard");
->>>>>>> nasreencentriq/main
   };
 
   const toggleSidebar = () => {

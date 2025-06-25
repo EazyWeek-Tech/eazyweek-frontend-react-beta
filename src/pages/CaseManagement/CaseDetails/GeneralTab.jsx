@@ -72,11 +72,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   const fetchServices = async () => {
     try {
-<<<<<<< HEAD:src/components/CaseDetails/GeneralTab.jsx
-      const res = await fetch(`${API_BASE_URL}/api/CaseDropDown/Service`);
-=======
       const res = await fetch("${API_BASE_URL}/api/CaseDropDown/Service");
->>>>>>> nasreencentriq/main:src/pages/CaseManagement/CaseDetails/GeneralTab.jsx
       const data = await res.json();
       setServices(data);
     } catch (error) {
