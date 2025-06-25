@@ -32,46 +32,63 @@ const InvoicePage = () => {
 const custidFromUrl = searchParams.get('custid');
 const appointmentIdFromUrl = searchParams.get('appointmentid');
 const custNameFromUrl = searchParams.get('custname');
-console.log(appointmentIdFromUrl)
-console.log(custidFromUrl)
+
+
 useEffect(() => {
-  if (!appointmentIdFromUrl) return;
+  if (!appointmentIdFromUrl || !custidFromUrl) return;
 
   const fetchAppointmentDetails = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/Appointment/GetAppDetails?appointmentId=${appointmentIdFromUrl}`);
-      const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const appt = data[0];
+      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-        // Prefill items in invoice table
-        const item = {
-          name: appt?.serviceName || '',
-          servicecode: appt?.serviceCode || '',
-          price: appt?.netAmount || '',
-          discount: 0,
-          taxpercent: appt?.tax || 0,
-          citizentax: appt?.tax || 0
-        };
-        setItems([item]);
+      const payload = {
+        custID: custidFromUrl,
+        appointmentID: appointmentIdFromUrl,
+        centerCode: centerCode
+      };
+      console.log(payload)
+      const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      console.log(response)
+      const result = await response.json();
+      console.log("Fetched Appointment Details:", result);
 
-        // Prefill selectedCustomer
+      if (result && result.success) {
+        setItems([
+          {
+            name: result.serviceName || '',
+            servicecode: result.serviceCode || '',
+            price: result.netAmount || '',
+            discount: 0,
+            taxpercent: result.tax || 0,
+            citizentax: result.tax || 0
+          }
+        ]);
+
         setSelectedCustomer({
-          custid: appt?.custId,
-          fullName: appt?.fullName || custNameFromUrl || '',
-          number: appt?.mobile,
-          email: appt?.email || '',
-          gender: appt?.gender || '',
-          status: appt?.nationality === "95" ? "Citizen" : "Expat"
+          custid: result.custId || "",
+          fullName: result.fullName || custNameFromUrl || "",
+          number: result.mobile || "",
+          email: result.email || "",
+          gender: result.gender || "",
+          status: result.nationality === "95" ? "Citizen" : "Expat"
         });
+      } else {
+        console.warn("No appointment data found or success flag false:", result);
       }
     } catch (err) {
-      console.error("Failed to load appointment details:", err);
+      console.error("Error fetching appointment details:", err);
     }
   };
 
   fetchAppointmentDetails();
-}, [appointmentIdFromUrl]);
+}, [appointmentIdFromUrl, custidFromUrl]);
+
+
 
   
 

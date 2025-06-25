@@ -68,7 +68,6 @@ const InvoiceSummary = ({
             onClick={handleManualDiscountClick}
             className="pribtnblue"
             disabled={items.length === 0 || isFinalized}
-            style={items.length === 0 || isFinalized ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
           >
             Manual Discount
           </button>
