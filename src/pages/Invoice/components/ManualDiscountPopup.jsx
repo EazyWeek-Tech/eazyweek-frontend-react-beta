@@ -59,20 +59,35 @@ const ManualDiscountPopup = ({
   };
 
   const handleDiscountChange = (index, value) => {
-    const updated = [...manualItems];
-    updated[index].discount = value;
-    setManualItems(updated);
-  };
+  const updated = [...manualItems];
+  const price = parseFloat(updated[index].price) || 0;
+  const discount = parseFloat(value) || 0;
+
+  if (discount > price) {
+    showToast('Discount cannot exceed price.', 'error');
+    return;
+  }
+
+  updated[index].discount = value;
+  setManualItems(updated);
+};
+
 
   const handleDiscountPercentChange = (index, value) => {
-    const updated = [...manualItems];
-    const price = parseFloat(updated[index].price) || 0;
-    const percent = parseFloat(value) || 0;
-    if (price > 0) {
-      updated[index].discount = ((percent / 100) * price).toFixed(2);
-    }
-    setManualItems(updated);
-  };
+  const percent = parseFloat(value) || 0;
+  if (percent > 100) {
+    showToast('Discount percent cannot exceed 100%.', 'error');
+    return;
+  }
+
+  const updated = [...manualItems];
+  const price = parseFloat(updated[index].price) || 0;
+  if (price > 0) {
+    updated[index].discount = ((percent / 100) * price).toFixed(2);
+  }
+  setManualItems(updated);
+};
+
 
   const handleRemove = (index) => {
     const updated = manualItems.filter((_, i) => i !== index);

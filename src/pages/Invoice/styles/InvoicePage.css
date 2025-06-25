@@ -357,6 +357,7 @@
                 padding: 5px 10px;
                 font-size: 13px;
                 border-bottom: 1px solid #ccc;
+                text-align: center;
             }
 
             #invctable tr td input {
@@ -468,6 +469,8 @@
                 padding: 7px 10px;
                 cursor: pointer;
             }
+
+            button.pribtnblue:disabled{background: #666;cursor: not-allowed;}
 
             .invtxt {
                 color: #000;

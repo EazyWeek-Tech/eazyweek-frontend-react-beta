@@ -1,105 +1,107 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
+import { API_BASE_URL } from "../../../config";
 
 const createDataHandler = async (url) => {
   const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch from ${url}`);
-  }
+  if (!response.ok) throw new Error(`Fetch failed from ${url}`);
   return await response.json();
 };
 
-const CATEGORY_API = 'https://mocki.io/v1/c66a9494-8044-46d6-8cd6-9295e367ac1b';
-const SERVICE_API = 'https://mocki.io/v1/a1e7901c-1fd0-4e47-8954-c1d9e5899c90';
-const PACKAGE_API = 'https://mocki.io/v1/75459841-da63-456c-9a16-59a57c74197c';
+const CATEGORY_API = `${API_BASE_URL}/api/Master/LoadAllCategory`;
 
 const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
-  const [activeMainTab, setActiveMainTab] = useState('services');
-  const [activeSubTab, setActiveSubTab] = useState('all');
   const [categories, setCategories] = useState([]);
-  const [allServices, setAllServices] = useState([]);
-  const [allPackages, setAllPackages] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [services, setServices] = useState([]);
+  const [activeMainTab, setActiveMainTab] = useState("services");
+  const [activeSubTab, setActiveSubTab] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const getCenterCode = () => {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    return stored ? JSON.parse(stored).centerCode : "";
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadCategories = async () => {
       try {
-        const [categoriesData, servicesData, packagesData] = await Promise.all([
-          createDataHandler(CATEGORY_API),
-          createDataHandler(SERVICE_API),
-          createDataHandler(PACKAGE_API)
-        ]);
-
-        const mappedCategories = categoriesData.slice(0, 4).map((item) => ({
-          id: item.Ccode.toLowerCase(),
-          label: item.CName,
-          icon: getCategoryIcon(item.CName)
-        }));
-
-        const enrichedServices = servicesData.map((svc) => ({
-          ...svc,
-          categoryCode: mapServiceToCategory(svc.servicename)
-        }));
-
-       setCategories(mappedCategories);
-       if (mappedCategories.length > 0) {
-  setActiveSubTab(mappedCategories[0].id);
-}
-        setAllServices(enrichedServices);
-        setAllPackages(packagesData);
+        const data = await createDataHandler(CATEGORY_API);
+        if (Array.isArray(data)) {
+          const mapped = data
+            .filter((c) => c.ccode && c.cName)
+            .map((c) => ({
+              id: c.ccode,
+              label: c.cName,
+              icon: getCategoryIcon(c.cName),
+            }));
+          setCategories(mapped);
+          if (mapped.length > 0) setActiveSubTab(mapped[0].id);
+        }
       } catch (error) {
-        console.error('Data fetch failed:', error);
+        console.error("Failed to load categories:", error);
       }
     };
-
-    fetchData();
+    loadCategories();
   }, []);
 
+  useEffect(() => {
+    const loadServices = async () => {
+      if (!activeSubTab || activeMainTab !== "services") return;
+      try {
+        const centerCode = getCenterCode();
+        const url = `${API_BASE_URL}/api/Master/GetServiceByCategory/${activeSubTab}/${centerCode}`;
+        const data = await createDataHandler(url);
+        if (Array.isArray(data)) setServices(data);
+        else setServices([]);
+      } catch (error) {
+        console.error("Failed to load services:", error);
+        setServices([]);
+      }
+    };
+    loadServices();
+  }, [activeSubTab, activeMainTab]);
+const truncateName = (name, maxLength = 20) => {
+  return name.length > maxLength ? name.slice(0, maxLength) + '...' : name;
+};
+
   const getCategoryIcon = (label) => {
-    const lower = label.toLowerCase();
-    if (lower.includes('consult')) return 'images/consult.svg';
-    if (lower.includes('volume')) return 'images/filling.svg';
-    if (lower.includes('hair')) return 'images/hair.svg';
-    if (lower.includes('anti')) return 'images/antiage.svg';
-    return 'images/default.svg';
+    const lower = label?.toLowerCase() || "";
+    if (lower.includes("consult")) return "images/consult.svg";
+    if (lower.includes("volume")) return "images/filling.svg";
+    if (lower.includes("hair")) return "images/hair.svg";
+    if (lower.includes("anti")) return "images/antiage.svg";
+    return "images/default.svg";
   };
 
-  const mapServiceToCategory = (name) => {
-    const lower = name.toLowerCase();
-    if (lower.includes('volume')) return 'cc048';
-    if (lower.includes('consult')) return 'cc07';
-    if (lower.includes('anti')) return 'cc04';
-    if (lower.includes('hair')) return 'cc025';
-    return 'uncategorized';
+  const handleAddService = (item) => {
+    if (!customer || !customer.firstname || !customer.mobile) {
+      showErrToast?.("Please fill customer details before adding a service.");
+      return;
+    }
+    onAddItem?.({
+      name: item.serviceName,
+      price: parseFloat(item.price) || 0,
+      discount: 0,
+      taxpercent: item.taxPercent ?? "0.00",
+      citizentax: item.taxPercent ?? "0.00",  // Assuming no separate citizen tax from this API
+      servicecode: item.serviceCode
+    });
+    showToast?.("Service added to invoice");
   };
 
-  const truncateName = (name, maxLength = 40) => {
-    return name.length > maxLength ? name.slice(0, maxLength) + '...' : name;
-  };
-
-  const filteredServices = allServices.filter((svc) => {
-   const matchesTab = svc.categoryCode === activeSubTab;
-    const matchesSearch = svc.servicename.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
-
-  const filteredPackages = allPackages.filter((pkg) => {
-    const matchesTab = mapServiceToCategory(pkg.packageName) === activeSubTab;
-    const matchesSearch = pkg.packageName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
+  const filteredServices = services.filter((svc) =>
+    svc.serviceName?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="srvlistdiv">
       <h3 className="sectttl">Categories</h3>
-
-      
 
       <div className="pymntmode">
         <div className="pymttabswrp">
           {categories.map((cat) => (
             <div
               key={cat.id}
-              className={`pymnttab ${activeSubTab === cat.id ? 'activetab' : ''}`}
+              className={`pymnttab ${activeSubTab === cat.id ? "activetab" : ""}`}
               onClick={() => setActiveSubTab(cat.id)}
             >
               <img src={cat.icon} alt={cat.label} />
@@ -108,68 +110,60 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
           ))}
         </div>
 
-        <div className='tabwrpdiv'>
+        <div className="tabwrpdiv">
           <div className="horizontal-tabs">
-        <button
-          className={`maintab ${activeMainTab === 'services' ? 'active' : ''}`}
-          onClick={() => setActiveMainTab('services')}
-        >
-          Services
-        </button>
-        <button
-          className={`maintab ${activeMainTab === 'packages' ? 'active' : ''}`}
-          onClick={() => setActiveMainTab('packages')}
-        >
-          Packages
-        </button>
-      </div>
-
-      <div className="subtabs">
-          <div className="servhead" style={{ marginTop: '10px', marginBottom: '10px' }}>
-            <input
-              type="text"
-              placeholder={`Search ${activeMainTab}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: '6px 10px', width: '100%', borderRadius: '6px', border: '1px solid #ccc' }}
-            />
+            <button
+              className={`maintab ${activeMainTab === "services" ? "active" : ""}`}
+              onClick={() => setActiveMainTab("services")}
+            >
+              Services
+            </button>
+            <button
+              className={`maintab ${activeMainTab === "packages" ? "active" : ""}`}
+              onClick={() => setActiveMainTab("packages")}
+            >
+              Packages
+            </button>
           </div>
 
-          <div className="ctlistwrp">
-            {(activeMainTab === 'services' ? filteredServices : filteredPackages).map((item, idx) => (
-              <div
-                className="ctflx"
-                key={idx}
-                onClick={() => {
-  if (!customer || !customer.firstname || !customer.mobile) {
-    showErrToast?.("Please fill in the customer details before adding a service or package.");
-    return;
-  }
+          <div className="subtabs">
+            <div className="servhead" style={{ margin: "10px 0" }}>
+              <input
+                type="text"
+                placeholder={`Search ${activeMainTab}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  padding: "6px 10px",
+                  width: "100%",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                }}
+              />
+            </div>
 
-  onAddItem?.({
-    name: item.servicename || item.packageName,
-    price: parseFloat(item.price) || 0,
-    discount: 0,
-    taxpercent: item.taxpercent ?? '0.00',
-    citizentax: item.citizentax ?? '0.00'
-  });
-  showToast?.(`${activeMainTab === 'services' ? 'Service' : 'Package'} added to invoice`);
-}}
-
-              >
-                <div className="ctlft ctcell" title={item.servicename || item.packageName}>
-                  {truncateName(item.servicename || item.packageName)}
-                </div>
+            {activeMainTab === "services" ? (
+              <div className="ctlistwrp">
+                {filteredServices.map((item, idx) => (
+                  <div
+                    className="ctflx"
+                    key={idx}
+                    onClick={() => handleAddService(item)}
+                  >
+                    <div className="ctlft ctcell" title={item.serviceName}>
+                      {truncateName(item.serviceName)}
+                    </div>
+                  </div>
+                ))}
+                {filteredServices.length === 0 && <div className="notext">No services found</div>}
               </div>
-            ))}
-            {(activeMainTab === 'services' ? filteredServices.length : filteredPackages.length) === 0 && (
-              <div className="notext">No {activeMainTab} found</div>
+            ) : (
+              <div className="ctlistwrp">
+                <div className="notext">Package tab not yet implemented</div>
+              </div>
             )}
           </div>
         </div>
-        </div>
-
-        
       </div>
     </div>
   );

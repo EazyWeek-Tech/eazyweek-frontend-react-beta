@@ -818,6 +818,8 @@ table {
 
                 .apptsts .form-group select {
                     margin: 0 0 0 10px;
+                    padding: 5px;
+                    width: auto;
                 }
 
                 .apptsts .slctgrp label {
@@ -1530,10 +1532,13 @@ table {
                     width: auto;
                     color: #666;
                     font-weight: 600;
+                    margin: 0;
                 }
 
                 .apptsts .slctgrp {
                     margin-bottom: 0;
+                    display: flex;
+                    align-items: center;
                 }
 
                 .apptsts {
@@ -1873,7 +1878,7 @@ table {
                                     background: #fff;
                                     z-index: 1;
                                     padding: 5px 0;
-                                    min-height: 51px;
+                                    min-height: 60px;
                                 }
 
                                 .appcell {
@@ -1888,12 +1893,12 @@ table {
 
                                 .appcell.active {
                                     
-                                    background: #c9d8fc;
+                                    background: #d2ddf7;
                                     border-left: 4px solid #394561;
                                 }
 
                                 .appcell.donest {
-                                    border: 4px solid green;
+                                    border-left: 4px solid green;
                                     background:rgb(145, 213, 145);
                                 }
 
@@ -1902,13 +1907,13 @@ table {
                                 }
 
                                 .appcell.chkinst{
-                                    border-left: 4px solid #4d674d;
-                                    background: #b4eab4;
+                                    border-left: 4px solid #1accc3;
+                                    background: #d7fbf9;
                                 }
 
                                 .appcell.cnfrmd {
                                     border-left: 4px solid #e4af44;
-                                    background: #fff2d7;
+                                    background: #f5dfb2;
                                 }
 
                                 .appcell.noshow{
@@ -1916,7 +1921,7 @@ table {
                                 }
 
                                 .appcell.cancelled{
-                                    border:2px solid rgb(219, 60, 60);
+                                    border-left:4px solid rgb(219, 60, 60);
                                     background: #fc9e9e;
                                 }
 
@@ -2058,3 +2063,7 @@ table {
     margin: 10px 0;
 }
 
+.appdtlbl{font: 400 12px/14px 'Lato';}
+.appdtval{color: #666;font: 600 12px/22px 'Lato';}
+
+.smdiv .apptsts .slctgrp label{display: inline-block;min-width: 0;}

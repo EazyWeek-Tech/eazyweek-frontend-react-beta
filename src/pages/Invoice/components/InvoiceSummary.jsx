@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
 import ManualDiscountPopup from './ManualDiscountPopup';
+import PriceOverridePopup from './PriceOverridePopup';
 import Toast from './Toast';
 
 const InvoiceSummary = ({
@@ -14,15 +16,25 @@ const InvoiceSummary = ({
   onSuspendCart,
   onRecallCartById,
   suspendedCarts,
-  isFinalized
+  isFinalized,
+  onApplyPriceOverride
 }) => {
   const [toast, setToast] = useState(null);
+  const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
 
   const handleManualDiscountClick = () => {
     if (items.length === 0) {
       setToast({ message: 'Please add a product before applying manual discount.', type: 'error' });
     } else {
       setShowPopup(true);
+    }
+  };
+
+  const handlePriceOverrideClick = () => {
+    if (items.length === 0) {
+      setToast({ message: 'Please add a product before applying price override.', type: 'error' });
+    } else {
+      setShowPriceOverridePopup(true);
     }
   };
 
@@ -45,27 +57,6 @@ const InvoiceSummary = ({
     if (cartId) {
       onRecallCartById(cartId);
       setToast({ message: 'Suspended cart recalled.', type: 'success' });
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleEmail = async () => {
-    try {
-      const response = await fetch('/api/send-invoice-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
-      });
-      if (response.ok) {
-        setToast({ message: 'Invoice emailed successfully.', type: 'success' });
-      } else {
-        throw new Error('Failed to send');
-      }
-    } catch (error) {
-      setToast({ message: 'Error sending invoice.', type: 'error' });
     }
   };
 
@@ -92,13 +83,24 @@ const InvoiceSummary = ({
             onRemove={onRemove}
           />
 
-          {['Issue Loyalty Card', 'Price Override', 'Apply Package', 'Coupon Code'].map((action, index) => (
-            <button key={index} className="pribtnblue" disabled={isFinalized}>
-              {action}
-            </button>
-          ))}
+          <button
+            className="pribtnblue"
+            disabled={items.length === 0 || isFinalized}
+            onClick={handlePriceOverrideClick}
+          >
+            Price Override
+          </button>
 
-         
+          <PriceOverridePopup
+            isActive={showPriceOverridePopup}
+            onClose={() => setShowPriceOverridePopup(false)}
+            onApplyPriceOverride={onApplyPriceOverride}
+            items={items}
+          />
+
+          <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button>
+          <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>
+          <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>
 
           {suspendedCarts.length > 0 && (
             <select className="recallselect" onChange={handleRecallChange} defaultValue="">
@@ -112,9 +114,9 @@ const InvoiceSummary = ({
           )}
         </div>
 
-         <button className="pribtnblue tooltip" onClick={handleClearCartClick} disabled={isFinalized} data-tooltip="Clear Cart" data-tooltip-pos="down">
-            <img src={`${import.meta.env.BASE_URL}images/shoppingcrt.svg`} alt="Clear Cart" width={16}  />
-          </button>
+        <button className="pribtnblue tooltip" onClick={handleClearCartClick} disabled={isFinalized} data-tooltip="Clear Cart" data-tooltip-pos="down">
+          <img src={`${import.meta.env.BASE_URL}images/shoppingcrt.svg`} alt="Clear Cart" width={16} />
+        </button>
       </div>
 
       {toast && (

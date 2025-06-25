@@ -27,6 +27,10 @@
     const [formData, setFormData] = useState({});
     const [formError, setFormError] = useState('');
     const [toast, setToast] = useState(null);
+    const [invoiceSuccessPopup, setInvoiceSuccessPopup] = useState(false);
+const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
+const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
+
 
     useEffect(() => {
       if (prefillPaymentData) {
@@ -98,6 +102,7 @@
       setFormError('');
     };
     const handlePrintInvoice = () => {
+
   const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
   const invoiceItemRows = invoiceItems.map((item, idx) => {
@@ -138,7 +143,7 @@
   const printWindow = window.open('', '_blank');
   const invoiceHTML = `
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" dir="rtl">
     <head>
       <meta charset="UTF-8" />
       <title>Invoice</title>
@@ -211,11 +216,44 @@
     </body>
     </html>
   `;
+      setLastGeneratedInvoiceHtml(invoiceHTML);
 
   printWindow.document.write(invoiceHTML);
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
+};
+
+const handleEmailInvoice = async () => {
+  if (!generatedInvoiceNumber) {
+    setToast({ message: "Invoice number not generated yet.", type: "error" });
+    return;
+  }
+
+  const invoiceHtmlPayload = {
+    invoiceNo: generatedInvoiceNumber,
+    custID: customer?.custid || "",
+    custEmailID: customer?.email || "",
+    invoiceHtml: lastGeneratedInvoiceHtml || ""  // ← We'll capture latest HTML below
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invoiceHtmlPayload)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      setToast({ message: "Invoice email sent successfully!", type: "success" });
+    } else {
+      setToast({ message: result.message || "Failed to send email.", type: "error" });
+    }
+  } catch (error) {
+    console.error("Email send error:", error);
+    setToast({ message: "Error while sending email.", type: "error" });
+  }
 };
 
 
@@ -250,8 +288,6 @@ console.log(customer)
       gender: customer?.gender || "",
       mobileNumber: customer?.mobile || "",
       emailID: customer?.email || "",
-      therapistCode: customer?.practitionerCode || "CUST-001",
-therapistName: customer?.practitionerName || "Reham",
       netPrice: parseFloat((parsedTotalAmount - tax).toFixed(2)),
       tax: parseFloat(tax.toFixed(2)),
       roundingOff: 0,
@@ -261,32 +297,32 @@ therapistName: customer?.practitionerName || "Reham",
   ];
 
   const linesJson = invoiceItems.map((item, index) => {
-    console.log(item)
-    const price = parseFloat(item.price) || 0;
-    const discount = parseFloat(item.discount) || 0;
-    const netAmount = price - discount;
-    const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
-    const tax = (netAmount * taxRate) / 100;
-    const finalAmount = netAmount + tax;
+  const price = parseFloat(item.price) || 0;
+  const discount = parseFloat(item.discount) || 0;
+  const netAmount = price - discount;
+  const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
+  const tax = (netAmount * taxRate) / 100;
+  const finalAmount = netAmount + tax;
 
-    return {
-      lineNo: index + 1,
-      itemCode: item.code || "",
-      itemName: item.name || "",
-      itemType: item.type || "service",
-      qty: 1,
-      salesAmount: price,
-      taxamount: parseFloat(tax.toFixed(2)),
-      finalAmount: parseFloat(finalAmount.toFixed(2)),
-      discountAmount: discount
-    };
-  });
+  return {
+    lineNo: index + 1,
+    itemCode: item.code || "",
+    itemName: item.name || "",
+    itemType: item.type || "service",
+    qty: 1,
+    salesAmount: price,
+    taxamount: parseFloat(tax.toFixed(2)),
+    finalAmount: parseFloat(finalAmount.toFixed(2)),
+    discountAmount: discount,
+    therapistCode: item.practitionerCode || "",      
+    therapistName: item.practitionerName || ""       
+  };
+});
 
-  const getPaymentModeKey = (label) => {
+const getPaymentModeKey = (label) => {
   const mode = paymentModes.find(m => m.label === label);
   return paymentModes.indexOf(mode); // Returns index like 0,1,2
 };
-
 
   const paymentJson = payments.map((p, index) => ({
     lineNo: index + 1,
@@ -305,7 +341,7 @@ const centerCode = user?.centerCode || '';
   const payload = {
     appointmentID,
     invoiceDate: now,
-      createdBy, // ✅ logged-in user ID
+      createdBy, // logged-in user ID
 
     centerCode,
     headerJson,
@@ -322,9 +358,12 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
       body: JSON.stringify(payload)
     });
     const result = await response.json();
+    console.log(result);
     if (result.success) {
       setToast({ message: 'Invoice submitted successfully!', type: 'success' });
-      setPayments([]);
+  setPayments([]);
+  setGeneratedInvoiceNumber(result.invoiceNumber || ''); // Adjust key based on actual API response
+  setInvoiceSuccessPopup(true);
     } else {
       setToast({ message: result.message || 'Submission failed', type: 'error' });
     }
@@ -512,7 +551,8 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
             <button className="pribtnblue" onClick={handlePrintInvoice} style={{ marginRight: '10px' }}>
   Print Invoice
 </button>
-            <button className="pribtnblue" onClick={() => alert('Email sent!')}>Email Invoice</button>
+            <button className="pribtnblue" onClick={handleEmailInvoice}>Email Invoice</button>
+
           </div>
         </div>
       )}
@@ -521,6 +561,32 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
         {toast && (
           <div className={`toast ${toast.type}`}>{toast.message}</div>
         )}
+
+        
+
+        {invoiceSuccessPopup && (
+  <div className="popouter active">
+    <div className="popovrly" onClick={() => setInvoiceSuccessPopup(false)}></div>
+    <div className="popin manualdisc">
+      <div className="popuphdr">
+        Invoice Submitted
+        <span className="clsbtn" onClick={() => setInvoiceSuccessPopup(false)}>
+          <img src="images/clsic.svg" alt="Close" />
+        </span>
+      </div>
+
+      <div className="popfrm" style={{ textAlign: 'center', padding: '20px' }}>
+        <p style={{ fontWeight: 'bold', fontSize: '16px' }}>Invoice Number: {generatedInvoiceNumber}</p>
+        <div className="btnbar">
+          <button className="pribtnblue" onClick={handlePrintInvoice}>Print Invoice</button>
+          <button className="pribtnblue" onClick={handleEmailInvoice}>Email Invoice</button>
+
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     );
   };

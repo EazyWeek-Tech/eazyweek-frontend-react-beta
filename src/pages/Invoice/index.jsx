@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../config';
 
 import InvoiceForm from './components/InvoiceForm'
 import InvoiceSummary from './components/InvoiceSummary';
@@ -26,14 +27,53 @@ const InvoicePage = () => {
   const [isFinalized, setIsFinalized] = useState(false);
   const [toast, setToast] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+
   const [searchParams] = useSearchParams();
 const custidFromUrl = searchParams.get('custid');
+const appointmentIdFromUrl = searchParams.get('appointmentid');
+const custNameFromUrl = searchParams.get('custname');
+console.log(appointmentIdFromUrl)
+console.log(custidFromUrl)
+useEffect(() => {
+  if (!appointmentIdFromUrl) return;
 
-  useEffect(() => {
-    createDataHandler('https://mocki.io/v1/4df5effa-1606-474c-9ba3-f54eb1142034')
-      .then(setSuggestions)
-      .catch(console.error);
-  }, []);
+  const fetchAppointmentDetails = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Appointment/GetAppDetails?appointmentId=${appointmentIdFromUrl}`);
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const appt = data[0];
+
+        // Prefill items in invoice table
+        const item = {
+          name: appt?.serviceName || '',
+          servicecode: appt?.serviceCode || '',
+          price: appt?.netAmount || '',
+          discount: 0,
+          taxpercent: appt?.tax || 0,
+          citizentax: appt?.tax || 0
+        };
+        setItems([item]);
+
+        // Prefill selectedCustomer
+        setSelectedCustomer({
+          custid: appt?.custId,
+          fullName: appt?.fullName || custNameFromUrl || '',
+          number: appt?.mobile,
+          email: appt?.email || '',
+          gender: appt?.gender || '',
+          status: appt?.nationality === "95" ? "Citizen" : "Expat"
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load appointment details:", err);
+    }
+  };
+
+  fetchAppointmentDetails();
+}, [appointmentIdFromUrl]);
+
+  
 
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem('suspendedCarts') || '[]');
@@ -41,10 +81,13 @@ const custidFromUrl = searchParams.get('custid');
   }, [items]);
 
   const handlePriceChange = (index, value) => {
-    const updatedItems = [...items];
-    updatedItems[index].price = value;
-    setItems(updatedItems);
-  };
+  const updatedItems = [...items];
+  updatedItems[index].price = value;
+  setItems(updatedItems);
+};
+
+
+
 
   const handleDiscountChange = (index, value) => {
     const updatedItems = [...items];
@@ -75,6 +118,10 @@ const custidFromUrl = searchParams.get('custid');
   const handleClearCart = () => {
     setItems([]);
   };
+
+  const handleApplyPriceOverride = (updatedItems) => {
+  setItems(updatedItems); // Replace main invoice items with overridden prices
+};
 
   const handleSuspendCart = () => {
     if (items.length === 0) return;
@@ -145,7 +192,7 @@ const custidFromUrl = searchParams.get('custid');
                 </a>
               </h3>
               <div className="invdetails">
-                {[{ label: 'Invoice No.', value: currentInvoiceNumber }, { label: 'Invoice Date', value: todayDate }, { label: 'Clinic Name', value: 'Bright Clinic' }]
+                {[{ label: 'Invoice No.:' }, { label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: 'Bright Clinic' }]
                   .map(({ label, value }, index) => (
                     <div className="inventry" key={index}>
                       <label className="inlbl">{label}</label>
@@ -186,6 +233,7 @@ const custidFromUrl = searchParams.get('custid');
               onRemove={handleRemove}
               isFinalized={isFinalized}
               setIsFinalized={setIsFinalized}
+              onApplyPriceOverride={handleApplyPriceOverride}
             />
 
             <div className="invtotalblk">

@@ -1,6 +1,7 @@
 // AddCustomerModal.jsx
 import React, { useState, useEffect } from "react";
-import Toast from "./Toast"; // Adjust the path as needed
+import Toast from "./Toast"; 
+import { API_BASE_URL } from "../../../config";
 
 const AddCustomerModal = ({ onClose }) => {
   const [formData, setFormData] = useState({
@@ -21,30 +22,29 @@ const AddCustomerModal = ({ onClose }) => {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    const fetchNationalities = async () => {
-      try {
-        const response = await fetch("/LoadNationalityHandler.ashx", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ CountryCode: formData.nationalityCountry })
-        });
+  const fetchNationalities = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
 
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setCountryOptions(data);
-          setFormData((prev) => ({
-            ...prev,
-            nationality: data[0]?.id || "",
-            nationalityLabel: data[0]?.Name || ""
-          }));
-        }
-      } catch (err) {
-        console.error("Nationality fetch error:", err);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setCountryOptions(data);
+        setFormData((prev) => ({
+          ...prev,
+          nationality: data[0]?.id?.toString() || "",
+          nationalityLabel: data[0]?.name || ""
+        }));
       }
-    };
+    } catch (err) {
+      console.error("Nationality fetch error:", err);
+    }
+  };
 
-    if (formData.nationalityCountry) fetchNationalities();
-  }, [formData.nationalityCountry]);
+  if (formData.nationalityCountry) fetchNationalities();
+}, [formData.nationalityCountry]);
 
   useEffect(() => {
     const status = formData.nationality === "95" ? "Citizen" : "Expat";
@@ -132,47 +132,54 @@ const AddCustomerModal = ({ onClose }) => {
   };
 
   const createDataHandler = async (dataToSubmit) => {
-    try {
-      const response = await fetch("/CustomerHandler.ashx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataToSubmit),
-      });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dataToSubmit),
+    });
 
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setToast({ message: "Customer added successfully!", type: "success" });
-        setTimeout(() => onClose(), 2000);
-      } else {
-        setToast({
-          message: data.message || "Failed to add customer.",
-          type: "error",
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      setToast({ message: "An error occurred. Try again later.", type: "error" });
+    const data = await response.json();
+    if (response.ok && data.success) {
+      setToast({ message: "Customer added successfully!", type: "success" });
+      setTimeout(() => onClose(), 2000);
+    } else {
+      setToast({
+        message: data.message || "Failed to add customer.",
+        type: "error",
+      });
     }
-  };
+  } catch (error) {
+    console.error(error);
+    setToast({ message: "An error occurred. Try again later.", type: "error" });
+  }
+};
+
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      const payload = {
-        custid: "",
-        fullname: `${formData.firstName} ${formData.lastName}`.trim(),
-        firstname: formData.firstName,
-        lastname: formData.lastName,
-        mobile: formData.mobile,
-        email: formData.email,
-        gender: formData.gender,
-        nationalityid: formData.nationality,
-        nationalitynumber: formData.nationalitynumber,
-        nationalitystatus: formData.nationalityStatus
-      };
-      createDataHandler(payload);
-    }
-  };
+  e.preventDefault();
+  if (validateForm()) {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
+
+    const payload = {
+      id: "", // or generate a UUID if needed
+      mobile: formData.mobile,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      gender: formData.gender,
+      nationalityId: Number(formData.nationality),
+      nationalityStatus: formData.nationalityStatus,
+      centeCode: centerCode,
+      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+      custId: ""
+    };
+
+    createDataHandler(payload);
+  }
+};
+
 
   return (
     <div className="popouter" id="addcust">

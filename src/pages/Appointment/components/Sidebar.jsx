@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import Toast from "./Toast";
+import { API_BASE_URL } from "../../../config";
 
 const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -9,74 +10,85 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
   const navigate = useNavigate();
 
   const createDataHandler = async (payload) => {
-    try {
-      const response = await fetch("/AppointmentOperationHandler.ashx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Fetch failed:", errorText);
-        throw new Error("Failed to update status");
-      }
-      const result = await response.json();
-      if (result?.success) {
-        setToast({ message: "Appointment status updated!", type: "success" });
-        if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-      } else {
-        setToast({ message: "Update failed. Please try again.", type: "error" });
-      }
-    } catch (error) {
-      console.error("Error updating appointment status:", error);
-      setToast({ message: "Error updating appointment.", type: "error" });
+  try {
+    const response = await fetch("https://localhost:44317/api/Appointment/AppOperation", {
+
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Fetch failed:", errorText);
+      throw new Error("Failed to update status");
     }
-      console.log(payload)
-  };
+    const result = await response.json();
+    if (result?.success) {
+      setToast({ message: "Appointment updated successfully!", type: "success" });
+      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
+    } else {
+      setToast({ message: result.message || "Update failed. Please try again.", type: "error" });
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    setToast({ message: "Error while updating appointment.", type: "error" });
+  }
+};
+
 
   const handleStatusChange = (e) => {
-    const newStatus = e.target.value;
-    setStatus(newStatus);
+  const newStatus = e.target.value;
+  setStatus(newStatus);
 
-    const payload = {
-      appointmentid: appointment?.appointmentId,
-      status: newStatus,
-      operation: "STAUTSUPDATE",
-    };
+  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+  const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-    createDataHandler(payload);
+  const payload = {
+    appointmentId: appointment?.appointmentId,
+    status: newStatus,
+    operation: "STATUSUPDATE",
+    centerCode: centerCode
   };
+
+  createDataHandler(payload);
+};
+
 
   const handleDeleteAppointment = () => {
-    if (!window.confirm("Are you sure you want to delete this appointment?")) return;
+  if (!window.confirm("Are you sure you want to delete this appointment?")) return;
 
-    const payload = {
-      appointmentid: appointment?.appointmentId,
-      status: " ",
-      operation: "DELETE",
-    };
-
-    createDataHandler(payload).then(() => {
-      setToast({ message: "Appointment deleted successfully!", type: "success" });
-      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    });
+  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+  const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    
+  const payload = {
+    appointmentId: appointment?.appointmentId,
+    status: "",
+    operation: "DELETE",
+    centerCode: centerCode
   };
+
+  createDataHandler(payload).then(() => {
+    setToast({ message: "Appointment deleted successfully!", type: "success" });
+    if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
+    setTimeout(() => {
+      onClose();
+    }, 2000);
+  });
+};
+
 
   const handleEditClick = () => {
   if (typeof onEdit === 'function') {
-    const nameParts = (appointment.fullname || "").split(" ");
-    const firstname = nameParts.slice(0, -1).join(" ") || nameParts[0] || "";
-    const lastname = nameParts.slice(-1).join(" ") || "";
+    const nameParts = (appointment.fullName || "").split(" ");
+    const firstName = nameParts.slice(0, -1).join(" ") || nameParts[0] || "";
+    const lastName = nameParts.slice(-1).join(" ") || "";
 
     const enrichedAppointment = {
       ...appointment,
-      firstname,
-      lastname
+      firstName,
+      lastName
     };
-
+    console.log(enrichedAppointment)
     onEdit(enrichedAppointment);
     onClose?.();
   }
@@ -85,11 +97,11 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
 
   const goToPaymentPage = () => {
   const queryParams = new URLSearchParams();
-  if (appointment?.custid) queryParams.append("custid", appointment.custid);
-  if (appointment?.fullname) queryParams.append("custname", appointment.fullname);
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
   if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
 
-  navigate(`/payment?${queryParams.toString()}`);
+  navigate(`/invoice?${queryParams.toString()}`);
 };
 
 
@@ -114,9 +126,9 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
               alt="User Icon"
             />
             <h3 className="cstnm">
-              {appointment?.fullname || ""}
+              {appointment?.fullName || ""}
               <div className="cstno">{appointment?.number || "—"}</div>
-              <div className="cstid">{appointment?.custid || "—"}</div>
+              <div className="cstid">{appointment?.custId || "—"}</div>
             </h3>
           </div>
 
@@ -181,9 +193,9 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
                   <img src={`${import.meta.env.BASE_URL}images/Datentime.svg`} alt="Date and Time" />
                 </div>
                 <div className="detaildiv">
-                  <div className="dtlbl">Date & Time</div>
-                  <div className="dtval">
-                    {appointment?.starttime || ""} - {appointment?.endtime || ""}
+                  <div className="appdtlbl">Date & Time</div>
+                  <div className="appdtval">
+                    {appointment?.startTime || ""} - {appointment?.endTime || ""}
                   </div>
                 </div>
               </div>
@@ -193,8 +205,8 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
                   <img src={`${import.meta.env.BASE_URL}images/services.svg`} alt="Services" />
                 </div>
                 <div className="detaildiv">
-                  <div className="dtlbl">Services</div>
-                  <div className="dtval">{appointment?.servicename || "—"}</div>
+                  <div className="appdtlbl">Services</div>
+                  <div className="appdtval">{appointment?.serviceName || "—"}</div>
                 </div>
               </div>
 
@@ -203,8 +215,8 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
                   <img src={`${import.meta.env.BASE_URL}images/noteslist.svg`} alt="Notes" />
                 </div>
                 <div className="detaildiv">
-                  <div className="dtlbl">Notes</div>
-                  <div className="dtval">{appointment?.notes || "—"}</div>
+                  <div className="appdtlbl">Notes</div>
+                  <div className="appdtval">{appointment?.notes || "—"}</div>
                 </div>
               </div>
             </div>

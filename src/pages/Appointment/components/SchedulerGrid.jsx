@@ -6,8 +6,6 @@ import FilterHeader from './FilterHeader';
 import AppointmentHeader from './AppointmentHeader';
 import { API_BASE_URL } from "../../../config";
 
-
-
 const fetchData = async (url, payload = null) => {
   const options = payload
     ? {
@@ -56,25 +54,23 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     }
   }, [newCustomer]);
 
-   useEffect(() => {
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  const centerCode = stored ? JSON.parse(stored).centerCode : "";
+  useEffect(() => {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-  const fetchDoctors = async () => {
-    try {
-      const data = await fetchData(`${API_BASE_URL}/api/Master/LoadAllPractioner/${centerCode}`);
-      const doctorNames = data.map((doc) => doc.name);
-      console.log(doctorNames);
-      setDoctors(doctorNames);
-    } catch (error) {
-      console.error('Error loading doctors:', error);
-    }
-  };
+    const fetchDoctors = async () => {
+      try {
+        const data = await fetchData(`${API_BASE_URL}/api/Master/LoadAllPractioner/${centerCode}`);
+        const doctorNames = data.map((doc) => doc.name);
+        setDoctors(doctorNames);
+      } catch (error) {
+        console.error('Error loading doctors:', error);
+      }
+    };
 
-  fetchDoctors();
-  fetchAppointments(selectedDate);
-}, [selectedDate]);
-
+    fetchDoctors();
+    fetchAppointments(selectedDate);
+  }, [selectedDate]);
 
   useEffect(() => {
     window.refreshAppointments = () => {
@@ -82,15 +78,26 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     };
   }, [selectedDate]);
 
-  const fetchAppointments = async (date, cusID = null) => {
+  const fetchAppointments = async (date) => {
     try {
+      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const centerCode = stored ? JSON.parse(stored).centerCode : "";
+
       const payload = {
         appointmentdate: date,
         searchtext: '',
-        ...(cusID && { cusid: cusID }),
+        centerCode: centerCode
       };
-      const data = await fetchData('/AppointmentDetailsHandler.ashx', payload);
-      setAppointments(data);
+
+      const data = await fetchData(`${API_BASE_URL}/api/Appointment/GetAppDetails`, payload);
+
+      const adapted = data.map(appt => ({
+        ...appt,
+        starttime: appt.startTime,
+        doctorname: appt.doctorName
+      }));
+
+      setAppointments(adapted);
     } catch (error) {
       console.error('Error loading appointments:', error);
     }
@@ -117,64 +124,61 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     }
   };
 
-  // 🔁 Get max stacked appointments per doctor
-  const maxAppointmentsPerDoctor = doctors.map((doctor) => {
-    let maxStack = 1;
-    timeSlots.forEach((time) => {
-      const slotTime = normalizeTime(time);
-      const count = appointments.filter((appt) =>
-        normalizeTime(appt.starttime) === slotTime &&
-        normalizeDoctorName(appt.doctorname) === normalizeDoctorName(doctor)
-      ).length;
-      if (count > maxStack) maxStack = count;
-    });
-    return maxStack;
+  const doctorHeights = doctors.map((doctor) => {
+  let maxStack = 1;
+  timeSlots.forEach((time) => {
+    const slotTime = normalizeTime(time);
+    const count = appointments.filter((appt) =>
+      normalizeTime(appt.startTime) === slotTime &&
+      normalizeDoctorName(appt.doctorName) === normalizeDoctorName(doctor)
+    ).length;
+    if (count > maxStack) maxStack = count;
   });
+  return 64 * maxStack + 10 * (maxStack - 1); // Updated formula
+});
+
 
   const renderAppointments = (time, doctor) => {
-  const slotTime = normalizeTime(time);
-  const filtered = appointments.filter((appt) =>
-    normalizeTime(appt.starttime) === slotTime &&
-    normalizeDoctorName(appt.doctorname) === normalizeDoctorName(doctor)
-  );
+    const slotTime = normalizeTime(time);
+    const filtered = appointments.filter((appt) =>
+      normalizeTime(appt.starttime) === slotTime &&
+      normalizeDoctorName(appt.doctorName) === normalizeDoctorName(doctor)
+    );
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-      {filtered.map((appt, idx) => {
-        const duration = parseInt(appt.duration?.replace(/\D/g, ''), 10) || 5;
-        const width = duration * 14;
-        const statusClass = getStatusClass(appt.status);
-        const extraClass = duration === 5 ? 'smllappt' : '';
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
 
-        return (
-          <div
-            key={appt.appointmentId || idx}
-            className={`appcell ${statusClass} ${extraClass}`}
-            style={{
-              width: `${width}px`,
-              minWidth: '50px'
-            }}
-          >
-            <div className="ptflx">
-              <div className="ptnm">{appt.fullname}</div>
-              <div className={`aptst ${statusClass}`}>
-                <span></span>{appt.status || 'Booked'}
+        {filtered.map((appt, idx) => {
+          const duration = parseInt(appt.duration?.replace(/\D/g, ''), 10) || 5;
+          const width = duration * 14;
+          const statusClass = getStatusClass(appt.status);
+          const extraClass = duration === 5 ? 'smllappt' : '';
+
+          return (
+            <div
+              key={`${appt.appointmentId}-${appt.startTime}-${appt.doctorName}`}
+              className={`appcell ${statusClass} ${extraClass}`}
+              style={{ width: `${width}px`, minWidth: '50px' }}
+            >
+              <div className="ptflx">
+                <div className="ptnm">{appt.fullName}</div>
+                <div className={`aptst ${statusClass}`}>
+                  <span></span>{appt.status || 'Booked'}
+                </div>
               </div>
+              <div className="apptype"><strong>{appt?.serviceName || 'N/A'}</strong></div>
+              <span className="expopup" onClick={() => {
+                setSelectedAppointment(appt);
+                setIsSidebarOpen(true);
+              }}>
+                <img src={`${import.meta.env.BASE_URL}images/expand.svg`} alt="Expand" />
+              </span>
             </div>
-            <div className="apptype"><strong>{appt?.servicename || 'N/A'}</strong></div>
-            <span className="expopup" onClick={() => {
-              setSelectedAppointment(appt);
-              setIsSidebarOpen(true);
-            }}>
-              <img src={`${import.meta.env.BASE_URL}images/expand.svg`} alt="Expand" />
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <section className="calsection">
@@ -184,11 +188,10 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
           setIsDrawerOpen(true);
         }}
         onAddCustomer={onAddCustomer}
-       onDateChange={(date) => {
-  setSelectedDate(date);
-  fetchAppointments(date); // ✅ remove cusid filter
-}}
-
+        onDateChange={(date) => {
+          setSelectedDate(date);
+          fetchAppointments(date);
+        }}
       />
 
       <FilterHeader />
@@ -209,7 +212,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
                 <div
                   key={index}
                   className="lfttm tblcell"
-                  style={{ height: `${80 + (maxAppointmentsPerDoctor[index] - 1) * 15}px` }}
+                  style={{ height: `${doctorHeights[index]}px` }}
                 >
                   {doctor}
                 </div>
@@ -233,10 +236,10 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
                     setIsDrawerOpen(true);
                   }}
                   style={{
+                    height: `${doctorHeights[colIndex]}px`,
                     display: 'flex',
                     flexDirection: 'column',
-                    position: 'relative',
-                    minHeight: `${80 + (maxAppointmentsPerDoctor[colIndex] - 1) * 15}px`
+                    position: 'relative'
                   }}
                 >
                   {renderAppointments(time, doctor)}
@@ -270,7 +273,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
           timeSlot={selectedTimeSlot}
           doctor={selectedDoctor}
           editAppointment={editData}
-          onRefreshAppointments={() => fetchAppointments(selectedDate)} 
+          onRefreshAppointments={() => fetchAppointments(selectedDate)}
         />
       )}
     </section>

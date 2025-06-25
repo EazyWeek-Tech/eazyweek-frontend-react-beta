@@ -4,10 +4,11 @@ import ServiceRequestForm from "./ServiceRequestForm";
 import ServiceList from "./ServiceList";
 import FormFooter from "./FormFooter";
 import Toast from "../../Toast";
+import { API_BASE_URL } from "../../../../../config";
 
 const createDataHandler = async (payload) => {
   try {
-    const response = await fetch("/SaveAppointmentHandler.ashx", {
+    const response = await fetch(`${API_BASE_URL}/api/Appointment/SaveAppointment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -22,8 +23,16 @@ const createDataHandler = async (payload) => {
   }
 };
 
-const ServiceBookingContainer = ({ prefillData, customer, doctor, timeSlot, onClose, onRefreshAppointments }) => {
-  const [customerFormData, setCustomerFormData] = useState(customer || null);
+const ServiceBookingContainer = ({
+  prefillData,
+  customer,
+  doctor,
+  timeSlot,
+  onClose,
+  onRefreshAppointments,
+  isOpen
+}) => {
+  const [customerFormData, setCustomerFormData] = useState(null);
   const [serviceList, setServiceList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [resetKey, setResetKey] = useState(Date.now());
@@ -32,46 +41,60 @@ const ServiceBookingContainer = ({ prefillData, customer, doctor, timeSlot, onCl
   const [lastEndTime, setLastEndTime] = useState("10:00 AM");
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    const data = prefillData || customer;
-    if (data) {
-      setCustomerFormData({
-        name: data.fullname || `${data.firstname || ''} ${data.lastname || ''}`.trim(),
-        number: data.number || data.mobile || '',
-        email: data.email || '',
-        gender: data.gender || '',
-        custid: data.custid || ''
-      });
+  // ✅ Central reset function
+  const resetAllForms = () => {
+    setServiceList([]);
+    setCustomerFormData(null);
+    setEditingIndex(null);
+    setEditingService(null);
+    setLastEndTime("10:00 AM");
+    setResetKey(Date.now());
+  };
 
-      if (prefillData) {
-        setServiceList([
-          {
-            service: {
-              servicename: prefillData.servicename,
-              servicecode: prefillData.servicecode,
-              practitioner: prefillData.doctorname,
-              start: prefillData.starttime,
-              end: prefillData.endtime,
-              room: prefillData.room,
-              note: prefillData.notes,
-              duration: prefillData.duration?.replace("mins", "") || "5",
-              preference: prefillData.preference || "any",
-              amount: 100,
-              equipment: prefillData.equipment || "N/A"
-            },
-            customer: {
-              name: prefillData.fullname,
-              number: prefillData.number,
-              email: prefillData.email,
-              gender: prefillData.gender,
-              custid: prefillData.custid
+  // ✅ Reset when drawer opens or new customer/edit data comes
+  useEffect(() => {
+    if (isOpen) {
+      resetAllForms();
+
+      const data = prefillData || customer;
+      if (data) {
+        setCustomerFormData({
+          name: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+          number: data.number || data.mobile || '',
+          email: data.email || '',
+          gender: data.gender || '',
+          custid: data.custid || ''
+        });
+
+        if (prefillData) {
+          setServiceList([
+            {
+              service: {
+                servicename: prefillData.serviceName,
+                servicecode: prefillData.serviceCode,
+                practitioner: prefillData.doctorName,
+                start: prefillData.startTime,
+                end: prefillData.endTime,
+                room: prefillData.room,
+                note: prefillData.notes,
+                duration: prefillData.duration?.replace("mins", "") || "5",
+                preference: prefillData.preference || "any",
+                amount: 100,
+                equipment: prefillData.equipment || "N/A"
+              },
+              customer: {
+                name: prefillData.fullName,
+                number: prefillData.number,
+                email: prefillData.email,
+                gender: prefillData.gender,
+                custid: prefillData.custid
+              }
             }
-          }
-        ]);
+          ]);
+        }
       }
-      setResetKey(Date.now());
     }
-  }, [prefillData, customer]);
+  }, [isOpen, prefillData, customer]);
 
   const handleAddService = (serviceData) => {
     if (!customerFormData) {
@@ -82,29 +105,25 @@ const ServiceBookingContainer = ({ prefillData, customer, doctor, timeSlot, onCl
       customer: JSON.parse(JSON.stringify(customerFormData)),
       service: JSON.parse(JSON.stringify(serviceData))
     };
+
     if (editingIndex !== null) {
       const updatedList = [...serviceList];
       updatedList[editingIndex] = combinedData;
       setServiceList(updatedList);
       setEditingIndex(null);
       setEditingService(null);
-
-      if (typeof onRefreshAppointments === 'function') onRefreshAppointments();
-      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
     } else {
       setServiceList((prev) => [...prev, combinedData]);
     }
+
     setLastEndTime(serviceData.end);
     setResetKey(Date.now());
   };
 
   const handleDelete = (index) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this service?");
-    if (!confirmDelete) return;
-    setServiceList((prev) => prev.filter((_, i) => i !== index));
-    setToast({ message: "Service removed.", type: "info" });
-    if (typeof onRefreshAppointments === 'function') onRefreshAppointments();
-    if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
+    if (window.confirm("Are you sure you want to delete this service?")) {
+      setServiceList((prev) => prev.filter((_, i) => i !== index));
+    }
   };
 
   const handleEdit = (index) => {
@@ -119,36 +138,36 @@ const ServiceBookingContainer = ({ prefillData, customer, doctor, timeSlot, onCl
       setToast({ message: "Missing customer or service data.", type: "error" });
       return;
     }
-    const payload = serviceList.map((entry, index) => ({
-      CustID: entry.customer.custid || " ",
-      AppointmentDate: new Date().toISOString().split("T")[0],
-      StartTime: entry.service.start,
-      EndTime: entry.service.end,
-      Duration: entry.service.duration,
-      LineNo: index + 1,
-      ServiceCode: entry.service.servicecode,
-      ServiceName: entry.service.servicename,
-      Practioner: entry.service.practitioner,
-      Preference: entry.service.preference,
-      Notes: entry.service.note,
-      Amount: entry.service.amount,
-      Room: entry.service.room,
-    }));
+
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const parsedUser = stored ? JSON.parse(stored) : {};
+
+    const payload = {
+      custID: customerFormData.custid || "",
+      appointmentDate: new Date().toISOString().split("T")[0],
+      userId: parsedUser.userID || "",
+      centerCode: parsedUser.centerCode || "",
+      saveAppointment: serviceList.map((entry, index) => ({
+        startTime: entry.service.start,
+        endTime: entry.service.end,
+        duration: entry.service.duration,
+        lineNo: (index + 1).toString(),
+        serviceCode: entry.service.servicecode,
+        practioner: entry.service.practitioner,
+        preference: entry.service.preference,
+        notes: entry.service.note,
+        amount: entry.service.amount.toString(),
+        room: entry.service.room,
+      })),
+    };
 
     const result = await createDataHandler(payload);
 
     if (result.success) {
       setToast({ message: result.message, type: "success" });
-      setServiceList([]);
-      setCustomerFormData(null);
-      setEditingIndex(null);
-      setEditingService(null);
-      setLastEndTime("10:00 AM");
-      setResetKey(Date.now());
-
+      resetAllForms();
       if (typeof onClose === 'function') onClose();
       if (typeof onRefreshAppointments === 'function') onRefreshAppointments();
-      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
     } else {
       setToast({ message: result.message, type: "error" });
     }
@@ -189,12 +208,7 @@ const ServiceBookingContainer = ({ prefillData, customer, doctor, timeSlot, onCl
         <button
           className="restbtn"
           onClick={() => {
-            setServiceList([]);
-            setCustomerFormData(null);
-            setEditingIndex(null);
-            setEditingService(null);
-            setLastEndTime("10:00 AM");
-            setResetKey(Date.now());
+            resetAllForms();
             if (typeof onClose === 'function') onClose();
           }}
         >

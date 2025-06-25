@@ -39,11 +39,11 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
 
   useEffect(() => {
   if (!prefillData && !resetTrigger) return;
-
+    console.log(prefillData)
   const resetData = {
     number: prefillData?.number || prefillData?.mobile || "",
-    firstname: prefillData?.firstname || prefillData?.fullname?.split(" ")[0] || "",
-    lastname: prefillData?.lastname || (prefillData?.fullname?.split(" ").slice(1).join(" ") || ""),
+    firstname: prefillData?.firstname || prefillData?.name?.split(" ")[0] || "",
+    lastname: prefillData?.lastname || (prefillData?.name?.split(" ").slice(1).join(" ") || ""),
     email: prefillData?.email || "",
     gender: prefillData?.gender || "",
     custid: prefillData?.custid || ""
@@ -107,13 +107,14 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
 
   const handleSuggestionSelect = (item) => {
     const selected = {
-      number: item.mobile || "",
-      firstname: item.firstName || "",
-      lastname: item.lastName || "",
-      email: item.email || "",
-      gender: item.gender || "",
-      custid: item.custid || item.id || "",
-    };
+  number: item.mobile || "",
+  firstname: item.firstName || "",
+  lastname: item.lastName || "",
+  email: item.email || "",
+  gender: item.gender || "",
+  custid: item.custId || item.custid || item.id || "", 
+};
+
     setFormData(selected);
     setCustomerData?.(selected);
     setCustomerFormData?.(selected);

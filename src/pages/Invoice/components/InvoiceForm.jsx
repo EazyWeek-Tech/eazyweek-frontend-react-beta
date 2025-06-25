@@ -94,13 +94,14 @@ const InvoiceForm = ({ onAddItem, resetKey, customer, showToast }) => {
   };
 
   const handleSelect = (item) => {
-    setFormData({
-      package: item.packageName || item.name || '',
-      product: item.productname || '',
-      service: item.servicename || '',
-      practitioner: '',
-      giftcard: ''
-    });
+    setFormData((prevFormData) => ({
+  package: item.packageName || item.name || '',
+  product: item.productName || '',
+  service: item.serviceName || '',
+  giftcard: '',
+  practitioner: prevFormData.practitioner || ''
+}));
+
     setFilteredSuggestions([]);
     setFieldFocused(null);
     setSelectedItem(item);
@@ -113,12 +114,12 @@ const handleSelectPractitioner = (name) => {
 };
 
   const handleAdd = () => {
-  if (!customer || !customer.firstName || !customer.fullName || !customer.mobile?.trim()) {
+  if (!customer || !customer.firstName || !customer.fullName ) {
     showToast?.("Please fill in the customer details before adding a product.");
     return;
   }
 
-  if (!formData.practitioner.trim()) {
+  if (!formData.practitioner || !formData.practitioner.trim()) {
     showToast?.("Please select a practitioner before adding the item.");
     return;
   }
@@ -130,11 +131,11 @@ const handleSelectPractitioner = (name) => {
       name = selectedItem.packageName || selectedItem.name || 'Unnamed Package';
       code = selectedItem.packageCode || selectedItem.code || '';
     } else if (selectedItem.type === 'service') {
-      name = selectedItem.servicename || 'Unnamed Service';
-      code = selectedItem.servicecode || selectedItem.code || '';
+      name = selectedItem.serviceName || 'Unnamed Service';
+      code = selectedItem.serviceCode || selectedItem.code || '';
     } else if (selectedItem.type === 'product') {
-      name = selectedItem.productname || 'Unnamed Product';
-      code = selectedItem.productcode || selectedItem.code || '';
+      name = selectedItem.productName || 'Unnamed Product';
+      code = selectedItem.productCode || selectedItem.code || '';
     }
 
     const matchedPractitioner = practitioners.find(p => p.name === formData.practitioner);
@@ -147,12 +148,20 @@ const handleSelectPractitioner = (name) => {
       discount: '',
       practitionerName: matchedPractitioner?.name || formData.practitioner,
       practitionerCode: matchedPractitioner?.id || '',
-      taxpercent: selectedItem.taxpercent ?? '0.00',
+      taxpercent: selectedItem.taxPercent ?? '0.00',
       citizentax: selectedItem.citizentax ?? '0.00'
     };
 
-    onAddItem(newItem);
+       onAddItem(newItem);
     setSelectedItem(null);
+    setFormData(prev => ({
+      ...prev,
+      package: '',
+      product: '',
+      service: '',
+      giftcard: ''
+    }));
+
   }
 };
 
@@ -176,7 +185,7 @@ const handleSelectPractitioner = (name) => {
               <ul className="suggestion-list">
                 {filteredSuggestions.map((item, idx) => (
                   <li key={idx} onClick={() => handleSelect(item)}>
-                    {item.packageName || item.productname || item.servicename || item.name}
+                    {item.packageName || item.productName || item.serviceName || item.name}
                   </li>
                 ))}
               </ul>
@@ -184,25 +193,24 @@ const handleSelectPractitioner = (name) => {
           </div>
         ))}
 
-        <div className="form-group" style={{ position: 'relative' }}>
-          <input
-            type="text"
-            placeholder=" "
-            id="practitioner"
-            value={formData.practitioner}
-            onChange={(e) => handleChange('practitioner', e.target.value)}
-          />
-          <label htmlFor="practitioner" className="frmlbl">Practitioner</label>
-          {filteredPractitioners.length > 0 && fieldFocused === 'practitioner' && (
-  <ul className="suggestion-list">
-    {filteredPractitioners.map((item, idx) => (
-      <li key={idx} onClick={() => handleSelectPractitioner(item.name)}>
-        {item.name}
-      </li>
+        <div className="form-group">
+  <select
+    id="practitioner"
+    value={formData.practitioner}
+    onChange={(e) => {
+      const selectedName = e.target.value;
+      setFormData((prev) => ({ ...prev, practitioner: selectedName }));
+    }}
+  >
+    <option value="">Select Practitioner</option>
+    {practitioners.map((p) => (
+      <option key={p.id} value={p.name}>
+        {p.name}
+      </option>
     ))}
-  </ul>
-)}
-        </div>
+  </select>
+</div>
+
 
         <div className="form-group">
           <input

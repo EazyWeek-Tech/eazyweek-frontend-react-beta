@@ -100,27 +100,26 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     }
   };
 
-   const handleServiceSelect = async (servicename) => {
-    const selectedService = filteredServices.find((s) => s.servicename === servicename);
-    const servicecode = selectedService?.servicecode || "";
+   const handleServiceSelect = async (serviceName) => {
+  const selectedService = filteredServices.find(s => s.serviceName === serviceName);
+  const serviceCode = selectedService?.serviceCode || "";
 
-    setFormData((prevData) => ({
-      ...prevData,
-      servicename,
-      servicecode,
-      practitioner: ""
-    }));
+  setFormData((prevData) => ({
+    ...prevData,
+    servicename: serviceName,
+    servicecode: serviceCode,
+    practitioner: "", // Reset practitioner
+  }));
 
-    setFilteredServices([]);
+  setFilteredServices([]);
 
-    if (!servicecode) return;
+    if (!serviceCode) return;
 
     try {
       const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
-      const practitionerUrl = `${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(servicecode)}/${centerCode}`;
+      const practitionerUrl = `${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(serviceCode)}/${centerCode}`;
       const doctors = await createDataHandler(practitionerUrl);
-      console.log(practitionerUrl)
       setPractitioners(doctors);
     } catch (error) {
       console.error("Failed to fetch practitioners for selected service code:", error);
@@ -277,11 +276,13 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             {errors.servicename && <div className="error">{errors.servicename}</div>}
             {filteredServices.length > 0 && (
               <ul className="suggestions">
-                {filteredServices.map((item, index) => (
-                  <li key={index} onClick={() => handleServiceSelect(item.servicename)}>
-                    {item.servicename}
-                  </li>
-                ))}
+               {filteredServices.map((item, index) => (
+  <li key={index} onClick={() => handleServiceSelect(item.serviceName)}>
+    {item.serviceName}
+  </li>
+))}
+
+
               </ul>
             )}
           </div>
