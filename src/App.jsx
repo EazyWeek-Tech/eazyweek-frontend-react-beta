@@ -17,8 +17,90 @@ function App() {
 
   const navigate = useNavigate();
 
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
+
   const handleLoginSuccess = (user) => {
     setUser(user);
+    navigate("/cases", { replace: true }); // ✅ redirect to /cases
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchCases({ owner: "", priority: "", assignTo: "", status: "" });
+      fetchEmployees();
+    }
+  }, [user]);
+
+  const applyClientFilters = (records, filters) => {
+    return records.filter((rec) => {
+      return (
+        (!filters.owner || rec.createdby === filters.owner) &&
+        (!filters.priority || rec.priority === filters.priority) &&
+        (!filters.assignTo || rec.assignedto === filters.assignTo) &&
+        (!filters.status || rec.status === filters.status)
+      );
+    });
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      const filtered = data.filter(
+        (emp) => emp.employeeCode && emp.employeeName !== "Assign To"
+      );
+      setEmployees(filtered);
+    } catch (err) {
+      console.error("Failed to fetch employees:", err);
+    }
+  };
+
+  const fetchCases = async (filters) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/CaseOperation/CaseDB`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(filters),
+        }
+      );
+      const data = await res.json();
+      console.log('case data')
+      console.log(data)
+      const mapped = data.map((item) => ({
+        caseno: item.caseNO,
+        casetitle: item.caseTitle ?? "-",
+        status: item.status,
+        priority: item.priority ?? "-",
+        category: item.category,
+        subCategory: item.subCategory,
+        subSubCategory: item.subSubCategory,
+        subSubSubCategory: item.subSubSubCategory,
+        assignedto: item.assignTo?.trim() || "-",
+        createdby: item.owner || "-",
+        createddate:
+          item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
+            ? new Date(item.createdDate).toLocaleString("en-US", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
+            : "-",
+      }));
+      mapped.sort(
+        (a, b) => new Date(b.createddate) - new Date(a.createddate)
+      );
+      setCaseRecords(mapped);
+    } catch (err) {
+      console.error("Failed to fetch cases:", err);
+    }
     navigate("/dashboard");
   };
 

@@ -8,7 +8,6 @@ const Login = ({ onLoginSuccess }) => {
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);

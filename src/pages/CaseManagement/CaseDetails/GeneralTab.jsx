@@ -10,7 +10,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
   const [customerSearchText, setCustomerSearchText] = useState("");
   const [customerOptions, setCustomerOptions] = useState([]);
   const [initialSourceFetched, setInitialSourceFetched] = useState(false);
-
+ const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
   useImperativeHandle(ref, () => ({
     getGeneralData: () => formValues,
   }));

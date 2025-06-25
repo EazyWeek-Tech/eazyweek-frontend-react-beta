@@ -28,6 +28,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
   const toastRef = useRef(null);
 
+  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
+
   useEffect(() => {
     if (toastRef.current) {
       toastRef.current.style.display = "none";
