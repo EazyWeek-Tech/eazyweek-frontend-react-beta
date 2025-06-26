@@ -155,7 +155,7 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="width: 33%; text-align: left; vertical-align: middle;">
-            <img src="logo.jpg" alt="Logo" style="max-height: 80px;" />
+            <img src="/images/bright.png" alt="Logo" style="max-height: 80px;" />
           </td>
           <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
             Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
@@ -171,6 +171,8 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
 
 
         <table style="width: 100%; border-collapse: collapse;">
+        <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${generatedInvoiceNumber}</p>
+</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.firstName || ''} ${customer?.lastName || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Mobile:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.mobile || customer?.number || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Nationality Status:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.status || ''}</td></tr>
@@ -223,7 +225,16 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
   printWindow.focus();
   printWindow.print();
 };
-
+const resetAll = () => {
+  setPayments([]);
+  setFormData({});
+  setAmount(parsedTotalAmount.toString());
+  setActiveTab('cash');
+  setFormError('');
+  setGeneratedInvoiceNumber('');
+  setLastGeneratedInvoiceHtml('');
+  setInvoiceSuccessPopup(false);
+};
 const handleEmailInvoice = async () => {
   if (!generatedInvoiceNumber) {
     setToast({ message: "Invoice number not generated yet.", type: "error" });
@@ -236,7 +247,7 @@ const handleEmailInvoice = async () => {
     custEmailID: customer?.email || "",
     invoiceHtml: lastGeneratedInvoiceHtml || ""  // ← We'll capture latest HTML below
   };
-
+console.log(invoiceHtmlPayload)
   try {
     const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
       method: "POST",
@@ -292,7 +303,8 @@ console.log(customer)
       tax: parseFloat(tax.toFixed(2)),
       roundingOff: 0,
       sumTotal: parseFloat(parsedTotalAmount.toFixed(2)),
-      isClosed: 1
+      isClosed: 1,
+      appointmentID: "",
     }
   ];
 
@@ -334,7 +346,7 @@ const getPaymentModeKey = (label) => {
     paymentDate: now
   }));
 const user = JSON.parse(sessionStorage.getItem("user") || localStorage.getItem("user") || '{}');
-console.log(user)
+console.log(paymentJson)
 const createdBy = user?.userId || '';
 const centerCode = user?.centerCode || '';
 
@@ -362,7 +374,7 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
     if (result.success) {
       setToast({ message: 'Invoice submitted successfully!', type: 'success' });
   setPayments([]);
-  setGeneratedInvoiceNumber(result.invoiceNumber || ''); // Adjust key based on actual API response
+  setGeneratedInvoiceNumber(result.message || ''); // Adjust key based on actual API response
   setInvoiceSuccessPopup(true);
     } else {
       setToast({ message: result.message || 'Submission failed', type: 'error' });
@@ -541,20 +553,11 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
         </div>
 
         {payments.length > 0 && (
-        <div className="frmdiv" style={{ textAlign: 'center', marginTop: '20px' }}>
-          <div className="frmdiv" style={{ textAlign: 'center', marginTop: '20px' }}>
+          <div className="frmdiv" style={{ textAlign: 'center' }}>
     <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled}>
       Complete Invoice
     </button>
   </div>
-          <div>
-            <button className="pribtnblue" onClick={handlePrintInvoice} style={{ marginRight: '10px' }}>
-  Print Invoice
-</button>
-            <button className="pribtnblue" onClick={handleEmailInvoice}>Email Invoice</button>
-
-          </div>
-        </div>
       )}
 
 
@@ -565,12 +568,13 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
         
 
         {invoiceSuccessPopup && (
-  <div className="popouter active">
+  <div className="popouter active smallinvoicepopup">
     <div className="popovrly" onClick={() => setInvoiceSuccessPopup(false)}></div>
-    <div className="popin manualdisc">
+    <div className="popin">
       <div className="popuphdr">
         Invoice Submitted
-        <span className="clsbtn" onClick={() => setInvoiceSuccessPopup(false)}>
+        <span className="clsbtn" onClick={resetAll}>
+
           <img src="images/clsic.svg" alt="Close" />
         </span>
       </div>

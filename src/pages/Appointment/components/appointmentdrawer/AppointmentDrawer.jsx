@@ -11,19 +11,23 @@ const AppointmentDrawer = ({
   onRefreshAppointments,
 }) => {
   const drawerRef = useRef(null);
+  const [drawerResetKey, setDrawerResetKey] = useState(Date.now());
   const [height, setHeight] = useState(433);
   const [isResizing, setIsResizing] = useState(false);
 
-  //Track key to force ServiceBookingContainer reset on every drawer open
-  const [drawerKey, setDrawerKey] = useState(0);
-
+  // Drawer open/close animation and key-based full reset
   useEffect(() => {
-    if (isOpen) {
-      // When drawer opens → force child component remount
-      setDrawerKey(Date.now());
+    if (drawerRef.current) {
+      if (isOpen) {
+        drawerRef.current.classList.add("expand");
+        setDrawerResetKey(Date.now());  // Trigger full unmount/remount
+      } else {
+        drawerRef.current.classList.remove("expand");
+      }
     }
-  }, [isOpen, editAppointment, customer, timeSlot]);
+  }, [isOpen]);
 
+  // Height resize handling
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isResizing) return;
@@ -42,18 +46,8 @@ const AppointmentDrawer = ({
     };
   }, [isResizing]);
 
-  useEffect(() => {
-    if (drawerRef.current) {
-      if (isOpen) {
-        drawerRef.current.classList.add("expand");
-      } else {
-        drawerRef.current.classList.remove("expand");
-      }
-    }
-  }, [isOpen]);
-
   const handleClose = () => {
-    onClose?.();
+    onClose();
   };
 
   return (
@@ -80,12 +74,12 @@ const AppointmentDrawer = ({
         <div className="apptfrm flxwrp">
           <div className="clpse" onClick={handleClose}>
             <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#000000">
-              <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z" />
+              <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
             </svg>
           </div>
 
           <ServiceBookingContainer
-            key={drawerKey} // Force reset on open or prop change
+            key={drawerResetKey}  // 👈 The key that triggers full reset
             prefillData={editAppointment}
             customer={customer}
             doctor={doctor}

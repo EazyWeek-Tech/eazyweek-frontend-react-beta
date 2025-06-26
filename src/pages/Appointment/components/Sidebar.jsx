@@ -11,7 +11,7 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
 
   const createDataHandler = async (payload) => {
   try {
-    const response = await fetch("https://localhost:44317/api/Appointment/AppOperation", {
+    const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
 
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,12 +42,13 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
 
   const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
   const centerCode = stored ? JSON.parse(stored).centerCode : "";
-
+    console.log(appointment)
   const payload = {
     appointmentId: appointment?.appointmentId,
     status: newStatus,
     operation: "STATUSUPDATE",
-    centerCode: centerCode
+    centerCode: centerCode,
+    lineNo: appointment?.lineNo,
   };
 
   createDataHandler(payload);
@@ -64,8 +65,11 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
     appointmentId: appointment?.appointmentId,
     status: "",
     operation: "DELETE",
-    centerCode: centerCode
+    centerCode: centerCode,
+    lineNo: appointment?.lineNo,
   };
+
+  console.log(payload)
 
   createDataHandler(payload).then(() => {
     setToast({ message: "Appointment deleted successfully!", type: "success" });
@@ -88,6 +92,7 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
       firstName,
       lastName
     };
+    console.log('edit appt click data')
     console.log(enrichedAppointment)
     onEdit(enrichedAppointment);
     onClose?.();

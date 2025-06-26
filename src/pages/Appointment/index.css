@@ -992,6 +992,8 @@ table {
 
         }
 
+        .smallinvoicepopup .btnbar{gap: 15px; margin: 15px 0 0;}
+
         .popouter {
             position: fixed;
             left: 0;

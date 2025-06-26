@@ -1,6 +1,5 @@
-// AddCustomerModal.jsx
 import React, { useState, useEffect } from "react";
-import Toast from "./Toast"; 
+import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
 
 const AddCustomerModal = ({ onClose }) => {
@@ -10,7 +9,7 @@ const AddCustomerModal = ({ onClose }) => {
     lastName: "",
     email: "",
     gender: "",
-    nationalityCountry: "10", // Default to SA
+    nationalityCountry: "10", // Default to Saudi
     nationality: "",
     nationalityLabel: "",
     nationalityStatus: "",
@@ -22,32 +21,31 @@ const AddCustomerModal = ({ onClose }) => {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-  const fetchNationalities = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setCountryOptions(data);
-        setFormData((prev) => ({
-          ...prev,
-          nationality: data[0]?.id?.toString() || "",
-          nationalityLabel: data[0]?.name || ""
-        }));
+    const fetchNationalities = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setCountryOptions(data);
+          setFormData((prev) => ({
+            ...prev,
+            nationality: data[0]?.id?.toString() || "",
+            nationalityLabel: data[0]?.name || ""
+          }));
+        }
+      } catch (err) {
+        console.error("Nationality fetch error:", err);
       }
-    } catch (err) {
-      console.error("Nationality fetch error:", err);
-    }
-  };
+    };
 
-  if (formData.nationalityCountry) fetchNationalities();
-}, [formData.nationalityCountry]);
+    if (formData.nationalityCountry) fetchNationalities();
+  }, [formData.nationalityCountry]);
 
   useEffect(() => {
-    const status = formData.nationality === "95" ? "Citizen" : "Expat";
+    const status = formData.nationality === "84" ? "Citizen" : "Expat";
     setFormData((prev) => ({ ...prev, nationalityStatus: status }));
   }, [formData.nationality]);
 
@@ -119,7 +117,7 @@ const AddCustomerModal = ({ onClose }) => {
       setFormData((prev) => ({
         ...prev,
         nationality: value,
-        nationalityLabel: selected?.Name || ""
+        nationalityLabel: selected?.name || ""
       }));
     } else {
       setFormData((prev) => ({ ...prev, [id]: value }));
@@ -132,54 +130,54 @@ const AddCustomerModal = ({ onClose }) => {
   };
 
   const createDataHandler = async (dataToSubmit) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataToSubmit),
-    });
+    console.log('Customer Data:', dataToSubmit);
 
-    const data = await response.json();
-    if (response.ok && data.success) {
-      setToast({ message: "Customer added successfully!", type: "success" });
-      setTimeout(() => onClose(), 2000);
-    } else {
-      setToast({
-        message: data.message || "Failed to add customer.",
-        type: "error",
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSubmit),
       });
-    }
-  } catch (error) {
-    console.error(error);
-    setToast({ message: "An error occurred. Try again later.", type: "error" });
-  }
-};
 
+      const data = await response.json();
+      console.log('API Response:', data);
+      if (response.ok && data.success) {
+        setToast({ message: "Customer added successfully!", type: "success" });
+        setTimeout(() => onClose(), 2000);
+      } else {
+        setToast({ message: data.message || "Failed to add customer.", type: "error" });
+      }
+    } catch (error) {
+      console.error(error);
+      setToast({ message: "An error occurred. Try again later.", type: "error" });
+    }
+  };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (validateForm()) {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-    const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    e.preventDefault();
+    if (validateForm()) {
+      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-    const payload = {
-      id: "", // or generate a UUID if needed
-      mobile: formData.mobile,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      gender: formData.gender,
-      nationalityId: Number(formData.nationality),
-      nationalityStatus: formData.nationalityStatus,
-      centeCode: centerCode,
-      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-      custId: ""
-    };
-
-    createDataHandler(payload);
-  }
+      const payload = {
+  id: "",
+  mobile: formData.mobile,
+  firstName: formData.firstName,
+  lastName: formData.lastName,
+  email: formData.email,
+  gender: formData.gender,
+  nationalityId: Number(formData.nationality),
+  nationalityStatus: formData.nationalityStatus,
+  centerCode: centerCode,
+  fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+  custId: ""
 };
 
+
+      createDataHandler(payload);
+      console.log(payload)
+    }
+  };
 
   return (
     <div className="popouter" id="addcust">
@@ -213,9 +211,7 @@ const AddCustomerModal = ({ onClose }) => {
             ))}
 
             <div className="frmdiv">
-              <label htmlFor="gender">
-                Gender: <span className="rd">*</span>
-              </label>
+              <label htmlFor="gender">Gender: <span className="rd">*</span></label>
               <div className="inptdiv">
                 <select
                   id="gender"
@@ -240,16 +236,13 @@ const AddCustomerModal = ({ onClose }) => {
                   onChange={handleChange}
                 >
                   <option value="10">Saudi Arabia</option>
-                  <option value="91">India</option>
-                  <option value="971">UAE</option>
+                  <option value="91">Spain</option>
                 </select>
               </div>
             </div>
 
             <div className="frmdiv">
-              <label htmlFor="nationality">
-                Nationality: <span className="rd">*</span>
-              </label>
+              <label htmlFor="nationality">Nationality: <span className="rd">*</span></label>
               <div className="inptdiv">
                 <select
                   id="nationality"
@@ -259,26 +252,16 @@ const AddCustomerModal = ({ onClose }) => {
                 >
                   <option value="">Select Nationality</option>
                   {countryOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.Name}
-                    </option>
+                    <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
                 {errors.nationality && <div className="error">{errors.nationality}</div>}
               </div>
             </div>
 
-            {formData.nationalityCountry === "10" && (
+            {formData.nationality === "84" && (
               <div className="frmdiv">
-                <label htmlFor="nationalityStatus">Nationality Status:</label>
-                <div className="inptdiv">
-                  <input
-                    type="text"
-                    id="nationalityStatus"
-                    value={formData.nationalityStatus}
-                    readOnly
-                  />
-                </div>
+                <div>Citizenship status of customer is {formData.nationalityStatus}</div>
               </div>
             )}
 
