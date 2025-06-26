@@ -228,9 +228,9 @@
     }
 
     .srvlistdiv .pymnttab.activetab img{filter: unset;}
-    .nstatus{margin: 20px 0 0; color: #334B71; font-size: 14px; font-weight: 700; text-transform: uppercase;background: green;color: #fff; display: inline-block; padding: 10px;border-radius: 5px;}
-    .nstatus.expat{background: #ff0000;}
-
+    .nstatus{margin: 0px 0 10px; color: #01c462; font-size: 14px; font-weight: 700; text-transform: capitalize; display: inline-block; border-radius: 5px;}
+    .nstatus.expat{color: #ff0000;}
+    .custtl{display: flex;gap: 10px; align-items: center;}
     .sectttl:before {
         background: #334B71;
         content: '';
@@ -826,9 +826,9 @@
 
 .btnflxinv.actwrp{display: flex; justify-content: space-between;flex-direction: row;}
 
-.pymntlintbl{max-height: 158px;
+.pymntlintbl{max-height: 120px;
     overflow-y: auto;
-    min-height: 158px;
+    min-height: 120px;
     border: 1px solid #CCC;}
 
     .outpymnt{display: flex;}

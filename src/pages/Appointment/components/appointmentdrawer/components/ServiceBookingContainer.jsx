@@ -53,48 +53,64 @@ const ServiceBookingContainer = ({
 
   // ✅ Reset when drawer opens or new customer/edit data comes
   useEffect(() => {
-    if (isOpen) {
-      resetAllForms();
+  if (isOpen) {
+    resetAllForms();
 
-      const data = prefillData || customer;
-      if (data) {
-        setCustomerFormData({
-          name: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim(),
-          number: data.number || data.mobile || '',
-          email: data.email || '',
-          gender: data.gender || '',
-          custid: data.custid || ''
-        });
+    const data = prefillData || customer;
+    console.log(prefillData)
+    if (data) {
+      setCustomerFormData({
+        name: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+        number: data.number || data.mobile || '',
+        email: data.email || '',
+        gender: data.gender || '',
+        custid: data.custid || ''
+      });
 
-        if (prefillData) {
-          setServiceList([
-            {
-              service: {
-                servicename: prefillData.serviceName,
-                servicecode: prefillData.serviceCode,
-                practitioner: prefillData.doctorName,
-                start: prefillData.startTime,
-                end: prefillData.endTime,
-                room: prefillData.room,
-                note: prefillData.notes,
-                duration: prefillData.duration?.replace("mins", "") || "5",
-                preference: prefillData.preference || "any",
-                amount: 100,
-                equipment: prefillData.equipment || "N/A"
-              },
-              customer: {
-                name: prefillData.fullName,
-                number: prefillData.number,
-                email: prefillData.email,
-                gender: prefillData.gender,
-                custid: prefillData.custid
-              }
+      if (prefillData?.serviceName && prefillData?.serviceCode) {
+        setServiceList([
+          {
+            service: {
+              servicename: prefillData.serviceName,
+              servicecode: prefillData.serviceCode,
+              practitioner: prefillData.doctorName,
+              start: prefillData.startTime,
+              end: prefillData.endTime,
+              room: prefillData.room,
+              note: prefillData.notes,
+              duration: prefillData.duration?.replace(" mins", "") || "5",
+              preference: prefillData.preference || "any",
+              amount: 100,
+              equipment: prefillData.equipment || "N/A"
+            },
+            customer: {
+              name: prefillData.fullName,
+              number: prefillData.number,
+              email: prefillData.email,
+              gender: prefillData.gender,
+              custid: prefillData.custid
             }
-          ]);
-        }
+          }
+        ]);
+
+        setEditingService({
+          servicename: prefillData.serviceName,
+          servicecode: prefillData.serviceCode,
+          practitioner: prefillData.doctorId || "",
+          startTime: prefillData.startTime,
+          duration: prefillData.duration?.replace(" mins", "") || "5",
+          endTime: prefillData.endTime,
+          room: prefillData.room,
+          note: prefillData.notes,
+          preference: prefillData.preference || "any",
+          amount: 100,
+          equipment: prefillData.equipment || "N/A"
+        });
       }
     }
-  }, [isOpen, prefillData, customer]);
+  }
+}, [isOpen, prefillData, customer]);
+
 
   const handleAddService = (serviceData) => {
     if (!customerFormData) {
