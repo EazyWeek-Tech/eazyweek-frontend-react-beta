@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
 
 const Login = ({ onLoginSuccess }) => {
@@ -7,6 +8,22 @@ const Login = ({ onLoginSuccess }) => {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
+  const navigate = useNavigate();
+
+  const getSessionFromApi = async (loginCenterCode, topCenterCode) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/session/get/${loginCenterCode}/${topCenterCode}`);
+      if (!response.ok) throw new Error("Failed to fetch session info");
+
+      const data = await response.json();
+      console.log("Session API Response:", data);
+
+      // Store session info if needed
+      sessionStorage.setItem("userSession", JSON.stringify(data));
+    } catch (error) {
+      console.error("Error fetching session:", error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,22 +46,33 @@ const Login = ({ onLoginSuccess }) => {
       if (!response.ok) throw new Error("Login failed");
 
       const data = await response.json();
-      console.log("Data");
-      console.log(data);
+      console.log("Login API Response:", data);
 
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         setError("Invalid credentials.");
       } else {
         const user = data[0];
         setUserInfo(user);
 
+        // Save user to localStorage or sessionStorage
         if (remember) {
-  localStorage.setItem("user", JSON.stringify(user));
-} else {
-  localStorage.setItem("user", JSON.stringify(user));
-}
+          localStorage.setItem("user", JSON.stringify(user));
+        } else {
+          sessionStorage.setItem("user", JSON.stringify(user));
+        }
 
+        // Now: Call session API
+        const loginCenterCode = user.centerCode || "";
+        const topCenterCode = user.topCenterCode || "";
+        if (loginCenterCode && topCenterCode) {
+          await getSessionFromApi(loginCenterCode, topCenterCode);
+        }
+
+        // Fire parent callback
         onLoginSuccess(user);
+
+        // Navigate to dashboard or home (optional)
+        navigate("/dashboard", { replace: true });
       }
     } catch (err) {
       console.error(err);
@@ -59,11 +87,7 @@ const Login = ({ onLoginSuccess }) => {
           <div className="form-container">
             <div className="form active">
               <div className="l-logo">
-                <img
-                  src="/images/HomeLogo.png"
-                  alt="Logo"
-                  width="180"
-                />
+                <img src="/images/HomeLogo.png" alt="Logo" width="180" />
               </div>
               <p className="subtitle">Sign in to continue to your account</p>
 
