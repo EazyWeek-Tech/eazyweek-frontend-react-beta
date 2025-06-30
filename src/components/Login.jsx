@@ -9,13 +9,14 @@ const Login = ({ onLoginSuccess }) => {
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const navigate = useNavigate();
-
+  
   const getSessionFromApi = async (loginCenterCode, topCenterCode) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/session/get/${loginCenterCode}/${topCenterCode}`);
       if (!response.ok) throw new Error("Failed to fetch session info");
 
       const data = await response.json();
+      console.log(data);
       console.log("Session API Response:", data);
 
       // Store session info if needed
@@ -62,11 +63,15 @@ const Login = ({ onLoginSuccess }) => {
         }
 
         // Now: Call session API
-        const loginCenterCode = user.centerCode || "";
+        /* const loginCenterCode = user.centerCode || "";
         const topCenterCode = user.topCenterCode || "";
         if (loginCenterCode && topCenterCode) {
           await getSessionFromApi(loginCenterCode, topCenterCode);
-        }
+        } */
+
+          const loginCenterCode = "Bright";
+const topCenterCode = "Bright";
+await getSessionFromApi(loginCenterCode, topCenterCode);
 
         // Fire parent callback
         onLoginSuccess(user);
