@@ -10,21 +10,50 @@ const Login = ({ onLoginSuccess }) => {
   const [userInfo, setUserInfo] = useState(null);
   const navigate = useNavigate();
   
-  const getSessionFromApi = async (loginCenterCode, topCenterCode) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/session/get/${loginCenterCode}/${topCenterCode}`);
-      if (!response.ok) throw new Error("Failed to fetch session info");
+  const getSessionFromApi = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/session/get`, {
+      method: "GET",
+      credentials: "include"
+    });
 
-      const data = await response.json();
-      console.log(data);
-      console.log("Session API Response:", data);
+    if (!response.ok) throw new Error("Failed to fetch session info");
 
-      // Store session info if needed
-      sessionStorage.setItem("userSession", JSON.stringify(data));
-    } catch (error) {
-      console.error("Error fetching session:", error);
-    }
-  };
+    const data = await response.json();
+    console.log("Session GET Response:", data);
+
+    sessionStorage.setItem("userSession", JSON.stringify(data));
+  } catch (error) {
+    console.error("Error fetching session:", error);
+  }
+};
+
+
+
+
+ const setSessionToApi = async () => {
+  try {
+    const payload = {
+      loginCode: "Bright",
+      topCode: "Bright"
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/session/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include"
+    });
+
+    if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
+
+    console.log("Session Set API Response:", await response.text());
+  } catch (error) {
+    console.error("Error setting session:", error);
+  }
+};
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,15 +98,16 @@ const Login = ({ onLoginSuccess }) => {
           await getSessionFromApi(loginCenterCode, topCenterCode);
         } */
 
-          const loginCenterCode = "Bright";
-const topCenterCode = "Bright";
-await getSessionFromApi(loginCenterCode, topCenterCode);
+        
 
         // Fire parent callback
         onLoginSuccess(user);
 
         // Navigate to dashboard or home (optional)
         navigate("/dashboard", { replace: true });
+        
+          await setSessionToApi();
+          await getSessionFromApi();
       }
     } catch (err) {
       console.error(err);
