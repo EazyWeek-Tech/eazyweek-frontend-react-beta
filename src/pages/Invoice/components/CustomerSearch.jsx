@@ -59,7 +59,7 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
 
 
   const handleSelect = (cust) => {
-    const status = cust.nationalityid === '95' || cust.nationalityid === 95 ? 'Citizen' : 'EXPAT';
+    const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'EXPAT';
 
     const enriched = { ...cust, status };
 
@@ -74,6 +74,8 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
     setFocusedField(null);
     setSelectedCustomer(enriched);
     onCustomerSelect?.(enriched);
+              console.log(selectedCustomer)
+
   };
 
   return (

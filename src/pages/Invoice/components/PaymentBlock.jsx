@@ -101,61 +101,56 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
       setFormData({});
       setFormError('');
     };
-    const handlePrintInvoice = () => {
+    
 
-  const isCitizen = customer?.status?.toLowerCase() === 'citizen';
+const generateInvoiceHTML = () => {
+    const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
-  const invoiceItemRows = invoiceItems.map((item, idx) => {
-    console.log("Item Added")
-    console.log(item)
-    const price = parseFloat(item.price) || 0;
-    const discount = parseFloat(item.discount) || 0;
-    const amountWithoutVat = Math.max(price - discount, 0);
-    const taxRate = isCitizen
-      ? parseFloat(item.citizentax) || 0
-      : parseFloat(item.taxpercent) || 0;
-    const tax = (amountWithoutVat * taxRate) / 100;
-    const total = amountWithoutVat + tax;
+    const invoiceItemRows = invoiceItems.map((item, idx) => {
+      const price = parseFloat(item.price) || 0;
+      const discount = parseFloat(item.discount) || 0;
+      const amountWithoutVat = Math.max(price - discount, 0);
+      const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
+      const tax = (amountWithoutVat * taxRate) / 100;
+      const total = amountWithoutVat + tax;
+      return `
+        <tr>
+          <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
+          <td style="border:1px solid #000;padding:6px;">${item.name}</td>
+          <td style="border:1px solid #000;padding:6px;">1</td>
+          <td style="border:1px solid #000;padding:6px;">${price.toFixed(2)}</td>
+          <td style="border:1px solid #000;padding:6px;">${discount.toFixed(2)}</td>
+          <td style="border:1px solid #000;padding:6px;">${amountWithoutVat.toFixed(2)}</td>
+          <td style="border:1px solid #000;padding:6px;">${tax.toFixed(2)} (${taxRate.toFixed(0)}%)</td>
+          <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const paymentRows = payments.map((p, index) => `
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">${index + 1}</td>
+        <td style="border:1px solid #000;padding:6px;">${p.mode}</td>
+        <td style="border:1px solid #000;padding:6px;">${p.amount.toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:6px;">${p.date}</td>
+      </tr>
+    `).join('');
 
     return `
-      <tr>
-        <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
-        <td style="border:1px solid #000;padding:6px;">${item.name}</td>
-        <td style="border:1px solid #000;padding:6px;">1</td>
-        <td style="border:1px solid #000;padding:6px;">${price.toFixed(2)}</td>
-        <td style="border:1px solid #000;padding:6px;">${discount.toFixed(2)}</td>
-        <td style="border:1px solid #000;padding:6px;">${amountWithoutVat.toFixed(2)}</td>
-        <td style="border:1px solid #000;padding:6px;">${tax.toFixed(2)} (${taxRate.toFixed(0)}%)</td>
-        <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
-      </tr>
-    `;
-  }).join('');
-
-  const paymentRows = payments.map((p, index) => `
-    <tr>
-      <td style="border:1px solid #000;padding:6px;">${index + 1}</td>
-      <td style="border:1px solid #000;padding:6px;">${p.mode}</td>
-      <td style="border:1px solid #000;padding:6px;">${p.amount.toFixed(2)}</td>
-      <td style="border:1px solid #000;padding:6px;">${p.date}</td>
-    </tr>
-  `).join('');
-
-  const printWindow = window.open('', '_blank');
-  const invoiceHTML = `
-    <!DOCTYPE html>
-    <html lang="en" dir="rtl">
-    <head>
-      <meta charset="UTF-8" />
-      <title>Invoice</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000;">
-     <table style="width: 600px; max-width: 600px; margin: auto;  font-size: 12px; line-height: 1.6; padding: 20px; border-collapse: collapse;">
+      <!DOCTYPE html>
+      <html lang="en" dir="rtl">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Invoice</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000;">
+       <table style="width: 600px; max-width: 600px; margin: auto;  font-size: 12px; line-height: 1.6; padding: 20px; border-collapse: collapse;">
   <tr>
     <td colspan="3" style="padding-bottom: 20px;">
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="width: 33%; text-align: left; vertical-align: middle;">
-            <img src="/images/bright.png" alt="Logo" style="max-height: 80px;" />
+            <img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />
           </td>
           <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
             Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
@@ -180,7 +175,8 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Time:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleTimeString()}</td></tr>
         </table>
 
-        <h4 style="margin-top: 20px;">Invoice Items</h4>
+
+          <h4 style="margin-top: 20px;">Invoice Items</h4>
         <table style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr>
@@ -215,16 +211,55 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
           <strong>Amount Due:</strong> ${parsedTotalAmount.toFixed(2)} SAR
         </div>
       </div>
-    </body>
-    </html>
-  `;
-      setLastGeneratedInvoiceHtml(invoiceHTML);
+        <!-- Full original print HTML ends -->
+      </body>
+      </html>
+    `;
+  };
 
-  printWindow.document.write(invoiceHTML);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-};
+  const handlePrintInvoice = () => {
+    const html = generateInvoiceHTML();
+    setLastGeneratedInvoiceHtml(html);
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const handleEmailInvoice = async () => {
+    if (!generatedInvoiceNumber) {
+      setToast({ message: "Invoice number not generated yet.", type: "error" });
+      return;
+    }
+    const html = generateInvoiceHTML();
+    setLastGeneratedInvoiceHtml(html);
+
+    const invoiceHtmlPayload = {
+      invoiceNo: generatedInvoiceNumber,
+      custID: customer?.custId || "",
+      custEmailID: customer?.email || "",
+      invoiceHtml: html
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invoiceHtmlPayload)
+      });
+      const result = await response.json();
+      if (result.success) {
+        setToast({ message: "Invoice email sent successfully!", type: "success" });
+      } else {
+        setToast({ message: result.message || "Failed to send email.", type: "error" });
+      }
+    } catch (error) {
+      console.error("Email send error:", error);
+      setToast({ message: "Error while sending email.", type: "error" });
+    }
+  };
+
 const resetAll = () => {
   setPayments([]);
   setFormData({});
@@ -234,37 +269,6 @@ const resetAll = () => {
   setGeneratedInvoiceNumber('');
   setLastGeneratedInvoiceHtml('');
   setInvoiceSuccessPopup(false);
-};
-const handleEmailInvoice = async () => {
-  if (!generatedInvoiceNumber) {
-    setToast({ message: "Invoice number not generated yet.", type: "error" });
-    return;
-  }
-
-  const invoiceHtmlPayload = {
-    invoiceNo: generatedInvoiceNumber,
-    custID: customer?.custid || "",
-    custEmailID: customer?.email || "",
-    invoiceHtml: lastGeneratedInvoiceHtml || ""  // ← We'll capture latest HTML below
-  };
-console.log(invoiceHtmlPayload)
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(invoiceHtmlPayload)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      setToast({ message: "Invoice email sent successfully!", type: "success" });
-    } else {
-      setToast({ message: result.message || "Failed to send email.", type: "error" });
-    }
-  } catch (error) {
-    console.error("Email send error:", error);
-    setToast({ message: "Error while sending email.", type: "error" });
-  }
 };
 
 

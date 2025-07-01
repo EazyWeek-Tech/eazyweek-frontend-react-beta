@@ -2,21 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config';
 
-import InvoiceForm from './components/InvoiceForm'
+import InvoiceForm from './components/InvoiceForm';
 import InvoiceSummary from './components/InvoiceSummary';
 import CustomerSearch from './components/CustomerSearch';
 import PaymentBlock from './components/PaymentBlock';
 import CategoryTabs from './components/CategoryTabs';
 import InvoiceTable from './components/InvoiceTable';
-
 import Toast from './components/Toast';
 import './styles/InvoicePage.css';
-
-const createDataHandler = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to fetch data");
-  return await response.json();
-};
 
 const InvoicePage = () => {
   const [items, setItems] = useState([]);
@@ -29,68 +22,75 @@ const InvoicePage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   const [searchParams] = useSearchParams();
-const custidFromUrl = searchParams.get('custid');
-const appointmentIdFromUrl = searchParams.get('appointmentid');
-const custNameFromUrl = searchParams.get('custname');
+  const custidFromUrl = searchParams.get('custid');
+  const appointmentIdFromUrl = searchParams.get('appointmentid');
+  const custNameFromUrl = searchParams.get('custname');
 
-
-useEffect(() => {
-  if (!appointmentIdFromUrl || !custidFromUrl) return;
-
-  const fetchAppointmentDetails = async () => {
-    try {
+  useEffect(() => {
+    const loadCustomerAndItems = async () => {
       const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-      const payload = {
-        custID: custidFromUrl,
-        appointmentID: appointmentIdFromUrl,
-        centerCode: centerCode
-      };
-      console.log(payload)
-      const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      console.log(response)
-      const result = await response.json();
-      console.log("Fetched Appointment Details:", result);
+      if (appointmentIdFromUrl && custidFromUrl) {
+        const payload = {
+          custID: custidFromUrl,
+          appointmentID: appointmentIdFromUrl,
+          centerCode: centerCode
+        };
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+          console.log("Appointment details result:", result);
 
-      if (result && result.success) {
-        setItems([
-          {
-            name: result.serviceName || '',
-            servicecode: result.serviceCode || '',
-            price: result.netAmount || '',
-            discount: 0,
-            taxpercent: result.tax || 0,
-            citizentax: result.tax || 0
+          if (Array.isArray(result) && result.length > 0) {
+            const firstItem = result[0];
+
+            setItems([
+              {
+                name: firstItem.serviceName || '',
+                servicecode: firstItem.serviceCode || '',
+                price: firstItem.netAmount || '',
+                discount: 0,
+                taxpercent: firstItem.tax || 0,
+                citizentax: firstItem.tax || 0
+              }
+            ]);
+
+            setSelectedCustomer({
+              custid: firstItem.custId || "",
+              fullName: firstItem.fullName || custNameFromUrl || "",
+              number: firstItem.mobile || "",
+              email: firstItem.emailId || "",
+              gender: firstItem.gender || "",
+              status: firstItem.nationality === "95" ? "Citizen" : "Expat"
+            });
+
+            return;
           }
-        ]);
-
-        setSelectedCustomer({
-          custid: result.custId || "",
-          fullName: result.fullName || custNameFromUrl || "",
-          number: result.mobile || "",
-          email: result.email || "",
-          gender: result.gender || "",
-          status: result.nationality === "95" ? "Citizen" : "Expat"
-        });
-      } else {
-        console.warn("No appointment data found or success flag false:", result);
+        } catch (error) {
+          console.error("Error fetching appointment details:", error);
+        }
       }
-    } catch (err) {
-      console.error("Error fetching appointment details:", err);
-    }
-  };
 
-  fetchAppointmentDetails();
-}, [appointmentIdFromUrl, custidFromUrl]);
+      // Fallback if no appointmentId or API fails but URL has customer info
+      if (custidFromUrl || custNameFromUrl) {
+        setSelectedCustomer({
+          custid: custidFromUrl || "",
+          fullName: custNameFromUrl || "",
+          number: "",
+          email: "",
+          gender: "",
+          status: ""
+        });
+      }
+    };
 
-
-
-  
+    loadCustomerAndItems();
+  }, [appointmentIdFromUrl, custidFromUrl, custNameFromUrl]);
 
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem('suspendedCarts') || '[]');
@@ -98,13 +98,10 @@ useEffect(() => {
   }, [items]);
 
   const handlePriceChange = (index, value) => {
-  const updatedItems = [...items];
-  updatedItems[index].price = value;
-  setItems(updatedItems);
-};
-
-
-
+    const updatedItems = [...items];
+    updatedItems[index].price = value;
+    setItems(updatedItems);
+  };
 
   const handleDiscountChange = (index, value) => {
     const updatedItems = [...items];
@@ -125,20 +122,9 @@ useEffect(() => {
     setFormResetKey(prev => prev + 1);
   };
 
-  const handleSave = () => {
-    localStorage.setItem('invoiceData', JSON.stringify(items));
-    alert('Invoice saved to local storage');
+  const handleManualDiscount = (updatedItems) => {
+    setItems(updatedItems);
   };
-
-  const handlePrint = () => window.print();
-
-  const handleClearCart = () => {
-    setItems([]);
-  };
-
-  const handleApplyPriceOverride = (updatedItems) => {
-  setItems(updatedItems); // Replace main invoice items with overridden prices
-};
 
   const handleSuspendCart = () => {
     if (items.length === 0) return;
@@ -155,7 +141,6 @@ useEffect(() => {
   };
 
   const handleRecallCartById = (cartId) => {
-    if (!cartId) return;
     const saved = JSON.parse(localStorage.getItem('suspendedCarts') || '[]');
     const selected = saved.find(cart => cart.id.toString() === cartId);
     if (selected) {
@@ -166,16 +151,14 @@ useEffect(() => {
     }
   };
 
-  const handleManualDiscount = (updatedItems) => {
-    setItems(updatedItems);
-  };
+  const handleClearCart = () => setItems([]);
 
-  // Subtotal and discount
+  const handleApplyPriceOverride = (updatedItems) => setItems(updatedItems);
+
   const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
   const discount = items.reduce((sum, i) => sum + (parseFloat(i.discount) || 0), 0);
   const net = subtotal - discount;
 
-  // Calculate tax per-line using customer.status
   const tax = items.reduce((sum, i) => {
     const price = parseFloat(i.price) || 0;
     const disc = parseFloat(i.discount) || 0;
@@ -189,9 +172,6 @@ useEffect(() => {
   const total = net + tax + roundoff;
 
   const todayDate = new Date().toISOString().split('T')[0];
-  const lastInvoiceNumber = parseInt(localStorage.getItem('lastInvoiceNumber') || '1000', 10);
-  const currentInvoiceNumber = lastInvoiceNumber + 1;
-  localStorage.setItem('lastInvoiceNumber', currentInvoiceNumber.toString());
 
   return (
     <div className="invoice-page">
@@ -209,14 +189,14 @@ useEffect(() => {
                 </a>
               </h3>
               <div className="invdetails">
-                {[{ label: 'Invoice No.:' }, { label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: 'Bright Clinic' }]
-                  .map(({ label, value }, index) => (
-                    <div className="inventry" key={index}>
-                      <label className="inlbl">{label}</label>
-                      <input type="text" className="invinp" value={value} readOnly />
-                    </div>
-                  ))}
+                {[{ label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: 'Bright Clinic' }].map(({ label, value }, index) => (
+                  <div className="inventry" key={index}>
+                    <label className="inlbl">{label}</label>
+                    <input type="text" className="invinp" value={value} readOnly />
+                  </div>
+                ))}
               </div>
+
               <div className="formdivwrp">
                 <InvoiceForm
                   suggestions={suggestions}
@@ -228,7 +208,6 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Invoice Table with Customer passed */}
             <InvoiceTable
               items={items}
               onRemove={handleRemove}
@@ -255,11 +234,9 @@ useEffect(() => {
 
             <div className="invtotalblk">
               <CustomerSearch
-  onCustomerSelect={setSelectedCustomer}
-  prefillCustid={custidFromUrl}
-/>
-
-
+                onCustomerSelect={setSelectedCustomer}
+                prefillCustid={custidFromUrl}
+              />
               <div className="invttlwrp">
                 {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount }, { label: 'Tax', value: tax }, { label: 'Round Off', value: roundoff }, { label: 'Total', value: total }]
                   .map(({ label, value }, idx) => (
@@ -274,17 +251,17 @@ useEffect(() => {
 
           <aside className="rgtsect">
             <CategoryTabs
-  onAddItem={handleAddFormItem}
-  showToast={(msg) => setToast({ message: msg, type: 'success' })}
-  showErrToast={(msg) => setToast({ message: msg, type: 'error' })}
-  customer={selectedCustomer}
-/>
-            <PaymentBlock
-  totalAmount={total.toFixed(2)}
-  invoiceItems={items}
-  customer={selectedCustomer}
-/>
+              onAddItem={handleAddFormItem}
+              showToast={(msg) => setToast({ message: msg, type: 'success' })}
+              showErrToast={(msg) => setToast({ message: msg, type: 'error' })}
+              customer={selectedCustomer}
+            />
 
+            <PaymentBlock
+              totalAmount={total.toFixed(2)}
+              invoiceItems={items}
+              customer={selectedCustomer}
+            />
           </aside>
         </div>
       </main>
