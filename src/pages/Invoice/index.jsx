@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config';
 
@@ -184,9 +185,9 @@ const InvoicePage = () => {
           <div className="leftsect">
             <div className="invtopwrp">
               <h3 className="sectttl">Invoice details  
-                <a href="/dashboard" title="Dashboard" className="bckbtn tooltip" data-tooltip="Dashboard" data-tooltip-pos="down">
+                <Link to="/dashboard" title="Dashboard" className="bckbtn tooltip" data-tooltip="Dashboard" data-tooltip-pos="down">
                   <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
-                </a>
+                </Link>
               </h3>
               <div className="invdetails">
                 {[{ label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: 'Bright Clinic' }].map(({ label, value }, index) => (
