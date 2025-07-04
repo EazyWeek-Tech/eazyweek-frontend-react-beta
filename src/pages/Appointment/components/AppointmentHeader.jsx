@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Link } from 'react-router-dom';
 import { API_BASE_URL } from "../../../config";
 import '../index.css'
 const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) => {
@@ -108,9 +109,9 @@ const response = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/
     <header className="appthdr">
       <div className="flx-spcbt">
         <div>
-        <a href="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
+        <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
   <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
-</a>
+</Link>
 
         </div>
 
