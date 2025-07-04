@@ -95,10 +95,7 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "Settings",
       icon: "bx-cog",
-      submenu: [
-          { name: "Settings", path: "/settings" },
-          { name: "Custom Forms", path: "/forms" }
-          ],
+      submenu: [{ name: "Settings", path: "/settings" }],
     },
   ];
 
