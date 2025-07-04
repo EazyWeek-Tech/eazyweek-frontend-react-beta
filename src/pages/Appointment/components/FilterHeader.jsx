@@ -5,6 +5,7 @@ const createDataHandler = async (url, payload = null) => {
   const options = payload
     ? {
         method: "POST",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }

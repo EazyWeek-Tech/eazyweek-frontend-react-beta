@@ -28,9 +28,6 @@ const Login = ({ onLoginSuccess }) => {
   }
 };
 
-
-
-
  const setSessionToApi = async () => {
   try {
     const payload = {
@@ -53,8 +50,6 @@ const Login = ({ onLoginSuccess }) => {
   }
 };
 
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -66,10 +61,11 @@ const Login = ({ onLoginSuccess }) => {
     }
 
     const url = `${API_BASE_URL}/api/Employees/Login/${email}/${password}`;
-
+    console.log(url)
     try {
       const response = await fetch(url, {
         method: "GET",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
 

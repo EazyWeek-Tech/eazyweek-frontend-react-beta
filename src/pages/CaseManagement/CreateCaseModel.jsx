@@ -41,6 +41,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           `${API_BASE_URL}/api/CaseCategory/CaseCategory`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -64,6 +65,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           `${API_BASE_URL}/api/CaseDropDown/Medium`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -85,6 +87,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           `${API_BASE_URL}/api/CaseDropDown/Service`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -105,6 +108,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           `${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -127,6 +131,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           `${API_BASE_URL}/api/CaseCategory/CaseServiceCategory`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -145,6 +150,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/Employees`, {
           method: "GET",
+           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -185,6 +191,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
             )}`,
             {
               method: "GET",
+               credentials: "include",
               headers: {
                 "Content-Type": "application/json",
               },
@@ -225,6 +232,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         try {
           const response = await fetch(url, {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
@@ -424,6 +432,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         `${API_BASE_URL}/api/CaseOperation`,
         {
           method: "POST",
+           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -524,6 +533,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         `${API_BASE_URL}/api/CaseOperation`,
         {
           method: "POST",
+           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -639,6 +649,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                     `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?CategoryCode=${code}`,
                     {
                       method: "GET",
+                       credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },
@@ -658,6 +669,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                     `${API_BASE_URL}/api/CaseDropDown/Product?CategoryCode=${code}`,
                     {
                       method: "GET",
+                       credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },
@@ -676,6 +688,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                     `${API_BASE_URL}/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${code}`,
                     {
                       method: "GET",
+                       credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },
@@ -732,6 +745,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                     `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${code}`,
                     {
                       method: "GET",
+                       credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },
@@ -786,6 +800,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                     `${API_BASE_URL}/api/CaseCategory/CaseSubSubSubCategory?CategoryCode=${selectedCategoryCode}&SubCategoryCode=${selectedSubCategoryCode}&SubSubCategoryCode=${code}`,
                     {
                       method: "GET",
+                       credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },
@@ -867,6 +882,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                       `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${selectedCategoryCode}&MediumCode=${mediumValue}`,
                       {
                         method: "GET",
+                         credentials: "include",
                         headers: {
                           "Content-Type": "application/json",
                         },

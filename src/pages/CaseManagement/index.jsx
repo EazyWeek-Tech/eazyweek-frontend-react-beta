@@ -48,6 +48,7 @@ const CaseManagement = () => {
         `${API_BASE_URL}/api/CaseOperation/CaseDB`,
         {
           method: "POST",
+           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(filters),
         }
@@ -91,6 +92,7 @@ const CaseManagement = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/Employees`, {
         method: "GET",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
       const data = await res.json();

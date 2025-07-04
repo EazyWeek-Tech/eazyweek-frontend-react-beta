@@ -16,6 +16,7 @@ const JourneyTab = forwardRef(({ caseNo }, ref) => {
           `${API_BASE_URL}/api/CaseOperation/CaseJourney/${caseNo}`,
           {
             method: "GET",
+             credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
