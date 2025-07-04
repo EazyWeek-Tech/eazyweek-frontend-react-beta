@@ -245,6 +245,7 @@ const generateInvoiceHTML = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
         method: "POST",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(invoiceHtmlPayload)
       });

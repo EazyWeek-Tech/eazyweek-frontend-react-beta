@@ -135,6 +135,7 @@ const AddCustomerModal = ({ onClose }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
         method: "POST",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dataToSubmit),
       });

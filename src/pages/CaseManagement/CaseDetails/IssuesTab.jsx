@@ -21,7 +21,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
       try {
         const res = await fetch(
           `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`,
-          { method: "GET", headers: { "Content-Type": "application/json" } }
+          { method: "GET",  credentials: "include",headers: { "Content-Type": "application/json" } }
         );
         const result = await res.json();
         setResponses(result);

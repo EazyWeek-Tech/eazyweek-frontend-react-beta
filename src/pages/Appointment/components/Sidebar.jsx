@@ -14,6 +14,7 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
     const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
 
       method: "POST",
+       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -109,6 +110,16 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
   navigate(`/invoice?${queryParams.toString()}`);
 };
 
+ const goToCustomerPage = () => {
+  const queryParams = new URLSearchParams();
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("fullname", appointment.fullName);
+  if (appointment?.number) queryParams.append("number", appointment.number);
+
+  navigate(`/customer?${queryParams.toString()}`);
+};
+
+
 
   return (
     <div className={`smdiv expand ${isExpanded ? "expand" : ""}`}>
@@ -138,14 +149,21 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
           </div>
 
           <div className="cdtprof">
-            <a href="#" className="cstlnk">
-              <img
-                src={`${import.meta.env.BASE_URL}images/custome.svg`}
-                width="16"
-                alt="Customer Profile"
-              />
-              Customer Profile
-            </a>
+            <a
+  href="#"
+  className="cstlnk"
+  onClick={(e) => {
+    e.preventDefault();
+    goToCustomerPage();
+  }}
+>
+  <img
+    src={`${import.meta.env.BASE_URL}images/custome.svg`}
+    width="16"
+    alt="Customer Profile"
+  />
+  Customer Profile
+</a>
           </div>
         </div>
 
