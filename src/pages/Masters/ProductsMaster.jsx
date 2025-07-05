@@ -291,6 +291,14 @@ const ProductsMaster = () => {
 
   return (
     <div className="products-master-container">
+      {/* Breadcrumb */}
+      <div className="breadcrumb">
+        <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
+        <span className="breadcrumb-separator"> &gt; </span>
+        <span className="breadcrumb-current">Manage Products</span>
+      </div>
       {/* Header */}
       <div className="header-section">
         <h1 className="page-title">Manage products</h1>
@@ -391,10 +399,7 @@ const ProductsMaster = () => {
 
       <style jsx>{`
         .products-master-container {
-          padding: 20px;
-          background-color: #f8f9fa;
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
         }
 
         .header-section {

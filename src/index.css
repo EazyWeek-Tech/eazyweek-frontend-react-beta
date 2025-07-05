@@ -210,21 +210,22 @@ a {
   position: sticky;
   top: 0;
   flex: 1;
-  transition: max-width 500ms ease-in-out, min-width 500ms ease-in-out;
+  overflow: hidden;
+  transition: max-width 300ms ease-in-out, min-width 300ms ease-in-out;
 }
 .lhs-nav.expand,
 .lhs-nav:hover {
   max-width: 250px;
   min-width: 250px;
-  transition: max-width 500ms ease-in-out, min-width 500ms ease-in-out;
 }
 .lhs-nav.expand .lhs-mnu span,
 .lhs-nav.expand .sw-logo span,
 .lhs-nav:hover .lhs-mnu span,
 .lhs-nav:hover .sw-logo span {
   opacity: 1;
-  transition: opacity 900ms;
+  pointer-events: auto;
 }
+
 li i {
   display: block;
 }
@@ -232,13 +233,18 @@ li i {
 .sw-logo span {
   opacity: 0;
   white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 300ms ease-in-out;
 }
 .lhs-nav .mlti-sub-mnu.expand {
   display: none;
-}.lhs-nav.expand .lhs-mnu li.multi-li > div:after,
+}
+
+.lhs-nav.expand .lhs-mnu li.multi-li > div:after,
 .lhs-nav:hover .lhs-mnu li.multi-li > div:after {
   display: block;
 }
+
 .lhs-mnu {
   margin: 0 0 20px;
   padding: 20px 8px;
@@ -289,14 +295,15 @@ li i {
   opacity: 0;
   max-height: 0;
   display: none;
-  transition: all ease 300ms;
+  pointer-events: none;
+  transition: all 300ms ease;
 }
 
 .multi-li.expnd .mlti-sub-mnu {
   opacity: 1;
-  max-height: 500px;
+  max-height: 1000px;
   display: block;
-  transition: all ease 300ms;
+  pointer-events: auto;
   margin: 10px 0 10px 8px;
 }
 
@@ -1783,7 +1790,7 @@ button.disabled {
 }
 
 .toast-info {
-  background-color: #007bff;
+  background-color: #334B71;
 }
 
 .toast-close {

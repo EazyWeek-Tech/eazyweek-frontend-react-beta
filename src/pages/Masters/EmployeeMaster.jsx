@@ -325,13 +325,14 @@ const EmployeeMaster = () => {
     <div className="employee-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
-          Employee
+          <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Employee</span>
       </div>
-
+     {/* Page Title */}
+      <h1 className="page-title">Manage Employees</h1>
       {/* Search Bar */}
       <div className="search-container">
         <input

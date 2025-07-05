@@ -63,7 +63,7 @@ const EmployeeDetails = ({ employee, onBack }) => {
         }
 
         .breadcrumb-link {
-          color: #007bff;
+          color: #334B71;
           text-decoration: none;
           cursor: pointer;
         }
@@ -123,7 +123,7 @@ const EmployeeDetails = ({ employee, onBack }) => {
         }
 
         .form-select:focus {
-          border-color: #007bff;
+          border-color: #334B71;
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
@@ -185,7 +185,7 @@ const EmployeeDetails = ({ employee, onBack }) => {
           width: 16px;
           height: 16px;
           margin-right: 10px;
-          accent-color: #007bff;
+          accent-color: #334B71;
           cursor: pointer;
         }
 
@@ -221,9 +221,9 @@ const EmployeeDetails = ({ employee, onBack }) => {
       <div className="employee-details-container">
         {/* Breadcrumb */}
         <div className="breadcrumb">
-          <span className="breadcrumb-link" onClick={onBack}>
-            Employee Dashboard
-          </span>
+            <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
           <span className="breadcrumb-separator"> &gt; </span>
           <span className="breadcrumb-current">Segment Mapping</span>
         </div>

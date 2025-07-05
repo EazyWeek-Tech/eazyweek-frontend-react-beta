@@ -60,13 +60,14 @@ const DepartmentMaster = () => {
     <div className="department-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
-          Department
+          <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Department</span>
       </div>
-
+      {/* Page Title */}
+      <h1 className="page-title">Manage Department</h1>
       {/* Search Bar */}
       <div className="search-container">
         <input

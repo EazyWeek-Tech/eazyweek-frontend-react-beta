@@ -167,7 +167,7 @@ const CustomerMaster = () => {
     <div className="customer-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
+        <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>

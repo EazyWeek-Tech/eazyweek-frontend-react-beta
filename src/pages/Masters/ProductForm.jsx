@@ -858,7 +858,9 @@ const ProductForm = ({ product = null, onBack, mode = "create" }) => {
 
             {/* Breadcrumb */}
             <div className="breadcrumb">
-              <span className="breadcrumb-link">Product</span>
+                <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
               <span className="breadcrumb-separator">&gt;</span>
               <span className="breadcrumb-link">Manage products</span>
               <span className="breadcrumb-separator">&gt;</span>

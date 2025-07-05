@@ -82,13 +82,14 @@ const ClinicMaster = () => {
     <div className="clinic-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
+         <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Clinic</span>
       </div>
-
+  {/* Page Title */}
+      <h1 className="page-title">Manage Clinic</h1>
       {/* Search Bar */}
       <div className="search-container">
         <input

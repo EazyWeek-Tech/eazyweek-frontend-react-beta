@@ -75,8 +75,8 @@ const ManagerMaster = () => {
     <div className="manager-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
-          Manager
+         <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Manager</span>

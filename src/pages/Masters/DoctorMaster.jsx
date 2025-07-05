@@ -104,8 +104,8 @@ const DoctorMaster = () => {
     <div className="doctor-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="/" className="breadcrumb-link">
-         Dashboard
+          <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Doctor/Therapist</span>

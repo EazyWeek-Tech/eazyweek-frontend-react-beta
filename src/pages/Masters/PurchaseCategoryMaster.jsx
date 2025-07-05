@@ -267,12 +267,13 @@ const PurchaseCategoryMaster = () => {
         {/* Header Section */}
         <div className="header-section">
           <div className="header-left">
-            <h1 className="page-title">Category Masters</h1>
-            <div className="breadcrumb">
-              <span className="breadcrumb-link">Category Master</span>
+             <div className="breadcrumb">
+              <a href="/dashboard" className="breadcrumb-link">Dashboard</a>
               <span className="breadcrumb-separator">&gt;</span>
               <span className="breadcrumb-current">Purchase Category Masters</span>
             </div>
+            <h1 className="page-title">Purchase Category Masters</h1>
+           
           </div>
           <div className="header-buttons">
             <button className="header-btn create-btn" onClick={handleCreateNew}>

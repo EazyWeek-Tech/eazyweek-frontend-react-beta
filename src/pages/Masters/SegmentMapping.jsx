@@ -176,8 +176,8 @@ const SegmentMapping = () => {
     <div className="segment-mapping-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-        <a href="#" className="breadcrumb-link">
-          Employee Dashboard
+         <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Segment Mapping</span>

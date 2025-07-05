@@ -9,7 +9,7 @@ import Invoice from "./pages/Invoice";
 import Dashboard from "./pages/Dashboard";
 import CaseDetailsPage from "./pages/CaseManagement/CaseDetails";
 import Customer from "./pages/Customer";
-/* import CustomerMaster from "./pages/Masters/CustomerMaster";
+import CustomerMaster from "./pages/Masters/CustomerMaster";
 import DoctorMaster from "./pages/Masters/DoctorMaster";
 import ClinicMaster from "./pages/Masters/ClinicMaster";
 import DepartmentMaster from "./pages/Masters/DepartmentMaster";
@@ -19,7 +19,8 @@ import EmployeeMaster from "./pages/Masters/EmployeeMaster";
 import ProductsMaster from "./pages/Masters/ProductsMaster";
 import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
 import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
-import ServiceMaster from "./pages/Masters/ServiceMaster"; */
+import ServiceMaster from "./pages/Masters/ServiceMaster"; 
+import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -62,7 +63,7 @@ function App() {
       {/* Add Routes WITHOUT Sidebar + Header */}
       <Route path="/appointment" element={<Appointment />} />
       <Route path="/invoice" element={<Invoice />} />
-     {/*  <Route path="/customer" element={<Customer />} /> */}
+      <Route path="/customer" element={<Customer />} /> 
      
 
       {/*Add Routes WITH Sidebar + Header */}
@@ -79,7 +80,7 @@ function App() {
                   
     <Route path="cases" element={<CaseManagement />} />
     <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
-    {/*  <Route path="/masters/customers" element={<CustomerMaster />} />
+    <Route path="/masters/customers" element={<CustomerMaster />} />
           <Route path="/masters/practitioners" element={<DoctorMaster />} />
           <Route path="/masters/clinic" element={<ClinicMaster />} />
           <Route path="/masters/department" element={<DepartmentMaster />} />
@@ -89,7 +90,9 @@ function App() {
           <Route path="/masters/product" element={<ProductsMaster />} />
           <Route path="/masters/service" element={<ServiceMaster />} />
           <Route path="/masters/item-category" element={<ItemCategoryMaster />} />
-          <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} /> */}
+          <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
+           <Route path="/opportunity" element={<OpportunityDashboard />} />
+ 
 
 
 

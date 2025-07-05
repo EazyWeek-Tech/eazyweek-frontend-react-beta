@@ -238,10 +238,7 @@ const ServiceMaster = () => {
     <>
       <style jsx>{`
         .service-master-container {
-          padding: 20px;
-          background-color: #f8f9fa;
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
         }
 
         .page-title {
@@ -360,7 +357,7 @@ const ServiceMaster = () => {
 
         .search-input:focus {
           outline: none;
-          border-color: #007bff;
+          border-color: #334B71;
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
@@ -408,7 +405,7 @@ const ServiceMaster = () => {
           width: 16px;
           height: 16px;
           cursor: pointer;
-          accent-color: #007bff;
+          accent-color: #334B71;
         }
 
         .service-code {
@@ -467,8 +464,8 @@ const ServiceMaster = () => {
         }
 
         .pagination-btn.active {
-          background-color: #007bff;
-          border-color: #007bff;
+          background-color: #334B71;
+          border-color: #334B71;
           color: white;
         }
 
@@ -527,6 +524,14 @@ const ServiceMaster = () => {
       `}</style>
 
       <div className="service-master-container">
+         {/* Breadcrumb */}
+      <div className="breadcrumb">
+        <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
+        <span className="breadcrumb-separator"> &gt; </span>
+        <span className="breadcrumb-current">Manage Services</span>
+      </div>
         {/* Page Title */}
         <h1 className="page-title">Manage services</h1>
 

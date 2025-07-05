@@ -891,7 +891,9 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
 
         {/* Breadcrumb */}
         <div className="breadcrumb">
-          <span className="breadcrumb-link">Service</span>
+            <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
           <span className="breadcrumb-separator">&gt;</span>
           <span className="breadcrumb-link">Manage Service</span>
           <span className="breadcrumb-separator">&gt;</span>
