@@ -21,6 +21,8 @@ import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
 import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
 import ServiceMaster from "./pages/Masters/ServiceMaster"; 
 import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
+import EInvoiceDashboard from "./pages/Einvoice/EinvoiceDashboard";
+import { CourtesyCallDashboard } from "./pages/CourtesyCall";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -92,6 +94,8 @@ function App() {
           <Route path="/masters/item-category" element={<ItemCategoryMaster />} />
           <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
            <Route path="/opportunity" element={<OpportunityDashboard />} />
+            <Route path="/einvoice" element={<EInvoiceDashboard />} />
+             <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
  
 
 

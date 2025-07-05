@@ -299,10 +299,7 @@ const OpportunityDashboard = () => {
     <>
       <style jsx>{`
         .dashboard-container {
-          padding: 20px;
-          background-color: #f8f9fa;
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
         }
 
         .page-header {
