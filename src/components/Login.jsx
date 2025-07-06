@@ -34,8 +34,8 @@ const Login = ({ onLoginSuccess }) => {
  const setSessionToApi = async () => {
   try {
     const payload = {
-      loginCode: "Bright",
-      topCode: "Bright"
+      loginCenterCode: "Bright",
+      topCenterCode: "Bright"
     };
 
     const response = await fetch(`${API_BASE_URL}/api/session/set`, {
