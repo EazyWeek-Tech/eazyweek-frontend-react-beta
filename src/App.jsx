@@ -23,6 +23,8 @@ import ServiceMaster from "./pages/Masters/ServiceMaster";
 import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
 import EInvoiceDashboard from "./pages/Einvoice/EinvoiceDashboard";
 import { CourtesyCallDashboard } from "./pages/CourtesyCall";
+import DetailedReport from "./pages/CourtesyCall/DetailedReport";
+
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -96,6 +98,7 @@ function App() {
            <Route path="/opportunity" element={<OpportunityDashboard />} />
             <Route path="/einvoice" element={<EInvoiceDashboard />} />
              <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
+             <Route path="/courtesy-call/report" element={<DetailedReport />} />
  
 
 
