@@ -1,81 +1,101 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
+import "./mastr.css";
+import { API_BASE_URL } from "../../config";
 
 const ManagerMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedManagers, setSelectedManagers] = useState([])
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedManagers, setSelectedManagers] = useState([]);
+  const [managerData, setManagerData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample manager data based on your screenshot
-  const managerData = [
-    {
-      id: 1,
-      code: "CENT-00023",
-      managerName: "Nahlah - InactiveHassan Altayeb",
-      fromDate: "01/01/2023",
-      toDate: "02/07/2025",
-      associatedClinic: "Bright Clinics",
-      progressStatus: "OnGoing",
-    },
-    // You can add more sample data here
-    {
-      id: 2,
-      code: "CENT-00024",
-      managerName: "Ahmed Ali Mohammed",
-      fromDate: "15/03/2023",
-      toDate: "15/03/2026",
-      associatedClinic: "Bright Clinics",
-      progressStatus: "OnGoing",
-    },
-    {
-      id: 3,
-      code: "CENT-00025",
-      managerName: "Sarah Abdullah",
-      fromDate: "01/06/2023",
-      toDate: "01/06/2025",
-      associatedClinic: "Lines Clinics",
-      progressStatus: "Completed",
-    },
-  ]
+  // Fetch manager data from API
+  useEffect(() => {
+    const fetchManagers = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Master/LoadManager`, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
 
-  // Filter managers based on search term
-  const filteredManagers = managerData.filter(
-    (manager) =>
-      manager.managerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      manager.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      manager.associatedClinic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      manager.progressStatus.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setManagerData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchManagers();
+  }, []);
+
+  useEffect(() => {
+    if (managerData.length > 0) {
+      console.log("Manager Data:", managerData);
+    }
+  }, [managerData]);
+
+
+  const filteredManagers = managerData.filter((manager) => {
+  const managerName = manager.managerName ? manager.managerName.toLowerCase() : '';
+  const code = manager.code ? manager.code.toLowerCase() : '';
+  const associatedClinic = manager.associatedClinic ? manager.associatedClinic.toLowerCase() : '';
+  const progressStatus = manager.toDateProgressStatus ? manager.toDateProgressStatus.toLowerCase() : '';  // Fix the field name
+  return (
+    managerName.includes(searchTerm.toLowerCase()) ||
+    code.includes(searchTerm.toLowerCase()) ||
+    associatedClinic.includes(searchTerm.toLowerCase()) ||
+    progressStatus.includes(searchTerm.toLowerCase())
+  );
+});
+
+console.log(filteredManagers)
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-  }
+    setSearchTerm(e.target.value);
+  };
 
-  const handleCheckboxChange = (managerId) => {
+  const handleCheckboxChange = (managerCode) => {
     setSelectedManagers((prev) => {
-      if (prev.includes(managerId)) {
-        return prev.filter((id) => id !== managerId)
+      if (prev.includes(managerCode)) {
+        return prev.filter((code) => code !== managerCode);
       } else {
-        return [...prev, managerId]
+        return [...prev, managerCode];
       }
-    })
-  }
+    });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedManagers(filteredManagers.map((manager) => manager.id))
+      setSelectedManagers(filteredManagers.map((manager) => manager.code));
     } else {
-      setSelectedManagers([])
+      setSelectedManagers([]);
     }
+  };
+
+  const isAllSelected = filteredManagers.length > 0 && selectedManagers.length === filteredManagers.length;
+
+  if (loading) {
+    return <div>Loading managers...</div>;
   }
 
-  const isAllSelected = filteredManagers.length > 0 && selectedManagers.length === filteredManagers.length
+  if (error) {
+    return <div>Error loading managers: {error}</div>;
+  }
 
   return (
     <div className="manager-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-         <a href="/dashboard" className="breadcrumb-link">
+        <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
@@ -115,12 +135,12 @@ const ManagerMaster = () => {
           </thead>
           <tbody>
             {filteredManagers.map((manager) => (
-              <tr key={manager.id}>
+              <tr key={manager.code}>
                 <td className="checkbox-column">
                   <input
                     type="checkbox"
-                    checked={selectedManagers.includes(manager.id)}
-                    onChange={() => handleCheckboxChange(manager.id)}
+                    checked={selectedManagers.includes(manager.code)}
+                    onChange={() => handleCheckboxChange(manager.code)}
                     className="table-checkbox"
                   />
                 </td>
@@ -130,9 +150,11 @@ const ManagerMaster = () => {
                 <td>{manager.toDate}</td>
                 <td>{manager.associatedClinic}</td>
                 <td>
-                  <span className={`status-badge ${manager.progressStatus.toLowerCase().replace(" ", "-")}`}>
-                    {manager.progressStatus}
+                  <span className={`status-badge ${manager.toDateProgressStatus ? manager.toDateProgressStatus.trim().toLowerCase().replace(" ", "-") : ''}`}>
+                    {manager.toDateProgressStatus && manager.toDateProgressStatus.trim() ? manager.toDateProgressStatus : 'Unknown Status'}
                   </span>
+
+
                 </td>
               </tr>
             ))}
@@ -153,7 +175,7 @@ const ManagerMaster = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default ManagerMaster
+export default ManagerMaster;

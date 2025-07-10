@@ -28,16 +28,9 @@ const Login = ({ onLoginSuccess }) => {
   }
 };
 
-
-
-
- const setSessionToApi = async () => {
+const setSessionToApi = async () => {
   try {
-    const payload = {
-      loginCenterCode: "Bright",
-      topCenterCode: "Bright"
-    };
-
+    const payload = { LoginCode: "Bright", TopCode: "Bright", userID: "Zoya" };
     const response = await fetch(`${API_BASE_URL}/api/session/set`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -54,65 +47,53 @@ const Login = ({ onLoginSuccess }) => {
 };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setUserInfo(null);
+  e.preventDefault();
+  setError(null);
+  setUserInfo(null);
 
-    if (!email || !password) {
-      setError("Email and password are required.");
-      return;
-    }
+  if (!email || !password) {
+    setError("Email and password are required.");
+    return;
+  }
 
-    const url = `${API_BASE_URL}/api/Employees/Login/${email}/${password}`;
-    console.log(url)
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
+  const url = `${API_BASE_URL}/api/Employees/Login/${email}/${password}`;
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
 
-      if (!response.ok) throw new Error("Login failed");
+    if (!response.ok) throw new Error("Login failed");
 
-      const data = await response.json();
-      console.log("Login API Response:", data);
+    const data = await response.json();
+    console.log("Login API Response:", data);
 
-      if (!data || data.length === 0) {
-        setError("Invalid credentials.");
+    if (!data || data.length === 0) {
+      setError("Invalid credentials.");
+    } else {
+      const user = data[0];
+      setUserInfo(user);
+
+      if (remember) {
+        localStorage.setItem("user", JSON.stringify(user));
       } else {
-        const user = data[0];
-        setUserInfo(user);
-
-        // Save user to localStorage or sessionStorage
-        if (remember) {
-          localStorage.setItem("user", JSON.stringify(user));
-        } else {
-          sessionStorage.setItem("user", JSON.stringify(user));
-        }
-
-        // Now: Call session API
-        /* const loginCenterCode = user.centerCode || "";
-        const topCenterCode = user.topCenterCode || "";
-        if (loginCenterCode && topCenterCode) {
-          await getSessionFromApi(loginCenterCode, topCenterCode);
-        } */
-
-        
-
-        // Fire parent callback
-        onLoginSuccess(user);
-
-        // Navigate to dashboard or home (optional)
-        navigate("/dashboard", { replace: true });
-        
-          await setSessionToApi();
-          await getSessionFromApi();
+        sessionStorage.setItem("user", JSON.stringify(user));
       }
-    } catch (err) {
-      console.error(err);
-      setError("Login error. Please try again.");
+
+      //  Now set session based on real user data
+      await setSessionToApi();
+      await getSessionFromApi();
+
+      onLoginSuccess(user);
+      navigate("/dashboard", { replace: true });
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Login error. Please try again.");
+  }
+};
+
 
   return (
     <div className="overlay">

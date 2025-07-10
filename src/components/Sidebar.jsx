@@ -53,6 +53,7 @@ const Sidebar = ({ collapsed }) => {
       label: "Audit",
       icon: "bx-calculator",
       submenu: [
+        {name: "Audit Dashboard", path:"/audit"},
         { name: "Create", path: "/audit/create" },
         { name: "Summary Report", path: "/audit/summary" },
         { name: "Detailed Report", path: "/audit/detailed" },

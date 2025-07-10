@@ -170,20 +170,7 @@ const GeneralTab = ({ customer }) => {
         </div>
       </div>
 
-      {/* Login Info */}
-      <div className="section">
-        <h3 className="sectttl">Login Info</h3>
-        <div className="form-grid">
-          <label>Username <input name="userName" value={formData.userName || ""} onChange={handleChange} /></label>
-          <label>Tags <input name="tags" value={formData.tags || ""} onChange={handleChange} /></label>
-          <div className="checkbox-group">
-            <label>
-              <input type="checkbox" name="blockGuestFromOnlineAppointmentBooking" checked={formData.blockGuestFromOnlineAppointmentBooking === 1} onChange={handleChange} />
-              Block guest from online appointment booking
-            </label>
-          </div>
-        </div>
-      </div>
+     
 
       {/* Form Actions */}
       <div className="form-actions">

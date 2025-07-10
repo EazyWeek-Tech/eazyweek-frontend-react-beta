@@ -1,293 +1,185 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import ProductForm from "./ProductForm"
+import { useState, useEffect } from "react";
+import ProductForm from "./ProductForm";
+import { API_BASE_URL } from "../../config";
 
 const ProductsMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState(10)
-  const [selectedProducts, setSelectedProducts] = useState([])
-  const [showForm, setShowForm] = useState(false)
-  const [selectedProductForEdit, setSelectedProductForEdit] = useState(null)
-  const [formMode, setFormMode] = useState("create")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [selectedProductForEdit, setSelectedProductForEdit] = useState(null);
+  const [formMode, setFormMode] = useState("create");
+  const [productData, setProductData] = useState([]); // For API data
 
-  // Sample product data based on your screenshot
-  const productData = [
-    {
-      id: 1,
-      code: "PROL-0026",
-      name: "Zo Retinol cream",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 2,
-      code: "PROL-0024",
-      name: "Zo renewal cream",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 3,
-      code: "PROL-0025",
-      name: "Zo oil control pads",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 4,
-      code: "PROL-0023",
-      name: "Zo growth factor",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 5,
-      code: "PROL-0030",
-      name: "ZO Bright alive 50 ml زو كريم تفتيح وتوحيد 50 مللي",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 6,
-      code: "PROL-0029",
-      name: "ZO Acne Control 60 ml زو كريم التحكم بالحبوب 60 مللي",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 7,
-      code: "PROL-0028",
-      name: "Thalion Dewy Glow Liquid Care",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 8,
-      code: "PROL-0032",
-      name: "Spot peel home care cream",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 9,
-      code: "PROL-0010",
-      name: "Sorabee whitening cream سورابي كريم تفتيح",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-    {
-      id: 10,
-      code: "PROL-0011",
-      name: "Sorabee shine cleanser سورابي منظف للبشرة",
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    },
-  ]
+  // Fetch product data from the API
+  useEffect(() => {
+    const fetchProductData = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Master/LoadProduct`, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
 
-  // Add more sample data to reach 217 total entries
-  const allProductData = [
-    ...productData,
-    ...Array.from({ length: 207 }, (_, index) => ({
-      id: index + 11,
-      code: `PROL-${String(index + 100).padStart(4, "0")}`,
-      name: `Product ${index + 11}`,
-      category: "",
-      subcategory: "",
-      mrp: "0.00",
-      unit: "",
-      size: "",
-      color: "",
-      status: "Active",
-    })),
-  ]
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
 
-  const totalEntries = allProductData.length
-  const totalPages = Math.ceil(totalEntries / entriesPerPage)
+        const data = await response.json();
+        setProductData(data); // Set the fetched data
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
+    };
+
+    fetchProductData();
+  }, []);
 
   // Filter products based on search term
-  const filteredProducts = allProductData.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.status.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const filteredProducts = productData.filter((product) => {
+    const productName = product.productName ? product.productName.toLowerCase() : '';
+    const productCode = product.productCode ? product.productCode.toLowerCase() : '';
+    const categoryName = product.categoryName ? product.categoryName.toLowerCase() : '';
+    const status = product.status ? product.status.toLowerCase() : '';
 
-  // Get current page data
-  const startIndex = (currentPage - 1) * entriesPerPage
-  const currentProducts = filteredProducts.slice(startIndex, startIndex + entriesPerPage)
+    return (
+      productName.includes(searchTerm.toLowerCase()) ||
+      productCode.includes(searchTerm.toLowerCase()) ||
+      categoryName.includes(searchTerm.toLowerCase()) ||
+      status.includes(searchTerm.toLowerCase())
+    );
+  });
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-    setCurrentPage(1) // Reset to first page when searching
-  }
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
 
   const handleEntriesPerPageChange = (e) => {
-    setEntriesPerPage(Number.parseInt(e.target.value))
-    setCurrentPage(1) // Reset to first page when changing entries per page
-  }
+    setEntriesPerPage(Number.parseInt(e.target.value));
+    setCurrentPage(1); // Reset to first page when changing entries per page
+  };
 
   const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
+    setCurrentPage(page);
+  };
 
   const handleCheckboxChange = (productId) => {
     setSelectedProducts((prev) => {
       if (prev.includes(productId)) {
-        return prev.filter((id) => id !== productId)
+        return prev.filter((id) => id !== productId);
       } else {
-        return [...prev, productId]
+        return [...prev, productId];
       }
-    })
-  }
+    });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedProducts(currentProducts.map((product) => product.id))
+      setSelectedProducts(filteredProducts.map((product) => product.id));
     } else {
-      setSelectedProducts([])
+      setSelectedProducts([]);
     }
-  }
+  };
 
   const handleCreateNew = () => {
-    setSelectedProductForEdit(null)
-    setFormMode("create")
-    setShowForm(true)
-  }
+    setSelectedProductForEdit(null);
+    setFormMode("create");
+    setShowForm(true);
+  };
 
   const handleEdit = () => {
     if (selectedProducts.length === 0) {
-      alert("Please select at least one product to edit")
-      return
+      alert("Please select at least one product to edit");
+      return;
     }
     if (selectedProducts.length > 1) {
-      alert("Please select only one product to edit")
-      return
+      alert("Please select only one product to edit");
+      return;
     }
 
-    const productToEdit = allProductData.find((p) => p.id === selectedProducts[0])
-    setSelectedProductForEdit(productToEdit)
-    setFormMode("edit")
-    setShowForm(true)
-  }
-
-  const handleBackFromForm = () => {
-    setShowForm(false)
-    setSelectedProductForEdit(null)
-    setSelectedProducts([])
-  }
-
-  const isAllSelected = currentProducts.length > 0 && selectedProducts.length === currentProducts.length
+    const productToEdit = productData.find((p) => p.id === selectedProducts[0]);
+    setSelectedProductForEdit(productToEdit);
+    setFormMode("edit");
+    setShowForm(true);
+  };
 
   const renderPagination = () => {
-    const pages = []
-    const maxVisiblePages = 5
+  const pages = [];
+  const maxVisiblePages = 5;
+  const startPage = Math.max(2, currentPage - 2);
+  const endPage = Math.min(totalPages - 1, currentPage + 2);
 
-    // Always show first page
+  // Always show first page
+  pages.push(
+    <button
+      key={1}
+      className={`pagination-btn ${currentPage === 1 ? "active" : ""}`}
+      onClick={() => handlePageChange(1)}
+    >
+      1
+    </button>
+  );
+
+  // Show pages around current page
+  for (let i = startPage; i <= endPage; i++) {
     pages.push(
       <button
-        key={1}
-        className={`pagination-btn ${currentPage === 1 ? "active" : ""}`}
-        onClick={() => handlePageChange(1)}
+        key={i}
+        className={`pagination-btn ${currentPage === i ? "active" : ""}`}
+        onClick={() => handlePageChange(i)}
       >
-        1
-      </button>,
-    )
-
-    // Show pages around current page
-    for (let i = 2; i <= Math.min(totalPages - 1, maxVisiblePages); i++) {
-      pages.push(
-        <button
-          key={i}
-          className={`pagination-btn ${currentPage === i ? "active" : ""}`}
-          onClick={() => handlePageChange(i)}
-        >
-          {i}
-        </button>,
-      )
-    }
-
-    // Show ellipsis if there are more pages
-    if (totalPages > maxVisiblePages + 1) {
-      pages.push(
-        <span key="ellipsis" className="pagination-ellipsis">
-          ...
-        </span>,
-      )
-    }
-
-    // Always show last page if there are multiple pages
-    if (totalPages > 1) {
-      pages.push(
-        <button
-          key={totalPages}
-          className={`pagination-btn ${currentPage === totalPages ? "active" : ""}`}
-          onClick={() => handlePageChange(totalPages)}
-        >
-          {totalPages}
-        </button>,
-      )
-    }
-
-    return pages
+        {i}
+      </button>
+    );
   }
 
-  // If showing form, render the ProductForm component
+  // Show ellipsis if there are more pages
+  if (totalPages > endPage + 1) {
+    pages.push(
+      <span key="ellipsis" className="pagination-ellipsis">
+        ...
+      </span>
+    );
+  }
+
+  // Always show last page if there are multiple pages
+  if (totalPages > 1) {
+    pages.push(
+      <button
+        key={totalPages}
+        className={`pagination-btn ${currentPage === totalPages ? "active" : ""}`}
+        onClick={() => handlePageChange(totalPages)}
+      >
+        {totalPages}
+      </button>
+    );
+  }
+
+  return pages;
+};
+
+
+  const handleBackFromForm = () => {
+    setShowForm(false);
+    setSelectedProductForEdit(null);
+    setSelectedProducts([]);
+  };
+
+  const isAllSelected = filteredProducts.length > 0 && selectedProducts.length === filteredProducts.length;
+
+  const totalEntries = filteredProducts.length;
+  const totalPages = Math.ceil(totalEntries / entriesPerPage);
+  const startIndex = (currentPage - 1) * entriesPerPage;
+  const currentProducts = filteredProducts.slice(startIndex, startIndex + entriesPerPage);
+
   if (showForm) {
-    return <ProductForm product={selectedProductForEdit} onBack={handleBackFromForm} mode={formMode} />
+    return <ProductForm product={selectedProductForEdit} onBack={handleBackFromForm} mode={formMode} />;
   }
+
 
   return (
     <div className="products-master-container">
@@ -336,7 +228,7 @@ const ProductsMaster = () => {
       </div>
 
       {/* Products Table */}
-      <div className="table-container">
+       <div className="table-container">
         <table className="msttable">
           <thead>
             <tr>
@@ -356,23 +248,23 @@ const ProductsMaster = () => {
           </thead>
           <tbody>
             {currentProducts.map((product) => (
-              <tr key={product.id}>
+              <tr key={product.recId}> {/* Using recId as unique key */}
                 <td className="checkbox-column">
                   <input
                     type="checkbox"
-                    checked={selectedProducts.includes(product.id)}
-                    onChange={() => handleCheckboxChange(product.id)}
+                    checked={selectedProducts.includes(product.recId)}
+                    onChange={() => handleCheckboxChange(product.recId)}
                     className="table-checkbox"
                   />
                 </td>
-                <td>{product.code}</td>
-                <td>{product.name}</td>
-                <td>{product.category}</td>
-                <td>{product.subcategory}</td>
-                <td>{product.mrp}</td>
-                <td>{product.unit}</td>
-                <td>{product.size}</td>
-                <td>{product.color}</td>
+                <td>{product.productCode}</td>
+                <td>{product.productName}</td>
+                <td>{product.categoryName || "N/A"}</td>
+                <td>{product.subCategoryName || "N/A"}</td>
+                <td>{product.mrp || "N/A"}</td>
+                <td>{product.unit || "N/A"}</td>
+                <td>{product.size || "N/A"}</td>
+                <td>{product.color || "N/A"}</td>
                 <td>
                   <span className={`status-badge ${product.status.toLowerCase()}`}>{product.status}</span>
                 </td>

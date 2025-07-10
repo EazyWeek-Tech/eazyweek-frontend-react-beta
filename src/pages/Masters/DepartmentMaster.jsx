@@ -1,73 +1,96 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
+import { API_BASE_URL } from "../../config";
 
 const DepartmentMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedDepartments, setSelectedDepartments] = useState([])
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDepartments, setSelectedDepartments] = useState([]);
+  const [departmentData, setDepartmentData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample department data based on your screenshot
-  const departmentData = [
-    {
-      id: 1,
-      dcode: "Dept-001",
-      name: "Derma",
-    },
-    {
-      id: 2,
-      dcode: "Dept-002",
-      name: "Laser",
-    },
-    {
-      id: 3,
-      dcode: "Dept-003",
-      name: "Hydra",
-    },
-  ]
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Master/LoadDepartment`, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
 
-  // Filter departments based on search term
+        try {
+          const data = await response.json();
+          setDepartmentData(data);
+        } catch {
+          throw new Error("Failed to parse JSON. Response might be HTML or something else.");
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
   const filteredDepartments = departmentData.filter(
     (department) =>
-      department.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      department.dcode.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      department.dName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      department.dCode.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-  }
+    setSearchTerm(e.target.value);
+  };
 
   const handleCheckboxChange = (departmentId) => {
     setSelectedDepartments((prev) => {
       if (prev.includes(departmentId)) {
-        return prev.filter((id) => id !== departmentId)
+        return prev.filter((id) => id !== departmentId);
       } else {
-        return [...prev, departmentId]
+        return [...prev, departmentId];
       }
-    })
-  }
+    });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedDepartments(filteredDepartments.map((department) => department.id))
+      setSelectedDepartments(filteredDepartments.map((department) => department.dCode));
     } else {
-      setSelectedDepartments([])
+      setSelectedDepartments([]);
     }
+  };
+
+  const isAllSelected =
+    filteredDepartments.length > 0 && selectedDepartments.length === filteredDepartments.length;
+
+  if (loading) {
+    return <div>Loading departments...</div>;
   }
 
-  const isAllSelected = filteredDepartments.length > 0 && selectedDepartments.length === filteredDepartments.length
+  if (error) {
+    return <div>Error loading departments: {error}</div>;
+  }
 
   return (
     <div className="department-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-          <a href="/dashboard" className="breadcrumb-link">
+        <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Department</span>
       </div>
+
       {/* Page Title */}
       <h1 className="page-title">Manage Department</h1>
+
       {/* Search Bar */}
       <div className="search-container">
         <input
@@ -86,35 +109,42 @@ const DepartmentMaster = () => {
           <thead>
             <tr>
               <th className="checkbox-column">
-                <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="table-checkbox" />
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={handleSelectAll}
+                  className="table-checkbox"
+                  aria-label="Select All Departments"
+                />
               </th>
               <th width="200">DCODE</th>
               <th>Name</th>
             </tr>
           </thead>
           <tbody>
-            {filteredDepartments.map((department) => (
-              <tr key={department.id}>
-                <td className="checkbox-column">
-                  <input
-                    type="checkbox"
-                    checked={selectedDepartments.includes(department.id)}
-                    onChange={() => handleCheckboxChange(department.id)}
-                    className="table-checkbox"
-                  />
-                </td>
-                <td>{department.dcode}</td>
-                <td>{department.name}</td>
+            {filteredDepartments.length > 0 ? (
+              filteredDepartments.map((department) => (
+                <tr key={department.dCode}>
+                  <td className="checkbox-column">
+                    <input
+                      type="checkbox"
+                      checked={selectedDepartments.includes(department.dCode)}
+                      onChange={() => handleCheckboxChange(department.dCode)}
+                      className="table-checkbox"
+                      aria-label={`Select ${department.dName}`}
+                    />
+                  </td>
+                  <td>{department.dCode}</td>
+                  <td>{department.dName}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="3">No departments found matching your search criteria.</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
-
-        {filteredDepartments.length === 0 && (
-          <div className="no-results">
-            <p>No departments found matching your search criteria.</p>
-          </div>
-        )}
       </div>
 
       {/* Selected Count */}
@@ -124,7 +154,7 @@ const DepartmentMaster = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default DepartmentMaster
+export default DepartmentMaster;

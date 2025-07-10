@@ -1,178 +1,135 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import ServiceForm from "./ServiceForm"
+import { useState, useEffect } from "react";
+import ServiceForm from "./ServiceForm";
+import { API_BASE_URL } from "../../config";
 
 const ServiceMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState(10)
-  const [selectedServices, setSelectedServices] = useState([])
-  const [serviceStatus, setServiceStatus] = useState("")
-  const [showForm, setShowForm] = useState(false)
-  const [selectedServiceForEdit, setSelectedServiceForEdit] = useState(null)
-  const [formMode, setFormMode] = useState("create")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [serviceStatus, setServiceStatus] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [selectedServiceForEdit, setSelectedServiceForEdit] = useState(null);
+  const [formMode, setFormMode] = useState("create");
+  const [serviceData, setServiceData] = useState([]);
 
-  // Sample service data based on your screenshot
-  const serviceData = [
-    {
-      id: 1,
-      code: "SER-00001",
-      name: "Pore Hydra Facial",
-      category: "Hydra facial",
-      subcategory: "Hydra facial",
-      status: "ACTIVE",
-    },
-    {
-      id: 2,
-      code: "SERB-AA-0006",
-      name: "Volume filling (Juvederm Voluma) 1S فيلر فوليوما جوفيديرم_B",
-      category: "Antiageing Services",
-      subcategory: "Volume filling",
-      status: "ACTIVE",
-    },
-    {
-      id: 3,
-      code: "SERB-LHR-0003",
-      name: "Hair Reduction (Large - Gentle Lase ) 1S فيلر منطقة كبيرة_B",
-      category: "Laser Hair reduction",
-      subcategory: "Hair Reduction",
-      status: "ACTIVE",
-    },
-    {
-      id: 4,
-      code: "SERB-SC-0000-Expat",
-      name: "Skin rejuvenation (meso Botox) 1S جلسة ميزو بوتوكس للنضارة_B - Expat",
-      category: "Skin Concern Treatment",
-      subcategory: "Rejuvenation",
-      status: "ACTIVE",
-    },
-    {
-      id: 5,
-      code: "SERB-HS-0001",
-      name: "Hair Loss Treatment (Regenera ) 1S ريجينيرا_B",
-      category: "Hair Solution",
-      subcategory: "Hair Loss Treatment",
-      status: "ACTIVE",
-    },
-    {
-      id: 6,
-      code: "SERB-HS-0005-EX",
-      name: "Hair Thickening (Fillers - Hair Thickening ) 1S فيلر الشعر - Expat_B",
-      category: "Hair Solution",
-      subcategory: "Hair Thickening",
-      status: "ACTIVE",
-    },
-    {
-      id: 7,
-      code: "SERB-SC-0029",
-      name: "Acne Scar Reduction (Scarlet) 1S سكارليت_B",
-      category: "Skin Concern Treatment",
-      subcategory: "Acne Scar Reduction",
-      status: "ACTIVE",
-    },
-    {
-      id: 8,
-      code: "SERB-AA-0003",
-      name: "Wrinkle reduction one area (Botox) منطقة واحدة بوتوكس_B",
-      category: "Antiageing Services",
-      subcategory: "Volume filling",
-      status: "ACTIVE",
-    },
-    {
-      id: 9,
-      code: "SERB-CON-0002",
-      name: "Consultation - Specialist (Consultation - Specialist) 1S استشارة - كشفية_B",
-      category: "Consultation",
-      subcategory: "Consultation - Specialist",
-      status: "ACTIVE",
-    },
-    {
-      id: 10,
-      code: "SERB-CGY-0007",
-      name: "Cosmetic Gyneacology (Pink Intimate peel ) 1S تقشير منطقة حميمية_B",
-      category: "Cosmetic Gyneacology",
-      subcategory: "Peel",
-      status: "ACTIVE",
-    },
-  ]
+  // Fetch service data from the API
+  useEffect(() => {
+    const fetchServiceData = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/Master/LoadService`,
+          {
+            method: "GET",
+            credentials:"include",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
 
-  const totalEntries = 1906 // Based on screenshot showing 1,906 entries
-  const totalPages = Math.ceil(totalEntries / entriesPerPage)
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
 
-  // Filter services based on search term
-  const filteredServices = serviceData.filter(
-    (service) =>
-      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.subcategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.status.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+        const data = await response.json();
+        setServiceData(data); // Set the fetched data
+      } catch (error) {
+        console.error("Error fetching services:", error);
+      }
+    };
 
-  // Get current page data
-  const startIndex = (currentPage - 1) * entriesPerPage
-  const currentServices = filteredServices.slice(startIndex, startIndex + entriesPerPage)
+    fetchServiceData();
+  }, [currentPage, entriesPerPage]);
+
+  // Filter services based on search term and status
+  const filteredServices = serviceData.filter((service) => {
+    const serviceName = service.serviceName ? service.serviceName.toLowerCase() : '';
+    const serviceCode = service.serviceCode ? service.serviceCode.toLowerCase() : '';
+    const categoryName = service.categoryName ? service.categoryName.toLowerCase() : '';
+    const subCategoryName = service.subCategoryName ? service.subCategoryName.toLowerCase() : '';
+    const status = service.status ? service.status.toLowerCase() : '';
+
+    return (
+      serviceName.includes(searchTerm.toLowerCase()) ||
+      serviceCode.includes(searchTerm.toLowerCase()) ||
+      categoryName.includes(searchTerm.toLowerCase()) ||
+      subCategoryName.includes(searchTerm.toLowerCase()) ||
+      (status === serviceStatus || serviceStatus === "")
+    );
+  });
+
+   const totalEntries = filteredServices.length;
+  const totalPages = Math.ceil(totalEntries / entriesPerPage);
+  const startIndex = (currentPage - 1) * entriesPerPage; // Define startIndex here
+  const currentServices = filteredServices.slice(startIndex, startIndex + entriesPerPage);
+
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-    setCurrentPage(1) // Reset to first page when searching
-  }
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
 
   const handleEntriesPerPageChange = (e) => {
-    setEntriesPerPage(Number.parseInt(e.target.value))
-    setCurrentPage(1) // Reset to first page when changing entries per page
-  }
+    setEntriesPerPage(Number.parseInt(e.target.value));
+    setCurrentPage(1); // Reset to first page when changing entries per page
+  };
 
   const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
+    setCurrentPage(page);
+  };
 
   const handleCheckboxChange = (serviceId) => {
     setSelectedServices((prev) => {
       if (prev.includes(serviceId)) {
-        return prev.filter((id) => id !== serviceId)
+        return prev.filter((id) => id !== serviceId);
       } else {
-        return [...prev, serviceId]
+        return [...prev, serviceId];
       }
-    })
-  }
+    });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedServices(currentServices.map((service) => service.id))
+      setSelectedServices(filteredServices.map((service) => service.recID));
     } else {
-      setSelectedServices([])
+      setSelectedServices([]);
     }
-  }
+  };
 
   const handleCreateNew = () => {
-    setSelectedServiceForEdit(null)
-    setFormMode("create")
-    setShowForm(true)
-  }
+    setSelectedServiceForEdit(null);
+    setFormMode("create");
+    setShowForm(true);
+  };
 
   const handleEdit = () => {
     if (selectedServices.length === 0) {
-      alert("Please select at least one service to edit")
-      return
+      alert("Please select at least one service to edit");
+      return;
     }
     if (selectedServices.length > 1) {
-      alert("Please select only one service to edit")
-      return
+      alert("Please select only one service to edit");
+      return;
     }
 
-    const serviceToEdit = serviceData.find((s) => s.id === selectedServices[0])
-    setSelectedServiceForEdit(serviceToEdit)
-    setFormMode("edit")
-    setShowForm(true)
-  }
+    const serviceToEdit = serviceData.find((s) => s.recID === selectedServices[0]);
+    setSelectedServiceForEdit(serviceToEdit);
+    setFormMode("edit");
+    setShowForm(true);
+  };
 
-  const isAllSelected = currentServices.length > 0 && selectedServices.length === currentServices.length
+  const handleBackFromForm = () => {
+    setShowForm(false);
+    setSelectedServiceForEdit(null);
+    setSelectedServices([]);
+  };
+
+  const isAllSelected = filteredServices.length > 0 && selectedServices.length === filteredServices.length;
 
   const renderPagination = () => {
-    const pages = []
-    const maxVisiblePages = 5
+    const pages = [];
+    const maxVisiblePages = 5;
 
     // Always show first page
     pages.push(
@@ -182,8 +139,8 @@ const ServiceMaster = () => {
         onClick={() => handlePageChange(1)}
       >
         1
-      </button>,
-    )
+      </button>
+    );
 
     // Show pages around current page
     for (let i = 2; i <= Math.min(totalPages - 1, maxVisiblePages); i++) {
@@ -194,8 +151,8 @@ const ServiceMaster = () => {
           onClick={() => handlePageChange(i)}
         >
           {i}
-        </button>,
-      )
+        </button>
+      );
     }
 
     // Show ellipsis if there are more pages
@@ -203,41 +160,34 @@ const ServiceMaster = () => {
       pages.push(
         <span key="ellipsis" className="pagination-ellipsis">
           ...
-        </span>,
-      )
+        </span>
+      );
     }
 
-    // Show last page (191 based on screenshot)
+    // Always show last page if there are multiple pages
     if (totalPages > 1) {
       pages.push(
         <button
-          key={191}
-          className={`pagination-btn ${currentPage === 191 ? "active" : ""}`}
-          onClick={() => handlePageChange(191)}
+          key={totalPages}
+          className={`pagination-btn ${currentPage === totalPages ? "active" : ""}`}
+          onClick={() => handlePageChange(totalPages)}
         >
-          191
-        </button>,
-      )
+          {totalPages}
+        </button>
+      );
     }
 
-    return pages
-  }
+    return pages;
+  };
 
-  const handleBackFromForm = () => {
-    setShowForm(false)
-    setSelectedServiceForEdit(null)
-    setSelectedServices([])
-  }
-
-  // If showing form, render the ServiceForm component
   if (showForm) {
-    return <ServiceForm service={selectedServiceForEdit} onBack={handleBackFromForm} mode={formMode} />
+    return <ServiceForm service={selectedServiceForEdit} onBack={handleBackFromForm} mode={formMode} />;
   }
 
   return (
     <>
-      <style jsx>{`
-        .service-master-container {
+      <style jsx>{
+       ` .service-master-container {
           min-height: 100vh;
         }
 
@@ -520,11 +470,10 @@ const ServiceMaster = () => {
           .service-name {
             max-width: 250px;
           }
-        }
-      `}</style>
-
-      <div className="service-master-container">
-         {/* Breadcrumb */}
+        }`
+      }</style>
+    <div className="service-master-container">
+      {/* Breadcrumb */}
       <div className="breadcrumb">
         <a href="/dashboard" className="breadcrumb-link">
           Dashboard
@@ -532,118 +481,92 @@ const ServiceMaster = () => {
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Services</span>
       </div>
-        {/* Page Title */}
-        <h1 className="page-title">Manage services</h1>
-
-        {/* Header Section */}
-        <div className="header-section">
-          <div className="header-left"></div>
-          <div className="header-right">
-            <div className="action-buttons">
-              <button className="action-btn create-btn" onClick={handleCreateNew}>
-                Create New
-              </button>
-              <button className="action-btn edit-btn" onClick={handleEdit}>
-                Edit
-              </button>
-            </div>
-            <select
-              value={serviceStatus}
-              onChange={(e) => setServiceStatus(e.target.value)}
-              className="service-status-select"
-            >
-              <option value="">Service Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
+      {/* Page Title */}
+      <h1 className="page-title">Manage Services</h1>
+      {/* Controls */}
+      <div className="controls-section">
+        <div className="entries-control">
+          <select value={entriesPerPage} onChange={handleEntriesPerPageChange} className="entries-select">
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="entries-label">entries per page</span>
         </div>
-
-        {/* Controls Section */}
-        <div className="controls-section">
-          <div className="entries-control">
-            <select value={entriesPerPage} onChange={handleEntriesPerPageChange} className="entries-select">
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-            <span className="entries-label">entries per page</span>
-          </div>
-          <div className="search-control">
-            <label className="search-label">Search:</label>
-            <input
-              type="text"
-              className="search-input"
-              value={searchTerm}
-              onChange={handleSearch}
-              placeholder="Search services..."
-            />
-          </div>
-        </div>
-
-        {/* Services Table */}
-        <div className="table-container">
-          <table className="service-table">
-            <thead>
-              <tr>
-                <th className="checkbox-column">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={handleSelectAll}
-                    className="table-checkbox"
-                  />
-                </th>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Subcategory</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentServices.map((service) => (
-                <tr key={service.id}>
-                  <td className="checkbox-column">
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.includes(service.id)}
-                      onChange={() => handleCheckboxChange(service.id)}
-                      className="table-checkbox"
-                    />
-                  </td>
-                  <td className="service-code">{service.code}</td>
-                  <td className="service-name">{service.name}</td>
-                  <td>{service.category}</td>
-                  <td>{service.subcategory}</td>
-                  <td>
-                    <span className="status-badge">{service.status}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {filteredServices.length === 0 && (
-            <div className="no-results">
-              <p>No services found matching your search criteria.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Section */}
-        <div className="footer-section">
-          <div className="entries-info">
-            Showing {startIndex + 1} to {Math.min(startIndex + entriesPerPage, filteredServices.length)} of{" "}
-            {totalEntries} entries
-          </div>
-          <div className="pagination-container">{renderPagination()}</div>
+        <div className="search-control">
+          <label className="search-label">Search:</label>
+          <input
+            type="text"
+            className="search-input"
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Search services..."
+          />
         </div>
       </div>
-    </>
-  )
-}
 
-export default ServiceMaster
+      {/* Services Table */}
+      <div className="table-container">
+        <table className="msttable">
+          <thead>
+            <tr>
+              <th className="checkbox-column">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={handleSelectAll}
+                  className="table-checkbox"
+                />
+              </th>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Subcategory</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredServices.map((service) => (
+              <tr key={service.recID}>
+                <td className="checkbox-column">
+                  <input
+                    type="checkbox"
+                    checked={selectedServices.includes(service.recID)}
+                    onChange={() => handleCheckboxChange(service.recID)}
+                    className="table-checkbox"
+                  />
+                </td>
+                <td>{service.serviceCode}</td>
+                <td>{service.serviceName}</td>
+                <td>{service.categoryName}</td>
+                <td>{service.subCategoryName}</td>
+                <td>
+                  <span className={`status-badge ${service.status.toLowerCase()}`}>{service.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredServices.length === 0 && (
+          <div className="no-results">
+            <p>No services found matching your search criteria.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Footer */}
+      <div className="footer-section">
+        <div className="entries-info">
+          Showing {startIndex + 1} to {Math.min(startIndex + entriesPerPage, filteredServices.length)} of{" "}
+          {filteredServices.length} entries
+        </div>
+        <div className="pagination-container">{renderPagination()}</div>
+      </div>
+    </div>
+    </>
+  );
+};
+
+export default ServiceMaster;

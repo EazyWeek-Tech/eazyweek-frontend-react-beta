@@ -24,6 +24,7 @@ import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
 import EInvoiceDashboard from "./pages/Einvoice/EinvoiceDashboard";
 import { CourtesyCallDashboard } from "./pages/CourtesyCall";
 import DetailedReport from "./pages/CourtesyCall/DetailedReport";
+import AuditDashboard from "./pages/Audit";
 
 
 function App() {
@@ -99,6 +100,7 @@ function App() {
             <Route path="/einvoice" element={<EInvoiceDashboard />} />
              <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
              <Route path="/courtesy-call/report" element={<DetailedReport />} />
+             <Route path="/audit" element={<AuditDashboard />} />
  
 
 

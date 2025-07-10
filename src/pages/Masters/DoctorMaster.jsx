@@ -1,71 +1,41 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import "./mastr.css"
+import { useState, useEffect } from "react";
+import "./mastr.css";
+import { API_BASE_URL } from "../../config";
 
 const DoctorMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedDoctors, setSelectedDoctors] = useState([])
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDoctors, setSelectedDoctors] = useState([]);
+  const [doctorData, setDoctorData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample doctor data based on your screenshot
-  const doctorData = [
-    {
-      id: 1,
-      employeeCode: "CENT00006",
-      firstName: "Dr.Hassnaa",
-      lastName: "Abosena",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 2,
-      employeeCode: "CENT00022",
-      firstName: "Dr.Reham",
-      lastName: "Eisa",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 3,
-      employeeCode: "CENT00044",
-      firstName: "Dr. Mona",
-      lastName: "Elshelk",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 4,
-      employeeCode: "EMP01",
-      firstName: "Dr.Sally",
-      lastName: "Gamal",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 5,
-      employeeCode: "CENT-00063",
-      firstName: "Fanella",
-      lastName: "Sta Maria",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 6,
-      employeeCode: "CENT00135",
-      firstName: "Merelyn Mae",
-      lastName: "Selibio",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 7,
-      employeeCode: "CENT-00111",
-      firstName: "Shirley Ann",
-      lastName: "Bautista",
-      associatedClinic: "Bright Clinics",
-    },
-    {
-      id: 8,
-      employeeCode: "CENT-00168",
-      firstName: "Dr.Sahar",
-      lastName: "Osman",
-      associatedClinic: "Bright Clinics",
-    },
-  ]
+  // Fetch doctor data from API
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Master/LoadDoctorMapping`, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setDoctorData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
 
   // Filter doctors based on search term
   const filteredDoctors = doctorData.filter(
@@ -73,38 +43,46 @@ const DoctorMaster = () => {
       doctor.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doctor.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doctor.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.associatedClinic.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      doctor.associatedClinic.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-  }
+    setSearchTerm(e.target.value);
+  };
 
-  const handleCheckboxChange = (doctorId) => {
+  const handleCheckboxChange = (doctorCode) => {
     setSelectedDoctors((prev) => {
-      if (prev.includes(doctorId)) {
-        return prev.filter((id) => id !== doctorId)
+      if (prev.includes(doctorCode)) {
+        return prev.filter((code) => code !== doctorCode);
       } else {
-        return [...prev, doctorId]
+        return [...prev, doctorCode];
       }
-    })
-  }
+    });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedDoctors(filteredDoctors.map((doctor) => doctor.id))
+      setSelectedDoctors(filteredDoctors.map((doctor) => doctor.employeeCode));
     } else {
-      setSelectedDoctors([])
+      setSelectedDoctors([]);
     }
+  };
+
+  const isAllSelected = filteredDoctors.length > 0 && selectedDoctors.length === filteredDoctors.length;
+
+  if (loading) {
+    return <div>Loading doctors/therapists...</div>;
   }
 
-  const isAllSelected = filteredDoctors.length > 0 && selectedDoctors.length === filteredDoctors.length
+  if (error) {
+    return <div>Error loading doctors/therapists: {error}</div>;
+  }
 
   return (
     <div className="doctor-master-container">
       {/* Breadcrumb */}
       <div className="breadcrumb">
-          <a href="/dashboard" className="breadcrumb-link">
+        <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
@@ -112,7 +90,7 @@ const DoctorMaster = () => {
       </div>
 
       {/* Page Title */}
-     <h1 className="page-title">Manage Doctor/Therapist</h1>
+      <h1 className="page-title">Manage Doctor/Therapist</h1>
 
       {/* Search Bar */}
       <div className="search-container">
@@ -142,12 +120,12 @@ const DoctorMaster = () => {
           </thead>
           <tbody>
             {filteredDoctors.map((doctor) => (
-              <tr key={doctor.id} className="table-row">
+              <tr key={doctor.employeeCode} className="table-row">
                 <td className="checkbox-column">
                   <input
                     type="checkbox"
-                    checked={selectedDoctors.includes(doctor.id)}
-                    onChange={() => handleCheckboxChange(doctor.id)}
+                    checked={selectedDoctors.includes(doctor.employeeCode)}
+                    onChange={() => handleCheckboxChange(doctor.employeeCode)}
                     className="table-checkbox"
                   />
                 </td>
@@ -174,7 +152,7 @@ const DoctorMaster = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default DoctorMaster
+export default DoctorMaster;
