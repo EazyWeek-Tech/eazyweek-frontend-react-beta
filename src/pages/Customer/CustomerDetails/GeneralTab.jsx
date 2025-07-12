@@ -3,6 +3,10 @@ import { API_BASE_URL } from "../../../config";
 
 const GeneralTab = ({ customer }) => {
   const [formData, setFormData] = useState({});
+  const [formErrors, setFormErrors] = useState({
+    birthDay: "",
+    anniversary: "",
+  });
 
   useEffect(() => {
     if (customer) {
@@ -19,30 +23,71 @@ const GeneralTab = ({ customer }) => {
   const formatDate = (isoDate) =>
     isoDate && isoDate !== "0001-01-01T00:00:00" ? isoDate.slice(0, 10) : "";
 
+  // Validate birthDay and anniversary dates
+  const validateDates = () => {
+    const errors = {};
+
+    const birthDay = formData.birthDay;
+    const anniversary = formData.anniversary;
+
+    // Validate birthDay
+    if (birthDay) {
+      const birthDate = new Date(birthDay);
+      if (isNaN(birthDate.getTime()) || birthDate < new Date("1753-01-01")) {
+        errors.birthDay = "Birth date must be a valid date after 01/01/1753";
+      } else if (birthDate > new Date()) {
+        errors.birthDay = "Birth date cannot be in the future";
+      }
+    } else {
+      errors.birthDay = "Birth date is required";
+    }
+
+    // Validate anniversary
+    if (anniversary) {
+      const anniversaryDate = new Date(anniversary);
+      if (isNaN(anniversaryDate.getTime()) || anniversaryDate < new Date("1753-01-01")) {
+        errors.anniversary = "Anniversary date must be a valid date after 01/01/1753";
+      } else if (anniversaryDate > new Date()) {
+        errors.anniversary = "Anniversary date cannot be in the past";
+      }
+    } else {
+      errors.anniversary = "Anniversary date is required";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
-    console.log(formData)
     e.preventDefault();
+
+    if (!validateDates()) {
+      return; // Do not submit if there are validation errors
+    }
+
     const cleanedData = { ...formData };
 
-  // Prevent invalid SQL dates
-  if (!cleanedData.birthDay || cleanedData.birthDay < "1753-01-01") {
-    delete cleanedData.birthDay;
-  }
+    // Prevent invalid SQL dates
+    if (!cleanedData.birthDay || cleanedData.birthDay < "1753-01-01") {
+      delete cleanedData.birthDay;
+    }
 
-  if (!cleanedData.anniversary || cleanedData.anniversary < "1753-01-01") {
-    delete cleanedData.anniversary;
-  }
+    if (!cleanedData.anniversary || cleanedData.anniversary < "1753-01-01") {
+      delete cleanedData.anniversary;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/Customer/SaveCustomer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-        credentials: "include"
+        body: JSON.stringify(cleanedData),
+        credentials: "include",
       });
 
       if (!response.ok) throw new Error("Failed to save customer");
 
       const result = await response.json();
+      console.log(result);
       alert("Customer details saved successfully!");
       console.log("SaveCustomer response:", result);
     } catch (error) {
@@ -74,17 +119,19 @@ const GeneralTab = ({ customer }) => {
               <option>Other</option>
             </select>
           </label>
-          <label>Birthday <input type="date" name="birthDay" value={formatDate(formData.birthDay)} onChange={handleChange} /></label>
-          <label>Anniversary <input type="date" name="anniversary" value={formatDate(formData.anniversary)} onChange={handleChange} /></label>
+
+          {/* Date Fields */}
+          <label>Birthday <input type="date" name="birthDay" value={formatDate(formData.birthDay)} onChange={handleChange} />
+            {formErrors.birthDay && <span className="error">{formErrors.birthDay}</span>}
+          </label>
+
+          <label>Anniversary <input type="date" name="anniversary" value={formatDate(formData.anniversary)} onChange={handleChange} />
+            {formErrors.anniversary && <span className="error">{formErrors.anniversary}</span>}
+          </label>
+
           <label>Referral <input name="referal" value={formData.referal || ""} onChange={handleChange} /></label>
           <label>Ref By <input name="refBy" value={formData.refBy || ""} onChange={handleChange} /></label>
           <label>Primary Employee <input name="primaryEmployee" value={formData.primaryEmployee || ""} onChange={handleChange} /></label>
-          <div className="checkbox-group">
-            <label>
-              <input type="checkbox" name="blockGuestFromEditCustomerData" checked={formData.blockGuestFromEditCustomerData === 1} onChange={handleChange} />
-              Block guest from editing custom data
-            </label>
-          </div>
         </div>
       </div>
 
@@ -122,55 +169,6 @@ const GeneralTab = ({ customer }) => {
           <label>Nationality ID <input name="nationalityId" value={formData.nationalityId || ""} onChange={handleChange} /></label>
         </div>
       </div>
-
-      {/* Preferences */}
-      <div className="section">
-        <h3 className="sectttl">Preferences</h3>
-        <div className="form-grid">
-          <label>Center
-            <select name="centerName" value={formData.centerName || ""} onChange={handleChange}>
-              <option value="">Select</option>
-              <option>Bright Clinics</option>
-            </select>
-          </label>
-          <label>Language
-            <select name="language" value={formData.language || 0} onChange={handleChange}>
-              <option value={0}>English - United States</option>
-              <option value={1}>Arabic</option>
-            </select>
-          </label>
-
-          <div className="checkbox-group">
-            <strong>Transactional Messages:</strong>
-            <label>
-              <input type="checkbox" name="transactionalEmailEnable" checked={formData.transactionalEmailEnable === 1} onChange={handleChange} />
-              Email
-            </label>
-            <label>
-              <input type="checkbox" name="transactionalSMSEnable" checked={formData.transactionalSMSEnable === 1} onChange={handleChange} />
-              SMS
-            </label>
-          </div>
-
-          <div className="checkbox-group">
-            <strong>Marketing Messages:</strong>
-            <label>
-              <input type="checkbox" name="marketingEmailEnable" checked={formData.marketingEmailEnable === 1} onChange={handleChange} />
-              Email
-            </label>
-            <label>
-              <input type="checkbox" name="marketingSMSEnable" checked={formData.marketingSMSEnable === 1} onChange={handleChange} />
-              SMS
-            </label>
-            <label>
-              <input type="checkbox" name="marketingLoyalPointSMSandEmailEnable" checked={formData.marketingLoyalPointSMSandEmailEnable === 1} onChange={handleChange} />
-              Receive loyalty point statement as a text message (SMS) and an email
-            </label>
-          </div>
-        </div>
-      </div>
-
-     
 
       {/* Form Actions */}
       <div className="form-actions">
