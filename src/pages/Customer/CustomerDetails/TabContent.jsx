@@ -5,6 +5,7 @@ import CreditMemoTab from "./CreditMemoTab";
 import NotesTab from "./NotesTab";
 import PackagesTab from "./PackagesTab";
 import InvoiceTab from "./InvoiceTab";
+import CaseTab from "./CaseTab";
 
 const TabContent = ({ activeTab, customer, custId }) => {
   switch (activeTab) {
@@ -20,6 +21,8 @@ const TabContent = ({ activeTab, customer, custId }) => {
       return <PackagesTab custId={custId} />;
     case "Invoices":
       return <InvoiceTab custId={custId} />;
+        case "Cases":
+      return <CaseTab custId={custId} />;
     default:
       return <div>Select a tab</div>;
   }
