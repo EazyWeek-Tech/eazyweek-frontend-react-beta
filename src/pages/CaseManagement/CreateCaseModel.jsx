@@ -1368,8 +1368,6 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
             <a className="secbtn" onClick={handleSubmit}>
               Submit
             </a>
-            <a className="secbtn">Assign To Next Level</a>
-            <a className="secbtn">Save and Next</a>
           </div>
         </div>
       </div>
