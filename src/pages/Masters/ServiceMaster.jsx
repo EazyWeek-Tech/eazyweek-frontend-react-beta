@@ -1,101 +1,67 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import DataTable from "react-data-table-component";
 import ServiceForm from "./ServiceForm";
 import { API_BASE_URL } from "../../config";
 
 const ServiceMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [serviceData, setServiceData] = useState([]);
+  const [filteredServices, setFilteredServices] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [serviceStatus, setServiceStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState(null);
   const [formMode, setFormMode] = useState("create");
-  const [serviceData, setServiceData] = useState([]);
 
-  // Fetch service data from the API
   useEffect(() => {
     const fetchServiceData = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/Master/LoadService`,
-          {
-            method: "GET",
-            credentials:"include",
-            headers: { "Content-Type": "application/json" },
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/api/Master/LoadService`, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
 
-        if (!response.ok) {
-          throw new Error(`HTTP Error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error("Failed to fetch services");
 
         const data = await response.json();
-        setServiceData(data); // Set the fetched data
+        setServiceData(data);
+        setFilteredServices(data);
       } catch (error) {
         console.error("Error fetching services:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchServiceData();
-  }, [currentPage, entriesPerPage]);
+  }, []);
 
-  // Filter services based on search term and status
-  const filteredServices = serviceData.filter((service) => {
-    const serviceName = service.serviceName ? service.serviceName.toLowerCase() : '';
-    const serviceCode = service.serviceCode ? service.serviceCode.toLowerCase() : '';
-    const categoryName = service.categoryName ? service.categoryName.toLowerCase() : '';
-    const subCategoryName = service.subCategoryName ? service.subCategoryName.toLowerCase() : '';
-    const status = service.status ? service.status.toLowerCase() : '';
+  useEffect(() => {
+    const filtered = serviceData.filter((service) => {
+      const name = service.serviceName?.toLowerCase() || "";
+      const code = service.serviceCode?.toLowerCase() || "";
+      const category = service.categoryName?.toLowerCase() || "";
+      const subCategory = service.subCategoryName?.toLowerCase() || "";
+      const status = service.status?.toLowerCase() || "";
 
-    return (
-      serviceName.includes(searchTerm.toLowerCase()) ||
-      serviceCode.includes(searchTerm.toLowerCase()) ||
-      categoryName.includes(searchTerm.toLowerCase()) ||
-      subCategoryName.includes(searchTerm.toLowerCase()) ||
-      (status === serviceStatus || serviceStatus === "")
-    );
-  });
-
-   const totalEntries = filteredServices.length;
-  const totalPages = Math.ceil(totalEntries / entriesPerPage);
-  const startIndex = (currentPage - 1) * entriesPerPage; // Define startIndex here
-  const currentServices = filteredServices.slice(startIndex, startIndex + entriesPerPage);
-
-
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to first page when searching
-  };
-
-  const handleEntriesPerPageChange = (e) => {
-    setEntriesPerPage(Number.parseInt(e.target.value));
-    setCurrentPage(1); // Reset to first page when changing entries per page
-  };
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  const handleCheckboxChange = (serviceId) => {
-    setSelectedServices((prev) => {
-      if (prev.includes(serviceId)) {
-        return prev.filter((id) => id !== serviceId);
-      } else {
-        return [...prev, serviceId];
-      }
+      return (
+        name.includes(searchTerm.toLowerCase()) ||
+        code.includes(searchTerm.toLowerCase()) ||
+        category.includes(searchTerm.toLowerCase()) ||
+        subCategory.includes(searchTerm.toLowerCase()) ||
+        (status === serviceStatus.toLowerCase() || serviceStatus === "")
+      );
     });
-  };
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedServices(filteredServices.map((service) => service.recID));
-    } else {
-      setSelectedServices([]);
-    }
-  };
+    setFilteredServices(filtered);
+  }, [searchTerm, serviceStatus, serviceData]);
 
   const handleCreateNew = () => {
     setSelectedServiceForEdit(null);
@@ -103,18 +69,8 @@ const ServiceMaster = () => {
     setShowForm(true);
   };
 
-  const handleEdit = () => {
-    if (selectedServices.length === 0) {
-      alert("Please select at least one service to edit");
-      return;
-    }
-    if (selectedServices.length > 1) {
-      alert("Please select only one service to edit");
-      return;
-    }
-
-    const serviceToEdit = serviceData.find((s) => s.recID === selectedServices[0]);
-    setSelectedServiceForEdit(serviceToEdit);
+  const handleEdit = (row) => {
+    setSelectedServiceForEdit(row);
     setFormMode("edit");
     setShowForm(true);
   };
@@ -125,79 +81,122 @@ const ServiceMaster = () => {
     setSelectedServices([]);
   };
 
-  const isAllSelected = filteredServices.length > 0 && selectedServices.length === filteredServices.length;
-
-  const renderPagination = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-
-    // Always show first page
-    pages.push(
-      <button
-        key={1}
-        className={`pagination-btn ${currentPage === 1 ? "active" : ""}`}
-        onClick={() => handlePageChange(1)}
-      >
-        1
-      </button>
-    );
-
-    // Show pages around current page
-    for (let i = 2; i <= Math.min(totalPages - 1, maxVisiblePages); i++) {
-      pages.push(
-        <button
-          key={i}
-          className={`pagination-btn ${currentPage === i ? "active" : ""}`}
-          onClick={() => handlePageChange(i)}
-        >
-          {i}
-        </button>
-      );
-    }
-
-    // Show ellipsis if there are more pages
-    if (totalPages > maxVisiblePages + 1) {
-      pages.push(
-        <span key="ellipsis" className="pagination-ellipsis">
-          ...
-        </span>
-      );
-    }
-
-    // Always show last page if there are multiple pages
-    if (totalPages > 1) {
-      pages.push(
-        <button
-          key={totalPages}
-          className={`pagination-btn ${currentPage === totalPages ? "active" : ""}`}
-          onClick={() => handlePageChange(totalPages)}
-        >
-          {totalPages}
-        </button>
-      );
-    }
-
-    return pages;
+  const handleSelectedRowsChange = ({ selectedRows }) => {
+    setSelectedServices(selectedRows.map((r) => r.recID));
   };
+
+  const columns = [
+    {
+      name: "Code",
+      selector: (row) => row.serviceCode,
+      sortable: true,
+    },
+    {
+      name: "Name",
+      selector: (row) => row.serviceName,
+      sortable: true,
+      wrap: true,
+    },
+    {
+      name: "Category",
+      selector: (row) => row.categoryName,
+      sortable: true,
+    },
+    {
+      name: "Subcategory",
+      selector: (row) => row.subCategoryName,
+      sortable: true,
+    },
+    {
+      name: "Status",
+      selector: (row) => row.status,
+      cell: (row) => (
+        <span className={`status-badge ${row.status?.toLowerCase()}`}>
+          {row.status}
+        </span>
+      ),
+      sortable: true,
+    },
+    {
+      name: "Action",
+      cell: (row) => (
+        <button
+          className="act-btn edit"
+          onClick={() => handleEdit(row)}
+          title="Edit"
+        >
+          ✏️ Edit
+        </button>
+      ),
+      ignoreRowClick: true,
+      allowOverflow: true,
+      button: true,
+    },
+  ];
 
   if (showForm) {
     return <ServiceForm service={selectedServiceForEdit} onBack={handleBackFromForm} mode={formMode} />;
   }
 
   return (
-    <>
-      <style jsx>{
-       ` .service-master-container {
-          min-height: 100vh;
-        }
+    <div className="service-master-container">
+      <div className="header-section">
+        <h1 className="page-title">Manage Services</h1>
+        <div className="action-buttons">
+          <button className="create-btn" onClick={handleCreateNew}>Create New Service</button>
+        </div>
+      </div>
 
-        .page-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 30px;
+      <DataTable
+        columns={columns}
+        data={filteredServices}
+        selectableRows
+        onSelectedRowsChange={handleSelectedRowsChange}
+        progressPending={loading}
+        progressComponent={
+          <div className="loader-wrapper">
+            <div className="lds-ring"><div></div><div></div><div></div><div></div></div>
+          </div>
         }
+        pagination
+        paginationPerPage={entriesPerPage}
+        paginationRowsPerPageOptions={[10, 25, 50, 100]}
+        onChangeRowsPerPage={(newPerPage) => setEntriesPerPage(newPerPage)}
+        onChangePage={(page) => setCurrentPage(page)}
+        subHeader
+        highlightOnHover
+        subHeaderComponent={
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                minWidth: "200px",
+              }}
+            />
+            <select
+              value={serviceStatus}
+              onChange={(e) => setServiceStatus(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        }
+      />
 
+      <style>{`
         .header-section {
           display: flex;
           justify-content: space-between;
@@ -205,169 +204,23 @@ const ServiceMaster = () => {
           margin-bottom: 20px;
         }
 
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-
-        .action-buttons {
-          display: flex;
-          gap: 10px;
-        }
-
-        .action-btn {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background-color 0.3s ease;
+        .page-title {
+          font-size: 24px;
+          font-weight: 600;
         }
 
         .create-btn {
-          background-color: #343a40;
-          color: white;
+          padding: 10px 20px;
+          background-color: #334B71;
+          color: #fff;
+          border: none;
+          border-radius: 4px;
+          font-weight: 500;
+          cursor: pointer;
         }
 
         .create-btn:hover {
-          background-color: #23272b;
-        }
-
-        .edit-btn {
-          background-color: #343a40;
-          color: white;
-        }
-
-        .edit-btn:hover {
-          background-color: #23272b;
-        }
-
-        .service-status-select {
-          padding: 10px 15px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          background-color: white;
-          min-width: 150px;
-        }
-
-        .controls-section {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-
-        .entries-control {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .entries-select {
-          padding: 8px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          background-color: white;
-        }
-
-        .entries-label {
-          font-size: 14px;
-          color: #495057;
-        }
-
-        .search-control {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .search-label {
-          font-size: 14px;
-          color: #495057;
-          font-weight: 500;
-        }
-
-        .search-input {
-          padding: 8px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          min-width: 200px;
-        }
-
-        .search-input:focus {
-          outline: none;
-          border-color: #334B71;
-          box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-        }
-
-        .table-container {
-          background: white;
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-          margin-bottom: 20px;
-        }
-
-        .service-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .service-table th {
-          background-color: #f8f9fa;
-          padding: 15px 12px;
-          text-align: left;
-          font-weight: 600;
-          color: #495057;
-          border-bottom: 1px solid #dee2e6;
-          font-size: 14px;
-        }
-
-        .service-table td {
-          padding: 15px 12px;
-          border-bottom: 1px solid #dee2e6;
-          color: #495057;
-          font-size: 14px;
-          vertical-align: top;
-        }
-
-        .service-table tbody tr:hover {
-          background-color: #f8f9fa;
-        }
-
-        .checkbox-column {
-          width: 50px;
-          text-align: center;
-        }
-
-        .table-checkbox {
-          width: 16px;
-          height: 16px;
-          cursor: pointer;
-          accent-color: #334B71;
-        }
-
-        .service-code {
-          font-weight: 500;
-          color: #495057;
-          font-family: monospace;
-        }
-
-        .service-name {
-          max-width: 400px;
-          word-wrap: break-word;
-          line-height: 1.4;
+          background-color: #22314f;
         }
 
         .status-badge {
@@ -377,195 +230,72 @@ const ServiceMaster = () => {
           font-weight: 500;
           background-color: #d4edda;
           color: #155724;
+          text-transform: capitalize;
         }
 
-        .footer-section {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-top: 20px;
+        .status-badge.inactive {
+          background-color: #f8d7da;
+          color: #721c24;
         }
 
-        .entries-info {
-          font-size: 14px;
-          color: #6c757d;
-        }
-
-        .pagination-container {
-          display: flex;
-          gap: 5px;
-          align-items: center;
-        }
-
-        .pagination-btn {
-          padding: 8px 12px;
-          border: 1px solid #dee2e6;
-          background-color: white;
-          color: #495057;
-          cursor: pointer;
+        .act-btn.edit {
+          font-size: 13px;
+          padding: 6px 10px;
           border-radius: 4px;
-          font-size: 14px;
-          transition: all 0.2s;
+          border: none;
+          background-color: #fff3cd;
+          color: #856404;
+          font-weight: 500;
+          cursor: pointer;
         }
 
-        .pagination-btn:hover {
-          background-color: #e9ecef;
-          border-color: #adb5bd;
+        .act-btn.edit:hover {
+          background-color: #ffe8a1;
         }
 
-        .pagination-btn.active {
-          background-color: #334B71;
-          border-color: #334B71;
-          color: white;
-        }
-
-        .pagination-ellipsis {
-          padding: 8px 4px;
-          color: #6c757d;
-        }
-
-        .no-results {
+        .loader-wrapper {
+          display: flex;
+          justify-content: center;
+          align-items: center;
           padding: 40px;
-          text-align: center;
-          color: #6c757d;
         }
 
-        @media (max-width: 768px) {
-          .service-master-container {
-            padding: 15px;
-          }
+        .lds-ring {
+          display: inline-block;
+          position: relative;
+          width: 64px;
+          height: 64px;
+        }
 
-          .header-section {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 15px;
-          }
+        .lds-ring div {
+          box-sizing: border-box;
+          display: block;
+          position: absolute;
+          width: 48px;
+          height: 48px;
+          margin: 8px;
+          border: 4px solid #334B71;
+          border-radius: 50%;
+          animation: lds-ring 1.2s linear infinite;
+          border-color: #334B71 transparent transparent transparent;
+        }
 
-          .controls-section {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 15px;
-          }
+        .lds-ring div:nth-child(1) {
+          animation-delay: -0.45s;
+        }
+        .lds-ring div:nth-child(2) {
+          animation-delay: -0.3s;
+        }
+        .lds-ring div:nth-child(3) {
+          animation-delay: -0.15s;
+        }
 
-          .footer-section {
-            flex-direction: column;
-            gap: 15px;
-            align-items: center;
-          }
-
-          .pagination-container {
-            flex-wrap: wrap;
-            justify-content: center;
-          }
-
-          .service-table {
-            font-size: 12px;
-          }
-
-          .service-table th,
-          .service-table td {
-            padding: 10px 8px;
-          }
-
-          .service-name {
-            max-width: 250px;
-          }
-        }`
-      }</style>
-    <div className="service-master-container">
-      {/* Breadcrumb */}
-      <div className="breadcrumb">
-        <a href="/dashboard" className="breadcrumb-link">
-          Dashboard
-        </a>
-        <span className="breadcrumb-separator"> &gt; </span>
-        <span className="breadcrumb-current">Manage Services</span>
-      </div>
-      {/* Page Title */}
-      <h1 className="page-title">Manage Services</h1>
-      {/* Controls */}
-      <div className="controls-section">
-        <div className="entries-control">
-          <select value={entriesPerPage} onChange={handleEntriesPerPageChange} className="entries-select">
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <span className="entries-label">entries per page</span>
-        </div>
-        <div className="search-control">
-          <label className="search-label">Search:</label>
-          <input
-            type="text"
-            className="search-input"
-            value={searchTerm}
-            onChange={handleSearch}
-            placeholder="Search services..."
-          />
-        </div>
-      </div>
-
-      {/* Services Table */}
-      <div className="table-container">
-        <table className="msttable">
-          <thead>
-            <tr>
-              <th className="checkbox-column">
-                <input
-                  type="checkbox"
-                  checked={isAllSelected}
-                  onChange={handleSelectAll}
-                  className="table-checkbox"
-                />
-              </th>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Category</th>
-              <th>Subcategory</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredServices.map((service) => (
-              <tr key={service.recID}>
-                <td className="checkbox-column">
-                  <input
-                    type="checkbox"
-                    checked={selectedServices.includes(service.recID)}
-                    onChange={() => handleCheckboxChange(service.recID)}
-                    className="table-checkbox"
-                  />
-                </td>
-                <td>{service.serviceCode}</td>
-                <td>{service.serviceName}</td>
-                <td>{service.categoryName}</td>
-                <td>{service.subCategoryName}</td>
-                <td>
-                  <span className={`status-badge ${service.status.toLowerCase()}`}>{service.status}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredServices.length === 0 && (
-          <div className="no-results">
-            <p>No services found matching your search criteria.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination Footer */}
-      <div className="footer-section">
-        <div className="entries-info">
-          Showing {startIndex + 1} to {Math.min(startIndex + entriesPerPage, filteredServices.length)} of{" "}
-          {filteredServices.length} entries
-        </div>
-        <div className="pagination-container">{renderPagination()}</div>
-      </div>
+        @keyframes lds-ring {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
-    </>
   );
 };
 
