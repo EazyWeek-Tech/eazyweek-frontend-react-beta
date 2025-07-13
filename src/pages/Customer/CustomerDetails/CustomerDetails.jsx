@@ -52,7 +52,7 @@ const CustomerDetails = ({ custId }) => {
     <div className="customer-details">
       <div className="tabs-container">
         <TabList tabs={tabs} activeTab={activeTab} onTabClick={setActiveTab} />
-        <TabContent activeTab={activeTab} customer={customerData} />
+        <TabContent activeTab={activeTab} customer={customerData} custId={custId} />
       </div>
     </div>
   );

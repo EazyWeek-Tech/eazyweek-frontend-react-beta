@@ -10,10 +10,11 @@
 }
 
 .vertical-tabs {
-  width: 200px;
+  width:280px;
   border-right: 1px      #ccc;
   background-color: #f8f8f8;
   padding: 10px 0 10px 10px;
+  box-shadow: 3px 3px 3px #ccc;
 }
 
 .vertical-tabs .csttab {
@@ -22,11 +23,12 @@
   border-radius: 4px 0 0 4px;
   margin-bottom: 5px;
   border-bottom: none;
-  font-size: 14px;
+  font-size: 18px;
   display: flex;
   gap: 8px;
   align-items: center;
 }
+.custnmwrp{font-size: 26px;}
 .section .sectttl{margin: 0 0 20px;}
 .vertical-tabs .csttab.active {
   background-color: #334B71;
@@ -104,11 +106,17 @@
 .form-actions button[type="submit"] {
   background-color: #334B71;
   color: white;
+  padding: 10px 15px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .form-actions button[type="button"] {
   background-color: #ccc;
   color: #333;
+   padding: 10px 15px;
+  font-size: 16px;
+  font-weight: 600;
 }
 .tooltip {
             position: relative;

@@ -28,9 +28,10 @@ const Login = ({ onLoginSuccess }) => {
   }
 };
 
-const setSessionToApi = async () => {
+const setSessionToApi = async ({ user }) => {
+  console.log(user)
   try {
-    const payload = { LoginCode: "Bright", TopCode: "Bright", userID: "Zoya" };
+    const payload = { LoginCode: "Bright", TopCode: "Bright", userID: user.userId };
     const response = await fetch(`${API_BASE_URL}/api/session/set`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,10 +83,11 @@ const setSessionToApi = async () => {
       }
 
       //  Now set session based on real user data
-      await setSessionToApi();
+      await setSessionToApi({ user });
       await getSessionFromApi();
 
       onLoginSuccess(user);
+      console.log(user)
       navigate("/dashboard", { replace: true });
     }
   } catch (err) {

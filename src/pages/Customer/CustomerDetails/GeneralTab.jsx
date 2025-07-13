@@ -172,8 +172,8 @@ const GeneralTab = ({ customer }) => {
 
       {/* Form Actions */}
       <div className="form-actions">
-        <button type="button">Cancel</button>
         <button type="submit">Save</button>
+        <button type="button">Cancel</button>
       </div>
     </form>
   );

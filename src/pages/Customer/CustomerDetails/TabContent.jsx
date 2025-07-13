@@ -6,20 +6,20 @@ import NotesTab from "./NotesTab";
 import PackagesTab from "./PackagesTab";
 import InvoiceTab from "./InvoiceTab";
 
-const TabContent = ({ activeTab, customer }) => {
+const TabContent = ({ activeTab, customer, custId }) => {
   switch (activeTab) {
     case "General":
-      return <GeneralTab customer={customer} />;
+      return <GeneralTab customer={customer} custId={custId} />;
     case "Appointment":
-      return <AppointmentTab />;
+      return <AppointmentTab custId={custId} />;
     case "Credit Memo":
-      return <CreditMemoTab />;
+      return <CreditMemoTab custId={custId} />;
     case "Notes":
-      return <NotesTab />;
+      return <NotesTab custId={custId} />;
     case "Packages":
-      return <PackagesTab />;
+      return <PackagesTab custId={custId} />;
     case "Invoices":
-      return <InvoiceTab />;
+      return <InvoiceTab custId={custId} />;
     default:
       return <div>Select a tab</div>;
   }

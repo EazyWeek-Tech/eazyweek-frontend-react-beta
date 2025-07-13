@@ -1874,3 +1874,10 @@ button.disabled {
 .actual-flow{display: flex; gap: 30px;margin: 20px 0;}
 .flow-item{display: flex;gap:30px;text-align: center;}
 .flow-time > div{width: 100px;}
+
+.tabs-container form{width: calc(100% - 300px);}
+
+.tabs-container .sectttl{font-size: 18px; font-weight: 700;}
+
+.tabs-container .form-grid label{font-weight: 500;font-size: 16px;}
+.tabs-container .form-grid input,.tabs-container .form-grid select{font-size: 16px;}

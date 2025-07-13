@@ -8,6 +8,7 @@ const AppointmentDrawer = ({
   doctor,
   customer,
   editAppointment,
+  selectedDate,
   onRefreshAppointments,
 }) => {
   const drawerRef = useRef(null);
@@ -50,6 +51,11 @@ const AppointmentDrawer = ({
     onClose();
   };
 
+  // Handle date change in AppointmentDrawer
+  const handleDateChange = (e) => {
+    setSelectedDate(e.target.value);
+  };
+
   return (
     <>
       {isOpen && (
@@ -78,6 +84,7 @@ const AppointmentDrawer = ({
             </svg>
           </div>
 
+          {/* Pass selectedDate to ServiceBookingContainer */}
           <ServiceBookingContainer
             key={drawerResetKey}  // 👈 The key that triggers full reset
             prefillData={editAppointment}
@@ -87,6 +94,7 @@ const AppointmentDrawer = ({
             isOpen={isOpen}
             onClose={handleClose}
             onRefreshAppointments={onRefreshAppointments}
+            selectedDate={selectedDate}  // Pass selectedDate here
           />
         </div>
       </div>

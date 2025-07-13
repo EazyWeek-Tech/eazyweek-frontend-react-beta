@@ -1,32 +1,39 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../../../config";
 
-const AppointmentTab = () => {
-  const upcomingAppointments = [
-    {
-      invoiceNo: "1175",
-      receiptNo: "0",
-      service: "Consultation - Consultant (Consultation - Consultant) 1S - Expat_B",
-      serviceDate: "Tue, Jul 01 2025 3:30PM - 3:50PM",
-      status: "OPEN",
-      therapist: "Hasnasa Samir Abdelaziz Abosena",
-      paymentType: "",
-      action: "Edit",
-    },
-  ];
+const AppointmentTab = ({ custId }) => {
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [pastAppointments, setPastAppointments] = useState([]);
 
-  const pastAppointments = [
-    {
-      invoiceNo: "1157",
-      receiptNo: "0",
-      service: "Hair Reduction (FBL W/O B&A - Gentle Lase) 1S - Expat_B",
-      serviceDate: "Tue, Jun 17 2025 3:40PM - 4:40PM",
-      status: "OPEN",
-      therapist: "Aaliya Mukhtar Ahmad",
-      paymentType: "",
-      action: "Rebook",
-    },
-    // Add more past appointments here...
-  ];
+  useEffect(() => {
+    console.log(custId);
+    const fetchAppointments = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerAppointment`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ custID: custId }), // Passing the custId in the request
+          credentials: "include",
+        });
+
+        if (!response.ok) throw new Error("Error fetching appointments");
+        const data = await response.json();
+
+        // Filter and categorize appointments based on 'appointmentType'
+        const upcoming = data.filter((appt) => appt.appointmentType === "UpComing");
+        const past = data.filter((appt) => appt.appointmentType === "Past");
+
+        setUpcomingAppointments(upcoming);
+        setPastAppointments(past);
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+      }
+    };
+
+    if (custId) fetchAppointments(); // Fetch appointments only if custId is available
+  }, [custId]);
 
   const renderTable = (data, title) => (
     <div className="appt-section">
@@ -37,7 +44,7 @@ const AppointmentTab = () => {
             <th>Invoice No</th>
             <th>Receipt No</th>
             <th>Service</th>
-            <th>Refund</th>
+            
             <th>Service Date</th>
             <th>Status</th>
             <th>Therapist</th>
@@ -48,25 +55,15 @@ const AppointmentTab = () => {
         <tbody>
           {data.map((appt, idx) => (
             <tr key={idx}>
-              <td>{appt.invoiceNo}</td>
-              <td>{appt.receiptNo}</td>
-              <td width="350">{appt.service}</td>
-              <td>
-                {/* Refund icons placeholder */}
-                <a href="" title="" data-tooltip="View Log" className="tooltip"
-                data-tooltip-pos="down">
-                    <img src="/images/log.png" title="" alt="" width={18}/></a> 
-                <a href="" title="" data-tooltip="View or edit data" className="tooltip"
-                data-tooltip-pos="down">
-                    <img src="/images/editwrite.png" title="" width={18} alt="" />
-                </a>
-              </td>
-              <td width="150">{appt.serviceDate}</td>
-              <td>{appt.status}</td>
-              <td width="150">{appt.therapist}</td>
-              <td >{appt.paymentType}</td>
+              <td>{appt.invoiceNo || "N/A"}</td>
+              <td>{appt.receiptNo || "N/A"}</td>
+              <td width="350">{appt.service || "N/A"}</td>
+              <td width="150">{appt.serviceDate || "N/A"}</td>
+              <td>{appt.status || "N/A"}</td>
+              <td width="150">{appt.therapist || "N/A"}</td>
+              <td>{appt.paymentType || "N/A"}</td>
               <td width="75">
-                <button className="action-btn">{appt.action}</button>
+                <button className="action-btn">{appt.appointmentType === "Past" ? "Rebook" : "Edit"}</button>
               </td>
             </tr>
           ))}
@@ -90,22 +87,24 @@ const AppointmentTab = () => {
           color: #333;
           margin-bottom: 10px;
         }
+          .appointment-tab{padding: 30px;width: calc(100% - 300px)}
         .appt-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin: 20px 0;
           font-size: 14px;
         }
         .appt-table th {
           background: #f0f0f0;
-          padding: 8px;
+          padding: 15px 10px;
           text-align: left;
+          font-size: 15px;
           border-bottom: 1px solid #ccc;
         }
         .appt-table td {
-            font-size: 13px;
-            line-height: 19px;
-          padding: 8px;
+          font-size: 15px;
+          line-height: 19px;
+          padding: 15px 10px;
           border-bottom: 1px solid #e0e0e0;
         }
         .action-btn {
