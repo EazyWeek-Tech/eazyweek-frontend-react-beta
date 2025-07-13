@@ -1,339 +1,146 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import EmployeeEditForm from "./EmployeeEditForm"
+import React, { useEffect, useState } from "react";
+import DataTable from "react-data-table-component";
+import EmployeeEditForm from "./EmployeeEditForm";
+import { API_BASE_URL } from "../../config";
 
 const EmployeeMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [selectedEmployee, setSelectedEmployee] = useState(null)
-  const [showEditForm, setShowEditForm] = useState(false)
+  const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Sample employee data based on your screenshot
-  const employeeData = [
-    {
-      id: 1,
-      employeeCode: "CENT00069",
-      firstName: "Kris",
-      lastName: "Tolentino Cajuguiran",
-      mobileNo: "55 704 8644",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Kris",
-      email: "kris.cajuguiran@linesclinics.com",
-      job: "Nurse",
-      username: "kris.cajuguiran@linesclinics.com",
-      homePhone: "55 704 8644",
-      workPhone: "55 704 8644",
-      gender: "Male",
-      birthday: "01/01/1990",
-      anniversary: "01/01/1990",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 2,
-      employeeCode: "CENT00030",
-      firstName: "Merian",
-      lastName: "Solita Sorio",
-      mobileNo: "56 254 7083",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Merian",
-      email: "merian.sorio@linesclinics.com",
-      job: "Nurse",
-      username: "merian.sorio@linesclinics.com",
-      homePhone: "56 254 7083",
-      workPhone: "56 254 7083",
-      gender: "Female",
-      birthday: "01/01/1985",
-      anniversary: "01/01/1985",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 3,
-      employeeCode: "CENT00068",
-      firstName: "Quenaver",
-      lastName: "Vicente Acabo",
-      mobileNo: "55 477 9834",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Quenaver",
-      email: "quenaver.acabo@linesclinics.com",
-      job: "Nurse",
-      username: "quenaver.acabo@linesclinics.com",
-      homePhone: "55 477 9834",
-      workPhone: "55 477 9834",
-      gender: "Male",
-      birthday: "01/01/1988",
-      anniversary: "01/01/1988",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 4,
-      employeeCode: "CENT-00191",
-      firstName: "Danah Mohammed",
-      lastName: "Alqarni",
-      mobileNo: "55 464 1645",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Danah",
-      email: "danah.alqarni@linesclinics.com",
-      job: "Nurse",
-      username: "danah.alqarni@linesclinics.com",
-      homePhone: "55 464 1645",
-      workPhone: "55 464 1645",
-      gender: "Female",
-      birthday: "01/01/1992",
-      anniversary: "01/01/1992",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 5,
-      employeeCode: "CENT00124",
-      firstName: "Reema",
-      lastName: "Ibrahim Sulaiman Alqaseem",
-      mobileNo: "53 379 4446",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Reema",
-      email: "reema.alqaseem@linesclinics.com",
-      job: "Nurse",
-      username: "reema.alqaseem@linesclinics.com",
-      homePhone: "53 379 4446",
-      workPhone: "53 379 4446",
-      gender: "Female",
-      birthday: "01/01/1987",
-      anniversary: "01/01/1987",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 6,
-      employeeCode: "CENT00121",
-      firstName: "Ahlam",
-      lastName: "Ahmed Ali Alqarni",
-      mobileNo: "57 039 8637",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Ahlam",
-      email: "ahlam.alqarni@linesclinics.com",
-      job: "Nurse",
-      username: "ahlam.alqarni@linesclinics.com",
-      homePhone: "57 039 8637",
-      workPhone: "57 039 8637",
-      gender: "Female",
-      birthday: "01/01/1991",
-      anniversary: "01/01/1991",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 7,
-      employeeCode: "CENT-00156",
-      firstName: "Amirah",
-      lastName: "Alduwayhim",
-      mobileNo: "55 646 8681",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Amirah",
-      email: "amirah.alduwayhim@linesclinics.com",
-      job: "Nurse",
-      username: "amirah.alduwayhim@linesclinics.com",
-      homePhone: "55 646 8681",
-      workPhone: "55 646 8681",
-      gender: "Female",
-      birthday: "01/01/1989",
-      anniversary: "01/01/1989",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 8,
-      employeeCode: "CENT101",
-      firstName: "Dr X",
-      lastName: "",
-      mobileNo: "",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Dr X",
-      email: "drx@linesclinics.com",
-      job: "Doctor",
-      username: "drx@linesclinics.com",
-      homePhone: "",
-      workPhone: "",
-      gender: "Male",
-      birthday: "",
-      anniversary: "",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 9,
-      employeeCode: "CENT-00165",
-      firstName: "Abeer",
-      lastName: "Saleh",
-      mobileNo: "53 193 1991",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Abeer",
-      email: "abeer.saleh@linesclinics.com",
-      job: "Nurse",
-      username: "abeer.saleh@linesclinics.com",
-      homePhone: "53 193 1991",
-      workPhone: "53 193 1991",
-      gender: "Female",
-      birthday: "01/01/1993",
-      anniversary: "01/01/1993",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-    {
-      id: 10,
-      employeeCode: "CENT-00139",
-      firstName: "Maria",
-      lastName: "Alshehri",
-      mobileNo: "53 233 6104",
-      primaryClinic: "Bright Clinics",
-      middleName: "",
-      nickname: "Maria",
-      email: "maria.alshehri@linesclinics.com",
-      job: "Nurse",
-      username: "maria.alshehri@linesclinics.com",
-      homePhone: "53 233 6104",
-      workPhone: "53 233 6104",
-      gender: "Female",
-      birthday: "01/01/1986",
-      anniversary: "01/01/1986",
-      address1: "",
-      address2: "",
-      city: "",
-      country: "Saudi Arabia",
-      state: "Ar Riya-d",
-      nationalityId: "",
-    },
-  ]
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        const employeeList = (Array.isArray(data) ? data : [data]).map((emp) => {
+          const nameParts = emp.employeeName?.split(" ") || [];
+          return {
+            ...emp,
+            firstName: nameParts.slice(0, -1).join(" "),
+            lastName: nameParts.slice(-1).join(" "),
+          };
+        });
+        setEmployees(employeeList);
+        setFilteredEmployees(employeeList);
+      } catch (error) {
+        console.error("Failed to fetch employees:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, []);
 
-  const itemsPerPage = 10
-  const totalPages = Math.ceil(employeeData.length / itemsPerPage)
+  useEffect(() => {
+    const filtered = employees.filter((emp) =>
+      [emp.firstName, emp.lastName, emp.employeeCode, emp.mobileNo, emp.clinicName]
+        .join(" ")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    );
+    setFilteredEmployees(filtered);
+  }, [searchTerm, employees]);
 
-  // Filter employees based on search term
-  const filteredEmployees = employeeData.filter(
-    (employee) =>
-      employee.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.mobileNo.includes(searchTerm) ||
-      employee.primaryClinic.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  // Get current page data
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const currentEmployees = filteredEmployees.slice(startIndex, startIndex + itemsPerPage)
-
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
-    setCurrentPage(1) // Reset to first page when searching
-  }
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
-
-  const handleEmployeeClick = (employee) => {
-    setSelectedEmployee(employee)
-    setShowEditForm(true)
-  }
-
+  const handleSearch = (e) => setSearchTerm(e.target.value);
+  const handleEmployeeClick = (emp) => {
+    setSelectedEmployee(emp);
+    setShowEditForm(true);
+  };
   const handleBackToList = () => {
-    setShowEditForm(false)
-    setSelectedEmployee(null)
-  }
+    setSelectedEmployee(null);
+    setShowEditForm(false);
+  };
 
-  const renderPagination = () => {
-    const pages = []
-    const maxVisiblePages = 9
+  const columns = [
+    {
+      name: "Employee Code",
+      selector: (row) => row.employeeCode,
+      cell: (row) => (
+        <a href="#" onClick={(e) => { e.preventDefault(); handleEmployeeClick(row); }}>
+          {row.employeeCode}
+        </a>
+      ),
+      sortable: true,
+    },
+    { name: "First Name", selector: (row) => row.firstName, sortable: true },
+    { name: "Last Name", selector: (row) => row.lastName, sortable: true },
+    { name: "Mobile No", selector: (row) => row.mobileNo, sortable: true },
+    { name: "Primary Clinic", selector: (row) => row.clinicName, sortable: true },
+  ];
 
-    for (let i = 1; i <= Math.min(totalPages, maxVisiblePages); i++) {
-      pages.push(
-        <button
-          key={i}
-          className={`pagination-btn ${currentPage === i ? "active" : ""}`}
-          onClick={() => handlePageChange(i)}
-        >
-          {i}
-        </button>,
-      )
-    }
-
-    if (totalPages > maxVisiblePages) {
-      pages.push(
-        <button key="more" className="pagination-btn">
-          ...
-        </button>,
-      )
-    }
-
-    return pages
-  }
-
-  // If showing edit form, render the EmployeeEditForm component
   if (showEditForm && selectedEmployee) {
-    return <EmployeeEditForm employee={selectedEmployee} onBack={handleBackToList} />
+    return <EmployeeEditForm employee={selectedEmployee} onBack={handleBackToList} />;
   }
 
   return (
     <div className="employee-master-container">
-      {/* Breadcrumb */}
+      <style>{`
+        .breadcrumb {
+          margin-bottom: 10px;
+          font-size: 14px;
+        }
+        .breadcrumb-link {
+          color: #334B71;
+          text-decoration: none;
+        }
+        .breadcrumb-separator {
+          margin: 0 5px;
+        }
+        .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .page-title {
+          font-size: 24px;
+          font-weight: 600;
+        }
+        .add-btn {
+          background-color: #334B71;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        .search-container {
+          margin-bottom: 20px;
+        }
+        .search-input {
+          width: 100%;
+          max-width: 400px;
+          padding: 8px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+        .loader {
+          text-align: center;
+          font-size: 16px;
+          margin-top: 40px;
+        }
+          .cstmtable div a{color: #334B71; font-weight: 600; text-decoration: underline;}
+      `}</style>
+
       <div className="breadcrumb">
-          <a href="/dashboard" className="breadcrumb-link">
-          Dashboard
-        </a>
+        <a href="/dashboard" className="breadcrumb-link">Dashboard</a>
         <span className="breadcrumb-separator"> &gt; </span>
         <span className="breadcrumb-current">Manage Employee</span>
       </div>
-     {/* Page Title */}
-      <h1 className="page-title">Manage Employees</h1>
-      {/* Search Bar */}
+
+      <div className="page-header">
+        <h1 className="page-title">Manage Employees</h1>
+        <button className="add-btn">Add Employee</button>
+      </div>
+
       <div className="search-container">
         <input
           type="text"
@@ -342,56 +149,23 @@ const EmployeeMaster = () => {
           value={searchTerm}
           onChange={handleSearch}
         />
-        <button className="search-btn">Search</button>
       </div>
 
-      {/* Employee Table */}
-      <div className="table-container">
-        <table className="msttable">
-          <thead>
-            <tr>
-              <th>Employee Code</th>
-              <th>First Name</th>
-              <th>Last Name</th>
-              <th>Mobile No</th>
-              <th>Primary Clinic</th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentEmployees.map((employee) => (
-              <tr key={employee.id}>
-                <td>
-                  <a
-                    href="#"
-                    className="employee-code-link"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleEmployeeClick(employee)
-                    }}
-                  >
-                    {employee.employeeCode}
-                  </a>
-                </td>
-                <td>{employee.firstName}</td>
-                <td>{employee.lastName}</td>
-                <td>{employee.mobileNo}</td>
-                <td>{employee.primaryClinic}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredEmployees.length === 0 && (
-          <div className="no-results">
-            <p>No employees found matching your search criteria.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      <div className="pagination-container">{renderPagination()}</div>
+      {loading ? (
+        <div className="loader">Loading employees...</div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredEmployees}
+          className="cstmtable"
+          pagination
+          highlightOnHover
+          responsive
+          dense
+        />
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default EmployeeMaster
+export default EmployeeMaster;

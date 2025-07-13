@@ -177,7 +177,7 @@
   border-collapse: collapse;
 }
 
-.cstmtable div {font-size: 16px;line-height: 32px;}
+.cstmtable div {font-size: 14px;line-height: 32px;}
 .cstmtable  div[class$="TableHead"]{font-weight: 700;}
 .header-section h1{font-size: 28px; font-weight: 600;}
 
