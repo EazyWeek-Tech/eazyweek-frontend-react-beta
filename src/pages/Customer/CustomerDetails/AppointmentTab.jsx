@@ -49,7 +49,6 @@ const AppointmentTab = ({ custId }) => {
             <th>Status</th>
             <th>Therapist</th>
             <th>Payment Type</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -62,9 +61,7 @@ const AppointmentTab = ({ custId }) => {
               <td>{appt.status || "N/A"}</td>
               <td width="150">{appt.therapist || "N/A"}</td>
               <td>{appt.paymentType || "N/A"}</td>
-              <td width="75">
-                <button className="action-btn">{appt.appointmentType === "Past" ? "Rebook" : "Edit"}</button>
-              </td>
+              
             </tr>
           ))}
         </tbody>
