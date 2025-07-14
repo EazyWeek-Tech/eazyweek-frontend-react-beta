@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react"; // <-- Import useRef here
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from "../../../config";
-import '../index.css'
+import '../index.css';
+
 const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const suggestionsRef = useRef(null);
+  const suggestionsRef = useRef(null);  // <-- useRef for managing suggestions list
   const [todayDate, setTodayDate] = useState("");
   const [noResults, setNoResults] = useState(false);
 
@@ -14,13 +15,12 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
     const today = new Date();
     const formattedDate = today.toISOString().split("T")[0];
     setTodayDate(formattedDate);
-    onDateChange?.(formattedDate);
-    
+    onDateChange(formattedDate);  // Pass selected date to parent component
   }, []);
 
   const fetchSuggestions = async (query) => {
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
     if (!query || query.length < 2) {
       setSuggestions([]);
       setActiveIndex(-1);
@@ -29,21 +29,20 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
     }
 
     try {
-const response = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(query)}/${centerCode}`);
+      const response = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(query)}/${centerCode}`);
       if (!response.ok) throw new Error("Failed to fetch data");
       const data = await response.json();
 
-     const filtered = data.filter((item) => {
-  const firstName = item.firstName?.toLowerCase() || "";
-  const lastName = item.lastName?.toLowerCase() || "";
-  const fullName = `${firstName} ${lastName}`;
-  return (
-    firstName.includes(query.toLowerCase()) ||
-    (item.mobile || "").includes(query) ||
-    fullName.includes(query.toLowerCase())
-  );
-});
-
+      const filtered = data.filter((item) => {
+        const firstName = item.firstName?.toLowerCase() || "";
+        const lastName = item.lastName?.toLowerCase() || "";
+        const fullName = `${firstName} ${lastName}`;
+        return (
+          firstName.includes(query.toLowerCase()) ||
+          (item.mobile || "").includes(query) ||
+          fullName.includes(query.toLowerCase())
+        );
+      });
 
       setSuggestions(filtered);
       setActiveIndex(0);
@@ -102,17 +101,17 @@ const response = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/
   const handleDateChange = (e) => {
     const selected = e.target.value;
     setTodayDate(selected);
-    onDateChange?.(selected);
+    onDateChange(selected);  // Pass the selected date back to the parent
+    console.log(selected)
   };
 
   return (
     <header className="appthdr">
       <div className="flx-spcbt">
         <div>
-        <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
-  <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
-</Link>
-
+          <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
+            <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
+          </Link>
         </div>
 
         <div className="datepkrdiv">

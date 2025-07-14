@@ -28,7 +28,8 @@ const ServiceList = ({ data = [], onDelete }) => {
             {data.map((entry, index) => (
               <tr key={index}>
                 <td>{entry.service.servicename}</td>
-                <td>{entry.service.practitionerName}</td>
+                <td>{entry.service.practitionerName || entry.service.practitioner || "—"}</td>
+
                 <td>{entry.service.equipment || "N/A"}</td>
                 <td>{entry.service.start}</td>
                 <td>{entry.service.end}</td>

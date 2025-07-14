@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import $ from "jquery";
 import "datatables.net-fixedcolumns";
 import "datatables.net";
@@ -7,18 +7,26 @@ import { useNavigate } from "react-router-dom";
 const CaseTable = ({ records = [] }) => {
   const tableRef = useRef();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const $table = $(tableRef.current);
+ useEffect(() => {
+  const $table = $(tableRef.current);
 
-    // Destroy and clear existing DataTable if it exists
-    if ($.fn.dataTable.isDataTable($table)) {
-      $table.DataTable().destroy();
-      $table.empty(); // remove old header/body
-    }
+  if ($.fn.dataTable.isDataTable($table)) {
+    $table.DataTable().destroy();
+    $table.empty();
+  }
 
+  // Manual sorting of records before DataTable is initialized
+  const sortedRecords = [...records].sort((a, b) => {
+    const dateA = new Date(a.createddate || "1970-01-01");
+    const dateB = new Date(b.createddate || "1970-01-01");
+    return dateB - dateA;
+  });
+
+  setTimeout(() => {
     $table.DataTable({
-      data: records,
+      data: sortedRecords,
       columns: [
         {
           data: "caseno",
@@ -31,7 +39,7 @@ const CaseTable = ({ records = [] }) => {
           data: "status",
           title: "Status",
           render: (data) =>
-            `<span class="${data?.toLowerCase() ?? ''}">${data ?? '-'}</span>`,
+            `<span class="${data?.toLowerCase() ?? ""}">${data ?? "-"}</span>`,
         },
         {
           data: "priority",
@@ -55,9 +63,9 @@ const CaseTable = ({ records = [] }) => {
       scrollX: true,
       scrollY: 600,
       bFilter: true,
-      order: [[10, "desc"]],
+      // Remove this ↓ to prevent it overriding JS sort
+      order: [],
       createdRow: (row, data) => {
-        console.log(data)
         $(row)
           .find(".case-link")
           .on("click", function (e) {
@@ -67,7 +75,10 @@ const CaseTable = ({ records = [] }) => {
           });
       },
     });
-  }, [records, navigate]);
+    setLoading(false);
+  }, 200);
+}, [records, navigate]);
+
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -79,12 +90,37 @@ const CaseTable = ({ records = [] }) => {
 
   return (
     <div className="pgcases">
+      {loading && (
+        <div className="loader-container">
+          <div className="spinner"></div>
+        </div>
+      )}
       <table
         ref={tableRef}
         id="case-table"
         className="stripe row-border order-column case-table"
-        style={{ width: "100%" }}
+        style={{ width: "100%", display: loading ? "none" : "table" }}
       ></table>
+
+      <style>{`
+        .loader-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 400px;
+        }
+        .spinner {
+          width: 48px;
+          height: 48px;
+          border: 5px solid rgba(0, 0, 0, 0.1);
+          border-top-color: #334b71;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

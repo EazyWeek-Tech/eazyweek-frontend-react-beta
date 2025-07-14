@@ -1,0 +1,31 @@
+import React from "react";
+import GeneralTab from "./GeneralTab";
+import AppointmentTab from "./AppointmentTab";
+import CreditMemoTab from "./CreditMemoTab";
+import NotesTab from "./NotesTab";
+import PackagesTab from "./PackagesTab";
+import InvoiceTab from "./InvoiceTab";
+import CaseTab from "./CaseTab";
+
+const TabContent = ({ activeTab, customer, custId }) => {
+  switch (activeTab) {
+    case "General":
+      return <GeneralTab customer={customer} custId={custId} />;
+    case "Appointment":
+      return <AppointmentTab custId={custId} />;
+    case "Credit Memo":
+      return <CreditMemoTab custId={custId} />;
+    case "Notes":
+      return <NotesTab custId={custId} />;
+    case "Packages":
+      return <PackagesTab custId={custId} />;
+    case "Invoices":
+      return <InvoiceTab custId={custId} />;
+        case "Cases":
+      return <CaseTab custId={custId} />;
+    default:
+      return <div>Select a tab</div>;
+  }
+};
+
+export default TabContent;

@@ -22,6 +22,12 @@ const InvoicePage = () => {
   const [toast, setToast] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
+ const [formTnput, setFormTnput] = useState({
+    name: '',
+    servicecode: '',
+    doctorId: ''
+  });
+
   const [searchParams] = useSearchParams();
   const custidFromUrl = searchParams.get('custid');
   const appointmentIdFromUrl = searchParams.get('appointmentid');
@@ -41,6 +47,7 @@ const InvoicePage = () => {
         try {
           const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
             method: "POST",
+             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
@@ -50,26 +57,35 @@ const InvoicePage = () => {
           if (Array.isArray(result) && result.length > 0) {
             const firstItem = result[0];
 
-            setItems([
-              {
-                name: firstItem.serviceName || '',
-                servicecode: firstItem.serviceCode || '',
-                price: firstItem.netAmount || '',
-                discount: 0,
-                taxpercent: firstItem.tax || 0,
-                citizentax: firstItem.tax || 0
-              }
-            ]);
+            setItems([{
+              name: firstItem.serviceName || '',
+              servicecode: firstItem.serviceCode || '',
+              price: firstItem.price || '',
+              discount: 0,
+              taxpercent: firstItem.tax || 0,
+              citizentax: firstItem.tax || 0,
+              doctorId: firstItem.doctorId || '',
 
+            }]);
+
+
+          setFormTnput({
+              name: firstItem.serviceName || '',
+              servicecode: firstItem.serviceCode || '',
+              doctorId: firstItem.doctorId || ''
+            });
+
+
+
+            // Extract customer details from the response and set it
             setSelectedCustomer({
               custid: firstItem.custId || "",
               fullName: firstItem.fullName || custNameFromUrl || "",
-              number: firstItem.mobile || "",
+              number: firstItem.number || "",
               email: firstItem.emailId || "",
               gender: firstItem.gender || "",
-              status: firstItem.nationality === "95" ? "Citizen" : "Expat"
+              status: firstItem.nationality === "84" ? "Citizen" : "Expat"
             });
-
             return;
           }
         } catch (error) {
@@ -196,6 +212,7 @@ const InvoicePage = () => {
                     <input type="text" className="invinp" value={value} readOnly />
                   </div>
                 ))}
+
               </div>
 
               <div className="formdivwrp">
@@ -203,8 +220,12 @@ const InvoicePage = () => {
                   suggestions={suggestions}
                   onAddItem={handleAddFormItem}
                   resetKey={formResetKey}
+                
                   customer={selectedCustomer}
                   showToast={(msg) => setToast({ message: msg, type: 'error' })}
+                  servicename={formTnput.name}
+              servicecode={formTnput.servicecode}
+              doctorId={formTnput.doctorId}
                 />
               </div>
             </div>
@@ -237,6 +258,10 @@ const InvoicePage = () => {
               <CustomerSearch
                 onCustomerSelect={setSelectedCustomer}
                 prefillCustid={custidFromUrl}
+                fullName={selectedCustomer?.fullName}
+                emailId={selectedCustomer?.email}
+                number={selectedCustomer?.number}
+                nationalityStatus={selectedCustomer?.status}
               />
               <div className="invttlwrp">
                 {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount }, { label: 'Tax', value: tax }, { label: 'Round Off', value: roundoff }, { label: 'Total', value: total }]

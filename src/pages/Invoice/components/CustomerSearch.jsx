@@ -7,92 +7,98 @@ const createDataHandler = async (url) => {
   return await response.json();
 };
 
-const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
+const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, number, nationalityStatus: nationalityFromProps }) => {
   const [formData, setFormData] = useState({ mobile: '', name: '', email: '' });
-  const [suggestions, setSuggestions] = useState([]);
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
   const [focusedField, setFocusedField] = useState(null);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [nationalityStatus, setNationalityStatus] = useState(nationalityFromProps || "");
 
- 
 
-
-  // Prefill from URL custid
+  // Prefill fields if customer data is passed via props
   useEffect(() => {
-    if (prefillCustid && suggestions.length > 0) {
-      const match = suggestions.find(c => c.custid === prefillCustid);
-      if (match) handleSelect(match);
+    console.log(prefillCustid)
+    console.log(fullName + ","+emailId + ","+number)
+    if (fullName || emailId || number) {
+      setFormData({
+        name: fullName,
+        mobile: number,
+        email: emailId
+      });
+      setIsReadOnly(true);  
+
+       if (nationalityFromProps) {
+        setNationalityStatus(nationalityFromProps);  
+      }
     }
-  }, [prefillCustid, suggestions]);
+  }, [fullName, emailId, number]);
 
+  // Handle input changes for mobile, name, and email fields
   const handleChange = async (field, value) => {
-  const updated = { ...formData, [field]: value };
-  setFormData(updated);
-  setFocusedField(field);
+    const updated = { ...formData, [field]: value };
+    setFormData(updated);
+    setFocusedField(field);
 
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  const centerCode = stored ? JSON.parse(stored).centerCode : "";
-  if (!value || value.length < 2 || !centerCode) {
-    setFilteredSuggestions([]);
-    return;
-  }
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-  try {
-    const url = `${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(value)}/${centerCode}`;
-    const data = await createDataHandler(url);
-    console.log("Fetched customer data:", data);
+    if (!value || value.length < 2 || !centerCode) {
+      setFilteredSuggestions([]);
+      return;
+    }
 
-    const lower = value.toLowerCase();
-    const filtered = data.filter((cust) =>
-      (field === 'mobile' && cust.mobile?.includes(value)) ||
-      (field === 'name' && `${cust.firstName} ${cust.lastName}`.toLowerCase().includes(lower)) ||
-      (field === 'email' && cust.email?.toLowerCase().includes(lower))
-    );
+    try {
+      const url = `${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(value)}/${centerCode}`;
+      const data = await createDataHandler(url);
+      console.log("Fetched customer data:", data);
 
-    setFilteredSuggestions(filtered);
-  } catch (err) {
-    console.error("Customer search failed:", err);
-    setFilteredSuggestions([]);
-  }
-};
+      const lower = value.toLowerCase();
+      const filtered = data.filter((cust) =>
+        (field === 'mobile' && cust.mobile?.includes(value)) ||
+        (field === 'name' && `${cust.firstName} ${cust.lastName}`.toLowerCase().includes(lower)) ||
+        (field === 'email' && cust.email?.toLowerCase().includes(lower))
+      );
 
+      setFilteredSuggestions(filtered);
+    } catch (err) {
+      console.error("Customer search failed:", err);
+      setFilteredSuggestions([]);
+    }
+  };
 
-
+  // Handle customer selection from suggestions
   const handleSelect = (cust) => {
-    const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'EXPAT';
+        const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'Expat';
 
-    const enriched = { ...cust, status };
 
     setFormData({
-  mobile: cust.mobile || '',
-  name: `${cust.firstName} ${cust.lastName}`,
-  email: cust.email || ''
-});
+      mobile: cust.mobile || '',
+      name: `${cust.firstName} ${cust.lastName}`,
+      email: cust.email || ''
+    });
 
+    setNationalityStatus(status); 
 
     setFilteredSuggestions([]);
     setFocusedField(null);
-    setSelectedCustomer(enriched);
+     const enriched = { ...cust, status };
     onCustomerSelect?.(enriched);
-              console.log(selectedCustomer)
-
   };
 
   return (
     <div className="cstsearch">
-      <div className='custtl'>
-          <div className="sectttl">Customer Search</div>
-      {selectedCustomer && (
-        <div
-          className={selectedCustomer.status === 'Citizen' ? 'nstatus' : 'nstatus expat'}
-          style={{ fontWeight: 'bold' }}
-        >
-          Nationality status is {selectedCustomer.status}
-        </div>
-      )}
-        
+      <div className="custtl">
+        <div className="sectttl">Customer Search</div>
+        {nationalityStatus && (
+          <div
+            className={`nstatus ${nationalityStatus.toLowerCase()}`}
+            style={{ fontWeight: 'bold' }}
+          >
+            Nationality Status: {nationalityStatus}
+          </div>
+        )}
       </div>
-      
+
       <form className="cstfrm">
         {['mobile', 'name', 'email'].map((field) => (
           <div className="frmdiv" style={{ position: 'relative' }} key={field}>
@@ -103,15 +109,15 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
               value={formData[field]}
               onChange={(e) => handleChange(field, e.target.value)}
               onFocus={() => setFocusedField(field)}
+              readOnly={isReadOnly}  // Make input field read-only if prefilled
             />
-            {focusedField === field && filteredSuggestions.length > 0 && (
+            {focusedField === field && !isReadOnly && filteredSuggestions.length > 0 && (
               <ul className="suggestion-list">
                 {filteredSuggestions.map((cust, idx) => (
                   <li key={idx} onClick={() => handleSelect(cust)}>
                     {field === 'mobile' ? cust.mobile
- : field === 'name' ? `${cust.firstName} ${cust.lastName}`
- : cust.email || 'No email'}
-
+                      : field === 'name' ? `${cust.firstName} ${cust.lastName}`
+                      : cust.email || 'No email'}
                   </li>
                 ))}
               </ul>
@@ -119,8 +125,6 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid }) => {
           </div>
         ))}
       </form>
-
-      
     </div>
   );
 };

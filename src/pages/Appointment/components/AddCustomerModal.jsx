@@ -19,30 +19,54 @@ const AddCustomerModal = ({ onClose }) => {
   const [errors, setErrors] = useState({});
   const [countryOptions, setCountryOptions] = useState([]);
   const [toast, setToast] = useState(null);
+  const [countryList, setCountryList] = useState([]);
+
 
   useEffect(() => {
-    const fetchNationalities = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setCountryOptions(data);
-          setFormData((prev) => ({
-            ...prev,
-            nationality: data[0]?.id?.toString() || "",
-            nationalityLabel: data[0]?.name || ""
-          }));
-        }
-      } catch (err) {
-        console.error("Nationality fetch error:", err);
-      }
-    };
+  const fetchCountries = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Master/LoadCountry`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setCountryList(data);
+    } catch (err) {
+      console.error("Error loading country list", err);
+    }
+  };
 
-    if (formData.nationalityCountry) fetchNationalities();
-  }, [formData.nationalityCountry]);
+  fetchCountries();
+}, []);
+
+
+
+  useEffect(() => {
+  const fetchNationalities = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setCountryOptions(data);
+        setFormData((prev) => ({
+          ...prev,
+          nationality: data[0]?.id?.toString() || "",
+          nationalityLabel: data[0]?.name || "",
+        }));
+      }
+    } catch (err) {
+      console.error("Error loading nationality list", err);
+    }
+  };
+
+  if (formData.nationalityCountry) {
+    fetchNationalities();
+  }
+}, [formData.nationalityCountry]);
+
 
   useEffect(() => {
     const status = formData.nationality === "84" ? "Citizen" : "Expat";
@@ -135,6 +159,7 @@ const AddCustomerModal = ({ onClose }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
         method: "POST",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dataToSubmit),
       });
@@ -228,18 +253,24 @@ const AddCustomerModal = ({ onClose }) => {
             </div>
 
             <div className="frmdiv">
-              <label htmlFor="nationalityCountry">Country:</label>
-              <div className="inptdiv">
-                <select
-                  id="nationalityCountry"
-                  value={formData.nationalityCountry}
-                  onChange={handleChange}
-                >
-                  <option value="10">Saudi Arabia</option>
-                  <option value="91">Spain</option>
-                </select>
-              </div>
-            </div>
+  <label htmlFor="nationalityCountry">Country:</label>
+  <div className="inptdiv">
+    <select
+      id="nationalityCountry"
+      value={formData.nationalityCountry}
+      onChange={handleChange}
+    >
+      <option value="">Select Country</option>
+      {countryList.map((item) => (
+        <option key={item.code} value={item.code}>
+          {item.name}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
+
+
 
             <div className="frmdiv">
               <label htmlFor="nationality">Nationality: <span className="rd">*</span></label>

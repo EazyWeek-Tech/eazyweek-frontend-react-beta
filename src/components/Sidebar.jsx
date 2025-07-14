@@ -53,6 +53,7 @@ const Sidebar = ({ collapsed }) => {
       label: "Audit",
       icon: "bx-calculator",
       submenu: [
+        {name: "Audit Dashboard", path:"/audit"},
         { name: "Create", path: "/audit/create" },
         { name: "Summary Report", path: "/audit/summary" },
         { name: "Detailed Report", path: "/audit/detailed" },
@@ -61,7 +62,7 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "E-Invoice",
       icon: "bx-receipt",
-      submenu: [{ name: "E-Invoice", path: "/e-invoice" }],
+      submenu: [{ name: "E-Invoice", path: "/einvoice" }],
     },
     {
       label: "Invoice",
@@ -105,20 +106,20 @@ const Sidebar = ({ collapsed }) => {
       onMouseLeave={() => setExpandedMenus({})}
     >
       <div className="smlnav">
-        <div className="sw-logo">
+        <a href="/dashboard" className="sw-logo">
           <img
             src="/images/insightlogo.jpeg"
             alt="logo"
           />
           <span>INSIGHT</span>
-        </div>
+        </a>
 
         <ul className="lhs-mnu">
           <li>
-            <div>
+            <a href="/dashboard" >
               <i className="nav-icon bx bx-home-alt"></i>
               <span>Home</span>
-            </div>
+            </a>
           </li>
 
           {navItems.map((item, idx) => (

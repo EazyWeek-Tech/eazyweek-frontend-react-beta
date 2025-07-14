@@ -10,6 +10,7 @@ const createDataHandler = async (payload) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/Appointment/SaveAppointment`, {
       method: "POST",
+       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -30,7 +31,8 @@ const ServiceBookingContainer = ({
   timeSlot,
   onClose,
   onRefreshAppointments,
-  isOpen
+  isOpen,
+  selectedDate 
 }) => {
   const [customerFormData, setCustomerFormData] = useState(null);
   const [serviceList, setServiceList] = useState([]);
@@ -157,11 +159,13 @@ const ServiceBookingContainer = ({
 
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
     const parsedUser = stored ? JSON.parse(stored) : {};
-
+    console.log("selectedDate")
+    console.log(selectedDate)
     const payload = {
       custID: customerFormData.custid || "",
-      appointmentDate: new Date().toISOString().split("T")[0],
-      userId: parsedUser.userID || "",
+         appointmentDate: selectedDate,  // Use selectedDate here
+
+      userId: parsedUser.userId || "",
       centerCode: parsedUser.centerCode || "",
       saveAppointment: serviceList.map((entry, index) => ({
         startTime: entry.service.start,
@@ -176,7 +180,7 @@ const ServiceBookingContainer = ({
         room: entry.service.room,
       })),
     };
-
+    console.log(payload)
     const result = await createDataHandler(payload);
 
     if (result.success) {
@@ -229,6 +233,14 @@ const ServiceBookingContainer = ({
           }}
         >
           Cancel
+        </button>
+        <button
+          className="restbtn"
+          onClick={() => {
+            resetAllForms();
+          }}
+        >
+          Reset Form
         </button>
       </div>
 

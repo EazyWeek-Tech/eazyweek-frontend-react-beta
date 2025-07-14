@@ -1,4 +1,3 @@
-// AppointmentScheduler.jsx
 import React, { useState, useEffect } from "react";
 import AppointmentDrawer from './appointmentdrawer/AppointmentDrawer';
 import AppointmentDetails from './Sidebar';
@@ -38,7 +37,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [editData, setEditData] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]); // Default to today's date
 
   const timeSlots = [...Array(145)].map((_, i) => {
     const base = new Date(`1970-01-01T10:00:00`);
@@ -69,13 +68,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     };
 
     fetchDoctors();
-    fetchAppointments(selectedDate);
-  }, [selectedDate]);
-
-  useEffect(() => {
-    window.refreshAppointments = () => {
-      fetchAppointments(selectedDate);
-    };
+    fetchAppointments(selectedDate); // Fetch appointments when selectedDate changes
   }, [selectedDate]);
 
   const fetchAppointments = async (date) => {
@@ -125,18 +118,17 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   };
 
   const doctorHeights = doctors.map((doctor) => {
-  let maxStack = 1;
-  timeSlots.forEach((time) => {
-    const slotTime = normalizeTime(time);
-    const count = appointments.filter((appt) =>
-      normalizeTime(appt.startTime) === slotTime &&
-      normalizeDoctorName(appt.doctorName) === normalizeDoctorName(doctor)
-    ).length;
-    if (count > maxStack) maxStack = count;
+    let maxStack = 1;
+    timeSlots.forEach((time) => {
+      const slotTime = normalizeTime(time);
+      const count = appointments.filter((appt) =>
+        normalizeTime(appt.startTime) === slotTime &&
+        normalizeDoctorName(appt.doctorName) === normalizeDoctorName(doctor)
+      ).length;
+      if (count > maxStack) maxStack = count;
+    });
+    return 64 * maxStack + 10 * (maxStack - 1); // Updated formula
   });
-  return 64 * maxStack + 10 * (maxStack - 1); // Updated formula
-});
-
 
   const renderAppointments = (time, doctor) => {
     const slotTime = normalizeTime(time);
@@ -147,7 +139,6 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-
         {filtered.map((appt, idx) => {
           const duration = parseInt(appt.duration?.replace(/\D/g, ''), 10) || 5;
           const width = duration * 14;
@@ -190,8 +181,9 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
         onAddCustomer={onAddCustomer}
         onDateChange={(date) => {
           setSelectedDate(date);
-          fetchAppointments(date);
+          fetchAppointments(date); // Fetch appointments for the selected date
         }}
+        selectedDate={selectedDate} // Pass the selected date to AppointmentHeader
       />
 
       <FilterHeader />
@@ -273,6 +265,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
           timeSlot={selectedTimeSlot}
           doctor={selectedDoctor}
           editAppointment={editData}
+          selectedDate={selectedDate}
           onRefreshAppointments={() => fetchAppointments(selectedDate)}
         />
       )}

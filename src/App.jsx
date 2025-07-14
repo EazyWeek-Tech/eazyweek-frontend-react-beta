@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
@@ -8,6 +8,24 @@ import Appointment from "./pages/Appointment";
 import Invoice from "./pages/Invoice";
 import Dashboard from "./pages/Dashboard";
 import CaseDetailsPage from "./pages/CaseManagement/CaseDetails";
+import Customer from "./pages/Customer";
+import CustomerMaster from "./pages/Masters/CustomerMaster";
+import DoctorMaster from "./pages/Masters/DoctorMaster";
+import ClinicMaster from "./pages/Masters/ClinicMaster";
+import DepartmentMaster from "./pages/Masters/DepartmentMaster";
+import ManagerMaster from "./pages/Masters/ManagerMaster";
+import SegmentMapping from "./pages/Masters/SegmentMapping";
+import EmployeeMaster from "./pages/Masters/EmployeeMaster";
+import ProductsMaster from "./pages/Masters/ProductsMaster";
+import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
+import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
+import ServiceMaster from "./pages/Masters/ServiceMaster"; 
+import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
+import EInvoiceDashboard from "./pages/Einvoice/EinvoiceDashboard";
+import { CourtesyCallDashboard } from "./pages/CourtesyCall";
+import DetailedReport from "./pages/CourtesyCall/DetailedReport";
+import AuditDashboard from "./pages/Audit";
+
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -17,92 +35,12 @@ function App() {
 
   const navigate = useNavigate();
 
-  const API_BASE_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 
   const handleLoginSuccess = (user) => {
     setUser(user);
-    navigate("/cases", { replace: true }); // ✅ redirect to /cases
+    navigate("/dashboard", { replace: true }); // ✅ redirect to /cases
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchCases({ owner: "", priority: "", assignTo: "", status: "" });
-      fetchEmployees();
-    }
-  }, [user]);
-
-  const applyClientFilters = (records, filters) => {
-    return records.filter((rec) => {
-      return (
-        (!filters.owner || rec.createdby === filters.owner) &&
-        (!filters.priority || rec.priority === filters.priority) &&
-        (!filters.assignTo || rec.assignedto === filters.assignTo) &&
-        (!filters.status || rec.status === filters.status)
-      );
-    });
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      const filtered = data.filter(
-        (emp) => emp.employeeCode && emp.employeeName !== "Assign To"
-      );
-      setEmployees(filtered);
-    } catch (err) {
-      console.error("Failed to fetch employees:", err);
-    }
-  };
-
-  const fetchCases = async (filters) => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/CaseOperation/CaseDB`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(filters),
-        }
-      );
-      const data = await res.json();
-      console.log('case data')
-      console.log(data)
-      const mapped = data.map((item) => ({
-        caseno: item.caseNO,
-        casetitle: item.caseTitle ?? "-",
-        status: item.status,
-        priority: item.priority ?? "-",
-        category: item.category,
-        subCategory: item.subCategory,
-        subSubCategory: item.subSubCategory,
-        subSubSubCategory: item.subSubSubCategory,
-        assignedto: item.assignTo?.trim() || "-",
-        createdby: item.owner || "-",
-        createddate:
-          item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
-            ? new Date(item.createdDate).toLocaleString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            : "-",
-      }));
-      mapped.sort(
-        (a, b) => new Date(b.createddate) - new Date(a.createddate)
-      );
-      setCaseRecords(mapped);
-    } catch (err) {
-      console.error("Failed to fetch cases:", err);
-    }
-    navigate("/dashboard");
-  };
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => !prev);
@@ -120,6 +58,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+        
       </Routes>
     );
   }
@@ -129,6 +68,8 @@ function App() {
       {/* Add Routes WITHOUT Sidebar + Header */}
       <Route path="/appointment" element={<Appointment />} />
       <Route path="/invoice" element={<Invoice />} />
+      <Route path="/customer" element={<Customer />} /> 
+     
 
       {/*Add Routes WITH Sidebar + Header */}
       <Route
@@ -141,8 +82,28 @@ function App() {
               <div className="home-sect">
                 <Routes>
                   <Route path="dashboard" element={<Dashboard />} />
+                  
     <Route path="cases" element={<CaseManagement />} />
     <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
+    <Route path="/masters/customers" element={<CustomerMaster />} />
+          <Route path="/masters/practitioners" element={<DoctorMaster />} />
+          <Route path="/masters/clinic" element={<ClinicMaster />} />
+          <Route path="/masters/department" element={<DepartmentMaster />} />
+          <Route path="/masters/managers" element={<ManagerMaster />} />
+          <Route path="/masters/segments" element={<SegmentMapping />} />
+          <Route path="/masters/employees" element={<EmployeeMaster />} />
+          <Route path="/masters/product" element={<ProductsMaster />} />
+          <Route path="/masters/service" element={<ServiceMaster />} />
+          <Route path="/masters/item-category" element={<ItemCategoryMaster />} />
+          <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
+           <Route path="/opportunity" element={<OpportunityDashboard />} />
+            <Route path="/einvoice" element={<EInvoiceDashboard />} />
+             <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
+             <Route path="/courtesy-call/report" element={<DetailedReport />} />
+             <Route path="/audit" element={<AuditDashboard />} />
+ 
+
+
 
     <Route index element={<Navigate to="/dashboard" replace />} /> {/* ← This handles "/" */}
     <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -168,7 +168,7 @@ const generateInvoiceHTML = () => {
         <table style="width: 100%; border-collapse: collapse;">
         <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${generatedInvoiceNumber}</p>
 </td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.firstName || ''} ${customer?.lastName || ''}</td></tr>
+          <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.fullName || ''} </td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Mobile:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.mobile || customer?.number || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Nationality Status:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.status || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Date:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleDateString()}</td></tr>
@@ -245,6 +245,7 @@ const generateInvoiceHTML = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Invoice/InvoiceEmail`, {
         method: "POST",
+         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(invoiceHtmlPayload)
       });
