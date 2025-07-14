@@ -138,7 +138,15 @@ const EmployeeMaster = () => {
 
       <div className="page-header">
         <h1 className="page-title">Manage Employees</h1>
-        <button className="add-btn">Add Employee</button>
+       <button
+  className="add-btn"
+  onClick={() => {
+    setSelectedEmployee({});  // Pass an empty object to indicate a new employee
+    setShowEditForm(true);
+  }}
+>
+  + Add Employee
+</button>
       </div>
 
       <div className="search-container">

@@ -481,12 +481,12 @@ const EmployeeEditForm = ({ employee, onBack }) => {
               >
                 GENERAL INFORMATION
               </button>
-              <button
+              {/* <button
                 className={`tab ${activeTab === "CLINICS ROLES" ? "active" : ""}`}
                 onClick={() => setActiveTab("CLINICS ROLES")}
               >
                 CLINICS ROLES
-              </button>
+              </button> */}
             </div>
           </div>
 
