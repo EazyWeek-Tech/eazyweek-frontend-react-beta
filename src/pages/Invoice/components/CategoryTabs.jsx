@@ -73,20 +73,23 @@ const truncateName = (name, maxLength = 20) => {
   };
 
   const handleAddService = (item) => {
-    if (!customer || !customer.firstname || !customer.mobile) {
-      showErrToast?.("Please fill customer details before adding a service.");
-      return;
-    }
-    onAddItem?.({
-      name: item.serviceName,
-      price: parseFloat(item.price) || 0,
-      discount: 0,
-      taxpercent: item.taxPercent ?? "0.00",
-      citizentax: item.taxPercent ?? "0.00",  // Assuming no separate citizen tax from this API
-      servicecode: item.serviceCode
-    });
-    showToast?.("Service added to invoice");
-  };
+  if (!customer || !customer.custid) {
+    showErrToast?.("Please select a customer before adding a service.");
+    return;
+  }
+
+  onAddItem?.({
+    name: item.serviceName,
+    price: parseFloat(item.price) || 0,
+    discount: 0,
+    taxpercent: item.taxPercent ?? "0.00",
+    citizentax: item.taxPercent ?? "0.00",
+    servicecode: item.serviceCode
+  });
+
+  showToast?.("Service added to invoice");
+};
+
 
   const filteredServices = services.filter((svc) =>
     svc.serviceName?.toLowerCase().includes(searchTerm.toLowerCase())

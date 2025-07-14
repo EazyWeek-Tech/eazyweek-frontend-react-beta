@@ -52,29 +52,38 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     fetchRooms();
   }, []);
 
-  useEffect(() => {
-    if (initialData) {
-      setFormData(initialData);
-    } else {
-      const defaultStart = selectedTime || lastEndTime || "10:00 AM";
-      const defaultDuration = "5";
-      const defaultEnd = calculateEndTime(defaultStart, defaultDuration);
+   useEffect(() => {
+    const loadData = async () => {
+      if (initialData) {
+        setFormData(initialData);
 
-      setFormData({
-        servicename: "",
-        servicecode: "",
-        preference: "any",
-        practitioner: selectedDoctor?.id || "",
-        practitionername: selectedDoctor?.name,
-        startTime: defaultStart,
-        duration: defaultDuration,
-        endTime: defaultEnd,
-        room: "",
-        note: ""
-      });
-    }
-    setErrors({});
+        if (initialData.servicecode) {
+          await fetchPractitioners(initialData.servicecode, initialData.practitioner);
+        }
+      } else {
+        const defaultStart = selectedTime || lastEndTime || "10:00 AM";
+        const defaultDuration = "5";
+        const defaultEnd = calculateEndTime(defaultStart, defaultDuration);
+
+        setFormData({
+          servicename: "",
+          servicecode: "",
+          preference: "any",
+          practitioner: selectedDoctor?.id || "",
+          practitionername: selectedDoctor?.name || "",
+          startTime: defaultStart,
+          duration: defaultDuration,
+          endTime: defaultEnd,
+          room: "",
+          note: ""
+        });
+        setPractitioners([]);
+      }
+    };
+
+    loadData();
   }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
+
 
   const handleServiceChange = (e) => {
     const { value } = e.target;

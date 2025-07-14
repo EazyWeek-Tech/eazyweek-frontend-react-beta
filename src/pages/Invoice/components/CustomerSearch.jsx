@@ -7,11 +7,13 @@ const createDataHandler = async (url) => {
   return await response.json();
 };
 
-const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, number }) => {
+const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, number, nationalityStatus: nationalityFromProps }) => {
   const [formData, setFormData] = useState({ mobile: '', name: '', email: '' });
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
   const [focusedField, setFocusedField] = useState(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [nationalityStatus, setNationalityStatus] = useState(nationalityFromProps || "");
+
 
   // Prefill fields if customer data is passed via props
   useEffect(() => {
@@ -23,7 +25,11 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, nu
         mobile: number,
         email: emailId
       });
-      setIsReadOnly(true);  // Set form fields to read-only
+      setIsReadOnly(true);  
+
+       if (nationalityFromProps) {
+        setNationalityStatus(nationalityFromProps);  
+      }
     }
   }, [fullName, emailId, number]);
 
@@ -62,8 +68,8 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, nu
 
   // Handle customer selection from suggestions
   const handleSelect = (cust) => {
-    const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'EXPAT';
-    const enriched = { ...cust, status };
+        const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'Expat';
+
 
     setFormData({
       mobile: cust.mobile || '',
@@ -71,21 +77,24 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, nu
       email: cust.email || ''
     });
 
+    setNationalityStatus(status); 
+
     setFilteredSuggestions([]);
     setFocusedField(null);
-    onCustomerSelect?.(enriched);  // Pass the selected customer back to parent
+     const enriched = { ...cust, status };
+    onCustomerSelect?.(enriched);
   };
 
   return (
     <div className="cstsearch">
       <div className="custtl">
         <div className="sectttl">Customer Search</div>
-        {fullName && emailId && number && (
+        {nationalityStatus && (
           <div
-            className={isReadOnly ? 'nstatus' : 'nstatus expat'}
+            className={`nstatus ${nationalityStatus.toLowerCase()}`}
             style={{ fontWeight: 'bold' }}
           >
-            Nationality status is {isReadOnly ? 'Read Only' : 'Editable'}
+            Nationality Status: {nationalityStatus}
           </div>
         )}
       </div>

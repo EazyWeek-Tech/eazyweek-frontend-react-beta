@@ -261,6 +261,7 @@ const InvoicePage = () => {
                 fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email}
                 number={selectedCustomer?.number}
+                nationalityStatus={selectedCustomer?.status}
               />
               <div className="invttlwrp">
                 {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount }, { label: 'Tax', value: tax }, { label: 'Round Off', value: roundoff }, { label: 'Total', value: total }]
