@@ -316,8 +316,9 @@ table {
   padding: 5px 16px;
 }
 
-.search-container {
+.actbtnsdiv .search-container {
   position: relative;
+  margin: 0;
 }
 
 .addcst {
@@ -1880,7 +1881,7 @@ table {
                                     background: #fff;
                                     z-index: 1;
                                     padding: 5px 0;
-                                    min-height: 60px;
+                                    min-height: 80px;
                                 }
 
                                 .appcell {

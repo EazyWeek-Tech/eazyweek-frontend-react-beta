@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../../config";
+import { Link } from "react-router-dom";
+
 
 const InvoicesTab = ({ custId }) => {
   const [invoiceData, setInvoiceData] = useState([]);
@@ -152,7 +154,15 @@ const InvoicesTab = ({ custId }) => {
           <tbody>
             {currentInvoices.map((item, idx) => (
               <tr key={idx}>
-                <td>{item.invoiceNum}</td>
+                <td>
+  <Link
+    to={`/invoice-details/${item.invoiceNum}`}
+    className="invoice-link"
+  >
+    {item.invoiceNum}
+  </Link>
+</td>
+
                 <td>{item.invoiceDate}</td>
                 <td>{item.amount}</td>
                 <td>{item.tax}</td>

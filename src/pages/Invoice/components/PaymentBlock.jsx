@@ -1,5 +1,7 @@
   import React, { useState, useEffect } from 'react';
   import { API_BASE_URL } from '../../../config';
+  import { useNavigate } from 'react-router-dom';
+
 
   const paymentModes = [
     { label: 'Cash', icon: 'images/cash.svg', key: 'cash' },
@@ -30,9 +32,11 @@
     const [invoiceSuccessPopup, setInvoiceSuccessPopup] = useState(false);
 const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
 const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
+ const navigate = useNavigate();
 
 
     useEffect(() => {
+      
       if (prefillPaymentData) {
         setFormData(prefillPaymentData.fields || {});
         setAmount(prefillPaymentData.amount || parsedTotalAmount.toString());
@@ -41,6 +45,9 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
     }, [prefillPaymentData]);
 
     useEffect(() => {
+     
+
+    
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
       const remaining = Math.max(0, parsedTotalAmount - totalPaid);
       setAmount(remaining.toString());
@@ -102,7 +109,10 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
       setFormError('');
     };
     
-
+  const handlePopupClose = () => {
+        resetAll();
+        navigate('/invoice');
+      };
 const generateInvoiceHTML = () => {
     const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
@@ -262,6 +272,7 @@ const generateInvoiceHTML = () => {
   };
 
 const resetAll = () => {
+  console.log('reset all')
   setPayments([]);
   setFormData({});
   setAmount(parsedTotalAmount.toString());
@@ -578,10 +589,9 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
     <div className="popin">
       <div className="popuphdr">
         Invoice Submitted
-        <span className="clsbtn" onClick={resetAll}>
-
-          <img src="images/clsic.svg" alt="Close" />
-        </span>
+       <span className="clsbtn" onClick={handlePopupClose}>
+  <img src="images/clsic.svg" alt="Close" />
+</span>
       </div>
 
       <div className="popfrm" style={{ textAlign: 'center', padding: '20px' }}>
