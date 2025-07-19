@@ -21,7 +21,7 @@ import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
 import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
 import ServiceMaster from "./pages/Masters/ServiceMaster"; 
 import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
-import EInvoiceDashboard from "./pages/Einvoice/EinvoiceDashboard";
+import EInvoiceDashboard from "./pages/Einvoice/EInvoiceDashboard";
 import { CourtesyCallDashboard } from "./pages/CourtesyCall";
 import DetailedReport from "./pages/CourtesyCall/DetailedReport";
 import AuditDashboard from "./pages/Audit";

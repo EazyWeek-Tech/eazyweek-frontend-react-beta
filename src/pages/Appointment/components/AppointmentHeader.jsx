@@ -113,7 +113,6 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
             <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
           </Link>
         </div>
-
         <div className="datepkrdiv">
           <input
             type="date"
