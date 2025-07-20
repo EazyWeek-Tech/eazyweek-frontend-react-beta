@@ -25,6 +25,8 @@ import EInvoiceDashboard from "./pages/Einvoice/EInvoiceDashboard";
 import { CourtesyCallDashboard } from "./pages/CourtesyCall";
 import DetailedReport from "./pages/CourtesyCall/DetailedReport";
 import AuditDashboard from "./pages/Audit";
+import InvoicesTab from "./pages/Customer/CustomerDetails/InvoiceTab";
+import InvoiceDetails from "./pages/Customer/CustomerDetails/InvoiceDetails";
 
 
 function App() {
@@ -69,6 +71,8 @@ function App() {
       <Route path="/appointment" element={<Appointment />} />
       <Route path="/invoice" element={<Invoice />} />
       <Route path="/customer" element={<Customer />} /> 
+       <Route path="/invoices" element={<InvoicesTab />} />
+    <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
      
 
       {/*Add Routes WITH Sidebar + Header */}

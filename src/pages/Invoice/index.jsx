@@ -33,81 +33,79 @@ const InvoicePage = () => {
   const appointmentIdFromUrl = searchParams.get('appointmentid');
   const custNameFromUrl = searchParams.get('custname');
 
-  useEffect(() => {
-    const loadCustomerAndItems = async () => {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-      const centerCode = stored ? JSON.parse(stored).centerCode : "";
+useEffect(() => {
+  const loadCustomerAndItems = async () => {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-      if (appointmentIdFromUrl && custidFromUrl) {
-        const payload = {
-          custID: custidFromUrl,
-          appointmentID: appointmentIdFromUrl,
-          centerCode: centerCode
-        };
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
-            method: "POST",
-             credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const result = await response.json();
-          console.log("Appointment details result:", result);
+    if (appointmentIdFromUrl && custidFromUrl) {
+      const payload = {
+        custID: custidFromUrl,
+        appointmentID: appointmentIdFromUrl,
+        centerCode: centerCode
+      };
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        console.log("Appointment details result:", result);
 
-          if (Array.isArray(result) && result.length > 0) {
-            const firstItem = result[0];
+        if (Array.isArray(result) && result.length > 0) {
+          const mappedItems = result.map((item) => ({
+            name: item.serviceName || '',
+            servicecode: item.serviceCode || '',
+            price: item.price || '',
+            discount: 0,
+            taxpercent: item.taxPercent || 0,
+            citizentax: item.taxPercent || 0,
+            doctorId: item.doctorId || '',
+          }));
 
-            setItems([{
-              name: firstItem.serviceName || '',
-              servicecode: firstItem.serviceCode || '',
-              price: firstItem.price || '',
-              discount: 0,
-              taxpercent: firstItem.tax || 0,
-              citizentax: firstItem.tax || 0,
-              doctorId: firstItem.doctorId || '',
+          setItems(mappedItems);
 
-            }]);
-
+          const firstItem = result[0];
 
           setFormTnput({
-              name: firstItem.serviceName || '',
-              servicecode: firstItem.serviceCode || '',
-              doctorId: firstItem.doctorId || ''
-            });
+            name: firstItem.serviceName || '',
+            servicecode: firstItem.serviceCode || '',
+            doctorId: firstItem.doctorId || ''
+          });
 
+          setSelectedCustomer({
+            custid: firstItem.custId || "",
+            fullName: firstItem.fullName || custNameFromUrl || "",
+            number: firstItem.number || "",
+            email: firstItem.emailId || "",
+            gender: firstItem.gender || "",
+            status: firstItem.nationality === "84" ? "Citizen" : "Expat"
+          });
 
-
-            // Extract customer details from the response and set it
-            setSelectedCustomer({
-              custid: firstItem.custId || "",
-              fullName: firstItem.fullName || custNameFromUrl || "",
-              number: firstItem.number || "",
-              email: firstItem.emailId || "",
-              gender: firstItem.gender || "",
-              status: firstItem.nationality === "84" ? "Citizen" : "Expat"
-            });
-            return;
-          }
-        } catch (error) {
-          console.error("Error fetching appointment details:", error);
+          return;
         }
+      } catch (error) {
+        console.error("Error fetching appointment details:", error);
       }
+    }
 
-      // Fallback if no appointmentId or API fails but URL has customer info
-      if (custidFromUrl || custNameFromUrl) {
-        setSelectedCustomer({
-          custid: custidFromUrl || "",
-          fullName: custNameFromUrl || "",
-          number: "",
-          email: "",
-          gender: "",
-          status: ""
-        });
-      }
-    };
+    if (custidFromUrl || custNameFromUrl) {
+      setSelectedCustomer({
+        custid: custidFromUrl || "",
+        fullName: custNameFromUrl || "",
+        number: "",
+        email: "",
+        gender: "",
+        status: ""
+      });
+    }
+  };
 
-    loadCustomerAndItems();
-  }, [appointmentIdFromUrl, custidFromUrl, custNameFromUrl]);
+  loadCustomerAndItems();
+}, [appointmentIdFromUrl, custidFromUrl, custNameFromUrl]);
+
 
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem('suspendedCarts') || '[]');

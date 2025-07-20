@@ -10,9 +10,9 @@
 }
 
 .vertical-tabs {
-  width:280px;
+  width:360px;
   border-right: 1px      #ccc;
-  background-color: #f8f8f8;
+  background-color: #122747;
   padding: 10px 0 10px 10px;
   box-shadow: 3px 3px 3px #ccc;
 }
@@ -27,6 +27,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  color: #fff;
 }
 .custnmwrp{font-size: 26px;}
 .section .sectttl{margin: 0 0 20px;}

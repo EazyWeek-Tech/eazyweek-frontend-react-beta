@@ -3,83 +3,77 @@ import { useNavigate } from 'react-router-dom';
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
 
-const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
+const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [status, setStatus] = useState(appointment?.status || "Booked");
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
   const createDataHandler = async (payload) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
-
-      method: "POST",
-       credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Fetch failed:", errorText);
-      throw new Error("Failed to update status");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Fetch failed:", errorText);
+        throw new Error("Failed to update status");
+      }
+      const result = await response.json();
+      if (result?.success) {
+        setToast({ message: "Appointment updated successfully!", type: "success" });
+        if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
+        if (typeof onRefresh === 'function') onRefresh();
+      } else {
+        setToast({ message: result.message || "Update failed. Please try again.", type: "error" });
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setToast({ message: "Error while updating appointment.", type: "error" });
     }
-    const result = await response.json();
-    if (result?.success) {
-      setToast({ message: "Appointment updated successfully!", type: "success" });
-      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-    } else {
-      setToast({ message: result.message || "Update failed. Please try again.", type: "error" });
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    setToast({ message: "Error while updating appointment.", type: "error" });
-  }
-};
+  };
 
 
   const handleStatusChange = (e) => {
-  const newStatus = e.target.value;
-  setStatus(newStatus);
-
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  const centerCode = stored ? JSON.parse(stored).centerCode : "";
-    console.log(appointment)
-  const payload = {
-    appointmentId: appointment?.appointmentId,
-    status: newStatus,
-    operation: "STATUSUPDATE",
-    centerCode: centerCode,
-    lineNo: appointment?.lineNo,
+    const newStatus = e.target.value;
+    setStatus(newStatus);
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    const payload = {
+      appointmentId: appointment?.appointmentId,
+      status: newStatus,
+      operation: "STATUSUPDATE",
+      centerCode: centerCode,
+      lineNo: appointment?.lineNo,
+    };
+    createDataHandler(payload);
   };
 
-  createDataHandler(payload);
-};
 
-
+  
   const handleDeleteAppointment = () => {
-  if (!window.confirm("Are you sure you want to delete this appointment?")) return;
-
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  const centerCode = stored ? JSON.parse(stored).centerCode : "";
-    
-  const payload = {
-    appointmentId: appointment?.appointmentId,
-    status: "",
-    operation: "DELETE",
-    centerCode: centerCode,
-    lineNo: appointment?.lineNo,
+    if (!window.confirm("Are you sure you want to delete this appointment?")) return;
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    const payload = {
+      appointmentId: appointment?.appointmentId,
+      status: "",
+      operation: "DELETE",
+      centerCode: centerCode,
+      lineNo: appointment?.lineNo,
+    };
+    createDataHandler(payload).then(() => {
+      setToast({ message: "Appointment deleted successfully!", type: "success" });
+      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
+      if (typeof onRefresh === 'function') onRefresh();
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+    });
   };
-
-  console.log(payload)
-
-  createDataHandler(payload).then(() => {
-    setToast({ message: "Appointment deleted successfully!", type: "success" });
-    if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-    setTimeout(() => {
-      onClose();
-    }, 2000);
-  });
-};
 
 
   const handleEditClick = () => {
@@ -285,4 +279,4 @@ const AppointmentDetails = ({ appointment, onClose, onEdit }) => {
   );
 };
 
-export default AppointmentDetails;
+export default AppointmentDetailsSide;

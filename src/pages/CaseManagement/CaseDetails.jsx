@@ -34,63 +34,78 @@ const CaseDetailsPage = () => {
         const userId = sessionStorage.getItem("userid");
         console.log(userId);
         setSelectedCaseData({
-          caseNo: data.caseNo,
-          title: data.caseTitle,
-          categoryCode: data.categoryCode,
-          caseCategory: data.categoryName,
-          subCategory: data.subCategoryCode,
-          subCategoryName: data.subCategoryName,
-          subSubCategory: data.subSubCategoryCode,
-          subSubCategoryName: data.subSubCategoryName,
-          subSubSubCategory: data.subSubSubCategoryCode,
-          subSubSubCategoryName: data.subSubSubCategoryName,
-          medium: data.mediumName,
-          source: data.sourceName,
-          priority: data.priority,
-          customer: data.createdBy,
-          productCode: data.productCode,
-          product: data.productName,
-          service: data.serviceCode,
-          serviceCategory: data.sServiceCategoryCode,
-          createdBy: data.createdBy,
-          createdDate:
-            data.createdDate && data.createdDate !== "0001-01-01T00:00:00"
-              ? (() => {
-                  const [d, m, yAndTime] = data.createdDate.split("-");
-                  const [y, t] = yAndTime.split(" ");
-                  const isoString = `${y}-${m}-${d}T${t}`;
-                  const dateObj = new Date(isoString);
-                  return isNaN(dateObj)
-                    ? "-"
-                    : dateObj.toLocaleString("en-US", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      });
-                })()
-              : "-",
-          issueDescription: data.issueDescription,
-          firstTimeResolution: data.firstTimeResolution,
-          clientThreat: data.clientThreat,
-          therapist: data.therapistName,
-          assignedTo: data.assignTOName,
-          assignToCode: data.assignTOCode,
-          employeeMobile: data.empMobileNo,
-          email: data.emailTOEMailID,
-          emailTo: data.emailToName,
-          cc: data.emailCC,
-          moreCc: data.moreCC,
-          remarks: data.remarks,
-          materialCost: 0,
-          labourCost: 0,
-          otherCharges: 0,
-          total: 0,
-          slaIdeal: data.slaIdeal || {},
-          slaActual: data.slaActual || {},
-        });
+  caseNo: data.caseNo,
+  title: data.caseTitle,
+  categoryCode: data.categoryCode,
+  caseCategory: data.categoryName,
+  subCategory: data.subCategoryCode,
+  subCategoryName: data.subCategoryName,
+  subSubCategory: data.subSubCategoryCode,
+  subSubCategoryName: data.subSubCategoryName,
+  subSubSubCategory: data.subSubSubCategoryCode,
+  subSubSubCategoryName: data.subSubSubCategoryName,
+  medium: data.mediumName,
+  source: data.sourceName,
+  priority: data.priority,
+  customer: data.createdBy,
+  productCode: data.productCode,
+  product: data.productName,
+  service: data.serviceCode,
+  serviceCategory: data.sServiceCategoryCode,
+  createdBy: data.createdBy,
+  createdDate:
+    data.createdDate &&
+    data.createdDate !== "0001-01-01T00:00:00" &&
+    typeof data.createdDate === "string" &&
+    data.createdDate.includes("-")
+      ? (() => {
+          try {
+            const parts = data.createdDate.split("-");
+            if (parts.length < 3) return "-";
+
+            const [d, m, yAndTime] = parts;
+            const [y, t] = yAndTime.split(" ");
+            if (!y || !t) return "-";
+
+            const isoString = `${y}-${m}-${d}T${t}`;
+            const dateObj = new Date(isoString);
+
+            return isNaN(dateObj)
+              ? "-"
+              : dateObj.toLocaleString("en-US", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                });
+          } catch (e) {
+            console.error("Invalid createdDate format:", data.createdDate);
+            return "-";
+          }
+        })()
+      : "-",
+  issueDescription: data.issueDescription,
+  firstTimeResolution: data.firstTimeResolution,
+  clientThreat: data.clientThreat,
+  therapist: data.therapistName,
+  assignedTo: data.assignTOName,
+  assignToCode: data.assignTOCode,
+  employeeMobile: data.empMobileNo,
+  email: data.emailTOEMailID,
+  emailTo: data.emailToName,
+  cc: data.emailCC,
+  moreCc: data.moreCC,
+  remarks: data.remarks,
+  materialCost: 0,
+  labourCost: 0,
+  otherCharges: 0,
+  total: 0,
+  slaIdeal: data.slaIdeal || {},
+  slaActual: data.slaActual || {},
+});
+
         setDisposition(data.disposition || "");
         setStatus(data.caseStatus || "");
         setLoading(false);

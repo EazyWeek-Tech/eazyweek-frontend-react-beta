@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AppointmentDrawer from './appointmentdrawer/AppointmentDrawer';
-import AppointmentDetails from './Sidebar';
+import AppointmentDetails from './AppointmentDetailsSide';
 import FilterHeader from './FilterHeader';
 import AppointmentHeader from './AppointmentHeader';
 import { API_BASE_URL } from "../../../config";
@@ -127,7 +127,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
       ).length;
       if (count > maxStack) maxStack = count;
     });
-    return 64 * maxStack + 10 * (maxStack - 1); // Updated formula
+    return 80 * maxStack + 10 * (maxStack - 1); // Updated formula
   });
 
   const renderAppointments = (time, doctor) => {
