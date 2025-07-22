@@ -1,0 +1,46 @@
+/* ToggleSwitch.css */
+
+/* Container for the entire toggle switch */
+.mode-toggle-container {
+    display: flex; /* Use flexbox for horizontal layout */
+    border: 1px solid #ddd; /* Light gray border */
+    border-radius: 20px; /* Highly rounded corners */
+    overflow: hidden; /* Ensures inner elements' rounded corners are clipped */
+    background-color: #f0f0f0; /* Light background for the inactive part */
+    padding: 2px; /* Small padding inside the container */
+    width: fit-content; /* Adjust width to content */
+    /* Removed: margin: 20px auto; Its positioning is now handled by the parent flex container */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Very subtle shadow for depth */
+}
+
+/* Hide the actual radio button inputs */
+.mode-toggle-container input[type="radio"] {
+    display: none;
+}
+
+/* Styling for the labels (which act as buttons) */
+.mode-button {
+    padding: 8px 15px; /* Comfortable padding */
+    cursor: pointer; /* Indicate it's clickable */
+    font-size: 14px;
+    font-weight: 500; /* Medium font weight */
+    color: #666; /* Default text color for inactive state */
+    transition: all 0.3s ease; /* Smooth transition for visual changes */
+    border-radius: 18px; /* Slightly smaller border-radius than container for inner visual effect */
+    white-space: nowrap; /* Prevent text from wrapping */
+    text-align: center;
+    flex-grow: 1; /* Allow buttons to grow and fill space if needed */
+}
+
+/* Styling for the currently checked/active button */
+.mode-toggle-container input[type="radio"]:checked + .mode-button {
+    background-color: #fff; /* White background for the active button */
+    color: #333; /* Darker text color for active button */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* More pronounced shadow for active button */
+    font-weight: 600; /* Bolder text for active button */
+}
+
+/* Optional: Hover effect for inactive buttons */
+.mode-toggle-container input[type="radio"]:not(:checked) + .mode-button:hover {
+    background-color: #e8e8e8; /* Slightly darker background on hover */
+}

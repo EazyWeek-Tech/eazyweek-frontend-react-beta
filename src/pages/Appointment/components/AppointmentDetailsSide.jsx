@@ -104,6 +104,15 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
   navigate(`/invoice?${queryParams.toString()}`);
 };
 
+const goToConsulationPage = () => {
+  const queryParams = new URLSearchParams();
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+
+  navigate(`/consultation}`);
+};
+
  const goToCustomerPage = () => {
   const queryParams = new URLSearchParams();
   if (appointment?.custId) queryParams.append("custid", appointment.custId);

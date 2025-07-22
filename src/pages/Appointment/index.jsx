@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import AddCustomerModal from "./components/AddCustomerModal";
 import SchedulerGrid from "./components/SchedulerGrid";
 import InvoicePage from "../Invoice";
+import ConsultationPage from "../EMR/ConsultationForm"
 
 const Appointment = () => {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
