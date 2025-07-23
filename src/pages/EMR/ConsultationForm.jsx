@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import FaceMapper from './FaceMapper';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
+import './emr.css'
 
 function ConsultationForm() {
   const [formData, setFormData] = useState({
@@ -134,26 +135,23 @@ function ConsultationForm() {
   };
 
   return (
-    <div style={{
-      maxWidth: '900px',
-      marginLeft: '2rem',
-      padding: '0',
-      textAlign: 'left'
-    }}>
-      <h1>Consultation Form</h1>
+    <div className='confrmwrp'>
+      <h1 className='page-title'>Consultation Form</h1>
 
-      <label style={{ display: 'block', marginBottom: '0.25rem' }}><strong>Appointment Date</strong></label>
+      <div className="cnfrmcellwrp">
+        <label><strong>Appointment Date</strong></label>
       <input
         type="date"
         name="appointmentDate"
         onChange={handleInputChange}
         style={{ width: '100%', marginBottom: '1rem', padding: '0.5rem' }}
       />
+      </div>
 
-      <div style={{ marginBottom: '1rem' }}>
+      <div className='cnfrmcellwrp'>
         <label><strong>Changes in Health</strong></label>
         <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <label>
             <input
               type="checkbox"
               checked={formData.changesInHealth === true}
@@ -161,7 +159,7 @@ function ConsultationForm() {
             />
             Yes
           </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <label>
             <input
               type="checkbox"
               checked={formData.changesInHealth === false}
@@ -173,10 +171,10 @@ function ConsultationForm() {
       </div>
 
       {/* Changes in Meds */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div className='cnfrmcellwrp'>
         <label><strong>Changes in Meds</strong></label>
         <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <label>
             <input
               type="checkbox"
               checked={formData.changesInMeds === true}
@@ -184,7 +182,7 @@ function ConsultationForm() {
             />
             Yes
           </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <label>
             <input
               type="checkbox"
               checked={formData.changesInMeds === false}
@@ -204,8 +202,8 @@ function ConsultationForm() {
         { id: 'assessmentNotes', label: 'Assessment Notes', required: false },
         { id: 'planningNotes', label: 'Planning Notes', required: false }
       ].map(field => (
-        <div key={field.id}>
-          <label htmlFor={field.id} style={{ display: 'block', marginBottom: '0.25rem' }}>
+        <div className='cnfrmcellwrp' key={field.id}>
+          <label htmlFor={field.id} style={{ display: 'block',  }}>
             <strong>
               {field.label}
               {field.required && <span style={{ color: 'red' }}> *</span>}
@@ -236,7 +234,7 @@ function ConsultationForm() {
             </div>
       ))}
 
-    <h2 style={{ marginTop: '2rem' }}>Photos Upload</h2>
+    <h2 className='cnfrmcellwrp' style={{fontWeight: 'bold'}}>Photos Upload</h2>
     <FileUploader onFilesSelected={setFiles} />
     {files.length > 0 && (
       <div style={{ marginTop: '1rem' }}>
@@ -270,8 +268,8 @@ function ConsultationForm() {
         setFaceZones(zones);
       }}
     />
-
-    <label style={{ display: 'block', marginBottom: '0.25rem' }}><strong>Provider Name</strong></label>
+  <div className='cnfrmcellwrp'>
+    <label><strong>Provider Name</strong></label>
         <input
             type="text"
             name="providerName"
@@ -286,21 +284,25 @@ function ConsultationForm() {
         </div>
       )}
 
-      <label style={{ display: 'block', marginBottom: '0.25rem' }}><strong>Signature Date</strong></label>
+      </div>
+
+      <div className='cnfrmcellwrp'>
+
+      <label><strong>Signature Date</strong></label>
             <input
               type="date"
               name="signatureDate"
               onChange={handleInputChange}
               style={{ width: '100%', marginBottom: '1.5rem', padding: '0.5rem' }}
       />
-
+</div>
       <div style={{ marginTop: '1.5rem' }}>
         <button
           onClick={handleSubmit}
           style={{
             padding: '0.75rem 1.5rem',
-            fontSize: '1rem',
-            backgroundColor: '#007bff',
+            fontSize: '19px',
+            backgroundColor: '#334b71',
             color: '#fff',
             border: 'none',
             borderRadius: '4px',
