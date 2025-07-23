@@ -110,7 +110,7 @@ const goToConsulationPage = () => {
   if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
   if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
 
-  navigate(`/consultation}`);
+  navigate(`/consultation`);
 };
 
  const goToCustomerPage = () => {
@@ -255,14 +255,14 @@ const goToConsulationPage = () => {
           </div>
 
           <div className="apptcdet">
-            <a href="#" className="cstlnk">
+            <button onClick={goToConsulationPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
-            </a>
-            <a href="#" className="cstlnk">
+            </button>
+            <button onClick={goToConsulationPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
               Consent and Treatment Forms
-            </a>
+            </button>
           </div>
 
           <button onClick={goToPaymentPage} className="pndpay">
