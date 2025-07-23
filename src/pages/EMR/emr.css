@@ -1,0 +1,7 @@
+.confrmwrp{max-width: 800px; margin: 0 auto;padding: 30px;}
+
+.cnfrmcellwrp{margin: 0 0 20px;font-size: 14px; }
+
+.cnfrmcellwrp label{margin: 0 0 10px;display: block;font-weight: bold;}
+
+.cnfrmcellwrp input[type='checkbox']{display: inline-block;margin: 0 7px 0 0;}
