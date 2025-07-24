@@ -160,7 +160,7 @@ const ClinicMaster = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style jsx="true">{`
         .header-section {
           display: flex;
           justify-content: space-between;

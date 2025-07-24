@@ -186,9 +186,7 @@
 
 .chart-container {
   background-color: white;
-  border: 1px solid #ddd;
   border-radius: 4px;
-  padding: 20px;
   min-width: 48%;
   flex: 1;
 }

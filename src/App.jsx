@@ -27,6 +27,9 @@ import DetailedReport from "./pages/CourtesyCall/DetailedReport";
 import AuditDashboard from "./pages/Audit";
 import InvoicesTab from "./pages/Customer/CustomerDetails/InvoiceTab";
 import InvoiceDetails from "./pages/Customer/CustomerDetails/InvoiceDetails";
+import SegmentAddForm from "./pages/Masters/SegmentAddForm";
+import DashboardPage from "./pages/Dashboard";
+import ConsultationForm from "./pages/EMR/ConsultationForm";
 
 
 function App() {
@@ -71,6 +74,7 @@ function App() {
       <Route path="/appointment" element={<Appointment />} />
       <Route path="/invoice" element={<Invoice />} />
       <Route path="/customer" element={<Customer />} /> 
+       <Route path="/consultation" element={<ConsultationForm />} /> 
        <Route path="/invoices" element={<InvoicesTab />} />
     <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
      
@@ -85,8 +89,9 @@ function App() {
               <Header onToggleSidebar={toggleSidebar} onLogout={handleLogout} />
               <div className="home-sect">
                 <Routes>
-                  <Route path="dashboard" element={<Dashboard />} />
-                  
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="/segmentaddform/:employeeCode" element={<SegmentAddForm />} />
+
     <Route path="cases" element={<CaseManagement />} />
     <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
     <Route path="/masters/customers" element={<CustomerMaster />} />
