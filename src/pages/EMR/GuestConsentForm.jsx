@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
 import './GuestConsentForm.css';
-import axios from 'axios';
+import { API_BASE_URL } from "../../config";
+import { useNavigate , useSearchParams } from 'react-router-dom';
 
 const GuestConsentForm = () => {
     const [guestSignature, setGuestSignature] = useState('');
@@ -10,13 +11,15 @@ const GuestConsentForm = () => {
     const [beforePhotos, setBeforePhotos] = useState([]);
     const [afterPhotos, setAfterPhotos] = useState([]);
     const [formId, setFormId] = useState(null);
-
-
+    const [searchParams] = useSearchParams();
+    const custId = searchParams.get('custid');
+    const custName = searchParams.get('custname');
+    const appointmentId = searchParams.get('appointmentid');
 
     useEffect(() => {
       const fetchFormId = async () => {
         try {
-          const res = await fetch('https://localhost:7259/api/forms/definition-by-name?name=GuestConsentForm');
+          const res = await fetch(`${API_BASE_URL}/api/forms/definition-by-name?name=GuestConsentForm`);
           if (!res.ok) throw new Error('Failed to fetch form definition');
           const data = await res.json();
           setFormId(data.id);
@@ -77,7 +80,13 @@ const GuestConsentForm = () => {
           submissionData: JSON.stringify(jsonData),
         };
 
-        const res = await fetch('https://localhost:7259/api/forms/submit', {
+         const qp = new URLSearchParams({
+                custId,
+                custName,
+                appointmentId
+              }).toString();
+
+        const res = await fetch(`${API_BASE_URL}/api/forms/submit?${qp}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

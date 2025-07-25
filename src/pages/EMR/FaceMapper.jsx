@@ -7,7 +7,7 @@ const FaceMapper = ({ onDrawingComplete }) => {
   const [lines, setLines] = useState([]);
   const [points, setPoints] = useState([]);
   const [tempLine, setTempLine] = useState(null);
-  const [image] = useImage('../facediagram.jpg');
+  const [image] = useImage('../images/facediagram.jpg');
   const isDrawing = useRef(false);
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
