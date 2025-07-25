@@ -1,0 +1,316 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  background-color: #f8fafc;
+  color: #1f2937;
+}
+
+/* Dashboard container */
+.dashboard {
+  
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.header-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.dropdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.dropdown span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dropdown svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Metrics grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+@media (min-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .metrics-grid {
+    grid-template-columns: repeat(10, 1fr);
+  }
+}
+
+/* Metric card */
+.metric-card {
+  background-color: #eff6ff;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.metric-card-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.metric-card svg {
+  width: 20px;
+  height: 20px;
+  color: #3e5d8a;
+}
+/* Custom Tooltip Styles */
+.custom-tooltip {
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+}
+
+.tooltip-label {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.tooltip-value {
+  color: #3e5d8a;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.tooltip-percentage {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 18px;
+}
+.metric-title {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+/* Charts grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+
+
+@media (min-width: 1024px) {
+  .charts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Chart card */
+.chart-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.chart-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 16px;
+}
+
+.chart-container {
+  width: 100%;
+  height: 200px;
+}
+
+.chart-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+/* Bottom row */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .bottom-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.appointment-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.appointment-summary-content {
+  text-align: center;
+}
+
+.appointment-summary-value {
+  font-size: 48px;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.appointment-summary-label {
+  font-size: 18px;
+  color: #6b7280;
+}
+
+/* Color scheme classes */
+.color-rust {
+  color: #c66752;
+}
+.bg-rust {
+  background-color: #c66752;
+}
+
+.color-peach {
+  color: #e6a787;
+}
+.bg-peach {
+  background-color: #e6a787;
+}
+
+.color-cobalt {
+  color: #3e5d8a;
+}
+.bg-cobalt {
+  background-color: #3e5d8a;
+}
+
+.color-light-blue {
+  color: #e9edf5;
+}
+.bg-light-blue {
+  background-color: #e9edf5;
+}
+
+.color-dark-blue {
+  color: #2a3850;
+}
+.bg-dark-blue {
+  background-color: #2a3850;
+}
+
+.color-pastel-green {
+  color: #5a805d;
+}
+.bg-pastel-green {
+  background-color: #5a805d;
+}
+
+.color-dark-orange {
+  color: #804134;
+}
+.bg-dark-orange {
+  background-color: #804134;
+}
+
+.color-dark-green {
+  color: #335436;
+}
+.bg-dark-green {
+  background-color: #335436;
+}
+
+.color-brownish-orange {
+  color: #8d6e67;
+}
+.bg-brownish-orange {
+  background-color: #8d6e67;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .header-controls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dropdown {
+    padding: 6px 12px;
+  }
+
+  .dropdown span {
+    font-size: 12px;
+  }
+}

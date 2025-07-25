@@ -157,7 +157,7 @@
   font-size: 14px;
   outline: none;
 }
-
+.link-btn{color: #334b71; font-weight: 600;cursor: pointer;}
 .search-input:focus {
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
@@ -180,7 +180,15 @@
 .cstmtable div {font-size: 14px;line-height: 32px;}
 .cstmtable  div[class$="TableHead"]{font-weight: 700;}
 .header-section h1{font-size: 28px; font-weight: 600;}
-
+.add-btn {
+    background: #334b71;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
 .msttable th {
   background-color: #334B71;
   padding: 15px 12px;

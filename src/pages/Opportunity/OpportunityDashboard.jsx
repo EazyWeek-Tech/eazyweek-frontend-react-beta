@@ -1,277 +1,161 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import OpportunityForm from "./OpportunityForm"
-import CreateRuleForm from "./CreateRuleForm"
-import EditOpportunityForm from "./EditOpportunityForm"
+import { useState, useEffect, useMemo } from "react";
+import OpportunityForm from "./OpportunityForm";
+import CreateRuleForm from "./CreateRuleForm";
+import EditOpportunityForm from "./EditOpportunityForm";
+import { API_BASE_URL } from "../../config";
 
 const OpportunityDashboard = () => {
-  const [currentView, setCurrentView] = useState("dashboard")
-  const [opportunityData, setOpportunityData] = useState(null)
-  const [selectedOpportunity, setSelectedOpportunity] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("Active")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState(10)
-  const [selectedRows, setSelectedRows] = useState([])
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
+  const [currentView, setCurrentView] = useState("dashboard");
+  const [opportunityData, setOpportunityData] = useState([]);
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("1");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
-  // Sample data for opportunities
-  const [initialOpportunityData, setInitialOpportunityData] = useState([
-    {
-      id: 1,
-      oppCode: "Bright-00189",
-      oppName: "Paid for Volume Filling and no new purchase",
-      clinic: "Bright Clinics",
-      fromDate: "01/07/2025",
-      toDate: "01/07/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-    {
-      id: 2,
-      oppCode: "Bright-00187",
-      oppName: "Cancelled Appointment for June_Dynamic Test",
-      clinic: "Bright Clinics",
-      fromDate: "26/06/2025",
-      toDate: "02/07/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Dynamic",
-    },
-    {
-      id: 3,
-      oppCode: "Bright-00186",
-      oppName: "No Show for June_Static Test",
-      clinic: "Bright Clinics",
-      fromDate: "21/06/2025",
-      toDate: "21/06/2025",
-      totalOpportunities: 1,
-      noOfOpenOpportunities: 1,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-    {
-      id: 4,
-      oppCode: "Bright-00185",
-      oppName: "Paid for Acne Scar and no future appointments_Dynamic",
-      clinic: "Bright Clinics",
-      fromDate: "03/07/2025",
-      toDate: "03/07/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Dynamic",
-    },
-    {
-      id: 5,
-      oppCode: "Bright-00184",
-      oppName: "Paid for Volume Filling but no new purchase_Static Test",
-      clinic: "Bright Clinics",
-      fromDate: "21/06/2025",
-      toDate: "21/06/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-    {
-      id: 6,
-      oppCode: "Bright-00172",
-      oppName: "Paid for Acne but not for new purchase - Static test",
-      clinic: "Bright Clinics",
-      fromDate: "16/06/2025",
-      toDate: "16/06/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-    {
-      id: 7,
-      oppCode: "Bright-00171",
-      oppName: "Paid for PRP but not for new purchase",
-      clinic: "Bright Clinics",
-      fromDate: "26/06/2025",
-      toDate: "01/07/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Dynamic",
-    },
-    {
-      id: 8,
-      oppCode: "Bright-00170",
-      oppName: "Paid for Acne Scar but not for any new purchase",
-      clinic: "Bright Clinics",
-      fromDate: "26/06/2025",
-      toDate: "02/07/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Dynamic",
-    },
-    {
-      id: 9,
-      oppCode: "Bright-00166",
-      oppName: "No show appointment for 15th June 25",
-      clinic: "Bright Clinics",
-      fromDate: "15/06/2025",
-      toDate: "17/06/2025",
-      totalOpportunities: 1,
-      noOfOpenOpportunities: 1,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-    {
-      id: 10,
-      oppCode: "Bright-00165",
-      oppName: "Paid for Acne but not for Rejuvenation",
-      clinic: "Bright Clinics",
-      fromDate: "15/06/2025",
-      toDate: "17/06/2025",
-      totalOpportunities: 0,
-      noOfOpenOpportunities: 0,
-      noOfClosedOpportunities: 0,
-      noOfConvertedOutOfClosed: 0,
-      segmentType: "Static",
-    },
-  ])
+  useEffect(() => {
+    const fetchOpportunities = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${statusFilter}`,
+          { credentials: "include" }
+        );
+        const data = await response.json();
+        // Wrap single object response into array
+       setOpportunityData(Array.isArray(data) ? data : (data ? [data] : []));
 
-  const data = currentView === "dashboard" ? initialOpportunityData : []
+      } catch (error) {
+        console.error("Failed to load opportunities:", error);
+        setOpportunityData([]);
+      }
+    };
 
-  // Filter and sort data
+    fetchOpportunities();
+  }, [statusFilter]);
+
+  const data = currentView === "dashboard" ? opportunityData : [];
+
   const filteredAndSortedData = useMemo(() => {
     const filtered = data.filter((item) => {
       const matchesSearch =
-        item.oppCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.oppName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.clinic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.segmentType.toLowerCase().includes(searchTerm.toLowerCase())
+        (item.oppCode?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
+        (item.oppName?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
+        (item.centerName?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
+        (item.segmentType?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
 
-      return matchesSearch
-    })
+      return matchesSearch;
+    });
 
-    // Sort data
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? -1 : 1
+          return sortConfig.direction === "asc" ? -1 : 1;
         }
         if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? 1 : -1
+          return sortConfig.direction === "asc" ? 1 : -1;
         }
-        return 0
-      })
+        return 0;
+      });
     }
 
-    return filtered
-  }, [searchTerm, sortConfig, data])
+    return filtered;
+  }, [searchTerm, sortConfig, data]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredAndSortedData.length / entriesPerPage)
-  const startIndex = (currentPage - 1) * entriesPerPage
-  const endIndex = startIndex + entriesPerPage
-  const currentData = filteredAndSortedData.slice(startIndex, endIndex)
+  const totalPages = Math.ceil(filteredAndSortedData.length / entriesPerPage);
+  const startIndex = (currentPage - 1) * entriesPerPage;
+  const endIndex = startIndex + entriesPerPage;
+  const currentData = filteredAndSortedData.slice(startIndex, endIndex);
 
   const handleSort = (key) => {
-    let direction = "asc"
+    let direction = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc"
+      direction = "desc";
     }
-    setSortConfig({ key, direction })
-  }
+    setSortConfig({ key, direction });
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedRows(currentData.map((item) => item.id))
+      setSelectedRows(currentData.map((item) => item.recID || item.oppCode));
     } else {
-      setSelectedRows([])
+      setSelectedRows([]);
     }
-  }
+  };
 
   const handleSelectRow = (id) => {
-    setSelectedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]))
-  }
+    setSelectedRows((prev) =>
+      prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]
+    );
+  };
 
   const handleCreateNewCampaign = () => {
-    setCurrentView("create-opportunity")
-  }
+    setCurrentView("create-opportunity");
+  };
 
   const handleEditOppName = () => {
     if (selectedRows.length === 0) {
-      alert("Please select at least one opportunity to edit")
-      return
+      alert("Please select at least one opportunity to edit");
+      return;
     }
     if (selectedRows.length > 1) {
-      alert("Please select only one opportunity to edit")
-      return
+      alert("Please select only one opportunity to edit");
+      return;
     }
 
-    const selectedOpp = initialOpportunityData.find((item) => item.id === selectedRows[0])
+    const selectedOpp = opportunityData.find(
+      (item) => (item.recID || item.oppCode) === selectedRows[0]
+    );
     if (selectedOpp) {
-      setSelectedOpportunity(selectedOpp)
-      setCurrentView("edit-opportunity")
+      setSelectedOpportunity(selectedOpp);
+      setCurrentView("edit-opportunity");
     }
-  }
+  };
 
   const handleBackToDashboard = () => {
-    setCurrentView("dashboard")
-    setOpportunityData(null)
-    setSelectedOpportunity(null)
-  }
+    setCurrentView("dashboard");
+    setSelectedOpportunity(null);
+  };
 
   const handleOpportunityNext = (data) => {
-    setOpportunityData(data)
-    setCurrentView("create-rule")
-  }
+    setCurrentView("create-rule");
+  };
 
   const handleRuleBack = () => {
-    setCurrentView("create-opportunity")
-  }
+    setCurrentView("create-opportunity");
+  };
 
   const handleRuleSave = (data) => {
-    console.log("Saving rule data:", data)
-    alert("Rule saved successfully!")
-  }
+    alert("Rule saved successfully!");
+  };
 
   const handleRuleActivate = (data) => {
-    console.log("Activating rule data:", data)
-    alert("Rule activated successfully!")
-    setCurrentView("dashboard")
-    setOpportunityData(null)
-  }
+    alert("Rule activated successfully!");
+    setCurrentView("dashboard");
+  };
 
   const handleEditSave = (updatedOpportunity) => {
-    // Update the opportunity in the data
-    setInitialOpportunityData((prev) =>
-      prev.map((item) => (item.id === updatedOpportunity.id ? updatedOpportunity : item)),
-    )
-    alert("Opportunity name updated successfully!")
-    setCurrentView("dashboard")
-    setSelectedOpportunity(null)
-    setSelectedRows([])
-  }
+    setOpportunityData((prev) =>
+      prev.map((item) =>
+        (item.recID || item.oppCode) === (updatedOpportunity.recID || updatedOpportunity.oppCode)
+          ? updatedOpportunity
+          : item
+      )
+    );
+    alert("Opportunity name updated successfully!");
+    setCurrentView("dashboard");
+    setSelectedRows([]);
+  };
 
   const handleRefresh = () => {
-    console.log("Refreshing data...")
-    // Add refresh logic here
-  }
+    setStatusFilter("1");
+  };
 
   if (currentView === "create-opportunity") {
-    return <OpportunityForm onBack={handleBackToDashboard} onNext={handleOpportunityNext} mode="create" />
+    return <OpportunityForm onBack={handleBackToDashboard} onNext={handleOpportunityNext} mode="create" />;
   }
 
   if (currentView === "create-rule") {
@@ -282,7 +166,7 @@ const OpportunityDashboard = () => {
         onSave={handleRuleSave}
         onActivate={handleRuleActivate}
       />
-    )
+    );
   }
 
   if (currentView === "edit-opportunity") {
@@ -292,12 +176,11 @@ const OpportunityDashboard = () => {
         onBack={handleBackToDashboard}
         onSave={handleEditSave}
       />
-    )
+    );
   }
-
   return (
     <>
-      <style jsx>{`
+      <style jsx="true">{`
         .dashboard-container {
           min-height: 100vh;
         }
@@ -706,9 +589,9 @@ const OpportunityDashboard = () => {
             <div className="control-group">
               <label className="control-label">Status:</label>
               <select className="control-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="All">All</option>
+                <option value="1">Active</option>
+                <option value="0">Draft</option>
+                <option value="2">Expired</option>
               </select>
             </div>
             <div className="control-group">

@@ -1,24 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
+import { API_BASE_URL } from "../../config";
 
 const DashboardOverview = () => {
   const [selectedMonth, setSelectedMonth] = useState("Month")
   const [selectedYear, setSelectedYear] = useState("2025")
+  const [metricsData, setMetricsData] = useState([])
 
-  // Sample data for metrics cards with image icons
-  const metricsData = [
-    { title: "Opportunity", value: 201, icon: "/images/icons/opportunity.png", color: "#4F46E5" },
-    { title: "Appointments", value: 78, icon: "/images/icons/appointments.png", color: "#059669" },
-    { title: "Courtesy Call", value: 93, icon: "/images/icons/courtesy-call.png", color: "#DC2626" },
-    { title: "Cases", value: 255, icon: "/images/icons/cases.png", color: "#7C3AED" },
-    { title: "E-Invoices", value: 0, icon: "/images/icons/e-invoices.png", color: "#EA580C" },
-    { title: "Audit", value: 24, icon: "/images/icons/audit.png", color: "#0891B2" },
-    { title: "Medical Audit", value: 4, icon: "/images/icons/medical-audit.png", color: "#16A34A" },
-    { title: "Digital Audit", value: 4, icon: "/images/icons/digital-audit.png", color: "#2563EB" },
-    { title: "Telephone Audit", value: 6, icon: "/images/icons/telephone-audit.png", color: "#7C2D12" },
-    { title: "Safety Audit", value: 2, icon: "/images/icons/safety-audit.png", color: "#991B1B" },
-  ]
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/Dashboard/DashboardOverView`)
+      .then(res => res.json())
+      .then(data => {
+        const api = data[0] || {};
+        const updated = [
+          { title: "Opportunity", value: api.oppotunityCount, icon: "/images/icons/opportunity.png", color: "#4F46E5" },
+          { title: "Appointments", value: api.appointmentCount, icon: "/images/icons/appointments.png", color: "#059669" },
+          { title: "Courtesy Call", value: api.courtesyCount, icon: "/images/icons/courtesy-call.png", color: "#DC2626" },
+          { title: "Cases", value: api.casesCount, icon: "/images/icons/cases.png", color: "#7C3AED" },
+          { title: "E-Invoices", value: api.einvoiceCount, icon: "/images/icons/e-invoices.png", color: "#EA580C" },
+          { title: "Audit", value: api.auditCount, icon: "/images/icons/audit.png", color: "#0891B2" },
+          { title: "Medical Audit", value: api.medicalAuditCount, icon: "/images/icons/medical-audit.png", color: "#16A34A" },
+          { title: "Digital Audit", value: api.digitalAuditCount, icon: "/images/icons/digital-audit.png", color: "#2563EB" },
+          { title: "Telephone Audit", value: api.telephoneAuditCount, icon: "/images/icons/telephone-audit.png", color: "#7C2D12" }
+        ];
+        setMetricsData(updated);
+
+        console.log(data)
+      })
+      .catch(err => console.error("Failed to fetch dashboard overview:", err))
+  }, [])
 
   return (
     <>
@@ -27,7 +38,7 @@ const DashboardOverview = () => {
           padding: 24px;
           background-color: #f8fafc;
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+          font-family: 'Lato', "Segoe UI", "Roboto", sans-serif;
         }
 
         .dashboard-header {

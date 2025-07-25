@@ -27,8 +27,10 @@ import DetailedReport from "./pages/CourtesyCall/DetailedReport";
 import AuditDashboard from "./pages/Audit";
 import InvoicesTab from "./pages/Customer/CustomerDetails/InvoiceTab";
 import InvoiceDetails from "./pages/Customer/CustomerDetails/InvoiceDetails";
-import ConsultationForm from "./pages/EMR/ConsultationForm"
-import GuestConsentForm from "./pages/EMR/GuestConsentForm"
+import SegmentAddForm from "./pages/Masters/SegmentAddForm";
+import DashboardPage from "./pages/Dashboard";
+import ConsultationForm from "./pages/EMR/ConsultationForm";
+import GuestConsentForm from "./pages/EMR/GuestConsentForm";
 import ConsultationHistory from "./pages/EMR/ConsultationHistory";
 
 
@@ -73,10 +75,12 @@ function App() {
       {/* Add Routes WITHOUT Sidebar + Header */}
       <Route path="/appointment" element={<Appointment />} />
       <Route path="/invoice" element={<Invoice />} />
-      <Route path="/customer" element={<Customer />} />
-      <Route path="/invoices" element={<InvoicesTab />} />
-      <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
-
+      <Route path="/customer" element={<Customer />} /> 
+       <Route path="/consultation" element={<ConsultationForm />} /> 
+         <Route path="/history" element={<GuestConsentForm />} />
+        <Route path="/consultation/history" element={<ConsultationHistory />} />
+       <Route path="/invoices" element={<InvoicesTab />} />
+    <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
 
       {/*Add Routes WITH Sidebar + Header */}
       <Route
@@ -88,28 +92,29 @@ function App() {
               <Header onToggleSidebar={toggleSidebar} onLogout={handleLogout} />
               <div className="home-sect">
                 <Routes>
-                  <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="cases" element={<CaseManagement />} />
-                  <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
-                  <Route path="/masters/customers" element={<CustomerMaster />} />
-                  <Route path="/masters/practitioners" element={<DoctorMaster />} />
-                  <Route path="/masters/clinic" element={<ClinicMaster />} />
-                  <Route path="/masters/department" element={<DepartmentMaster />} />
-                  <Route path="/masters/managers" element={<ManagerMaster />} />
-                  <Route path="/masters/segments" element={<SegmentMapping />} />
-                  <Route path="/masters/employees" element={<EmployeeMaster />} />
-                  <Route path="/masters/product" element={<ProductsMaster />} />
-                  <Route path="/masters/service" element={<ServiceMaster />} />
-                  <Route path="/masters/item-category" element={<ItemCategoryMaster />} />
-                  <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
-                  <Route path="/opportunity" element={<OpportunityDashboard />} />
-                  <Route path="/einvoice" element={<EInvoiceDashboard />} />
-                  <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
-                  <Route path="/courtesy-call/report" element={<DetailedReport />} />
-                  <Route path="/audit" element={<AuditDashboard />} />
-                  <Route path="/consultation" element={<ConsultationForm />} />
-                  <Route path="/history" element={<GuestConsentForm />} />
-                  <Route path="/consultation/history" element={<ConsultationHistory />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="/segmentaddform/:employeeCode" element={<SegmentAddForm />} />
+
+    <Route path="cases" element={<CaseManagement />} />
+    <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
+    <Route path="/masters/customers" element={<CustomerMaster />} />
+          <Route path="/masters/practitioners" element={<DoctorMaster />} />
+          <Route path="/masters/clinic" element={<ClinicMaster />} />
+          <Route path="/masters/department" element={<DepartmentMaster />} />
+          <Route path="/masters/managers" element={<ManagerMaster />} />
+          <Route path="/masters/segments" element={<SegmentMapping />} />
+          <Route path="/masters/employees" element={<EmployeeMaster />} />
+          <Route path="/masters/product" element={<ProductsMaster />} />
+          <Route path="/masters/service" element={<ServiceMaster />} />
+          <Route path="/masters/item-category" element={<ItemCategoryMaster />} />
+          <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
+           <Route path="/opportunity" element={<OpportunityDashboard />} />
+            <Route path="/einvoice" element={<EInvoiceDashboard />} />
+             <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
+             <Route path="/courtesy-call/report" element={<DetailedReport />} />
+             <Route path="/audit" element={<AuditDashboard />} />
+                  
+
 
                   <Route index element={<Navigate to="/dashboard" replace />} /> {/* ← This handles "/" */}
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
