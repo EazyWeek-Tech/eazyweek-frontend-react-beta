@@ -104,13 +104,22 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
   navigate(`/invoice?${queryParams.toString()}`);
 };
 
-const goToConsulationPage = () => {
+const goToConsultationConsentPage = () => {
   const queryParams = new URLSearchParams();
   if (appointment?.custId) queryParams.append("custid", appointment.custId);
   if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
   if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
 
-  navigate(`/consultation`);
+  navigate(`/consultation?${queryParams.toString()}`);
+};
+
+const goToMedicalHistoryPage = () => {
+  const queryParams = new URLSearchParams();
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+
+  navigate(`/history`);
 };
 
  const goToCustomerPage = () => {
@@ -255,11 +264,11 @@ const goToConsulationPage = () => {
           </div>
 
           <div className="apptcdet">
-            <button onClick={goToConsulationPage} className="cstlnk">
+            <button onClick={goToMedicalHistoryPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
             </button>
-            <button onClick={goToConsulationPage} className="cstlnk">
+            <button onClick={goToConsultationConsentPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
               Consent and Treatment Forms
             </button>

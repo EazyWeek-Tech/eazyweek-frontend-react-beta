@@ -19,7 +19,7 @@ import EmployeeMaster from "./pages/Masters/EmployeeMaster";
 import ProductsMaster from "./pages/Masters/ProductsMaster";
 import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
 import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
-import ServiceMaster from "./pages/Masters/ServiceMaster"; 
+import ServiceMaster from "./pages/Masters/ServiceMaster";
 import OpportunityDashboard from "./pages/Opportunity/OpportunityDashboard";
 import EInvoiceDashboard from "./pages/Einvoice/EInvoiceDashboard";
 import { CourtesyCallDashboard } from "./pages/CourtesyCall";
@@ -30,6 +30,8 @@ import InvoiceDetails from "./pages/Customer/CustomerDetails/InvoiceDetails";
 import SegmentAddForm from "./pages/Masters/SegmentAddForm";
 import DashboardPage from "./pages/Dashboard";
 import ConsultationForm from "./pages/EMR/ConsultationForm";
+import GuestConsentForm from "./pages/EMR/GuestConsentForm";
+import ConsultationHistory from "./pages/EMR/ConsultationHistory";
 
 
 function App() {
@@ -63,7 +65,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
-        
+
       </Routes>
     );
   }
@@ -75,9 +77,10 @@ function App() {
       <Route path="/invoice" element={<Invoice />} />
       <Route path="/customer" element={<Customer />} /> 
        <Route path="/consultation" element={<ConsultationForm />} /> 
+         <Route path="/history" element={<GuestConsentForm />} />
+        <Route path="/consultation/history" element={<ConsultationHistory />} />
        <Route path="/invoices" element={<InvoicesTab />} />
     <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
-     
 
       {/*Add Routes WITH Sidebar + Header */}
       <Route
@@ -110,12 +113,11 @@ function App() {
              <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
              <Route path="/courtesy-call/report" element={<DetailedReport />} />
              <Route path="/audit" element={<AuditDashboard />} />
- 
+                  
 
 
-
-    <Route index element={<Navigate to="/dashboard" replace />} /> {/* ← This handles "/" */}
-    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<Navigate to="/dashboard" replace />} /> {/* ← This handles "/" */}
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </div>
             </section>

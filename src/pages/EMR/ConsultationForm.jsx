@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FaceMapper from './FaceMapper';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
-import './emr.css'
+import './ConsultationForm.css';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from "../../config";
 
 function ConsultationForm() {
   const [formData, setFormData] = useState({
@@ -24,296 +26,239 @@ function ConsultationForm() {
   const [files, setFiles] = useState([]);
   const [faceZones, setFaceZones] = useState([]);
   const [errors, setErrors] = useState({});
+  const [toast, setToast] = useState(null);
+  const [isValidForm, setIsValidForm] = useState(false);
 
-  const validateForm = () => {
-    const requiredFields = ['appointmentDate', 'chiefComplaint', 'diagnosis', 'treatmentPlan'];
-    const newErrors = {};
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const custId = searchParams.get('custid');
+  const custName = searchParams.get('custname');
+  const appointmentId = searchParams.get('appointmentid');
 
-    requiredFields.forEach(field => {
-      if (!formData[field] || formData[field].trim() === '') {
-        newErrors[field] = 'This field is required';
-      }
+  const qp = new URLSearchParams({ custId, custName, appointmentId }).toString();
+
+
+  const resetForm = useCallback(() => {
+    setFormData({
+      appointmentDate: '',
+      changesInMeds: false,
+      changesInHealth: false,
+      chiefComplaint: '',
+      diagnosis: '',
+      treatmentPlan: '',
+      subjectiveNotes: '',
+      objectiveNotes: '',
+      assessmentNotes: '',
+      planningNotes: '',
+      providerName: '',
+      signatureDate: ''
     });
+    setSignature('');
+    setFiles([]);
+    setFaceZones([]);
+    setErrors({});
+  }, []);
 
-    if (!signature || signature.trim() === '') {
-      newErrors.signature = 'Signature is required';
-    }
 
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) {
-        const firstErrorField = Object.keys(newErrors)[0];
-        const el = document.getElementById(firstErrorField);
-        if (el && typeof el.scrollIntoView === 'function') {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+  const handleBack = () => navigate(-1);
 
-      return Object.keys(newErrors).length === 0;
+
+  const goToHistory = () => {
+    if (!custId) return alert("No customer ID available.");
+    navigate(`/consultation/history?custid=${custId}`);
   };
+
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
   };
 
+
+  const validateForm = useCallback(() => {
+    const requiredFields = ['appointmentDate', 'chiefComplaint', 'diagnosis', 'treatmentPlan'];
+    const newErrors = {};
+
+    requiredFields.forEach((field) => {
+      if (!formData[field]?.trim()) newErrors[field] = 'This field is required';
+    });
+
+    if (!signature.trim()) newErrors.signature = 'Signature is required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData, signature]);
+
+
+  useEffect(() => {
+    setIsValidForm(validateForm());
+  }, [formData, signature, validateForm]);
+
+  /** Submit Form */
   const handleSubmit = async () => {
-      console.log("Submit button was clicked");
-      const cleanedZones = faceZones.map(zone => ({
-        ...zone,
-        note: zone.note ?? ''
-      }));
-      const processedFiles = files.map(file => {
-         const base64Raw = (file.base64Data || file.base64 || '').split(',').pop();
-         return {
-           fileName: file.name || file.fileName,
-           fileType: file.type || file.fileType,
-           base64Data: base64Raw
-         };
-       });
-   if (!validateForm()) {
-       console.warn("Form validation failed");
-       return; // prevent submission if invalid
-     }
+    console.log("Submit button was clicked");
+
+    if (!validateForm()) return;
+
     const payload = {
       ...formData,
-        chiefComplaint: formData.chiefComplaint || '',
-        diagnosis: formData.diagnosis || '',
-        treatmentPlan: formData.treatmentPlan || '',
-        subjectiveNotes: formData.subjectiveNotes || '',
-        objectiveNotes: formData.objectiveNotes || '',
-        assessmentNotes: formData.assessmentNotes || '',
-        planningNotes: formData.planningNotes || '',
-        providerName: formData.providerName || '',
-        signature: signature || '',
-        signatureDate: formData.signatureDate || new Date().toISOString().substring(0, 10),
-        faceZones: cleanedZones,
-        files: processedFiles
+      signature: signature,
+      signatureDate: formData.signatureDate || new Date().toISOString().substring(0, 10),
+      faceZones,
+      files: files.map(file => ({
+        fileName: file.name || file.fileName,
+        fileType: file.type || file.fileType,
+        base64Data: (file.base64Data || file.base64 || '').split(',').pop()
+      }))
     };
 
-    console.log("Payload being sent to backend:", JSON.stringify({ formDto: payload }, null, 2));
-    console.log("Files:", processedFiles);
+    console.log("Payload being sent to backend:", JSON.stringify(payload, null, 2));
 
     try {
-      const res = await fetch('https://localhost:7259/api/consultation/submit', {
+      const res = await fetch(`${API_BASE_URL}/api/consultation/submit?${qp}`, {
         method: 'POST',
+        credentials: "include",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        alert('Consultation saved!');
-              setFormData({
-                appointmentDate: '',
-                changesInMeds: false,
-                changesInHealth: false,
-                chiefComplaint: '',
-                diagnosis: '',
-                treatmentPlan: '',
-                subjectiveNotes: '',
-                objectiveNotes: '',
-                assessmentNotes: '',
-                planningNotes: '',
-                providerName: '',
-                signatureDate: ''
-              });
+      const result = await res.json();
+      console.log("API Response:", result);
 
-              setSignature('');
-              setFiles([]);
-              setFaceZones([]);
+      if (result?.success) {
+        setToast({ message: result.message || "Consultation Form saved successfully!", type: "success" });
+        resetForm();
       } else {
-          const err = await res.json().catch(() => ({ message: "Unknown error" }));
-          console.error("Backend error:", err);
-          alert('Error: ' + err.message);
+        setToast({ message: result.message || "Save failed. Please try again.", type: "error" });
       }
     } catch (error) {
-      console.error("Error in fetch:", error);
-        alert('Network or server error: ' + error.message);
+      console.error("Error:", error);
+      setToast({ message: "Error while saving Consultation Form.", type: "error" });
+    } finally {
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
   return (
     <div className='confrmwrp'>
+      <button onClick={goToHistory} className="btn-primary">View History</button>
+
+      <div className="invflex">
+        <div className="leftsect">
+          <button onClick={handleBack} className="bckbtn tooltip" title="Back">
+            <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
+          </button>
+        </div>
+      </div>
+
       <h1 className='page-title'>Consultation Form</h1>
 
-      <div className="cnfrmcellwrp">
-        <label><strong>Appointment Date</strong></label>
-      <input
-        type="date"
-        name="appointmentDate"
-        onChange={handleInputChange}
-        style={{ width: '100%', marginBottom: '1rem', padding: '0.5rem' }}
-      />
-      </div>
 
-      <div className='cnfrmcellwrp'>
-        <label><strong>Changes in Health</strong></label>
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.changesInHealth === true}
-              onChange={() => setFormData(prev => ({ ...prev, changesInHealth: true }))}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.changesInHealth === false}
-              onChange={() => setFormData(prev => ({ ...prev, changesInHealth: false }))}
-            />
-            No
-          </label>
-        </div>
-      </div>
+      <Field label="Appointment Date" type="date" name="appointmentDate" value={formData.appointmentDate} onChange={handleInputChange} error={errors.appointmentDate} />
 
-      {/* Changes in Meds */}
-      <div className='cnfrmcellwrp'>
-        <label><strong>Changes in Meds</strong></label>
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.changesInMeds === true}
-              onChange={() => setFormData(prev => ({ ...prev, changesInMeds: true }))}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.changesInMeds === false}
-              onChange={() => setFormData(prev => ({ ...prev, changesInMeds: false }))}
-            />
-            No
-          </label>
-        </div>
-      </div>
 
-      {[
-        { id: 'chiefComplaint', label: 'Chief Complaint', required: true },
-        { id: 'diagnosis', label: 'Diagnosis', required: true },
-        { id: 'treatmentPlan', label: 'Treatment Plan', required: true },
-        { id: 'subjectiveNotes', label: 'Subjective Notes', required: false },
-        { id: 'objectiveNotes', label: 'Objective Notes', required: false },
-        { id: 'assessmentNotes', label: 'Assessment Notes', required: false },
-        { id: 'planningNotes', label: 'Planning Notes', required: false }
-      ].map(field => (
-        <div className='cnfrmcellwrp' key={field.id}>
-          <label htmlFor={field.id} style={{ display: 'block',  }}>
-            <strong>
-              {field.label}
-              {field.required && <span style={{ color: 'red' }}> *</span>}
-            </strong>
-          </label>
-          <input
-                id={field.id}
-                name={field.id}
-                type="text"
-                required={field.required}
-                value={formData[field.id]}
-                onChange={handleInputChange}
-                style={{
-                  width: '100%',
-                  marginBottom: errors[field.id] ? '0.25rem' : '1rem',
-                  padding: '0.5rem',
-                  fontSize: '1rem',
-                  border: errors[field.id] ? '2px solid red' : '1px solid #ccc',
-                  borderRadius: '4px',
-                  backgroundColor: errors[field.id] ? '#fff8f8' : 'white'
-                }}
-              />
-              {errors[field.id] && (
-                <div style={{ color: 'red', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                  {errors[field.id]}
-                </div>
-              )}
-            </div>
+      <CheckboxGroup label="Changes in Health" name="changesInHealth" value={formData.changesInHealth} setValue={(val) => setFormData(prev => ({ ...prev, changesInHealth: val }))} />
+
+
+      <CheckboxGroup label="Changes in Meds" name="changesInMeds" value={formData.changesInMeds} setValue={(val) => setFormData(prev => ({ ...prev, changesInMeds: val }))} />
+
+
+      {['chiefComplaint', 'diagnosis', 'treatmentPlan', 'subjectiveNotes', 'objectiveNotes', 'assessmentNotes', 'planningNotes'].map((field, idx) => (
+        <Field key={idx} label={capitalize(field)} name={field} value={formData[field]} onChange={handleInputChange} error={errors[field]} required={['chiefComplaint', 'diagnosis', 'treatmentPlan'].includes(field)} />
       ))}
 
-    <h2 className='cnfrmcellwrp' style={{fontWeight: 'bold'}}>Photos Upload</h2>
-    <FileUploader onFilesSelected={setFiles} />
-    {files.length > 0 && (
-      <div style={{ marginTop: '1rem' }}>
-        <strong>Uploaded Files:</strong>
-        <ul style={{ paddingLeft: '1rem', fontSize: '0.95rem' }}>
-          {files.map((file, index) => (
-            <li key={index}>
-              📄 {file.name || file.fileName} ({Math.round((file.size || 0) / 1024)} KB)
-            </li>
-          ))}
+
+      <h2 className='cnfrmcellwrp'>Photos Upload</h2>
+      <FileUploader onFilesSelected={setFiles} />
+      {files.length > 0 && (
+        <ul style={{ marginTop: '1rem' }}>
+          {files.map((file, index) => <li key={index}>📄 {file.name || file.fileName}</li>)}
         </ul>
-      </div>
-    )}
-
-    <FaceMapper
-      onDrawingComplete={({ lines, points }) => {
-        const zones = [
-          ...points.map(p => ({
-            type: 'point',
-            label: p.label,
-            coordinates: [Math.round(Number(p.x)), Math.round(Number(p.y))],
-            note: ''
-          })),
-          ...lines.map(l => ({
-            type: l.tool,
-            label: l.label || '',
-            coordinates: l.points.flat().map(n => Math.round(Number(n))),
-            note: ''
-          }))
-        ];
-        setFaceZones(zones);
-      }}
-    />
-  <div className='cnfrmcellwrp'>
-    <label><strong>Provider Name</strong></label>
-        <input
-            type="text"
-            name="providerName"
-            onChange={handleInputChange}
-            style={{ width: '100%', marginBottom: '1rem', padding: '0.5rem' }}
-        />
-
-      <SignaturePad onSave={setSignature} />
-      {errors.signature && (
-        <div style={{ color: 'red', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          {errors.signature}
-        </div>
       )}
 
-      </div>
+
+      <FaceMapper onDrawingComplete={({ lines, points }) => setFaceZones([...points, ...lines])} />
+
+
+      <Field label="Provider Name" name="providerName" value={formData.providerName} onChange={handleInputChange} />
+
 
       <div className='cnfrmcellwrp'>
-
-      <label><strong>Signature Date</strong></label>
-            <input
-              type="date"
-              name="signatureDate"
-              onChange={handleInputChange}
-              style={{ width: '100%', marginBottom: '1.5rem', padding: '0.5rem' }}
-      />
-</div>
-      <div style={{ marginTop: '1.5rem' }}>
-        <button
-          onClick={handleSubmit}
-          style={{
-            padding: '0.75rem 1.5rem',
-            fontSize: '19px',
-            backgroundColor: '#334b71',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Submit Consultation
-        </button>
+        <SignaturePad onSave={setSignature} />
+        {errors.signature && <p className="error-text">{errors.signature}</p>}
       </div>
+
+
+      <Field label="Signature Date" type="date" name="signatureDate" value={formData.signatureDate} onChange={handleInputChange} />
+
+
+      <button onClick={handleSubmit} className="btn-submit" disabled={!isValidForm}>Submit Consultation</button>
+
+      <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 }
+
+const Field = ({ label, name, value, onChange, type = "text", required = false, error }) => (
+  <div className='cnfrmcellwrp'>
+    <label><strong>{label}{required && <span style={{ color: 'red' }}> *</span>}</strong></label>
+    <input type={type} name={name} value={value} onChange={onChange} className={error ? "input-error" : ""} />
+    {error && <p className="error-text">{error}</p>}
+  </div>
+);
+
+const CheckboxGroup = ({ label, value, setValue }) => (
+  <div className='cnfrmcellwrp'>
+    <label><strong>{label}</strong></label>
+    <div style={{ display: 'flex', gap: '1rem' }}>
+      <label><input type="radio" checked={value === true} onChange={() => setValue(true)} /> Yes</label>
+      <label><input type="radio" checked={value === false} onChange={() => setValue(false)} /> No</label>
+    </div>
+  </div>
+);
+
+const Toast = ({ message, type, onClose }) => {
+  if (!message) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        backgroundColor: type === 'success' ? '#4caf50' : '#f44336',
+        color: 'white',
+        padding: '12px 20px',
+        borderRadius: '5px',
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+        fontSize: '16px',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px'
+      }}
+    >
+      <span>{message}</span>
+      <button
+        onClick={onClose}
+        style={{
+          background: 'transparent',
+          color: 'white',
+          border: 'none',
+          fontSize: '18px',
+          cursor: 'pointer',
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+};
+
+
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 export default ConsultationForm;
