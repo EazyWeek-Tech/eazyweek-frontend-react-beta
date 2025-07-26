@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
-import './GuestConsentForm.css';
 import { API_BASE_URL } from "../../config";
 import { useNavigate , useSearchParams } from 'react-router-dom';
 
@@ -107,6 +106,7 @@ const GuestConsentForm = () => {
     };
 
     return (
+        <>
         <div className="medical-form">
             <div className="header">
                 <img src="/organization-logo.png" alt="Organization Logo" className="logo" />
@@ -813,6 +813,259 @@ const GuestConsentForm = () => {
             </form>
         </div>
 
+        <style>
+            {`
+            .medical-form {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: 'Arial', sans-serif;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  justify-content: space-between;
+}
+
+.logo {
+  max-width: 120px;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: #555;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+form h2,
+form h3,
+form legend {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: #2b4c7e;
+  padding: 0 0 20px;
+}
+
+fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: #f9f9f9;
+}
+
+label {
+  display: block;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+.tandc{margin: 10px 0;line-height: 180%;}
+.signature-box {
+  width: 100%;
+  height: 150px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  position: relative;
+}
+
+.signature-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.signature-actions button {
+  padding: 0.3rem 0.8rem;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.signature-actions button:hover {
+  background-color: #c0392b;
+}
+
+button[type="submit"] {
+  margin-top: 2rem;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  background-color: #2b4c7e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover {
+  background-color: #1f375e;
+}
+
+@media (max-width: 600px) {
+  .medical-form {
+    padding: 1rem;
+  }
+
+  .signature-box {
+    height: 120px;
+  }
+}
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.gform-group {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+}
+
+.gform-group.full-width {
+  flex: 1 1 100%;
+}
+
+.gform-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.gform-group input,
+.gform-group textarea {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.gst-form-grid {
+  max-width: 900px;
+  margin: 0 auto;
+  font-family: sans-serif;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #1f3c88;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.25rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.form-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+}
+
+.form-row input,
+.form-row textarea,
+.form-row select {
+  padding: 0.5rem;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.signature-container {
+  border: 1px solid #ccc;
+  width: 100%;
+  height: 120px;
+  margin-top: 0.5rem;
+}
+
+.signature-pad {
+  width: 100%;
+  height: 100px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  margin-top: 1rem;
+  background-color: #1f3c88;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #3952a3;
+}
+
+.confrmwrp{max-width: 800px; margin: 0 auto;padding: 30px;}
+
+.cnfrmcellwrp{margin: 0 0 20px;font-size: 14px; }
+
+.cnfrmcellwrp label{margin: 0 0 10px;display: block;font-weight: bold;}
+
+.cnfrmcellwrp input[type='checkbox']{display: inline-block;margin: 0 7px 0 0;}
+            `}
+        </style>
+</>
     );
 };
 
