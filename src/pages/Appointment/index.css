@@ -719,8 +719,9 @@ table {
                     display: inline-block;
                 }
 
-                .lnkbtn {
+                .lnkbtn, button[type="submit"].lnkbtn {
                     text-decoration: none;
+                    margin: 0;
                     background: #4d674d;
                     border: none;
                     color: #fff;
