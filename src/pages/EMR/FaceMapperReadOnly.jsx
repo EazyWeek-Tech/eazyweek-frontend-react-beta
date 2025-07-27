@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 
-const FaceMapperReadOnly = ({ zones = [], width = 512, height = 512, backgroundImageUrl }) => {
+const FaceMapperReadOnly = ({ zones = [], width, height, backgroundImageUrl }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
