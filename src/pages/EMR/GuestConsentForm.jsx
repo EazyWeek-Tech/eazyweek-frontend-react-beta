@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
-import './GuestConsentForm.css';
 import { API_BASE_URL } from "../../config";
 import { useNavigate , useSearchParams } from 'react-router-dom';
 
@@ -107,19 +106,21 @@ const GuestConsentForm = () => {
     };
 
     return (
+        <>
         <div className="medical-form">
             <div className="header">
                 <img src="/organization-logo.png" alt="Organization Logo" className="logo" />
                 <h1>MEDICAL HISTORY FORM</h1>
-                <p className="subtitle">
+                
+            </div>
+            <p className="subtitle">
                     CLIENT INFORMATION AND MEDICAL HISTORY<br />
                     To provide you with the most appropriate treatment, we need you to complete the following questionnaire. All the information is confidential and HIPAA Compliant
                 </p>
-            </div>
 
-            <form className="form-grid" onSubmit={handleSubmit}>
+            <form className="gst-form-grid" onSubmit={handleSubmit}>
                 <fieldset>
-                    <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Client Information</h3></legend>
+                    <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Client Information</h3>
                     <div className="form-row">
                         <label>Client Name: <input type="text" name="clientName" /></label>
                         <label>Street: <input type="text" name="street" /></label>
@@ -135,9 +136,9 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                  <legend>
+                  
                     <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Emergency Contact(s)</h3>
-                  </legend>
+                  
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                     <label>Name: <input type="text" name="emergencyName" /></label>
 
@@ -178,7 +179,7 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Fitzpatrick Skin Type</h3></legend>
+                    <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Fitzpatrick Skin Type</h3>
                     <p style={{ marginBottom: '1rem' }}>Which of the following best describes your skin using Fitzpatrick scale? Please select one:</p>
                     <div className="radio-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
                         <label><input type="radio" name="fitzpatrick" value="fair" /> Fair - always burns - never tans</label>
@@ -191,11 +192,11 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Medical History
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div>
@@ -235,11 +236,11 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Smoking / Drinking / Caffeine Intake
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div>
@@ -278,11 +279,11 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             List Allergies
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div className="checkbox-group" style={{ display: 'grid', gap: '0.5rem' }}>
@@ -316,11 +317,11 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Medical History
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div className="checkbox-group" style={{ display: 'grid', gap: '0.5rem' }}>
@@ -375,11 +376,11 @@ const GuestConsentForm = () => {
                     </div>
                 </fieldset>
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Exercise
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div>
@@ -465,11 +466,11 @@ const GuestConsentForm = () => {
                 </fieldset>
 
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Male Hormone Review
                         </h3>
-                    </legend>
+                    
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div>
@@ -529,39 +530,39 @@ const GuestConsentForm = () => {
                     </div>
                 </fieldset>
                 <fieldset>
-                    <legend>
+                    
                         <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>
                             Female Hormone Review
                         </h3>
-                    </legend>
+                    
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                         <div className="form-row">
-                            <div className="form-group">
+                            <div className="gform-group">
                                 <label>Date of the 1st day of last period</label>
                                 <input type="date" name="lastPeriodDate" />
                             </div>
-                            <div className="form-group">
+                            <div className="gform-group">
                                 <label>Or Date of Menopause:</label>
                                 <input type="date" name="menopauseDate" />
                             </div>
                         </div>
 
                         <div className="form-row">
-                            <div className="form-group full-width">
+                            <div className="gform-group full-width">
                                 <label>Birth Control Method:</label>
                                 <textarea name="birthControlMethod" rows="2"></textarea>
                             </div>
                         </div>
 
                         <div className="form-row">
-                            <div className="form-group full-width">
+                            <div className="gform-group full-width">
                                 <label>Are you currently or do you plan on becoming pregnant?</label>
                                 <input type="text" name="pregnancyIntent" />
                             </div>
                         </div>
 
                         <div className="form-row">
-                            <div className="form-group">
+                            <div className="gform-group">
                                 <label>Date of last Pap test:</label>
                                 <input type="date" name="papDate" />
                                 <div className="radio-group">
@@ -570,7 +571,7 @@ const GuestConsentForm = () => {
                                 </div>
                             </div>
 
-                            <div className="form-group">
+                            <div className="gform-group">
                                 <label>Have you ever had an abnormal Pap?</label>
                                 <div className="radio-group">
                                     <label><input type="radio" name="abnormalPap" value="yes" /> Yes</label>
@@ -582,7 +583,7 @@ const GuestConsentForm = () => {
                         </div>
 
                         <div className="form-row">
-                            <div className="form-group">
+                            <div className="gform-group">
                                 <label>Date of last Mammogram:</label>
                                 <input type="date" name="mammogramDate" />
                                 <div className="radio-group">
@@ -599,7 +600,7 @@ const GuestConsentForm = () => {
                     <p>Please check any that apply:</p>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Adrenal</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Adrenal</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Fainting/collapse', 'Palpitations', 'Salt craving', 'Muscle tension', 'Easily frustrated', 'Sweat easily -palms/armpits', 'Sugar craving', 'Panic attacks', 'Feeling overwhelmed', 'Excessive hunger', 'Prone to infection/sickly', 'Low blood pressure', 'Light headed when standing up', 'Racing mind,prevent sleep', 'Sluggish in the morning-slow start', 'Need sunglasses in bright light', 'Low back pain-worse with fatigue/stress'].map((item, idx) => (
                                 <label key={`adrenal-${idx}`}><input type="checkbox" name="adrenal" /> {item}</label>
@@ -608,7 +609,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Urinary</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Urinary</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Blood in urine', 'Urgent urination', 'Frequent urination'].map((item, idx) => (
                                 <label key={`urinary-${idx}`}><input type="checkbox" name="urinary" /> {item}</label>
@@ -617,7 +618,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolic or T4</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolic or T4</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Decreased memory/concentration', 'Depression/Anxiety', 'Can\'t multi-task well', 'Low ambition/motivation', 'Foggy/spacey/muddled mind', 'Hard to follow train of thought'].map((item, idx) => (
                                 <label key={`metabolic-t4-${idx}`}><input type="checkbox" name="metabolicT4" /> {item}</label>
@@ -626,7 +627,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Neuro-cognitive/Psych</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Neuro-cognitive/Psych</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Loss of self-esteem', 'Feeling of hopelessness', 'Feeling defeated', 'Loss of confidence', 'Mood swings', 'Sense of powerlessness', 'Decreased sense of well-being', 'Apathy/losing interest in life', 'Vision deterioting', 'Hearing deteriorating', 'Memory deteriorating', 'Balance deteriorating', 'Coordination deteriorating', 'Change in headaches', 'Double vision', 'Dizzy/spinning'].map((item, idx) => (
                                 <label key={`neuro-${idx}`}><input type="checkbox" name="neuro" /> {item}</label>
@@ -635,7 +636,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolism</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolism</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Excessive thirst', 'Cannot skip meals', 'Headache if meal is missed', 'Craving for sugar and carbs', 'Mid-afternoon drowsiness', 'Low energy periods relieved with foodrelieved', 'Jittery/irritable episodes relieved w/food', 'Alternate between high and low moods', 'Alternate between sluggish/high energy', 'High blood pressure', 'Skin tags at neck and armpits', 'High cholesterol/triglycerides', 'Increased fat around abdomen', 'Prone to inflammation'].map((item, idx) => (
                                 <label key={`metabolism-${idx}`}><input type="checkbox" name="metabolism" /> {item}</label>
@@ -644,7 +645,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Cardiovascular/Respiratory</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Cardiovascular/Respiratory</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Chest pain', 'Blood in sputum', 'Unusual cough', 'Shortness of breath', 'Swollen ankles', 'Rapid heart beat', 'Leg pain with walking', 'Snoring excessively', 'Fainting/collapsing'].map((item, idx) => (
                                 <label key={`cardio-${idx}`}><input type="checkbox" name="cardio" /> {item}</label>
@@ -653,7 +654,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>GI</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>GI</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Fluid retention', 'Bright blood in stool', 'Difficulty swallowing', 'Loss of appetite', 'Persistent nausea', 'Bloating', 'Abdominal pain', 'Acid reflex', 'Recent change in bowel habit', 'Weight loss- unexpected', 'Black tarry stools'].map((item, idx) => (
                                 <label key={`gi-${idx}`}><input type="checkbox" name="gi" /> {item}</label>
@@ -662,7 +663,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Immune system</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Immune system</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Frequent colds or flus', 'Rash across face and cheeks', 'Patchy red rash on body', 'Arthritis in fingers and hands', 'Asthma/wheezing', 'Patchy hair loss'].map((item, idx) => (
                                 <label key={`immune-${idx}`}><input type="checkbox" name="immune" /> {item}</label>
@@ -672,7 +673,7 @@ const GuestConsentForm = () => {
 
                     <fieldset>
 
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolic, T3, or Adrenal</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Metabolic, T3, or Adrenal</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Migraines', 'Constipation', 'Fluid retention', 'Crave caffeine', 'Dry coarse skin', 'Deepening voice', 'Dry or thinning hair', 'Cold hands and feet', 'Elevated cholestrol', 'Low body temperature', 'Fatigue/exhausted by day\'s end', 'Brittle unhealthy nails', 'Fibromyalgia', 'Chronic fatigue'].map((item, idx) => (
                                 <label key={`metabolicT3-${idx}`}><input type="checkbox" name="metabolicT3" /> {item}</label>
@@ -681,7 +682,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Hypersensitivity</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Hypersensitivity</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Symptoms are year around', 'Symptoms are seasonal', 'Irritated tongue', 'Recurrent canker sores', 'Diarrhea/constipation', 'Dandruff/itchy scalp', 'Eczema/dermatitis', 'Dizziness', 'Wheezing', 'Chronic cough', 'Sinus congestion', 'Nasal congestion', 'Excessive mucus'].map((item, idx) => (
                                 <label key={`hypersensitivity-${idx}`}><input type="checkbox" name="hypersensitivity" /> {item}</label>
@@ -690,7 +691,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Other</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Other</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Unusual bruising', 'Nose bleeds', 'Prolonged bleeding'].map((item, idx) => (
                                 <label key={`other-${idx}`}><input type="checkbox" name="other" /> {item}</label>
@@ -699,7 +700,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Skin Conditions</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Skin Conditions</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {['Acne', 'Melasma', 'Vitiligo', 'Keloid Scarring'].map((item, idx) => (
                                 <label key={`skin-${idx}`}><input type="checkbox" name="skinConditions" /> {item}</label>
@@ -711,7 +712,7 @@ const GuestConsentForm = () => {
                     <div style={{ gap: '1rem', textAlign: 'left' }}>
                         {['Skin/Light Energy Treatments At Another Office', 'Neurotoxin (Botox, Dysport etc.)', 'Fillers (Restylane, Juvederm etc.)', 'Hair Removal', 'Chemical Peels', 'Sun Exposure/Tanning bed in last week? Tanning Habits'].map((item, idx) => (
                             <fieldset key={idx}>
-                                <legend>{item}</legend>
+                                {item}
                                 <label><input type="radio" name={`treatment-${idx}`} value="Yes" /> Yes</label>
                                 <label><input type="radio" name={`treatment-${idx}`} value="No" /> No</label>
                                 <label>If so when? <input type="text" name={`when-${idx}`} /></label>
@@ -721,17 +722,17 @@ const GuestConsentForm = () => {
                     </div>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Tattoos, Permanent Makeup</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Tattoos, Permanent Makeup</h3>
                         <textarea name="tattoos" id="tattoos" rows="2" style={{ width: '100%', resize: 'vertical' }}></textarea>
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>List Medical Issues Not Listed Above</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>List Medical Issues Not Listed Above</h3>
                         <textarea name="otherMedicalIssues" id="otherMedicalIssues" rows="2" style={{ width: '100%', resize: 'vertical' }} />
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Concerns</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Concerns</h3>
                         <div style={{ gap: '1rem', textAlign: 'left' }}>
                             {[
                                 "I'm concerned about facial or body hair and would like information on how to get rid of it",
@@ -746,12 +747,12 @@ const GuestConsentForm = () => {
                         </div>
                     </fieldset>
 
-                    <p>
+                    <p className='tandc'>
                         I certify that the preceding medical, personal and skin history statements are true and correct. I am aware that it is my responsibility to inform the Certified Advanced Esthetician at [OrganizationName] of my current medical and health conditions and to update this information at subsequent visits. A current history is essential for the provider to execute appropriate treatment procedure.
                     </p>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Gender Identity</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Gender Identity</h3>
                         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                             {['Woman', 'Man', 'Trans woman', 'Trans man', 'Non-binary'].map((item, idx) => (
                                 <label key={`gender-${idx}`}><input type="radio" name="genderIdentity" /> {item}</label>
@@ -760,7 +761,7 @@ const GuestConsentForm = () => {
                     </fieldset>
 
                     <fieldset>
-                        <legend><h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Gender Pronoun</h3></legend>
+                        <h3 style={{ margin: 0, color: '#2c3e50', textAlign: 'left' }}>Gender Pronoun</h3>
                         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                             {['She', 'He', 'They'].map((item, idx) => (
                                 <label key={`pronoun-${idx}`} style={{ marginRight: '1rem' }}>
@@ -812,6 +813,259 @@ const GuestConsentForm = () => {
             </form>
         </div>
 
+        <style>
+            {`
+            .medical-form {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: 'Arial', sans-serif;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  justify-content: space-between;
+}
+
+.logo {
+  max-width: 120px;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: #555;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+form h2,
+form h3,
+form legend {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: #2b4c7e;
+  padding: 0 0 20px;
+}
+
+fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: #f9f9f9;
+}
+
+label {
+  display: block;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+.tandc{margin: 10px 0;line-height: 180%;}
+.signature-box {
+  width: 100%;
+  height: 150px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  position: relative;
+}
+
+.signature-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.signature-actions button {
+  padding: 0.3rem 0.8rem;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.signature-actions button:hover {
+  background-color: #c0392b;
+}
+
+button[type="submit"] {
+  margin-top: 2rem;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  background-color: #2b4c7e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover {
+  background-color: #1f375e;
+}
+
+@media (max-width: 600px) {
+  .medical-form {
+    padding: 1rem;
+  }
+
+  .signature-box {
+    height: 120px;
+  }
+}
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.gform-group {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+}
+
+.gform-group.full-width {
+  flex: 1 1 100%;
+}
+
+.gform-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.gform-group input,
+.gform-group textarea {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.gst-form-grid {
+  max-width: 900px;
+  margin: 0 auto;
+  font-family: sans-serif;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #1f3c88;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.25rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.form-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+}
+
+.form-row input,
+.form-row textarea,
+.form-row select {
+  padding: 0.5rem;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.signature-container {
+  border: 1px solid #ccc;
+  width: 100%;
+  height: 120px;
+  margin-top: 0.5rem;
+}
+
+.signature-pad {
+  width: 100%;
+  height: 100px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  margin-top: 1rem;
+  background-color: #1f3c88;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #3952a3;
+}
+
+.confrmwrp{max-width: 800px; margin: 0 auto;padding: 30px;}
+
+.cnfrmcellwrp{margin: 0 0 20px;font-size: 14px; }
+
+.cnfrmcellwrp label{margin: 0 0 10px;display: block;font-weight: bold;}
+
+.cnfrmcellwrp input[type='checkbox']{display: inline-block;margin: 0 7px 0 0;}
+            `}
+        </style>
+</>
     );
 };
 
