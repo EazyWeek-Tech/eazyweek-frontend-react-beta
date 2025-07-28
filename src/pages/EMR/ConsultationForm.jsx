@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import FaceMapper from './FaceMapper';
 import SignaturePad from './SignaturePad';
 import FileUploader from './FileUploader';
@@ -25,6 +25,8 @@ function ConsultationForm() {
   const [signature, setSignature] = useState('');
   const [files, setFiles] = useState([]);
   const [faceZones, setFaceZones] = useState([]);
+  const faceMapperRef = useRef();
+  const signatureRef = useRef();
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState(null);
   const [isValidForm, setIsValidForm] = useState(false);
@@ -55,7 +57,8 @@ function ConsultationForm() {
     });
     setSignature('');
     setFiles([]);
-    setFaceZones([]);
+    faceMapperRef.current?.reset();
+    signatureRef.current?.clear();
     setErrors({});
   }, []);
 
@@ -107,7 +110,25 @@ function ConsultationForm() {
       ...formData,
       signature: signature,
       signatureDate: formData.signatureDate || new Date().toISOString().substring(0, 10),
-      faceZones,
+      faceZones: faceZones.map((zone) => {
+                   if (zone.x !== undefined && zone.y !== undefined) {
+                     return {
+                       type: 'point',
+                       label: zone.label || '',
+                       coordinates: [zone.x, zone.y],
+                       note: zone.note || null,
+                     };
+                   } else if (Array.isArray(zone.points)) {
+                     return {
+                       type: zone.tool || 'pen',
+                       label: zone.label || '',
+                       coordinates: zone.points,
+                       note: zone.note || null,
+                     };
+                   } else {
+                     return null;
+                   }
+                 }).filter(Boolean),
       files: files.map(file => ({
         fileName: file.name || file.fileName,
         fileType: file.type || file.fileType,
@@ -180,14 +201,14 @@ function ConsultationForm() {
       )}
 
 
-      <FaceMapper onDrawingComplete={({ lines, points }) => setFaceZones([...points, ...lines])} />
+      <FaceMapper ref={faceMapperRef}  onDrawingComplete={({ lines, points }) => setFaceZones([...points, ...lines])} />
 
 
       <Field label="Provider Name" name="providerName" value={formData.providerName} onChange={handleInputChange} />
 
 
       <div className='cnfrmcellwrp'>
-        <SignaturePad onSave={setSignature} />
+        <SignaturePad ref={signatureRef} onSave={setSignature} />
         {errors.signature && <p className="error-text">{errors.signature}</p>}
       </div>
 

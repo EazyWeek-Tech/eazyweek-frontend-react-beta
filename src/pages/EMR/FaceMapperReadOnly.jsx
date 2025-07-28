@@ -1,98 +1,79 @@
-import React, { useRef, useEffect } from "react";
+import React from 'react';
 
-const FaceMapperReadOnly = ({ zones = [], width = 512, height = 512, backgroundImageUrl }) => {
-  const canvasRef = useRef(null);
+const FaceMapperReadOnly = ({ zones }) => {
+  const canvasRef = React.useRef(null);
 
-  useEffect(() => {
-    if (!canvasRef.current) return;
+  React.useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.src = '/images/facediagram.jpg';
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    img.onload = () => {
+      const canvasWidth = 400;
+      const canvasHeight = 400;
+      const imageWidth = 400;
+      const imageHeight = 400;
 
-    if (backgroundImageUrl) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        drawZones(ctx, zones, canvas.width, canvas.height);
-      };
-      img.src = backgroundImageUrl;
-    } else {
-      drawZones(ctx, zones, canvas.width, canvas.height);
-    }
-  }, [zones, backgroundImageUrl]);
+      const imageX = (canvasWidth - imageWidth) / 2;
+      const imageY = (canvasHeight - imageHeight) / 2;
+
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      // Draw the image centered
+      ctx.drawImage(img, imageX, imageY, imageWidth, imageHeight);
+
+      // Draw zones
+      zones.forEach((zone) => {
+        const { type, coordinates = [], label } = zone;
+        ctx.strokeStyle = 'red';
+        ctx.fillStyle = 'red';
+        ctx.lineWidth = 2;
+
+        if (type === 'point' && coordinates.length === 2) {
+          const [x, y] = coordinates;
+          const drawX = x + imageX;
+          const drawY = y + imageY;
+
+          ctx.beginPath();
+          ctx.arc(drawX, drawY, 4, 0, 2 * Math.PI);
+          ctx.fill();
+
+          if (label) {
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.fillText(label, drawX + 6, drawY - 6);
+          }
+        }
+
+        else if ((type === 'pen' || type === 'line') && coordinates.length >= 4) {
+          ctx.beginPath();
+          for (let i = 0; i < coordinates.length - 2; i += 2) {
+            const [x1, y1] = [coordinates[i] + imageX, coordinates[i + 1] + imageY];
+            const [x2, y2] = [coordinates[i + 2] + imageX, coordinates[i + 3] + imageY];
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
+          ctx.stroke();
+
+          if (label) {
+            const [lx, ly] = [coordinates[0] + imageX, coordinates[1] + imageY];
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.fillText(label, lx + 6, ly - 6);
+          }
+        }
+      });
+    };
+  }, [zones]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={width}
-      height={height}
-      style={{ border: "1px solid #ccc", maxWidth: "100%" }}
-    />
+    <div className="readonly-face-mapper">
+      <canvas ref={canvasRef} style={{ border: '1px solid #ccc', maxWidth: '100%' }} />
+    </div>
   );
 };
 
 export default FaceMapperReadOnly;
-
-function drawZones(ctx, zones, canvasW, canvasH) {
-  zones.forEach((z) => {
-    switch (z.type) {
-      case "point":
-        drawPoint(ctx, z, canvasW, canvasH);
-        break;
-      case "line":
-      case "pen":
-        drawPath(ctx, z, canvasW, canvasH);
-        break;
-      default:
-        break;
-    }
-  });
-}
-
-function drawPoint(ctx, z, canvasW, canvasH) {
-  const [x, y] = scaleCoords(z.coordinates, z.canvasWidth, z.canvasHeight, canvasW, canvasH);
-  ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
-  ctx.fillStyle = "#ff0000";
-  ctx.fill();
-
-  if (z.label) {
-    ctx.font = "12px sans-serif";
-    ctx.fillStyle = "#000";
-    ctx.fillText(z.label, x + 6, y - 6);
-  }
-}
-
-function drawPath(ctx, z, canvasW, canvasH) {
-  const coords = z.coordinates;
-  if (!coords || coords.length < 4) return;
-
-  const pairs = [];
-  for (let i = 0; i < coords.length; i += 2) {
-    const [x, y] = scaleCoords([coords[i], coords[i + 1]], z.canvasWidth, z.canvasHeight, canvasW, canvasH);
-    pairs.push([x, y]);
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(pairs[0][0], pairs[0][1]);
-  for (let i = 1; i < pairs.length; i++) {
-    ctx.lineTo(pairs[i][0], pairs[i][1]);
-  }
-  ctx.strokeStyle = "#ff0000";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  if (z.label) {
-    ctx.font = "12px sans-serif";
-    ctx.fillStyle = "#000";
-    ctx.fillText(z.label, pairs[0][0] + 6, pairs[0][1] - 6);
-  }
-}
-
-function scaleCoords([x, y], savedW, savedH, nowW, nowH) {
-  if (!savedW || !savedH) return [x, y]; // assume same size
-  const sx = nowW / savedW;
-  const sy = nowH / savedH;
-  return [x * sx, y * sy];
-}
