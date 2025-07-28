@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { FiRotateCcw } from 'react-icons/fi';
 
-export default function SignaturePad({ onSave }) {
+const SignaturePad = forwardRef(({ onSave }, ref) => {
   const sigRef = useRef(null);
 
   const handleClear = () => {
@@ -16,6 +15,10 @@ export default function SignaturePad({ onSave }) {
       onSave(dataUrl);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    clear: handleClear
+  }));
 
   return (
     <div style={{ marginTop: '1rem', maxWidth: '100%' }}>
@@ -61,4 +64,6 @@ export default function SignaturePad({ onSave }) {
       </div>
     </div>
   );
-}
+});
+
+export default SignaturePad;

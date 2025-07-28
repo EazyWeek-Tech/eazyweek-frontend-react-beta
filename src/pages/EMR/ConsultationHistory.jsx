@@ -28,12 +28,16 @@ const ConsultationHistory = () => {
             credentials: "include",
         })
             .then((res) => {
+                console.log("Raw Response:", res);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
             })
-            .then((data) => setConsultations(Array.isArray(data) ? data : []))
+            .then((data) => {
+                                console.log("Parsed Data:", data);
+                                setConsultations(Array.isArray(data) ? data : []);
+                              })
             .catch((e) => {
-                console.error(e);
+                console.error("Fetch Error:", e);
                 setErr("Failed to fetch consultation history.");
             })
             .finally(() => setLoading(false));
@@ -146,11 +150,12 @@ const ConsultationHistory = () => {
 
 
                                     {form.faceZones && form.faceZones.length > 0 && (
-                                        <div className="cnfrmcellwrp">
-                                            <label><strong>Face Zones</strong></label>
-                                            <FaceMapperReadOnly zones={form.faceZones} width={400} height={400} backgroundImageUrl='../images/facediagram.jpg' />
-                                        </div>
+                                      <div className="cnfrmcellwrp">
+                                        <label><strong>Face Zones</strong></label>
+                                        <FaceMapperReadOnly zones={form.faceZones} />
+                                      </div>
                                     )}
+
 
                                     <div className="cnfrmcellwrp">
                                         {form.signature ? (
