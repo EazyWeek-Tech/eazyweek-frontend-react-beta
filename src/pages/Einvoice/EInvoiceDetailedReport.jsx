@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './EInvoiceDashboard.css';
 import { API_BASE_URL } from '../../config';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
-const EInvoiceDashboard = () => {
+const EInvoiceDetailedReport = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -12,7 +14,8 @@ const EInvoiceDashboard = () => {
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
-useEffect(() => {
+
+  useEffect(() => {
   const fetchInvoices = async () => {
     setLoading(true); // Start loader
     try {
@@ -127,44 +130,47 @@ const handlePrint = (invoice) => {
   printArea.style.display = 'none';
 };
 
-
-  const handleRefresh = async (invoice) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/EInvoice/EInvoiceRefreshUrl`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        status: invoice.einvoiceStatus || '',
-        invoiceNumber: invoice.posInvoiceNo || '',
-        custID: invoice.customerID || '',
-        refreshUrl: invoice.refreshUrl || ''
-      })
-    });
-    console.log(response)
-
-    if (!response.ok) throw new Error('Refresh failed');
-
-    const result = await response.json();
-    alert(`Refresh successful: ${result.message || 'Done'}`);
-  } catch (error) {
-    console.error('Invoice refresh failed:', error);
-    alert('Failed to refresh invoice. Please try again.');
-  }
+const handleReset = () => {
+  setFromDate('');
+  setToDate('');
+  setStatusFilter('');
+  setSearchTerm('');
+  setCurrentPage(1);
 };
 
+const handleExport = () => {
+  const exportData = filteredData.map(({ clinicName, createdBy, invoiceDate, posInvoiceNo, zakatInvoiceNo, resolvedInvoiceNo, einvoiceStatus, remarks }) => ({
+    Clinic: clinicName,
+    "Created By": createdBy,
+    "Invoice Date": invoiceDate,
+    "POS Invoice No": posInvoiceNo,
+    "Zakat Invoice No": zakatInvoiceNo,
+    "Resolved Invoice No": resolvedInvoiceNo,
+    Status: einvoiceStatus,
+    Remarks: remarks
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "E-Invoices");
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, "einvoice_report.xlsx");
+};
 
   return (
     <>
+
+
+
     <div className="einvoice-dashboard">
       <div className="breadcrumb">
          <a href="/dashboard" className="breadcrumb-link">
           Dashboard
         </a>
         <span className="breadcrumb-separator"> &gt; </span>
-        <span className="breadcrumb-current">E-Invoice</span>
+        <span className="breadcrumb-current">E-Invoice Detailed Report</span>
       </div>
 
       <div className="dashboard-header">
@@ -185,11 +191,14 @@ const handlePrint = (invoice) => {
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All</option>
             <option value="Success">Success</option>
-            <option value="Failure">Failure</option>
+            <option value="Failure">Failed</option>
           </select>
         </div>
-        <button className="view-btn" onClick={() => setCurrentPage(1)}>View</button>
-        <button className="export-btn" onClick={() => alert("Exporting...")}>Export</button>
+
+        <button className="export-btn" onClick={handleExport}>Export</button>
+                 <button className="reset-btn" onClick={handleReset}>Reset</button>
+
+
       </div>
 
       <div className="dashboard-controls">
@@ -206,21 +215,9 @@ const handlePrint = (invoice) => {
           <span>entries per page</span>
         </div>
 
-        <div className="search-control">
-          <label>Search:</label>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Search..."
-          />
-        </div>
+     
       </div>
-
-        {loading ? (
+       {loading ? (
   <div className="loader-wrapper">
     <div className="loader"></div>
   </div>
@@ -256,15 +253,9 @@ const handlePrint = (invoice) => {
                   </span>
                 </td>
                 <td>{invoice.remarks}</td>
-               <td style={{ display: 'flex', gap: '6px' }}>
-  <button className="print-btn tooltip" data-tooltip="Print Invoice" data-tooltip-pos="left" onClick={() => handlePrint(invoice)}>
-     <img src="/images/rpint.png" alt="" />
-  </button>
-  <button className="refresh-btn tooltip" data-tooltip="Refresh Invoice" data-tooltip-pos="left" onClick={() => handleRefresh(invoice)}>
-    <img src="/images/refresh.png" alt="" />
-  </button>
+                <td>
+  <button className="print-btn" onClick={() => handlePrint(invoice)}>🖨️</button>
 </td>
-
 
 
               </tr>
@@ -275,6 +266,7 @@ const handlePrint = (invoice) => {
 
       </div>
 )}
+      
 
       <div className="pagination-container">
         <div className="pagination-info">
@@ -294,25 +286,23 @@ const handlePrint = (invoice) => {
   text-align: center;
   margin-bottom: 1rem;
 }
-  .refresh-btn {
-  background: #334B71;
-  color: white;
-  border: none;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 30px;
-}
-  .refresh-btn img, .print-btn img{width: 20px;}
-.refresh-btn:hover {
-  opacity: 0.9;
-}
-
 .filter-title {
   margin-bottom: 0.5rem;
 }
+  .reset-btn {
+  background-color: #000;
+  color: white;
+  padding: 6px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.reset-btn:hover {
+  opacity: 0.9;
+}
+
 .filter-controls {
-  display: none;
+  display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   justify-content: center;
@@ -336,7 +326,6 @@ const handlePrint = (invoice) => {
 .view-btn:hover, .export-btn:hover {
   opacity: 0.9;
 }
-  .print-btn{background: #334B71;padding: 3px 8px;}
  @media print {
   body * {
     visibility: hidden;
@@ -373,4 +362,4 @@ const handlePrint = (invoice) => {
   );
 };
 
-export default EInvoiceDashboard;
+export default EInvoiceDetailedReport;

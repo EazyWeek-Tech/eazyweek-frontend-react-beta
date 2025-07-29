@@ -15,6 +15,7 @@
     "datatables.net": "^2.3.1",
     "datatables.net-dt": "^2.3.1",
     "datatables.net-fixedcolumns": "^5.0.4",
+    "file-saver": "^2.0.5",
     "jquery": "^3.7.1",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
@@ -25,8 +26,9 @@
     "react-konva": "^19.0.7",
     "react-router-dom": "^7.6.2",
     "react-signature-canvas": "^1.1.0-alpha.2",
+    "recharts": "^3.1.0",
     "use-image": "^1.1.4",
-    "recharts": "^3.1.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^19.1.2",

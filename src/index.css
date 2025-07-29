@@ -379,6 +379,8 @@ li i {
   gap: 8px;
   align-items: center;
 }
+
+.user-top img{border-radius: 50%;}
 .usrnm {
   font-family: "Inter";
   font-weight: 600;
