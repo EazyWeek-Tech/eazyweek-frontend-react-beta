@@ -11,7 +11,18 @@ const CourtesyCallDetails = () => {
 
   const [details, setDetails] = useState(null);
   const [services, setServices] = useState([]);
-  const [formData, setFormData] = useState({});
+  const [loading, setLoading] = useState(false);
+
+const [formData, setFormData] = useState({
+  futureAppointmentTaken: "0",
+  googleReview: "0",
+  receivedPostCareCmmunication: "0",
+  receivedInvoice: "0",
+  overallSatisfied: "0",
+  customerComplaintforService: "0",
+  experienceRating: "",
+  agentRating: ""
+});
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
@@ -22,10 +33,12 @@ const CourtesyCallDetails = () => {
   }, [referenceID]);
 
   const mapYesNo = (value) => {
-    if (value === "YES") return "1";
-    if (value === "NO") return "2";
-    return "0";
-  };
+  if (!value || value === "") return "0";
+  if (value.toUpperCase() === "YES") return "1";
+  if (value.toUpperCase() === "NO") return "2";
+  return "0";
+};
+
 
   const fetchDetails = async () => {
     try {
@@ -38,13 +51,14 @@ const CourtesyCallDetails = () => {
       setFormData({
         referenceID: data.referenceID,
         customerType: data.customerType || "New",
-        futureAppointmentTaken: mapYesNo(data.futureAppointmentTaken),
-        googleReview: mapYesNo(data.googleReview),
-        receivedPostCareCmmunication: mapYesNo(data.receivedPostCareCmmunication),
-        receivedInvoice: mapYesNo(data.receivedInvoice),
-        overallSatisfied: mapYesNo(data.overallSatisfied),
+        futureAppointmentTaken: data.futureAppointmentTaken || "0",
+googleReview: data.googleReview || "0",
+receivedPostCareCmmunication: data.receivedPostCareCmmunication || "0",
+receivedInvoice: data.receivedInvoice || "0",
+overallSatisfied: data.overallSatisfied || "0",
+customerComplaintforService: data.customerComplaintforService || "0",
+
         experienceRating: data.experienceRating || "",
-        customerComplaintforService: mapYesNo(data.customerComplaintforService),
         customerComplaintRemarks: data.customerComplaintRemarks || "",
         agentdecision: data.agentdecision || "",
         complaintDetails: data.complaintDetails || "",
@@ -52,6 +66,14 @@ const CourtesyCallDetails = () => {
         isDraft: 0,
         createdBy: "system"
       });
+
+
+      console.log("Dropdown values:", {
+  googleReview: data.googleReview,
+  futureAppointmentTaken: data.futureAppointmentTaken,
+  receivedInvoice: data.receivedInvoice,
+  overallSatisfied: data.overallSatisfied
+});
     } catch (err) {
       console.error("Failed to fetch details", err);
     }
@@ -74,7 +96,15 @@ const CourtesyCallDetails = () => {
   };
 
   const handleSubmit = async (isDraft) => {
-    const payload = { ...formData, isDraft };
+    const payload = {
+  ...formData,
+  isDraft,
+  referenceID: formData.referenceID || referenceID,
+  createdBy: formData.createdBy || "system",
+};
+
+setLoading(true);
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyDetailsInsert`, {
         method: "POST",
@@ -85,7 +115,7 @@ const CourtesyCallDetails = () => {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.status) {
+      if (data.success) {
         setToast({ type: "success", message: "Saved successfully!" });
       } else {
         setToast({ type: "error", message: "Failed to save." });
@@ -93,10 +123,15 @@ const CourtesyCallDetails = () => {
     } catch (err) {
       console.error("Failed to submit", err);
       setToast({ type: "error", message: "Error submitting data." });
-    }
+    } finally {
+    setLoading(false); // Hide loader
+  }
   };
 
+ 
+
   return (
+    <>
     <div className="cc-wrapper">
      <style>{`
         
@@ -203,6 +238,7 @@ const CourtesyCallDetails = () => {
         .cc-btn-back:hover {
           background-color: #5a6268;
         }
+          .cc-group span{font-size: 15px;display: inline-block; margin: 0 0 5px; font-weight: 400;}
         .cc-header strong{font-weight: 700; }
         @media (max-width: 768px) {
           .cc-grid {
@@ -219,7 +255,7 @@ const CourtesyCallDetails = () => {
         <span className="breadcrumb-current">Courtesy Call Details</span>
       </div>
         <br></br>
-<h1 class="page-title">Details: {referenceID}</h1>
+<h1 className="page-title">Details: {referenceID}</h1>
      {details && (
         <div className="cc-header">
           <div className="cc-hd-cell"><strong>Reference ID:</strong> {details.referenceID}</div>
@@ -236,8 +272,8 @@ const CourtesyCallDetails = () => {
       <div className="cc-section-label">Before Call Parameters :</div>
       <div className="cc-grid">
         <div className="cc-group">
-          <label>Customer Type:</label>
-          <span>New</span>
+          <label>Customer Type:  <span>{details?.customerType}</span></label>
+         
         </div>
         <div className="cc-group">
           <label>Future Appointment Taken:</label>
@@ -277,7 +313,7 @@ const CourtesyCallDetails = () => {
         </div>
         <div className="cc-group">
           <label>Customer Feedback:</label>
-          <select>
+          <select value={formData.customerComplaintRemarks} onChange={(e) => handleChange("customerComplaintRemarks", e.target.value)}>
             <option value="0">Select</option>
             <option value="1">Yes</option>
             <option value="2">No</option>
@@ -330,8 +366,9 @@ const CourtesyCallDetails = () => {
         </div>
       </div>
       <div className="cc-actions">
-        <button className="cc-btn-submit" onClick={() => handleSubmit(1)}>Save</button>
-        <button className="add-btn" onClick={() => handleSubmit(0)}>Submit</button>
+       <button className="cc-btn-save" onClick={() => handleSubmit(1)}>Save</button>
+<button className="cc-btn-submit" onClick={() => handleSubmit(0)}>Submit</button>
+
         <button className="cc-btn-back" onClick={() => navigate(-1)}>Back</button>
       </div>
 
@@ -339,6 +376,13 @@ const CourtesyCallDetails = () => {
         <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />
       )}
     </div>
+
+    {loading && (
+  <div className="loader-wrapper">
+    <div className="loader"></div>
+  </div>
+)}
+</>
   );
 };
 
