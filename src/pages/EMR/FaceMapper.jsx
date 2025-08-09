@@ -155,12 +155,12 @@ const FaceMapper = forwardRef(({ onDrawingComplete }, ref) => {
 
   return (
     <div style={{ marginTop: '1rem', position: 'relative' }}>
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '1rem' }} className='toolactions'>
         <label><strong>Tool:</strong></label>
         <button onClick={() => setTool('pen')} style={{ marginLeft: '1rem' }}>✏️ Pen</button>
         <button onClick={() => setTool('point')} style={{ marginLeft: '0.5rem' }}>📍 Point</button>
         <button onClick={() => setTool('line')} style={{ marginLeft: '0.5rem' }}>📏 Line</button>
-        <button onClick={handleClear} style={{ marginLeft: '1rem', color: 'red' }}>🧹 Clear</button>
+        <button onClick={handleClear} style={{ marginLeft: '1rem' }}>🧹 Clear</button>
         <button onClick={handleUndo} style={{ marginLeft: '1rem' }}>↩️ Undo</button>
         <button onClick={handleRedo} style={{ marginLeft: '0.5rem' }}>↪️ Redo</button>
       </div>
@@ -191,6 +191,7 @@ const FaceMapper = forwardRef(({ onDrawingComplete }, ref) => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        className='faceimage'
       >
         <Layer>
           {image && (
