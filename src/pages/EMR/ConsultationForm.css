@@ -13,4 +13,4 @@
 .toolactions button{background: none; border: 1px solid #666; border-radius: 4px; padding: 5px;cursor:pointer;}
 .faceimage{margin: 0 0 30px 0;}
 .error-text{display: none;}
-button:disabled{cursor: not-allowed;background: #666;}
+.cnfrmcellwrp button:disabled{cursor: not-allowed;background: #666;}

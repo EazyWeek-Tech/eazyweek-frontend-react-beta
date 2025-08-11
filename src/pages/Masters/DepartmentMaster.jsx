@@ -179,13 +179,15 @@ const DepartmentMaster = () => {
           padding: 0.5rem;
           width: 300px;
         }
+          div[data-column-id="1"]{width: 100px;}
           .form-box p{font-size: 16px; font-weight: 600; }
         .delete-btn {
-          background: #dc3545;
+          background: #b94b56;
           color: white;
           border: none;
           padding: 5px 10px;
           border-radius: 4px;
+          cursor: pointer;
         }
         .modal {
           position: fixed;

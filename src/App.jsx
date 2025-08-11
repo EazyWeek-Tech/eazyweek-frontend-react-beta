@@ -34,6 +34,7 @@ import GuestConsentForm from "./pages/EMR/GuestConsentForm";
 import ConsultationHistory from "./pages/EMR/ConsultationHistory";
 import CourtesyCallDetails from "./pages/CourtesyCall/CourtesyCallDetails";
 import EInvoiceDetailedReport from "./pages/Einvoice/EInvoiceDetailedReport";
+import OpportunityDetails from "./pages/Opportunity/OpportunityDetails";
 
 
 function App() {
@@ -116,7 +117,9 @@ function App() {
              <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
              <Route path="/courtesy-call/report" element={<DetailedReport />} />
              <Route path="/audit" element={<AuditDashboard />} />
-                  <Route path="/courtesy-call/details" element={<CourtesyCallDetails />} />
+                  <Route path="/opportunity/details/:oppCode" element={<OpportunityDetails />} />
+
+                  <Route path="/details" element={<CourtesyCallDetails />} />
 
 
 

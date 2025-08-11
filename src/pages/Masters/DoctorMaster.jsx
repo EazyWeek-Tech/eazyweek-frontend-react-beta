@@ -238,7 +238,7 @@ const DoctorMaster = () => {
           width: 300px;
         }
         .delete-btn {
-          background: #dc3545;
+          background: #b94b56;
           color: white;
           border: none;
           padding: 5px 10px;

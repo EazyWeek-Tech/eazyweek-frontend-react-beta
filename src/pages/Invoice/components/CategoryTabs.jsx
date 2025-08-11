@@ -59,7 +59,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
     };
     loadServices();
   }, [activeSubTab, activeMainTab]);
-const truncateName = (name, maxLength = 20) => {
+const truncateName = (name, maxLength = 35) => {
   return name.length > maxLength ? name.slice(0, maxLength) + '...' : name;
 };
 

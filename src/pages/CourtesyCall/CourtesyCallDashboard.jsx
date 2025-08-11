@@ -158,7 +158,7 @@ const handleReferenceIdClick = (item) => {
   const totalPages = Math.ceil(totalEntries / entriesPerPage)
 
 
-  if (loading) return <div className="loader">Loading...</div>
+  if (loading) return <div className="loader"></div>
 
   return (
      <>

@@ -212,11 +212,11 @@
     .leftsect {
         padding: 0px 20px 20px 0;
         border-right: 1px solid #ccc;
-        width: 70%;
+        width: 58%;
     }
 
     .rgtsect {
-        width: 29%;
+        width: 41%;
     }
 
     .sectttl {
@@ -543,7 +543,7 @@
                 }
 
                 .ctlft {
-                    width: 85%;
+                    width: 100%;
                 }
 
                 .ctcell {
@@ -581,10 +581,10 @@
                     display: flex;
                     gap: 2px;
                     flex-direction: column;
-                    width: 175px;
+                    width: 235px;
                 }
 
-                .tabwrpdiv{width: 380px;padding: 0 10px;}
+                .tabwrpdiv{width: 530px;padding: 0 10px;}
 
                 .pymnttab img {
                     width: 20px;
@@ -599,6 +599,7 @@
                     display: flex;
                     flex-direction: row;
                     gap: 10px;
+                    font-size: 13px;
                 }
 
                 .pymnttab.activetab {
@@ -614,6 +615,7 @@
                     display: none;
                     border: 1px solid #ccc;
                     padding: 10px;
+                    width: 526px;
                 }
 
                 .pymntcnt.actcont {

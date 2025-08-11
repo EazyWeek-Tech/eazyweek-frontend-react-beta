@@ -6,6 +6,7 @@ import NotesTab from "./NotesTab";
 import PackagesTab from "./PackagesTab";
 import InvoiceTab from "./InvoiceTab";
 import CaseTab from "./CaseTab";
+import CustomerFormsPage from "./CustomerFormsPage";
 
 const TabContent = ({ activeTab, customer, custId }) => {
   switch (activeTab) {
@@ -19,6 +20,8 @@ const TabContent = ({ activeTab, customer, custId }) => {
       return <NotesTab custId={custId} />;
     case "Packages":
       return <PackagesTab custId={custId} />;
+      case "Forms":
+        return <CustomerFormsPage custId={custId} />;
     case "Invoices":
       return <InvoiceTab custId={custId} />;
         case "Cases":
