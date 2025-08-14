@@ -292,7 +292,7 @@ const EmployeeEditForm = ({ employee, onBack }) => {
 
         .delete-clinic-btn {
           padding: 8px 16px;
-          background-color: #dc3545;
+          background-color: #b94b56;
           color: white;
           border: none;
           border-radius: 4px;
@@ -400,7 +400,7 @@ const EmployeeEditForm = ({ employee, onBack }) => {
         }
 
         .btn-danger {
-          background-color: #dc3545;
+          background-color: #b94b56;
           color: white;
         }
 
