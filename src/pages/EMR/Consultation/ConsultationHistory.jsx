@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { API_BASE_URL } from "../../config";
-import FaceMapperReadOnly from "./FaceMapperReadOnly";
-import SignaturePad from "./SignaturePad";
-import FileUploader from "./FileUploader";
-import SignaturePadReadOnly from "./SignaturePadReadOnly";
+import { API_BASE_URL } from "../../../config";
+import FaceMapperReadOnly from '../Components/FaceMapperReadOnly';
+import SignaturePadReadOnly from '../Components/SignaturePadReadOnly';
+import FileUploader from '../Components/FileUploader';
 import "./ConsultationForm.css";
+import GuestConsentHistoryForm from "../GuestConsentForm/GuestConsentHistoryForm";
 
 const ConsultationHistory = () => {
     const [searchParams] = useSearchParams();
@@ -50,6 +50,11 @@ const ConsultationHistory = () => {
 
     return (
         <div className="confrmwrp">
+             <h1 className="page-title">Guest Consent History</h1>
+             <GuestConsentHistoryForm custId = {custId} />
+             <hr/>
+              <hr/>
+              <br/>
             <h1 className="page-title">Consultation History</h1>
             <p style={{ color: "#555" }}>
                 Showing records for <b>custId:</b> {custId}
@@ -183,6 +188,7 @@ const ConsultationHistory = () => {
                     );
                 })
             )}
+
         </div>
     );
 };

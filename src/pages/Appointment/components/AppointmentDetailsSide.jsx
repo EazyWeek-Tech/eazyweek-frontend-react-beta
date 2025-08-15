@@ -119,7 +119,7 @@ const goToMedicalHistoryPage = () => {
   if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
   if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
 
-  navigate(`/history`);
+  navigate(`/history?${queryParams.toString()}`);
 };
 
  const goToCustomerPage = () => {

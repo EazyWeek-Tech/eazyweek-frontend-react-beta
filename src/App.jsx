@@ -29,16 +29,15 @@ import InvoicesTab from "./pages/Customer/CustomerDetails/InvoiceTab";
 import InvoiceDetails from "./pages/Customer/CustomerDetails/InvoiceDetails";
 import SegmentAddForm from "./pages/Masters/SegmentAddForm";
 import DashboardPage from "./pages/Dashboard";
-import ConsultationForm from "./pages/EMR/ConsultationForm";
-import GuestConsentForm from "./pages/EMR/GuestConsentForm";
-import ConsultationHistory from "./pages/EMR/ConsultationHistory";
 import CourtesyCallDetails from "./pages/CourtesyCall/CourtesyCallDetails";
 import EInvoiceDetailedReport from "./pages/Einvoice/EInvoiceDetailedReport";
 import OpportunityDetails from "./pages/Opportunity/OpportunityDetails";
 import OpportunityForm from "./pages/Opportunity/OpportunityForm";
 import OppCustomerDetails from "./pages/Opportunity/OppCustomerDetails"; 
 import ManualOppCustomerDetails from "./pages/Opportunity/ManualOppCustomerDetails";
-
+import ConsultationForm from "./pages/EMR/Consultation/ConsultationForm";
+import GuestConsentForm from "./pages/EMR/GuestConsentForm/GuestConsentForm";
+import ConsultationHistory from "./pages/EMR/Consultation/ConsultationHistory";
 
 
 function App() {

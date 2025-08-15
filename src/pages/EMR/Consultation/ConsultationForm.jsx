@@ -1,10 +1,10 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import FaceMapper from './FaceMapper';
-import SignaturePad from './SignaturePad';
-import FileUploader from './FileUploader';
+import FaceMapper from '../Components/FaceMapper';
+import SignaturePad from '../Components/SignaturePad';
+import FileUploader from '../Components/FileUploader';
 import './ConsultationForm.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from "../../config";
+import { API_BASE_URL } from "../../../config";
 
 function ConsultationForm() {
   const [formData, setFormData] = useState({
@@ -166,7 +166,6 @@ function ConsultationForm() {
   return (
     <div className='confrmwrp'>
       <button onClick={goToHistory} className="btn-primary">View History</button>
-
       <div className="invflex">
         <div className="leftsect">
           <button onClick={handleBack} className="bckbtn tooltip" data-tooltip="Back" data-tooltip-pos="down" >
@@ -174,24 +173,13 @@ function ConsultationForm() {
           </button>
         </div>
       </div>
-
       <h1 className='page-title'>Consultation Form</h1>
-
-
       <Field label="Appointment Date" type="date" name="appointmentDate" value={formData.appointmentDate} onChange={handleInputChange} error={errors.appointmentDate} />
-
-
       <CheckboxGroup label="Changes in Health" name="changesInHealth" value={formData.changesInHealth} setValue={(val) => setFormData(prev => ({ ...prev, changesInHealth: val }))} />
-
-
       <CheckboxGroup label="Changes in Meds" name="changesInMeds" value={formData.changesInMeds} setValue={(val) => setFormData(prev => ({ ...prev, changesInMeds: val }))} />
-
-
       {['chiefComplaint', 'diagnosis', 'treatmentPlan', 'subjectiveNotes', 'objectiveNotes', 'assessmentNotes', 'planningNotes'].map((field, idx) => (
         <Field key={idx} label={capitalize(field)} name={field} value={formData[field]} onChange={handleInputChange} error={errors[field]} required={['chiefComplaint', 'diagnosis', 'treatmentPlan'].includes(field)} />
       ))}
-
-
       <h2 className='cnfrmcellwrp'>Photos Upload</h2>
       <FileUploader onFilesSelected={setFiles} />
       {files.length > 0 && (
@@ -199,25 +187,14 @@ function ConsultationForm() {
           {files.map((file, index) => <li key={index}>📄 {file.name || file.fileName}</li>)}
         </ul>
       )}
-
-
       <FaceMapper ref={faceMapperRef}  onDrawingComplete={({ lines, points }) => setFaceZones([...points, ...lines])} />
-
-
       <Field label="Provider Name" name="providerName" value={formData.providerName} onChange={handleInputChange} />
-
-
       <div className='cnfrmcellwrp'>
         <SignaturePad ref={signatureRef} onSave={setSignature} />
         {errors.signature && <p className="error-text">{errors.signature}</p>}
       </div>
-
-
       <Field label="Signature Date" type="date" name="signatureDate" value={formData.signatureDate} onChange={handleInputChange} />
-
-
       <button onClick={handleSubmit} className="btn-submit pribtn" disabled={!isValidForm}>Submit Consultation</button>
-
       <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
