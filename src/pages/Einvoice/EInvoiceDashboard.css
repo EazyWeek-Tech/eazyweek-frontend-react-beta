@@ -177,7 +177,7 @@
 }
 
 .print-btn:hover {
-  background-color: #f0f0f0;
+  background-color: #666;
 }
 
 /* Pagination */
@@ -300,4 +300,24 @@
     font-size: 12px;
     min-width: 28px;
   }
+}
+.loader-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.loader {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3E5D8A;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

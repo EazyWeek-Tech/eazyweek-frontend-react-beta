@@ -32,6 +32,13 @@ import DashboardPage from "./pages/Dashboard";
 import ConsultationForm from "./pages/EMR/ConsultationForm";
 import GuestConsentForm from "./pages/EMR/GuestConsentForm";
 import ConsultationHistory from "./pages/EMR/ConsultationHistory";
+import CourtesyCallDetails from "./pages/CourtesyCall/CourtesyCallDetails";
+import EInvoiceDetailedReport from "./pages/Einvoice/EInvoiceDetailedReport";
+import OpportunityDetails from "./pages/Opportunity/OpportunityDetails";
+import OpportunityForm from "./pages/Opportunity/OpportunityForm";
+import OppCustomerDetails from "./pages/Opportunity/OppCustomerDetails"; 
+import ManualOppCustomerDetails from "./pages/Opportunity/ManualOppCustomerDetails";
+
 
 
 function App() {
@@ -110,10 +117,20 @@ function App() {
           <Route path="/masters/purchase-category" element={<PurchaseCategoryMaster />} />
            <Route path="/opportunity" element={<OpportunityDashboard />} />
             <Route path="/einvoice" element={<EInvoiceDashboard />} />
+            <Route path="/einvoice/detailed" element={<EInvoiceDetailedReport />} />
              <Route path="/courtesy-call" element={<CourtesyCallDashboard />} />
              <Route path="/courtesy-call/report" element={<DetailedReport />} />
              <Route path="/audit" element={<AuditDashboard />} />
-                  
+                  <Route path="/opportunity/details/:oppCode" element={<OpportunityDetails />} />
+                  <Route path="/opportunity/create" element={<OpportunityForm mode="create" />} />
+                  <Route path="/opportunity/:oppCode/customer/:custId" element={<OppCustomerDetails />} />
+                  <Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
+
+
+
+
+                  <Route path="/details" element={<CourtesyCallDetails />} />
+
 
 
                   <Route index element={<Navigate to="/dashboard" replace />} /> {/* ← This handles "/" */}

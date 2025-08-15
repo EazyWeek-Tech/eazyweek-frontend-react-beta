@@ -13,21 +13,27 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const dropdownRef = useRef();
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-    if (stored) {
-      const parsedUser = JSON.parse(stored);
-      console.log(parsedUser);
-      setUser(parsedUser);
-      if (parsedUser?.empImageName) {
-  const isFullUrl = parsedUser.empImageName.startsWith("http");
-  const imagePath = isFullUrl
-    ? parsedUser.empImageName
-    : `${API_BASE_URL}/${parsedUser.empImageName}`;
-  setImageSrc(imagePath);
-}
+  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+  if (stored) {
+    const parsedUser = JSON.parse(stored);
+    setUser(parsedUser);
 
+    if (parsedUser?.empPicBinaryValue) {
+      // ✅ Use base64 image directly and skip API URL check
+      setImageSrc(`data:image/jpeg;base64,${parsedUser.empPicBinaryValue}`);
+    } else if (parsedUser?.empImageName) {
+      const isFullUrl = parsedUser.empImageName.startsWith("http");
+      const imagePath = isFullUrl
+        ? parsedUser.empImageName
+        : `${API_BASE_URL}/${parsedUser.empImageName}`;
+      setImageSrc(imagePath); // Use API path only if binary is not present
+    } else {
+      setImageSrc("images/defaultuser.png");
     }
-  }, []);
+  }
+}, []);
+
+
 
   useEffect(() => {
     const fetchClinics = async () => {
@@ -68,8 +74,13 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   };
 
   const handleImageError = () => {
+  if (user?.empPicBinaryValue) {
+    setImageSrc(`data:image/jpeg;base64,${user.empPicBinaryValue}`);
+  } else {
     setImageSrc("images/defaultuser.png");
-  };
+  }
+};
+
 
   const fullName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "User";
   const centerName = user?.centerName ?? "Clinic";

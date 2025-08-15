@@ -58,33 +58,38 @@
 }
 
 .filter-group label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 700;
   color: #374151;
   margin-bottom: 6px;
 }
 
-.filter-input,
-.filter-select {
+.dtfltrwrp .filter-input,
+.dtfltrwrp .filter-select {
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
   font-size: 14px;
   background: white;
   color: #374151;
+  border: 1px solid #ccc;
+
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dtfltrwrp .filter-select {
+  border: none;
+  padding: 0;
 }
 
 .filter-input:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .filter-select {
   cursor: pointer;
 }
+.dtfltrwrp .filter-group{min-width: 250px;}
+.dtfltrwrp{display: flex; gap: 20px; flex-wrap: wrap;}
 
 .filter-actions {
   display: flex;

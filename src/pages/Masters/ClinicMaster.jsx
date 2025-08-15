@@ -80,37 +80,56 @@ const ClinicMaster = () => {
     }
   };
 
-  const columns = [
-    {
-      name: "Zone",
-      selector: (row) => row.zone,
-      sortable: true,
+ const columns = [
+  {
+    name: "Zone",
+    selector: (row) => row.zone,
+    sortable: true,
+    style: {
+      whiteSpace: 'nowrap',
+      width: '50px', // Set the width of the Zone column
     },
-    {
-      name: "Code",
-      selector: (row) => row.code,
-      sortable: true,
+  },
+  {
+    name: "Code",
+    selector: (row) => row.code,
+    sortable: true,
+    style: {
+      whiteSpace: 'nowrap',
+      width: '50px', // Set the width of the Code column
     },
-    {
-      name: "Name",
-      selector: (row) => row.name,
-      sortable: true,
+  },
+  {
+    name: "Name",
+    selector: (row) => row.name,
+    sortable: true,
+    style: {
+      whiteSpace: 'nowrap',
+      width: '150px', // Set the width of the Name column
     },
-    {
-      name: "Address",
-      selector: (row) => row.address,
-      wrap: true,
+  },
+  {
+    name: "Address",
+    selector: (row) => row.address,
+    wrap: true,
+    style:{
+      width: '300px'
+    }
+  },
+  {
+    name: "Actions",
+    cell: (row) => (
+      <button className="delete-btn" onClick={() => handleDeleteClick(row)}>Delete</button>
+    ),
+    ignoreRowClick: true,
+    allowOverflow: true,
+    button: true,
+    style: {
+      width: '150px', // Set the width of the Actions column
     },
-    {
-      name: "Actions",
-      cell: (row) => (
-        <button className="delete-btn" onClick={() => handleDeleteClick(row)}>Delete</button>
-      ),
-      ignoreRowClick: true,
-      allowOverflow: true,
-      button: true,
-    },
-  ];
+  },
+];
+
 
   return (
     <div className="clinic-master-container">
@@ -161,6 +180,7 @@ const ClinicMaster = () => {
       )}
 
       <style jsx="true">{`
+      .cstmtable{max-width: 900px;margin: 0 auto;}
         .header-section {
           display: flex;
           justify-content: space-between;
@@ -183,7 +203,7 @@ const ClinicMaster = () => {
         }
         .delete-btn {
           padding: 6px 12px;
-          background: #dc3545;
+          background: #b94b56;
           color: white;
           border: none;
           border-radius: 4px;
@@ -230,7 +250,7 @@ const ClinicMaster = () => {
           background: #28a745;
         }
         .toastmsg.error {
-          background: #dc3545;
+          background: #b94b56;
         }
       `}</style>
     </div>

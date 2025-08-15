@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './EInvoiceDashboard.css';
 import { API_BASE_URL } from '../../config';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
-const EInvoiceDashboard = () => {
+const EInvoiceDetailedReport = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -14,8 +16,27 @@ const EInvoiceDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+  const fetchInvoices = async () => {
+    setLoading(true); // Start loader
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/EInvoice/LoadEInvoice`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setInvoiceData(Array.isArray(data) ? data : [data]);
+    } catch (error) {
+      console.error('Failed to fetch E-Invoices:', error);
+    } finally {
+      setLoading(false); // Stop loader
+    }
+  };
+
+  fetchInvoices();
+}, []);
+
+
+  useEffect(() => {
     const fetchInvoices = async () => {
-      setLoading(true); // Start loader
       try {
         const response = await fetch(`${API_BASE_URL}/api/EInvoice/LoadEInvoice`, {
           credentials: 'include'
@@ -24,8 +45,6 @@ const EInvoiceDashboard = () => {
         setInvoiceData(Array.isArray(data) ? data : [data]);
       } catch (error) {
         console.error('Failed to fetch E-Invoices:', error);
-      } finally {
-        setLoading(false); // Stop loader
       }
     };
 
@@ -82,21 +101,12 @@ const EInvoiceDashboard = () => {
         key={index}
         className={`pagination-btn ${page === currentPage ? 'active' : ''} ${page === '...' ? 'dots' : ''}`}
         onClick={() => typeof page === 'number' && setCurrentPage(page)}
-        disabled={page === '...'}>{page}</button>
+        disabled={page === '...'}>
+        {page}
+      </button>
     ));
   };
-
-  const handlePrint = (invoice) => {
-  // Ensure the print area exists
-  let printArea = document.getElementById('print-area');
-  
-  // If print area doesn't exist, create it
-  if (!printArea) {
-    printArea = document.createElement('div');
-    printArea.id = 'print-area';
-    document.body.appendChild(printArea);
-  }
-
+const handlePrint = (invoice) => {
   const printHTML = `
     <div class="print-invoice">
       <h2>Invoice</h2>
@@ -113,159 +123,152 @@ const EInvoiceDashboard = () => {
     </div>
   `;
 
-  // Set the print content and trigger print
+  const printArea = document.getElementById('print-area');
   printArea.innerHTML = printHTML;
   printArea.style.display = 'block';
   window.print();
   printArea.style.display = 'none';
 };
 
-
-  const handleRefresh = async () => {
-  try {
-    // Prepare the payload
-    const payload = {
-      status: statusFilter || '', // If statusFilter is set, use it; else send an empty string
-      invoiceNumber: '', // If no specific invoice number, send an empty string or valid invoice number
-      custID: '', // If no customer ID, send an empty string or valid customer ID
-      refreshUrl: '' // If no refresh URL, send an empty string or valid refresh URL
-    };
-
-    // Make the API request to refresh the invoices
-    const response = await fetch(`${API_BASE_URL}/api/EInvoice/EInvoiceRefreshUrl`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include', // Include credentials (cookies) if needed
-      body: JSON.stringify(payload) // Send the payload as a JSON string
-    });
-
-    if (!response.ok) throw new Error('Refresh failed');
-    
-    const result = await response.json();
-    alert(`Refresh successful: ${result.message || 'Done'}`);
-  } catch (error) {
-    console.error('Invoice refresh failed:', error);
-    alert('Failed to refresh invoices. Please try again.');
-  }
+const handleReset = () => {
+  setFromDate('');
+  setToDate('');
+  setStatusFilter('');
+  setSearchTerm('');
+  setCurrentPage(1);
 };
 
+const handleExport = () => {
+  const exportData = filteredData.map(({ clinicName, createdBy, invoiceDate, posInvoiceNo, zakatInvoiceNo, resolvedInvoiceNo, einvoiceStatus, remarks }) => ({
+    Clinic: clinicName,
+    "Created By": createdBy,
+    "Invoice Date": invoiceDate,
+    "POS Invoice No": posInvoiceNo,
+    "Zakat Invoice No": zakatInvoiceNo,
+    "Resolved Invoice No": resolvedInvoiceNo,
+    Status: einvoiceStatus,
+    Remarks: remarks
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "E-Invoices");
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, "einvoice_report.xlsx");
+};
 
   return (
     <>
-      <div className="einvoice-dashboard">
-        <div className="breadcrumb">
-          <a href="/dashboard" className="breadcrumb-link">Dashboard</a>
-          <span className="breadcrumb-separator"> &gt; </span>
-          <span className="breadcrumb-current">E-Invoice</span>
+
+
+
+    <div className="einvoice-dashboard">
+      <div className="breadcrumb">
+         <a href="/dashboard" className="breadcrumb-link">
+          Dashboard
+        </a>
+        <span className="breadcrumb-separator"> &gt; </span>
+        <span className="breadcrumb-current">E-Invoice Detailed Report</span>
+      </div>
+
+      <div className="dashboard-header">
+        <h1>E-Invoice Report</h1>
+      </div>
+
+      <div className="filter-controls">
+        <div className='fltdiv'>
+          <label>From Date:</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div className='fltdiv'>
+          <label>To Date:</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+        <div className='fltdiv'>
+          <label>Status:</label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All</option>
+            <option value="Success">Success</option>
+            <option value="Failure">Failed</option>
+          </select>
         </div>
 
-        <div className="dashboard-header">
-          <h1>E-Invoice Report</h1>
-          {/* Refresh Button at the Top */}
-          <button className="refresh-btn tooltip" data-tooltip="Refresh Invoice" data-tooltip-pos="left" onClick={handleRefresh}>
-            <img src="/images/refresh.png" alt="Refresh Invoices" />
-          </button>
+        <button className="export-btn" onClick={handleExport}>Export</button>
+                 <button className="reset-btn" onClick={handleReset}>Reset</button>
+
+
+      </div>
+
+      <div className="dashboard-controls">
+        <div className="entries-control">
+          <select value={entriesPerPage} onChange={(e) => {
+            setEntriesPerPage(Number(e.target.value));
+            setCurrentPage(1);
+          }}>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span>entries per page</span>
         </div>
 
-        <div className="filter-controls">
-          <div className="fltdiv">
-            <label>From Date:</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </div>
-          <div className="fltdiv">
-            <label>To Date:</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </div>
-          <div className="fltdiv">
-            <label>Status:</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All</option>
-              <option value="Success">Success</option>
-              <option value="Failure">Failure</option>
-            </select>
-          </div>
-          <button className="view-btn" onClick={() => setCurrentPage(1)}>View</button>
-          <button className="export-btn" onClick={() => alert("Exporting...")}>Export</button>
-        </div>
+     
+      </div>
+       {loading ? (
+  <div className="loader-wrapper">
+    <div className="loader"></div>
+  </div>
+) : (
+ <div className="table-container">
 
-        <div className="dashboard-controls">
-          <div className="entries-control">
-            <select value={entriesPerPage} onChange={(e) => {
-              setEntriesPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-            <span>entries per page</span>
-          </div>
-
-          <div className="search-control">
-            <label>Search:</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Search..."
-            />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="loader-wrapper">
-            <div className="loader"></div>
-          </div>
-        ) : (
-          <div className="table-container">
-            <table className="einvoice-table">
-              <thead>
-                <tr>
-                  <th onClick={() => handleSort('clinicName')}>Clinic</th>
-                  <th onClick={() => handleSort('createdBy')}>Created By</th>
-                  <th onClick={() => handleSort('invoiceDate')}>Invoice Date</th>
-                  <th onClick={() => handleSort('posInvoiceNo')}>POS Invoice No</th>
-                  <th onClick={() => handleSort('zakatInvoiceNo')}>Zakat Invoice No</th>
-                  <th onClick={() => handleSort('resolvedInvoiceNo')}>Resolved Invoice No</th>
-                  <th onClick={() => handleSort('einvoiceStatus')}>Status</th>
-                  <th onClick={() => handleSort('remarks')}>Remarks</th>
-                  <th>Print</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.map((invoice, idx) => (
-                  <tr key={idx}>
-                    <td>{invoice.clinicName}</td>
-                    <td>{invoice.createdBy}</td>
-                    <td>{invoice.invoiceDate}</td>
-                    <td>{invoice.posInvoiceNo}</td>
-                    <td>{invoice.zakatInvoiceNo}</td>
-                    <td>{invoice.resolvedInvoiceNo}</td>
-                    <td>
+        <table className="einvoice-table">
+          <thead>
+            <tr>
+              <th onClick={() => handleSort('clinicName')}>Clinic</th>
+              <th onClick={() => handleSort('createdBy')}>Created By</th>
+              <th onClick={() => handleSort('invoiceDate')}>Invoice Date</th>
+              <th onClick={() => handleSort('posInvoiceNo')}>POS Invoice No</th>
+              <th onClick={() => handleSort('zakatInvoiceNo')}>Zakat Invoice No</th>
+              <th onClick={() => handleSort('resolvedInvoiceNo')}>Resolved Invoice No</th>
+              <th onClick={() => handleSort('einvoiceStatus')}>Status</th>
+              <th onClick={() => handleSort('remarks')}>Remarks</th>
+              <th>Print</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedData.map((invoice, idx) => (
+              <tr key={idx}>
+                <td>{invoice.clinicName}</td>
+                <td>{invoice.createdBy}</td>
+                <td>{invoice.invoiceDate}</td>
+                <td>{invoice.posInvoiceNo}</td>
+                <td>{invoice.zakatInvoiceNo}</td>
+                <td>{invoice.resolvedInvoiceNo}</td>
+                <td>
                   <span className={`status ${invoice.einvoiceStatus?.toLowerCase()}`}>
                     {invoice.einvoiceStatus}
                   </span>
                 </td>
-                    <td>{invoice.remarks}</td>
-                    <td>
-                      <button className="print-btn tooltip" data-tooltip="Print Invoice" data-tooltip-pos="left" onClick={() => handlePrint(invoice)}>
-                        <img src="/images/rpint.png" alt="Print" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                <td>{invoice.remarks}</td>
+                <td>
+  <button className="print-btn" onClick={() => handlePrint(invoice)}>🖨️</button>
+</td>
 
-       <div className="pagination-container">
+
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div id="print-area" style={{ display: 'none' }}></div>
+
+      </div>
+)}
+      
+
+      <div className="pagination-container">
         <div className="pagination-info">
           Showing {((currentPage - 1) * entriesPerPage) + 1} to {Math.min(currentPage * entriesPerPage, sortedData.length)} of {sortedData.length} entries
         </div>
@@ -277,33 +280,29 @@ const EInvoiceDashboard = () => {
           <button className="pagination-btn" onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages}>&gt;</button>
         </div>
       </div>
-      </div>
-      
-
-          <style>{`
-      .filter-bar {
+    </div>
+    <style>{
+      `.filter-bar {
   text-align: center;
   margin-bottom: 1rem;
 }
-  .refresh-btn {
-  background: #334B71;
-  color: white;
-  border: none;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 30px;
-}
-  .refresh-btn img, .print-btn img{width: 20px;}
-.refresh-btn:hover {
-  opacity: 0.9;
-}
-
 .filter-title {
   margin-bottom: 0.5rem;
 }
+  .reset-btn {
+  background-color: #000;
+  color: white;
+  padding: 6px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.reset-btn:hover {
+  opacity: 0.9;
+}
+
 .filter-controls {
-  display: none;
+  display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   justify-content: center;
@@ -327,8 +326,6 @@ const EInvoiceDashboard = () => {
 .view-btn:hover, .export-btn:hover {
   opacity: 0.9;
 }
-  .print-btn{background: #334B71;padding: 3px 8px;}
-  .pagination-container{justify-content: flex-end;}
  @media print {
   body * {
     visibility: hidden;
@@ -359,10 +356,10 @@ const EInvoiceDashboard = () => {
 }
 
 
-
-`}</style>
+`
+}</style>
     </>
   );
 };
 
-export default EInvoiceDashboard;
+export default EInvoiceDetailedReport;

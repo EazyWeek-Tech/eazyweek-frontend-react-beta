@@ -8,6 +8,8 @@ const Login = ({ onLoginSuccess }) => {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
   
   const getSessionFromApi = async () => {
@@ -51,9 +53,11 @@ const setSessionToApi = async ({ user }) => {
   e.preventDefault();
   setError(null);
   setUserInfo(null);
+  setLoading(true);
 
   if (!email || !password) {
     setError("Email and password are required.");
+     setLoading(false);
     return;
   }
 
@@ -93,11 +97,15 @@ const setSessionToApi = async ({ user }) => {
   } catch (err) {
     console.error(err);
     setError("Login error. Please try again.");
+  }finally {
+    setLoading(false); // Hide loader
   }
 };
 
 
   return (
+    
+    <>
     <div className="overlay">
       <div className="popup-container">
         <main>
@@ -169,6 +177,40 @@ const setSessionToApi = async ({ user }) => {
         </main>
       </div>
     </div>
+
+    {loading && (
+  <div className="loader-wrapper">
+    <div className="loader"></div>
+  </div>
+)}
+
+<style>{ `
+
+  .loader-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.loader {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3E5D8A;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+` }
+
+</style>
+    </>
   );
 };
 

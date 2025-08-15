@@ -1,0 +1,221 @@
+// src/pages/Opportunity/OpportunityDetails.jsx
+import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { API_BASE_URL } from "../../config";
+
+const OpportunityDetails = () => {
+  const { oppCode } = useParams();
+  const navigate = useNavigate();
+
+  const [header, setHeader] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const now = new Date();
+        const from = new Date(now);
+        from.setMonth(now.getMonth() - 1);
+
+        const payload = {
+          oppCode,
+          fromDate: from.toISOString(),
+          toDate: now.toISOString(),
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : (data ? [data] : []);
+
+        const looksLikeRow = (o) =>
+          o && (o.custID || o.custName || o.appointmentid || o.appointmentdatetime);
+        const looksLikeHeader = (o) => o && (o.oppCode || o.oppName || o.oRuleDetails);
+
+        const firstHeader = arr.find(looksLikeHeader) || null;
+        const tableRows = arr.filter(looksLikeRow);
+
+        setHeader(firstHeader);
+        setRows(tableRows);
+      } catch (e) {
+        console.error("Failed to load opportunity details:", e);
+        setError("Failed to load details. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDetails();
+  }, [oppCode]);
+
+  const hasRows = rows && rows.length > 0;
+  const safe = (v, fallback = "") => (v === null || v === undefined ? fallback : v);
+
+  const top = useMemo(() => {
+    if (header) return header;
+    if (hasRows) return rows[0];
+    return null;
+  }, [header, hasRows, rows]);
+
+  // ---- Manual vs Normal resolver (replace with your exact flag if you have one)
+  const inferIsManualLead = (row, hdr) => {
+    // Example heuristics:
+    if (row?.manualLead || row?.isManualLead) return true;
+    if (hdr?.manualLead || hdr?.isManualLead) return true;
+    // If rule-driven opps have oRuleCode like "R1", and manual leads don't:
+    if (!row?.oRuleCode && !hdr?.oRuleCode) return true;
+    return false; // default
+  };
+
+  const openCustomer = (row) => {
+    const isManual = inferIsManualLead(row, header);
+    const path = isManual
+  ? `/opportunity/${oppCode}/manual/${row.custID}`   // <-- this page
+  : `/opportunity/${oppCode}/customer/${row.custID}` // normal page
+
+
+    // Pass row + header for instant render; page will refetch if opened directly
+    navigate(path, { state: { row, header, isManual } });
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-msg">Loading…</div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="loading-msg" style={{ color: "#c33" }}>{error}</div>
+    );
+  }
+  if (!top) {
+    return (
+      <div className="loading-msg">No data found for this opportunity.</div>
+    );
+  }
+
+  return (
+    <>
+      <div className="dashboard-container">
+        <div className="breadcrumb">
+          <span className="breadcrumb-link" onClick={() => navigate("/opportunity")}>
+            Opportunity
+          </span>
+          {" > "}
+          <span className="breadcrumb-current">Details</span>
+        </div>
+
+        <div className="details-card">
+          <div className="details-header">
+            <div className="title-col">
+              <div className="pair">
+                <span className="label">Opportunity Code :</span>
+                <span className="value pill">{safe(top.oppCode)}</span>
+              </div>
+              <div className="pair">
+                <span className="label">Opportunity Name :</span>
+                <span className="value">{safe(top.oppName)}</span>
+              </div>
+              <div className="pair">
+                <span className="label">Rule Details :</span>
+                <span className="value">{safe(top.oRuleDetails)}</span>
+              </div>
+              <div className="xywrap">
+                <div className="pair">
+                  <span className="label short">X :</span>
+                  <span className="value">{safe(top.oRuleXvalue)}</span>
+                </div>
+                {top.oRuleYvalue ? (
+                  <div className="pair">
+                    <span className="label short">Y :</span>
+                    <span className="value">{top.oRuleYvalue}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <button className="btn-back" onClick={() => navigate(-1)}>Back</button>
+          </div>
+
+          {hasRows ? (
+            <div className="table-wrap">
+              <table className="opptable">
+                <thead>
+                  <tr>
+                    <th>CustID</th>
+                    <th>CustName</th>
+                    <th>CustMobileNo</th>
+                    <th>OppStatus</th>
+                    <th>Appointment Date</th>
+                    <th>Disposition</th>
+                    <th>Remarks</th>
+                    <th>Sales Owner</th>
+                    <th>Created Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={`${r.recid || r.custID || i}-${i}`}>
+                      <td>
+                        <button className="linkish" onClick={() => openCustomer(r)}>
+                          {safe(r.custID)}
+                        </button>
+                      </td>
+                      <td>{safe(r.custName)}</td>
+                      <td>{safe(r.custMobileNo)}</td>
+                      <td>{safe(r.oppStatus)}</td>
+                      <td>{safe(r.appointmentdatetime)}</td>
+                      <td>{safe(r.disposition)}</td>
+                      <td>{safe(r.remarks)}</td>
+                      <td>{safe(r.salesOwner)}</td>
+                      <td>{safe(r.createddate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-note">No line items for the selected period.</div>
+          )}
+        </div>
+      </div>
+
+      <style jsx="true">{`
+        .breadcrumb { font-size:14px; color:#6c757d; margin-bottom:16px; }
+        .breadcrumb-link { color:#334b71; cursor:pointer; }
+        .breadcrumb-link:hover { text-decoration:underline; }
+        .breadcrumb-current { color:#888; }
+        .details-card { background:#fff; padding:24px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+        .details-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
+        .title-col { display:grid; gap:8px; }
+        .pair { font-size:16px; color:#333; }
+        .label { display:inline-block; font-weight:600; color:#555; margin-right:8px; min-width:180px; }
+        .label.short { min-width:20px; }
+        .value { color:#222; }
+        .xywrap { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 24px; max-width:640px; }
+        .pill { background:#eef3ff; color:#334b71; padding:4px 10px; border-radius:20px; font-size:14px; }
+        .btn-back { background:#14233c; color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; }
+        .btn-back:hover { opacity:.95; }
+        .table-wrap { margin-top:16px; overflow-x:auto; border-radius:10px; }
+        .opptable { width:100%; border-collapse:collapse; min-width:920px; }
+        .opptable thead th { text-align:left; font-weight:600; font-size:14px; color:#445; background:#f6f8fb; padding:12px 14px; border-bottom:1px solid #e8edf5; white-space:nowrap; }
+        .opptable tbody td { font-size:14px; color:#333; padding:12px 14px; border-bottom:1px solid #f0f2f6; vertical-align:middle; }
+        .opptable tbody tr:hover { background:#fafbfe; }
+        .linkish { background:none; border:none; padding:0; color:#2b5ec2; cursor:pointer; font-weight:600; }
+        .empty-note { margin-top:12px; padding:14px; background:#f9fafc; border:1px dashed #e6eaf2; border-radius:8px; color:#5c6b7a; font-size:14px; }
+        .loading-msg { padding:40px; text-align:center; font-size:18px; color:#666; }
+      `}</style>
+    </>
+  );
+};
+
+export default OpportunityDetails;

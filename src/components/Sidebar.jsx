@@ -62,7 +62,10 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "E-Invoice",
       icon: "bx-receipt",
-      submenu: [{ name: "E-Invoice", path: "/einvoice" }],
+      submenu: [
+        { name: "E-Invoice", path: "/einvoice" },
+        { name: "Detailed Report", path: "/einvoice/detailed" }
+      ],
     },
     {
       label: "Invoice",

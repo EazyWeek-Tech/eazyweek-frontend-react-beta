@@ -169,7 +169,7 @@ function ConsultationForm() {
 
       <div className="invflex">
         <div className="leftsect">
-          <button onClick={handleBack} className="bckbtn tooltip" title="Back">
+          <button onClick={handleBack} className="bckbtn tooltip" data-tooltip="Back" data-tooltip-pos="down" >
             <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
           </button>
         </div>
@@ -216,7 +216,7 @@ function ConsultationForm() {
       <Field label="Signature Date" type="date" name="signatureDate" value={formData.signatureDate} onChange={handleInputChange} />
 
 
-      <button onClick={handleSubmit} className="btn-submit" disabled={!isValidForm}>Submit Consultation</button>
+      <button onClick={handleSubmit} className="btn-submit pribtn" disabled={!isValidForm}>Submit Consultation</button>
 
       <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>

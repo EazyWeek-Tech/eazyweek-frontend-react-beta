@@ -5,9 +5,14 @@ import OpportunityForm from "./OpportunityForm";
 import CreateRuleForm from "./CreateRuleForm";
 import EditOpportunityForm from "./EditOpportunityForm";
 import { API_BASE_URL } from "../../config";
+import OpportunityDetails from "./OpportunityDetails";
+import { useNavigate } from "react-router-dom";
+
+
 
 const OpportunityDashboard = () => {
   const [currentView, setCurrentView] = useState("dashboard");
+  const [selectedOppDetails, setSelectedOppDetails] = useState(null);
   const [opportunityData, setOpportunityData] = useState([]);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,9 +21,22 @@ const OpportunityDashboard = () => {
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [selectedRows, setSelectedRows] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [toast, setToast] = useState(null);
+    const [loading, setLoading] = useState(false);
+  
+  const navigate = useNavigate();
+
+
+const showToast = (message, type = "success", duration = 3000) => {
+  setToast({ message, type });
+  setTimeout(() => setToast(null), duration);
+};
+
 
   useEffect(() => {
     const fetchOpportunities = async () => {
+        setLoading(true);
+
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${statusFilter}`,
@@ -31,13 +49,43 @@ const OpportunityDashboard = () => {
       } catch (error) {
         console.error("Failed to load opportunities:", error);
         setOpportunityData([]);
-      }
+      }finally {
+    setLoading(false); // Hide loader
+  }
     };
 
     fetchOpportunities();
   }, [statusFilter]);
 
   const data = currentView === "dashboard" ? opportunityData : [];
+
+  const handleViewDetails = async (oppCode, fromDate, toDate) => {
+  try {
+    const payload = {
+      oppCode,
+      fromDate: new Date(fromDate).toISOString(),
+      toDate: new Date(toDate).toISOString(),
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    setSelectedOppDetails(data?.[0]);
+    
+  } catch (error) {
+    console.error("Failed to load opportunity details:", error);
+    showToast("Failed to load details", "error");
+  }
+};
+
+const handleCreateNewCampaign = () => {
+  navigate("/opportunity/create");
+};
 
   const filteredAndSortedData = useMemo(() => {
     const filtered = data.filter((item) => {
@@ -92,10 +140,6 @@ const OpportunityDashboard = () => {
     );
   };
 
-  const handleCreateNewCampaign = () => {
-    setCurrentView("create-opportunity");
-  };
-
   const handleEditOppName = () => {
     if (selectedRows.length === 0) {
       alert("Please select at least one opportunity to edit");
@@ -136,6 +180,41 @@ const OpportunityDashboard = () => {
     alert("Rule activated successfully!");
     setCurrentView("dashboard");
   };
+const handleExpireCampaign = async () => {
+  if (selectedRows.length === 0) {
+    showToast("Please select at least one opportunity to expire", "error");
+    return;
+  }
+
+  const confirmExpire = window.confirm("Are you sure you want to expire the selected opportunities?");
+  if (!confirmExpire) return;
+
+  const payload = {
+    expireOpp: "Expired by user",
+    oppCodeListJson: selectedRows.map((code) => ({
+      oppCode: code,
+    })),
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/Opportunity/ExpireOpportunity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error("Failed to expire opportunity");
+
+    showToast("Selected opportunities expired successfully!", "success");
+    setSelectedRows([]);
+    setStatusFilter("2"); // Auto-switch to expired view
+  } catch (error) {
+    console.error("Expire error:", error);
+    showToast("Error expiring opportunities.", "error");
+  }
+};
+
 
   const handleEditSave = (updatedOpportunity) => {
     setOpportunityData((prev) =>
@@ -153,7 +232,48 @@ const OpportunityDashboard = () => {
   const handleRefresh = () => {
     setStatusFilter("1");
   };
+  const handleOpportunityClick = async (oppCode) => {
+      navigate(`/opportunity/details/${oppCode}`);
 
+  /* try {
+    const payload = {
+      oppCode,
+      fromDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString(),
+      toDate: new Date().toISOString(),
+    };
+
+    const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : [];
+
+    if (Array.isArray(data) && data.length > 0) {
+      setSelectedOppDetails(data);
+      setCurrentView("details");
+    } else {
+      showToast("No opportunity details found", "error");
+    }
+  } catch (err) {
+    console.error("Failed to load details", err);
+    showToast("Error loading opportunity details", "error");
+  } */
+};
+
+if (currentView === "details" && selectedOppDetails) {
+    return (
+      <OpportunityDetails
+        details={selectedOppDetails}
+        onBack={handleBackToDashboard}
+      />
+    );
+  }
   if (currentView === "create-opportunity") {
     return <OpportunityForm onBack={handleBackToDashboard} onNext={handleOpportunityNext} mode="create" />;
   }
@@ -200,9 +320,35 @@ const OpportunityDashboard = () => {
           font-size: 14px;
           color: #6c757d;
         }
+          .loader-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 9998;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .loader {
+    border: 6px solid #f3f3f3;
+    border-top: 6px solid #334b71;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 
         .breadcrumb-link {
-          color: #007bff;
+          color: #334b71;
           text-decoration: none;
           cursor: pointer;
         }
@@ -255,9 +401,9 @@ const OpportunityDashboard = () => {
 
         .action-section {
           background: white;
-          border-radius: 8px;
-          padding: 20px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border-radius: 0;
+          padding: 0;
+          box-shadow: none;
           margin-bottom: 20px;
         }
 
@@ -324,9 +470,9 @@ const OpportunityDashboard = () => {
 
         .controls-section {
           background: white;
-          border-radius: 8px;
-          padding: 20px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border-radius: 0;
+          padding: 20px 0;
+          box-shadow: none;
           margin-bottom: 20px;
         }
 
@@ -361,14 +507,14 @@ const OpportunityDashboard = () => {
         .control-select:focus,
         .control-input:focus {
           outline: none;
-          border-color: #007bff;
+          border-color: #334b71;
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
         .table-container {
           background: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          box-shadow: none;
+          border-radius:0;
           overflow: hidden;
         }
 
@@ -379,7 +525,8 @@ const OpportunityDashboard = () => {
         .data-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 14px;
+          font-size: 15px;
+          line-height:20px;
         }
 
         .data-table th,
@@ -420,13 +567,15 @@ const OpportunityDashboard = () => {
           width: 16px;
           height: 16px;
           cursor: pointer;
-          accent-color: #007bff;
+          accent-color: #334b71;
         }
 
         .opp-code-link {
-          color: #007bff;
+          color: #334b71;
           text-decoration: none;
           cursor: pointer;
+          background:none; border: none;white-space:nowrap;
+          font-weight:600
         }
 
         .opp-code-link:hover {
@@ -436,7 +585,7 @@ const OpportunityDashboard = () => {
         .segment-badge {
           padding: 4px 8px;
           border-radius: 12px;
-          font-size: 12px;
+          font-size: 14px;
           font-weight: 500;
         }
 
@@ -483,13 +632,13 @@ const OpportunityDashboard = () => {
 
         .pagination-btn:hover:not(:disabled) {
           background-color: #f8f9fa;
-          border-color: #007bff;
+          border-color: #334b71;
         }
 
         .pagination-btn.active {
-          background-color: #007bff;
+          background-color: #334b71;
           color: white;
-          border-color: #007bff;
+          border-color: #334b71;
         }
 
         .pagination-btn:disabled {
@@ -572,7 +721,10 @@ const OpportunityDashboard = () => {
               <button className="btn btn-secondary" onClick={handleEditOppName}>
                 Edit Opp Name
               </button>
-              <button className="btn btn-secondary">Expire Campaign</button>
+             <button className="btn btn-secondary" onClick={handleExpireCampaign}>
+  Expire Campaign
+</button>
+
               <button className="btn btn-primary" onClick={handleCreateNewCampaign}>
                 Create New Campaign
               </button>
@@ -710,20 +862,26 @@ const OpportunityDashboard = () => {
               </thead>
               <tbody>
                 {currentData.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        className="checkbox"
-                        checked={selectedRows.includes(item.id)}
-                        onChange={() => handleSelectRow(item.id)}
-                      />
-                    </td>
-                    <td>
-                      <a href="#" className="opp-code-link">
-                        {item.oppCode}
-                      </a>
-                    </td>
+                  <tr key={item.recID || item.oppCode}>
+  <td>
+    <input
+      type="checkbox"
+      className="checkbox"
+      checked={selectedRows.includes(item.recID || item.oppCode)}
+      onChange={() => handleSelectRow(item.recID || item.oppCode)}
+    />
+  </td>
+
+                   <td>
+  <button
+    onClick={() => {
+      handleOpportunityClick(item.oppCode);
+    }}
+    className="opp-code-link"
+  >
+    {item.oppCode}
+  </button>
+</td>
                     <td>{item.oppName}</td>
                     <td>{item.clinic}</td>
                     <td>{item.fromDate}</td>
@@ -781,6 +939,33 @@ const OpportunityDashboard = () => {
           </div>
         </div>
       </div>
+
+      
+{toast && (
+  <div
+    style={{
+      position: "fixed",
+      top: "20px",
+      right: "20px",
+      backgroundColor: toast.type === "success" ? "#28a745" : "#dc3545",
+      color: "#fff",
+      padding: "12px 20px",
+      borderRadius: "4px",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+      zIndex: 9999,
+    }}
+  >
+    {toast.message}
+  </div>
+)}
+
+{loading && (
+  <div className="loader-wrapper">
+    <div className="loader"></div>
+  </div>
+)}
+
+
     </>
   )
 }
