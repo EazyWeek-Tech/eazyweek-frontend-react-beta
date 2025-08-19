@@ -9,6 +9,50 @@ import { Link } from "react-router-dom";
 import Toast from "../../components/Toast";
 import { API_BASE_URL } from "../../config";
 
+// ---- sessionStorage-only current user ----
+const trim = (s) => (s ?? "").toString().trim();
+const firstNonEmpty = (...vals) => {
+  for (const v of vals) {
+    const t = trim(v);
+    if (t) return t;
+  }
+  return "";
+};
+
+const readSessionUser = () => {
+  // Try JSON blobs
+  const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
+  for (const k of objKeys) {
+    const raw = sessionStorage.getItem(k);
+    if (raw) {
+      try {
+        const obj = JSON.parse(raw);
+        const code = firstNonEmpty(obj.userId, obj.userID, obj.employeeCode, obj.empCode, obj.code);
+        const name = firstNonEmpty(
+          obj.userName,
+          obj.username,
+          (obj.firstName || obj.lastName) ? `${obj.firstName || ""} ${obj.lastName || ""}` : "",
+          obj.name
+        );
+        if (code || name) return { code, name };
+      } catch { /* ignore */ }
+    }
+  }
+  // Flat keys (matches your example)
+  const code = firstNonEmpty(
+    sessionStorage.getItem("userId"),
+    sessionStorage.getItem("userid"),
+    sessionStorage.getItem("employeeCode"),
+    sessionStorage.getItem("empCode")
+  );
+  const name = firstNonEmpty(
+    sessionStorage.getItem("userName"),
+    sessionStorage.getItem("username"),
+    `${sessionStorage.getItem("firstName") || ""} ${sessionStorage.getItem("lastName") || ""}`
+  );
+  return (code || name) ? { code, name } : null;
+};
+
 const CaseDetailsPage = () => {
   const { caseNumber } = useParams();
   const [activeTab, setActiveTab] = useState("general");
@@ -17,6 +61,9 @@ const CaseDetailsPage = () => {
   const [disposition, setDisposition] = useState("");
   const [status, setStatus] = useState("");
   const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => readSessionUser());
+  const actionTabs = new Set(["general", "issues", "expense"]);
 
   const generalRef = useRef();
   const issuesRef = useRef();
@@ -24,90 +71,122 @@ const CaseDetailsPage = () => {
   const journeyRef = useRef();
   const slaRef = useRef();
 
+  const formatCreatedDate = (raw) => {
+    if (!raw || raw === "0001-01-01T00:00:00") return "-";
+    // dd/MM/yyyy
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
+    if (m) {
+      const [, dd, MM, yyyy] = m;
+      return `${dd}/${MM}/${yyyy}`;
+    }
+    const d = new Date(raw);
+    return isNaN(d)
+      ? "-"
+      : d.toLocaleString("en-IN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+  };
+
+  useEffect(() => {
+    setCurrentUser(readSessionUser()); // refresh once on mount
+  }, []);
+
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`
+          `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`,
+          { credentials: "include" }
         );
         const data = await response.json();
-        const userId = sessionStorage.getItem("userid");
-        console.log(userId);
+
         setSelectedCaseData({
-  caseNo: data.caseNo,
-  title: data.caseTitle,
-  categoryCode: data.categoryCode,
-  caseCategory: data.categoryName,
-  subCategory: data.subCategoryCode,
-  subCategoryName: data.subCategoryName,
-  subSubCategory: data.subSubCategoryCode,
-  subSubCategoryName: data.subSubCategoryName,
-  subSubSubCategory: data.subSubSubCategoryCode,
-  subSubSubCategoryName: data.subSubSubCategoryName,
-  medium: data.mediumName,
-  source: data.sourceName,
-  priority: data.priority,
-  customer: data.createdBy,
-  productCode: data.productCode,
-  product: data.productName,
-  service: data.serviceCode,
-  serviceCategory: data.sServiceCategoryCode,
-  createdBy: data.createdBy,
-  createdDate:
-    data.createdDate &&
-    data.createdDate !== "0001-01-01T00:00:00" &&
-    typeof data.createdDate === "string" &&
-    data.createdDate.includes("-")
-      ? (() => {
-          try {
-            const parts = data.createdDate.split("-");
-            if (parts.length < 3) return "-";
+          caseNo: trim(data.caseNo),
+          title: trim(data.caseTitle),
 
-            const [d, m, yAndTime] = parts;
-            const [y, t] = yAndTime.split(" ");
-            if (!y || !t) return "-";
+          // Category chain
+          categoryCode: trim(data.categoryCode),
+          caseCategory: trim(data.categoryName),
+          subCategory: trim(data.subCategoryCode),
+          subCategoryName: trim(data.subCategoryName),
+          subSubCategory: trim(data.subSubCategoryCode),
+          subSubCategoryName: trim(data.subSubCategoryName),
+          subSubSubCategory: trim(data.subSubSubCategoryCode),
+          subSubSubCategoryName: trim(data.subSubSubCategoryName),
 
-            const isoString = `${y}-${m}-${d}T${t}`;
-            const dateObj = new Date(isoString);
+          // Medium / Source (use CODES so dropdowns preselect)
+          medium: trim(firstNonEmpty(data.mediumCode, data.mediumName)),
+          mediumName: trim(firstNonEmpty(data.mediumName, data.mediumCode)),
+          source: trim(data.sourceCode),
+          sourceName: trim(data.sourceName),
 
-            return isNaN(dateObj)
-              ? "-"
-              : dateObj.toLocaleString("en-US", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                });
-          } catch (e) {
-            console.error("Invalid createdDate format:", data.createdDate);
-            return "-";
-          }
-        })()
-      : "-",
-  issueDescription: data.issueDescription,
-  firstTimeResolution: data.firstTimeResolution,
-  clientThreat: data.clientThreat,
-  therapist: data.therapistName,
-  assignedTo: data.assignTOName,
-  assignToCode: data.assignTOCode,
-  employeeMobile: data.empMobileNo,
-  email: data.emailTOEMailID,
-  emailTo: data.emailToName,
-  cc: data.emailCC,
-  moreCc: data.moreCC,
-  remarks: data.remarks,
-  materialCost: 0,
-  labourCost: 0,
-  otherCharges: 0,
-  total: 0,
-  slaIdeal: data.slaIdeal || {},
-  slaActual: data.slaActual || {},
-});
+          priority: trim(data.priority),
 
-        setDisposition(data.disposition || "");
-        setStatus(data.caseStatus || "");
+          // Owner vs Customer
+          ownerCode: trim(data.caseOwnerCode),
+          ownerName: trim(data.caseOwnerName),
+
+          customer: trim(data.custID),
+          customerId: trim(data.custID),
+          customerName: trim(data.custName),
+
+          // Product/Service
+          productCode: trim(data.productCode),
+          product: trim(data.productName),
+          service: trim(data.serviceCode),
+          serviceName: trim(data.serviceName),
+          serviceCategory: trim(data.sServiceCategoryCode),
+
+          createdBy: trim(data.createdBy),
+          createdDate: formatCreatedDate(data.createdDate),
+
+          // Issue
+          issueDescription: trim(data.issueDescription),
+          firstTimeResolution: trim(data.firstTimeResolution),
+          clientThreat: trim(data.clientThreat),
+
+          // Therapist for IssuesTab preselect
+          therapistName: trim(data.therapistName),
+          therapistCode: trim(data.therapistCode),
+
+          // Assignment (pick first non-empty from payload variants)
+          assignedTo: trim(
+            firstNonEmpty(data.assignToCode)
+          ),
+          assignToCode: trim(
+            firstNonEmpty(
+              data.assignToCode,
+              data.assignTOCode,
+              data.assignCode,
+              data.emailTOCode,
+              data.nextLevelID
+            )
+          ),
+
+          employeeMobile: trim(data.empMobileNo),
+          email: trim(data.emailTOEMailID),
+          emailTo: trim(data.emailTOName),
+
+          cc: trim((data.emailCC || "").replace(/\s+,/g, ",")).replace(/,+$/g, ""),
+          moreCc: trim(data.moreCC),
+          remarks: trim(data.remarks),
+
+          materialCost: data.materialCost ?? 0,
+          labourCost: data.labourCOst ?? 0,
+          otherCharges: data.otherCharges ?? 0,
+          total: data.total ?? 0,
+
+          slaIdeal: data.slaIdeal || {},
+          slaActual: data.slaActual || {},
+        });
+
+        setDisposition(trim(data.disposition));
+        setStatus(trim(data.caseStatus));
         setLoading(false);
       } catch (error) {
         console.error("Error fetching case details:", error);
@@ -118,14 +197,17 @@ const CaseDetailsPage = () => {
     fetchCaseDetails();
   }, [caseNumber]);
 
-  const handleAction = async (actionType) => {
-    const generalData = generalRef.current?.getGeneralData?.() || {};
-    console.log(generalData)
-    const slaData = slaRef.current?.getSLAData?.() || {};
+  // handleAction with status override
+  const handleAction = async (actionType, overrides = {}) => {
+    const generalData = overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
+    const slaData = overrides.slaData ?? slaRef.current?.getSLAData?.() ?? {};
+    const effectiveStatus = trim(overrides.status ?? status);
+    const effectiveDisposition = trim(overrides.disposition ?? disposition);
+    const effectiveSelected = overrides.selectedCaseData ?? selectedCaseData;
 
     const payload = {
-      casetitle: generalData.title || "",
-      caseno: selectedCaseData?.caseNo || "",
+      casetitle: trim(generalData.title) || "",
+      caseno: effectiveSelected?.caseNo || "",
       category: generalData.categoryCode || "",
       subCategory: generalData.subCategory || "",
       subSubCategory: generalData.subSubCategory || "",
@@ -139,22 +221,28 @@ const CaseDetailsPage = () => {
       serviceccode: generalData.serviceCategory || "",
       createdby: generalData.createdBy || "",
       createddate: new Date().toISOString(),
-      issuedesciption: selectedCaseData?.issueDescription || "",
-      clientThreat: selectedCaseData?.clientThreat || "-",
-      doctorCode: "",
-      firsttimeresolution: selectedCaseData?.firstTimeResolution || "",
+
+      issuedesciption: effectiveSelected?.issueDescription || "",
+      clientThreat: effectiveSelected?.clientThreat || "-",
+      doctorCode: effectiveSelected?.therapistCode || "",
+      firsttimeresolution: effectiveSelected?.firstTimeResolution || "",
       response: "",
-      assignedto: selectedCaseData?.assignedTo || "",
-      employeno: selectedCaseData?.employeeMobile || "",
-      assignedemailid: selectedCaseData?.email || "",
-      cc: selectedCaseData?.cc || "-",
-      moreCC: selectedCaseData?.moreCc || "",
+
+      assignedto: effectiveSelected?.assignedTo || "",
+      employeno: effectiveSelected?.employeeMobile || "",
+      assignedemailid: effectiveSelected?.email || "",
+      cc: effectiveSelected?.cc || "-",
+      moreCC: effectiveSelected?.moreCc || "",
       categorySpecificResolution: "",
-      remarks: selectedCaseData?.remarks || "",
-      casedisposition: disposition || "",
-      caseWith: selectedCaseData?.assignToCode || "",
-      status: status || "",
-      operation: actionType,
+      remarks: effectiveSelected?.remarks || "",
+
+      casedisposition: effectiveDisposition || "",
+      caseWith: effectiveSelected?.assignToCode || "",
+
+      caseStatus: effectiveStatus || "",
+      status: effectiveStatus || "",
+
+      operation: actionType, // e.g., "updateStatus" or "save"
       materialCost: 0,
       labourCost: 0,
       otherCharges: 0,
@@ -162,41 +250,44 @@ const CaseDetailsPage = () => {
       isdraft: 0,
       centercode: "",
       departmentcode: "",
-      custcliniccode: ""
+      custcliniccode: "",
     };
 
     console.log("Sending payload to API:", JSON.stringify(payload, null, 2));
 
     try {
+      setSaving(true);
       const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
         method: "POST",
-         credentials: "include",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       const responseText = await res.text();
-      console.log(" Raw API response:", responseText);
-
       let result;
       try {
         result = JSON.parse(responseText);
-        console.log("Parsed API result:", result);
-      } catch (parseErr) {
-        console.error("Failed to parse response JSON:", parseErr);
+      } catch {
         throw new Error("Invalid JSON response from server");
       }
 
       if (result?.code === "200") {
-        setToast({ type: "success", message: `Case ${actionType}d successfully. Case No: ${result.name}` });
+        setToast({
+          type: "success",
+          message: `Case ${actionType}d successfully. Case No: ${result.name}`,
+        });
       } else {
-        console.error(" API responded with error:", result);
         throw new Error(result?.message || "API did not return code 200");
       }
-
     } catch (err) {
       console.error(`${actionType} error:`, err);
-      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
+      setToast({
+        type: "error",
+        message: `Failed to ${actionType} case. Reason: ${err.message}`,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -239,7 +330,7 @@ const CaseDetailsPage = () => {
             <div className="csdetlbl">Priority</div>
           </div>
           <div className="casedet">
-            <div className="csdetval">{selectedCaseData.customer}</div>
+            <div className="csdetval">{selectedCaseData.ownerName}</div>
             <div className="csdetlbl">Owner</div>
           </div>
           <div className="casedet">
@@ -253,7 +344,11 @@ const CaseDetailsPage = () => {
         <div className="casecell">
           <div className="form-group">
             <label>Case Disposition</label>
-            <select value={disposition} onChange={(e) => setDisposition(e.target.value)}>
+            <select
+              value={disposition}
+              onChange={(e) => setDisposition(e.target.value)}
+              disabled={saving}
+            >
               <option value="">Select Case Disposition</option>
               <option value="No Solution">No Solution</option>
               <option value="Resolved">Resolved</option>
@@ -261,44 +356,40 @@ const CaseDetailsPage = () => {
             </select>
           </div>
         </div>
+
         <div className="casecell">
-  <div className="casecell">
-  <div className="form-group">
-    <label>Case Status</label>
-    <select
-  value={status}
-  onChange={async (e) => {
-    const newStatus = e.target.value;
-
-    if (newStatus === "Closed" && !disposition) {
-      setToast({ type: "error", message: "Please select Case Disposition before closing the case." });
-      return;
-    }
-
-    if (newStatus !== status) {
-      setStatus(newStatus); // Update state for UI
-
-      try {
-        // Pass updated status immediately for backend
-        await handleAction("save");
-      } catch (err) {
-        console.error("Error saving case on status change:", err);
-        setToast({ type: "error", message: "Failed to save case status." });
-      }
-    }
-  }}
->
-
-      <option value="">Select Case Status</option>
-      <option value="Open">Open</option>
-      <option value="WIP">WIP</option>
-      <option value="Closed">Closed</option>
-    </select>
-  </div>
-</div>
-
-</div>
-
+          <div className="casecell">
+            <div className="form-group">
+              <label>Case Status</label>
+              <select
+                value={status}
+                disabled={saving}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  if (newStatus === "Closed" && !disposition) {
+                    setToast({ type: "error", message: "Please select Case Disposition before closing the case." });
+                    return;
+                  }
+                  if (newStatus !== status) {
+                    setStatus(newStatus);
+                    setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: newStatus } : prev));
+                    try {
+                      await handleAction("updateStatus", { status: newStatus, disposition });
+                    } catch (err) {
+                      console.error("Error saving case on status change:", err);
+                      setToast({ type: "error", message: "Failed to save case status." });
+                    }
+                  }
+                }}
+              >
+                <option value="">Select Case Status</option>
+                <option value="Open">Open</option>
+                <option value="WIP">WIP</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="wizard-progress">
@@ -325,13 +416,22 @@ const CaseDetailsPage = () => {
           {renderTabContent()}
         </div>
 
-        {sessionStorage.getItem("userid") === selectedCaseData?.assignToCode && (
-  <div className="buttongrp mt-3">
-    <button type="button" className="pribtn" onClick={() => handleAction("save")}>Save</button>
-    <button type="button" className="secbtn" onClick={() => handleAction("submit")}>Submit</button>
-    <button type="button" className="secbtn" onClick={() => handleAction("assign")}>Assign To Next Level</button>
-    <button type="button" className="secbtn" onClick={() => handleAction("saveNext")}>Save and Next</button>
-  </div>
+        {currentUser?.code === selectedCaseData?.assignToCode &&
+  ["general", "issues", "expense"].includes(activeTab) && (
+    <div className="buttongrp mt-3">
+      <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
+        Save
+      </button>
+      <button type="button" className="secbtn" onClick={() => handleAction("submit")} disabled={saving}>
+        Submit
+      </button>
+     {/*  <button type="button" className="secbtn" onClick={() => handleAction("assign")} disabled={saving}>
+        Assign To Next Level
+      </button>
+      <button type="button" className="secbtn" onClick={() => handleAction("saveNext")} disabled={saving}>
+        Save and Next
+      </button> */}
+    </div>
 )}
       </section>
     </section>
