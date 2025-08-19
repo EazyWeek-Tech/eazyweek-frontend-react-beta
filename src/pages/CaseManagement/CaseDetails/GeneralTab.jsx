@@ -93,6 +93,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
     const { id, value } = e.target;
     const updated = { ...formValues, [id]: value };
     setFormValues(updated);
+    console.log(formValues)
 
     if (id === "medium") {
       fetchCaseSources(value, formValues.categoryCode);

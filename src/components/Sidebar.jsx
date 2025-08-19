@@ -111,10 +111,18 @@ const Sidebar = ({ collapsed }) => {
       <div className="smlnav">
         <a href="/dashboard" className="sw-logo">
           <img
-            src="/images/insightlogo.jpeg"
+            src="/images/smallezywk.png"
+            className="smllogo"
             alt="logo"
+            width="40"
           />
-          <span>INSIGHT</span>
+
+          <img
+            src="/images/eazyweek_white.png"
+            className="bglogo"
+            alt="logo"
+            width="180"
+          />
         </a>
 
         <ul className="lhs-mnu">

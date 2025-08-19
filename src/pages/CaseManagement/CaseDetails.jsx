@@ -221,7 +221,7 @@ const CaseDetailsPage = () => {
   if (!selectedCaseData) return <div>Case not found</div>;
 
   return (
-    <section className="home-sect">
+    <section>
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
 
       <div className="brdcrmb">

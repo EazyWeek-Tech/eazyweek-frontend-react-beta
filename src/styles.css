@@ -180,7 +180,6 @@ cursor: pointer;
 /*LHS Section*/
 
 .sw-logo{ display: flex; gap: 12px; font-family: 'Radley'; color: var(--white-color); align-items: center; }
-.sw-logo img{ width: 40px; }
 .lhs-nav {
 max-width: 80px;
 min-width: 80px;

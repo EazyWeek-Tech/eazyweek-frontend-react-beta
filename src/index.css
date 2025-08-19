@@ -198,10 +198,10 @@ a {
   color: var(--white-color);
   align-items: center;
 }
-.sw-logo img {
-  width: 40px;
-}
-.lhs-nav {
+.bglogo{display: none;}
+.lhs-nav:hover .bglogo{display: block;}
+.lhs-nav:hover .smllogo{display: none;}
+.lhs-nav { 
   max-width: 80px;
   min-width: 80px;
   padding: 16px 20px;
@@ -896,6 +896,7 @@ table.dataTable thead > tr > td.dt-ordering-asc span.dt-column-order:before {
   border-radius: 7px;
   overflow-y: auto;
 }
+.modal-window > div::-webkit-scrollbar{display: none;}
 .modal-window header {
   font-weight: bold;
 }

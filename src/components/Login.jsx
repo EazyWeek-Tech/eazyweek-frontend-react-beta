@@ -112,7 +112,7 @@ const setSessionToApi = async ({ user }) => {
           <div className="form-container">
             <div className="form active">
               <div className="l-logo">
-                <img src="/images/HomeLogo.png" alt="Logo" width="180" />
+                <img src="/images/eazyWeek.png" alt="Logo" width="180" />
               </div>
               <p className="subtitle">Sign in to continue to your account</p>
 
