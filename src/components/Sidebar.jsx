@@ -54,7 +54,7 @@ const Sidebar = ({ collapsed }) => {
       icon: "bx-calculator",
       submenu: [
         {name: "Audit Dashboard", path:"/audit"},
-        { name: "Create", path: "/audit/create" },
+        { name: "Create", path: "/auditsegmentview" },
         { name: "Summary Report", path: "/audit/summary" },
         { name: "Detailed Report", path: "/audit/detailed" },
       ],

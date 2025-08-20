@@ -862,6 +862,10 @@ table.dataTable thead > tr > td.dt-ordering-asc span.dt-column-order:before {
   background: var(--prift-color);
   border-radius: 4px;
 }
+
+.dt-footer{display: flex;justify-content: space-between;margin: 20px 0 0;}
+
+div.dt-container .dt-paging .dt-paging-button.current, div.dt-container .dt-paging .dt-paging-button.current:hover{background: #334B71;color: #fff !important;}
 /*Cases Page*/
 
 /*Form Wizard*/
