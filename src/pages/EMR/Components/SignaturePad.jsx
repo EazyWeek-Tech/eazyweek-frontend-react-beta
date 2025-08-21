@@ -6,13 +6,13 @@ const SignaturePad = forwardRef(({ onSave }, ref) => {
 
   const handleClear = () => {
     sigRef.current.clear();
-    onSave('');
+   if (onSave) onSave('');
   };
 
   const handleEnd = () => {
     if (!sigRef.current.isEmpty()) {
       const dataUrl = sigRef.current.getCanvas().toDataURL('image/png');
-      onSave(dataUrl);
+      if (onSave) onSave(dataUrl);
     }
   };
 
