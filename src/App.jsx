@@ -38,6 +38,9 @@ import ManualOppCustomerDetails from "./pages/Opportunity/ManualOppCustomerDetai
 import ConsultationForm from "./pages/EMR/Consultation/ConsultationForm";
 import GuestConsentForm from "./pages/EMR/GuestConsentForm/GuestConsentForm";
 import ConsultationHistory from "./pages/EMR/Consultation/ConsultationHistory";
+import ItemCategoryCreateTabs from "./pages/Masters/ItemCategoryCreateTabs";
+import AuditCreateDashboard from "./pages/Audit/AuditCreateDashboard";
+import CaseHierarchyDashboard from "./pages/CaseManagement/CaseHierarchyDashboard";
 
 
 function App() {
@@ -124,11 +127,10 @@ function App() {
                   <Route path="/opportunity/create" element={<OpportunityForm mode="create" />} />
                   <Route path="/opportunity/:oppCode/customer/:custId" element={<OppCustomerDetails />} />
                   <Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
-
-
-
-
+                  <Route path="/create-category" element={<ItemCategoryCreateTabs />} />
+                  <Route path="/auditsegmentview" element={<AuditCreateDashboard />} />
                   <Route path="/details" element={<CourtesyCallDetails />} />
+                  <Route path="/case-hierarchy" element={<CaseHierarchyDashboard />} />
 
 
 
