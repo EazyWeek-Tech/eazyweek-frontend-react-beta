@@ -41,6 +41,7 @@ import ConsultationHistory from "./pages/EMR/Consultation/ConsultationHistory";
 import ItemCategoryCreateTabs from "./pages/Masters/ItemCategoryCreateTabs";
 import AuditCreateDashboard from "./pages/Audit/AuditCreateDashboard";
 import CaseHierarchyDashboard from "./pages/CaseManagement/CaseHierarchyDashboard";
+import CaseHierarchyCreate from "./pages/CaseManagement/CaseHierarchyCreate";
 
 
 function App() {
@@ -131,6 +132,9 @@ function App() {
                   <Route path="/auditsegmentview" element={<AuditCreateDashboard />} />
                   <Route path="/details" element={<CourtesyCallDetails />} />
                   <Route path="/case-hierarchy" element={<CaseHierarchyDashboard />} />
+                  <Route path="/case-hierarchy/create" element={<CaseHierarchyCreate />} />
+                  <Route path="/case-hierarchy/edit/:recId" element={<CaseHierarchyCreate />} />
+
 
 
 
