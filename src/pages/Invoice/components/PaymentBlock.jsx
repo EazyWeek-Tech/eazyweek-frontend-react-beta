@@ -111,7 +111,11 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
     
   const handlePopupClose = () => {
         resetAll();
-        navigate('/invoice');
+        if (typeof window !== "undefined") {
+    window.location.reload();        // refresh current page
+  } else {
+    navigate(0);                     // fallback for environments without window
+  }
       };
 const generateInvoiceHTML = () => {
     const isCitizen = customer?.status?.toLowerCase() === 'citizen';
