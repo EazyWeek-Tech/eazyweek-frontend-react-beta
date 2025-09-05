@@ -134,7 +134,7 @@ function App() {
                   <Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
                   <Route path="/create-category" element={<ItemCategoryCreateTabs />} />
                   <Route path="/auditsegmentview" element={<AuditCreateDashboard />} />
-                  <Route path="/details" element={<CourtesyCallDetails />} />
+                  <Route path="/courtesy-call/details" element={<CourtesyCallDetails />} />
                   <Route path="/case-hierarchy" element={<CaseHierarchyDashboard />} />
                   <Route path="/case-hierarchy/create" element={<CaseHierarchyCreate />} />
                   <Route path="/case-hierarchy/edit/:recId" element={<CaseHierarchyCreate />} />
