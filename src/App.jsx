@@ -42,7 +42,11 @@ import ItemCategoryCreateTabs from "./pages/Masters/ItemCategoryCreateTabs";
 import AuditCreateDashboard from "./pages/Audit/AuditCreateDashboard";
 import CaseHierarchyDashboard from "./pages/CaseManagement/CaseHierarchyDashboard";
 import CaseHierarchyCreate from "./pages/CaseManagement/CaseHierarchyCreate";
-
+import AuditCreate from "./pages/Audit/AuditCreate";
+import AuditSummaryReport from "./pages/Audit/AuditSummaryReport";
+import AuditDetailedReport from "./pages/Audit/AuditDetailedReport";
+import OpportunityDetailedReport from "./pages/Opportunity/OpportunityDetailedReport";
+import OpportunitySummaryReport from "./pages/Opportunity/OpportunitySummaryReport";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -134,6 +138,11 @@ function App() {
                   <Route path="/case-hierarchy" element={<CaseHierarchyDashboard />} />
                   <Route path="/case-hierarchy/create" element={<CaseHierarchyCreate />} />
                   <Route path="/case-hierarchy/edit/:recId" element={<CaseHierarchyCreate />} />
+<Route path="/audit/create" element={<AuditCreate />} />
+<Route path="/audit/summary" element={<AuditSummaryReport />} />
+<Route path="/audit/detailed" element={<AuditDetailedReport />} />
+<Route path="/opportunity/detailed" element={<OpportunityDetailedReport />} />
+<Route path="/opportunity/summary" element={<OpportunitySummaryReport />} />
 
 
 
