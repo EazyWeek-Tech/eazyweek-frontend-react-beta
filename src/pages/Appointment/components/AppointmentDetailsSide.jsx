@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
 
-const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
+const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onStatusUpdated }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [status, setStatus] = useState(appointment?.status || "Booked");
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
-  const createDataHandler = async (payload) => {
+  const createDataHandler = async (payload, newStatusForUpdate) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
         method: "POST",
@@ -25,8 +25,13 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
       const result = await response.json();
       if (result?.success) {
         setToast({ message: "Appointment updated successfully!", type: "success" });
-        if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-        if (typeof onRefresh === 'function') onRefresh();
+
+        // ✅ update the cell immediately in the scheduler
+        if (typeof onStatusUpdated === "function") {
+          onStatusUpdated(appointment?.appointmentId, newStatusForUpdate);
+        }
+        // ✅ and optionally refetch from server
+        if (typeof onRefresh === "function") onRefresh();
       } else {
         setToast({ message: result.message || "Update failed. Please try again.", type: "error" });
       }
@@ -36,10 +41,10 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
     }
   };
 
-
   const handleStatusChange = (e) => {
     const newStatus = e.target.value;
     setStatus(newStatus);
+
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
     const payload = {
@@ -49,11 +54,9 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
       centerCode: centerCode,
       lineNo: appointment?.lineNo,
     };
-    createDataHandler(payload);
+    createDataHandler(payload, newStatus);
   };
 
-
-  
   const handleDeleteAppointment = () => {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
@@ -65,73 +68,42 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit }) => {
       centerCode: centerCode,
       lineNo: appointment?.lineNo,
     };
-    createDataHandler(payload).then(() => {
+    createDataHandler(payload, "").then(() => {
       setToast({ message: "Appointment deleted successfully!", type: "success" });
-      if (typeof window.refreshAppointments === 'function') window.refreshAppointments();
-      if (typeof onRefresh === 'function') onRefresh();
+      if (typeof onRefresh === "function") onRefresh();
       setTimeout(() => {
-        onClose();
+        onClose?.();
       }, 2000);
     });
   };
 
-
   const handleEditClick = () => {
-  if (typeof onEdit === 'function') {
-    const nameParts = (appointment.fullName || "").split(" ");
-    const firstName = nameParts.slice(0, -1).join(" ") || nameParts[0] || "";
-    const lastName = nameParts.slice(-1).join(" ") || "";
+    if (typeof onEdit === 'function') {
+      const nameParts = (appointment.fullName || "").split(" ");
+      const firstName = nameParts.slice(0, -1).join(" ") || nameParts[0] || "";
+      const lastName = nameParts.slice(-1).join(" ") || "";
 
-    const enrichedAppointment = {
-      ...appointment,
-      firstName,
-      lastName
-    };
-    console.log('edit appt click data')
-    console.log(enrichedAppointment)
-    onEdit(enrichedAppointment);
-    onClose?.();
-  }
-};
-
+      const enrichedAppointment = { ...appointment, firstName, lastName };
+      onEdit(enrichedAppointment);
+      onClose?.();
+    }
+  };
 
   const goToPaymentPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
-  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+    const queryParams = new URLSearchParams();
+    if (appointment?.custId) queryParams.append("custid", appointment.custId);
+    if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+    if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+    navigate(`/invoice?${queryParams.toString()}`);
+  };
 
-  navigate(`/invoice?${queryParams.toString()}`);
-};
-
-const goToConsultationConsentPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
-  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
-
-  navigate(`/consultation?${queryParams.toString()}`);
-};
-
-const goToMedicalHistoryPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
-  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
-
-  navigate(`/history?${queryParams.toString()}`);
-};
-
- const goToCustomerPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("fullname", appointment.fullName);
-  if (appointment?.number) queryParams.append("number", appointment.number);
-
-  navigate(`/customer?${queryParams.toString()}`);
-};
-
-
+  const goToCustomerPage = () => {
+    const queryParams = new URLSearchParams();
+    if (appointment?.custId) queryParams.append("custid", appointment.custId);
+    if (appointment?.fullName) queryParams.append("fullname", appointment.fullName);
+    if (appointment?.number) queryParams.append("number", appointment.number);
+    navigate(`/customer?${queryParams.toString()}`);
+  };
 
   return (
     <div className={`smdiv expand ${isExpanded ? "expand" : ""}`}>
@@ -147,12 +119,7 @@ const goToMedicalHistoryPage = () => {
 
         <div className="apptcdet custdiv">
           <div className="csttopdiv">
-            <img
-              src={`${import.meta.env.BASE_URL}images/usericon.png`}
-              width="30"
-              title="User Icon"
-              alt="User Icon"
-            />
+            <img src={`${import.meta.env.BASE_URL}images/usericon.png`} width="30" alt="User Icon" />
             <h3 className="cstnm">
               {appointment?.fullName || ""}
               <div className="cstno">{appointment?.number || "—"}</div>
@@ -162,20 +129,16 @@ const goToMedicalHistoryPage = () => {
 
           <div className="cdtprof">
             <a
-  href="#"
-  className="cstlnk"
-  onClick={(e) => {
-    e.preventDefault();
-    goToCustomerPage();
-  }}
->
-  <img
-    src={`${import.meta.env.BASE_URL}images/custome.svg`}
-    width="16"
-    alt="Customer Profile"
-  />
-  Customer Profile
-</a>
+              href="#"
+              className="cstlnk"
+              onClick={(e) => {
+                e.preventDefault();
+                goToCustomerPage();
+              }}
+            >
+              <img src={`${import.meta.env.BASE_URL}images/custome.svg`} width="16" alt="Customer Profile" />
+              Customer Profile
+            </a>
           </div>
         </div>
 
@@ -183,22 +146,12 @@ const goToMedicalHistoryPage = () => {
           <div className="hdflx">
             <h2 className="dethead">Appointment Details</h2>
             <div className="acticons">
-              <button
-                className="edit tooltip"
-                data-tooltip="Edit Appointment"
-                data-tooltip-pos="top"
-                onClick={handleEditClick}
-              >
+              <button className="edit tooltip" data-tooltip="Edit Appointment" data-tooltip-pos="top" onClick={handleEditClick}>
                 <span className="stimg">
                   <img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Edit" />
                 </span>
               </button>
-              <button
-                className="delete tooltip"
-                data-tooltip="Delete Appointment"
-                data-tooltip-pos="left"
-                onClick={handleDeleteAppointment}
-              >
+              <button className="delete tooltip" data-tooltip="Delete Appointment" data-tooltip-pos="left" onClick={handleDeleteAppointment}>
                 <span className="stimg">
                   <img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" />
                 </span>
@@ -264,22 +217,19 @@ const goToMedicalHistoryPage = () => {
           </div>
 
           <div className="apptcdet">
-            <button onClick={goToMedicalHistoryPage} className="cstlnk">
+            <a href="#" className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
-            </button>
-            <button onClick={goToConsultationConsentPage} className="cstlnk">
+            </a>
+            <a href="#" className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
               Consent and Treatment Forms
-            </button>
+            </a>
           </div>
 
           <button onClick={goToPaymentPage} className="pndpay">
             <span className="stimg">
-              <img
-                src={`${import.meta.env.BASE_URL}images/paymentpend.svg`}
-                alt="Make Payment"
-              />
+              <img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="Make Payment" />
               Make Payment
             </span>
           </button>

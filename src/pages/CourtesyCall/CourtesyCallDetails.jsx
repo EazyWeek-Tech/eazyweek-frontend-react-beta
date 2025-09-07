@@ -32,10 +32,9 @@ const [formData, setFormData] = useState({
     }
   }, [referenceID]);
 
-  const mapYesNo = (value) => {
-  if (!value || value === "") return "0";
-  if (value.toUpperCase() === "YES") return "1";
-  if (value.toUpperCase() === "NO") return "2";
+  const mapYesNo = (val) => {
+  if (val === true || String(val).trim().toUpperCase() === "YES" || String(val) === "1") return "1";
+  if (val === false || String(val).trim().toUpperCase() === "NO" || String(val) === "2") return "2";
   return "0";
 };
 
@@ -49,23 +48,30 @@ const [formData, setFormData] = useState({
       console.log(data)
       setDetails(data);
       setFormData({
-        referenceID: data.referenceID,
-        customerType: data.customerType || "New",
-        futureAppointmentTaken: data.futureAppointmentTaken || "0",
-googleReview: data.googleReview || "0",
-receivedPostCareCmmunication: data.receivedPostCareCmmunication || "0",
-receivedInvoice: data.receivedInvoice || "0",
-overallSatisfied: data.overallSatisfied || "0",
-customerComplaintforService: data.customerComplaintforService || "0",
+  referenceID: data.referenceID,
+  customerType: data.customerType || "New",
 
-        experienceRating: data.experienceRating || "",
-        customerComplaintRemarks: data.customerComplaintRemarks || "",
-        agentdecision: data.agentdecision || "",
-        complaintDetails: data.complaintDetails || "",
-        agentRating: data.agentRating || "",
-        isDraft: 0,
-        createdBy: "system"
-      });
+  // YES/NO fields → 1/2/0
+  futureAppointmentTaken: mapYesNo(data.futureAppointmentTaken),
+  googleReview: mapYesNo(data.googleReview),
+  receivedPostCareCmmunication: mapYesNo(data.receivedPostCareCmmunication),
+  receivedInvoice: mapYesNo(data.receivedInvoice),
+  overallSatisfied: mapYesNo(data.overallSatisfied),
+  customerComplaintforService: mapYesNo(data.customerComplaintforService),
+
+  // Ratings come as "" or a number/string — keep as string for <select>
+  experienceRating: data.experienceRating ? String(data.experienceRating) : "",
+  agentRating: data.agentRating ? String(data.agentRating) : "",
+
+  // Free-text fields (leave as-is)
+  customerComplaintRemarks: data.customerComplaintRemarks || "",
+  agentdecision: data.agentdecision || "",
+  complaintDetails: data.complaintDetails || "",
+
+  isDraft: 0,
+  createdBy: "system",
+});
+
 
 
       console.log("Dropdown values:", {

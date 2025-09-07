@@ -7,11 +7,7 @@ import { API_BASE_URL } from "../../../config";
 
 const fetchData = async (url, payload = null) => {
   const options = payload
-    ? {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
     : {};
   const response = await fetch(url, options);
   if (!response.ok) throw new Error('Fetch error');
@@ -37,7 +33,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [editData, setEditData] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]); // Default to today's date
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   const timeSlots = [...Array(145)].map((_, i) => {
     const base = new Date(`1970-01-01T10:00:00`);
@@ -68,7 +64,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     };
 
     fetchDoctors();
-    fetchAppointments(selectedDate); // Fetch appointments when selectedDate changes
+    fetchAppointments(selectedDate);
   }, [selectedDate]);
 
   const fetchAppointments = async (date) => {
@@ -76,12 +72,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
       const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-      const payload = {
-        appointmentdate: date,
-        searchtext: '',
-        centerCode: centerCode
-      };
-
+      const payload = { appointmentdate: date, searchtext: '', centerCode };
       const data = await fetchData(`${API_BASE_URL}/api/Appointment/GetAppDetails`, payload);
 
       const adapted = data.map(appt => ({
@@ -96,6 +87,18 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
     }
   };
 
+  const refreshAppointments = () => fetchAppointments(selectedDate);
+
+  // ✅ update the local list immediately when a status changes in the details pane
+  const handleStatusUpdated = (appointmentId, newStatus) => {
+    setAppointments(prev =>
+      prev.map(a => a.appointmentId === appointmentId ? { ...a, status: newStatus } : a)
+    );
+    setSelectedAppointment(prev =>
+      prev && prev.appointmentId === appointmentId ? { ...prev, status: newStatus } : prev
+    );
+  };
+
   const normalizeTime = (t) => {
     if (!t) return '';
     const d = new Date(`1970-01-01T${convertTo24Hour(t.trim())}`);
@@ -105,7 +108,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   const normalizeDoctorName = (name) => name?.replace(/^Dr\.?\s*/i, '').trim().toLowerCase();
 
   const getStatusClass = (status) => {
-    switch (status?.toLowerCase()) {
+    switch ((status || '').toLowerCase()) {
       case 'booked': return 'bked';
       case 'confirmed': return 'cnfrmd';
       case 'completed': return 'donest';
@@ -127,7 +130,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
       ).length;
       if (count > maxStack) maxStack = count;
     });
-    return 80 * maxStack + 10 * (maxStack - 1); // Updated formula
+    return 80 * maxStack + 10 * (maxStack - 1);
   });
 
   const renderAppointments = (time, doctor) => {
@@ -139,11 +142,11 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-        {filtered.map((appt, idx) => {
+        {filtered.map((appt) => {
           const duration = parseInt(appt.duration?.replace(/\D/g, ''), 10) || 5;
           const width = duration * 14;
           const statusClass = getStatusClass(appt.status);
-          const extraClass = duration === 5 ? 'smllappt' : '';
+          const extraClass = duration === 5 ? 'smllappt' : (duration === 10 ? 'medappt' : '');
 
           return (
             <div
@@ -158,10 +161,13 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
                 </div>
               </div>
               <div className="apptype"><strong>{appt?.serviceName || 'N/A'}</strong></div>
-              <span className="expopup" onClick={() => {
-                setSelectedAppointment(appt);
-                setIsSidebarOpen(true);
-              }}>
+              <span
+                className="expopup"
+                onClick={() => {
+                  setSelectedAppointment(appt);
+                  setIsSidebarOpen(true);
+                }}
+              >
                 <img src={`${import.meta.env.BASE_URL}images/expand.svg`} alt="Expand" />
               </span>
             </div>
@@ -181,9 +187,9 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
         onAddCustomer={onAddCustomer}
         onDateChange={(date) => {
           setSelectedDate(date);
-          fetchAppointments(date); // Fetch appointments for the selected date
+          fetchAppointments(date);
         }}
-        selectedDate={selectedDate} // Pass the selected date to AppointmentHeader
+        selectedDate={selectedDate}
       />
 
       <FilterHeader />
@@ -254,6 +260,9 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
             setIsSidebarOpen(false);
             setIsDrawerOpen(true);
           }}
+          // ✅ pass refresh + status updater
+          onRefresh={refreshAppointments}
+          onStatusUpdated={handleStatusUpdated}
         />
       )}
 
