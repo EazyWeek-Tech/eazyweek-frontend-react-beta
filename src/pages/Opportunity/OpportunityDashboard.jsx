@@ -8,7 +8,7 @@ import { API_BASE_URL } from "../../config";
 import OpportunityDetails from "./OpportunityDetails";
 import { useNavigate } from "react-router-dom";
 
-/* NEW: charts */
+/* charts */
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,7 +17,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend
+  Legend,
+  Cell
 } from "recharts";
 
 /* ---- Color system (matched to your screenshot) ---- */
@@ -31,7 +32,53 @@ const COLORS = {
   axis: "#6e7b8f",
 };
 
-/* Small helpers to display numbers safely */
+/* -------------------- STATIC CHART DATA -------------------- */
+/* Single-series cards (each card has its own static dataset) */
+const STATUS_DATA_MANUAL_LEAD = [
+  { label: "Total", value: 10, fill: COLORS.total },
+  { label: "Open", value: 4, fill: COLORS.open },
+  { label: "Closed", value: 3, fill: COLORS.closed },
+  { label: "Converted", value: 2, fill: COLORS.converted },
+  { label: "WIP", value: 1, fill: COLORS.wip },
+];
+
+const STATUS_DATA_PAID_X_NOT_Y = [
+  { label: "Total", value: 285, fill: COLORS.total },
+  { label: "Open", value: 235, fill: COLORS.open },
+  { label: "Closed", value: 20, fill: COLORS.closed },
+  { label: "Converted", value: 10, fill: COLORS.converted },
+  { label: "WIP", value: 20, fill: COLORS.wip },
+];
+
+const STATUS_DATA_NO_SHOW = [
+  { label: "Total", value: 9, fill: COLORS.total },
+  { label: "Open", value: 9, fill: COLORS.open },
+  { label: "Closed", value: 0, fill: COLORS.closed },
+  { label: "Converted", value: 6, fill: COLORS.converted },
+  { label: "WIP", value: 0, fill: COLORS.wip },
+];
+
+const STATUS_DATA_PAID_X_CAT = [
+  { label: "Total", value: 6, fill: COLORS.total },
+  { label: "Open", value: 3, fill: COLORS.open },
+  { label: "Closed", value: 3, fill: COLORS.closed },
+  { label: "Converted", value: 3, fill: COLORS.converted },
+  { label: "WIP", value: 0, fill: COLORS.wip },
+];
+
+/* Stacked-by-clinic cards (static) */
+const STACKED_CUSTOMER_SPECIAL_DAY = [
+  { name: "Bright-00112", Total: 120, Open: 60, WIP: 40, Closed: 20, Converted: 0 },
+];
+
+const STACKED_CANCELLED_APPT = [
+  { name: "Bright-00111", Total: 10,   Open: 4,  WIP: 2,  Closed: 2,  Converted: 2 },
+  { name: "Bright-00187", Total: 20,   Open: 8,  WIP: 4,  Closed: 4,  Converted: 4 },
+  { name: "Bright-00195", Total: 30,  Open: 10, WIP: 0,  Closed: 15, Converted: 5 },
+  { name: "Bright-00217", Total: 20,   Open: 8,  WIP: 4,  Closed: 4,  Converted: 4   },
+];
+
+/* Small helpers */
 const n = (v) => (Number.isFinite(+v) ? +v : 0);
 
 const OpportunityDashboard = () => {
@@ -72,7 +119,6 @@ const OpportunityDashboard = () => {
         setLoading(false);
       }
     };
-
     fetchOpportunities();
   }, [statusFilter]);
 
@@ -85,25 +131,21 @@ const OpportunityDashboard = () => {
         fromDate: new Date(fromDate).toISOString(),
         toDate: new Date(toDate).toISOString(),
       };
-
       const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(payload),
       });
-
-      const data = await response.json();
-      setSelectedOppDetails(data?.[0]);
+      const resData = await response.json();
+      setSelectedOppDetails(resData?.[0]);
     } catch (error) {
       console.error("Failed to load opportunity details:", error);
       showToast("Failed to load details", "error");
     }
   };
 
-  const handleCreateNewCampaign = () => {
-    navigate("/opportunity/create");
-  };
+  const handleCreateNewCampaign = () => navigate("/opportunity/create");
 
   const filteredAndSortedData = useMemo(() => {
     const filtered = data.filter((item) => {
@@ -152,14 +194,8 @@ const OpportunityDashboard = () => {
   };
 
   const handleEditOppName = () => {
-    if (selectedRows.length === 0) {
-      alert("Please select at least one opportunity to edit");
-      return;
-    }
-    if (selectedRows.length > 1) {
-      alert("Please select only one opportunity to edit");
-      return;
-    }
+    if (selectedRows.length === 0) return alert("Please select at least one opportunity to edit");
+    if (selectedRows.length > 1) return alert("Please select only one opportunity to edit");
 
     const selectedOpp = opportunityData.find(
       (item) => (item.recID || item.oppCode) === selectedRows[0]
@@ -177,22 +213,14 @@ const OpportunityDashboard = () => {
 
   const handleOpportunityNext = () => setCurrentView("create-rule");
   const handleRuleBack = () => setCurrentView("create-opportunity");
-
-  const handleRuleSave = () => {
-    alert("Rule saved successfully!");
-  };
-
-  const handleRuleActivate = () => {
-    alert("Rule activated successfully!");
-    setCurrentView("dashboard");
-  };
+  const handleRuleSave = () => alert("Rule saved successfully!");
+  const handleRuleActivate = () => { alert("Rule activated successfully!"); setCurrentView("dashboard"); };
 
   const handleExpireCampaign = async () => {
     if (selectedRows.length === 0) {
       showToast("Please select at least one opportunity to expire", "error");
       return;
     }
-
     const confirmExpire = window.confirm("Are you sure you want to expire the selected opportunities?");
     if (!confirmExpire) return;
 
@@ -208,7 +236,6 @@ const OpportunityDashboard = () => {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) throw new Error("Failed to expire opportunity");
 
       showToast("Selected opportunities expired successfully!", "success");
@@ -234,59 +261,9 @@ const OpportunityDashboard = () => {
   };
 
   const handleRefresh = () => setStatusFilter("1");
-
-  const handleOpportunityClick = (oppCode) => {
-    navigate(`/opportunity/details/${oppCode}`);
-  };
-
-  /* -------------------- CHART DATA BUILDERS -------------------- */
-
-  // Totals across all opportunities
-  const totals = useMemo(() => {
-    const total = data.reduce((s, r) => s + n(r.totalOpportunities), 0);
-    const open = data.reduce((s, r) => s + n(r.noOfOpenOpportunities), 0);
-    const closed = data.reduce((s, r) => s + n(r.noOfClosedOpportunities), 0);
-    const converted = data.reduce((s, r) => s + n(r.noOfConvertedOutOfClosed), 0);
-    const wip = Math.max(total - open - closed, 0);
-
-    return { total, open, closed, converted, wip };
-  }, [data]);
-
-  // Single-series (x = status labels)
-  const statusBarData = [
-    { label: "Total", value: totals.total, fill: COLORS.total },
-    { label: "Open", value: totals.open, fill: COLORS.open },
-    { label: "Closed", value: totals.closed, fill: COLORS.closed },
-    { label: "Converted", value: totals.converted, fill: COLORS.converted },
-    { label: "WIP", value: totals.wip, fill: COLORS.wip },
-  ];
-
-  // Stacked by clinic (take top 4 clinics by Total)
-  const stackedByClinic = useMemo(() => {
-    const map = new Map();
-    for (const r of data) {
-      const key = r.clinic || r.centerName || "—";
-      const obj = map.get(key) || {
-        name: key,
-        Total: 0,
-        Open: 0,
-        Closed: 0,
-        Converted: 0,
-        WIP: 0,
-      };
-      obj.Total += n(r.totalOpportunities);
-      obj.Open += n(r.noOfOpenOpportunities);
-      obj.Closed += n(r.noOfClosedOpportunities);
-      obj.Converted += n(r.noOfConvertedOutOfClosed);
-      obj.WIP = Math.max(obj.Total - obj.Open - obj.Closed, 0);
-      map.set(key, obj);
-    }
-    // sort by Total desc and keep top 4
-    return Array.from(map.values()).sort((a, b) => b.Total - a.Total).slice(0, 4);
-  }, [data]);
+  const handleOpportunityClick = (oppCode) => navigate(`/opportunity/details/${oppCode}`);
 
   /* -------------------- CHART CARDS -------------------- */
-
   const SimpleBarCard = ({ title, dataset }) => (
     <div className="chart-card">
       <div className="chart-title">{title}</div>
@@ -299,7 +276,7 @@ const OpportunityDashboard = () => {
             <Tooltip />
             <Bar dataKey="value" radius={[6, 6, 0, 0]}>
               {dataset.map((entry, index) => (
-                <cell key={`cell-${index}`} fill={entry.fill} />
+                <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}
             </Bar>
           </BarChart>
@@ -331,19 +308,12 @@ const OpportunityDashboard = () => {
   );
 
   /* -------------------- VIEW SWITCHERS -------------------- */
-
   if (currentView === "details" && selectedOppDetails) {
-    return (
-      <OpportunityDetails
-        details={selectedOppDetails}
-        onBack={handleBackToDashboard}
-      />
-    );
+    return <OpportunityDetails details={selectedOppDetails} onBack={handleBackToDashboard} />;
   }
   if (currentView === "create-opportunity") {
     return <OpportunityForm onBack={handleBackToDashboard} onNext={handleOpportunityNext} mode="create" />;
   }
-
   if (currentView === "create-rule") {
     return (
       <CreateRuleForm
@@ -354,7 +324,6 @@ const OpportunityDashboard = () => {
       />
     );
   }
-
   if (currentView === "edit-opportunity") {
     return (
       <EditOpportunityForm
@@ -378,9 +347,7 @@ const OpportunityDashboard = () => {
           background: rgba(255, 255, 255, 0.7); z-index: 9998; display: flex; justify-content: center; align-items: center;
         }
         .data-table th, .data-table td{white-space: nowrap;font-size: 13px;}
-        .loader {
-          border: 6px solid #f3f3f3; border-top: 6px solid #334b71; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
-        }
+        .loader { border: 6px solid #f3f3f3; border-top: 6px solid #334b71; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .breadcrumb-link { color: #334b71; text-decoration: none; cursor: pointer; }
@@ -392,9 +359,7 @@ const OpportunityDashboard = () => {
           gap: 20px;
           margin-bottom: 30px;
         }
-        .chart-card {
-          background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #dee2e6;
-        }
+        .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #dee2e6; }
         .chart-title { font-size: 12px; line-height: 18px; font-weight: 600; color: #333; margin-bottom: 15px; }
 
         .action-section { background: white; border-radius: 0; padding: 0; box-shadow: none; margin-bottom: 20px; }
@@ -460,17 +425,17 @@ const OpportunityDashboard = () => {
 
         {/* Charts Grid */}
         <div className="charts-grid">
-          {/* Left column cards (single-series bars over statuses) */}
-          <SimpleBarCard title="Rule: Manual Lead" dataset={statusBarData} />
-          <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={statusBarData} />
-          <SimpleBarCard title="Rule: No show appointment for X days" dataset={statusBarData} />
-          {/* Right column cards (stacked by clinic) */}
-          <StackedByClinicCard title="Rule: Customer Special Day" dataset={stackedByClinic} />
-          <SimpleBarCard title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P" dataset={statusBarData} />
-          <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={stackedByClinic} />
+          {/* Single-series bars */}
+          <SimpleBarCard title="Rule: Manual Lead" dataset={STATUS_DATA_MANUAL_LEAD} />
+          <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={STATUS_DATA_PAID_X_NOT_Y} />
+          <SimpleBarCard title="Rule: No show appointment for X days" dataset={STATUS_DATA_NO_SHOW} />
+          {/* Stacked by clinic */}
+          <StackedByClinicCard title="Rule: Customer Special Day" dataset={STACKED_CUSTOMER_SPECIAL_DAY} />
+          <SimpleBarCard title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P" dataset={STATUS_DATA_PAID_X_CAT} />
+          <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={STACKED_CANCELLED_APPT} />
         </div>
 
-        {/* Action Buttons */}
+        {/* Actions */}
         <div className="action-section">
           <div className="action-buttons">
             <div className="button-group">
@@ -520,7 +485,7 @@ const OpportunityDashboard = () => {
           </div>
         </div>
 
-        {/* Data Table */}
+        {/* Table */}
         <div className="table-container">
           <div className="table-wrapper">
             <table className="data-table">
@@ -580,20 +545,14 @@ const OpportunityDashboard = () => {
                     No.Of Closed Opportunities
                     <span className="sort-indicator">
                       {sortConfig.key === "noOfClosedOpportunities"
-                        ? sortConfig.direction === "asc"
-                          ? "↑"
-                          : "↓"
-                        : "↕"}
+                        ? sortConfig.direction === "asc" ? "↑" : "↓" : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("noOfConvertedOutOfClosed")}>
                     No.Of Converted out of Closed
                     <span className="sort-indicator">
                       {sortConfig.key === "noOfConvertedOutOfClosed"
-                        ? sortConfig.direction === "asc"
-                          ? "↑"
-                          : "↓"
-                        : "↕"}
+                        ? sortConfig.direction === "asc" ? "↑" : "↓" : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("segmentType")}>
@@ -615,12 +574,8 @@ const OpportunityDashboard = () => {
                         onChange={() => handleSelectRow(item.recID || item.oppCode)}
                       />
                     </td>
-
                     <td>
-                      <button
-                        onClick={() => { handleOpportunityClick(item.oppCode); }}
-                        className="opp-code-link"
-                      >
+                      <button onClick={() => handleOpportunityClick(item.oppCode)} className="opp-code-link">
                         {item.oppCode}
                       </button>
                     </td>
@@ -646,15 +601,10 @@ const OpportunityDashboard = () => {
           {/* Pagination */}
           <div className="pagination-section">
             <div className="pagination-info">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedData.length)} of{" "}
-              {filteredAndSortedData.length} entries
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedData.length)} of {filteredAndSortedData.length} entries
             </div>
             <div className="pagination-controls">
-              <button
-                className="pagination-btn"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
+              <button className="pagination-btn" onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
                 Previous
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -670,11 +620,7 @@ const OpportunityDashboard = () => {
                 );
               })}
               {totalPages > 5 && <span className="pagination-btn">...</span>}
-              <button
-                className="pagination-btn"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              >
+              <button className="pagination-btn" onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
                 Next
               </button>
             </div>
