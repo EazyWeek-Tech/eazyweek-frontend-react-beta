@@ -185,7 +185,6 @@ const CreateCaseCategory = () => {
   return (
     <>
       <style jsx>{`
-        .page { background:#f6f7fb; min-height:100vh; }
         .wrap { max-width: 1160px; margin: 0 auto; padding: 16px 16px 64px; }
         .crumb { color:#334B71; margin-bottom:8px; font-size:14px; }
         .headerbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
@@ -200,7 +199,7 @@ const CreateCaseCategory = () => {
 
         .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; }
         .tabs { display:flex; gap:10px; border-bottom:1px solid #e5e7eb; padding:10px; flex-wrap:wrap; }
-        .tab { padding:8px 14px; border-radius:999px; cursor:pointer; font-weight:700; font-size:14px; }
+        .tab { padding:8px 14px; border-radius:999px; border:none; cursor:pointer; font-weight:700; font-size:14px; }
         .tab.active { background:#05224C; color:#fff; }
 
         .content { padding:18px; display:grid; grid-template-columns: 1fr 320px; gap:20px; align-items:flex-start; }

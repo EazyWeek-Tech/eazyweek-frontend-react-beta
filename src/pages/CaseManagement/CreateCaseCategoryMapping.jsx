@@ -337,7 +337,7 @@ const CreateCaseCategoryMapping = () => {
               <option value="">Select one</option>
               {categoriesSafe.map((o) => (
                 <option key={`cat-${o.code}-${o.recId}`} value={o.code}>
-                  {o.code} — {o.name}
+                   {o.name}
                 </option>
               ))}
             </select>
@@ -350,7 +350,7 @@ const CreateCaseCategoryMapping = () => {
               <option value="">Select one</option>
               {subCategoriesSafe.map((o) => (
                 <option key={`sub-${o.code}-${o.recId}`} value={o.code}>
-                  {o.code} — {o.name}
+                   {o.name}
                 </option>
               ))}
             </select>
@@ -363,7 +363,7 @@ const CreateCaseCategoryMapping = () => {
               <option value="">Select one</option>
               {subSubCategoriesSafe.map((o) => (
                 <option key={`sub2-${o.code}-${o.recId}`} value={o.code}>
-                  {o.code} — {o.name}
+                   {o.name}
                 </option>
               ))}
             </select>
@@ -376,7 +376,7 @@ const CreateCaseCategoryMapping = () => {
               <option value="">Select one</option>
               {subSubSubCategoriesSafe.map((o) => (
                 <option key={`sub3-${o.code}-${o.recId}`} value={o.code}>
-                  {o.code} — {o.name}
+                   {o.name}
                 </option>
               ))}
             </select>
@@ -401,7 +401,7 @@ const CreateCaseCategoryMapping = () => {
               <option value="">Select one</option>
               {employees.map((e) => (
                 <option key={`emp-${e.code}-${e.recId}`} value={e.code}>
-                  {e.code} — {e.name}
+               {e.name}
                 </option>
               ))}
             </select>

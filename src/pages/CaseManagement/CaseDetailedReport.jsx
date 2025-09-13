@@ -748,7 +748,7 @@ const CaseDetailedReport = () => {
       {/* Styles (scoped) */}
       <style jsx>{`
         .breadcrumb { font-size: 14px; margin-bottom: 14px; color: #666; }
-        .breadcrumb-link { color: #1e88e5; cursor: default; }
+        .breadcrumb-link { color: var(--secft-color); cursor: default; }
         .filters-card, .results-card {
           background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
           padding: 16px; margin-bottom: 16px;

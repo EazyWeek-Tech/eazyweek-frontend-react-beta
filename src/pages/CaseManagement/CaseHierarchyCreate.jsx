@@ -11,6 +11,7 @@ const BASE_MAIL_TEMPLATES = ["", "M001", "M002"];
 
 /* helpers */
 const safe = (v) => (v ?? "").toString();
+const trim = (s) => (s ?? "").toString().trim();
 const emptyLevel = () => ({
   assignee: "", // employeeCode
   assigneeName: "",
@@ -174,28 +175,33 @@ function MultiSelect({ options, value, onChange, placeholder = "None selected", 
 
 /* Autocomplete (Assignment + Escalation) with exclusion */
 function AutoComplete({
-  options, // [{employeeCode, employeeName}]
-  value, // code
-  display, // text
-  onSelect, // (code, name)
-  excludeCodes = [], // codes to hide (except current value)
+  options,            // [{employeeCode, employeeName}]
+  value,              // code
+  display,            // name
+  onSelect,           // (code, name)
+  excludeCodes = [],
   placeholder = "None selected",
   width = 260,
 }) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(display || "");
-  const rootRef = useClickOutside(() => setOpen(false));
 
+  // 👇 show name if present, otherwise show the code; keep it in sync when either prop changes
+  const shown = (display && display.trim()) || (value && value.trim()) || "";
+  const [q, setQ] = useState(shown);
   useEffect(() => {
-    setQ(display || "");
-  }, [display]);
+    setQ(shown);
+  }, [shown]);
+
+  const rootRef = useClickOutside(() => setOpen(false));
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     const base = !s
       ? options
       : options.filter(
-          (o) => o.employeeName?.toLowerCase().includes(s) || o.employeeCode?.toLowerCase().includes(s)
+          (o) =>
+            o.employeeName?.toLowerCase().includes(s) ||
+            o.employeeCode?.toLowerCase().includes(s)
         );
     const excludeSet = new Set(excludeCodes.filter((c) => c && c !== value));
     return base.filter((o) => !excludeSet.has(o.employeeCode)).slice(0, 50);
@@ -203,6 +209,7 @@ function AutoComplete({
 
   const choose = (o) => {
     onSelect(o.employeeCode, o.employeeName);
+    setQ(o.employeeName || o.employeeCode || ""); // keep visible after pick
     setOpen(false);
   };
   const clear = () => {
@@ -224,9 +231,7 @@ function AutoComplete({
           onFocus={() => setOpen(true)}
         />
         {value ? (
-          <button type="button" className="ac-x" onClick={clear} aria-label="Clear">
-            ✕
-          </button>
+          <button type="button" className="ac-x" onClick={clear} aria-label="Clear">✕</button>
         ) : (
           <span className="ac-chev">▾</span>
         )}
@@ -248,6 +253,9 @@ function AutoComplete({
           position: relative;
           width: var(--w);
         }
+         .field .ms-row input[type="checkbox"]{
+            height: auto;
+          }
         .ac-box {
           display: flex;
           align-items: center;
@@ -256,8 +264,9 @@ function AutoComplete({
           background: #fff;
           padding: 0 8px;
           height: 38px;
+          border: 1px solid #d8dee8;
         }
-        .ac-box input {
+        .field .ac-box input {
           flex: 1;
           border: none;
           outline: none;
@@ -311,6 +320,7 @@ function AutoComplete({
         .ac-opt .code {
           color: #6b7484;
           font-size: 12px;
+          display:none;
         }
         .ac-empty {
           padding: 12px;
@@ -447,10 +457,10 @@ const CaseHierarchyCreate = () => {
       return;
     }
     (async () => {
+      const url = `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?categoryCode=${encodeURIComponent(
+        trim(form.categoryCode)
+      )}`;
       try {
-        const url = `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?categoryCode=${encodeURIComponent(
-          form.categoryCode
-        )}`;
         const list = await fetchJSON(url);
         let opts = (Array.isArray(list) ? list : []).map((it) => {
           const code = it.subCategoryCode ?? it.code ?? it.id ?? it.subCategoryName ?? it.name;
@@ -462,43 +472,61 @@ const CaseHierarchyCreate = () => {
         opts = ensureSelectedInOptions(opts, form.subCategoryCode, "SubCategory");
         setSubCategoryOptions(opts);
       } catch (e) {
-        console.error(e);
+        console.error("SubCategory fetch failed:", e, url);
         setSubCategoryOptions((prev) => ensureSelectedInOptions(prev || [], form.subCategoryCode, "SubCategory"));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.categoryCode]);
 
-  useEffect(() => {
-    if (!form.categoryCode || !form.subCategoryCode) {
-      setSubSubCategoryOptions([]);
-      return;
+ // ---------- SubCategory -> SubSubCategory (with "NA" handling) ----------
+useEffect(() => {
+  if (!form.categoryCode || !form.subCategoryCode) {
+    setSubSubCategoryOptions([]);
+    return;
+  }
+  (async () => {
+    const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?categoryCode=${encodeURIComponent(
+      trim(form.categoryCode)
+    )}&subCategoryCode=${encodeURIComponent(trim(form.subCategoryCode))}`;
+
+    try {
+      const list = await fetchJSON(url);
+
+      let opts = (Array.isArray(list) ? list : []).map((it) => {
+        const rawName = trim(it.subSubCategoryName ?? it.name ?? "");
+        const rawSSCCode = trim(it.subSubCategoryCode ?? "");
+        const rawSubCatCode = trim(it.subCategoryCode ?? ""); // some payloads put the real code here
+
+        // If subSubCategoryCode is missing OR name is "NA", use subCategoryCode as the code
+        const useSubCategoryCode =
+          (!rawSSCCode || rawName.toUpperCase() === "NA") && !!rawSubCatCode;
+
+        // Avoid mixing ?? with || by preparing the fallback first
+        const fallbackNameOrCode = trim(rawName || it.name || "");
+
+        const primaryCode = it.subSubCategoryCode ?? it.code ?? it.id ?? fallbackNameOrCode;
+        const code = useSubCategoryCode ? rawSubCatCode : trim(primaryCode);
+        const name = rawName || code;
+
+        mergeMapEntry("SubSubCategory", code, name);
+        return { code, name };
+      });
+
+      // keep edit-mode selection visible
+      opts = ensureSelectedInOptions(opts, form.subSubCategoryCode, "SubSubCategory");
+      setSubSubCategoryOptions(opts);
+    } catch (e) {
+      console.error("SubSubCategory fetch failed:", e, url);
+      setSubSubCategoryOptions((prev) =>
+        ensureSelectedInOptions(prev || [], form.subSubCategoryCode, "SubSubCategory")
+      );
     }
-    (async () => {
-      try {
-        const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?categoryCode=${encodeURIComponent(
-          form.categoryCode
-        )}&subCategoryCode=${encodeURIComponent(form.subCategoryCode)}`;
-        const list = await fetchJSON(url);
-        let opts = (Array.isArray(list) ? list : []).map((it) => {
-          // Some payloads may not have a subSubCategoryCode; fall back to name.
-          const code =
-            it.subSubCategoryCode ?? it.code ?? it.id ?? it.subSubCategoryName ?? it.name;
-          const name = it.subSubCategoryName ?? it.name ?? String(code);
-          mergeMapEntry("SubSubCategory", code, name);
-          return { code, name };
-        });
-        opts = ensureSelectedInOptions(opts, form.subSubCategoryCode, "SubSubCategory");
-        setSubSubCategoryOptions(opts);
-      } catch (e) {
-        console.error(e);
-        setSubSubCategoryOptions((prev) =>
-          ensureSelectedInOptions(prev || [], form.subSubCategoryCode, "SubSubCategory")
-        );
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.subCategoryCode]);
+  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [form.subCategoryCode]);
+
+
 
   useEffect(() => {
     if (!form.categoryCode || !form.subCategoryCode || !form.subSubCategoryCode) {
@@ -506,16 +534,15 @@ const CaseHierarchyCreate = () => {
       return;
     }
     (async () => {
+      const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubSubCategory?categoryCode=${encodeURIComponent(
+        trim(form.categoryCode)
+      )}&subCategoryCode=${encodeURIComponent(trim(form.subCategoryCode))}&subSubCategoryCode=${encodeURIComponent(
+        trim(form.subSubCategoryCode)
+      )}`;
       try {
-        const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubSubCategory?categoryCode=${encodeURIComponent(
-          form.categoryCode
-        )}&subCategoryCode=${encodeURIComponent(form.subCategoryCode)}&subSubCategoryCode=${encodeURIComponent(
-          form.subSubCategoryCode
-        )}`;
         const list = await fetchJSON(url);
         let opts = (Array.isArray(list) ? list : []).map((it) => {
-          const code =
-            it.subSubSubCategoryCode ?? it.code ?? it.id ?? it.subSubSubCategoryName ?? it.name;
+          const code = it.subSubSubCategoryCode ?? it.code ?? it.id ?? it.subSubSubCategoryName ?? it.name;
           const name = it.subSubSubCategoryName ?? it.name ?? String(code);
           mergeMapEntry("SubSubSubCategory", code, name);
           return { code, name };
@@ -523,7 +550,7 @@ const CaseHierarchyCreate = () => {
         opts = ensureSelectedInOptions(opts, form.subSubSubCategoryCode, "SubSubSubCategory");
         setSubSubSubCategoryOptions(opts);
       } catch (e) {
-        console.error(e);
+        console.error("SubSubSubCategory fetch failed:", e, url);
         setSubSubSubCategoryOptions((prev) =>
           ensureSelectedInOptions(prev || [], form.subSubSubCategoryCode, "SubSubSubCategory")
         );
@@ -971,11 +998,8 @@ const CaseHierarchyCreate = () => {
           gap: 12px;
           margin-bottom: 8px;
         }
-        .title {
-          margin: 6px 0 0;
-          font-size: 22px;
-          color: #0b1f3a;
-        }
+                .title { text-align: center; margin: 12px 0 18px; font-size: 20px; font-weight: 700;  color: #0b1f3a; }
+
         .crumbs {
           color: #6c7a89;
           display: flex;
