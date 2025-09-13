@@ -12,9 +12,7 @@ const isDigitalVal = (s) => norm(s).toLowerCase() === "digital";
 /* robust ISO (handles yyyy-mm-dd and dd-mm-yyyy) */
 function toISODate(s) {
   const t = norm(s);
-  // already ISO?
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  // try dd-mm-yyyy or d-m-yyyy
   const m = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (m) {
     const [ , d, mo, y ] = m;
@@ -22,10 +20,22 @@ function toISODate(s) {
     const mm = String(mo).padStart(2, "0");
     return `${y}-${mm}-${dd}`;
   }
-  // fallback via Date (may shift tz; slice to date only)
   const d = new Date(t);
   return isNaN(d) ? todayISO() : d.toISOString().slice(0,10);
 }
+
+/* month label → number (1–12); accepts "Jan" or 1..12 or "09" */
+const toMonthNumber = (m) => {
+  const t = (m ?? "").toString().trim();
+  if (!t) return new Date().getMonth() + 1;
+  const n = Number(t);
+  if (!Number.isNaN(n) && n >= 1 && n <= 12) return n;
+  const idx = MONTHS.findIndex(x => x.toLowerCase().startsWith(t.toLowerCase().slice(0,3)));
+  return idx >= 0 ? idx + 1 : (new Date().getMonth() + 1);
+};
+
+/* send midnight UTC DateTime */
+const toMidnightUtc = (isoDate /* yyyy-mm-dd */) => `${isoDate}T00:00:00.000Z`;
 
 export default function AuditCreate() {
   const navigate = useNavigate();
@@ -40,27 +50,28 @@ export default function AuditCreate() {
   const [employees, setEmployees] = useState([]);
   const [clinics, setClinics] = useState([]);
 
-  // digital-only options (from new endpoints)
+  // digital-only options
   const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
 
   // common fields
   const [clinicCode, setClinicCode] = useState(state?.clinicCode || "");
-  const [month, setMonth] = useState(state?.month || MONTHS[new Date().getMonth()]);
+  const [month, setMonth] = useState(() => toMonthNumber(state?.month)); // 1–12
   const [year, setYear] = useState(state?.year || "");
   const [auditDate, setAuditDate] = useState(state?.auditDate || todayISO());
 
-  // standard form
+  // standard
   const [employeeCode, setEmployeeCode] = useState(state?.employeeCode || "");
 
-  // digital form
+  // digital
   const [doctorCode, setDoctorCode] = useState(state?.doctorCode || "");
   const [departmentCode, setDepartmentCode] = useState(state?.departmentCode || "");
   const [managerCode, setManagerCode] = useState(state?.managerCode || "");
 
   const [loadingSeg, setLoadingSeg] = useState(false);
   const [loadingOpts, setLoadingOpts] = useState(false);
+  const [checkingDup, setCheckingDup] = useState(false);
   const [toast, setToast] = useState(null);
 
   const isDigitalSeg = isDigitalVal(segmentCode) || isDigitalVal(segmentName);
@@ -92,7 +103,6 @@ export default function AuditCreate() {
         }));
         setSegments(list);
 
-        // resolve label for any prefilled segment (code OR name)
         if (segmentCode || segmentName) {
           const match =
             list.find((s) => norm(s.code) === norm(segmentCode)) ||
@@ -119,8 +129,6 @@ export default function AuditCreate() {
     (async () => {
       try {
         setLoadingOpts(true);
-
-        // Clinics (fallback sample)
         let centers = [];
         try {
           const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
@@ -130,8 +138,6 @@ export default function AuditCreate() {
           centers = [{ code: "Bright", name: "Bright Clinics" }];
         }
         setClinics(centers);
-
-        // Default clinic if only one
         if (!clinicCode && centers.length === 1) setClinicCode(centers[0].code);
       } catch (e) {
         console.error(e);
@@ -143,48 +149,32 @@ export default function AuditCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // DIGITAL: doctors + departments (segment-based)
+  // DIGITAL: doctors + departments
   useEffect(() => {
     if (!isDigitalSeg) return;
     const seg = encodeURIComponent(segmentName || segmentCode);
-
     (async () => {
       try {
-        // Doctors by segment
         try {
           const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDoctor/${seg}`, { credentials: "include" });
           const d = await r.json();
-          const list = Array.isArray(d) ? d : (d ? [d] : []);
-          setDoctors(list);
-        } catch {
-          setDoctors([]);
-        }
-
-        // Departments (segment-agnostic per spec)
+          setDoctors(Array.isArray(d) ? d : (d ? [d] : []));
+        } catch { setDoctors([]); }
         try {
           const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDepartment`, { credentials: "include" });
           const d = await r.json();
-          const list = Array.isArray(d) ? d : (d ? [d] : []);
-          setDepartments(list);
-        } catch {
-          setDepartments([]);
-        }
-      } catch (e) {
-        console.error(e);
-        showToast("Failed to load Digital options");
-      }
+          setDepartments(Array.isArray(d) ? d : (d ? [d] : []));
+        } catch { setDepartments([]); }
+      } catch (e) { console.error(e); showToast("Failed to load Digital options"); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDigitalSeg, segmentCode, segmentName]);
 
-  // NON-DIGITAL: employees by segment
+  // NON-DIGITAL: employees
   useEffect(() => {
-    // clear when segment missing or when Digital segment
     if (!segmentCode && !segmentName) { setEmployees([]); return; }
     if (isDigitalSeg) { setEmployees([]); return; }
-
     const seg = encodeURIComponent(segmentName || segmentCode);
-
     (async () => {
       try {
         setLoadingOpts(true);
@@ -192,51 +182,64 @@ export default function AuditCreate() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
         const list = Array.isArray(d) ? d : (d ? [d] : []);
-
-        // map API { name, code } -> UI { employeeName, employeeCode }
         const mapped = list.map(x => ({
           employeeCode: x.code ?? x.employeeCode ?? "",
           employeeName: x.name ?? x.employeeName ?? "",
         })).filter(e => e.employeeCode || e.employeeName);
-
         setEmployees(mapped);
-      } catch (e) {
-        console.error(e);
-        setEmployees([]);
-        showToast("Failed to load employees for the selected segment");
-      } finally {
-        setLoadingOpts(false);
-      }
+      } catch (e) { console.error(e); setEmployees([]); showToast("Failed to load employees for the selected segment"); }
+      finally { setLoadingOpts(false); }
     })();
   }, [segmentCode, segmentName, isDigitalSeg]);
 
-  // DIGITAL: managers need both segment and auditDate (as DateTime)
+  // DIGITAL: Manager (needs AuditDate) -> fallback Employee
   useEffect(() => {
     if (!isDigitalSeg) return;
     const seg = encodeURIComponent(segmentName || segmentCode);
-    // Build RFC 3339 DateTime from the date-only control
-    const isoDT = encodeURIComponent(`${auditDateISO}T00:00:00Z`);
-
-    (async () => {
-      try {
-        // Pass AuditDate as a PATH param (…/{Segment}/{AuditDate})
-        const url = `${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${seg}/${isoDT}`;
-        const r = await fetch(url, { credentials: "include" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
-        const list = Array.isArray(d) ? d : (d ? [d] : []);
-        setManagers(list);
-      } catch (e) {
-        console.error(e);
-        // if the API complains about DateTime, user sees the toast
-        showToast("Could not load managers. Check the audit date.");
-        setManagers([]);
+    const d = auditDateISO;
+    const loadManagerThenEmployee = async () => {
+      const shapes = [
+        `${d}T00:00:00`,
+        d,
+        `${d}T00:00:00+05:30`,
+        `${d}T00:00:00Z`,
+      ].map(AuditDate => new URLSearchParams({ AuditDate }).toString());
+      for (const qs of shapes) {
+        try {
+          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${seg}?${qs}`, {
+            credentials: "include", headers: { Accept: "application/json" }
+          });
+          if (r.status === 404) break;
+          if (r.ok) {
+            const d = await r.json();
+            const list = (Array.isArray(d) ? d : (d ? [d] : []))
+              .map(m => ({ code: m.code ?? m.employeeCode ?? "", name: m.name ?? m.employeeName ?? "" }))
+              .filter(x => x.code || x.name);
+            setManagers(list);
+            return;
+          }
+        } catch (e) { console.error("Manager fetch error:", e); }
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      try {
+        const rEmp = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationEmployee/${seg}`, {
+          credentials: "include", headers: { Accept: "application/json" }
+        });
+        if (rEmp.ok) {
+          const d = await rEmp.json();
+          const list = (Array.isArray(d) ? d : (d ? [d] : []))
+            .map(x => ({ code: x.code ?? "", name: x.name ?? "" }))
+            .filter(x => x.code || x.name);
+          setManagers(list);
+          return;
+        }
+        setManagers([]); showToast("Could not load managers/employees for Digital.");
+      } catch (e) { console.error("Employee fetch error:", e); setManagers([]); showToast("Could not load managers/employees for Digital."); }
+    };
+    loadManagerThenEmployee();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDigitalSeg, segmentCode, segmentName, auditDateISO]);
 
-  // when switching segment, clear fields from the other layout
+  // clear opposite layout fields
   useEffect(() => {
     if (isDigitalSeg) {
       setEmployeeCode("");
@@ -250,52 +253,85 @@ export default function AuditCreate() {
   const segLabel =
     segments.find((s) => norm(s.code) === norm(segmentCode))?.name ||
     segments.find((s) => norm(s.name) === norm(segmentCode))?.name ||
-    segmentName ||
-    segmentCode;
+    segmentName || segmentCode;
 
   const clinicName = clinics.find((c) => c.code === clinicCode)?.name || "";
 
-  const onNext = () => {
+  // POST duplicate check
+  async function duplicateCheck(payload) {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreationDupicateCheck`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) return await r.json();
+      const t = await r.text().catch(() => "");
+      throw new Error(`Duplicate check failed (HTTP ${r.status}) ${t}`);
+    } catch (e) {
+      console.error(e);
+      showToast("Duplicate check failed. Please try again.");
+      return null;
+    }
+  }
+
+  // NEXT
+  const onNext = async () => {
     if (!segmentCode && !segmentName) return showToast("Please choose an audit segment");
     if (!clinicCode && !isDigitalSeg) return showToast("Please choose/confirm clinic");
     if (!month || !year) return showToast("Please choose month and year");
     if (!auditDateISO) return showToast("Please choose audit date");
 
-    const segForRoute = norm(segmentCode || segmentName).toLowerCase();
-
     if (isDigitalSeg) {
       if (!doctorCode) return showToast("Please choose Doctor/Therapist");
       if (!departmentCode) return showToast("Please choose Department");
       if (!managerCode) return showToast("Please choose Manager");
-
-      navigate(`/audit/${segForRoute}/form`, {
-        state: {
-          segment: segmentCode || segmentName,
-          clinicCode,
-          clinicName,
-          month,
-          year,
-          auditDate: auditDateISO,             // ensure ISO goes forward too
-          doctorCode,
-          departmentCode,
-          managerCode,
-        },
-      });
     } else {
       if (!employeeCode) return showToast("Please choose Employee");
-
-      navigate(`/audit/${segForRoute}/form`, {
-        state: {
-          segment: segmentCode || segmentName,
-          clinicCode,
-          clinicName,
-          month,
-          year,
-          auditDate: auditDateISO,             // ensure ISO
-          employeeCode,
-        },
-      });
     }
+
+    const segForRoute = norm(segmentCode || segmentName).toLowerCase();
+    const employeeForCheck = isDigitalSeg ? doctorCode : employeeCode;
+
+    // send month as STRING to duplicate check
+    const auditMonthStr = MONTHS[(month - 1 + 12) % 12];
+
+    const dupPayload = {
+      employeeCode: employeeForCheck,
+      auditSegment: segmentCode || segmentName,
+      auditDate: toMidnightUtc(auditDateISO),
+      auditMonth: auditMonthStr, // <- string
+    };
+
+    setCheckingDup(true);
+    const dupResp = await duplicateCheck(dupPayload);
+    setCheckingDup(false);
+    if (!dupResp) return;
+
+    const isDup =
+      dupResp.isDuplicate === true ||
+      dupResp.duplicate === true ||
+      dupResp.exists === true ||
+      (dupResp.success === false && /duplicate|exists|already/i.test(dupResp.message ?? ""));
+
+    if (isDup) return showToast(dupResp.message || "Audit already exists for the selected date/person");
+
+    // Build URL with all values so the next page can fill itself
+    const qs = new URLSearchParams({
+      segment: segmentCode || segmentName,
+      clinicCode: clinicCode || "",
+      clinicName: clinicName || "",
+      auditMonth: auditMonthStr,         // string for display
+      year: String(year || ""),
+      auditDate: auditDateISO,           // yyyy-mm-dd
+      mode: isDigitalSeg ? "digital" : "standard",
+      ...(isDigitalSeg
+        ? { doctorCode, departmentCode, managerCode }
+        : { employeeCode }),
+    }).toString();
+
+    navigate(`/audit/${segForRoute}/form?${qs}`);
   };
 
   return (
@@ -338,8 +374,10 @@ export default function AuditCreate() {
 
                 <div className="row">
                   <label>Audit Month</label>
-                  <select value={month} onChange={(e) => setMonth(e.target.value)}>
-                    {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                    {MONTHS.map((label, i) => (
+                      <option key={i + 1} value={i + 1}>{label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -353,11 +391,7 @@ export default function AuditCreate() {
 
                 <div className="row">
                   <label>Audit Date</label>
-                  <input
-                    type="date"
-                    value={auditDateISO}
-                    onChange={(e) => setAuditDate(e.target.value)}
-                  />
+                  <input type="date" value={auditDateISO} onChange={(e) => setAuditDate(e.target.value)} />
                 </div>
 
                 <div className="row">
@@ -388,17 +422,19 @@ export default function AuditCreate() {
                   <label>Manager</label>
                   <select value={managerCode} onChange={(e) => setManagerCode(e.target.value)}>
                     <option value="">&lt; - Select one - &gt;</option>
-                    {managers.map((m) => (
-                      <option key={m.code ?? m.employeeCode ?? m.name} value={m.code ?? m.employeeCode ?? m.name}>
-                        {m.name ?? m.employeeName ?? (m.code ?? m.employeeCode)}
-                      </option>
-                    ))}
+                    {managers.map((m, i) => {
+                      const value = m.code ?? m.employeeCode ?? `idx-${i}`;
+                      const label = m.name ?? m.employeeName ?? (m.code ?? m.employeeCode ?? "—");
+                      return <option key={value} value={value}>{label}</option>;
+                    })}
                   </select>
                 </div>
               </div>
 
               <div className="actions">
-                <button className="btn primary" onClick={onNext}>NEXT</button>
+                <button className="btn primary" onClick={onNext} disabled={checkingDup}>
+                  {checkingDup ? "CHECKING..." : "NEXT"}
+                </button>
               </div>
             </>
           ) : (
@@ -409,9 +445,7 @@ export default function AuditCreate() {
                   <select value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)}>
                     <option value="">&lt; - Select one - &gt;</option>
                     {employees.map((e) => (
-                      <option key={e.employeeCode} value={e.employeeCode}>
-                        {e.employeeName} ({e.employeeCode})
-                      </option>
+                      <option key={e.employeeCode} value={e.employeeCode}>{e.employeeName}</option>
                     ))}
                   </select>
                 </div>
@@ -421,17 +455,17 @@ export default function AuditCreate() {
                   <select value={clinicCode} onChange={(e) => setClinicCode(e.target.value)}>
                     <option value="">Select clinic</option>
                     {clinics.map((c) => (
-                      <option key={c.code ?? c.name} value={c.code}>
-                        {c.name}
-                      </option>
+                      <option key={c.code ?? c.name} value={c.code}>{c.name}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="row">
                   <label>Audit Month</label>
-                  <select value={month} onChange={(e) => setMonth(e.target.value)}>
-                    {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                    {MONTHS.map((label, i) => (
+                      <option key={i + 1} value={i + 1}>{label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -445,16 +479,14 @@ export default function AuditCreate() {
 
                 <div className="row">
                   <label>Audit Date</label>
-                  <input
-                    type="date"
-                    value={auditDateISO}
-                    onChange={(e) => setAuditDate(e.target.value)}
-                  />
+                  <input type="date" value={auditDateISO} onChange={(e) => setAuditDate(e.target.value)} />
                 </div>
               </div>
 
               <div className="actions">
-                <button className="btn primary" onClick={onNext}>NEXT</button>
+                <button className="btn primary" onClick={onNext} disabled={checkingDup}>
+                  {checkingDup ? "CHECKING..." : "NEXT"}
+                </button>
               </div>
             </>
           )}
@@ -478,6 +510,7 @@ export default function AuditCreate() {
         .actions { display: flex; justify-content: center; margin-top: 18px; }
         .btn { background: #1d2c43; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-weight: 700; cursor: pointer; }
         .btn.primary { background: #112032; }
+        .btn[disabled] { opacity: .7; cursor: not-allowed; }
         .toast { position: fixed; bottom: 16px; right: 16px; color:#fff; background:#d7263d; padding:10px 14px; border-radius:8px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.15); z-index:9999; }
         .toast.success { background:#138a36; }
         @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }

@@ -79,6 +79,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
         const list = await fetchJSON(
           `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
         );
+        console.log(list)
         setResponses(Array.isArray(list) ? list : []);
       } catch (e) {
         console.error("Error fetching responses:", e);

@@ -1934,7 +1934,7 @@ table {
                                     background: #ebebeb;
                                 }
 
-                                .appcell.smllappt .ptflx .aptst{display: none;}
+                                .appcell.smllappt .ptflx .aptst,.appcell.medappt .ptflx .aptst {display: none;}
 
                                 .appcell.smllappt .ptflx{
                                     flex-direction: column;
@@ -1944,6 +1944,8 @@ table {
 
                                 .appcell.smllappt .ptnm {width: 50px; text-overflow: ellipsis;overflow: hidden;white-space: nowrap;}
                                 .appcell.smllappt .apptype{width: 50px; text-overflow: ellipsis;overflow: hidden;white-space: nowrap;}
+
+                                .appcell.medappt .apptype{width: 140px; text-overflow: ellipsis;overflow: hidden;white-space: nowrap;}
                                 .ptflx {
                                     display: flex;
                                     padding: 0 5px;

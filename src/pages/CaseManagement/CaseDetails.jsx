@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import GeneralTab from "./CaseDetails/GeneralTab";
 import IssuesTab from "./CaseDetails/IssuesTab";
 import SLATab from "./CaseDetails/SLATab";
@@ -9,7 +9,14 @@ import { Link } from "react-router-dom";
 import Toast from "../../components/Toast";
 import { API_BASE_URL } from "../../config";
 
-// ---- sessionStorage-only current user ----
+// --------------------------------------------
+// Config
+// --------------------------------------------
+const USE_PLACEHOLDERS_ON_UPDATE_STATUS = true; // set false to fail instead of filling
+
+// --------------------------------------------
+// Utils
+// --------------------------------------------
 const trim = (s) => (s ?? "").toString().trim();
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
@@ -18,7 +25,190 @@ const firstNonEmpty = (...vals) => {
   }
   return "";
 };
+const isNonEmpty = (v) =>
+  v !== undefined && v !== null && (typeof v === "number" || trim(v) !== "");
 
+const mergeVal = (g, c) => {
+  const gv = typeof g === "string" ? trim(g) : g;
+  const cv = typeof c === "string" ? trim(c) : c;
+  return isNonEmpty(gv) ? gv : cv;
+};
+
+const pruneEmpty = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => isNonEmpty(v)));
+
+const readOrgContext = (general, current) => {
+  const ss = (k) => trim(sessionStorage.getItem(k));
+  // look inside common JSON blobs
+  const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
+  const fromJson = (k) => {
+    for (const key of objKeys) {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const obj = JSON.parse(raw);
+        const val = obj?.[k] ?? obj?.[k?.toLowerCase?.()] ?? obj?.[k?.toUpperCase?.()];
+        if (isNonEmpty(val)) return trim(val);
+      } catch {}
+    }
+    return "";
+  };
+
+  const centerGuess = firstNonEmpty(
+    general?.centerCode,
+    current?.centerCode,
+    ss("centerCode"),
+    ss("CenterCode"),
+    ss("centercode"),
+    ss("job"),             // some envs store center in "job"
+    fromJson("centerCode"),
+    fromJson("job")
+  );
+  const departmentGuess = firstNonEmpty(
+    general?.departmentCode,
+    current?.departmentCode,
+    ss("departmentCode"),
+    ss("DepartmentCode"),
+    ss("deptCode"),
+    ss("depCode"),
+    fromJson("departmentCode")
+  );
+  const clinicGuess = firstNonEmpty(
+    general?.custClinicCode,
+    current?.custClinicCode,
+    ss("custClinicCode"),
+    ss("clinicCode"),
+    ss("ClinicCode"),
+    fromJson("custClinicCode"),
+    fromJson("clinicCode")
+  );
+
+  return {
+    CENTERCODE: centerGuess,
+    DEPARTMENTCODE: 'department',  // optional
+    CUSTCLINICCODE: 'Bright',      // optional
+  };
+};
+
+// --------------------------------------------
+// Minimal required validation per action
+// --------------------------------------------
+function buildRequiredBlock({ actionType, general, current, status, disposition }) {
+  const org = readOrgContext(general, current);
+
+  if (actionType === "updateStatus") {
+    return pruneEmpty({
+      caseno: current?.caseNo,
+      status: trim(status),
+      CENTERCODE: org.CENTERCODE,
+      CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : "N/A",
+    });
+  }
+
+  // save / submit minimal set
+  return pruneEmpty({
+    CASETITLE: mergeVal(general?.title, current?.title),
+    Category: mergeVal(general?.categoryCode, current?.categoryCode),
+    SubCategory: mergeVal(general?.subCategory, current?.subCategory),
+    CASEMEDIUM: mergeVal(general?.medium, current?.medium),
+    CASESOURCE: mergeVal(general?.source, current?.source),
+    Priority: mergeVal(general?.priority, current?.priority),
+    CustID: mergeVal(general?.customer, current?.customer),
+    CREATEDBY: mergeVal(general?.createdBy, current?.createdBy),
+    ASSIGNEDEMAILID: mergeVal(undefined, current?.email),
+    EMPLOYENO: mergeVal(undefined, current?.employeeMobile),
+    CENTERCODE: org.CENTERCODE,
+  });
+}
+
+function validateRequired(requiredObj) {
+  const missing = Object.entries(requiredObj)
+    .filter(([, v]) => !isNonEmpty(v))
+    .map(([k]) => k);
+  return { ok: missing.length === 0, missing };
+}
+
+// --------------------------------------------
+// For updateStatus: force-fill keys backend marks as "required"
+// without overwriting real values. Uses placeholders only if empty.
+// --------------------------------------------
+function fillRequiredForUpdateStatus(lower, current, status, disposition) {
+  // Fields that backend has complained about in your logs:
+  const MUST_HAVE = [
+    "CASETITLE","Category","SubCategory","SubSubCategory","SubSubSubCategory",
+    "CASEMEDIUM","CASESOURCE","Priority","CustID",
+    "ProductCode","SERVICECODE","SERVICECCODE","CREATEDBY",
+    "ISSUEDESCIPTION","ClientThreat","DoctorCode","FIRSTTIMERESOLUTION",
+    "RESPONSE","ASSIGNEDEMAILID","EMPLOYENO","CC","MoreCC","REMARKS",
+    "CategorySpecificResolution","CASEDISPOSITION","CENTERCODE"
+    // department/clinic optional on your system; add if your server insists
+  ];
+
+  // Create an upper-case view of current case for convenience
+  const fromCurrent = {
+    CASETITLE: current?.title,
+    Category: current?.categoryCode,
+    SubCategory: current?.subCategory,
+    SubSubCategory: current?.subSubCategory,
+    SubSubSubCategory: current?.subSubSubCategory,
+    CASEMEDIUM: current?.medium,
+    CASESOURCE: current?.source,
+    Priority: current?.priority,
+    CustID: current?.customer,
+    ProductCode: current?.productCode,
+    SERVICECODE: current?.service,
+    SERVICECCODE: current?.serviceCategory,
+    CREATEDBY: current?.createdBy,
+    ISSUEDESCIPTION: current?.issueDescription,
+    ClientThreat: current?.clientThreat,
+    DoctorCode: current?.therapistCode,
+    FIRSTTIMERESOLUTION: current?.firstTimeResolution,
+    RESPONSE: current?.response,
+    ASSIGNEDEMAILID: current?.email,
+    EMPLOYENO: current?.employeeMobile,
+    CC: current?.cc,
+    MoreCC: current?.moreCc,
+    REMARKS: current?.remarks,
+    CategorySpecificResolution: current?.categorySpecificResolution,
+    CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : (current?.disposition || "N/A"),
+    CENTERCODE: lower.CENTERCODE || lower.centercode || "N/A",
+  };
+
+  // placeholders (keep email-ish fields as "-" to avoid bad addresses)
+  const PLACEHOLDER = {
+    default: "N/A",
+    email: "-",
+    cc: "-",
+  };
+
+  const out = { ...lower };
+
+  for (const key of MUST_HAVE) {
+    if (isNonEmpty(out[key])) continue; // already present & non-empty
+
+    const cur = trim(fromCurrent[key] ?? "");
+    if (isNonEmpty(cur)) {
+      out[key] = cur;
+      continue;
+    }
+
+    if (!USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
+      // leave it empty; backend may 400 and we surface the error
+      continue;
+    }
+
+    // fill with safe placeholder
+    if (key === "ASSIGNEDEMAILID") out[key] = PLACEHOLDER.email;
+    else if (key === "CC" || key === "MoreCC") out[key] = PLACEHOLDER.cc;
+    else out[key] = PLACEHOLDER.default;
+  }
+
+  return out;
+}
+
+// --------------------------------------------
+// Session user
+// --------------------------------------------
 const readSessionUser = () => {
   // Try JSON blobs
   const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
@@ -35,10 +225,10 @@ const readSessionUser = () => {
           obj.name
         );
         if (code || name) return { code, name };
-      } catch { /* ignore */ }
+      } catch {}
     }
   }
-  // Flat keys (matches your example)
+  // Flat keys
   const code = firstNonEmpty(
     sessionStorage.getItem("userId"),
     sessionStorage.getItem("userid"),
@@ -53,8 +243,13 @@ const readSessionUser = () => {
   return (code || name) ? { code, name } : null;
 };
 
+// --------------------------------------------
+// Component
+// --------------------------------------------
 const CaseDetailsPage = () => {
   const { caseNumber } = useParams();
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState("general");
   const [selectedCaseData, setSelectedCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +258,6 @@ const CaseDetailsPage = () => {
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => readSessionUser());
-  const actionTabs = new Set(["general", "issues", "expense"]);
 
   const generalRef = useRef();
   const issuesRef = useRef();
@@ -73,7 +267,6 @@ const CaseDetailsPage = () => {
 
   const formatCreatedDate = (raw) => {
     if (!raw || raw === "0001-01-01T00:00:00") return "-";
-    // dd/MM/yyyy
     const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
     if (m) {
       const [, dd, MM, yyyy] = m;
@@ -93,7 +286,7 @@ const CaseDetailsPage = () => {
   };
 
   useEffect(() => {
-    setCurrentUser(readSessionUser()); // refresh once on mount
+    setCurrentUser(readSessionUser());
   }, []);
 
   useEffect(() => {
@@ -104,6 +297,18 @@ const CaseDetailsPage = () => {
           { credentials: "include" }
         );
         const data = await response.json();
+
+        const mappedAssignCode = trim(firstNonEmpty(
+          data.assignToCode,
+          data.assignCode,
+          data.emailTOCode,
+          data.nextLevelID
+        ));
+        const mappedAssignName = trim(firstNonEmpty(
+          data.assignTOName,
+          data.assignName,
+          data.emailTOName
+        ));
 
         setSelectedCaseData({
           caseNo: trim(data.caseNo),
@@ -119,7 +324,7 @@ const CaseDetailsPage = () => {
           subSubSubCategory: trim(data.subSubSubCategoryCode),
           subSubSubCategoryName: trim(data.subSubSubCategoryName),
 
-          // Medium / Source (use CODES so dropdowns preselect)
+          // Medium / Source
           medium: trim(firstNonEmpty(data.mediumCode, data.mediumName)),
           mediumName: trim(firstNonEmpty(data.mediumName, data.mediumCode)),
           source: trim(data.sourceCode),
@@ -150,23 +355,13 @@ const CaseDetailsPage = () => {
           firstTimeResolution: trim(data.firstTimeResolution),
           clientThreat: trim(data.clientThreat),
 
-          // Therapist for IssuesTab preselect
           therapistName: trim(data.therapistName),
           therapistCode: trim(data.therapistCode),
 
-          // Assignment (pick first non-empty from payload variants)
-          assignedTo: trim(
-            firstNonEmpty(data.assignToCode)
-          ),
-          assignToCode: trim(
-            firstNonEmpty(
-              data.assignToCode,
-              data.assignTOCode,
-              data.assignCode,
-              data.emailTOCode,
-              data.nextLevelID
-            )
-          ),
+          // Assignment
+          assignedTo: mappedAssignCode,
+          assignToCode: mappedAssignCode,
+          assignName: mappedAssignName,
 
           employeeMobile: trim(data.empMobileNo),
           email: trim(data.emailTOEMailID),
@@ -176,6 +371,8 @@ const CaseDetailsPage = () => {
           moreCc: trim(data.moreCC),
           remarks: trim(data.remarks),
 
+          categorySpecificResolution: trim(data.categorySpecificResolution),
+
           materialCost: data.materialCost ?? 0,
           labourCost: data.labourCOst ?? 0,
           otherCharges: data.otherCharges ?? 0,
@@ -183,6 +380,7 @@ const CaseDetailsPage = () => {
 
           slaIdeal: data.slaIdeal || {},
           slaActual: data.slaActual || {},
+          disposition: trim(data.disposition),
         });
 
         setDisposition(trim(data.disposition));
@@ -197,61 +395,143 @@ const CaseDetailsPage = () => {
     fetchCaseDetails();
   }, [caseNumber]);
 
-  // handleAction with status override
+  // Build the final full payload (prunes empties, mirrors uppercase);
+  // For updateStatus we then "force-fill" required keys to satisfy the backend.
+  function buildFullPayload({ general, current, status, disposition, operation }) {
+    const org = readOrgContext(general, current);
+
+    const base = {
+      caseno: current?.caseNo || "",
+      operation: operation || "",
+      createddate: new Date().toISOString(),
+
+      // General
+      casetitle: mergeVal(general?.title, current?.title),
+      category: mergeVal(general?.categoryCode, current?.categoryCode),
+      subCategory: mergeVal(general?.subCategory, current?.subCategory),
+      subSubCategory: mergeVal(general?.subSubCategory, current?.subSubCategory),
+      subSubSubCategory: mergeVal(general?.subSubSubCategory, current?.subSubSubCategory),
+      casemedium: mergeVal(general?.medium, current?.medium),
+      casesource: mergeVal(general?.source, current?.source),
+      priority: mergeVal(general?.priority, current?.priority),
+      custID: mergeVal(general?.customer, current?.customer),
+      productCode: mergeVal(general?.productCode, current?.productCode),
+      servicecode: mergeVal(general?.service, current?.service),
+      serviceccode: mergeVal(general?.serviceCategory, current?.serviceCategory),
+      createdby: mergeVal(general?.createdBy, current?.createdBy),
+
+      // Issues
+      issuedesciption: mergeVal(undefined, current?.issueDescription),
+      clientThreat: mergeVal(undefined, current?.clientThreat),
+      doctorCode: mergeVal(undefined, current?.therapistCode),
+      firsttimeresolution: mergeVal(undefined, current?.firstTimeResolution),
+      response: mergeVal(undefined, current?.response),
+
+      // Assignment / contacts
+      assignedto: mergeVal(undefined, current?.assignedTo),
+      employeno: mergeVal(undefined, current?.employeeMobile),
+      assignedemailid: mergeVal(undefined, current?.email),
+      cc: mergeVal(undefined, current?.cc),
+      moreCC: mergeVal(undefined, current?.moreCc),
+      categorySpecificResolution: mergeVal(undefined, current?.categorySpecificResolution),
+      remarks: mergeVal(undefined, current?.remarks),
+
+      // Status
+      casedisposition: isNonEmpty(disposition) ? trim(disposition) : (current?.disposition || undefined),
+      caseWith: mergeVal(undefined, current?.assignToCode),
+      status: trim(status) || undefined,
+      caseStatus: trim(status) || undefined,
+
+      // Costs
+      materialCost: isNonEmpty(current?.materialCost) ? current.materialCost : undefined,
+      labourCost: isNonEmpty(current?.labourCOst) ? current.labourCOst : undefined,
+      otherCharges: isNonEmpty(current?.otherCharges) ? current.otherCharges : undefined,
+      totalCharges: isNonEmpty(current?.total) ? current.total : undefined,
+
+      // Org (Center required to avoid inserts)
+      isdraft: operation === "save" ? 1 : 0,
+      centercode: readOrgContext(general, current).CENTERCODE,
+      ...(isNonEmpty(readOrgContext(general, current).DEPARTMENTCODE) ? { departmentcode: readOrgContext(general, current).DEPARTMENTCODE } : {}),
+      ...(isNonEmpty(readOrgContext(general, current).CUSTCLINICCODE) ? { custcliniccode: readOrgContext(general, current).CUSTCLINICCODE } : {}),
+    };
+
+    // Drop empties (normal path)
+    let lower = pruneEmpty(base);
+
+    // Add uppercase aliases for present keys
+    const aliasMap = {
+      casetitle: "CASETITLE",
+      category: "Category",
+      subCategory: "SubCategory",
+      subSubCategory: "SubSubCategory",
+      subSubSubCategory: "SubSubSubCategory",
+      casemedium: "CASEMEDIUM",
+      casesource: "CASESOURCE",
+      priority: "Priority",
+      custID: "CustID",
+      productCode: "ProductCode",
+      servicecode: "SERVICECODE",
+      serviceccode: "SERVICECCODE",
+      createdby: "CREATEDBY",
+      issuedesciption: "ISSUEDESCIPTION",
+      clientThreat: "ClientThreat",
+      doctorCode: "DoctorCode",
+      firsttimeresolution: "FIRSTTIMERESOLUTION",
+      response: "RESPONSE",
+      assignedemailid: "ASSIGNEDEMAILID",
+      employeno: "EMPLOYENO",
+      cc: "CC",
+      moreCC: "MoreCC",
+      categorySpecificResolution: "CategorySpecificResolution",
+      remarks: "REMARKS",
+      casedisposition: "CASEDISPOSITION",
+      caseStatus: "CASESTATUS",
+      centercode: "CENTERCODE",
+      departmentcode: "DEPARTMENTCODE",
+      custcliniccode: "CUSTCLINICCODE",
+    };
+
+    let payload = { ...lower };
+    for (const [low, up] of Object.entries(aliasMap)) {
+      if (low in lower) payload[up] = lower[low];
+    }
+
+    // SPECIAL: updateStatus must include all "required" keys non-empty → fill placeholders if needed
+    if (base.operation === "updateStatus") {
+      payload = fillRequiredForUpdateStatus(payload, current, status, payload.CASEDISPOSITION);
+    }
+
+    return payload;
+  }
+
+  // Actions
   const handleAction = async (actionType, overrides = {}) => {
     const generalData = overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
-    const slaData = overrides.slaData ?? slaRef.current?.getSLAData?.() ?? {};
     const effectiveStatus = trim(overrides.status ?? status);
     const effectiveDisposition = trim(overrides.disposition ?? disposition);
     const effectiveSelected = overrides.selectedCaseData ?? selectedCaseData;
 
-    const payload = {
-      casetitle: trim(generalData.title) || "",
-      caseno: effectiveSelected?.caseNo || "",
-      category: generalData.categoryCode || "",
-      subCategory: generalData.subCategory || "",
-      subSubCategory: generalData.subSubCategory || "",
-      subSubSubCategory: generalData.subSubSubCategory || "",
-      casemedium: generalData.medium || "-",
-      casesource: generalData.source || "-",
-      priority: generalData.priority || "",
-      custID: generalData.customer || "",
-      productCode: generalData.productCode || "",
-      servicecode: generalData.service || "",
-      serviceccode: generalData.serviceCategory || "",
-      createdby: generalData.createdBy || "",
-      createddate: new Date().toISOString(),
+    // Minimal validation (center + basics; closes require disposition)
+    const req = buildRequiredBlock({
+      actionType,
+      general: generalData,
+      current: effectiveSelected,
+      status: effectiveStatus,
+      disposition: effectiveDisposition,
+    });
+    const { ok, missing } = validateRequired(req);
+    if (!ok) {
+      setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
+      return;
+    }
 
-      issuedesciption: effectiveSelected?.issueDescription || "",
-      clientThreat: effectiveSelected?.clientThreat || "-",
-      doctorCode: effectiveSelected?.therapistCode || "",
-      firsttimeresolution: effectiveSelected?.firstTimeResolution || "",
-      response: "",
-
-      assignedto: effectiveSelected?.assignedTo || "",
-      employeno: effectiveSelected?.employeeMobile || "",
-      assignedemailid: effectiveSelected?.email || "",
-      cc: effectiveSelected?.cc || "-",
-      moreCC: effectiveSelected?.moreCc || "",
-      categorySpecificResolution: "",
-      remarks: effectiveSelected?.remarks || "",
-
-      casedisposition: effectiveDisposition || "",
-      caseWith: effectiveSelected?.assignToCode || "",
-
-      caseStatus: effectiveStatus || "",
-      status: effectiveStatus || "",
-
-      operation: actionType, // e.g., "updateStatus" or "save"
-      materialCost: 0,
-      labourCost: 0,
-      otherCharges: 0,
-      totalCharges: 0,
-      isdraft: 0,
-      centercode: "",
-      departmentcode: "",
-      custcliniccode: "",
-    };
+    const payload = buildFullPayload({
+      general: generalData,
+      current: effectiveSelected,
+      status: effectiveStatus,
+      disposition: effectiveDisposition,
+      operation: actionType,
+    });
 
     console.log("Sending payload to API:", JSON.stringify(payload, null, 2));
 
@@ -269,23 +549,28 @@ const CaseDetailsPage = () => {
       try {
         result = JSON.parse(responseText);
       } catch {
-        throw new Error("Invalid JSON response from server");
+        // include server text in toast for faster debugging
+        throw new Error(responseText || "Invalid JSON response from server");
       }
 
       if (result?.code === "200") {
         setToast({
           type: "success",
-          message: `Case ${actionType}d successfully. Case No: ${result.name}`,
+          message: `Case ${actionType}d successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
         });
+
+        if (payload.status) {
+          setStatus(payload.status);
+          setSelectedCaseData((prev) => prev ? { ...prev, caseStatus: payload.status, disposition: payload.CASEDISPOSITION || prev.disposition } : prev);
+        }
+
+        if (actionType === "updateStatus") navigate(-1);
       } else {
         throw new Error(result?.message || "API did not return code 200");
       }
     } catch (err) {
       console.error(`${actionType} error:`, err);
-      setToast({
-        type: "error",
-        message: `Failed to ${actionType} case. Reason: ${err.message}`,
-      });
+      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
     } finally {
       setSaving(false);
     }
@@ -334,7 +619,9 @@ const CaseDetailsPage = () => {
             <div className="csdetlbl">Owner</div>
           </div>
           <div className="casedet">
-            <div className="csdetval">{selectedCaseData.assignedTo}</div>
+            <div className="csdetval">
+              {selectedCaseData.assignName || selectedCaseData.assignToCode || "-"}
+            </div>
             <div className="csdetlbl">Assigned To</div>
           </div>
         </div>
@@ -366,19 +653,25 @@ const CaseDetailsPage = () => {
                 disabled={saving}
                 onChange={async (e) => {
                   const newStatus = e.target.value;
-                  if (newStatus === "Closed" && !disposition) {
+                  const prevStatus = status;
+
+                  if (newStatus === "Closed" && !trim(disposition)) {
                     setToast({ type: "error", message: "Please select Case Disposition before closing the case." });
+                    e.target.value = prevStatus || "";
                     return;
                   }
-                  if (newStatus !== status) {
-                    setStatus(newStatus);
-                    setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: newStatus } : prev));
-                    try {
-                      await handleAction("updateStatus", { status: newStatus, disposition });
-                    } catch (err) {
-                      console.error("Error saving case on status change:", err);
-                      setToast({ type: "error", message: "Failed to save case status." });
-                    }
+
+                  // optimistic UI
+                  setStatus(newStatus);
+                  setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: newStatus } : prev));
+
+                  try {
+                    await handleAction("updateStatus", { status: newStatus, disposition });
+                  } catch {
+                    // rollback
+                    setStatus(prevStatus);
+                    setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: prevStatus } : prev));
+                    setToast({ type: "error", message: "Failed to save case status." });
                   }
                 }}
               >
@@ -417,22 +710,16 @@ const CaseDetailsPage = () => {
         </div>
 
         {currentUser?.code === selectedCaseData?.assignToCode &&
-  ["general", "issues", "expense"].includes(activeTab) && (
-    <div className="buttongrp mt-3">
-      <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
-        Save
-      </button>
-      <button type="button" className="secbtn" onClick={() => handleAction("submit")} disabled={saving}>
-        Submit
-      </button>
-     {/*  <button type="button" className="secbtn" onClick={() => handleAction("assign")} disabled={saving}>
-        Assign To Next Level
-      </button>
-      <button type="button" className="secbtn" onClick={() => handleAction("saveNext")} disabled={saving}>
-        Save and Next
-      </button> */}
-    </div>
-)}
+          ["general", "issues", "expense"].includes(activeTab) && (
+            <div className="buttongrp mt-3">
+              <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
+                Save
+              </button>
+              <button type="button" className="secbtn" onClick={() => handleAction("submit")} disabled={saving}>
+                Submit
+              </button>
+            </div>
+          )}
       </section>
     </section>
   );

@@ -47,6 +47,13 @@ import AuditSummaryReport from "./pages/Audit/AuditSummaryReport";
 import AuditDetailedReport from "./pages/Audit/AuditDetailedReport";
 import OpportunityDetailedReport from "./pages/Opportunity/OpportunityDetailedReport";
 import OpportunitySummaryReport from "./pages/Opportunity/OpportunitySummaryReport";
+import CaseDetailedReport from "./pages/CaseManagement/CaseDetailedReport";
+import AuditForm from "./pages/Audit/AuditForm";
+import CaseCategoryMaster from "./pages/CaseManagement/CaseCategoryMaster";
+import CreateCaseCategoryMapping from "./pages/CaseManagement/CreateCaseCategoryMapping";
+import CreateCaseCategory from "./pages/CaseManagement/CreateCaseCategory";
+import CaseCategoryMappingDashboard from "./pages/CaseManagement/CaseCategoryMappingDashboard";
+import AuditDraftDetails from "./pages/Audit/AuditDraftDetails";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -112,6 +119,7 @@ function App() {
     <Route path="cases" element={<CaseManagement />} />
     <Route path="/cases/:caseNumber" element={<CaseDetailsPage />} />
     <Route path="/masters/customers" element={<CustomerMaster />} />
+    <Route path="/case-detailed-report" element={<CaseDetailedReport />} />
           <Route path="/masters/practitioners" element={<DoctorMaster />} />
           <Route path="/masters/clinic" element={<ClinicMaster />} />
           <Route path="/masters/department" element={<DepartmentMaster />} />
@@ -143,6 +151,14 @@ function App() {
 <Route path="/audit/detailed" element={<AuditDetailedReport />} />
 <Route path="/opportunity/detailed" element={<OpportunityDetailedReport />} />
 <Route path="/opportunity/summary" element={<OpportunitySummaryReport />} />
+<Route path="/audit/:segment/form" element={<AuditForm />} />
+<Route path="/case-categories" element={<CaseCategoryMaster />} />
+<Route path="/create-categories-mapping" element={<CreateCaseCategoryMapping />} />
+<Route path="/create-case-category" element={<CreateCaseCategory />} />
+<Route path="/categories-mapping" element={<CaseCategoryMappingDashboard />} />
+
+<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
+
 
 
 

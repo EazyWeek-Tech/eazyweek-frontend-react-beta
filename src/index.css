@@ -127,7 +127,7 @@ a {
 }
 .rhs-sect {
   width: calc(100% - 110px);
-  padding: 20px;
+  padding: 10px;
 }
 .select-dropdown,
 .select-dropdown * {
@@ -190,8 +190,10 @@ a {
   cursor: pointer;
 }
 /*LHS Section*/
-
-.sw-logo {
+.sw-logo img {
+  width: 40px;
+}
+/* .sw-logo {
   display: flex;
   gap: 12px;
   font-family: "Radley";
@@ -200,7 +202,7 @@ a {
 }
 .bglogo{display: none;}
 .lhs-nav:hover .bglogo{display: block;}
-.lhs-nav:hover .smllogo{display: none;}
+.lhs-nav:hover .smllogo{display: none;} */
 .lhs-nav { 
   max-width: 80px;
   min-width: 80px;
@@ -1069,6 +1071,7 @@ div.dt-container .dt-paging .dt-paging-button.current, div.dt-container .dt-pagi
   line-height: 20px;
   border: none;
   border-radius: 4px;
+  cursor:pointer;
 }
 /* Demo Styles */
 
