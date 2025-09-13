@@ -96,13 +96,30 @@ const readOrgContext = (general, current) => {
 function buildRequiredBlock({ actionType, general, current, status, disposition }) {
   const org = readOrgContext(general, current);
 
+  const isComplaint =
+    /complaint/i.test(
+      trim(current?.caseCategory) ||
+      trim(current?.categoryName) ||
+      trim(current?.subCategoryName) || ""
+    ) ||
+    /complaint/i.test(trim(general?.categoryName || ""));
+
   if (actionType === "updateStatus") {
-    return pruneEmpty({
+    const base = pruneEmpty({
       caseno: current?.caseNo,
       status: trim(status),
       CENTERCODE: org.CENTERCODE,
       CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : "N/A",
     });
+
+    // If closing a Complaint, CategorySpecificResolution is required.
+    if (trim(status) === "Closed" && isComplaint) {
+      const csr =
+        trim(general?.categorySpecificResolution) ||
+        trim(current?.categorySpecificResolution);
+      base.CategorySpecificResolution = csr; // validated below
+    }
+    return base;
   }
 
   // save / submit minimal set
@@ -433,7 +450,8 @@ const CaseDetailsPage = () => {
       assignedemailid: mergeVal(undefined, current?.email),
       cc: mergeVal(undefined, current?.cc),
       moreCC: mergeVal(undefined, current?.moreCc),
-      categorySpecificResolution: mergeVal(undefined, current?.categorySpecificResolution),
+      // 🔽 merge CSR from General first (so edits in General tab are honored)
+      categorySpecificResolution: mergeVal(general?.categorySpecificResolution, current?.categorySpecificResolution),
       remarks: mergeVal(undefined, current?.remarks),
 
       // Status
@@ -659,6 +677,28 @@ const CaseDetailsPage = () => {
                     setToast({ type: "error", message: "Please select Case Disposition before closing the case." });
                     e.target.value = prevStatus || "";
                     return;
+                  }
+
+                  // Extra guard: If Category is "Complaint", Category Specific Resolution must be selected
+                  if (newStatus === "Closed") {
+                    const isComplaint = /complaint/i.test(
+                      trim(selectedCaseData?.caseCategory) ||
+                      trim(selectedCaseData?.categoryName) ||
+                      ""
+                    );
+
+                    if (isComplaint) {
+                      const generalData = generalRef.current?.getGeneralData?.() ?? {};
+                      const csr = trim(generalData?.categorySpecificResolution) || trim(selectedCaseData?.categorySpecificResolution);
+                      if (!csr) {
+                        setToast({
+                          type: "error",
+                          message: "For Complaint cases, Category Specific Resolution is required before closing.",
+                        });
+                        e.target.value = prevStatus || "";
+                        return;
+                      }
+                    }
                   }
 
                   // optimistic UI
