@@ -8,7 +8,31 @@ import { API_BASE_URL } from "../../config";
 import OpportunityDetails from "./OpportunityDetails";
 import { useNavigate } from "react-router-dom";
 
+/* NEW: charts */
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
+} from "recharts";
 
+/* ---- Color system (matched to your screenshot) ---- */
+const COLORS = {
+  total: "#334b71",     // deep navy
+  open: "#cc6b5c",      // warm coral
+  wip: "#e9eef5",       // soft gray-blue
+  closed: "#8da0b8",    // slate
+  converted: "#1a2537", // darker navy
+  grid: "#eef2f7",
+  axis: "#6e7b8f",
+};
+
+/* Small helpers to display numbers safely */
+const n = (v) => (Number.isFinite(+v) ? +v : 0);
 
 const OpportunityDashboard = () => {
   const [currentView, setCurrentView] = useState("dashboard");
@@ -22,36 +46,31 @@ const OpportunityDashboard = () => {
   const [selectedRows, setSelectedRows] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [toast, setToast] = useState(null);
-    const [loading, setLoading] = useState(false);
-  
+  const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
-
-const showToast = (message, type = "success", duration = 3000) => {
-  setToast({ message, type });
-  setTimeout(() => setToast(null), duration);
-};
-
+  const showToast = (message, type = "success", duration = 3000) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), duration);
+  };
 
   useEffect(() => {
     const fetchOpportunities = async () => {
-        setLoading(true);
-
+      setLoading(true);
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${statusFilter}`,
           { credentials: "include" }
         );
         const data = await response.json();
-        // Wrap single object response into array
-       setOpportunityData(Array.isArray(data) ? data : (data ? [data] : []));
-
+        setOpportunityData(Array.isArray(data) ? data : (data ? [data] : []));
       } catch (error) {
         console.error("Failed to load opportunities:", error);
         setOpportunityData([]);
-      }finally {
-    setLoading(false); // Hide loader
-  }
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchOpportunities();
@@ -60,56 +79,50 @@ const showToast = (message, type = "success", duration = 3000) => {
   const data = currentView === "dashboard" ? opportunityData : [];
 
   const handleViewDetails = async (oppCode, fromDate, toDate) => {
-  try {
-    const payload = {
-      oppCode,
-      fromDate: new Date(fromDate).toISOString(),
-      toDate: new Date(toDate).toISOString(),
-    };
+    try {
+      const payload = {
+        oppCode,
+        fromDate: new Date(fromDate).toISOString(),
+        toDate: new Date(toDate).toISOString(),
+      };
 
-    const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
+      const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
 
-    const data = await response.json();
-    setSelectedOppDetails(data?.[0]);
-    
-  } catch (error) {
-    console.error("Failed to load opportunity details:", error);
-    showToast("Failed to load details", "error");
-  }
-};
+      const data = await response.json();
+      setSelectedOppDetails(data?.[0]);
+    } catch (error) {
+      console.error("Failed to load opportunity details:", error);
+      showToast("Failed to load details", "error");
+    }
+  };
 
-const handleCreateNewCampaign = () => {
-  navigate("/opportunity/create");
-};
+  const handleCreateNewCampaign = () => {
+    navigate("/opportunity/create");
+  };
 
   const filteredAndSortedData = useMemo(() => {
     const filtered = data.filter((item) => {
-      const matchesSearch =
-        (item.oppCode?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
-        (item.oppName?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
-        (item.centerName?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
-        (item.segmentType?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
-
-      return matchesSearch;
+      const s = searchTerm.toLowerCase();
+      return (
+        (item.oppCode?.toLowerCase().includes(s) || "") ||
+        (item.oppName?.toLowerCase().includes(s) || "") ||
+        (item.centerName?.toLowerCase().includes(s) || "") ||
+        (item.segmentType?.toLowerCase().includes(s) || "")
+      );
     });
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === "asc" ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
       });
     }
-
     return filtered;
   }, [searchTerm, sortConfig, data]);
 
@@ -120,9 +133,7 @@ const handleCreateNewCampaign = () => {
 
   const handleSort = (key) => {
     let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
     setSortConfig({ key, direction });
   };
 
@@ -164,57 +175,50 @@ const handleCreateNewCampaign = () => {
     setSelectedOpportunity(null);
   };
 
-  const handleOpportunityNext = (data) => {
-    setCurrentView("create-rule");
-  };
+  const handleOpportunityNext = () => setCurrentView("create-rule");
+  const handleRuleBack = () => setCurrentView("create-opportunity");
 
-  const handleRuleBack = () => {
-    setCurrentView("create-opportunity");
-  };
-
-  const handleRuleSave = (data) => {
+  const handleRuleSave = () => {
     alert("Rule saved successfully!");
   };
 
-  const handleRuleActivate = (data) => {
+  const handleRuleActivate = () => {
     alert("Rule activated successfully!");
     setCurrentView("dashboard");
   };
-const handleExpireCampaign = async () => {
-  if (selectedRows.length === 0) {
-    showToast("Please select at least one opportunity to expire", "error");
-    return;
-  }
 
-  const confirmExpire = window.confirm("Are you sure you want to expire the selected opportunities?");
-  if (!confirmExpire) return;
+  const handleExpireCampaign = async () => {
+    if (selectedRows.length === 0) {
+      showToast("Please select at least one opportunity to expire", "error");
+      return;
+    }
 
-  const payload = {
-    expireOpp: "Expired by user",
-    oppCodeListJson: selectedRows.map((code) => ({
-      oppCode: code,
-    })),
+    const confirmExpire = window.confirm("Are you sure you want to expire the selected opportunities?");
+    if (!confirmExpire) return;
+
+    const payload = {
+      expireOpp: "Expired by user",
+      oppCodeListJson: selectedRows.map((code) => ({ oppCode: code })),
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Opportunity/ExpireOpportunity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("Failed to expire opportunity");
+
+      showToast("Selected opportunities expired successfully!", "success");
+      setSelectedRows([]);
+      setStatusFilter("2");
+    } catch (error) {
+      console.error("Expire error:", error);
+      showToast("Error expiring opportunities.", "error");
+    }
   };
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/Opportunity/ExpireOpportunity`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) throw new Error("Failed to expire opportunity");
-
-    showToast("Selected opportunities expired successfully!", "success");
-    setSelectedRows([]);
-    setStatusFilter("2"); // Auto-switch to expired view
-  } catch (error) {
-    console.error("Expire error:", error);
-    showToast("Error expiring opportunities.", "error");
-  }
-};
-
 
   const handleEditSave = (updatedOpportunity) => {
     setOpportunityData((prev) =>
@@ -229,44 +233,106 @@ const handleExpireCampaign = async () => {
     setSelectedRows([]);
   };
 
-  const handleRefresh = () => {
-    setStatusFilter("1");
+  const handleRefresh = () => setStatusFilter("1");
+
+  const handleOpportunityClick = (oppCode) => {
+    navigate(`/opportunity/details/${oppCode}`);
   };
-  const handleOpportunityClick = async (oppCode) => {
-      navigate(`/opportunity/details/${oppCode}`);
 
-  /* try {
-    const payload = {
-      oppCode,
-      fromDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString(),
-      toDate: new Date().toISOString(),
-    };
+  /* -------------------- CHART DATA BUILDERS -------------------- */
 
-    const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
+  // Totals across all opportunities
+  const totals = useMemo(() => {
+    const total = data.reduce((s, r) => s + n(r.totalOpportunities), 0);
+    const open = data.reduce((s, r) => s + n(r.noOfOpenOpportunities), 0);
+    const closed = data.reduce((s, r) => s + n(r.noOfClosedOpportunities), 0);
+    const converted = data.reduce((s, r) => s + n(r.noOfConvertedOutOfClosed), 0);
+    const wip = Math.max(total - open - closed, 0);
 
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : [];
+    return { total, open, closed, converted, wip };
+  }, [data]);
 
-    if (Array.isArray(data) && data.length > 0) {
-      setSelectedOppDetails(data);
-      setCurrentView("details");
-    } else {
-      showToast("No opportunity details found", "error");
+  // Single-series (x = status labels)
+  const statusBarData = [
+    { label: "Total", value: totals.total, fill: COLORS.total },
+    { label: "Open", value: totals.open, fill: COLORS.open },
+    { label: "Closed", value: totals.closed, fill: COLORS.closed },
+    { label: "Converted", value: totals.converted, fill: COLORS.converted },
+    { label: "WIP", value: totals.wip, fill: COLORS.wip },
+  ];
+
+  // Stacked by clinic (take top 4 clinics by Total)
+  const stackedByClinic = useMemo(() => {
+    const map = new Map();
+    for (const r of data) {
+      const key = r.clinic || r.centerName || "—";
+      const obj = map.get(key) || {
+        name: key,
+        Total: 0,
+        Open: 0,
+        Closed: 0,
+        Converted: 0,
+        WIP: 0,
+      };
+      obj.Total += n(r.totalOpportunities);
+      obj.Open += n(r.noOfOpenOpportunities);
+      obj.Closed += n(r.noOfClosedOpportunities);
+      obj.Converted += n(r.noOfConvertedOutOfClosed);
+      obj.WIP = Math.max(obj.Total - obj.Open - obj.Closed, 0);
+      map.set(key, obj);
     }
-  } catch (err) {
-    console.error("Failed to load details", err);
-    showToast("Error loading opportunity details", "error");
-  } */
-};
+    // sort by Total desc and keep top 4
+    return Array.from(map.values()).sort((a, b) => b.Total - a.Total).slice(0, 4);
+  }, [data]);
 
-if (currentView === "details" && selectedOppDetails) {
+  /* -------------------- CHART CARDS -------------------- */
+
+  const SimpleBarCard = ({ title, dataset }) => (
+    <div className="chart-card">
+      <div className="chart-title">{title}</div>
+      <div style={{ width: "100%", height: 200 }}>
+        <ResponsiveContainer>
+          <BarChart data={dataset} margin={{ top: 10, right: 20, bottom: 4, left: 0 }}>
+            <CartesianGrid stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: COLORS.axis, fontSize: 12 }} />
+            <YAxis allowDecimals={false} tick={{ fill: COLORS.axis, fontSize: 12 }} />
+            <Tooltip />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+              {dataset.map((entry, index) => (
+                <cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  const StackedByClinicCard = ({ title, dataset }) => (
+    <div className="chart-card">
+      <div className="chart-title">{title}</div>
+      <div style={{ width: "100%", height: 220 }}>
+        <ResponsiveContainer>
+          <BarChart data={dataset} margin={{ top: 10, right: 20, bottom: 4, left: 0 }}>
+            <CartesianGrid stroke={COLORS.grid} vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: COLORS.axis, fontSize: 12 }} />
+            <YAxis allowDecimals={false} tick={{ fill: COLORS.axis, fontSize: 12 }} />
+            <Legend verticalAlign="top" height={24} />
+            <Tooltip />
+            <Bar dataKey="Total" stackId="a" fill={COLORS.total} />
+            <Bar dataKey="Open" stackId="a" fill={COLORS.open} />
+            <Bar dataKey="WIP" stackId="a" fill={COLORS.wip} />
+            <Bar dataKey="Closed" stackId="a" fill={COLORS.closed} />
+            <Bar dataKey="Converted" stackId="a" fill={COLORS.converted} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  /* -------------------- VIEW SWITCHERS -------------------- */
+
+  if (currentView === "details" && selectedOppDetails) {
     return (
       <OpportunityDetails
         details={selectedOppDetails}
@@ -298,64 +364,27 @@ if (currentView === "details" && selectedOppDetails) {
       />
     );
   }
+
+  /* -------------------- DASHBOARD -------------------- */
   return (
     <>
       <style jsx="true">{`
-        .dashboard-container {
-          min-height: 100vh;
+        .dashboard-container { min-height: 100vh; }
+        .page-header { margin-bottom: 30px; }
+        .page-title { font-size: 24px; font-weight: 600; color: #333; margin: 0 0 10px 0; }
+        .breadcrumb { font-size: 14px; color: #6c757d; }
+        .loader-wrapper {
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(255, 255, 255, 0.7); z-index: 9998; display: flex; justify-content: center; align-items: center;
         }
-
-        .page-header {
-          margin-bottom: 30px;
+        .data-table th, .data-table td{white-space: nowrap;font-size: 13px;}
+        .loader {
+          border: 6px solid #f3f3f3; border-top: 6px solid #334b71; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
         }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .page-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #333;
-          margin: 0 0 10px 0;
-        }
-
-        .breadcrumb {
-          font-size: 14px;
-          color: #6c757d;
-        }
-          .loader-wrapper {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.7);
-    z-index: 9998;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .loader {
-    border: 6px solid #f3f3f3;
-    border-top: 6px solid #334b71;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
-        .breadcrumb-link {
-          color: #334b71;
-          text-decoration: none;
-          cursor: pointer;
-        }
-
-        .breadcrumb-link:hover {
-          text-decoration: underline;
-        }
+        .breadcrumb-link { color: #334b71; text-decoration: none; cursor: pointer; }
+        .breadcrumb-link:hover { text-decoration: underline; }
 
         .charts-grid {
           display: grid;
@@ -363,315 +392,60 @@ if (currentView === "details" && selectedOppDetails) {
           gap: 20px;
           margin-bottom: 30px;
         }
-
         .chart-card {
-          background: white;
-          border-radius: 8px;
-          padding: 20px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-          border: 1px solid #dee2e6;
+          background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #dee2e6;
         }
+        .chart-title { font-size: 12px; line-height: 18px; font-weight: 600; color: #333; margin-bottom: 15px; }
 
-        .chart-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 15px;
-        }
+        .action-section { background: white; border-radius: 0; padding: 0; box-shadow: none; margin-bottom: 20px; }
+        .action-buttons { display: flex; gap: 15px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        .button-group { display: flex; gap: 15px; flex-wrap: wrap; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
+        .btn-primary { background-color: #334b71; color: white; }
+        .btn-primary:hover { background-color: #2a3f5f; transform: translateY(-1px); }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-secondary:hover { background-color: #5a6268; transform: translateY(-1px); }
+        .btn-refresh { background-color: #28a745; color: white; padding: 8px 12px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .btn-refresh:hover { background-color: #218838; transform: rotate(180deg); }
 
-        .chart-placeholder {
-          height: 150px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 12px;
-          text-align: center;
-        }
+        .controls-section { background: white; border-radius: 0; padding: 20px 0; box-shadow: none; margin-bottom: 20px; }
+        .controls-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .control-group { display: flex; align-items: center; gap: 10px; }
+        .control-label { font-size: 14px; color: #495057; font-weight: 500; }
+        .control-select, .control-input { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; }
+        .control-select:focus, .control-input:focus { outline: none; border-color: #334b71; box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25); }
 
-        .chart-placeholder.bar {
-          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
+        .table-container { background: white; box-shadow: none; border-radius:0; overflow: hidden; }
+        .table-wrapper { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 15px; line-height:20px; }
+        .data-table th, .data-table td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        .data-table th { background-color: #f8f9fa; font-weight: 600; color: #495057; cursor: pointer; user-select: none; }
+        .data-table th:hover { background-color: #e9ecef; }
+        .data-table tbody tr:hover { background-color: #f8f9fa; }
+        .data-table tbody tr:nth-child(even) { background-color: #fdfdfd; }
+        .sort-indicator { margin-left: 5px; font-size: 12px; color: #6c757d; }
+        .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #334b71; }
+        .opp-code-link { color: #334b71; text-decoration: none; cursor: pointer; background:none; border: none;white-space:nowrap; font-weight:600 }
+        .opp-code-link:hover { text-decoration: underline; }
+        .segment-badge { padding: 4px 8px; border-radius: 12px; font-size: 14px; font-weight: 500; }
+        .segment-static { background-color: #e3f2fd; color: #1976d2; }
+        .segment-dynamic { background-color: #f3e5f5; color: #7b1fa2; }
 
-        .chart-placeholder.line {
-          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-
-        .action-section {
-          background: white;
-          border-radius: 0;
-          padding: 0;
-          box-shadow: none;
-          margin-bottom: 20px;
-        }
-
-        .action-buttons {
-          display: flex;
-          gap: 15px;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-        }
-
-        .button-group {
-          display: flex;
-          gap: 15px;
-          flex-wrap: wrap;
-        }
-
-        .btn {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-          background-color: #334b71;
-          color: white;
-        }
-
-        .btn-primary:hover {
-          background-color: #2a3f5f;
-          transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-          background-color: #6c757d;
-          color: white;
-        }
-
-        .btn-secondary:hover {
-          background-color: #5a6268;
-          transform: translateY(-1px);
-        }
-
-        .btn-refresh {
-          background-color: #28a745;
-          color: white;
-          padding: 8px 12px;
-          border-radius: 50%;
-          width: 40px;
-          height: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .btn-refresh:hover {
-          background-color: #218838;
-          transform: rotate(180deg);
-        }
-
-        .controls-section {
-          background: white;
-          border-radius: 0;
-          padding: 20px 0;
-          box-shadow: none;
-          margin-bottom: 20px;
-        }
-
-        .controls-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 15px;
-        }
-
-        .control-group {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .control-label {
-          font-size: 14px;
-          color: #495057;
-          font-weight: 500;
-        }
-
-        .control-select,
-        .control-input {
-          padding: 8px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-        }
-
-        .control-select:focus,
-        .control-input:focus {
-          outline: none;
-          border-color: #334b71;
-          box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-        }
-
-        .table-container {
-          background: white;
-          box-shadow: none;
-          border-radius:0;
-          overflow: hidden;
-        }
-
-        .table-wrapper {
-          overflow-x: auto;
-        }
-
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 15px;
-          line-height:20px;
-        }
-
-        .data-table th,
-        .data-table td {
-          padding: 12px 8px;
-          text-align: left;
-          border-bottom: 1px solid #dee2e6;
-        }
-
-        .data-table th {
-          background-color: #f8f9fa;
-          font-weight: 600;
-          color: #495057;
-          cursor: pointer;
-          user-select: none;
-          position: relative;
-        }
-
-        .data-table th:hover {
-          background-color: #e9ecef;
-        }
-
-        .data-table tbody tr:hover {
-          background-color: #f8f9fa;
-        }
-
-        .data-table tbody tr:nth-child(even) {
-          background-color: #fdfdfd;
-        }
-
-        .sort-indicator {
-          margin-left: 5px;
-          font-size: 12px;
-          color: #6c757d;
-        }
-
-        .checkbox {
-          width: 16px;
-          height: 16px;
-          cursor: pointer;
-          accent-color: #334b71;
-        }
-
-        .opp-code-link {
-          color: #334b71;
-          text-decoration: none;
-          cursor: pointer;
-          background:none; border: none;white-space:nowrap;
-          font-weight:600
-        }
-
-        .opp-code-link:hover {
-          text-decoration: underline;
-        }
-
-        .segment-badge {
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        .segment-static {
-          background-color: #e3f2fd;
-          color: #1976d2;
-        }
-
-        .segment-dynamic {
-          background-color: #f3e5f5;
-          color: #7b1fa2;
-        }
-
-        .pagination-section {
-          padding: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-top: 1px solid #dee2e6;
-          flex-wrap: wrap;
-          gap: 15px;
-        }
-
-        .pagination-info {
-          font-size: 14px;
-          color: #6c757d;
-        }
-
-        .pagination-controls {
-          display: flex;
-          gap: 5px;
-          align-items: center;
-        }
-
-        .pagination-btn {
-          padding: 8px 12px;
-          border: 1px solid #dee2e6;
-          background: white;
-          cursor: pointer;
-          font-size: 14px;
-          border-radius: 4px;
-          transition: all 0.2s ease;
-        }
-
-        .pagination-btn:hover:not(:disabled) {
-          background-color: #f8f9fa;
-          border-color: #334b71;
-        }
-
-        .pagination-btn.active {
-          background-color: #334b71;
-          color: white;
-          border-color: #334b71;
-        }
-
-        .pagination-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
+        .pagination-section { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #dee2e6; flex-wrap: wrap; gap: 15px; }
+        .pagination-info { font-size: 14px; color: #6c757d; }
+        .pagination-controls { display: flex; gap: 5px; align-items: center; }
+        .pagination-btn { padding: 8px 12px; border: 1px solid #dee2e6; background: white; cursor: pointer; font-size: 14px; border-radius: 4px; transition: all 0.2s ease; }
+        .pagination-btn:hover:not(:disabled) { background-color: #f8f9fa; border-color: #334b71; }
+        .pagination-btn.active { background-color: #334b71; color: white; border-color: #334b71; }
+        .pagination-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         @media (max-width: 768px) {
-          .dashboard-container {
-            padding: 15px;
-          }
-
-          .charts-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .controls-row {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .control-group {
-            justify-content: space-between;
-          }
-
-          .button-group {
-            justify-content: center;
-          }
-
-          .pagination-section {
-            flex-direction: column;
-            text-align: center;
-          }
+          .dashboard-container { padding: 15px; }
+          .charts-grid { grid-template-columns: 1fr; }
+          .controls-row { flex-direction: column; align-items: stretch; }
+          .control-group { justify-content: space-between; }
+          .button-group { justify-content: center; }
+          .pagination-section { flex-direction: column; text-align: center; }
         }
       `}</style>
 
@@ -686,52 +460,25 @@ if (currentView === "details" && selectedOppDetails) {
 
         {/* Charts Grid */}
         <div className="charts-grid">
-          <div className="chart-card">
-            <div className="chart-title">Rule: Manual Lead</div>
-            <div className="chart-placeholder">Chart visualization for Manual Lead rule</div>
-          </div>
-          <div className="chart-card">
-            <div className="chart-title">Rule: Paid for X but not for Y Opp</div>
-            <div className="chart-placeholder bar">Bar chart showing paid opportunities</div>
-          </div>
-          <div className="chart-card">
-            <div className="chart-title">Rule: No show appointment for X days</div>
-            <div className="chart-placeholder line">Line chart for no-show appointments</div>
-          </div>
-          <div className="chart-card">
-            <div className="chart-title">Rule: Customer Special Day</div>
-            <div className="chart-placeholder">Customer special day analytics</div>
-          </div>
-          <div className="chart-card">
-            <div className="chart-title">
-              Rule: Paid for X Category in Y days and No future appointment in Z days for Category P
-            </div>
-            <div className="chart-placeholder bar">Complex rule analytics</div>
-          </div>
-          <div className="chart-card">
-            <div className="chart-title">Rule: Cancelled appointment for X days</div>
-            <div className="chart-placeholder line">Cancelled appointments trend</div>
-          </div>
+          {/* Left column cards (single-series bars over statuses) */}
+          <SimpleBarCard title="Rule: Manual Lead" dataset={statusBarData} />
+          <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={statusBarData} />
+          <SimpleBarCard title="Rule: No show appointment for X days" dataset={statusBarData} />
+          {/* Right column cards (stacked by clinic) */}
+          <StackedByClinicCard title="Rule: Customer Special Day" dataset={stackedByClinic} />
+          <SimpleBarCard title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P" dataset={statusBarData} />
+          <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={stackedByClinic} />
         </div>
 
         {/* Action Buttons */}
         <div className="action-section">
           <div className="action-buttons">
             <div className="button-group">
-              <button className="btn btn-secondary" onClick={handleEditOppName}>
-                Edit Opp Name
-              </button>
-             <button className="btn btn-secondary" onClick={handleExpireCampaign}>
-  Expire Campaign
-</button>
-
-              <button className="btn btn-primary" onClick={handleCreateNewCampaign}>
-                Create New Campaign
-              </button>
+              <button className="btn btn-secondary" onClick={handleEditOppName}>Edit Opp Name</button>
+              <button className="btn btn-secondary" onClick={handleExpireCampaign}>Expire Campaign</button>
+              <button className="btn btn-primary" onClick={handleCreateNewCampaign}>Create New Campaign</button>
             </div>
-            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">
-              ↻
-            </button>
+            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">↻</button>
           </div>
         </div>
 
@@ -751,10 +498,7 @@ if (currentView === "details" && selectedOppDetails) {
               <select
                 className="control-select"
                 value={entriesPerPage}
-                onChange={(e) => {
-                  setEntriesPerPage(Number(e.target.value))
-                  setCurrentPage(1)
-                }}
+                onChange={(e) => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -863,25 +607,23 @@ if (currentView === "details" && selectedOppDetails) {
               <tbody>
                 {currentData.map((item) => (
                   <tr key={item.recID || item.oppCode}>
-  <td>
-    <input
-      type="checkbox"
-      className="checkbox"
-      checked={selectedRows.includes(item.recID || item.oppCode)}
-      onChange={() => handleSelectRow(item.recID || item.oppCode)}
-    />
-  </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="checkbox"
+                        checked={selectedRows.includes(item.recID || item.oppCode)}
+                        onChange={() => handleSelectRow(item.recID || item.oppCode)}
+                      />
+                    </td>
 
-                   <td>
-  <button
-    onClick={() => {
-      handleOpportunityClick(item.oppCode);
-    }}
-    className="opp-code-link"
-  >
-    {item.oppCode}
-  </button>
-</td>
+                    <td>
+                      <button
+                        onClick={() => { handleOpportunityClick(item.oppCode); }}
+                        className="opp-code-link"
+                      >
+                        {item.oppCode}
+                      </button>
+                    </td>
                     <td>{item.oppName}</td>
                     <td>{item.clinic}</td>
                     <td>{item.fromDate}</td>
@@ -891,7 +633,7 @@ if (currentView === "details" && selectedOppDetails) {
                     <td>{item.noOfClosedOpportunities}</td>
                     <td>{item.noOfConvertedOutOfClosed}</td>
                     <td>
-                      <span className={`segment-badge segment-${item.segmentType.toLowerCase()}`}>
+                      <span className={`segment-badge segment-${(item.segmentType || "").toLowerCase()}`}>
                         {item.segmentType}
                       </span>
                     </td>
@@ -916,7 +658,7 @@ if (currentView === "details" && selectedOppDetails) {
                 Previous
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const pageNum = i + 1
+                const pageNum = i + 1;
                 return (
                   <button
                     key={pageNum}
@@ -925,7 +667,7 @@ if (currentView === "details" && selectedOppDetails) {
                   >
                     {pageNum}
                   </button>
-                )
+                );
               })}
               {totalPages > 5 && <span className="pagination-btn">...</span>}
               <button
@@ -940,34 +682,31 @@ if (currentView === "details" && selectedOppDetails) {
         </div>
       </div>
 
-      
-{toast && (
-  <div
-    style={{
-      position: "fixed",
-      top: "20px",
-      right: "20px",
-      backgroundColor: toast.type === "success" ? "#28a745" : "#dc3545",
-      color: "#fff",
-      padding: "12px 20px",
-      borderRadius: "4px",
-      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-      zIndex: 9999,
-    }}
-  >
-    {toast.message}
-  </div>
-)}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            right: "20px",
+            backgroundColor: toast.type === "success" ? "#28a745" : "#dc3545",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: "4px",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+            zIndex: 9999,
+          }}
+        >
+          {toast.message}
+        </div>
+      )}
 
-{loading && (
-  <div className="loader-wrapper">
-    <div className="loader"></div>
-  </div>
-)}
-
-
+      {loading && (
+        <div className="loader-wrapper">
+          <div className="loader"></div>
+        </div>
+      )}
     </>
-  )
-}
+  );
+};
 
-export default OpportunityDashboard
+export default OpportunityDashboard;
