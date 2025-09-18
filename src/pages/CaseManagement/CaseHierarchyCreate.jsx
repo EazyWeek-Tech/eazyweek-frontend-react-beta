@@ -11,14 +11,15 @@ const BASE_MAIL_TEMPLATES = ["", "M001", "M002"];
 
 /* helpers */
 const safe = (v) => (v ?? "").toString();
+const trim = (s) => (s ?? "").toString().trim();
 const emptyLevel = () => ({
-  assignee: "",                 // employeeCode
+  assignee: "", // employeeCode
   assigneeName: "",
-  postSlaAssignee: "",          // employeeCode
+  postSlaAssignee: "", // employeeCode
   postSlaAssigneeName: "",
   group: "",
   sla: "",
-  exclusions: [],               // array of days -> payload joins to comma string
+  exclusions: [], // array of days -> payload joins to comma string
   assignTemplate: "",
   escalateTemplate: "",
 });
@@ -27,6 +28,12 @@ const parseDays = (str) =>
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+
+async function fetchJSON(url) {
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 
 /* click-outside hook */
 function useClickOutside(cb) {
@@ -168,28 +175,33 @@ function MultiSelect({ options, value, onChange, placeholder = "None selected", 
 
 /* Autocomplete (Assignment + Escalation) with exclusion */
 function AutoComplete({
-  options, // [{employeeCode, employeeName}]
-  value, // code
-  display, // text
-  onSelect, // (code, name)
-  excludeCodes = [], // codes to hide (except current value)
+  options,            // [{employeeCode, employeeName}]
+  value,              // code
+  display,            // name
+  onSelect,           // (code, name)
+  excludeCodes = [],
   placeholder = "None selected",
   width = 260,
 }) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(display || "");
-  const rootRef = useClickOutside(() => setOpen(false));
 
+  // 👇 show name if present, otherwise show the code; keep it in sync when either prop changes
+  const shown = (display && display.trim()) || (value && value.trim()) || "";
+  const [q, setQ] = useState(shown);
   useEffect(() => {
-    setQ(display || "");
-  }, [display]);
+    setQ(shown);
+  }, [shown]);
+
+  const rootRef = useClickOutside(() => setOpen(false));
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     const base = !s
       ? options
       : options.filter(
-          (o) => o.employeeName?.toLowerCase().includes(s) || o.employeeCode?.toLowerCase().includes(s)
+          (o) =>
+            o.employeeName?.toLowerCase().includes(s) ||
+            o.employeeCode?.toLowerCase().includes(s)
         );
     const excludeSet = new Set(excludeCodes.filter((c) => c && c !== value));
     return base.filter((o) => !excludeSet.has(o.employeeCode)).slice(0, 50);
@@ -197,6 +209,7 @@ function AutoComplete({
 
   const choose = (o) => {
     onSelect(o.employeeCode, o.employeeName);
+    setQ(o.employeeName || o.employeeCode || ""); // keep visible after pick
     setOpen(false);
   };
   const clear = () => {
@@ -218,9 +231,7 @@ function AutoComplete({
           onFocus={() => setOpen(true)}
         />
         {value ? (
-          <button type="button" className="ac-x" onClick={clear} aria-label="Clear">
-            ✕
-          </button>
+          <button type="button" className="ac-x" onClick={clear} aria-label="Clear">✕</button>
         ) : (
           <span className="ac-chev">▾</span>
         )}
@@ -242,6 +253,9 @@ function AutoComplete({
           position: relative;
           width: var(--w);
         }
+         .field .ms-row input[type="checkbox"]{
+            height: auto;
+          }
         .ac-box {
           display: flex;
           align-items: center;
@@ -252,13 +266,14 @@ function AutoComplete({
           height: 38px;
           border: 1px solid #d8dee8;
         }
-        .ac-box input {
+        .field .ac-box input {
           flex: 1;
           border: none;
           outline: none;
           height: 28px;
           font-weight: 600;
           color: #1b2636;
+          border: none;
         }
         .ac-chev {
           color: #8da0b8;
@@ -305,6 +320,7 @@ function AutoComplete({
         .ac-opt .code {
           color: #6b7484;
           font-size: 12px;
+          display:none;
         }
         .ac-empty {
           padding: 12px;
@@ -324,7 +340,7 @@ const CaseHierarchyCreate = () => {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // store CODES (not names) in form
+  // form stores **codes**
   const [form, setForm] = useState({
     centerCode: "",
     categoryCode: "",
@@ -340,7 +356,13 @@ const CaseHierarchyCreate = () => {
   const [employees, setEmployees] = useState([]); // [{employeeCode, employeeName}]
   const [mailTemplates, setMailTemplates] = useState(BASE_MAIL_TEMPLATES);
 
-  // master maps for names<->codes
+  // dropdown options via APIs
+  const [categoryOptions, setCategoryOptions] = useState([]); // [{code,name}]
+  const [subCategoryOptions, setSubCategoryOptions] = useState([]); // [{code,name}]
+  const [subSubCategoryOptions, setSubSubCategoryOptions] = useState([]); // [{code,name}]
+  const [subSubSubCategoryOptions, setSubSubSubCategoryOptions] = useState([]); // [{code,name}]
+
+  // code<->name maps for payload conversion
   const [nameToCode, setNameToCode] = useState({
     Category: {},
     SubCategory: {},
@@ -354,12 +376,32 @@ const CaseHierarchyCreate = () => {
     SubSubSubCategory: {},
   });
 
-  // a hierarchy tree built from CaseHierarchyDB using NAMES
-  const [tree, setTree] = useState(null);
+  // distinguish user changes vs edit-mode hydration
+  const hydratingRef = useRef(false);
 
   const showToast = (message, type = "error", ms = 2400) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), ms);
+  };
+
+  const mergeMapEntry = (type, code, name) => {
+    if (!code || !name) return;
+    setCodeToName((prev) => {
+      if (prev[type]?.[code]) return prev;
+      return { ...prev, [type]: { ...(prev[type] || {}), [code]: name } };
+    });
+    setNameToCode((prev) => {
+      if (prev[type]?.[name]) return prev;
+      return { ...prev, [type]: { ...(prev[type] || {}), [name]: code } };
+    });
+  };
+
+  const ensureSelectedInOptions = (opts, selectedCode, type) => {
+    if (!selectedCode) return opts;
+    const exists = opts.some((o) => o.code === selectedCode);
+    if (exists) return opts;
+    const name = codeToName[type]?.[selectedCode] || selectedCode;
+    return [...opts, { code: selectedCode, name }];
   };
 
   /* load initial data */
@@ -368,8 +410,7 @@ const CaseHierarchyCreate = () => {
       try {
         // Clinics -> centerCode
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
-          const d = await r.json();
+          const d = await fetchJSON(`${API_BASE_URL}/api/Master/LoadCenters`);
           if (Array.isArray(d)) setClinics(d);
         } catch {
           setClinics([{ code: "Bright", name: "Bright Clinics" }]);
@@ -377,8 +418,7 @@ const CaseHierarchyCreate = () => {
 
         // Employees
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include" });
-          const d = await r.json();
+          const d = await fetchJSON(`${API_BASE_URL}/api/Employees`);
           if (Array.isArray(d)) setEmployees(d);
         } catch {
           setEmployees([
@@ -388,127 +428,175 @@ const CaseHierarchyCreate = () => {
           ]);
         }
 
-        // Category Masters: build name<->code maps per type
+        // Categories
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Master/GetItemCategory`, { credentials: "include" });
-          const list = await r.json();
-          const n2c = { Category: {}, SubCategory: {}, SubSubCategory: {}, SubSubSubCategory: {} };
-          const c2n = { Category: {}, SubCategory: {}, SubSubCategory: {}, SubSubSubCategory: {} };
-          for (const it of Array.isArray(list) ? list : []) {
-            const t = it.type;
-            if (!n2c[t]) continue;
-            n2c[t][it.name] = it.code;
-            c2n[t][it.code] = it.name;
-          }
-          setNameToCode(n2c);
-          setCodeToName(c2n);
-        } catch {
-          /* non-fatal */
-        }
-
-        // Build taxonomy tree (by names) from existing rows
-        try {
-          const r = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseHierarchyDB`, { credentials: "include" });
-          const data = await r.json();
-          const arr = Array.isArray(data) ? data : [];
-          const m = new Map();
-          for (const row of arr) {
-            const c = safe(row.categoryName),
-              s1 = safe(row.subCategoryName),
-              s2 = safe(row.subSubCategoryName),
-              s3 = safe(row.subSubSubCategoryName);
-            if (!m.has(c)) m.set(c, new Map());
-            if (!m.get(c).has(s1)) m.get(c).set(s1, new Map());
-            if (!m.get(c).get(s1).has(s2)) m.get(c).get(s1).set(s2, new Set());
-            if (s3) m.get(c).get(s1).get(s2).add(s3);
-          }
-          setTree(m);
-        } catch {
-          setTree(new Map());
+          const cats = await fetchJSON(`${API_BASE_URL}/api/CaseCategory/CaseCategory`);
+          const opts = (Array.isArray(cats) ? cats : []).map((it) => {
+            const code = it.categoryCode ?? it.code ?? it.id ?? it.name;
+            const name = it.categoryName ?? it.name ?? String(code);
+            mergeMapEntry("Category", code, name);
+            return { code, name };
+          });
+          setCategoryOptions(opts);
+        } catch (e) {
+          console.error(e);
+          setCategoryOptions([]);
         }
       } catch (e) {
         console.error(e);
         showToast("Failed to load initial data.");
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // translate code -> name helpers
-  const catName = codeToName.Category[form.categoryCode] || "";
-  const subCatName = codeToName.SubCategory[form.subCategoryCode] || "";
-  const subSubName = codeToName.SubSubCategory[form.subSubCategoryCode] || "";
-  const subSubSubName = codeToName.SubSubSubCategory[form.subSubSubCategoryCode] || "";
+  /* Cascades via APIs (NO auto-clearing here; clearing is handled in setField for user actions) */
+  useEffect(() => {
+    if (!form.categoryCode) {
+      setSubCategoryOptions([]);
+      return;
+    }
+    (async () => {
+      const url = `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?categoryCode=${encodeURIComponent(
+        trim(form.categoryCode)
+      )}`;
+      try {
+        const list = await fetchJSON(url);
+        let opts = (Array.isArray(list) ? list : []).map((it) => {
+          const code = it.subCategoryCode ?? it.code ?? it.id ?? it.subCategoryName ?? it.name;
+          const name = it.subCategoryName ?? it.name ?? String(code);
+          mergeMapEntry("SubCategory", code, name);
+          return { code, name };
+        });
+        // Keep edit-mode selection visible even if not present in API response
+        opts = ensureSelectedInOptions(opts, form.subCategoryCode, "SubCategory");
+        setSubCategoryOptions(opts);
+      } catch (e) {
+        console.error("SubCategory fetch failed:", e, url);
+        setSubCategoryOptions((prev) => ensureSelectedInOptions(prev || [], form.subCategoryCode, "SubCategory"));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.categoryCode]);
 
-  /* cascaded options (values are CODES, labels are names) */
-  const categoryOptions = useMemo(() => {
-    if (!tree) return [];
-    const names = Array.from(tree.keys());
-    return names.map((nm) => ({
-      code: nameToCode.Category[nm] || nm,
-      name: nm,
-    }));
-  }, [tree, nameToCode]);
+ // ---------- SubCategory -> SubSubCategory (with "NA" handling) ----------
+useEffect(() => {
+  if (!form.categoryCode || !form.subCategoryCode) {
+    setSubSubCategoryOptions([]);
+    return;
+  }
+  (async () => {
+    const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?categoryCode=${encodeURIComponent(
+      trim(form.categoryCode)
+    )}&subCategoryCode=${encodeURIComponent(trim(form.subCategoryCode))}`;
 
-  const subCategoryOptions = useMemo(() => {
-    if (!tree || !catName) return [];
-    const m1 = tree.get(catName);
-    if (!m1) return [];
-    return Array.from(m1.keys()).map((nm) => ({
-      code: nameToCode.SubCategory[nm] || nm,
-      name: nm,
-    }));
-  }, [tree, catName, nameToCode]);
+    try {
+      const list = await fetchJSON(url);
 
-  const subSubCategoryOptions = useMemo(() => {
-    if (!tree || !catName || !subCatName) return [];
-    const m2 = tree.get(catName)?.get(subCatName);
-    if (!m2) return [];
-    return Array.from(m2.keys()).map((nm) => ({
-      code: nameToCode.SubSubCategory[nm] || nm,
-      name: nm,
-    }));
-  }, [tree, catName, subCatName, nameToCode]);
+      let opts = (Array.isArray(list) ? list : []).map((it) => {
+        const rawName = trim(it.subSubCategoryName ?? it.name ?? "");
+        const rawSSCCode = trim(it.subSubCategoryCode ?? "");
+        const rawSubCatCode = trim(it.subCategoryCode ?? ""); // some payloads put the real code here
 
-  const subSubSubCategoryOptions = useMemo(() => {
-    if (!tree || !catName || !subCatName || !subSubName) return [];
-    const set3 = tree.get(catName)?.get(subCatName)?.get(subSubName);
-    if (!set3) return [];
-    return Array.from(set3.values()).map((nm) => ({
-      code: nameToCode.SubSubSubCategory[nm] || nm,
-      name: nm,
-    }));
-  }, [tree, catName, subCatName, subSubName, nameToCode]);
+        // If subSubCategoryCode is missing OR name is "NA", use subCategoryCode as the code
+        const useSubCategoryCode =
+          (!rawSSCCode || rawName.toUpperCase() === "NA") && !!rawSubCatCode;
+
+        // Avoid mixing ?? with || by preparing the fallback first
+        const fallbackNameOrCode = trim(rawName || it.name || "");
+
+        const primaryCode = it.subSubCategoryCode ?? it.code ?? it.id ?? fallbackNameOrCode;
+        const code = useSubCategoryCode ? rawSubCatCode : trim(primaryCode);
+        const name = rawName || code;
+
+        mergeMapEntry("SubSubCategory", code, name);
+        return { code, name };
+      });
+
+      // keep edit-mode selection visible
+      opts = ensureSelectedInOptions(opts, form.subSubCategoryCode, "SubSubCategory");
+      setSubSubCategoryOptions(opts);
+    } catch (e) {
+      console.error("SubSubCategory fetch failed:", e, url);
+      setSubSubCategoryOptions((prev) =>
+        ensureSelectedInOptions(prev || [], form.subSubCategoryCode, "SubSubCategory")
+      );
+    }
+  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [form.subCategoryCode]);
+
+
+
+  useEffect(() => {
+    if (!form.categoryCode || !form.subCategoryCode || !form.subSubCategoryCode) {
+      setSubSubSubCategoryOptions([]);
+      return;
+    }
+    (async () => {
+      const url = `${API_BASE_URL}/api/CaseCategory/CaseSubSubSubCategory?categoryCode=${encodeURIComponent(
+        trim(form.categoryCode)
+      )}&subCategoryCode=${encodeURIComponent(trim(form.subCategoryCode))}&subSubCategoryCode=${encodeURIComponent(
+        trim(form.subSubCategoryCode)
+      )}`;
+      try {
+        const list = await fetchJSON(url);
+        let opts = (Array.isArray(list) ? list : []).map((it) => {
+          const code = it.subSubSubCategoryCode ?? it.code ?? it.id ?? it.subSubSubCategoryName ?? it.name;
+          const name = it.subSubSubCategoryName ?? it.name ?? String(code);
+          mergeMapEntry("SubSubSubCategory", code, name);
+          return { code, name };
+        });
+        opts = ensureSelectedInOptions(opts, form.subSubSubCategoryCode, "SubSubSubCategory");
+        setSubSubSubCategoryOptions(opts);
+      } catch (e) {
+        console.error("SubSubSubCategory fetch failed:", e, url);
+        setSubSubSubCategoryOptions((prev) =>
+          ensureSelectedInOptions(prev || [], form.subSubSubCategoryCode, "SubSubSubCategory")
+        );
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.subSubCategoryCode]);
 
   const setField = (key, val) => {
-    setForm((p) => {
-      if (key === "categoryCode")
-        return { ...p, categoryCode: val, subCategoryCode: "", subSubCategoryCode: "", subSubSubCategoryCode: "" };
-      if (key === "subCategoryCode")
-        return { ...p, subCategoryCode: val, subSubCategoryCode: "", subSubSubCategoryCode: "" };
-      if (key === "subSubCategoryCode")
-        return { ...p, subSubCategoryCode: val, subSubSubCategoryCode: "" };
-      return { ...p, [key]: val };
-    });
-  };
-  const setLevel = (idx, patch) =>
-    setLevels((prev) => prev.map((L, i) => (i === idx ? { ...L, ...patch } : L)));
-  const clearLevel = (idx) => setLevel(idx, emptyLevel());
-
-  /* global selection exclusion for assignee/autocomplete */
-  const selectedCodesGlobal = useMemo(() => {
-    const codes = [];
-    for (const L of levels) {
-      if (L.assignee) codes.push(L.assignee);
-      if (L.postSlaAssignee) codes.push(L.postSlaAssignee);
+    // Only clear dependent fields when the change is initiated by the user
+    if (key === "categoryCode") {
+      setForm((p) => ({
+        ...p,
+        categoryCode: val,
+        subCategoryCode: "",
+        subSubCategoryCode: "",
+        subSubSubCategoryCode: "",
+      }));
+      return;
     }
-    return codes;
-  }, [levels]);
+    if (key === "subCategoryCode") {
+      setForm((p) => ({
+        ...p,
+        subCategoryCode: val,
+        subSubCategoryCode: "",
+        subSubSubCategoryCode: "",
+      }));
+      return;
+    }
+    if (key === "subSubCategoryCode") {
+      setForm((p) => ({
+        ...p,
+        subSubCategoryCode: val,
+        subSubSubCategoryCode: "",
+      }));
+      return;
+    }
+    setForm((p) => ({ ...p, [key]: val }));
+  };
 
   /* EDIT MODE: fetch details when recId param exists and PREFILL USING CODES */
   useEffect(() => {
     const id = Number(routeRecId || 0);
     if (!id) return;
     setRecId(id);
+    hydratingRef.current = true;
 
     (async () => {
       try {
@@ -521,29 +609,12 @@ const CaseHierarchyCreate = () => {
         const row = Array.isArray(arr) ? arr[0] : arr;
         if (!row) return;
 
-        // hydrate maps with anything missing (fallback to API names/codes)
-        setNameToCode((prev) => {
-          const n2c = { ...prev };
-          const ensure = (t, name, code) => {
-            if (name && code && !n2c[t][name]) n2c[t][name] = code;
-          };
-          ensure("Category", row.categoryName, row.categoryCode);
-          ensure("SubCategory", row.subCategoryName, row.subCategoryCode);
-          ensure("SubSubCategory", row.subSubCategoryName, row.subSubCategoryCode);
-          ensure("SubSubSubCategory", row.subSubSubCategoryName, row.subSubSubCategoryCode);
-          return n2c;
-        });
-        setCodeToName((prev) => {
-          const c2n = { ...prev };
-          const ensure = (t, code, name) => {
-            if (name && code && !c2n[t][code]) c2n[t][code] = name;
-          };
-          ensure("Category", row.categoryCode, row.categoryName);
-          ensure("SubCategory", row.subCategoryCode, row.subCategoryName);
-          ensure("SubSubCategory", row.subSubCategoryCode, row.subSubCategoryName);
-          ensure("SubSubSubCategory", row.subSubSubCategoryCode, row.subSubSubCategoryName);
-          return c2n;
-        });
+        // Prefill map so selected values render even before options arrive
+        const ensure = (t, code, name) => mergeMapEntry(t, code, name);
+        ensure("Category", row.categoryCode, row.categoryName);
+        ensure("SubCategory", row.subCategoryCode, row.subCategoryName);
+        ensure("SubSubCategory", row.subSubCategoryCode, row.subSubCategoryName);
+        ensure("SubSubSubCategory", row.subSubSubCategoryCode, row.subSubSubCategoryName);
 
         // PREFILL BY CODE
         setForm({
@@ -593,6 +664,9 @@ const CaseHierarchyCreate = () => {
       } catch (e) {
         console.error(e);
         showToast("Failed to load case details.");
+      } finally {
+        // allow user-driven clears thereafter
+        hydratingRef.current = false;
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -621,8 +695,7 @@ const CaseHierarchyCreate = () => {
     if (!form.subSubSubCategoryCode) return "Please choose Sub Sub Sub Category";
     for (let i = 0; i < 3; i++) {
       const L = levels[i];
-      if (L.sla && !(L.assignee || L.group))
-        return `Level ${i + 1}: SLA set but no Assignee/Group provided.`;
+      if (L.sla && !(L.assignee || L.group)) return `Level ${i + 1}: SLA set but no Assignee/Group provided.`;
       if (L.assignee && L.postSlaAssignee && L.assignee === L.postSlaAssignee)
         return `Level ${i + 1}: Escalation to Post SLA cannot be the same as Assignment.`;
     }
@@ -630,20 +703,15 @@ const CaseHierarchyCreate = () => {
   };
   const toComma = (arr) => (arr && arr.length ? arr.join(",") : "");
 
-  // Convert codes back to names for submission to preserve your current API shape.
+  // Convert codes back to names for submission (preserve current API shape).
   const buildPayload = (isDraft) => ({
     centerCode: form.centerCode,
 
-    // If your API wants codes instead, replace these four lines with the commented ones below.
-    category: codeToName.Category[form.categoryCode] || "",
-    subCategory: codeToName.SubCategory[form.subCategoryCode] || "",
-    subSubCategory: codeToName.SubSubCategory[form.subSubCategoryCode] || "",
-    subSubSubCategory: codeToName.SubSubSubCategory[form.subSubSubCategoryCode] || "",
-
-    // category: form.categoryCode,
-    // subCategory: form.subCategoryCode,
-    // subSubCategory: form.subSubCategoryCode,
-    // subSubSubCategory: form.subSubSubCategoryCode,
+    category: codeToName.Category[form.categoryCode] || form.categoryCode || "",
+    subCategory: codeToName.SubCategory[form.subCategoryCode] || form.subCategoryCode || "",
+    subSubCategory: codeToName.SubSubCategory[form.subSubCategoryCode] || form.subSubCategoryCode || "",
+    subSubSubCategory:
+      codeToName.SubSubSubCategory[form.subSubSubCategoryCode] || form.subSubSubCategoryCode || "",
 
     firstAssignment: levels[0].assignee,
     firstGroupAssignment: levels[0].group,
@@ -700,6 +768,18 @@ const CaseHierarchyCreate = () => {
   };
 
   /* Level UI */
+  const setLevel = (idx, patch) => setLevels((prev) => prev.map((L, i) => (i === idx ? { ...L, ...patch } : L)));
+  const clearLevel = (idx) => setLevel(idx, emptyLevel());
+
+  const selectedCodesGlobal = useMemo(() => {
+    const codes = [];
+    for (const L of levels) {
+      if (L.assignee) codes.push(L.assignee);
+      if (L.postSlaAssignee) codes.push(L.postSlaAssignee);
+    }
+    return codes;
+  }, [levels]);
+
   const LevelCard = ({ idx, title }) => {
     const L = levels[idx];
     const excludeForAssignment = selectedCodesGlobal.filter((c) => c && c !== L.assignee);
@@ -775,10 +855,7 @@ const CaseHierarchyCreate = () => {
 
           <div className="field">
             <label>Mail Format For Assignment</label>
-            <select
-              value={L.assignTemplate}
-              onChange={(e) => setLevel(idx, { assignTemplate: e.target.value })}
-            >
+            <select value={L.assignTemplate} onChange={(e) => setLevel(idx, { assignTemplate: e.target.value })}>
               {mailTemplates.map((t, i) => (
                 <option key={`mt-a-${i}`} value={t}>
                   {t}
@@ -789,10 +866,7 @@ const CaseHierarchyCreate = () => {
 
           <div className="field">
             <label>Mail Format For Escalation</label>
-            <select
-              value={L.escalateTemplate}
-              onChange={(e) => setLevel(idx, { escalateTemplate: e.target.value })}
-            >
+            <select value={L.escalateTemplate} onChange={(e) => setLevel(idx, { escalateTemplate: e.target.value })}>
               {mailTemplates.map((t, i) => (
                 <option key={`mt-e-${i}`} value={t}>
                   {t}
@@ -866,7 +940,7 @@ const CaseHierarchyCreate = () => {
           <select
             value={form.subCategoryCode}
             onChange={(e) => setField("subCategoryCode", e.target.value)}
-            disabled={!form.categoryCode}
+            disabled={!subCategoryOptions.length}
           >
             <option value="">Select Sub Category</option>
             {subCategoryOptions.map((opt) => (
@@ -882,7 +956,7 @@ const CaseHierarchyCreate = () => {
           <select
             value={form.subSubCategoryCode}
             onChange={(e) => setField("subSubCategoryCode", e.target.value)}
-            disabled={!form.subCategoryCode}
+            disabled={!subSubCategoryOptions.length}
           >
             <option value="">Select Sub Sub Category</option>
             {subSubCategoryOptions.map((opt) => (
@@ -898,7 +972,7 @@ const CaseHierarchyCreate = () => {
           <select
             value={form.subSubSubCategoryCode}
             onChange={(e) => setField("subSubSubCategoryCode", e.target.value)}
-            disabled={!form.subSubCategoryCode}
+            disabled={!subSubSubCategoryOptions.length}
           >
             <option value="">Select Sub Sub Sub Category</option>
             {subSubSubCategoryOptions.map((opt) => (
@@ -924,11 +998,8 @@ const CaseHierarchyCreate = () => {
           gap: 12px;
           margin-bottom: 8px;
         }
-        .title {
-          margin: 6px 0 0;
-          font-size: 22px;
-          color: #0b1f3a;
-        }
+                .title { text-align: center; margin: 12px 0 18px; font-size: 20px; font-weight: 700;  color: #0b1f3a; }
+
         .crumbs {
           color: #6c7a89;
           display: flex;

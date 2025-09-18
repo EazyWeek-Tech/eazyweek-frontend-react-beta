@@ -109,20 +109,12 @@ const Sidebar = ({ collapsed }) => {
       onMouseLeave={() => setExpandedMenus({})}
     >
       <div className="smlnav">
-        <a href="/dashboard" className="sw-logo">
+         <a href="/dashboard" className="sw-logo">
           <img
-            src="/images/smallezywk.png"
-            className="smllogo"
+            src="/images/insightlogo.jpeg"
             alt="logo"
-            width="40"
           />
-
-          <img
-            src="/images/eazyweek_white.png"
-            className="bglogo"
-            alt="logo"
-            width="180"
-          />
+          {/* <span>INSIGHT</span> */}
         </a>
 
         <ul className="lhs-mnu">

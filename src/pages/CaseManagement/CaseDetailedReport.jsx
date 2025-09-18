@@ -336,7 +336,7 @@ const CaseDetailedReport = () => {
     [mediumsRaw]
   );
   const sourceOptions = useMemo(
-    () => toOptions(sourcesRaw, "code", "name").map((o) => ({ ...o, label: o.label.trim() })),
+    () => toOptions(sourcesRaw, "code", "name").map((o) => ({ ...o, label: o.label.trim() })), // trim names
     [sourcesRaw]
   );
   const specificResOptions = useMemo(
@@ -654,7 +654,8 @@ const CaseDetailedReport = () => {
               <table className="report-table">
                 <thead>
                   <tr>
-                    <th>Case No</th>
+                    {/* FIRST COLUMN STICKY */}
+                    <th className="sticky-col">Case No</th>
                     <th>Created Date</th>
                     <th>Owner</th>
                     <th>Assigned To</th>
@@ -681,7 +682,8 @@ const CaseDetailedReport = () => {
                   ) : (
                     pageRows.map((r, i) => (
                       <tr key={(r.caseNo || "") + "-" + (startIndex + i)}>
-                        <td>{safe(r.caseNo)}</td>
+                        {/* FIRST COLUMN STICKY */}
+                        <td className="sticky-col">{safe(r.caseNo)}</td>
                         <td>{fmtDate(r.createdDate)}</td>
                         <td>{safe(r.owners)}</td>
                         <td>{safe(r.assignedto)}</td>
@@ -746,7 +748,7 @@ const CaseDetailedReport = () => {
       {/* Styles (scoped) */}
       <style jsx>{`
         .breadcrumb { font-size: 14px; margin-bottom: 14px; color: #666; }
-        .breadcrumb-link { color: #1e88e5; cursor: default; }
+        .breadcrumb-link { color: var(--secft-color); cursor: default; }
         .filters-card, .results-card {
           background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
           padding: 16px; margin-bottom: 16px;
@@ -778,20 +780,45 @@ const CaseDetailedReport = () => {
         .filter-actions .secondary { background: #334b71; color: #fff; }
 
         .results-header { margin-bottom: 10px; color: #334155; }
-        .table-wrap { overflow: auto; }
-        table { width: 100%; border-collapse: collapse; }
+
+        /* Scrollable container */
+        .table-wrap { overflow: auto; position: relative; }
+
+        /* Table + sticky header */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
         thead th {
           text-align: left; background: #f8fafc; color: #0f172a; font-size: 13px; padding: 10px;
           border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 1;
         }
-        tbody td { font-size: 13px; padding: 10px; border-bottom: 1px solid #f1f5f9; }
+        tbody td { font-size: 13px; padding: 10px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+
+        /* Freeze FIRST column (header + body) */
+        .report-table .sticky-col {
+          position: sticky;
+          left: 0;
+          z-index: 2;              /* above normal cells */
+          background: #fff;        /* body cell bg */
+          min-width: 200px;        /* adjust to taste */
+          box-shadow: 2px 2px 10px rgb(152, 156, 166); /* divider on the right */
+        }
+
+
+        .report-table thead .sticky-col {
+          z-index: 3;              /* above body sticky cells */
+          background: #f9fafb;     /* header bg */
+        }
+.report-table td{white-space: nowrap;padding: 12px;}
         .status-pill {
-          display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 600; font-size: 12px;
+          display: inline-block; padding:6px 8px; border-radius: 6px; font-weight: 600; font-size: 12px;
           background: #e2e8f0; color: #0f172a;
         }
-        .status-pill.open { background: #cce5ff; color: #004085; }
-        .status-pill.wip { background: #fff3cd; color: #856404; }
-        .status-pill.closed { background: #d4edda; color: #155724; }
+        .status-pill.open { background: rgba(238, 106, 106, 0.1);
+    color: rgba(238, 106, 106, 1);}
+        .status-pill.wip {     background: rgba(84, 92, 87, 0.1);
+    color: rgba(84, 92, 87, 1);
+} 
+        .status-pill.closed { background: rgba(38, 200, 106, 0.1);
+    color: rgba(38, 200, 106, 1); }
         .status-pill.resolved { background: #e9d8fd; color: #553c9a; }
 
         .pagination-bar {

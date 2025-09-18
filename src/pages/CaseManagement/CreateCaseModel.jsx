@@ -480,8 +480,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
     if (!formValues.employeeCode) errs.employeeCode = "Assigned To is required.";
     if (!formValues.email?.trim()) errs.email = "Email is required.";
     if (!formValues.cc?.trim()) errs.cc = "CC is required.";
-    if (isComplaintCategory() && !formValues.specificResolution)
-      errs.specificResolution = "Category Specific Resolution is required for Complaint.";
+    
     return errs;
   };
   // ==============================
@@ -1529,10 +1528,8 @@ moreCC: normalizeEmailList(formValues.moreCC),
 
               {/* Category Specific Resolution (conditionally required) */}
               <div className="form-group">
-                <label htmlFor="specificResolution">
-                  Category Specific Resolution{" "}
-                  {isComplaintCategory() && <span style={{ color: "red" }}>*</span>}
-                </label>
+               <label htmlFor="specificResolution">Category Specific Resolution </label>
+
                 <select
                   id="specificResolution"
                   value={formValues.specificResolution}
