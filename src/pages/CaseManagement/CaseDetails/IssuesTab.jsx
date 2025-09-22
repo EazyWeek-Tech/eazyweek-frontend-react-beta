@@ -394,18 +394,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
           <textarea name="moreCc" value={formValues.moreCc || ""} onChange={handleChange} rows="5" />
         </div>
 
-        <div className="form-group">
-          <label>Category Specific Resolution</label>
-          <select
-            name="categorySpecificResolution"
-            value={formValues.categorySpecificResolution || ""}
-            onChange={handleChange}
-          >
-            <option value="">Select</option>
-            <option value="Resolved">Resolved</option>
-            <option value="Unresolved">Unresolved</option>
-          </select>
-        </div>
+        
 
         <div className="form-group">
           <label>Remarks</label>

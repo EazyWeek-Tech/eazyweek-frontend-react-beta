@@ -1187,7 +1187,7 @@ table {
                 }
 
                 .completed.statcell {
-                    border-color: green;
+                    border-color: #8da0b8;
                 }
 
                 .pndpay.statcell {
@@ -1897,13 +1897,13 @@ table {
 
                                 .appcell.active {
                                     
-                                    background: #d2ddf7;
-                                    border-left: 4px solid #394561;
+                                    background: #EDAF90;
+                                    border-left: 4px solid #db5918;
                                 }
 
                                 .appcell.donest {
-                                    border-left: 4px solid green;
-                                    background:rgb(145, 213, 145);
+                                    border-left: 4px solid #3e4753;
+                                    background:#8da0b8;
                                 }
 
                                 .appcell.ppending {
@@ -1911,13 +1911,13 @@ table {
                                 }
 
                                 .appcell.chkinst{
-                                    border-left: 4px solid #1accc3;
-                                    background: #d7fbf9;
+                                    border-left: 4px solid #ecad38;
+                                    background: #f3dcb0;
                                 }
 
                                 .appcell.cnfrmd {
-                                    border-left: 4px solid #e4af44;
-                                    background: #f5dfb2;
+                                    border-left: 4px solid #567572;
+                                    background: #A7D1CD;
                                 }
 
                                 .appcell.noshow{
@@ -1925,8 +1925,8 @@ table {
                                 }
 
                                 .appcell.cancelled{
-                                    border-left:4px solid rgb(219, 60, 60);
-                                    background: #fc9e9e;
+                                    border-left:4px solid rgb(255, 37, 37);
+                                    background: #d7968c;
                                 }
 
                                 .appcell.bked {
@@ -1973,10 +1973,10 @@ table {
                                     white-space: nowrap;
                                 }
 
-                                .apst.active {
-                                    border: 1px solid #011c59;
-                                    background: #90b1fe;
-                                    color: #011c59;
+                                .aptst.active {
+                                    border: 1px solid #000;
+                                    background: #fff;
+                                    color: #000;
                                 }
 
                                 .expopup {
@@ -1991,9 +1991,8 @@ table {
                                 }
 
                                 .aptst.cnfrmd {
-                                    border: 1px solid #e4af44;
-                                    background: #fcf6eb;
-                                    color: #e4af44;
+                                    background: #fff;
+                                    color: #000;
                                     text-transform: capitalize;
                                 }
 
@@ -2004,9 +2003,8 @@ table {
                                 }
 
                                 .aptst.donest {
-                                    border: 1px solid #06864a;
-                                    background: #aaf8d3;
-                                    color: #06864a;
+                                    background: #fff;
+                                    color: #000;
                                 }
 
                                 .aptst span {
@@ -2022,9 +2020,8 @@ table {
                                 }
 
                                 .aptst.chkinst  {
-                                    background: #a3dea3;
-                                    border: 1px solid #4d674d;
-                                    color: #4d674d;
+                                    background: #fff;
+                                    color: #000;
 
                                 }
 

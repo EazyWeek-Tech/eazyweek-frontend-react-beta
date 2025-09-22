@@ -1,10 +1,20 @@
 // src/pages/Opportunity/OpportunityDetails.jsx
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation  } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../../config";
 
+const toISODateOnly = (d) => {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (Number.isNaN(+dt)) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const OpportunityDetails = () => {
   const { oppCode } = useParams();
+  const { state } = useLocation();
   const navigate = useNavigate();
 
   const [header, setHeader] = useState(null);
@@ -16,15 +26,20 @@ const OpportunityDetails = () => {
     const fetchDetails = async () => {
       setLoading(true);
       setError("");
+
       try {
+        // If dates are passed from Dashboard, use them
         const now = new Date();
-        const from = new Date(now);
-        from.setMonth(now.getMonth() - 1);
+        const defaultFrom = new Date(now);
+        defaultFrom.setDate(now.getDate() - 13);
+
+        const fromDate = state?.fromDate || toISODateOnly(defaultFrom);
+        const toDate = state?.toDate || toISODateOnly(now);
 
         const payload = {
           oppCode,
-          fromDate: from.toISOString(),
-          toDate: now.toISOString(),
+          fromDate,
+          toDate,
         };
 
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
@@ -36,17 +51,10 @@ const OpportunityDetails = () => {
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+
         const arr = Array.isArray(data) ? data : (data ? [data] : []);
-
-        const looksLikeRow = (o) =>
-          o && (o.custID || o.custName || o.appointmentid || o.appointmentdatetime);
-        const looksLikeHeader = (o) => o && (o.oppCode || o.oppName || o.oRuleDetails);
-
-        const firstHeader = arr.find(looksLikeHeader) || null;
-        const tableRows = arr.filter(looksLikeRow);
-
-        setHeader(firstHeader);
-        setRows(tableRows);
+        setHeader(arr[0] ?? null);
+        setRows(arr);
       } catch (e) {
         console.error("Failed to load opportunity details:", e);
         setError("Failed to load details. Please try again.");
@@ -56,53 +64,33 @@ const OpportunityDetails = () => {
     };
 
     fetchDetails();
-  }, [oppCode]);
+  }, [oppCode, state?.fromDate, state?.toDate]);
 
-  const hasRows = rows && rows.length > 0;
+  const hasRows = rows?.length > 0;
   const safe = (v, fallback = "") => (v === null || v === undefined ? fallback : v);
 
-  const top = useMemo(() => {
-    if (header) return header;
-    if (hasRows) return rows[0];
-    return null;
-  }, [header, hasRows, rows]);
+  const top = useMemo(() => header ?? (hasRows ? rows[0] : null), [header, hasRows, rows]);
 
-  // ---- Manual vs Normal resolver (replace with your exact flag if you have one)
+  // Manual vs rule-driven resolver
   const inferIsManualLead = (row, hdr) => {
-    // Example heuristics:
     if (row?.manualLead || row?.isManualLead) return true;
     if (hdr?.manualLead || hdr?.isManualLead) return true;
-    // If rule-driven opps have oRuleCode like "R1", and manual leads don't:
+    // If rule-driven opps have oRuleCode like "R1" and manual leads don't:
     if (!row?.oRuleCode && !hdr?.oRuleCode) return true;
-    return false; // default
+    return false;
   };
 
   const openCustomer = (row) => {
     const isManual = inferIsManualLead(row, header);
     const path = isManual
-  ? `/opportunity/${oppCode}/manual/${row.custID}`   // <-- this page
-  : `/opportunity/${oppCode}/customer/${row.custID}` // normal page
-
-
-    // Pass row + header for instant render; page will refetch if opened directly
+      ? `/opportunity/${oppCode}/manual/${row.custID}`
+      : `/opportunity/${oppCode}/customer/${row.custID}`;
     navigate(path, { state: { row, header, isManual } });
   };
 
-  if (loading) {
-    return (
-      <div className="loading-msg">Loading…</div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="loading-msg" style={{ color: "#c33" }}>{error}</div>
-    );
-  }
-  if (!top) {
-    return (
-      <div className="loading-msg">No data found for this opportunity.</div>
-    );
-  }
+  if (loading) return <div className="loading-msg">Loading…</div>;
+  if (error) return <div className="loading-msg" style={{ color: "#c33" }}>{error}</div>;
+  if (!top) return <div className="loading-msg">No data found for this opportunity.</div>;
 
   return (
     <>

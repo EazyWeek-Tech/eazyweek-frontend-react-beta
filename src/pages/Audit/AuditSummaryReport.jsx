@@ -21,10 +21,6 @@ function toISODateOnly(s) {
   return isNaN(d) ? "" : d.toISOString().slice(0, 10);
 }
 
-/** RFC3339 from a date-only string; start/end of day helpers */
-const atStartOfDayZ = (dateISO) => (dateISO ? `${dateISO}T00:00:00Z` : "");
-const atEndOfDayZ = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
-
 /** Best-effort grab from any of several keys */
 const pick = (obj, keys, fallback = "") => {
   for (const k of keys) {
@@ -38,21 +34,20 @@ const pick = (obj, keys, fallback = "") => {
    Searchable Dropdown (single/multi)
    =========================== */
 function SearchableDropdown({
-  options,             // [{ value, label }]
-  value,               // string | string[]
-  onChange,            // (newValue) => void
+  options,
+  value,
+  onChange,
   placeholder = "None selected",
   multiple = false,
   disabled = false,
   width = "100%",
   maxMenuHeight = 280,
-  showSelectAll = true, // respected only when multiple = true
+  showSelectAll = true,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef(null);
 
-  // Close on outside click
   useEffect(() => {
     function onDocClick(e) {
       if (!wrapRef.current) return;
@@ -62,18 +57,13 @@ function SearchableDropdown({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  // Filtered options
   const filtered = useMemo(() => {
     const q = norm(query).toLowerCase();
     if (!q) return options;
     return options.filter((o) => norm(o.label).toLowerCase().includes(q));
   }, [options, query]);
 
-  // Selected helpers
-  const isSelected = (val) => {
-    if (multiple) return Array.isArray(value) && value.includes(val);
-    return value === val;
-  };
+  const isSelected = (val) => (multiple ? Array.isArray(value) && value.includes(val) : value === val);
 
   const displayText = useMemo(() => {
     if (multiple) {
@@ -114,10 +104,8 @@ function SearchableDropdown({
     if (!multiple) return;
     const arr = Array.isArray(value) ? [...value] : [];
     if (allSelected) {
-      // unselect all filtered
       onChange(arr.filter((v) => !filtered.some((o) => o.value === v)));
     } else {
-      // add all filtered
       const union = new Set(arr);
       filtered.forEach((o) => union.add(o.value));
       onChange(Array.from(union));
@@ -134,9 +122,7 @@ function SearchableDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className={`dd-text ${displayText === placeholder ? "muted" : ""}`}>
-          {displayText}
-        </span>
+        <span className={`dd-text ${displayText === placeholder ? "muted" : ""}`}>{displayText}</span>
         <span className="dd-caret">▾</span>
       </button>
 
@@ -144,11 +130,7 @@ function SearchableDropdown({
         <div className="dd-menu" style={{ maxHeight: maxMenuHeight }}>
           <div className="dd-search">
             <span className="ico">🔍</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-            />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" />
             {query && (
               <button className="clear" onClick={clearSearch} aria-label="Clear search">
                 ×
@@ -158,11 +140,7 @@ function SearchableDropdown({
 
           {multiple && showSelectAll && (
             <label className="dd-option select-all">
-              <input
-                type="checkbox"
-                checked={!!allSelected}
-                onChange={toggleSelectAll}
-              />
+              <input type="checkbox" checked={!!allSelected} onChange={toggleSelectAll} />
               <span>Select all</span>
             </label>
           )}
@@ -170,11 +148,7 @@ function SearchableDropdown({
           <div className="dd-list" role="listbox" aria-multiselectable={multiple}>
             {filtered.map((o) => (
               <label key={o.value} className="dd-option">
-                <input
-                  type="checkbox"
-                  checked={!!isSelected(o.value)}
-                  onChange={() => toggleItem(o.value)}
-                />
+                <input type="checkbox" checked={!!isSelected(o.value)} onChange={() => toggleItem(o.value)} />
                 <span>{o.label}</span>
               </label>
             ))}
@@ -187,61 +161,23 @@ function SearchableDropdown({
         .dd-wrap { position: relative; }
         .dd-wrap.disabled { opacity: .6; pointer-events: none; }
         .dd-input {
-          width: 100%;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          background: #fff;
-          border: 1px solid #d8dee8;
-          border-radius: 8px;
-          padding: 0 10px;
-          cursor: pointer;
+          width: 100%; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+          background: #fff; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; cursor: pointer;
         }
         .dd-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .dd-text.muted { color: #98a1b3; }
         .dd-caret { color: #5a6270; font-size: 12px; }
         .dd-menu {
-          position: absolute;
-          left: 0; right: 0; z-index: 30;
-          background: #fff;
-          border: 1px solid #e6ebf2;
-          box-shadow: 0 8px 26px rgba(0,0,0,.08);
-          border-radius: 8px;
-          margin-top: 6px;
-          overflow: auto;
-          width: 280px;
+          position: absolute; left: 0; right: 0; z-index: 30; background: #fff; border: 1px solid #e6ebf2;
+          box-shadow: 0 8px 26px rgba(0,0,0,.08); border-radius: 8px; margin-top: 6px; overflow: auto; width: 280px;
         }
-        .dd-search {
-          display: grid;
-          grid-template-columns: 20px 1fr 22px;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 10px;
-          border-bottom: 1px solid #eef1f6;
-        }
-        .dd-search input {
-          height: 28px;
-          border: 1px solid #e3e8f1;
-          border-radius: 6px;
-          padding: 0 8px;
-          outline: none;
-        }
+        .dd-search { display: grid; grid-template-columns: 20px 1fr 22px; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #eef1f6; }
+        .dd-search input { height: 28px; border: 1px solid #e3e8f1; border-radius: 6px; padding: 0 8px; outline: none; }
         .dd-search .ico { text-align: center; color: #7a8599; }
-        .dd-search .clear {
-          background: none; border: none; font-size: 18px; line-height: 1;
-          color: #7a8599; cursor: pointer;
-        }
-        .dd-list { }
-        .dd-option {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 12px;
-          cursor: pointer; user-select: none;
-        }
+        .dd-search .clear { background: none; border: none; font-size: 18px; line-height: 1; color: #7a8599; cursor: pointer; }
+        .dd-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; user-select: none; }
         .dd-option + .dd-option { border-top: 1px solid #f6f7fb; }
         .dd-option:hover { background: #f7f9fc; }
-        .dd-option input { width: 16px; height: 16px; }
         .dd-empty { padding: 12px; color: #8a94a7; text-align: center; }
         .select-all { font-weight: 700; }
       `}</style>
@@ -256,15 +192,13 @@ export default function AuditSummaryReport() {
   const navigate = useNavigate();
   const { state } = useLocation() || {};
 
-  // Default date range (example: Jan 1 of current year to today)
   const defaultFrom = `${new Date().getFullYear()}-01-01`;
   const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || defaultFrom);
   const [toDate, setToDate] = useState(toISODateOnly(state?.toDate) || todayISO());
 
-  // filters (dropdowns)
+  // filters
   const [segmentCodes, setSegmentCodes] = useState(
-    Array.isArray(state?.segments) ? state.segments.map(norm) :
-    norm(state?.segment) ? [norm(state?.segment)] : []
+    Array.isArray(state?.segments) ? state.segments.map(norm) : norm(state?.segment) ? [norm(state?.segment)] : []
   );
   const [auditorCodes, setAuditorCodes] = useState(
     Array.isArray(state?.auditorCodes) ? state.auditorCodes.map(norm) : []
@@ -273,10 +207,10 @@ export default function AuditSummaryReport() {
   const [employeeCode, setEmployeeCode] = useState(norm(state?.employeeCode) || "");
 
   // options
-  const [segments, setSegments] = useState([]);    // [{value,label}]
-  const [clinics, setClinics] = useState([]);      // [{value,label}]
-  const [employees, setEmployees] = useState([]);  // [{value,label}]
-  const [auditors, setAuditors] = useState([]);    // [{value,label}]
+  const [segments, setSegments] = useState([]);
+  const [clinics, setClinics] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [auditors, setAuditors] = useState([]);
 
   // data & ui
   const [rows, setRows] = useState([]);
@@ -286,10 +220,7 @@ export default function AuditSummaryReport() {
   const pageSize = 10;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-  const pageRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, page]);
+  const pageRows = useMemo(() => rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize), [rows, page]);
 
   const showToast = (message, type = "error", ms = 2200) => {
     setToast({ type, message });
@@ -311,10 +242,9 @@ export default function AuditSummaryReport() {
             label: norm(x.name) || norm(x.code),
           }));
           setSegments(list);
-          // normalize preselected segments against fetched values
           if (segmentCodes.length) {
-            const valSet = new Set(list.map(o => o.value));
-            setSegmentCodes(segmentCodes.filter(v => valSet.has(v)));
+            const valSet = new Set(list.map((o) => o.value));
+            setSegmentCodes(segmentCodes.filter((v) => valSet.has(v)));
           }
         } catch {
           setSegments([]);
@@ -329,7 +259,7 @@ export default function AuditSummaryReport() {
             label: x.name ?? x.centerName ?? (x.code ?? ""),
           }));
           setClinics(list);
-          if (clinic && !list.some(o => o.value === clinic)) setClinic("");
+          if (clinic && !list.some((o) => o.value === clinic)) setClinic("");
         } catch {
           setClinics([]);
         }
@@ -341,11 +271,11 @@ export default function AuditSummaryReport() {
           const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
             value: x.code ?? x.employeeCode ?? "",
             label: x.name ?? x.employeeName ?? "",
-          })).filter(a => a.value || a.label);
+          })).filter((a) => a.value || a.label);
           setAuditors(list);
           if (auditorCodes.length) {
-            const ok = new Set(list.map(o => o.value));
-            setAuditorCodes(auditorCodes.filter(v => ok.has(v)));
+            const ok = new Set(list.map((o) => o.value));
+            setAuditorCodes(auditorCodes.filter((v) => ok.has(v)));
           }
         } catch {
           setAuditors([]);
@@ -360,86 +290,72 @@ export default function AuditSummaryReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load employees when segment changes (uses the first selected segment)
- // Load employees for ALL selected segments and merge
-useEffect(() => {
-  let abort = false;
-
-  async function loadEmployees() {
-    // nothing selected → clear
-    if (!segmentCodes?.length) {
-      setEmployees([]);
-      setEmployeeCode("");
-      return;
-    }
-
-    try {
-      // fetch for each selected segment in parallel
-      const results = await Promise.all(
-        segmentCodes.map(seg =>
-          fetch(
-            `${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`,
-            { credentials: "include" }
-          )
-            .then(r => (r.ok ? r.json() : []))
-            .catch(() => [])
-        )
-      );
-
-      // flatten and normalize
-      const merged = results.flatMap(d => (Array.isArray(d) ? d : d ? [d] : []));
-      const seen = new Set();
-      const mapped = [];
-
-      for (const x of merged) {
-        const code = x.code ?? x.employeeCode ?? "";
-        const name = x.name ?? x.employeeName ?? "";
-        const key = code || name;              // fallback if code is missing
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        mapped.push({ value: key, label: name || code });
+  // Load employees for ALL selected segments and merge
+  useEffect(() => {
+    let abort = false;
+    async function loadEmployees() {
+      if (!segmentCodes?.length) {
+        setEmployees([]);
+        setEmployeeCode("");
+        return;
       }
-
-      // sort by label
-      mapped.sort((a, b) => a.label.localeCompare(b.label));
-
-      if (!abort) {
-        setEmployees(mapped);
-        // keep selected employee only if still available
-        if (employeeCode && !mapped.some(o => o.value === employeeCode)) {
-          setEmployeeCode("");
+      try {
+        const results = await Promise.all(
+          segmentCodes.map((seg) =>
+            fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`, { credentials: "include" })
+              .then((r) => (r.ok ? r.json() : []))
+              .catch(() => [])
+          )
+        );
+        const merged = results.flatMap((d) => (Array.isArray(d) ? d : d ? [d] : []));
+        const seen = new Set();
+        const mapped = [];
+        for (const x of merged) {
+          const code = x.code ?? x.employeeCode ?? "";
+          const name = x.name ?? x.employeeName ?? "";
+          const key = code || name;
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          mapped.push({ value: key, label: name || code });
+        }
+        mapped.sort((a, b) => a.label.localeCompare(b.label));
+        if (!abort) {
+          setEmployees(mapped);
+          if (employeeCode && !mapped.some((o) => o.value === employeeCode)) setEmployeeCode("");
+        }
+      } catch (e) {
+        if (!abort) {
+          console.error(e);
+          setEmployees([]);
         }
       }
-    } catch (e) {
-      if (!abort) {
-        console.error(e);
-        setEmployees([]);
-      }
     }
-  }
-
-  loadEmployees();
-  return () => { abort = true; };
-// trigger when the actual set of selected segments changes
-}, [segmentCodes.join("|")]);
-
+    loadEmployees();
+    return () => {
+      abort = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentCodes.join("|")]);
 
   // load summary
   const loadSummary = async () => {
     setLoading(true);
     setPage(1);
     try {
+      // IMPORTANT: Use DATE-ONLY strings as per your sample
       const body = {
-        fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate: atEndOfDayZ(toISODateOnly(toDate)),
+        fromDate: toISODateOnly(fromDate),
+        toDate: toISODateOnly(toDate),
         clinic: clinic || "",
-        auditSegment: segmentCodes.join(","),  // multi -> csv
-        auditor: auditorCodes.join(","),       // multi -> csv
+        auditSegment: segmentCodes.join(","), // multi -> csv
+        auditor: auditorCodes.join(","), // multi -> csv
         employee: employeeCode || "",
         auditSubSegment: "",
-        dateFlag: "",
+        dateFlag: "0",
         isDigitalInTheList: "",
       };
+
+      console.log("Audit Summary payload:", body);
 
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, {
         method: "POST",
@@ -451,40 +367,22 @@ useEffect(() => {
       const d = await r.json();
       const arr = Array.isArray(d) ? d : d ? [d] : [];
 
-      const normalized = arr.map((x, i) => {
-        const auditDateRaw = pick(x, ["auditDate", "date", "dt"]);
-        const createdRaw = pick(x, ["auditCreatedDate", "createdDate"]);
-        const submittedRaw = pick(x, ["auditSubmittedDate", "submittedDate"]);
-        const mm = pick(x, ["auditMonth", "month"]);
-        const yy = pick(x, ["auditYear", "year"]);
-        const monthYear =
-          (mm && yy) ? `${mm}/${yy}` :
-          (auditDateRaw ? new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(auditDateRaw)) : "");
+      // Map EXACT fields from your response type
+      const normalized = arr.map((x, i) => ({
+        key: pick(x, ["auditNo", "auditNumber", "auditId", "code"], `row-${i}`),
+        auditNo: x.auditNo ?? "",
+        monthYear: x.auditMonth ?? "", // e.g., "December/2023"
+        auditDate: x.auditDate ?? "", // already "DD/MM/YYYY"
+        employeeId: x.employeeCode ?? "",
+        employeeName: x.employeeName ?? "",
+        clinic: x.clinicName ?? "",
+        segment: x.auditSegment ?? "",
+        score: x.auditScore ?? "",
+        auditor: x.auditorName ?? "",
+        createdDate: x.createdDate ?? "", // already "DD/MM/YYYY"
+        submittedDate: x.submittedDate ?? "", // already "DD/MM/YYYY"
+      }));
 
-        const fmt = (s) => {
-          const iso = toISODateOnly(s);
-          if (!iso) return "";
-          const d = new Date(iso);
-          return isNaN(d) ? "" : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
-        };
-
-        return {
-          key: pick(x, ["auditNo", "auditNumber", "auditId", "code"], `row-${i}`),
-          auditNo: pick(x, ["auditNo", "auditNumber", "auditId", "code"]),
-          monthYear,
-          auditDate: fmt(auditDateRaw),
-          employeeId: pick(x, ["employeeId", "employeeCode", "empCode"]),
-          employeeName: pick(x, ["employeeName", "empName", "name"]),
-          clinic: pick(x, ["clinic", "clinicName", "centerName"]),
-          segment: pick(x, ["auditSegment", "segment", "segmentName"]),
-          score: pick(x, ["auditScore", "score"], ""),
-          auditor: pick(x, ["auditor", "auditorName"]),
-          createdDate: fmt(createdRaw),
-          submittedDate: fmt(submittedRaw),
-        };
-      });
-      console.log("payload")
-      console.log(body)
       setRows(normalized);
     } catch (e) {
       console.error(e);
@@ -495,28 +393,57 @@ useEffect(() => {
     }
   };
 
-  // initial load
-  useEffect(() => { loadSummary(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onClickAudit(no) {
     if (!no) return;
     navigate(`/audit/view/${encodeURIComponent(no)}`, { state: { from: "summary" } });
   }
 
+  function quoteCSV(val) {
+    const s = String(val ?? "");
+    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  }
+
   function exportCSV() {
     if (!rows.length) return;
     const headers = [
-      "Audit No","Audit Month / Year","Audit Date","Employee ID","Employee Name",
-      "Clinic","Audit Segment","Audit Score","Auditor","Audit Created Date","Audit Submitted Date",
+      "Audit No",
+      "Audit Month / Year",
+      "Audit Date",
+      "Employee ID",
+      "Employee Name",
+      "Clinic",
+      "Audit Segment",
+      "Audit Score",
+      "Auditor",
+      "Audit Created Date",
+      "Audit Submitted Date",
     ];
     const csv = [
       headers.join(","),
-      ...rows.map(r =>
+      ...rows.map((r) =>
         [
-          r.auditNo, r.monthYear, r.auditDate, r.employeeId,
-          quoteCSV(r.employeeName), quoteCSV(r.clinic), quoteCSV(r.segment),
-          r.score, quoteCSV(r.auditor), r.createdDate, r.submittedDate,
-        ].map(v => v ?? "").join(",")
+          r.auditNo,
+          r.monthYear,
+          r.auditDate,
+          r.employeeId,
+          quoteCSV(r.employeeName),
+          quoteCSV(r.clinic),
+          quoteCSV(r.segment),
+          r.score,
+          quoteCSV(r.auditor),
+          r.createdDate,
+          r.submittedDate,
+        ]
+          .map((v) => v ?? "")
+          .join(",")
       ),
     ].join("\r\n");
 
@@ -524,25 +451,20 @@ useEffect(() => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Audit_Summary_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `Audit_Summary_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
-  function quoteCSV(val) {
-    const s = String(val ?? "");
-    if (s.includes(",") || s.includes("\n") || s.includes("\"")) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
   }
 
   return (
     <div className="wrap">
       <h1 className="title">Audit Summary Report</h1>
       <div className="breadcrumb">
-        <span className="crumb-link" onClick={() => navigate("/")}>DashBoard</span>
+        <span className="crumb-link" onClick={() => navigate("/")}>
+          DashBoard
+        </span>
         <span className="sep"> &gt; </span>
         <span className="crumb-dim">Summary Report</span>
       </div>
@@ -559,49 +481,29 @@ useEffect(() => {
           </div>
           <div className="frow">
             <label>Clinic</label>
-            <SearchableDropdown
-              options={clinics}
-              value={clinic}
-              onChange={setClinic}
-              multiple={false}
-              placeholder="None selected"
-            />
+            <SearchableDropdown options={clinics} value={clinic} onChange={setClinic} multiple={false} placeholder="None selected" />
           </div>
           <div className="frow">
             <label>Audit Segment</label>
-            <SearchableDropdown
-              options={segments}
-              value={segmentCodes}
-              onChange={setSegmentCodes}
-              multiple
-              placeholder="None selected"
-            />
+            <SearchableDropdown options={segments} value={segmentCodes} onChange={setSegmentCodes} multiple placeholder="None selected" />
           </div>
           <div className="frow">
             <label>Auditor</label>
-            <SearchableDropdown
-              options={auditors}
-              value={auditorCodes}
-              onChange={setAuditorCodes}
-              multiple
-              placeholder="None selected"
-            />
+            <SearchableDropdown options={auditors} value={auditorCodes} onChange={setAuditorCodes} multiple placeholder="None selected" />
           </div>
           <div className="frow">
             <label>Employee</label>
-            <SearchableDropdown
-              options={employees}
-              value={employeeCode}
-              onChange={setEmployeeCode}
-              multiple={false}
-              placeholder="None selected"
-            />
+            <SearchableDropdown options={employees} value={employeeCode} onChange={setEmployeeCode} multiple={false} placeholder="None selected" />
           </div>
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={loadSummary} disabled={loading}>View</button>
-          <button className="btn" onClick={exportCSV} disabled={!rows.length}>Export</button>
+          <button className="btn" onClick={loadSummary} disabled={loading}>
+            View
+          </button>
+          <button className="btn" onClick={exportCSV} disabled={!rows.length}>
+            Export
+          </button>
         </div>
       </div>
 
@@ -623,29 +525,24 @@ useEffect(() => {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td colSpan={11} className="loading">Loading…</td></tr>
-            )}
-            {!loading && !pageRows.length && (
-              <tr><td colSpan={11} className="empty">No data</td></tr>
-            )}
-            {!loading && pageRows.map((r, idx) => (
-              <tr key={`${r.key}-${idx}`}>
-                <td>
-                  <button className="link" onClick={() => onClickAudit(r.auditNo)}>{r.auditNo}</button>
-                </td>
-                <td>{r.monthYear}</td>
-                <td>{r.auditDate}</td>
-                <td>{r.employeeId}</td>
-                <td>{r.employeeName}</td>
-                <td>{r.clinic}</td>
-                <td>{r.segment}</td>
-                <td>{r.score}</td>
-                <td>{r.auditor}</td>
-                <td>{r.createdDate}</td>
-                <td>{r.submittedDate}</td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan={11} className="loading">Loading…</td></tr>}
+            {!loading && !pageRows.length && <tr><td colSpan={11} className="empty">No data</td></tr>}
+            {!loading &&
+              pageRows.map((r, idx) => (
+                <tr key={`${r.key}-${idx}`}>
+                  <td><button className="link" onClick={() => onClickAudit(r.auditNo)}>{r.auditNo}</button></td>
+                  <td>{r.monthYear}</td>
+                  <td>{r.auditDate}</td>
+                  <td>{r.employeeId}</td>
+                  <td>{r.employeeName}</td>
+                  <td>{r.clinic}</td>
+                  <td>{r.segment}</td>
+                  <td>{r.score}</td>
+                  <td>{r.auditor}</td>
+                  <td>{r.createdDate}</td>
+                  <td>{r.submittedDate}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
 
@@ -670,12 +567,10 @@ useEffect(() => {
         .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 18px; }
         .frow { display: flex; flex-direction: column; gap: 6px; }
         label { font-size: 14px; font-weight: 700; color: #5a6270; }
-        input[type="date"] {
-          height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff;
-        }
+        input[type="date"] { height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff; }
 
         .actions { margin-top: 10px; display: flex; gap: 12px; justify-content: flex-end; }
-        .btn { background: #112032; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+        .btn { background: #334b71; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
 
         .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
@@ -685,10 +580,10 @@ useEffect(() => {
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
         .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 14px; }
-        .pagebtn { background: #0f1f33; color: white; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+        .pagebtn { background: #fff; color: #6b7280; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
         .pageno, .pagecount { color: #4b5563; font-weight: 600; }
 
-        .toast { position: fixed; height: 50px;bottom: 16px; right: 16px; color:#fff; background:#d7263d; padding:10px 14px; border-radius:8px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.15); z-index:9999; }
+        .toast { position: fixed; height: 50px; bottom: 16px; right: 16px; color:#fff; background:#d7263d; padding:10px 14px; border-radius:8px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.15); z-index:9999; }
         .toast.success { background:#138a36; }
 
         @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }

@@ -9,76 +9,80 @@ const CaseTable = ({ records = [] }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
- useEffect(() => {
-  const $table = $(tableRef.current);
+  useEffect(() => {
+    const $table = $(tableRef.current);
 
-  if ($.fn.dataTable.isDataTable($table)) {
-    $table.DataTable().destroy();
-    $table.empty();
-  }
+    if ($.fn.dataTable.isDataTable($table)) {
+      $table.DataTable().destroy();
+      $table.empty();
+    }
 
-  // Manual sorting of records before DataTable is initialized
-  const sortedRecords = [...records].sort((a, b) => {
-    const dateA = new Date(a.createddate || "1970-01-01");
-    const dateB = new Date(b.createddate || "1970-01-01");
-    return dateB - dateA;
-  });
-
-  setTimeout(() => {
-    $table.DataTable({
-      data: sortedRecords,
-      columns: [
-        {
-          data: "caseno",
-          title: "Case no.",
-          render: (data) =>
-            `<a href="#" class="case-link" data-id="${data}">${data}</a>`,
-        },
-        { data: "casetitle", title: "Case Title" },
-        {
-          data: "status",
-          title: "Status",
-          render: (data) =>
-            `<span class="${data?.toLowerCase() ?? ""}">${data ?? "-"}</span>`,
-        },
-        {
-          data: "priority",
-          title: "Priority",
-          render: (data) => data ?? "-",
-        },
-        { data: "category", title: "Category" },
-        { data: "subCategory", title: "Subcategory" },
-        { data: "subSubCategory", title: "Sub Subcategory" },
-        { data: "subSubSubCategory", title: "Sub Sub Subcategory" },
-        { data: "assignedto", title: "Assigned To" },
-        { data: "createdby", title: "Owner" },
-        {
-          data: "createddate",
-          title: "Created Date",
-        },
-      ],
-      fixedColumns: true,
-      paging: true,
-      scrollCollapse: true,
-      scrollX: true,
-      scrollY: 600,
-      bFilter: true,
-      // Remove this ↓ to prevent it overriding JS sort
-      order: [],
-      createdRow: (row, data) => {
-        $(row)
-          .find(".case-link")
-          .on("click", function (e) {
-            e.preventDefault();
-            const caseId = $(this).data("id");
-            navigate(`/cases/${caseId}`);
-          });
-      },
+    // Manual sorting of records before DataTable is initialized
+    const sortedRecords = [...records].sort((a, b) => {
+      const dateA = new Date(a.createddate || "1970-01-01");
+      const dateB = new Date(b.createddate || "1970-01-01");
+      return dateB - dateA;
     });
-    setLoading(false);
-  }, 200);
-}, [records, navigate]);
 
+    setTimeout(() => {
+      $table.DataTable({
+        data: sortedRecords,
+        columns: [
+          {
+            data: "caseno",
+            title: "Case no.",
+            render: (data) =>
+              `<a href="#" class="case-link" data-id="${data}">${data}</a>`,
+          },
+          { data: "casetitle", title: "Case Title" },
+          {
+            data: "status",
+            title: "Status",
+            render: (data) =>
+              `<span class="${data?.toLowerCase() ?? ""}">${data ?? "-"}</span>`,
+          },
+          {
+            data: "priority",
+            title: "Priority",
+            render: (data) => data ?? "-",
+          },
+          { data: "category", title: "Category" },
+          { data: "subCategory", title: "Subcategory" },
+          { data: "subSubCategory", title: "Sub Subcategory" },
+          { data: "subSubSubCategory", title: "Sub Sub Subcategory" },
+          { data: "assignedto", title: "Assigned To" },
+          { data: "createdby", title: "Owner" },
+          {
+            data: "createddate",
+            title: "Created Date",
+          },
+        ],
+        fixedColumns: true,
+        paging: true,
+        scrollCollapse: true,
+        scrollX: true,
+        scrollY: 600,
+        bFilter: true,
+        // Remove this ↓ to prevent it overriding JS sort
+        order: [],
+        createdRow: (row, data) => {
+          $(row)
+            .find(".case-link")
+            .on("click", function (e) {
+              e.preventDefault();
+              const caseId = $(this).data("id");
+
+              // NEW: include owner and assignedTo as query params
+              const owner = encodeURIComponent(data?.createdby ?? "");
+              const assignedTo = encodeURIComponent(data?.assignedto ?? "");
+
+              navigate(`/cases/${caseId}?owner=${owner}&assignedTo=${assignedTo}`);
+            });
+        },
+      });
+      setLoading(false);
+    }, 200);
+  }, [records, navigate]);
 
   useEffect(() => {
     const link = document.createElement("link");

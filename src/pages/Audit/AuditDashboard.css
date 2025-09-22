@@ -189,6 +189,7 @@
   border-radius: 4px;
   min-width: 48%;
   flex: 1;
+  height:auto;
 }
 
 .chart-title {
@@ -583,7 +584,7 @@
 }
 
 .audit-table th {
-  background-color: #2c3e50;
+  background-color: #334b71;
   color: white;
   padding: 12px 15px;
   text-align: center;

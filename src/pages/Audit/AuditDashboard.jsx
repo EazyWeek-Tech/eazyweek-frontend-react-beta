@@ -1,6 +1,8 @@
 import "./AuditDashboard.css"
 
-// Data matching the screenshot
+// =====================
+// Existing data (kept)
+// =====================
 const telephoneAuditData = [
   { period: "Last 3 Months", value: 6 },
   { period: "Jul", value: 8 },
@@ -44,6 +46,7 @@ const medicalAuditData = [
   },
 ]
 
+// kept: your original categories array (still used for Safety legend below)
 const safetyAuditCategories = [
   "Emergency Preparedness",
   "Fire Safety Compliance",
@@ -55,9 +58,91 @@ const safetyAuditCategories = [
   "Security",
 ]
 
-const agentsPerformanceData = [{ name: "Jays", value: 6 }]
+const agentsPerformanceData = [{ name: "Agent", value: 6 }]
 
-// Line Chart Component
+// =====================
+// New shared palette
+// =====================
+const PALETTE_8 = [
+  "#334b71", // deep navy
+  "#cc6b5c", // warm coral
+  "#F3DCB0", // soft sand
+  "#8da0b8", // slate
+  "#A7D1CD", // teal
+  "#EDAF90", // peach
+  "#e9eef5", // mist
+  "#FF9F9D", // soft red
+]
+
+// =====================
+// New data (added)
+// =====================
+
+// SAFETY – two periods, 8 criteria (positive values only)
+const safetyAuditData = [
+  {
+    period: "Last 3 Months",
+    "Emergency Preparedness": 12,
+    "Fire Safety Compliance": 10,
+    "Hazardous Materials": 8,
+    "PPE Safety": 14,
+    "Incident Management": 9,
+    "Safety Training": 11,
+    "Safety Equipment": 13,
+    "Security": 7,
+  },
+  {
+    period: "Jul",
+    "Emergency Preparedness": 10,
+    "Fire Safety Compliance": 9,
+    "Hazardous Materials": 7,
+    "PPE Safety": 12,
+    "Incident Management": 8,
+    "Safety Training": 10,
+    "Safety Equipment": 12,
+    "Security": 6,
+  },
+]
+
+// GROOMING – two periods, 4 criteria
+const groomingAuditData = [
+  {
+    period: "Last 3 Months",
+    "Uniform Compliance": 15,
+    "Personal Hygiene": 12,
+    "Grooming Standards": 14,
+    "ID Badge Visibility": 11,
+  },
+  {
+    period: "Jul",
+    "Uniform Compliance": 13,
+    "Personal Hygiene": 11,
+    "Grooming Standards": 12,
+    "ID Badge Visibility": 10,
+  },
+]
+
+// HOUSEKEEPING – two periods, 4 criteria
+const housekeepingAuditData = [
+  {
+    period: "Last 3 Months",
+    "Clinic Cleanliness": 16,
+    "Restroom Hygiene": 14,
+    "Waste Disposal": 12,
+    "Linen Management": 13,
+  },
+  {
+    period: "Jul",
+    "Clinic Cleanliness": 14,
+    "Restroom Hygiene": 12,
+    "Waste Disposal": 11,
+    "Linen Management": 12,
+  },
+]
+
+// =====================
+// Existing Line Chart
+// =====================
 const LineChart = ({ data, title, colors }) => {
   const maxValue = 10
   const chartWidth = 400
@@ -69,7 +154,6 @@ const LineChart = ({ data, title, colors }) => {
       <div className="chart-wrapper">
         <div className="chart-area">
           <svg width={chartWidth} height={chartHeight} className="line-chart">
-            {/* Grid lines */}
             {[0, 2, 4, 6, 8, 10].map((value) => (
               <g key={value}>
                 <line
@@ -91,16 +175,12 @@ const LineChart = ({ data, title, colors }) => {
                 </text>
               </g>
             ))}
-
-            {/* X-axis labels */}
             <text x="120" y={chartHeight - 10} fontSize="12" fill="#666" textAnchor="middle">
               Last 3 Months
             </text>
             <text x="320" y={chartHeight - 10} fontSize="12" fill="#666" textAnchor="middle">
               Jul
             </text>
-
-            {/* Line */}
             <polyline
               points={data
                 .map((d, i) => `${120 + i * 200},${chartHeight - 30 - (d.value / maxValue) * (chartHeight - 60)}`)
@@ -109,8 +189,6 @@ const LineChart = ({ data, title, colors }) => {
               stroke={colors[0]}
               strokeWidth="2"
             />
-
-            {/* Points */}
             {data.map((d, i) => (
               <circle
                 key={i}
@@ -124,27 +202,27 @@ const LineChart = ({ data, title, colors }) => {
         </div>
         <div className="chart-legend">
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#ff6b6b" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#334b71" }}></div>
             <span>Sub-Segment</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#4ecdc4" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#cc6b5c" }}></div>
             <span>Quality of Care</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#45b7d1" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#F3DCB0" }}></div>
             <span>Handover Communication</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#f9ca24" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#8da0b8" }}></div>
             <span>Learning and Greeting</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#6c5ce7" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#A7D1CD" }}></div>
             <span>Quality of Call</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color" style={{ backgroundColor: "#a0a0a0" }}></div>
+            <div className="legend-color" style={{ backgroundColor: "#EDAF90" }}></div>
             <span>Call Closure</span>
           </div>
         </div>
@@ -153,15 +231,29 @@ const LineChart = ({ data, title, colors }) => {
   )
 }
 
-// Bar Chart Component
-const BarChart = ({ data, title, colors }) => {
-  const maxValue = Math.max(...Object.values(data[0]).filter((v) => typeof v === "number")) + 5
-  const chartWidth = 400
+// =====================
+// Upgraded Bar Chart
+// (positive-only, auto width, optional legend)
+// =====================
+const BarChart = ({ data, title, colors, showLegend = true }) => {
   const chartHeight = 200
-  const barWidth = 30
-  const groupWidth = 160
+  const topPad = 30
+  const bottomPad = 30
 
   const categories = Object.keys(data[0]).filter((key) => key !== "period")
+  const allVals = data.flatMap((row) =>
+    categories.map((k) => Math.max(0, Number(row[k] || 0)))
+  )
+  const maxValue = Math.max(5, Math.max(...allVals)) + 2
+
+  const barWidth = 24
+  const barGap = 6
+  const groupInnerWidth = categories.length * (barWidth + barGap)
+  const groupGap = 40
+  const leftPad = 60
+  const rightPad = 24
+  const chartWidth =
+    leftPad + data.length * groupInnerWidth + (data.length - 1) * groupGap + rightPad
 
   return (
     <div className="chart-container">
@@ -169,75 +261,83 @@ const BarChart = ({ data, title, colors }) => {
       <div className="chart-wrapper">
         <div className="chart-area">
           <svg width={chartWidth} height={chartHeight} className="bar-chart">
-            {/* Grid lines */}
-            {Array.from({ length: Math.ceil(maxValue / 5) + 1 }, (_, i) => i * 5).map((value) => (
-              <g key={value}>
-                <line
-                  x1="50"
-                  y1={chartHeight - 30 - (value / maxValue) * (chartHeight - 60)}
-                  x2={chartWidth - 20}
-                  y2={chartHeight - 30 - (value / maxValue) * (chartHeight - 60)}
-                  stroke="#e0e0e0"
-                  strokeDasharray="2,2"
-                />
-                <text
-                  x="40"
-                  y={chartHeight - 30 - (value / maxValue) * (chartHeight - 60) + 4}
-                  fontSize="12"
-                  fill="#666"
-                  textAnchor="end"
-                >
-                  {value}
-                </text>
-              </g>
-            ))}
+            {Array.from({ length: 6 }, (_, i) => (i * maxValue) / 5).map((value) => {
+              const y =
+                chartHeight - bottomPad - (value / maxValue) * (chartHeight - topPad - bottomPad)
+              return (
+                <g key={value}>
+                  <line
+                    x1={leftPad}
+                    y1={y}
+                    x2={chartWidth - rightPad}
+                    y2={y}
+                    stroke="#e0e0e0"
+                    strokeDasharray="2,2"
+                  />
+                  <text x={leftPad - 10} y={y + 4} fontSize="12" fill="#666" textAnchor="end">
+                    {Math.round(value)}
+                  </text>
+                </g>
+              )
+            })}
 
-            {/* Bars */}
-            {data.map((periodData, periodIndex) => (
-              <g key={periodIndex}>
-                {categories.map((category, categoryIndex) => {
-                  const x = 80 + periodIndex * groupWidth + categoryIndex * (barWidth + 2)
-                  const height = (periodData[category] / maxValue) * (chartHeight - 60)
-                  const y = chartHeight - 30 - height
-
-                  return (
-                    <rect
-                      key={category}
-                      x={x}
-                      y={y}
-                      width={barWidth}
-                      height={height}
-                      fill={colors[categoryIndex % colors.length]}
-                    />
-                  )
-                })}
-                <text
-                  x={80 + periodIndex * groupWidth + (categories.length * (barWidth + 2)) / 2}
-                  y={chartHeight - 10}
-                  fontSize="12"
-                  fill="#666"
-                  textAnchor="middle"
-                >
-                  {periodData.period}
-                </text>
-              </g>
-            ))}
+            {data.map((row, periodIdx) => {
+              const startX = leftPad + periodIdx * (groupInnerWidth + groupGap)
+              return (
+                <g key={periodIdx}>
+                  {categories.map((cat, catIdx) => {
+                    const v = Math.max(0, Number(row[cat] || 0))
+                    const usableH = chartHeight - topPad - bottomPad
+                    const h = (v / maxValue) * usableH
+                    const y = chartHeight - bottomPad - h
+                    const x = startX + catIdx * (barWidth + barGap)
+                    return (
+                      <rect
+                        key={cat}
+                        x={x}
+                        y={y}
+                        width={barWidth}
+                        height={h}
+                        fill={colors[catIdx % colors.length]}
+                      />
+                    )
+                  })}
+                  <text
+                    x={startX + groupInnerWidth / 2}
+                    y={chartHeight - 8}
+                    fontSize="12"
+                    fill="#666"
+                    textAnchor="middle"
+                  >
+                    {row.period}
+                  </text>
+                </g>
+              )
+            })}
           </svg>
         </div>
-        <div className="chart-legend">
-          {categories.map((category, index) => (
-            <div key={category} className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: colors[index % colors.length] }}></div>
-              <span>{category}</span>
-            </div>
-          ))}
-        </div>
+
+        {showLegend && (
+          <div className="chart-legend">
+            {categories.map((category, index) => (
+              <div key={category} className="legend-item">
+                <div
+                  className="legend-color"
+                  style={{ backgroundColor: colors[index % colors.length] }}
+                ></div>
+                <span>{category}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-// Simple Bar Chart for Agents
+// =====================
+// Existing Simple Bar
+// =====================
 const SimpleBarChart = ({ data, title }) => {
   const maxValue = 8
   const chartWidth = 400
@@ -248,7 +348,6 @@ const SimpleBarChart = ({ data, title }) => {
       <h3 className="chart-title">{title}</h3>
       <div className="chart-area">
         <svg width={chartWidth} height={chartHeight} className="simple-bar-chart">
-          {/* Grid lines */}
           {[0, 2, 4, 6, 8].map((value) => (
             <g key={value}>
               <line
@@ -270,8 +369,6 @@ const SimpleBarChart = ({ data, title }) => {
               </text>
             </g>
           ))}
-
-          {/* Bar */}
           <rect
             x="180"
             y={chartHeight - 30 - (data[0].value / maxValue) * (chartHeight - 60)}
@@ -279,8 +376,6 @@ const SimpleBarChart = ({ data, title }) => {
             height={(data[0].value / maxValue) * (chartHeight - 60)}
             fill="#ff6b6b"
           />
-
-          {/* X-axis label */}
           <text x="200" y={chartHeight - 10} fontSize="12" fill="#666" textAnchor="middle">
             {data[0].name}
           </text>
@@ -291,6 +386,9 @@ const SimpleBarChart = ({ data, title }) => {
   )
 }
 
+// =====================
+// Main component (merged)
+// =====================
 const AuditDashboard = () => {
   return (
     <div className="audit-dashboard">
@@ -330,88 +428,73 @@ const AuditDashboard = () => {
 
       {/* Charts Section */}
       <div className="charts-section">
-        {/* Telephone Audit */}
-        <LineChart data={telephoneAuditData} title="Telephone Audit - Criteria" colors={["#ff6b6b"]} />
+        {/* Telephone Audit (kept) */}
+        <LineChart data={telephoneAuditData} title="Telephone Audit - Criteria" colors={["#334b71"]} />
 
-        {/* Digital Audit */}
+        {/* Digital Audit (kept) */}
         <BarChart
           data={digitalAuditData}
           title="Digital Audit - Criteria"
-          colors={["#ff6b6b", "#4ecdc4", "#45b7d1", "#6c5ce7", "#2ed573"]}
+          colors={["#334b71", "#cc6b5c", "#F3DCB0", "#8da0b8", "#A7D1CD"]}
         />
 
-        {/* Medical Audit */}
+        {/* Medical Audit (kept) */}
         <BarChart
           data={medicalAuditData}
           title="Medical Audit - Criteria"
-          colors={["#ff6b6b", "#f9ca24", "#45b7d1", "#6c5ce7", "#2ed573"]}
+          colors={["#334b71", "#cc6b5c", "#F3DCB0", "#8da0b8", "#A7D1CD"]}
         />
 
-        {/* Safety Audit */}
-        <div className="chart-container">
-          <h3 className="chart-title">Safety Audit - Criteria</h3>
-          <div className="chart-wrapper">
-            <div className="chart-area">
-              <div className="empty-chart-message">No data available for the selected period</div>
+        {/* Safety Audit - now with real chart; keeping your original legend below */}
+        <BarChart
+          data={safetyAuditData}
+          title="Safety Audit - Criteria"
+          colors={PALETTE_8}
+          showLegend={false}
+        />
+        <div className="chart-legend">
+          {safetyAuditCategories.map((category, index) => (
+            <div key={category} className="legend-item">
+              <div
+                className="legend-color"
+                style={{ backgroundColor: PALETTE_8[index % PALETTE_8.length] }}
+              ></div>
+              <span>{category}</span>
             </div>
-            <div className="chart-legend">
-              {safetyAuditCategories.map((category, index) => (
-                <div key={category} className="legend-item">
-                  <div
-                    className="legend-color"
-                    style={{
-                      backgroundColor: [
-                        "#ff6b6b",
-                        "#f9ca24",
-                        "#45b7d1",
-                        "#6c5ce7",
-                        "#2ed573",
-                        "#ff9ff3",
-                        "#54a0ff",
-                        "#5f27cd",
-                      ][index % 8],
-                    }}
-                  ></div>
-                  <span>{category}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Housekeeping and Grooming */}
+        {/* Housekeeping and Grooming – now charts on the positive side */}
         <div className="housekeeping-section">
           <h3 className="section-title">Housekeeping and Grooming Audit</h3>
           <div className="housekeeping-grid">
             <div className="housekeeping-card">
               <h4 className="card-subtitle">Grooming</h4>
-              <div className="empty-chart-area">
-                <div className="empty-chart-placeholder">
-                  <div className="placeholder-text">No data available</div>
-                  <div className="placeholder-subtext">Audit Month: Last 3 Months - Jul</div>
-                </div>
-              </div>
+              <BarChart
+                data={groomingAuditData}
+                title="Grooming - Criteria"
+                colors={[PALETTE_8[0], PALETTE_8[1], PALETTE_8[3], PALETTE_8[5]]}
+              />
             </div>
             <div className="housekeeping-card">
               <h4 className="card-subtitle">Housekeeping</h4>
-              <div className="empty-chart-area">
-                <div className="empty-chart-placeholder">
-                  <div className="placeholder-text">No data available</div>
-                  <div className="placeholder-subtext">Bright - LIMS - MOM</div>
-                </div>
-              </div>
+              <BarChart
+                data={housekeepingAuditData}
+                title="Housekeeping - Criteria"
+                colors={[PALETTE_8[2], PALETTE_8[3], PALETTE_8[4], PALETTE_8[6]]}
+              />
             </div>
           </div>
         </div>
 
-        {/* Telephone Audit - Agents */}
+        {/* Telephone Audit - Agents (kept) */}
         <div className="agents-section">
           <h3 className="section-title">Telephone Audit - Agents</h3>
           <SimpleBarChart data={agentsPerformanceData} title="Agents Performance" />
         </div>
       </div>
 
-      {/* Draft and Completed Audit Tables */}
+      {/* Draft and Completed Audit Tables (kept) */}
       <div className="audit-tables">
         <div className="table-card">
           <h3 className="table-title">Draft Audit MTD</h3>
@@ -448,7 +531,6 @@ const AuditDashboard = () => {
           <table className="audit-table">
             <thead>
               <tr>
-                <th>Jays</th>
                 <th>WhatsApp</th>
                 <th>Instagram</th>
                 <th>Grooming</th>
@@ -460,7 +542,6 @@ const AuditDashboard = () => {
             </thead>
             <tbody>
               <tr>
-                <td>Jays</td>
                 <td>0</td>
                 <td>0</td>
                 <td>0</td>

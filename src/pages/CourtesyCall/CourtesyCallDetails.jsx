@@ -222,28 +222,17 @@ setLoading(true);
         }
 
         .cc-btn-save {
-          background-color: #28a745;
+          background-color: #334b71;
         }
 
         .cc-btn-submit {
-          background-color: #007bff;
+          background-color: #334b71;
         }
 
         .cc-btn-back {
           background-color: #6c757d;
         }
 
-        .cc-btn-save:hover {
-          background-color: #218838;
-        }
-
-        .cc-btn-submit:hover {
-          background-color: #0069d9;
-        }
-
-        .cc-btn-back:hover {
-          background-color: #5a6268;
-        }
           .cc-group span{font-size: 15px;display: inline-block; margin: 0 0 5px; font-weight: 400;}
         .cc-header strong{font-weight: 700; }
         @media (max-width: 768px) {

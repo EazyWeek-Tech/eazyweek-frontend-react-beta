@@ -301,7 +301,7 @@ const CreateRuleForm = ({ opportunityData, onBack, onSave, onActivate }) => {
 
           {/* Rule Data Fetch Type */}
           <div className="form-row">
-            <label className="form-label">Rule Data Fetch Type</label>
+            <label className="form-label">Segment</label>
             <select
               className="form-select"
               value={ruleConfig.dataFetchType}
