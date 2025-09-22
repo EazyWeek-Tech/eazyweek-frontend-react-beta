@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import GeneralTab from "./CaseDetails/GeneralTab";
 import IssuesTab from "./CaseDetails/IssuesTab";
 import SLATab from "./CaseDetails/SLATab";
@@ -60,7 +60,7 @@ const readOrgContext = (general, current) => {
     ss("centerCode"),
     ss("CenterCode"),
     ss("centercode"),
-    ss("job"),             // some envs store center in "job"
+    ss("job"),
     fromJson("centerCode"),
     fromJson("job")
   );
@@ -85,8 +85,8 @@ const readOrgContext = (general, current) => {
 
   return {
     CENTERCODE: centerGuess,
-    DEPARTMENTCODE: 'department',  // optional
-    CUSTCLINICCODE: 'Bright',      // optional
+    DEPARTMENTCODE: departmentGuess || "department", // optional default
+    CUSTCLINICCODE: clinicGuess || "Bright", // optional default
   };
 };
 
@@ -99,17 +99,25 @@ function buildRequiredBlock({ actionType, general, current, status, disposition 
   const isComplaint =
     /complaint/i.test(
       trim(current?.caseCategory) ||
-      trim(current?.categoryName) ||
-      trim(current?.subCategoryName) || ""
-    ) ||
-    /complaint/i.test(trim(general?.categoryName || ""));
+        trim(current?.categoryName) ||
+        trim(current?.subCategoryName) ||
+        ""
+    ) || /complaint/i.test(trim(general?.categoryName || ""));
 
   if (actionType === "updateStatus") {
+    // Backend requires these when changing status
+    const assigneeCode =
+      trim(current?.assignToCode) || trim(current?.assignedTo) || "";
+
     const base = pruneEmpty({
       caseno: current?.caseNo,
       status: trim(status),
       CENTERCODE: org.CENTERCODE,
-      CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : "N/A",
+      CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : "",
+      ASSIGNEDTO: assigneeCode,
+      CaseWith: assigneeCode,
+      DEPARTMENTCODE: org.DEPARTMENTCODE,
+      CUSTCLINICCODE: org.CUSTCLINICCODE,
     });
 
     // If closing a Complaint, CategorySpecificResolution is required.
@@ -117,7 +125,7 @@ function buildRequiredBlock({ actionType, general, current, status, disposition 
       const csr =
         trim(general?.categorySpecificResolution) ||
         trim(current?.categorySpecificResolution);
-      base.CategorySpecificResolution = csr; // validated below
+      base.CategorySpecificResolution = csr;
     }
     return base;
   }
@@ -150,18 +158,45 @@ function validateRequired(requiredObj) {
 // without overwriting real values. Uses placeholders only if empty.
 // --------------------------------------------
 function fillRequiredForUpdateStatus(lower, current, status, disposition) {
-  // Fields that backend has complained about in your logs:
+  // Fields that backend has complained about (union of all your logs)
   const MUST_HAVE = [
-    "CASETITLE","Category","SubCategory","SubSubCategory","SubSubSubCategory",
-    "CASEMEDIUM","CASESOURCE","Priority","CustID",
-    "ProductCode","SERVICECODE","SERVICECCODE","CREATEDBY",
-    "ISSUEDESCIPTION","ClientThreat","DoctorCode","FIRSTTIMERESOLUTION",
-    "RESPONSE","ASSIGNEDEMAILID","EMPLOYENO","CC","MoreCC","REMARKS",
-    "CategorySpecificResolution","CASEDISPOSITION","CENTERCODE"
-    // department/clinic optional on your system; add if your server insists
+    "CASETITLE",
+    "Category",
+    "SubCategory",
+    "SubSubCategory",
+    "SubSubSubCategory",
+    "CASEMEDIUM",
+    "CASESOURCE",
+    "Priority",
+    "CustID",
+    "ProductCode",
+    "SERVICECODE",
+    "SERVICECCODE",
+    "CREATEDBY",
+    "ISSUEDESCIPTION",
+    "ClientThreat",
+    "DoctorCode",
+    "FIRSTTIMERESOLUTION",
+    "RESPONSE",
+    "ASSIGNEDEMAILID",
+    "EMPLOYENO",
+    "CC",
+    "MoreCC",
+    "REMARKS",
+    "CategorySpecificResolution",
+    "CASEDISPOSITION",
+    "CENTERCODE",
+    "DEPARTMENTCODE",
+    "CUSTCLINICCODE",
+    // Newly enforced by your API:
+    "ASSIGNEDTO",
+    "CaseWith",
   ];
 
-  // Create an upper-case view of current case for convenience
+  // Snapshot of current case values
+  const assigneeCode =
+    trim(current?.assignToCode) || trim(current?.assignedTo) || "";
+
   const fromCurrent = {
     CASETITLE: current?.title,
     Category: current?.categoryCode,
@@ -187,21 +222,27 @@ function fillRequiredForUpdateStatus(lower, current, status, disposition) {
     MoreCC: current?.moreCc,
     REMARKS: current?.remarks,
     CategorySpecificResolution: current?.categorySpecificResolution,
-    CASEDISPOSITION: trim(status) === "Closed" ? trim(disposition) : (current?.disposition || "N/A"),
+    CASEDISPOSITION:
+      trim(status) === "Closed"
+        ? trim(disposition)
+        : current?.disposition || "N/A",
     CENTERCODE: lower.CENTERCODE || lower.centercode || "N/A",
+    DEPARTMENTCODE: lower.DEPARTMENTCODE || lower.departmentcode || "N/A",
+    CUSTCLINICCODE: lower.CUSTCLINICCODE || lower.custcliniccode || "N/A",
+    ASSIGNEDTO: assigneeCode,
+    CaseWith: assigneeCode,
   };
 
-  // placeholders (keep email-ish fields as "-" to avoid bad addresses)
-  const PLACEHOLDER = {
-    default: "N/A",
-    email: "-",
-    cc: "-",
-  };
+  const PLACEHOLDER = { default: "N/A", email: "-", cc: "-" };
 
   const out = { ...lower };
 
   for (const key of MUST_HAVE) {
-    if (isNonEmpty(out[key])) continue; // already present & non-empty
+    if (isNonEmpty(out[key])) continue;
+
+    // Must be real values when closing or routing
+    if (key === "CASEDISPOSITION" && trim(status) === "Closed") continue;
+    if (key === "ASSIGNEDTO" || key === "CaseWith") continue;
 
     const cur = trim(fromCurrent[key] ?? "");
     if (isNonEmpty(cur)) {
@@ -209,12 +250,8 @@ function fillRequiredForUpdateStatus(lower, current, status, disposition) {
       continue;
     }
 
-    if (!USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
-      // leave it empty; backend may 400 and we surface the error
-      continue;
-    }
+    if (!USE_PLACEHOLDERS_ON_UPDATE_STATUS) continue;
 
-    // fill with safe placeholder
     if (key === "ASSIGNEDEMAILID") out[key] = PLACEHOLDER.email;
     else if (key === "CC" || key === "MoreCC") out[key] = PLACEHOLDER.cc;
     else out[key] = PLACEHOLDER.default;
@@ -234,11 +271,19 @@ const readSessionUser = () => {
     if (raw) {
       try {
         const obj = JSON.parse(raw);
-        const code = firstNonEmpty(obj.userId, obj.userID, obj.employeeCode, obj.empCode, obj.code);
+        const code = firstNonEmpty(
+          obj.userId,
+          obj.userID,
+          obj.employeeCode,
+          obj.empCode,
+          obj.code
+        );
         const name = firstNonEmpty(
           obj.userName,
           obj.username,
-          (obj.firstName || obj.lastName) ? `${obj.firstName || ""} ${obj.lastName || ""}` : "",
+          (obj.firstName || obj.lastName)
+            ? `${obj.firstName || ""} ${obj.lastName || ""}`
+            : "",
           obj.name
         );
         if (code || name) return { code, name };
@@ -255,9 +300,11 @@ const readSessionUser = () => {
   const name = firstNonEmpty(
     sessionStorage.getItem("userName"),
     sessionStorage.getItem("username"),
-    `${sessionStorage.getItem("firstName") || ""} ${sessionStorage.getItem("lastName") || ""}`
+    `${sessionStorage.getItem("firstName") || ""} ${
+      sessionStorage.getItem("lastName") || ""
+    }`
   );
-  return (code || name) ? { code, name } : null;
+  return code || name ? { code, name } : null;
 };
 
 // --------------------------------------------
@@ -266,6 +313,11 @@ const readSessionUser = () => {
 const CaseDetailsPage = () => {
   const { caseNumber } = useParams();
   const navigate = useNavigate();
+
+  // read owner & assignedTo from URL query params
+  const [searchParams] = useSearchParams();
+  const ownerFromUrl = trim(searchParams.get("owner"));
+  const assignedFromUrl = trim(searchParams.get("assignedTo"));
 
   const [activeTab, setActiveTab] = useState("general");
   const [selectedCaseData, setSelectedCaseData] = useState(null);
@@ -315,17 +367,17 @@ const CaseDetailsPage = () => {
         );
         const data = await response.json();
 
-        const mappedAssignCode = trim(firstNonEmpty(
-          data.assignToCode,
-          data.assignCode,
-          data.emailTOCode,
-          data.nextLevelID
-        ));
-        const mappedAssignName = trim(firstNonEmpty(
-          data.assignTOName,
-          data.assignName,
-          data.emailTOName
-        ));
+        const mappedAssignCode = trim(
+          firstNonEmpty(
+            data.assignToCode,
+            data.assignCode,
+            data.emailTOCode,
+            data.nextLevelID
+          )
+        );
+        const mappedAssignName = trim(
+          firstNonEmpty(data.assignTOName, data.assignName, data.emailTOName)
+        );
 
         setSelectedCaseData({
           caseNo: trim(data.caseNo),
@@ -417,6 +469,55 @@ const CaseDetailsPage = () => {
   function buildFullPayload({ general, current, status, disposition, operation }) {
     const org = readOrgContext(general, current);
 
+    const assigneeCode =
+      trim(current?.assignToCode) || trim(current?.assignedTo) || "";
+
+    // Minimal status update path:
+    if (operation === "updateStatus") {
+      const csr = mergeVal(
+        general?.categorySpecificResolution,
+        current?.categorySpecificResolution
+      );
+
+      const minimal = pruneEmpty({
+        caseno: current?.caseNo || "",
+        operation: "updateStatus",
+        createddate: new Date().toISOString(),
+
+        // Only the fields that are actually changing
+        status: trim(status) || undefined,
+        caseStatus: trim(status) || undefined,
+        casedisposition: isNonEmpty(disposition) ? trim(disposition) : "",
+        categorySpecificResolution: csr,
+
+        // Backend routing/ownership requirements
+        assignedto: assigneeCode,
+        caseWith: assigneeCode,
+
+        // Org context required by backend
+        centercode: org.CENTERCODE,
+        departmentcode: org.DEPARTMENTCODE,
+        custcliniccode: org.CUSTCLINICCODE,
+      });
+
+      // Uppercase aliases
+      const up = {
+        ...minimal,
+        CASESTATUS: minimal.caseStatus,
+        CASEDISPOSITION: minimal.casedisposition,
+        CategorySpecificResolution: minimal.categorySpecificResolution,
+        ASSIGNEDTO: minimal.assignedto,
+        CaseWith: minimal.caseWith,
+        CENTERCODE: minimal.centercode,
+        DEPARTMENTCODE: minimal.departmentcode,
+        CUSTCLINICCODE: minimal.custcliniccode,
+      };
+
+      // Ensure every backend-required field is present (reuse existing values or placeholders)
+      return fillRequiredForUpdateStatus(up, current, status, up.CASEDISPOSITION);
+    }
+
+    // Non-status actions (save/submit) → full payload as before
     const base = {
       caseno: current?.caseNo || "",
       operation: operation || "",
@@ -427,7 +528,10 @@ const CaseDetailsPage = () => {
       category: mergeVal(general?.categoryCode, current?.categoryCode),
       subCategory: mergeVal(general?.subCategory, current?.subCategory),
       subSubCategory: mergeVal(general?.subSubCategory, current?.subSubCategory),
-      subSubSubCategory: mergeVal(general?.subSubSubCategory, current?.subSubSubCategory),
+      subSubSubCategory: mergeVal(
+        general?.subSubSubCategory,
+        current?.subSubSubCategory
+      ),
       casemedium: mergeVal(general?.medium, current?.medium),
       casesource: mergeVal(general?.source, current?.source),
       priority: mergeVal(general?.priority, current?.priority),
@@ -445,38 +549,48 @@ const CaseDetailsPage = () => {
       response: mergeVal(undefined, current?.response),
 
       // Assignment / contacts
-      assignedto: mergeVal(undefined, current?.assignedTo),
+      assignedto: mergeVal(undefined, assigneeCode || current?.assignedTo),
+      caseWith: mergeVal(undefined, assigneeCode),
       employeno: mergeVal(undefined, current?.employeeMobile),
       assignedemailid: mergeVal(undefined, current?.email),
       cc: mergeVal(undefined, current?.cc),
       moreCC: mergeVal(undefined, current?.moreCc),
-      // 🔽 merge CSR from General first (so edits in General tab are honored)
-      categorySpecificResolution: mergeVal(general?.categorySpecificResolution, current?.categorySpecificResolution),
+      categorySpecificResolution: mergeVal(
+        general?.categorySpecificResolution,
+        current?.categorySpecificResolution
+      ),
       remarks: mergeVal(undefined, current?.remarks),
 
       // Status
-      casedisposition: isNonEmpty(disposition) ? trim(disposition) : (current?.disposition || undefined),
-      caseWith: mergeVal(undefined, current?.assignToCode),
+      casedisposition: isNonEmpty(disposition)
+        ? trim(disposition)
+        : current?.disposition || undefined,
       status: trim(status) || undefined,
       caseStatus: trim(status) || undefined,
 
       // Costs
-      materialCost: isNonEmpty(current?.materialCost) ? current.materialCost : undefined,
-      labourCost: isNonEmpty(current?.labourCOst) ? current.labourCOst : undefined,
-      otherCharges: isNonEmpty(current?.otherCharges) ? current.otherCharges : undefined,
+      materialCost: isNonEmpty(current?.materialCost)
+        ? current.materialCost
+        : undefined,
+      labourCost: isNonEmpty(current?.labourCOst)
+        ? current.labourCOst
+        : undefined,
+      otherCharges: isNonEmpty(current?.otherCharges)
+        ? current.otherCharges
+        : undefined,
       totalCharges: isNonEmpty(current?.total) ? current.total : undefined,
 
-      // Org (Center required to avoid inserts)
+      // Org
       isdraft: operation === "save" ? 1 : 0,
-      centercode: readOrgContext(general, current).CENTERCODE,
-      ...(isNonEmpty(readOrgContext(general, current).DEPARTMENTCODE) ? { departmentcode: readOrgContext(general, current).DEPARTMENTCODE } : {}),
-      ...(isNonEmpty(readOrgContext(general, current).CUSTCLINICCODE) ? { custcliniccode: readOrgContext(general, current).CUSTCLINICCODE } : {}),
+      centercode: org.CENTERCODE,
+      ...(isNonEmpty(org.DEPARTMENTCODE) ? { departmentcode: org.DEPARTMENTCODE } : {}),
+      ...(isNonEmpty(org.CUSTCLINICCODE) ? { custcliniccode: org.CUSTCLINICCODE } : {}),
     };
 
-    // Drop empties (normal path)
+    // Drop empties
     let lower = pruneEmpty(base);
 
-    // Add uppercase aliases for present keys
+    // Uppercase aliases for present keys
     const aliasMap = {
       casetitle: "CASETITLE",
       category: "Category",
@@ -496,6 +610,7 @@ const CaseDetailsPage = () => {
       doctorCode: "DoctorCode",
       firsttimeresolution: "FIRSTTIMERESOLUTION",
       response: "RESPONSE",
+      assignedto: "ASSIGNEDTO",
       assignedemailid: "ASSIGNEDEMAILID",
       employeno: "EMPLOYENO",
       cc: "CC",
@@ -504,6 +619,7 @@ const CaseDetailsPage = () => {
       remarks: "REMARKS",
       casedisposition: "CASEDISPOSITION",
       caseStatus: "CASESTATUS",
+      caseWith: "CaseWith",
       centercode: "CENTERCODE",
       departmentcode: "DEPARTMENTCODE",
       custcliniccode: "CUSTCLINICCODE",
@@ -513,21 +629,17 @@ const CaseDetailsPage = () => {
     for (const [low, up] of Object.entries(aliasMap)) {
       if (low in lower) payload[up] = lower[low];
     }
-
-    // SPECIAL: updateStatus must include all "required" keys non-empty → fill placeholders if needed
-    if (base.operation === "updateStatus") {
-      payload = fillRequiredForUpdateStatus(payload, current, status, payload.CASEDISPOSITION);
-    }
-
     return payload;
   }
 
   // Actions
   const handleAction = async (actionType, overrides = {}) => {
-    const generalData = overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
+    const generalData =
+      overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
     const effectiveStatus = trim(overrides.status ?? status);
     const effectiveDisposition = trim(overrides.disposition ?? disposition);
-    const effectiveSelected = overrides.selectedCaseData ?? selectedCaseData;
+    const effectiveSelected =
+      overrides.selectedCaseData ?? selectedCaseData;
 
     // Minimal validation (center + basics; closes require disposition)
     const req = buildRequiredBlock({
@@ -539,7 +651,10 @@ const CaseDetailsPage = () => {
     });
     const { ok, missing } = validateRequired(req);
     if (!ok) {
-      setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
+      setToast({
+        type: "error",
+        message: `Missing required fields: ${missing.join(", ")}`,
+      });
       return;
     }
 
@@ -567,19 +682,28 @@ const CaseDetailsPage = () => {
       try {
         result = JSON.parse(responseText);
       } catch {
-        // include server text in toast for faster debugging
         throw new Error(responseText || "Invalid JSON response from server");
       }
 
       if (result?.code === "200") {
         setToast({
           type: "success",
-          message: `Case ${actionType}d successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+          message: `Case ${actionType}d successfully. Case No: ${
+            result.name || effectiveSelected?.caseNo
+          }`,
         });
 
         if (payload.status) {
           setStatus(payload.status);
-          setSelectedCaseData((prev) => prev ? { ...prev, caseStatus: payload.status, disposition: payload.CASEDISPOSITION || prev.disposition } : prev);
+          setSelectedCaseData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  caseStatus: payload.status,
+                  disposition: payload.CASEDISPOSITION || prev.disposition,
+                }
+              : prev
+          );
         }
 
         if (actionType === "updateStatus") navigate(-1);
@@ -588,7 +712,10 @@ const CaseDetailsPage = () => {
       }
     } catch (err) {
       console.error(`${actionType} error:`, err);
-      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
+      setToast({
+        type: "error",
+        message: `Failed to ${actionType} case. Reason: ${err.message}`,
+      });
     } finally {
       setSaving(false);
     }
@@ -614,13 +741,43 @@ const CaseDetailsPage = () => {
   if (loading) return <div>Loading case details...</div>;
   if (!selectedCaseData) return <div>Case not found</div>;
 
+  // Prefer names from URL when present (fallback to API data)
+  const ownerDisplay = firstNonEmpty(
+    ownerFromUrl,
+    selectedCaseData.ownerName,
+    selectedCaseData.ownerCode,
+    "-"
+  );
+  const assignedDisplay = firstNonEmpty(
+    assignedFromUrl,
+    selectedCaseData.assignName,
+    selectedCaseData.assignToCode,
+    "-"
+  );
+
+  // Complaint detection for CSR rendering
+  const isComplaintCase =
+    /complaint/i.test(
+      trim(selectedCaseData?.caseCategory) ||
+        trim(selectedCaseData?.categoryName) ||
+        ""
+    );
+
   return (
     <section>
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
 
       <div className="brdcrmb">
         <ul>
-          <li><Link to="/cases">Case Management</Link></li>
+          <li>
+            <Link to="/cases">Case Management</Link>
+          </li>
           <li className="current">{selectedCaseData.caseNo}</li>
         </ul>
       </div>
@@ -633,13 +790,11 @@ const CaseDetailsPage = () => {
             <div className="csdetlbl">Priority</div>
           </div>
           <div className="casedet">
-            <div className="csdetval">{selectedCaseData.ownerName}</div>
+            <div className="csdetval">{ownerDisplay}</div>
             <div className="csdetlbl">Owner</div>
           </div>
           <div className="casedet">
-            <div className="csdetval">
-              {selectedCaseData.assignName || selectedCaseData.assignToCode || "-"}
-            </div>
+            <div className="csdetval">{assignedDisplay}</div>
             <div className="csdetlbl">Assigned To</div>
           </div>
         </div>
@@ -648,7 +803,7 @@ const CaseDetailsPage = () => {
       <div className="casedetwrp">
         <div className="casecell">
           <div className="form-group">
-            <label>Case Disposition</label>
+            <label>Case Disposition{status === "Closed" ? " *" : ""}</label>
             <select
               value={disposition}
               onChange={(e) => setDisposition(e.target.value)}
@@ -662,6 +817,31 @@ const CaseDetailsPage = () => {
           </div>
         </div>
 
+        {/* Category Specific Resolution (Complaint-only) */}
+        {isComplaintCase && (
+          <div className="casecell">
+            <div className="form-group">
+              <label>Category Specific Resolution</label>
+              <select
+                name="categorySpecificResolution"
+                value={selectedCaseData?.categorySpecificResolution || ""}
+                onChange={(e) =>
+                  setSelectedCaseData((prev) =>
+                    prev
+                      ? { ...prev, categorySpecificResolution: e.target.value }
+                      : prev
+                  )
+                }
+                disabled={saving}
+              >
+                <option value="">Select</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Unresolved">Unresolved</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         <div className="casecell">
           <div className="casecell">
             <div className="form-group">
@@ -674,26 +854,34 @@ const CaseDetailsPage = () => {
                   const prevStatus = status;
 
                   if (newStatus === "Closed" && !trim(disposition)) {
-                    setToast({ type: "error", message: "Please select Case Disposition before closing the case." });
+                    setToast({
+                      type: "error",
+                      message:
+                        "Please select Case Disposition before closing the case.",
+                    });
                     e.target.value = prevStatus || "";
                     return;
                   }
 
-                  // Extra guard: If Category is "Complaint", Category Specific Resolution must be selected
+                  // For Complaint, CSR is mandatory before closing
                   if (newStatus === "Closed") {
                     const isComplaint = /complaint/i.test(
                       trim(selectedCaseData?.caseCategory) ||
-                      trim(selectedCaseData?.categoryName) ||
-                      ""
+                        trim(selectedCaseData?.categoryName) ||
+                        ""
                     );
 
                     if (isComplaint) {
-                      const generalData = generalRef.current?.getGeneralData?.() ?? {};
-                      const csr = trim(generalData?.categorySpecificResolution) || trim(selectedCaseData?.categorySpecificResolution);
+                      const generalData =
+                        generalRef.current?.getGeneralData?.() ?? {};
+                      const csr =
+                        trim(generalData?.categorySpecificResolution) ||
+                        trim(selectedCaseData?.categorySpecificResolution);
                       if (!csr) {
                         setToast({
                           type: "error",
-                          message: "For Complaint cases, Category Specific Resolution is required before closing.",
+                          message:
+                            "For Complaint cases, Category Specific Resolution is required before closing.",
                         });
                         e.target.value = prevStatus || "";
                         return;
@@ -703,15 +891,25 @@ const CaseDetailsPage = () => {
 
                   // optimistic UI
                   setStatus(newStatus);
-                  setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: newStatus } : prev));
+                  setSelectedCaseData((prev) =>
+                    prev ? { ...prev, caseStatus: newStatus } : prev
+                  );
 
                   try {
-                    await handleAction("updateStatus", { status: newStatus, disposition });
+                    await handleAction("updateStatus", {
+                      status: newStatus,
+                      disposition,
+                    });
                   } catch {
                     // rollback
                     setStatus(prevStatus);
-                    setSelectedCaseData((prev) => (prev ? { ...prev, caseStatus: prevStatus } : prev));
-                    setToast({ type: "error", message: "Failed to save case status." });
+                    setSelectedCaseData((prev) =>
+                      prev ? { ...prev, caseStatus: prevStatus } : prev
+                    );
+                    setToast({
+                      type: "error",
+                      message: "Failed to save case status.",
+                    });
                   }
                 }}
               >
@@ -726,23 +924,69 @@ const CaseDetailsPage = () => {
       </div>
 
       <div className="wizard-progress">
-        <div className="step complete">Created<div className="node"></div></div>
-        <div className={`step ${status === "Closed" || status === "WIP" ? "complete" : status === "Open" ? "in-progress" : ""}`}>
+        <div className="step complete">
+          Created<div className="node"></div>
+        </div>
+        <div
+          className={`step ${
+            status === "Closed" || status === "WIP"
+              ? "complete"
+              : status === "Open"
+              ? "in-progress"
+              : ""
+          }`}
+        >
           Awaiting Action<div className="node"></div>
         </div>
-        <div className={`step ${status === "Closed" ? "complete" : status === "WIP" ? "in-progress" : ""}`}>
-          WIP <span>(2 hours)</span><div className="node"></div>
+        <div
+          className={`step ${
+            status === "Closed"
+              ? "complete"
+              : status === "WIP"
+              ? "in-progress"
+              : ""
+          }`}
+        >
+          WIP <span>(2 hours)</span>
+          <div className="node"></div>
         </div>
-        <div className={`step ${status === "Closed" ? "complete" : ""}`}>Closed<div className="node"></div></div>
+        <div className={`step ${status === "Closed" ? "complete" : ""}`}>
+          Closed<div className="node"></div>
+        </div>
       </div>
 
       <section className="tabsform">
         <div className="tab">
-          <span className={`tablinks ${activeTab === "general" ? "active" : ""}`} onClick={() => setActiveTab("general")}>General</span>
-          <span className={`tablinks ${activeTab === "issues" ? "active" : ""}`} onClick={() => setActiveTab("issues")}>Issues and Responses</span>
-          <span className={`tablinks ${activeTab === "sla" ? "active" : ""}`} onClick={() => setActiveTab("sla")}>SLA Details</span>
-          <span className={`tablinks ${activeTab === "journey" ? "active" : ""}`} onClick={() => setActiveTab("journey")}>Case Journey</span>
-          <span className={`tablinks ${activeTab === "expense" ? "active" : ""}`} onClick={() => setActiveTab("expense")}>Expense</span>
+          <span
+            className={`tablinks ${activeTab === "general" ? "active" : ""}`}
+            onClick={() => setActiveTab("general")}
+          >
+            General
+          </span>
+          <span
+            className={`tablinks ${activeTab === "issues" ? "active" : ""}`}
+            onClick={() => setActiveTab("issues")}
+          >
+            Issues and Responses
+          </span>
+          <span
+            className={`tablinks ${activeTab === "sla" ? "active" : ""}`}
+            onClick={() => setActiveTab("sla")}
+          >
+            SLA Details
+          </span>
+          <span
+            className={`tablinks ${activeTab === "journey" ? "active" : ""}`}
+            onClick={() => setActiveTab("journey")}
+          >
+            Case Journey
+          </span>
+          <span
+            className={`tablinks ${activeTab === "expense" ? "active" : ""}`}
+            onClick={() => setActiveTab("expense")}
+          >
+            Expense
+          </span>
         </div>
 
         <div className="tabcontent" style={{ display: "block" }}>
@@ -752,10 +996,20 @@ const CaseDetailsPage = () => {
         {currentUser?.code === selectedCaseData?.assignToCode &&
           ["general", "issues", "expense"].includes(activeTab) && (
             <div className="buttongrp mt-3">
-              <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
+              <button
+                type="button"
+                className="pribtn"
+                onClick={() => handleAction("save")}
+                disabled={saving}
+              >
                 Save
               </button>
-              <button type="button" className="secbtn" onClick={() => handleAction("submit")} disabled={saving}>
+              <button
+                type="button"
+                className="secbtn"
+                onClick={() => handleAction("submit")}
+                disabled={saving}
+              >
                 Submit
               </button>
             </div>
