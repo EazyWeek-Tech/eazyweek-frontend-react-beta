@@ -252,6 +252,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
             headers: { "Content-Type": "application/json" },
           });
           const data = await response.json();
+          console.log(data)
 
           if (data.priority) handleChange("priority", data.priority || "");
           if (data.mobilephone) handleChange("employeno", data.mobilephone.trim());
@@ -1103,7 +1104,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 >
                   <option value="">Select Source</option>
                   {caseSources.map((source, index) => (
-                    <option key={index} value={source.code}>
+                    <option key={index} value={source.name.trim()}>
                       {source.name.trim()}
                     </option>
                   ))}
@@ -1526,31 +1527,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 <div className="error"></div>
               </div>
 
-              {/* Category Specific Resolution (conditionally required) */}
-              <div className="form-group">
-               <label htmlFor="specificResolution">Category Specific Resolution </label>
-
-                <select
-                  id="specificResolution"
-                  value={formValues.specificResolution}
-                  disabled={!selectedCategoryCode || specificResolutions.length === 0}
-                  onChange={(e) => {
-                    handleChange("specificResolution", e.target.value);
-                    setValidationErrors((prev) => ({ ...prev, specificResolution: null }));
-                  }}
-                  className={validationErrors.specificResolution ? "error-border" : ""}
-                >
-                  <option value="">Select Specific Resolution</option>
-                  {specificResolutions.map((res, index) => (
-                    <option key={index} value={res.name.trim()}>
-                      {res.name.trim()}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.specificResolution && (
-                  <div className="error-text">{validationErrors.specificResolution}</div>
-                )}
-              </div>
+             
 
               {/* Remarks (optional) */}
               <div className="form-group">

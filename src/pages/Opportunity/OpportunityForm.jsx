@@ -666,7 +666,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const FetchTypeRow = ({ ruleId, vals }) => (
   <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
     <label className="rf-field">
-      <span className="rf-label">Rule Data Fetch Type</span>
+      <span className="rf-label">Segment</span>
       <select
         className="rf-input"
         value={vals.fetchType || ""}

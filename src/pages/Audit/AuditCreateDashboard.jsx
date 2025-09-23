@@ -217,8 +217,8 @@ const AuditCreateDashboard = () => {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={() => navigate("/audit/create")}>New Audit</button>
-          <button className="btn" onClick={exportCSV}>Export</button>
+          <button className="pribtn" onClick={() => navigate("/audit/create")}>Create Audit</button>
+          <button className="pribtn" onClick={exportCSV}>Export</button>
         </div>
       </div>
 

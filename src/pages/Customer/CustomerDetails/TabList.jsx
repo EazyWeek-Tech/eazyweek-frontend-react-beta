@@ -10,6 +10,7 @@ const tabIcons = {
   Cases: "images/cases.svg",
   "Credit Memo": "images/creditmemo.svg",
   Notes: "images/notes1.svg",
+  "Loyalty": "images/loyaltywhite.svg",
 };
 
 const TabList = ({ tabs, activeTab, onTabClick, custId }) => {

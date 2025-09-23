@@ -72,15 +72,18 @@ const IssuesTab = forwardRef(({ data }, ref) => {
     }));
   }, [data]);
 
-  // Case responses (Actual)
+  // Case responses (Actual) — filter out rows with blank response details
   useEffect(() => {
     const run = async () => {
       try {
         const list = await fetchJSON(
           `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
         );
-        console.log(list)
-        setResponses(Array.isArray(list) ? list : []);
+        console.log(list);
+        const filtered = (Array.isArray(list) ? list : []).filter(
+          (r) => trim(r.responseDetails || r.details) !== ""
+        );
+        setResponses(filtered);
       } catch (e) {
         console.error("Error fetching responses:", e);
         setResponses([]);
@@ -363,7 +366,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
               responses.map((res, idx) => (
                 <tr key={idx} className="Hrline">
                   <td>{res.responseCode || res.reseponseCode || "-"}</td>
-                  <td>{res.responseDetails || res.details || "-"}</td>
+                  <td>{res.responseDetails || res.details}</td>
                   <td>{res.responseBy || "-"}</td>
                 </tr>
               ))
@@ -392,19 +395,6 @@ const IssuesTab = forwardRef(({ data }, ref) => {
         <div className="form-group">
           <label>More CC</label>
           <textarea name="moreCc" value={formValues.moreCc || ""} onChange={handleChange} rows="5" />
-        </div>
-
-        <div className="form-group">
-          <label>Category Specific Resolution</label>
-          <select
-            name="categorySpecificResolution"
-            value={formValues.categorySpecificResolution || ""}
-            onChange={handleChange}
-          >
-            <option value="">Select</option>
-            <option value="Resolved">Resolved</option>
-            <option value="Unresolved">Unresolved</option>
-          </select>
         </div>
 
         <div className="form-group">

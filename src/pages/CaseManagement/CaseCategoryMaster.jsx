@@ -281,12 +281,12 @@ const CaseCategoryMaster = () => {
         .category-extra { color: #111827; }
         .actions { text-align: right; }
         .del-btn {
-          padding: 6px 10px;
+          padding: 4px 10px;
           border: 1px solid #f3c1b8;
           border-radius: 8px;
           color: #fff;
-          background:rgb(144, 3, 3);
-          font-weight: 600;
+          background:rgb(124, 25, 25);
+          font-weight: 400;
           cursor: pointer;
           transition: background .15s, border-color .15s, transform .05s;
         }

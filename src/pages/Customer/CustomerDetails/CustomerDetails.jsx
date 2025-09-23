@@ -7,6 +7,7 @@ const tabs = [
   "General",
   "Appointment",
   "Invoices",
+  "Loyalty",
   "Packages",
   "Forms",
   "Cases",

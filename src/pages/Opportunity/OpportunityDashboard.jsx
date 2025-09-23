@@ -25,9 +25,9 @@ import {
 const COLORS = {
   total: "#334b71",     // deep navy
   open: "#cc6b5c",      // warm coral
-  wip: "#e9eef5",       // soft gray-blue
+  wip: "#F3DCB0",       // soft gray-blue
   closed: "#8da0b8",    // slate
-  converted: "#1a2537", // darker navy
+  converted: "#A7D1CD", // darker navy
   grid: "#eef2f7",
   axis: "#6e7b8f",
 };
@@ -37,33 +37,37 @@ const COLORS = {
 const STATUS_DATA_MANUAL_LEAD = [
   { label: "Total", value: 10, fill: COLORS.total },
   { label: "Open", value: 4, fill: COLORS.open },
+  { label: "WIP", value: 1, fill: COLORS.wip },
   { label: "Closed", value: 3, fill: COLORS.closed },
   { label: "Converted", value: 2, fill: COLORS.converted },
-  { label: "WIP", value: 1, fill: COLORS.wip },
+  
 ];
 
 const STATUS_DATA_PAID_X_NOT_Y = [
   { label: "Total", value: 285, fill: COLORS.total },
   { label: "Open", value: 235, fill: COLORS.open },
+  { label: "WIP", value: 20, fill: COLORS.wip },
   { label: "Closed", value: 20, fill: COLORS.closed },
   { label: "Converted", value: 10, fill: COLORS.converted },
-  { label: "WIP", value: 20, fill: COLORS.wip },
+  
 ];
 
 const STATUS_DATA_NO_SHOW = [
   { label: "Total", value: 9, fill: COLORS.total },
   { label: "Open", value: 9, fill: COLORS.open },
+   { label: "WIP", value: 0, fill: COLORS.wip },
   { label: "Closed", value: 0, fill: COLORS.closed },
   { label: "Converted", value: 6, fill: COLORS.converted },
-  { label: "WIP", value: 0, fill: COLORS.wip },
+ 
 ];
 
 const STATUS_DATA_PAID_X_CAT = [
   { label: "Total", value: 6, fill: COLORS.total },
   { label: "Open", value: 3, fill: COLORS.open },
+   { label: "WIP", value: 0, fill: COLORS.wip },
   { label: "Closed", value: 3, fill: COLORS.closed },
   { label: "Converted", value: 3, fill: COLORS.converted },
-  { label: "WIP", value: 0, fill: COLORS.wip },
+ 
 ];
 
 /* Stacked-by-clinic cards (static) */
@@ -261,7 +265,30 @@ const OpportunityDashboard = () => {
   };
 
   const handleRefresh = () => setStatusFilter("1");
-  const handleOpportunityClick = (oppCode) => navigate(`/opportunity/details/${oppCode}`);
+  // utils
+const toISODateOnly = (d) => {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (Number.isNaN(+dt)) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const handleOpportunityClick = (oppCode, fromDate, toDate) => {
+  // fallback: use today and last 14 days if not provided by row
+  const now = new Date();
+  const from = fromDate ? new Date(fromDate) : new Date(now.setDate(now.getDate() - 13));
+  const to = toDate ? new Date(toDate) : new Date();
+
+  navigate(`/opportunity/details/${oppCode}`, {
+    state: {
+      fromDate: toISODateOnly(from),
+      toDate: toISODateOnly(to),
+    },
+  });
+};
+
 
   /* -------------------- CHART CARDS -------------------- */
   const SimpleBarCard = ({ title, dataset }) => (
@@ -575,9 +602,13 @@ const OpportunityDashboard = () => {
                       />
                     </td>
                     <td>
-                      <button onClick={() => handleOpportunityClick(item.oppCode)} className="opp-code-link">
-                        {item.oppCode}
-                      </button>
+                      <button
+  onClick={() => handleOpportunityClick(item.oppCode, item.fromDate, item.toDate)}
+  className="opp-code-link"
+>
+  {item.oppCode}
+</button>
+
                     </td>
                     <td>{item.oppName}</td>
                     <td>{item.clinic}</td>

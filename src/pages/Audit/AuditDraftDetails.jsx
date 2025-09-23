@@ -256,6 +256,24 @@ export default function AuditDraftDetails() {
     };
   };
 
+  const isArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ""));
+
+// small wrapper so every text cell "just works"
+const Txt = ({ children }) => {
+  const t = children ?? "";
+  const arabic = isArabic(t);
+  return (
+    <span
+      className={arabic ? "arb" : "auto-dir"}
+      lang={arabic ? "ar" : undefined}
+      dir={arabic ? "rtl" : "auto"}
+      title={String(t)}
+    >
+      {t}
+    </span>
+  );
+};
+
   const postAuditCreation = async (payload) => {
     setSaving(true);
     try {
@@ -360,9 +378,12 @@ export default function AuditDraftDetails() {
                           <td className="right">{r.weightageStr || `${r.weightageNum}%`}</td>
                           <td className="right">{total.toFixed(2)}</td>
                           <td className="left">
-                            <input
+                           <input
+                              className={isArabic(remarks[code]) ? "arb" : ""}
                               value={remarks[code] ?? ""}
                               onChange={(e) => setRemark(code, e.target.value)}
+                              dir={isArabic(remarks[code]) ? "rtl" : "auto"}
+                              lang={isArabic(remarks[code]) ? "ar" : undefined}
                               placeholder=""
                             />
                           </td>

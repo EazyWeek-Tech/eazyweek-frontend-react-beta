@@ -177,7 +177,7 @@ a {
 }
 
 .pribtn {
-  background: var(--secbg-color);
+  background: #334B71;
   padding: 10px 14px;
   font-family: Inter;
   font-weight: 500;
@@ -208,7 +208,7 @@ a {
   min-width: 80px;
   padding: 16px 20px;
   min-height: 100vh;
-  background: var(--secbg-color);
+  background: #334b71;
   position: sticky;
   top: 0;
   flex: 1;
