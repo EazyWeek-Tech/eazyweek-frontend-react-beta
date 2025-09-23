@@ -215,7 +215,7 @@ const CaseHierarchyDashboard = () => {
       paging: true,
       pageLength: perPage,
       lengthChange: false,   // external page length
-      searching: false,      // external search
+      searching: true,      // external search
       order: [[0, "asc"]],
       // Freeze first 2 and last 2 columns (v5 API)
       fixedColumns: {

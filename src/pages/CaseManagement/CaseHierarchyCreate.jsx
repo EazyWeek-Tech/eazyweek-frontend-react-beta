@@ -12,6 +12,7 @@ const BASE_MAIL_TEMPLATES = ["", "M001", "M002"];
 /* helpers */
 const safe = (v) => (v ?? "").toString();
 const trim = (s) => (s ?? "").toString().trim();
+const normCode = (s) => (s ?? "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "");
 const emptyLevel = () => ({
   assignee: "", // employeeCode
   assigneeName: "",
@@ -203,6 +204,7 @@ function AutoComplete({
             o.employeeName?.toLowerCase().includes(s) ||
             o.employeeCode?.toLowerCase().includes(s)
         );
+    // ⬇️ Only exclude the opposite field in the SAME level (not across levels)
     const excludeSet = new Set(excludeCodes.filter((c) => c && c !== value));
     return base.filter((o) => !excludeSet.has(o.employeeCode)).slice(0, 50);
   }, [options, q, excludeCodes, value]);
@@ -526,8 +528,6 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [form.subCategoryCode]);
 
-
-
   useEffect(() => {
     if (!form.categoryCode || !form.subCategoryCode || !form.subSubCategoryCode) {
       setSubSubSubCategoryOptions([]);
@@ -596,7 +596,6 @@ useEffect(() => {
     const id = Number(routeRecId || 0);
     if (!id) return;
     setRecId(id);
-    hydratingRef.current = true;
 
     (async () => {
       try {
@@ -664,9 +663,6 @@ useEffect(() => {
       } catch (e) {
         console.error(e);
         showToast("Failed to load case details.");
-      } finally {
-        // allow user-driven clears thereafter
-        hydratingRef.current = false;
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -675,7 +671,11 @@ useEffect(() => {
   /* When employees list arrives, resolve display names for codes we already have */
   useEffect(() => {
     if (!employees.length) return;
-    const nameOf = (code) => employees.find((e) => e.employeeCode === code)?.employeeName || "";
+    const mapByNorm = new Map(
+   employees.map((e) => [normCode(e.employeeCode), e.employeeName || ""])
+ );
+
+    const nameOf = (code) => mapByNorm.get(normCode(code)) || "";
 
     setLevels((prev) =>
       prev.map((L) => ({
@@ -687,20 +687,31 @@ useEffect(() => {
   }, [employees]);
 
   /* validation & payload */
-  const validate = () => {
+  // ⬇️ Accepts isDraft to only enforce "at least one SLA" on Submit/Update.
+  const validate = (isDraft) => {
     if (!form.centerCode) return "Please choose Clinic";
     if (!form.categoryCode) return "Please choose Category";
     if (!form.subCategoryCode) return "Please choose Sub Category";
     if (!form.subSubCategoryCode) return "Please choose Sub Sub Category";
     if (!form.subSubSubCategoryCode) return "Please choose Sub Sub Sub Category";
+
+    // Per-level rules
     for (let i = 0; i < 3; i++) {
       const L = levels[i];
       if (L.sla && !(L.assignee || L.group)) return `Level ${i + 1}: SLA set but no Assignee/Group provided.`;
       if (L.assignee && L.postSlaAssignee && L.assignee === L.postSlaAssignee)
         return `Level ${i + 1}: Escalation to Post SLA cannot be the same as Assignment.`;
     }
+
+    // ⬇️ Only for Submit/Update: require at least ONE SLA overall.
+    if (!isDraft) {
+      const hasAnySLA = levels.some((L) => String(L.sla).trim() !== "");
+      if (!hasAnySLA) return "Please set SLA for at least one level before submitting.";
+    }
+
     return null;
   };
+
   const toComma = (arr) => (arr && arr.length ? arr.join(",") : "");
 
   // Convert codes back to names for submission (preserve current API shape).
@@ -742,7 +753,7 @@ useEffect(() => {
   });
 
   const submit = async (isDraft) => {
-    const err = validate();
+    const err = validate(isDraft); // ⬅️ pass isDraft to validation
     if (err) return showToast(err);
 
     setBusy(true);
@@ -771,19 +782,15 @@ useEffect(() => {
   const setLevel = (idx, patch) => setLevels((prev) => prev.map((L, i) => (i === idx ? { ...L, ...patch } : L)));
   const clearLevel = (idx) => setLevel(idx, emptyLevel());
 
-  const selectedCodesGlobal = useMemo(() => {
-    const codes = [];
-    for (const L of levels) {
-      if (L.assignee) codes.push(L.assignee);
-      if (L.postSlaAssignee) codes.push(L.postSlaAssignee);
-    }
-    return codes;
-  }, [levels]);
+  // ⬇️ Remove cross-level exclusion entirely.
+  // We'll only exclude within the same level using the opposite control's value.
 
   const LevelCard = ({ idx, title }) => {
     const L = levels[idx];
-    const excludeForAssignment = selectedCodesGlobal.filter((c) => c && c !== L.assignee);
-    const excludeForPostSla = selectedCodesGlobal.filter((c) => c && c !== L.postSlaAssignee);
+
+    // Exclude only the opposite pick within THIS level
+    const excludeForAssignment = L.postSlaAssignee ? [L.postSlaAssignee] : [];
+    const excludeForPostSla = L.assignee ? [L.assignee] : [];
 
     return (
       <div className="card">
@@ -802,7 +809,7 @@ useEffect(() => {
               value={L.assignee}
               display={L.assigneeName}
               onSelect={(code, name) => setLevel(idx, { assignee: code, assigneeName: name })}
-              excludeCodes={excludeForAssignment}
+              excludeCodes={excludeForAssignment} // within-level only
               placeholder="None selected"
               width={260}
             />
@@ -815,7 +822,7 @@ useEffect(() => {
               value={L.postSlaAssignee}
               display={L.postSlaAssigneeName}
               onSelect={(code, name) => setLevel(idx, { postSlaAssignee: code, postSlaAssigneeName: name })}
-              excludeCodes={excludeForPostSla}
+              excludeCodes={excludeForPostSla} // within-level only
               placeholder="None selected"
               width={260}
             />
@@ -896,7 +903,7 @@ useEffect(() => {
           <button className="btn ghost" onClick={() => navigate(-1)}>
             Close
           </button>
-          <button className="btn" disabled={busy} onClick={() => submit(true)}>
+          <button className="pribtn" disabled={busy} onClick={() => submit(true)}>
             Save
           </button>
           <button className="btn primary" disabled={busy} onClick={() => submit(false)}>
@@ -1057,7 +1064,7 @@ useEffect(() => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          min-width: 180px;
+          min-width: 265px;
         }
         .field label {
           font-size: 13px;
@@ -1094,7 +1101,7 @@ useEffect(() => {
         .card-hdr h3 {
           margin: 0;
           font-size: 14px;
-          background: #112032;
+          background: #334b71;
           color: #fff;
           padding: 8px 12px;
           border-radius: 8px;
@@ -1109,8 +1116,8 @@ useEffect(() => {
           cursor: pointer;
         }
         .grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(220px, 1fr));
+          display: flex;
+          flex-wrap:wrap;
           gap: 12px;
         }
         @media (max-width: 1100px) {
