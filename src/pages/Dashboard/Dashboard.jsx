@@ -215,11 +215,11 @@ useEffect(() => {
       .then(data => {
         const api = data[0] || {};
         const formatted = [
-          { name: "WIP", value: api.wip, fill: "#e6a787" },
-          { name: "Open", value: api.open, fill: "#C66752" },
-          { name: "Closed", value: api.closed, fill: "#5a805d" },
-          { name: "Resolved", value: api.resolved, fill: "#335436" },
-          { name: "Unresolved", value: api.unresolved, fill: "#8d6e67" }
+          { name: "WIP", value: api.wip, fill: "#f3dcb0" },
+          { name: "Open", value: api.open, fill: "rgba(24,57,110,0.8)" },
+          { name: "Closed", value: api.closed, fill: "#8da0b8" },
+          { name: "Resolved", value: api.resolved, fill: "#A7D1CD" },
+          { name: "Unresolved", value: api.unresolved, fill: "#EDAF90" }
         ];
         setCaseSummary(formatted);
       })
@@ -232,13 +232,13 @@ useEffect(() => {
       .then(data => {
         const api = data[0] || {};
         const formatted = [
-          { name: "Booked", value: api.booked, fill: "#3E5D8A" },
-          { name: "Cancelled", value: api.cancelled, fill: "#C66752" },
-          { name: "Check-In", value: api.checkIn, fill: "#5a805d" },
-          { name: "Completed", value: api.complete, fill: "#2a3850" },
-          { name: "Confirmed", value: api.confirm, fill: "#e6a787" },
-          { name: "No Show", value: api.noShow, fill: "#e9edf5" },
-          { name: "Active", value: api.active, fill: "#8d6e67" }
+          { name: "Booked", value: api.booked, fill: "rgba(24,57,110,0.8)" },
+          { name: "Cancelled", value: api.cancelled, fill: "#cc6b5c" },
+          { name: "Check-In", value: api.checkIn, fill: "#f3dcb0" },
+          { name: "Completed", value: api.complete, fill: "#8da0b8" },
+          { name: "Confirmed", value: api.confirm, fill: "#A7D1CD" },
+          { name: "No Show", value: api.noShow, fill: "#e9eef5" },
+          { name: "Active", value: api.active, fill: "#EDAF90" }
         ];
         setAppointmentSummary(formatted);
       })

@@ -6,10 +6,17 @@ const normCode = (s) => trim(s).toUpperCase().replace(/[^A-Z0-9]/g, ""); // stri
 const normNameBase = (s) =>
   trim(s)
     .toLowerCase()
-    .replace(/^dr\.?\s*/g, "")     // drop leading "Dr." variations w/ or w/o space
+    .replace(/^dr\.?\s*/g, "")     // drop leading "Dr." variations
     .replace(/[^a-z0-9\s]/g, "")   // remove punctuation
     .replace(/\s+/g, " ");         // collapse spaces
 const normNameNoSpace = (s) => normNameBase(s).replace(/\s+/g, ""); // also remove spaces
+const firstNonEmpty = (...vals) => {
+  for (const v of vals) {
+    const t = trim(v);
+    if (t) return t;
+  }
+  return "";
+};
 
 // Safe JSON helper
 const fetchJSON = async (url) => {
@@ -34,7 +41,7 @@ const fetchJSON = async (url) => {
   catch { throw new Error(`Invalid JSON: ${text.slice(0,180)}`); }
 };
 
-const IssuesTab = forwardRef(({ data }, ref) => {
+const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => {
   const [formValues, setFormValues] = useState({ ...data });
   const [employees, setEmployees] = useState([]);
   const [therapists, setTherapists] = useState([]);
@@ -45,7 +52,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
     getIssuesData: () => formValues,
   }));
 
-  // Seed local state from incoming data
+  // Seed local state from incoming data (+ URL-provided Assigned To name/code if present)
   useEffect(() => {
     if (!data) return;
     setFormValues((prev) => ({
@@ -58,8 +65,17 @@ const IssuesTab = forwardRef(({ data }, ref) => {
       therapistName: trim(data.therapistName || data.therapist || prev.therapistName || ""),
       therapistCode: normCode(data.therapistCode || prev.therapistCode || ""),
 
-      assignedTo: trim(data.assignedTo || prev.assignedTo || ""),
-      assignToCode: trim(data.assignToCode || data.assignTOCode || prev.assignToCode || ""),
+      // prefer URL-provided name for display if available
+      assignedTo: firstNonEmpty(assignedToName, data.assignedTo, prev.assignedTo, ""),
+
+      // prefer URL-provided code if provided; otherwise keep original logic
+      assignToCode: firstNonEmpty(
+        assignedToCode,
+        data.assignToCode,
+        data.assignTOCode,
+        prev.assignToCode,
+        ""
+      ),
 
       employeeMobile: trim(data.employeeMobile || data.empMobileNo || prev.employeeMobile || ""),
       email: trim(data.email || data.assignedemailid || prev.email || ""),
@@ -70,7 +86,8 @@ const IssuesTab = forwardRef(({ data }, ref) => {
       categorySpecificResolution: data.categorySpecificResolution || prev.categorySpecificResolution || "",
       remarks: data.remarks || prev.remarks || "",
     }));
-  }, [data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, assignedToName, assignedToCode]);
 
   // Case responses (Actual) — filter out rows with blank response details
   useEffect(() => {
@@ -79,7 +96,6 @@ const IssuesTab = forwardRef(({ data }, ref) => {
         const list = await fetchJSON(
           `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
         );
-        console.log(list);
         const filtered = (Array.isArray(list) ? list : []).filter(
           (r) => trim(r.responseDetails || r.details) !== ""
         );
@@ -100,25 +116,58 @@ const IssuesTab = forwardRef(({ data }, ref) => {
         const valid = (Array.isArray(res) ? res : []).filter(
           (e) => e.employeeCode && e.employeeName !== "Assign To"
         );
-        const norm = valid.map((e) => ({
+
+        // Store normalized variants to make matching resilient to punctuation/spaces
+        const normList = valid.map((e) => ({
           ...e,
           employeeCode: trim(e.employeeCode),
+          _employeeCodeNorm: normCode(e.employeeCode),
           employeeName: trim(e.employeeName),
+          _employeeNameNorm: normNameBase(e.employeeName),
+          _employeeNameNoSpace: normNameNoSpace(e.employeeName),
           mobileNo: trim(e.mobileNo),
           emailID: trim(e.emailID),
         }));
-        setEmployees(norm);
+        setEmployees(normList);
 
-        // Prefer selecting by code, then by name
-        const code = trim(data?.assignToCode || data?.assignTOCode || formValues.assignToCode || "");
-        const byCode = code ? norm.find((e) => e.employeeCode === code) : null;
-        const byName = !byCode
-          ? norm.find(
+        // Prefer selecting by CODE (URL/props -> backend -> local), then by NAME
+        const codeRaw = trim(
+          firstNonEmpty(
+            assignedToCode,
+            data?.assignToCode,
+            data?.assignTOCode,
+            formValues.assignToCode
+          )
+        );
+        const codeNorm = normCode(codeRaw);
+
+        // Try exact (normalized) code match
+        const byCode = codeNorm
+          ? normList.find((e) => e._employeeCodeNorm === codeNorm)
+          : null;
+
+        // Derive display name candidate (URL first; then data then local)
+        const nameRaw = trim(
+          firstNonEmpty(
+            assignedToName,
+            data?.assignedTo,
+            data?.assignTOName,
+            data?.assignName,
+            formValues.assignedTo
+          )
+        );
+        const nameNorm = normNameBase(nameRaw);
+        const nameNoSpace = normNameNoSpace(nameRaw);
+
+        // Try normalized name equality (and no-space equality) if no code match
+        const byName = !byCode && nameNorm
+          ? normList.find(
               (e) =>
-                e.employeeName.toLowerCase() ===
-                trim(data?.assignedTo || formValues.assignedTo || "").toLowerCase()
+                e._employeeNameNorm === nameNorm ||
+                e._employeeNameNoSpace === nameNoSpace
             )
           : null;
+
         const selected = byCode || byName;
         if (selected) {
           setFormValues((prev) => ({
@@ -136,7 +185,7 @@ const IssuesTab = forwardRef(({ data }, ref) => {
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.assignedTo, data?.assignToCode, data?.assignTOCode]);
+  }, [data?.assignedTo, data?.assignToCode, data?.assignTOCode, assignedToName, assignedToCode]);
 
   // Therapists: load + preselect (handles no-space names + dash codes)
   const fetchTherapists = async () => {
@@ -217,14 +266,17 @@ const IssuesTab = forwardRef(({ data }, ref) => {
     const { name, value, type, files } = e.target;
 
     if (name === "assignToCode") {
-      const v = trim(value);
-      const selected = employees.find((emp) => emp.employeeCode === v);
+      const vRaw = trim(value);
+      const vNorm = normCode(vRaw);
+      // Match by normalized code to be resilient to hyphens/spaces
+      const selected = employees.find((emp) => emp._employeeCodeNorm === vNorm) ||
+                       employees.find((emp) => emp.employeeCode === vRaw);
       setFormValues((prev) => ({
         ...prev,
-        assignToCode: selected?.employeeCode || "",
-        assignedTo: selected?.employeeName || "",
-        employeeMobile: selected?.mobileNo || "",
-        email: selected?.emailID || "",
+        assignToCode: selected?.employeeCode || vRaw || "",
+        assignedTo: selected?.employeeName || prev.assignedTo || "",
+        employeeMobile: selected?.mobileNo || prev.employeeMobile || "",
+        email: selected?.emailID || prev.email || "",
       }));
       return;
     }
@@ -251,6 +303,16 @@ const IssuesTab = forwardRef(({ data }, ref) => {
       [name]: type === "file" ? files[0] : value,
     }));
   };
+
+  // ---- Computed display for "Assigned To" name (URL param preferred) ----
+  const displayAssignedTo = firstNonEmpty(
+    assignedToName,
+    formValues.assignedTo,
+    data?.assignTOName,
+    data?.assignName,
+    data?.assignedTo,
+    data?.assignToCode
+  );
 
   return (
     <form className="issueform tabform">

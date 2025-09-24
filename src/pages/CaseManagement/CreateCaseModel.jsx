@@ -406,7 +406,7 @@ const normalizeEmailList = (raw) => {
     const k = p.toLowerCase();
     if (!seen.has(k)) { seen.add(k); uniq.push(p); }
   }
-  return uniq.join("; ");
+  return uniq.join(",");
 };
 
   const sendCaseAssignmentEmail = async (caseNo) => {

@@ -48,16 +48,16 @@ const GeneralTab = forwardRef(({ data }, ref) => {
   }));
 
   useEffect(() => {
-    setFormValues({ ...data,
+    setFormValues({
+      ...data,
       source: trim(data?.source),
       sourceName: trim(data?.sourceName) || trim(data?.source),
-     });
+    });
     fetchCaseMediums();
     fetchServices();
     fetchServiceCategories();
 
     // Preload Sources once on mount when data has medium + category
-    // (Assumes data.medium is a code; if it's a name, backend should still handle it.)
     if (data?.medium && data?.categoryCode && !initialSourceFetched) {
       fetchCaseSources(data.medium, data.categoryCode);
       setInitialSourceFetched(true);
@@ -104,15 +104,15 @@ const GeneralTab = forwardRef(({ data }, ref) => {
         categoryCode || ""
       )}&MediumCode=${encodeURIComponent(mediumCode || "")}`;
       const data = await fetchJSON(url);
-     setCaseSources(
-    Array.isArray(data)
-      ? data.map((s) => ({
-          ...s,
-          code: trim(s.code),
-          name: trim(s.name) || trim(s.code),
-        }))
-      : []
-  );
+      setCaseSources(
+        Array.isArray(data)
+          ? data.map((s) => ({
+              ...s,
+              code: trim(s.code),
+              name: trim(s.name) || trim(s.code),
+            }))
+          : []
+      );
     } catch (error) {
       console.error("Error fetching sources:", error);
       setCaseSources([]);
@@ -121,7 +121,6 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   const fetchServices = async () => {
     try {
-      // fixed template string + credentials via fetchJSON
       const data = await fetchJSON(`${API_BASE_URL}/api/CaseDropDown/Service`);
       setServices(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -229,32 +228,31 @@ const GeneralTab = forwardRef(({ data }, ref) => {
       </div>
 
       <div className="form-group">
-  <label htmlFor="source">Case Source</label>
-  {(() => {
-    const currentSource = trim(formValues.source);
-    const hasSourceOption = caseSources.some((s) => trim(s.code) === currentSource);
-    return (
-      <select
-        id="source"
-        value={currentSource}
-        onChange={handleChange}
-      >
-        <option value="">Select Source</option>
-        {!hasSourceOption && currentSource && (
-          <option value={currentSource}>
-            {formValues.sourceName || currentSource}
-          </option>
-        )}
-        {caseSources.map((s, i) => (
-          <option key={i} value={trim(s.code)}>
-            {s.name || trim(s.code)}
-          </option>
-        ))}
-      </select>
-    );
-  })()}
-</div>
-
+        <label htmlFor="source">Case Source</label>
+        {(() => {
+          const currentSource = trim(formValues.source);
+          const hasSourceOption = caseSources.some((s) => trim(s.code) === currentSource);
+          return (
+            <select
+              id="source"
+              value={currentSource}
+              onChange={handleChange}
+            >
+              <option value="">Select Source</option>
+              {!hasSourceOption && currentSource && (
+                <option value={currentSource}>
+                  {formValues.sourceName || currentSource}
+                </option>
+              )}
+              {caseSources.map((s, i) => (
+                <option key={i} value={trim(s.code)}>
+                  {s.name || trim(s.code)}
+                </option>
+              ))}
+            </select>
+          );
+        })()}
+      </div>
 
       <div className="form-group">
         <label htmlFor="priority">Priority</label>
