@@ -11,7 +11,7 @@ import { API_BASE_URL } from "../../config";
 // --------------------------------------------
 // Config
 // --------------------------------------------
-const USE_PLACEHOLDERS_ON_UPDATE_STATUS = true; // still honored but only within schema keys
+const USE_PLACEHOLDERS_ON_UPDATE_STATUS = true;
 
 // --------------------------------------------
 // Utils
@@ -26,7 +26,6 @@ const firstNonEmpty = (...vals) => {
 };
 const isNonEmpty = (v) =>
   v !== undefined && v !== null && (typeof v === "number" || trim(v) !== "");
-
 const mergeVal = (g, c) => {
   const gv = typeof g === "string" ? trim(g) : g;
   const cv = typeof c === "string" ? trim(c) : c;
@@ -40,9 +39,15 @@ const normalizeName = (s) =>
     .replace(/[^a-z0-9\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-
-// NEW: normalize employee codes like "CENT-00170" => "CENT00170"
 const normCodeId = (s) => trim(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+const normNameBase = (s) =>
+  (s ?? "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/^dr\.?\s*/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ");
 
 const readOrgContext = (general, current) => {
   const ss = (k) => trim(sessionStorage.getItem(k));
@@ -106,14 +111,7 @@ const readSessionUser = () => {
     if (!raw) continue;
     try {
       const obj = JSON.parse(raw);
-      code = firstNonEmpty(
-        code,
-        obj.userId,
-        obj.userID,
-        obj.employeeCode,
-        obj.empCode,
-        obj.code
-      );
+      code = firstNonEmpty(code, obj.userId, obj.userID, obj.employeeCode, obj.empCode, obj.code);
       firstName = firstNonEmpty(firstName, obj.firstName, obj.firstname, obj.FirstName);
       lastName  = firstNonEmpty(lastName,  obj.lastName,  obj.lastname,  obj.LastName);
       name = firstNonEmpty(
@@ -138,27 +136,17 @@ const readSessionUser = () => {
 };
 
 // --------------------------------------------
-// Minimal required for basic guardrails (front-end)
+// Guardrails
 // --------------------------------------------
 function buildRequiredBlock({ actionType, general, current, status, disposition }) {
   const org = readOrgContext(general, current);
-
-  const must = {
-    caseno: current?.caseNo,
-    centercode: org.centercode,
-  };
-
+  const must = { caseno: current?.caseNo, centercode: org.centercode };
   if (actionType === "updateStatus") {
     must.status = trim(status);
-    // Closing requires disposition
-    if (trim(status) === "Closed") {
-      must.casedisposition = trim(disposition);
-    }
+    if (trim(status) === "Closed") must.casedisposition = trim(disposition);
   }
-
   return must;
 }
-
 function validateRequired(requiredObj) {
   const missing = Object.entries(requiredObj)
     .filter(([, v]) => !isNonEmpty(v))
@@ -167,19 +155,15 @@ function validateRequired(requiredObj) {
 }
 
 // --------------------------------------------
-// Exact schema payload builder (single shape)
+// Payload builder
 // --------------------------------------------
 function buildFullPayload({ general, current, status, disposition, operation }) {
   const org = readOrgContext(general, current);
-
   const assigneeCode = trim(current?.assignToCode) || trim(current?.assignedTo) || "";
   const createddate = new Date().toISOString();
-
-  // helpers → ensure correct defaults by type
   const S = (v) => (isNonEmpty(v) ? String(v) : "");
   const N = (v) => (Number.isFinite(+v) ? Number(v) : 0);
 
-  // IMPORTANT: return EXACTLY the keys from the provided schema.
   return {
     casetitle:               S(mergeVal(general?.title, current?.title)),
     caseno:                  S(current?.caseNo),
@@ -195,7 +179,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
     servicecode:             S(mergeVal(general?.service, current?.service)),
     serviceccode:            S(mergeVal(general?.serviceCategory, current?.serviceCategory)),
     createdby:               S(mergeVal(general?.createdBy, current?.createdBy)),
-    createddate, // always set
+    createddate,
 
     issuedesciption:         S(current?.issueDescription),
     clientThreat:            S(current?.clientThreat),
@@ -234,6 +218,72 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
 }
 
 // --------------------------------------------
+// Mail helpers
+// --------------------------------------------
+async function lookupEmployeeByCode(codeRaw) {
+  const code = normCodeId(codeRaw);
+  if (!code) return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const list = await res.json();
+    if (!Array.isArray(list)) return null;
+    const hit = list.find((e) => normCodeId(e?.employeeCode) === code);
+    return hit
+      ? {
+          employeeCode: trim(hit.employeeCode),
+          employeeName: trim(hit.employeeName),
+          emailID: trim(hit.emailID),
+          mobileNo: trim(hit.mobileNo),
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" }) {
+  const clean = (s) => (s ?? "").toString().trim();
+  const cleanupList = (s) => clean(s).replace(/\s*,\s*/g, ",").replace(/,+$/g, "");
+  return {
+    emailTo: clean(selected?.email),
+    centerName: clean(selected?.centerName) || centerNameFallback,
+    caseNo: clean(selected?.caseNo),
+    categoryName: clean(selected?.caseCategory || selected?.categoryName),
+    subCategoryName: clean(selected?.subCategoryName),
+    issueDescription: clean(selected?.issueDescription),
+    newResponse: clean(selected?.response),
+    firstTimeResolution: clean(selected?.firstTimeResolution),
+    emailCC: cleanupList(selected?.cc),
+    moreCC: cleanupList(selected?.moreCc),
+  };
+}
+async function sendCaseMail(payload, setToast) {
+  try {
+    if (!payload.emailTo) {
+      setToast?.({ type: "error", message: "Email not sent: missing 'To' email for Assigned To." });
+      return;
+    }
+    const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseMail`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const txt = await res.text();
+    let out; try { out = JSON.parse(txt); } catch { out = { success: res.ok }; }
+    if (res.ok && (out?.success ?? true)) {
+      setToast?.({ type: "success", message: "Assignment email sent." });
+    } else {
+      setToast?.({ type: "error", message: `Failed to send email${out?.message ? `: ${out.message}` : ""}` });
+    }
+  } catch (err) {
+    setToast?.({ type: "error", message: `Email error: ${err.message}` });
+  }
+}
+
+// --------------------------------------------
 // Component
 // --------------------------------------------
 const CaseDetailsPage = () => {
@@ -252,9 +302,11 @@ const CaseDetailsPage = () => {
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => readSessionUser());
-  const [firstSlaCode, setFirstSlaCode] = useState("");
-  const [stage1Code, setStage1Code] = useState(""); 
+  const [stage1Code, setStage1Code] = useState("");
+  const [isResponseFilled, setIsResponseFilled] = useState(false);
 
+  // Capture the status we ARRIVED with (to determine L1 vs L2 reliably)
+  const initialStatusRef = useRef(null);
 
   const assignedMatchesLoggedInUser = React.useMemo(() => {
     const urlName = normalizeName(assignedFromUrl);
@@ -263,9 +315,7 @@ const CaseDetailsPage = () => {
     return urlName === userFullName;
   }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
 
-  // New: if the UI's assigned display equals logged-in user, allow actions
   const assignedMatchesByDisplay = React.useMemo(() => {
-    // use the same fallback order you show in the header
     const assignedDisplayLocal = firstNonEmpty(
       assignedFromUrl,
       selectedCaseData?.assignName,
@@ -283,18 +333,12 @@ const CaseDetailsPage = () => {
     currentUser?.name,
   ]);
 
+  useEffect(() => { setCurrentUser(readSessionUser()); }, []);
   useEffect(() => {
-    console.log(
-      "assignedDisplay vs user:",
-      firstNonEmpty(assignedFromUrl, selectedCaseData?.assignName, selectedCaseData?.assignToCode, ""),
-      " ~ ",
-      currentUser?.fullName || currentUser?.name,
-      " => ",
-      assignedMatchesByDisplay
-    );
-  }, [assignedFromUrl, selectedCaseData, currentUser, assignedMatchesByDisplay]);
-
-  // 1) Add these memos near the others (below assignedMatchesLoggedInUser/assignedMatchesByDisplay)
+    if (activeTab === "issues" && issuesRef.current?.hasResponse) {
+      setIsResponseFilled(Boolean(issuesRef.current.hasResponse()));
+    }
+  }, [activeTab, selectedCaseData]);
 
   const codeMatchesAssigned = React.useMemo(() => {
     return norm(currentUser?.code) && norm(currentUser?.code) === norm(selectedCaseData?.assignToCode);
@@ -306,12 +350,8 @@ const CaseDetailsPage = () => {
     return !!urlName && !!userFullName && urlName === userFullName;
   }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
 
-  // Final authority: if URL provides assignedTo, require it to match the user.
-  // Otherwise fall back to code/name checks from API.
   const canEditCase = React.useMemo(() => {
-    if (trim(assignedFromUrl)) {
-      return urlAssignedMatchesUser; // URL is source of truth
-    }
+    if (trim(assignedFromUrl)) return urlAssignedMatchesUser;
     return codeMatchesAssigned || assignedMatchesByDisplay || assignedMatchesLoggedInUser;
   }, [
     assignedFromUrl,
@@ -320,10 +360,6 @@ const CaseDetailsPage = () => {
     assignedMatchesByDisplay,
     assignedMatchesLoggedInUser,
   ]);
-
-  useEffect(() => {
-    setCurrentUser(readSessionUser());
-  }, []);
 
   const generalRef = useRef();
   const issuesRef = useRef();
@@ -364,15 +400,15 @@ const CaseDetailsPage = () => {
           firstNonEmpty(
             data.assignToCode,
             data.assignCode,
-            data.emailTOCode,
-            data.nextLevelID
+            data.emailTOCode
+            // NOTE: do NOT fall back to nextLevelID here
           )
         );
         const mappedAssignName = trim(
           firstNonEmpty(data.assignTOName, data.assignName, data.emailTOName)
         );
 
-        setSelectedCaseData({
+        const mapped = {
           caseNo: trim(data.caseNo),
           title: trim(data.caseTitle),
 
@@ -440,14 +476,20 @@ const CaseDetailsPage = () => {
 
           caseStatus: trim(data.caseStatus),
 
-          // expose second SLA details for orchestration
           secondSlaName: trim(data.secondSlaName),
-          secondSlaCode: trim(data.nextLevelID), // next assignee code
+          secondSlaCode: trim(data.nextLevelID),
           firstSlaName: trim(data.firstSlaName || ""),
-        });
+        };
 
-        setDisposition(trim(data.disposition));
-        setStatus(trim(data.caseStatus));
+        setSelectedCaseData(mapped);
+        setDisposition(mapped.disposition);
+        setStatus(mapped.caseStatus);
+
+        // capture arrival status once
+        if (!initialStatusRef.current) {
+          initialStatusRef.current = (mapped.caseStatus || "").trim();
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching case details:", error);
@@ -457,48 +499,36 @@ const CaseDetailsPage = () => {
 
     fetchCaseDetails();
   }, [caseNumber]);
-  // Normalize helpers (reuse your existing ones if already in file)
-const normNameBase = (s) =>
-  (s ?? "")
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/^dr\.?\s*/g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ");
 
-useEffect(() => {
-  const targetName = (selectedCaseData?.firstSlaName || "").trim();
-  if (!targetName) {
-    setStage1Code("");
-    return;
-  }
-
-  const fetchEmp = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      const text = await res.text();
-      const list = JSON.parse(text);
-
-      const want = normNameBase(targetName);
-      const match = (Array.isArray(list) ? list : []).find((e) => {
-        const nm = normNameBase(e?.employeeName);
-        return nm === want;
-      });
-
-      setStage1Code((match?.employeeCode ?? "").toString().trim());
-    } catch (err) {
-      console.error("Failed to resolve Stage 1 (firstSlaName) code:", err);
+  useEffect(() => {
+    const targetName = (selectedCaseData?.firstSlaName || "").trim();
+    if (!targetName) {
       setStage1Code("");
+      return;
     }
-  };
+    const fetchEmp = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        const list = await res.json();
+        const want = normNameBase(targetName);
+        const match = (Array.isArray(list) ? list : []).find((e) => {
+          const nm = normNameBase(e?.employeeName);
+          return nm === want;
+        });
+        setStage1Code((match?.employeeCode ?? "").toString().trim());
+      } catch (err) {
+        console.error("Failed to resolve Stage 1 (firstSlaName) code:", err);
+        setStage1Code("");
+      }
+    };
+    fetchEmp();
+  }, [selectedCaseData?.firstSlaName]);
 
-  fetchEmp();
-}, [selectedCaseData?.firstSlaName]);
-
+  // Arrived level (status-driven): if you arrived WIP -> L2; if Open -> L1
+  const arrivedAsL2 = (initialStatusRef.current || selectedCaseData?.caseStatus || "").trim() === "WIP";
 
   // Actions
   const handleAction = async (actionType, overrides = {}) => {
@@ -506,12 +536,11 @@ useEffect(() => {
       overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
     const effectiveStatus = trim(overrides.status ?? status);
     const effectiveDisposition = trim(overrides.disposition ?? disposition);
-    // Merge Issues tab live values into the base case object
+
     const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
     const effectiveSelected =
       { ...(overrides.selectedCaseData ?? selectedCaseData), ...issuesData };
 
-    // Front-end guardrails
     const req = buildRequiredBlock({
       actionType,
       general: generalData,
@@ -521,14 +550,10 @@ useEffect(() => {
     });
     const { ok, missing } = validateRequired(req);
     if (!ok) {
-      setToast({
-        type: "error",
-        message: `Missing required fields: ${missing.join(", ")}`,
-      });
+      setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
       return;
     }
 
-    // Build EXACT schema payload
     const payload = buildFullPayload({
       general: generalData,
       current: effectiveSelected,
@@ -537,72 +562,40 @@ useEffect(() => {
       operation: actionType,
     });
 
-    // -------- Submit flow orchestration (robust Stage 1/2 detection) --------
     if (actionType === "submit") {
-      // normalized code comparison; fallback to names
-      const currCodeRaw =
-        effectiveSelected?.assignToCode ||
-        effectiveSelected?.assignedTo ||
-        selectedCaseData?.assignToCode ||
-        "";
-      const nextCodeRaw =
-        selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "";
-
-      const currCode = normCodeId(currCodeRaw);
-      const nextCode = normCodeId(nextCodeRaw);
-
-      const assignedName = normalizeName(
-        effectiveSelected?.assignName || selectedCaseData?.assignName || ""
-      );
-      const firstName = normalizeName(selectedCaseData?.firstSlaName || "");
-      const secondName = normalizeName(selectedCaseData?.secondSlaName || "");
-
-      let isStage1 = false;
-      let isStage2 = false;
-
-      if (nextCode) {
-        isStage2 = currCode && currCode === nextCode;
-        isStage1 = currCode && currCode !== nextCode;
-      } else if (secondName) {
-        isStage2 = assignedName && assignedName === secondName;
-        isStage1 = assignedName && firstName && assignedName === firstName;
-      } else {
-        // last resort: infer from status
-        isStage1 = (status || "").trim() === "Open";
-        isStage2 = (status || "").trim() === "WIP";
+      // Must have a response at both levels
+      if (!trim(effectiveSelected?.response)) {
+        setToast({ type: "error", message: "Please add a response before submitting." });
+        return;
       }
 
-      if (isStage1) {
-        // Hand off to second SLA (use raw nextCode to preserve exact formatting)
+      const nextCodeRaw = selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "";
+
+      // Stage logic is purely status-driven based on how we ARRIVED
+      if (!arrivedAsL2) {
+        // L1 → hand off to L2, force WIP and set next assignee
         if (nextCodeRaw) {
           payload.assignedto = nextCodeRaw;
           payload.caseWith   = nextCodeRaw;
         }
-        // If currently Open, move to WIP on first submit
-        const currentOrPayloadStatus = trim(payload.status || status);
-        payload.status = currentOrPayloadStatus ? currentOrPayloadStatus : "WIP";
-        if (trim(status) === "Open") payload.status = "WIP";
-      } else if (isStage2) {
-        // Require closing before final submit
-        const finalStatus = trim(payload.status || status);
-        if (finalStatus !== "Closed") {
-          setToast({
-            type: "error",
-            message:
-              "Please set Case Status to 'Closed' before submitting at the second level.",
-          });
+        payload.status = "WIP";
+      } else {
+        // L2 → can submit only when Closed with disposition
+        const needsClosed = trim(payload.status) !== "Closed";
+        const needsDisp = !trim(payload.casedisposition);
+        if (needsClosed || needsDisp) {
+          const msg = `Please ${needsClosed ? "set Case Status to 'Closed'" : ""}${
+            needsClosed && needsDisp ? " and " : ""
+          }${needsDisp ? "select Case Disposition" : ""} before submitting.`;
+          setToast({ type: "error", message: msg });
           return;
         }
-        // On final close/submit, AssignedTo should go empty
         payload.assignedto = "";
         payload.caseWith   = "";
         payload.status     = "Closed";
-      } else {
-        // No second level configured — submit with current assignee/status as-is
       }
     }
 
-    // For updateStatus: optionally fill empty strings with placeholders to appease strict validators (still within schema keys)
     if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
       const fill = (v, fallback = "N/A") => (isNonEmpty(v) ? v : fallback);
       const emailFill = (v) => (isNonEmpty(v) ? v : "-");
@@ -610,12 +603,10 @@ useEffect(() => {
 
       payload.assignedto = fill(payload.assignedto, "");
       payload.caseWith = fill(payload.caseWith, "");
-
       payload.assignedemailid = emailFill(payload.assignedemailid);
       payload.cc = ccFill(payload.cc);
       payload.moreCC = ccFill(payload.moreCC);
 
-      // Some backends insist these strings exist even if unchanged
       const stringyKeys = [
         "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
         "casemedium","casesource","priority","custID","productCode",
@@ -624,14 +615,11 @@ useEffect(() => {
         "remarks","casedisposition"
       ];
       for (const k of stringyKeys) payload[k] = payload[k] ?? "";
-      // numeric
       payload.materialCost = payload.materialCost ?? 0;
       payload.labourCost   = payload.labourCost ?? 0;
       payload.otherCharges = payload.otherCharges ?? 0;
       payload.totalCharges = payload.totalCharges ?? 0;
     }
-
-    console.log("Sending payload to API:", JSON.stringify(payload, null, 2));
 
     try {
       setSaving(true);
@@ -643,21 +631,9 @@ useEffect(() => {
       });
 
       const responseText = await res.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        throw new Error(responseText || "Invalid JSON response from server");
-      }
+      let result; try { result = JSON.parse(responseText); } catch { throw new Error(responseText || "Invalid JSON response from server"); }
 
       if (result?.code === "200") {
-        setToast({
-          type: "success",
-          message: `Case ${actionType}d successfully. Case No: ${
-            result.name || effectiveSelected?.caseNo
-          }`,
-        });
-
         if (payload.status) {
           setStatus(payload.status);
           setSelectedCaseData((prev) =>
@@ -666,7 +642,6 @@ useEffect(() => {
                   ...prev,
                   caseStatus: payload.status,
                   disposition: payload.casedisposition || prev.disposition,
-                  // update current assignee in UI after submit handoff/final close
                   assignToCode: payload.assignedto || "",
                   assignName: payload.assignedto ? prev?.secondSlaName || prev?.assignName : "",
                 }
@@ -674,23 +649,60 @@ useEffect(() => {
           );
         }
 
-        // Navigate only for WIP, stay for Closed (when updating status explicitly)
-        if (actionType === "updateStatus") {
-          const s = (payload.status || "").trim();
-          if (s === "WIP") {
+        if (actionType === "submit") {
+          if (payload.status === "WIP") {
+            // L1 handoff
+            setToast({ type: "success", message: "Handed off to Level 2. Status set to WIP." });
+
+            // email L2
+            try {
+              const mailBase = {
+                caseNo: effectiveSelected?.caseNo,
+                caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+                subCategoryName: selectedCaseData?.subCategoryName,
+                issueDescription: effectiveSelected?.issueDescription,
+                response: effectiveSelected?.response,
+                firstTimeResolution: effectiveSelected?.firstTimeResolution,
+                cc: effectiveSelected?.cc,
+                moreCc: effectiveSelected?.moreCc,
+                email: effectiveSelected?.email,
+                centerName: selectedCaseData?.centerName,
+              };
+              const mailPayload = buildCaseMailPayload({ selected: mailBase, centerNameFallback: "Bright Clinics" });
+              const nextEmp = await lookupEmployeeByCode(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID);
+              if (nextEmp?.emailID) mailPayload.emailTo = nextEmp.emailID;
+              await sendCaseMail(mailPayload, setToast);
+            } catch (e) {
+              console.error("CaseMail error:", e);
+            }
+
             navigate(-1);
+          } else if (payload.status === "Closed") {
+            // L2 close
+            setToast({ type: "success", message: "Case closed by Level 2." });
+            navigate(-1);
+          } else {
+            setToast({
+              type: "success",
+              message: `Case submitted successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+            });
           }
-          // Closed => stay on details page
+        } else if (actionType === "save") {
+          setToast({
+            type: "success",
+            message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+          });
+        } else if (actionType === "updateStatus") {
+          const s = (payload.status || "").trim();
+          if (s === "WIP") navigate(-1);
+          else setToast({ type: "success", message: `Status updated to ${s || "—"}.` });
         }
       } else {
         throw new Error(result?.message || "API did not return code 200");
       }
     } catch (err) {
       console.error(`${actionType} error:`, err);
-      setToast({
-        type: "error",
-        message: `Failed to ${actionType} case. Reason: ${err.message}`,
-      });
+      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
     } finally {
       setSaving(false);
     }
@@ -700,31 +712,26 @@ useEffect(() => {
     switch (activeTab) {
       case "general":
         return <GeneralTab ref={generalRef} data={selectedCaseData} />;
-
       case "issues": {
         const assignedDisplayForIssues =
           trim(assignedFromUrl) ||
           firstNonEmpty(selectedCaseData?.assignName, selectedCaseData?.assignToCode, "-");
-
         return (
           <IssuesTab
             ref={issuesRef}
             data={selectedCaseData}
             assignedToName={assignedDisplayForIssues}
             assignedToCode={selectedCaseData ? selectedCaseData.assignToCode : ""}
+            onResponseChange={(ok) => setIsResponseFilled(ok)}
           />
         );
       }
-
       case "sla":
         return <SLATab ref={slaRef} />;
-
       case "journey":
         return <JourneyTab ref={journeyRef} caseNo={selectedCaseData.caseNo} />;
-
       case "expense":
         return <ExpenseTab ref={expenseRef} />;
-
       default:
         return null;
     }
@@ -753,25 +760,16 @@ useEffect(() => {
         ""
     );
 
- // ---- Tiny Stage badge (Stage 1 / Stage 2) near Assigned To ----
-const stageHint = (() => {
-  // Nahlah (Stage 1) code resolved from Employees API
-  const assignedNow = trim(stage1Code || "");
-
-  // Hana (Stage 2) code comes from case payload (secondSlaCode/nextLevelID)
-  const stage2Code = trim(
-    selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || ""
-  );
-
-  if (!assignedNow && !stage2Code) return "";
-  if (assignedNow && stage2Code && assignedNow === stage2Code) return "Stage 2";
-  if (assignedNow) return "Stage 1";
-  return "";
-})();
-
-
-
-console.log(stageHint)
+  const stageHint = (() => {
+    const assignedNow = trim(stage1Code || "");
+    const stage2Code = trim(
+      selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || ""
+    );
+    if (!assignedNow && !stage2Code) return "";
+    if (assignedNow && stage2Code && assignedNow === stage2Code) return "Stage 2";
+    if (assignedNow) return "Stage 1";
+    return "";
+  })();
 
   const stageBadge = stageHint ? (
     <span
@@ -792,6 +790,22 @@ console.log(stageHint)
       {stageHint}
     </span>
   ) : null;
+
+  // Submit is disabled when:
+  // - saving, or
+  // - no response typed (from IssuesTab), or
+  // - at L2 and status is not Closed yet.
+  const submitDisabled =
+    saving ||
+    !isResponseFilled ||
+    (arrivedAsL2 && status !== "Closed");
+
+  const submitDisabledReason = () => {
+    if (saving) return "Saving in progress…";
+    if (!isResponseFilled) return "Add a response to enable Submit.";
+    if (arrivedAsL2 && status !== "Closed") return "At Level 2, set Case Status to Closed to submit.";
+    return "";
+  };
 
   return (
     <section>
@@ -887,8 +901,7 @@ console.log(stageHint)
                   if (newStatus === "Closed" && !trim(disposition)) {
                     setToast({
                       type: "error",
-                      message:
-                        "Please select Case Disposition before closing the case.",
+                      message: "Please select Case Disposition before closing the case.",
                     });
                     e.target.value = prevStatus || "";
                     return;
@@ -900,18 +913,15 @@ console.log(stageHint)
                         trim(selectedCaseData?.categoryName) ||
                         ""
                     );
-
                     if (isComplaint) {
-                      const generalData =
-                        generalRef.current?.getGeneralData?.() ?? {};
+                      const generalData = generalRef.current?.getGeneralData?.() ?? {};
                       const csr =
                         trim(generalData?.categorySpecificResolution) ||
                         trim(selectedCaseData?.categorySpecificResolution);
                       if (!csr) {
                         setToast({
                           type: "error",
-                          message:
-                            "For Complaint cases, Category Specific Resolution is required before closing.",
+                          message: "For Complaint cases, Category Specific Resolution is required before closing.",
                         });
                         e.target.value = prevStatus || "";
                         return;
@@ -919,27 +929,19 @@ console.log(stageHint)
                     }
                   }
 
-                  // optimistic UI
                   setStatus(newStatus);
                   setSelectedCaseData((prev) =>
                     prev ? { ...prev, caseStatus: newStatus } : prev
                   );
 
                   try {
-                    await handleAction("updateStatus", {
-                      status: newStatus,
-                      disposition,
-                    });
+                    await handleAction("updateStatus", { status: newStatus, disposition });
                   } catch {
-                    // rollback
                     setStatus(prevStatus);
                     setSelectedCaseData((prev) =>
                       prev ? { ...prev, caseStatus: prevStatus } : prev
                     );
-                    setToast({
-                      type: "error",
-                      message: "Failed to save case status.",
-                    });
+                    setToast({ type: "error", message: "Failed to save case status." });
                   }
                 }}
               >
@@ -948,6 +950,12 @@ console.log(stageHint)
                 <option value="WIP">WIP</option>
                 <option value="Closed">Closed</option>
               </select>
+              {arrivedAsL2 && status !== "Closed" && (
+                <div style={{fontSize: 12, color: "#6b7280", marginTop: 4}}>
+                  At Level 2, set <strong>Case Status</strong> to <strong>Closed</strong> to enable Submit.
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -957,26 +965,10 @@ console.log(stageHint)
         <div className="step complete">
           Created<div className="node"></div>
         </div>
-        <div
-          className={`step ${
-            status === "Closed" || status === "WIP"
-              ? "complete"
-              : status === "Open"
-              ? "in-progress"
-              : ""
-          }`}
-        >
+        <div className={`step ${status === "Closed" || status === "WIP" ? "complete" : status === "Open" ? "in-progress" : ""}`}>
           Awaiting Action<div className="node"></div>
         </div>
-        <div
-          className={`step ${
-            status === "Closed"
-              ? "complete"
-              : status === "WIP"
-              ? "in-progress"
-              : ""
-          }`}
-        >
+        <div className={`step ${status === "Closed" ? "complete" : status === "WIP" ? "in-progress" : ""}`}>
           WIP <span>(2 hours)</span>
           <div className="node"></div>
         </div>
@@ -987,34 +979,19 @@ console.log(stageHint)
 
       <section className="tabsform">
         <div className="tab">
-          <span
-            className={`tablinks ${activeTab === "general" ? "active" : ""}`}
-            onClick={() => setActiveTab("general")}
-          >
+          <span className={`tablinks ${activeTab === "general" ? "active" : ""}`} onClick={() => setActiveTab("general")}>
             General
           </span>
-          <span
-            className={`tablinks ${activeTab === "issues" ? "active" : ""}`}
-            onClick={() => setActiveTab("issues")}
-          >
+          <span className={`tablinks ${activeTab === "issues" ? "active" : ""}`} onClick={() => setActiveTab("issues")}>
             Issues and Responses
           </span>
-          <span
-            className={`tablinks ${activeTab === "sla" ? "active" : ""}`}
-            onClick={() => setActiveTab("sla")}
-          >
+          <span className={`tablinks ${activeTab === "sla" ? "active" : ""}`} onClick={() => setActiveTab("sla")}>
             SLA Details
           </span>
-          <span
-            className={`tablinks ${activeTab === "journey" ? "active" : ""}`}
-            onClick={() => setActiveTab("journey")}
-          >
+          <span className={`tablinks ${activeTab === "journey" ? "active" : ""}`} onClick={() => setActiveTab("journey")}>
             Case Journey
           </span>
-          <span
-            className={`tablinks ${activeTab === "expense" ? "active" : ""}`}
-            onClick={() => setActiveTab("expense")}
-          >
+          <span className={`tablinks ${activeTab === "expense" ? "active" : ""}`} onClick={() => setActiveTab("expense")}>
             Expense
           </span>
         </div>
@@ -1025,19 +1002,15 @@ console.log(stageHint)
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
           <div className="buttongrp mt-3">
-            <button
-              type="button"
-              className="pribtn"
-              onClick={() => handleAction("save")}
-              disabled={saving}
-            >
+            <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
               Save
             </button>
             <button
               type="button"
               className="secbtn"
               onClick={() => handleAction("submit")}
-              disabled={saving}
+              disabled={submitDisabled}
+              title={submitDisabledReason()}
             >
               Submit
             </button>

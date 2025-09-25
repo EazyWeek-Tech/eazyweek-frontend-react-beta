@@ -41,7 +41,14 @@ const fetchJSON = async (url) => {
   catch { throw new Error(`Invalid JSON: ${text.slice(0,180)}`); }
 };
 
-const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => {
+/**
+ * Props:
+ *  - data
+ *  - assignedToName
+ *  - assignedToCode
+ *  - onResponseChange?: (hasResponse: boolean, responseText: string) => void
+ */
+const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponseChange }, ref) => {
   const [formValues, setFormValues] = useState({ ...data });
   const [employees, setEmployees] = useState([]);
   const [therapists, setTherapists] = useState([]);
@@ -50,7 +57,15 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => 
 
   useImperativeHandle(ref, () => ({
     getIssuesData: () => formValues,
+    hasResponse: () => trim(formValues.response) !== "",
   }));
+
+  // Notify parent about response field status (for submit enable/disable)
+  useEffect(() => {
+    if (typeof onResponseChange === "function") {
+      onResponseChange(trim(formValues.response) !== "", formValues.response ?? "");
+    }
+  }, [formValues.response, onResponseChange]);
 
   // Seed local state from incoming data (+ URL-provided Assigned To name/code if present)
   useEffect(() => {
@@ -59,7 +74,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => 
       ...prev,
       issueDescription: data.issueDescription ?? prev.issueDescription ?? "",
       firstTimeResolution: data.firstTimeResolution ?? prev.firstTimeResolution ?? "",
-      response: prev.response ?? "",
+      response: prev.response ?? "", // keep user typing in this tab
       clientThreat: data.clientThreat ?? prev.clientThreat ?? "",
 
       therapistName: trim(data.therapistName || data.therapist || prev.therapistName || ""),
@@ -314,6 +329,8 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => 
     data?.assignToCode
   );
 
+  const responseIsEmpty = trim(formValues.response) === "";
+
   return (
     <form className="issueform tabform">
       <div className="form-group">
@@ -382,8 +399,23 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode }, ref) => 
       </div>
 
       <div className="form-group">
-        <label>Add Response</label>
-        <textarea name="response" value={formValues.response || ""} onChange={handleChange} rows="5" />
+        <label>
+          Add Response <span style={{ color: "#d33" }}>*</span>
+        </label>
+        <textarea
+          name="response"
+          value={formValues.response || ""}
+          onChange={handleChange}
+          rows="5"
+          aria-invalid={responseIsEmpty}
+          placeholder="Type your response to move the case forward…"
+          style={responseIsEmpty ? { borderColor: "#d33" } : undefined}
+        />
+        {responseIsEmpty && (
+          <small style={{ color: "#d33" }}>
+            A response is required before submitting.
+          </small>
+        )}
       </div>
 
       <div className="form-group">
