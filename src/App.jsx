@@ -54,6 +54,8 @@ import CreateCaseCategoryMapping from "./pages/CaseManagement/CreateCaseCategory
 import CreateCaseCategory from "./pages/CaseManagement/CreateCaseCategory";
 import CaseCategoryMappingDashboard from "./pages/CaseManagement/CaseCategoryMappingDashboard";
 import AuditDraftDetails from "./pages/Audit/AuditDraftDetails";
+import LoyaltyProgramConfig from "./pages/Loyalty/LoyaltyProgramConfig";
+import MembershipConfig from "./pages/Membership/MembershipConfig";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -102,6 +104,8 @@ function App() {
         <Route path="/consultation/history" element={<ConsultationHistory />} />
        <Route path="/invoices" element={<InvoicesTab />} />
     <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
+    <Route path="/loyalty" element={<LoyaltyProgramConfig />} />
+    <Route path="/membership" element={<MembershipConfig />} />
 
       {/*Add Routes WITH Sidebar + Header */}
       <Route
