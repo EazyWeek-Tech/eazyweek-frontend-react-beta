@@ -783,8 +783,10 @@ li i {
   white-space: normal;
   padding-top: 7px;
   padding-bottom: 7px;
-  min-width: 200px;
-  max-width: 200px;
+  min-width: 210px;
+  max-width: 210px;
+  font-size: 13px;
+  line-height: 18px;
 }
 div#example_wrapper {
   width: 99%;
@@ -792,7 +794,6 @@ div#example_wrapper {
 }
 .case-table tr td a {
   font-weight: 600;
-  text-decoration: underline;
 }
 table.dataTable.stripe > tbody > tr:nth-child(odd) > *,
 table.dataTable.display > tbody > tr:nth-child(odd) > *,

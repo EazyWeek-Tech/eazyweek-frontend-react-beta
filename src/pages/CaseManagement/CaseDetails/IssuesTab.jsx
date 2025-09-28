@@ -154,6 +154,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
             formValues.assignToCode
           )
         );
+        console.log(formValues.assignToCode)
         const codeNorm = normCode(codeRaw);
 
         // Try exact (normalized) code match

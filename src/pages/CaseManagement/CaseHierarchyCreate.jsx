@@ -718,11 +718,10 @@ useEffect(() => {
   const buildPayload = (isDraft) => ({
     centerCode: form.centerCode,
 
-    category: codeToName.Category[form.categoryCode] || form.categoryCode || "",
-    subCategory: codeToName.SubCategory[form.subCategoryCode] || form.subCategoryCode || "",
-    subSubCategory: codeToName.SubSubCategory[form.subSubCategoryCode] || form.subSubCategoryCode || "",
-    subSubSubCategory:
-      codeToName.SubSubSubCategory[form.subSubSubCategoryCode] || form.subSubSubCategoryCode || "",
+   category: form.categoryCode || "",
+  subCategory: form.subCategoryCode || "",
+  subSubCategory: form.subSubCategoryCode || "",
+  subSubSubCategory: form.subSubSubCategoryCode || "",
 
     firstAssignment: levels[0].assignee,
     firstGroupAssignment: levels[0].group,
