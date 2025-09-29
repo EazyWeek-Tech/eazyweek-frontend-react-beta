@@ -163,6 +163,8 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
   const createddate = new Date().toISOString();
   const S = (v) => (isNonEmpty(v) ? String(v) : "");
   const N = (v) => (Number.isFinite(+v) ? Number(v) : 0);
+    const sessionUser = readSessionUser(); 
+
 
   return {
     casetitle:               S(mergeVal(general?.title, current?.title)),
@@ -178,7 +180,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
     productCode:             S(mergeVal(general?.productCode, current?.productCode)),
     servicecode:             S(mergeVal(general?.service, current?.service)),
     serviceccode:            S(mergeVal(general?.serviceCategory, current?.serviceCategory)),
-    createdby:               S(mergeVal(general?.createdBy, current?.createdBy)),
+    createdby:               S(sessionUser?.code || sessionUser?.name || ""),
     createddate,
 
     issuedesciption:         S(current?.issueDescription),
@@ -245,9 +247,37 @@ async function lookupEmployeeByCode(codeRaw) {
 }
 function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" }) {
   const clean = (s) => (s ?? "").toString().trim();
-  const cleanupList = (s) => clean(s).replace(/\s*,\s*/g, ",").replace(/,+$/g, "");
+
+  // Basic email sanity check (very permissive)
+  const isLikelyEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  const cleanupList = (s) => {
+    const parts = (s ?? "")
+      .toString()
+      .replace(/;/g, ",")                // ← convert semicolons to commas
+      .split(",")
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0);
+
+    // de-duplicate (case-insensitive)
+    const seen = new Set();
+    const out = [];
+    for (const p of parts) {
+      const key = p.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(p);
+      }
+    }
+    return out.join(",");
+  };
+
+  // Ensure emailTo is a single address (first valid one if a list sneaks in)
+  const normalizedToList = cleanupList(selected?.email || "");
+  const emailToFirst = normalizedToList.split(",").find(isLikelyEmail) || clean(selected?.email);
+
   return {
-    emailTo: clean(selected?.email),
+    emailTo: emailToFirst,                                  // single address
     centerName: clean(selected?.centerName) || centerNameFallback,
     caseNo: clean(selected?.caseNo),
     categoryName: clean(selected?.caseCategory || selected?.categoryName),
@@ -255,10 +285,11 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" 
     issueDescription: clean(selected?.issueDescription),
     newResponse: clean(selected?.response),
     firstTimeResolution: clean(selected?.firstTimeResolution),
-    emailCC: cleanupList(selected?.cc),
-    moreCC: cleanupList(selected?.moreCc),
+    emailCC: cleanupList(selected?.cc),                     // normalized list
+    moreCC: cleanupList(selected?.moreCc),                  // normalized list
   };
 }
+
 async function sendCaseMail(payload, setToast) {
   try {
     if (!payload.emailTo) {
@@ -530,183 +561,242 @@ const CaseDetailsPage = () => {
   // Arrived level (status-driven): if you arrived WIP -> L2; if Open -> L1
   const arrivedAsL2 = (initialStatusRef.current || selectedCaseData?.caseStatus || "").trim() === "WIP";
 
-  // Actions
-  const handleAction = async (actionType, overrides = {}) => {
-    const generalData =
-      overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
-    const effectiveStatus = trim(overrides.status ?? status);
-    const effectiveDisposition = trim(overrides.disposition ?? disposition);
+ // ---- DROP-IN: replace your existing handleAction with this ----
+const handleAction = async (actionType, overrides = {}) => {
+  const generalData =
+    overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
+  const effectiveStatus = trim(overrides.status ?? status);
+  const effectiveDisposition = trim(overrides.disposition ?? disposition);
 
-    const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
-    const effectiveSelected =
-      { ...(overrides.selectedCaseData ?? selectedCaseData), ...issuesData };
+  const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
+  const effectiveSelected = {
+    ...(overrides.selectedCaseData ?? selectedCaseData),
+    ...issuesData,
+  };
 
-    const req = buildRequiredBlock({
-      actionType,
-      general: generalData,
-      current: effectiveSelected,
-      status: effectiveStatus,
-      disposition: effectiveDisposition,
-    });
-    const { ok, missing } = validateRequired(req);
-    if (!ok) {
-      setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
+  const req = buildRequiredBlock({
+    actionType,
+    general: generalData,
+    current: effectiveSelected,
+    status: effectiveStatus,
+    disposition: effectiveDisposition,
+  });
+  const { ok, missing } = validateRequired(req);
+  if (!ok) {
+    setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
+    return;
+  }
+
+  const prevAssigneeCode = trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || "");
+  const newAssigneeCode  = trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || "");
+  const ownerCode        = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
+  const hierarchyNext    = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+
+  const hasUserPickedAssignee = !!newAssigneeCode && norm(newAssigneeCode) !== norm(prevAssigneeCode);
+  const isHierarchyChoice     = !!hierarchyNext && norm(newAssigneeCode) === norm(hierarchyNext);
+  const isAssignToCreator     = !!ownerCode && norm(newAssigneeCode) === norm(ownerCode);
+  const isManualReassign      = hasUserPickedAssignee && !isHierarchyChoice; // includes assign-to-creator (unless creator == L2)
+
+  // If user explicitly chose creator and creator isn't the hierarchy L2, force manual path
+  const treatAsManual = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
+
+  // Decide the backend operation we will actually send
+  const operationForBackend =
+    actionType === "submit" && treatAsManual ? "save" : actionType;
+
+  const payload = buildFullPayload({
+    general: generalData,
+    current: effectiveSelected,
+    status: effectiveStatus,
+    disposition: effectiveDisposition,
+    operation: operationForBackend, // ← use overridden op
+  });
+
+  // If creator chosen, make sure assigned fields reflect it
+  if (treatAsManual && isAssignToCreator) {
+    payload.assignedto = ownerCode;
+    payload.caseWith   = ownerCode;
+  }
+
+  if (actionType === "submit") {
+    // Response still required to submit (UX); for manual reassignment we still show the same guard
+    if (!trim(effectiveSelected?.response)) {
+      setToast({ type: "error", message: "Please add a response before submitting." });
       return;
     }
 
-    const payload = buildFullPayload({
-      general: generalData,
-      current: effectiveSelected,
-      status: effectiveStatus,
-      disposition: effectiveDisposition,
-      operation: actionType,
-    });
-
-    if (actionType === "submit") {
-      // Must have a response at both levels
-      if (!trim(effectiveSelected?.response)) {
-        setToast({ type: "error", message: "Please add a response before submitting." });
+    if (!arrivedAsL2) {
+      if (treatAsManual) {
+        // Manual reassignment → DO NOT change status
+        if (!isAssignToCreator) {
+          // user picked some other person
+          payload.assignedto = newAssigneeCode || payload.assignedto || "";
+          payload.caseWith   = newAssigneeCode || payload.caseWith   || "";
+        }
+        // status intentionally left as-is
+      } else {
+        // True hierarchy handoff logic
+        if (isHierarchyChoice) {
+          payload.assignedto = hierarchyNext;
+          payload.caseWith   = hierarchyNext;
+          payload.status     = "WIP";
+        } else if (!hasUserPickedAssignee && hierarchyNext) {
+          payload.assignedto = hierarchyNext;
+          payload.caseWith   = hierarchyNext;
+          payload.status     = "WIP";
+        }
+      }
+    } else {
+      // L2 close rules
+      const needsClosed = trim(payload.status) !== "Closed";
+      const needsDisp   = !trim(payload.casedisposition);
+      if (operationForBackend === "submit" && (needsClosed || needsDisp)) {
+        const msg = `Please ${needsClosed ? "set Case Status to 'Closed'" : ""}${
+          needsClosed && needsDisp ? " and " : ""
+        }${needsDisp ? "select Case Disposition" : ""} before submitting.`;
+        setToast({ type: "error", message: msg });
         return;
       }
-
-      const nextCodeRaw = selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "";
-
-      // Stage logic is purely status-driven based on how we ARRIVED
-      if (!arrivedAsL2) {
-        // L1 → hand off to L2, force WIP and set next assignee
-        if (nextCodeRaw) {
-          payload.assignedto = nextCodeRaw;
-          payload.caseWith   = nextCodeRaw;
-        }
-        payload.status = "WIP";
-      } else {
-        // L2 → can submit only when Closed with disposition
-        const needsClosed = trim(payload.status) !== "Closed";
-        const needsDisp = !trim(payload.casedisposition);
-        if (needsClosed || needsDisp) {
-          const msg = `Please ${needsClosed ? "set Case Status to 'Closed'" : ""}${
-            needsClosed && needsDisp ? " and " : ""
-          }${needsDisp ? "select Case Disposition" : ""} before submitting.`;
-          setToast({ type: "error", message: msg });
-          return;
-        }
+      if (operationForBackend === "submit") {
         payload.assignedto = "";
         payload.caseWith   = "";
         payload.status     = "Closed";
       }
     }
+  }
 
-    if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
-      const fill = (v, fallback = "N/A") => (isNonEmpty(v) ? v : fallback);
-      const emailFill = (v) => (isNonEmpty(v) ? v : "-");
-      const ccFill = (v) => (isNonEmpty(v) ? v : "-");
+  if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
+    const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
+    const emailFill = (v) => (isNonEmpty(v) ? v : "-");
+    const ccFill = (v) => (isNonEmpty(v) ? v : "-");
 
-      payload.assignedto = fill(payload.assignedto, "");
-      payload.caseWith = fill(payload.caseWith, "");
-      payload.assignedemailid = emailFill(payload.assignedemailid);
-      payload.cc = ccFill(payload.cc);
-      payload.moreCC = ccFill(payload.moreCC);
+    payload.assignedto      = fill(payload.assignedto, "");
+    payload.caseWith        = fill(payload.caseWith, "");
+    payload.assignedemailid = emailFill(payload.assignedemailid);
+    payload.cc              = ccFill(payload.cc);
+    payload.moreCC          = ccFill(payload.moreCC);
 
-      const stringyKeys = [
-        "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
-        "casemedium","casesource","priority","custID","productCode",
-        "servicecode","serviceccode","createdby","issuedesciption","clientThreat",
-        "doctorCode","firsttimeresolution","response","categorySpecificResolution",
-        "remarks","casedisposition"
-      ];
-      for (const k of stringyKeys) payload[k] = payload[k] ?? "";
-      payload.materialCost = payload.materialCost ?? 0;
-      payload.labourCost   = payload.labourCost ?? 0;
-      payload.otherCharges = payload.otherCharges ?? 0;
-      payload.totalCharges = payload.totalCharges ?? 0;
-    }
+    const stringyKeys = [
+      "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
+      "casemedium","casesource","priority","custID","productCode",
+      "servicecode","serviceccode","createdby","issuedesciption","clientThreat",
+      "doctorCode","firsttimeresolution","response","categorySpecificResolution",
+      "remarks","casedisposition"
+    ];
+    for (const k of stringyKeys) payload[k] = payload[k] ?? "";
+    payload.materialCost = payload.materialCost ?? 0;
+    payload.labourCost   = payload.labourCost ?? 0;
+    payload.otherCharges = payload.otherCharges ?? 0;
+    payload.totalCharges = payload.totalCharges ?? 0;
+  }
 
-    try {
-      setSaving(true);
-      const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+  try {
+    setSaving(true);
+    const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-      const responseText = await res.text();
-      let result; try { result = JSON.parse(responseText); } catch { throw new Error(responseText || "Invalid JSON response from server"); }
+    const responseText = await res.text();
+    let result; try { result = JSON.parse(responseText); } catch { throw new Error(responseText || "Invalid JSON response from server"); }
 
-      if (result?.code === "200") {
-        if (payload.status) {
-          setStatus(payload.status);
-          setSelectedCaseData((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  caseStatus: payload.status,
-                  disposition: payload.casedisposition || prev.disposition,
-                  assignToCode: payload.assignedto || "",
-                  assignName: payload.assignedto ? prev?.secondSlaName || prev?.assignName : "",
-                }
-              : prev
-          );
+    if (result?.code === "200") {
+      if (payload.status) setStatus(payload.status);
+
+      const appliedAssignee = trim(payload.assignedto || "");
+      setSelectedCaseData((prev) =>
+        prev ? {
+          ...prev,
+          caseStatus: payload.status ? payload.status : prev.caseStatus,
+          disposition: payload.casedisposition || prev.disposition,
+          assignToCode: appliedAssignee || prev.assignToCode || "",
+          assignName: prev.assignName,
+        } : prev
+      );
+
+      // Decide navigation after success
+      let goBackAfterSuccess = false;
+
+      if (actionType === "submit") {
+        if (treatAsManual) {
+          setToast({ type: "success", message: `Case reassigned to ${appliedAssignee || "selected user"} (status unchanged).` });
+          goBackAfterSuccess = true; // navigate back after manual reassign
+        } else if (payload.status === "WIP") {
+          setToast({ type: "success", message: "Handed off to Level 2. Status set to WIP." });
+          navigate(-1);
+        } else if (payload.status === "Closed") {
+          setToast({ type: "success", message: "Case closed by Level 2." });
+          navigate(-1);
+        } else {
+          setToast({
+            type: "success",
+            message: `Case submitted successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+          });
         }
-
-        if (actionType === "submit") {
-          if (payload.status === "WIP") {
-            // L1 handoff
-            setToast({ type: "success", message: "Handed off to Level 2. Status set to WIP." });
-
-            // email L2
-            try {
-              const mailBase = {
-                caseNo: effectiveSelected?.caseNo,
-                caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
-                subCategoryName: selectedCaseData?.subCategoryName,
-                issueDescription: effectiveSelected?.issueDescription,
-                response: effectiveSelected?.response,
-                firstTimeResolution: effectiveSelected?.firstTimeResolution,
-                cc: effectiveSelected?.cc,
-                moreCc: effectiveSelected?.moreCc,
-                email: effectiveSelected?.email,
-                centerName: selectedCaseData?.centerName,
-              };
-              const mailPayload = buildCaseMailPayload({ selected: mailBase, centerNameFallback: "Bright Clinics" });
-              const nextEmp = await lookupEmployeeByCode(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID);
-              if (nextEmp?.emailID) mailPayload.emailTo = nextEmp.emailID;
-              await sendCaseMail(mailPayload, setToast);
-            } catch (e) {
-              console.error("CaseMail error:", e);
-            }
-
-            navigate(-1);
-          } else if (payload.status === "Closed") {
-            // L2 close
-            setToast({ type: "success", message: "Case closed by Level 2." });
-            navigate(-1);
-          } else {
-            setToast({
-              type: "success",
-              message: `Case submitted successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
-            });
-          }
-        } else if (actionType === "save") {
+      } else if (actionType === "save") {
+        if (treatAsManual) {
+          setToast({ type: "success", message: `Case reassigned to ${appliedAssignee || "selected user"} (status unchanged).` });
+          goBackAfterSuccess = true; // navigate back after manual reassign
+        } else {
           setToast({
             type: "success",
             message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
           });
-        } else if (actionType === "updateStatus") {
-          const s = (payload.status || "").trim();
-          if (s === "WIP") navigate(-1);
-          else setToast({ type: "success", message: `Status updated to ${s || "—"}.` });
         }
-      } else {
-        throw new Error(result?.message || "API did not return code 200");
+      } else if (actionType === "updateStatus") {
+        const s = (payload.status || "").trim();
+        if (s === "WIP") navigate(-1);
+        else setToast({ type: "success", message: `Status updated to ${s || "—"}.` });
       }
-    } catch (err) {
-      console.error(`${actionType} error:`, err);
-      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
-    } finally {
-      setSaving(false);
+
+      // Email when: manual reassignment (save/submit) OR true L1→L2 handoff
+      const shouldEmail =
+        treatAsManual ||
+        (actionType === "submit" && !arrivedAsL2 && (isHierarchyChoice || (!hasUserPickedAssignee && !!hierarchyNext)));
+
+      try {
+        if (shouldEmail) {
+          const mailBase = {
+            caseNo: effectiveSelected?.caseNo,
+            caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+            subCategoryName: selectedCaseData?.subCategoryName,
+            issueDescription: effectiveSelected?.issueDescription,
+            response: effectiveSelected?.response,
+            firstTimeResolution: effectiveSelected?.firstTimeResolution,
+            cc: effectiveSelected?.cc,
+            moreCc: effectiveSelected?.moreCc,
+            email: effectiveSelected?.email,
+            centerName: selectedCaseData?.centerName,
+          };
+          const mailPayload = buildCaseMailPayload({
+            selected: mailBase,
+            centerNameFallback: "Bright Clinics",
+          });
+
+          const emailLookupCode = treatAsManual ? (newAssigneeCode || ownerCode) : hierarchyNext;
+          const nextEmp = await lookupEmployeeByCode(emailLookupCode);
+          if (nextEmp?.emailID) mailPayload.emailTo = nextEmp.emailID;
+
+          await sendCaseMail(mailPayload, setToast);
+        }
+      } finally {
+        if (goBackAfterSuccess) navigate(-1);
+      }
+    } else {
+      throw new Error(result?.message || "API did not return code 200");
     }
-  };
+  } catch (err) {
+    console.error(`${actionType} error:`, err);
+    setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
+
+
+
 
   const renderTabContent = () => {
     switch (activeTab) {

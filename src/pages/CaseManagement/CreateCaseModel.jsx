@@ -1405,7 +1405,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
               </div>
 
               {/* Add Response (optional) */}
-              <div className="form-group">
+             {/*  <div className="form-group">
                 <label htmlFor="response">Add Response</label>
                 <textarea
                   id="response"
@@ -1414,7 +1414,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                   onChange={(e) => handleChange("response", e.target.value)}
                 ></textarea>
                 <div className="error"></div>
-              </div>
+              </div> */}
 
               {/* Employee Mobile (required) */}
               <div className="form-group">
