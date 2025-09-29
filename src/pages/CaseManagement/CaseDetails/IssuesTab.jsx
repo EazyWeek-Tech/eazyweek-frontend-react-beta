@@ -410,10 +410,9 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
           rows="5"
           aria-invalid={responseIsEmpty}
           placeholder="Type your response to move the case forward…"
-          style={responseIsEmpty ? { borderColor: "#d33" } : undefined}
         />
         {responseIsEmpty && (
-          <small style={{ color: "#d33" }}>
+          <small>
             A response is required before submitting.
           </small>
         )}
