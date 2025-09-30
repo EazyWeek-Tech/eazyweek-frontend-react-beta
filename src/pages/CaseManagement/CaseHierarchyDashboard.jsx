@@ -78,56 +78,73 @@ const CaseHierarchyDashboard = () => {
 
   // Actions
   const doDelete = async (recId) => {
-    if (!recId) return showToast("Row missing recId.");
-    setBusyRow({ recId, action: "delete" });
-    try {
-      const id = encodeURIComponent(recId);
-      const url = `${API_BASE_URL}/api/CaseOperation/CaseDeleteHierarchy/${id}`;
-      const res = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      let payload = null;
-      try { payload = await res.json(); } catch {}
-      if (!res.ok || payload?.status === false || payload?.success === false) {
-        throw new Error(payload?.message || `Delete failed (HTTP ${res.status})`);
-      }
-      showToast(payload?.message || "Deleted successfully", "success");
-      await fetchRows();
-    } catch (e) {
-      console.error(e);
-      showToast(e.message || "Failed to delete");
-    } finally {
-      setBusyRow(null);
-    }
-  };
+  if (!recId) return showToast("Row missing recId.");
 
-  const doActivate = async (recId) => {
-    if (!recId) return showToast("Row missing recId.");
-    setBusyRow({ recId, action: "activate" });
-    try {
-      const id = encodeURIComponent(recId);
-      const url = `${API_BASE_URL}/api/CaseOperation/GetCaseHierarchyDetails/${id}`;
-      const res = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      let payload = null;
-      try { payload = await res.json(); } catch {}
-      if (!res.ok || payload?.status === false || payload?.success === false) {
-        throw new Error(payload?.message || `Activate failed (HTTP ${res.status})`);
-      }
-      showToast(payload?.message || "Activated successfully", "success");
-      await fetchRows();
-    } catch (e) {
-      console.error(e);
-      showToast(e.message || "Failed to activate");
-    } finally {
-      setBusyRow(null);
+  // 🔒 Block delete if status is Active
+  const row = rows.find((r) => String(r.recId) === String(recId));
+  const normStatus = ((row?.caseStatus ?? (row?.status ? "Active" : "Inactive")) || "")
+    .toString()
+    .trim()
+    .toLowerCase();
+  if (normStatus === "active") {
+    showToast("Active case hierarchy cannot be deleted");
+    return;
+  }
+
+  setBusyRow({ recId, action: "delete" });
+  try {
+    const id = encodeURIComponent(recId);
+    const url = `${API_BASE_URL}/api/CaseOperation/CaseDeleteHierarchy/${id}`;
+    const res = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    let payload = null;
+    try { payload = await res.json(); } catch {}
+    if (!res.ok || payload?.status === false || payload?.success === false) {
+      throw new Error(payload?.message || `Delete failed (HTTP ${res.status})`);
     }
-  };
+    showToast(payload?.message || "Deleted successfully", "success");
+    await fetchRows(); // 🔄 refresh
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || "Failed to delete");
+  } finally {
+    setBusyRow(null);
+  }
+};
+
+
+ const doActivate = async (recId) => {
+  if (!recId) return showToast("Row missing recId.");
+  setBusyRow({ recId, action: "activate" });
+  try {
+    const id = encodeURIComponent(recId);
+    const url = `${API_BASE_URL}/api/CaseOperation/CaseHierarchyStatusUpdate/${id}`;
+    const res = await fetch(url, {
+      method: "GET",                 // use GET to match your Delete pattern; switch to POST if your API expects it
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    let payload = null;
+    try { payload = await res.json(); } catch {}
+
+    if (!res.ok || payload?.status === false || payload?.success === false) {
+      throw new Error(payload?.message || `Activate failed (HTTP ${res.status})`);
+    }
+
+    showToast(payload?.message || "Activated successfully", "success");
+    await fetchRows(); // 🔄 refresh table
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || "Failed to activate");
+  } finally {
+    setBusyRow(null);
+  }
+};
+
 
   const onEdit = (recId) => {
     if (!recId) return showToast("Row missing recId.");
@@ -172,32 +189,37 @@ const CaseHierarchyDashboard = () => {
         return `<span class="${cls}">${s}</span>`;
       },
     },
-    {
-      data: null,
-      title: "Actions",
-      className: "text-nowrap actions-col",
-      width: "120px",
-      orderable: false,
-      searchable: false,
-      render: (row) => {
-        const isActive =
-          (row.caseStatus && row.caseStatus.toLowerCase() === "active") || row.status === true;
-        const dis = isActive ? "disabled" : "";
-        return `
-          <div class="row-actions">
-            <button class="iconbtn green btn-activate" ${dis} data-id="${row.recId}" title="Activate" aria-label="Activate">
-              ${svgCheck}
-            </button>
-            <button class="iconbtn blue btn-edit" data-id="${row.recId}" title="Edit" aria-label="Edit">
-              ${svgEdit}
-            </button>
-            <button class="iconbtn red btn-delete" data-id="${row.recId}" title="Delete" aria-label="Delete">
-              ${svgTrash}
-            </button>
-          </div>
-        `;
-      },
-    },
+   {
+  data: null,
+  title: "Actions",
+  className: "text-nowrap actions-col",
+  width: "120px",
+  orderable: false,
+  searchable: false,
+  render: (row) => {
+    const raw = (row.caseStatus ?? (row.status ? "Active" : "Inactive")).toString();
+    const isActive = raw.trim().toLowerCase() === "active";
+
+    const disActivate = isActive ? "disabled" : "";
+    const disDelete = isActive ? "disabled" : "";
+    const delTitle = isActive ? "Active case hierarchy cannot be deleted" : "Delete";
+
+    return `
+      <div class="row-actions">
+        <button class="iconbtn green btn-activate" ${disActivate} data-id="${row.recId}" title="Activate" aria-label="Activate">
+          ${svgCheck}
+        </button>
+        <button class="iconbtn blue btn-edit" data-id="${row.recId}" title="Edit" aria-label="Edit">
+          ${svgEdit}
+        </button>
+        <button class="iconbtn red btn-delete" ${disDelete} data-id="${row.recId}" title="${delTitle}" aria-label="Delete">
+          ${svgTrash}
+        </button>
+      </div>
+    `;
+  },
+}
+
   ];
 
   // Initialize DataTable once
