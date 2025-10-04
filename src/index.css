@@ -1074,6 +1074,8 @@ div.dt-container .dt-paging .dt-paging-button.current, div.dt-container .dt-pagi
   border-radius: 4px;
   cursor:pointer;
 }
+
+.secbtn:disabled{background: #666; color: #fff;}
 /* Demo Styles */
 
 /*Form Wizard*/

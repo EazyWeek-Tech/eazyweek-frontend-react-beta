@@ -342,7 +342,7 @@ const GuestConsentForm = () => {
         <>
         <div className="medical-form">
             <div className="header">
-                <img src="/images/logo.jpeg" alt="Organization Logo" className="logo" />
+                <img src="/images/abclogo.png" alt="Organization Logo" className="logo" />
                 <h1>MEDICAL HISTORY FORM</h1>
 
             </div>
@@ -1883,13 +1883,14 @@ fieldset {
   margin-top: 1rem;
   background: #f9f9f9;
 }
-
-label {
-  display: block;
-  margin: 0.5rem 0;
-  font-size: 0.95rem;
-}
-
+ label {
+    display: block;
+    margin: 0.5rem 0;
+    font-size: 14px;
+    line-height:20px;
+  }
+.checkbox-group label input{margin:0;}
+form h2, form h3, form legend{position:relative; top:9px; font-size: 20px; line-height:24px;}
 input[type="text"],
 input[type="date"],
 input[type="number"],
@@ -1943,7 +1944,7 @@ input[type="checkbox"] {
 }
 
 button[type="submit"] {
-  margin-top: 2rem;
+  margin: 0 auto;
   padding: 0.75rem 2rem;
   font-size: 1rem;
   background-color: #2b4c7e;
@@ -1990,6 +1991,7 @@ button[type="submit"]:hover {
 .gform-group label {
   margin-bottom: 0.5rem;
   font-weight: 500;
+  display: inline !important;
 }
 
 .gform-group input,
@@ -1998,6 +2000,8 @@ button[type="submit"]:hover {
   font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
+  display: inline !important;
+  width: auto !important;
 }
 
 .radio-group {
