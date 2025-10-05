@@ -725,13 +725,12 @@ const CaseDetailsPage = () => {
                 ? selectedCaseData.caseStatus
                 : "WIP");
 
-        // Work out a real assignee for the first call (resolver with robust fallbacks)
-        const stage2CodeForClose = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+        // Work out a real assignee for the first call (do NOT escalate to Stage 2 when closing)
         const assigneeForSubmit = resolveAssigneeForSubmit({
           newAssigneeCode: newAssigneeCode,
           prevAssigneeCode: prevAssigneeCode,
           stage1Code: stage1Code,   // from state
-          stage2Code: stage2CodeForClose,
+          stage2Code: "",           // 🚫 prevent auto-escalation to next level on close
           ownerCode: ownerCode,
         });
 
@@ -810,6 +809,29 @@ const CaseDetailsPage = () => {
         console.groupEnd();
 
         await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
+
+        // 3) Send closure email to CC + More CC (case can be closed at ANY level)
+        const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
+        const hasAnyEmail = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
+        if (hasAnyEmail) {
+          const closureMail = buildCaseMailPayload({
+            selected: {
+              caseNo: effectiveSelected?.caseNo,
+              caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+              subCategoryName: selectedCaseData?.subCategoryName,
+              issueDescription: effectiveSelected?.issueDescription,
+              response: effectiveSelected?.response,
+              firstTimeResolution: effectiveSelected?.firstTimeResolution,
+              cc: effectiveSelected?.cc,
+              moreCc: effectiveSelected?.moreCc,
+              // use CC/MORE CC pool to satisfy API's required emailTo
+              email: ccCombined,
+              centerName: selectedCaseData?.centerName,
+            },
+            centerNameFallback: "Bright Clinics",
+          });
+          await sendCaseMail(closureMail, setToast);
+        }
 
         // UI reflect
         setStatus("Closed");
