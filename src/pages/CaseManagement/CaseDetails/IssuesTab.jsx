@@ -285,14 +285,14 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     }
   }, [formValues.therapistCode, formValues.therapistName, therapistClicked]);
 
-  // --- Current Assignee display (prefer server fields) ---
+  // --- Current Assignee display (STRICT: prefer URL) ---
   const currentAssigneeDisplay = firstNonEmpty(
-  assignedToName,          // ← prefer URL (matches header's "Assigned To")
-  data?.assignName,
-  data?.assignToCode,
-  formValues?.assignedTo,
-  "-"
-);
+    assignedToName,          // ← STRICT priority: value derived from URL
+    data?.assignName,
+    data?.assignToCode,
+    formValues?.assignedTo,
+    "-"
+  );
 
   // Fetch Case Hierarchy
   useEffect(() => {
@@ -403,15 +403,14 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
 
   // ✅ If L2 is logged in AND is the current assignee, force the "Next Assignee" UI selection to "Assign To"
   const sessionUser = readSessionUser();
-const isLoggedInCurrentAssignee = (() => {
-  if (!sessionUser) return false;
-  const byCode = !!trim(sessionUser.code) && trim(sessionUser.code) === trim(data?.assignToCode);
-  // Prefer URL/display (same as header), then fall back to server name
-  const targetName = firstNonEmpty(assignedToName, data?.assignName);
-  const byName = normNameBase(sessionUser.fullName || sessionUser.name) === normNameBase(targetName || "");
-  return byCode || byName;
-})();
-
+  const isLoggedInCurrentAssignee = (() => {
+    if (!sessionUser) return false;
+    const byCode = !!trim(sessionUser.code) && trim(sessionUser.code) === trim(data?.assignToCode);
+    // Prefer URL/display (same as header), then fall back to server name
+    const targetName = firstNonEmpty(assignedToName, data?.assignName);
+    const byName = normNameBase(sessionUser.fullName || sessionUser.name) === normNameBase(targetName || "");
+    return byCode || byName;
+  })();
 
   const forceAssignToUI = currentLevel === 2 && isLoggedInCurrentAssignee;
 
@@ -622,9 +621,9 @@ const isLoggedInCurrentAssignee = (() => {
         <select name="assignToCode" value={formValues.assignToCode || ""} onChange={handleChange}>
           {/* When L2 is the logged-in current assignee, show "Assign To" as the selected placeholder */}
           {forceAssignToUI ? (
-            <option value="">Assign To</option>
+            <option value="-">Assign To</option>
           ) : (
-            <option value="">Select User</option>
+            <option value="-">Select User</option>
           )}
 
           {formValues.assignToCode &&

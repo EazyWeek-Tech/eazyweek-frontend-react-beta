@@ -50,7 +50,15 @@ const CaseTable = ({ records = [] }) => {
           { data: "subCategory", title: "Subcategory" },
           { data: "subSubCategory", title: "Sub Subcategory" },
           { data: "subSubSubCategory", title: "Sub Sub Subcategory" },
-          { data: "assignedto", title: "Assigned To" },
+          {
+            data: "assignedto",
+            title: "Assigned To",
+            render: (data, type, row) => {
+              const isClosed =
+                (row?.status ?? "").toString().trim().toLowerCase() === "closed";
+              return isClosed ? "-" : (data ?? "-");
+            },
+          },
           { data: "createdby", title: "Owner" },
           {
             data: "createddate",
@@ -66,19 +74,22 @@ const CaseTable = ({ records = [] }) => {
         // Remove this ↓ to prevent it overriding JS sort
         order: [],
         createdRow: (row, data) => {
-          $(row)
-            .find(".case-link")
-            .on("click", function (e) {
-              e.preventDefault();
-              const caseId = $(this).data("id");
+  $(row)
+    .find(".case-link")
+    .on("click", function (e) {
+      e.preventDefault();
+      const caseId = $(this).data("id");
 
-              // NEW: include owner and assignedTo as query params
-              const owner = encodeURIComponent(data?.createdby ?? "");
-              const assignedTo = encodeURIComponent(data?.assignedto ?? "");
+      // include owner and assignedTo as query params
+      const owner = encodeURIComponent(data?.createdby ?? "");
+      const isClosed = (data?.status ?? "").toString().trim().toLowerCase() === "closed";
+      const assignedToVal = isClosed ? "-" : (data?.assignedto ?? "-");
+      const assignedTo = encodeURIComponent(assignedToVal);
 
-              navigate(`/cases/${caseId}?owner=${owner}&assignedTo=${assignedTo}`);
-            });
-        },
+      navigate(`/cases/${caseId}?owner=${owner}&assignedTo=${assignedTo}`);
+    });
+},
+
       });
       setLoading(false);
     }, 200);

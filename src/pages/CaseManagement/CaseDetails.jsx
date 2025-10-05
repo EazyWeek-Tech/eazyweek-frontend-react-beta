@@ -549,19 +549,73 @@ const CaseDetailsPage = () => {
   const arrivedAsL2 =
     (initialStatusRef.current || selectedCaseData?.caseStatus || "").trim() === "WIP";
 
-  // small helper to post to CaseOperation
-  const postCaseOperation = async (payload) => {
-    const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    let result;
-    try { result = JSON.parse(text); } catch { throw new Error(text || "Invalid JSON response from server"); }
-    if (result?.code !== "200") throw new Error(result?.message || "API did not return code 200");
-    return result;
+  const postCaseOperation = async (payload, label = "CaseOperation") => {
+    const ts = new Date().toISOString();
+    console.groupCollapsed(`[${ts}] POST ${API_BASE_URL}/api/CaseOperation — ${label}`);
+    try {
+      // Focus logs on the fields we keep debugging
+      console.log("Request essentials →", {
+        caseno: payload.caseno,
+        operation: payload.operation,
+        status: payload.status,
+        assignedto: payload.assignedto,
+        caseWith: payload.caseWith,
+        response_len: (payload.response || "").length
+      });
+      console.log("Request payload (full) →", payload);
+
+      const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let parsed;
+      try { parsed = JSON.parse(text); } catch {}
+
+      console.log("HTTP status →", res.status, res.statusText);
+      if (parsed !== undefined) {
+        console.log("Response (parsed JSON) →", parsed);
+      } else {
+        console.log("Response (raw text) →", text);
+      }
+
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      if (!parsed || parsed.code !== "200") {
+        throw new Error(parsed?.message || "API did not return code 200");
+      }
+      return parsed;
+    } catch (err) {
+      console.error("CaseOperation error →", err);
+      throw err;
+    } finally {
+      console.groupEnd();
+    }
+  };
+
+  // --------------------------------------------
+  // Assignee resolver used when persisting a response
+  // --------------------------------------------
+  // Pick the best available assignee code to use when persisting a response.
+  // Priority: explicit new selection → current case assignee → Stage 1 → Stage 2 → owner.
+  const resolveAssigneeForSubmit = ({
+    newAssigneeCode,
+    prevAssigneeCode,
+    stage1Code,
+    stage2Code,
+    ownerCode,
+  }) => {
+    const pick = (v) => (trim(v) ? trim(v) : "");
+    return (
+      pick(newAssigneeCode) ||
+      pick(prevAssigneeCode) ||
+      pick(stage1Code) ||
+      pick(stage2Code) ||
+      pick(ownerCode) ||
+      ""
+    );
   };
 
   // -----------------------------
@@ -579,7 +633,6 @@ const CaseDetailsPage = () => {
       ...issuesData,
     };
 
-    // Only send updateStatus on closing WHEN user clicks Submit
     const closingViaSubmit =
       actionType === "submit" && effectiveStatus === "Closed";
 
@@ -605,8 +658,55 @@ const CaseDetailsPage = () => {
     const isHierarchyChoice     = !!hierarchyNext && norm(newAssigneeCode) === norm(hierarchyNext);
     const isAssignToCreator     = !!ownerCode && norm(newAssigneeCode) === norm(ownerCode);
     const isManualReassign      = hasUserPickedAssignee && !isHierarchyChoice;
+    const treatAsManual         = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
 
-    const treatAsManual = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
+    // --------------------------------------------
+    // Preflight: Always persist response on save/updateStatus (non-submit actions)
+    // --------------------------------------------
+    const responseText = trim(effectiveSelected?.response || "");
+    if (responseText && actionType !== "submit") {
+      const stage2Code = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+      const assigneeForSubmit = resolveAssigneeForSubmit({
+        newAssigneeCode: trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || ""),
+        prevAssigneeCode: trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || ""),
+        stage1Code: trim(stage1Code || ""),
+        stage2Code,
+        ownerCode: trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || ""),
+      });
+
+      const nonClosedStatus =
+        (initialStatusRef.current && initialStatusRef.current !== "Closed")
+          ? initialStatusRef.current
+          : ((selectedCaseData?.caseStatus && selectedCaseData.caseStatus !== "Closed")
+              ? selectedCaseData.caseStatus
+              : "WIP");
+
+      const preSubmitPayload = buildFullPayload({
+        general: generalData,
+        current: {
+          ...effectiveSelected, // keep response as typed
+          assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode,
+        },
+        status: nonClosedStatus,
+        disposition: effectiveDisposition, // harmless here
+        operation: "submit",
+      });
+
+      if (assigneeForSubmit) {
+        preSubmitPayload.assignedto = assigneeForSubmit;
+        preSubmitPayload.caseWith   = assigneeForSubmit;
+      }
+
+      console.groupCollapsed("⓪ PRESUBMIT (persist response before non-submit action)");
+      console.log({
+        status: preSubmitPayload.status,
+        assignedto: preSubmitPayload.assignedto,
+        response_len: (preSubmitPayload.response || "").length,
+      });
+      console.groupEnd();
+
+      await postCaseOperation(preSubmitPayload, "submit (preflight persist response)");
+    }
 
     // ---- Special branch: Closing via Submit ----
     if (closingViaSubmit) {
@@ -617,28 +717,63 @@ const CaseDetailsPage = () => {
         }
         setSaving(true);
 
-      //1) Persist the response FIRST via SUBMIT (this creates the response row)
-  const submitPayload = buildFullPayload({
-    general: generalData,
-     current: effectiveSelected,                  // keep the typed response
-     status: selectedCaseData?.caseStatus || "WIP", // DO NOT send Closed here
-     disposition: effectiveDisposition,
-    operation: "submit",   });
-   // keep it with the current assignee while recording the response
-   submitPayload.assignedto = '-';
-   submitPayload.caseWith   = '-';
-  await postCaseOperation(submitPayload);
+        // Ensure the *first* persist call is NOT "Closed"
+        const nonClosedStatus =
+          (initialStatusRef.current && initialStatusRef.current !== "Closed")
+            ? initialStatusRef.current
+            : ((selectedCaseData?.caseStatus && selectedCaseData.caseStatus !== "Closed")
+                ? selectedCaseData.caseStatus
+                : "WIP");
 
-        // 2) Now close the case; send assignedto as "-"
+        // Work out a real assignee for the first call (resolver with robust fallbacks)
+        const stage2CodeForClose = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+        const assigneeForSubmit = resolveAssigneeForSubmit({
+          newAssigneeCode: newAssigneeCode,
+          prevAssigneeCode: prevAssigneeCode,
+          stage1Code: stage1Code,   // from state
+          stage2Code: stage2CodeForClose,
+          ownerCode: ownerCode,
+        });
+
+        // 1) Persist the response FIRST (operation: submit) with a *real* assignee and non-Closed status
+        const submitPayload = buildFullPayload({
+          general: generalData,
+          current: {
+            ...effectiveSelected,                 // keep the typed response
+            assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode
+          },
+          status: nonClosedStatus,                // NEVER send "Closed" here
+          disposition: effectiveDisposition,
+          operation: "submit",
+        });
+
+        if (assigneeForSubmit) {
+          submitPayload.assignedto = assigneeForSubmit;
+          submitPayload.caseWith   = assigneeForSubmit;
+        }
+        // logging (exactly what matters)
+        console.groupCollapsed("① SUBMIT (persist response before close)");
+        console.log({
+          status: submitPayload.status,
+          assignedto: submitPayload.assignedto,
+          caseWith: submitPayload.caseWith,
+          response_len: (submitPayload.response || "").length,
+          response_preview: (submitPayload.response || "").slice(0,120)
+        });
+        console.groupEnd();
+
+        await postCaseOperation(submitPayload, "submit (close flow — persist response)");
+
+        // 2) Now close the case; placeholders are OK here
         const closePayload = buildFullPayload({
-      general: generalData,
-      current: { ...effectiveSelected, response: "" }, // avoid duplicate response on close
-      status: "Closed",
-      disposition: effectiveDisposition,
-      operation: "updateStatus",
-    });
-    closePayload.assignedto = "-";
-    closePayload.caseWith   = "-";
+          general: generalData,
+          current: { ...effectiveSelected, response: "" }, // avoid duplicate response on close
+          status: "Closed",
+          disposition: effectiveDisposition,
+          operation: "updateStatus",
+        });
+        closePayload.assignedto = "-";
+        closePayload.caseWith   = "-";
 
         if (USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
           const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
@@ -665,9 +800,18 @@ const CaseDetailsPage = () => {
           closePayload.totalCharges = closePayload.totalCharges ?? 0;
         }
 
-        await postCaseOperation(closePayload);
+        console.groupCollapsed("② UPDATESTATUS (close)");
+        console.log({
+          status: closePayload.status,
+          assignedto: closePayload.assignedto,
+          caseWith: closePayload.caseWith,
+          response_len: (closePayload.response || "").length
+        });
+        console.groupEnd();
 
-        // local state reflect + toast + navigate
+        await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
+
+        // UI reflect
         setStatus("Closed");
         setSelectedCaseData((prev) =>
           prev ? { ...prev, caseStatus: "Closed", disposition: closePayload.casedisposition } : prev
@@ -684,9 +828,8 @@ const CaseDetailsPage = () => {
       return;
     }
 
-    // ---- Normal paths (save / submit non-closing / updateStatus non-closing) ----
+    // ---- Normal paths unchanged below ----
     const operationForBackend = actionType;
-
     const payload = buildFullPayload({
       general: generalData,
       current: effectiveSelected,
@@ -695,7 +838,6 @@ const CaseDetailsPage = () => {
       operation: operationForBackend,
     });
 
-    // Avoid duplicate response saves: only keep response on regular submit (non-closing)
     if (actionType !== "submit") {
       payload.response = "";
     }
@@ -710,7 +852,6 @@ const CaseDetailsPage = () => {
         setToast({ type: "error", message: "Please add a response before submitting." });
         return;
       }
-      // Regular submit → WIP
       if (treatAsManual && !isAssignToCreator) {
         payload.assignedto = newAssigneeCode || payload.assignedto || "";
         payload.caseWith   = newAssigneeCode || payload.caseWith   || "";
@@ -745,7 +886,7 @@ const CaseDetailsPage = () => {
 
     try {
       setSaving(true);
-      const result = await postCaseOperation(payload);
+      const result = await postCaseOperation(payload, actionType);
 
       if (result?.code === "200") {
         if (actionType === "updateStatus" && isNonEmpty(effectiveStatus)) {
@@ -790,7 +931,6 @@ const CaseDetailsPage = () => {
           setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
         }
 
-        // Email rules unchanged for non-closing submits
         const shouldEmail =
           treatAsManual ||
           (actionType === "submit" &&
@@ -874,6 +1014,8 @@ const CaseDetailsPage = () => {
     selectedCaseData.assignToCode,
     "-"
   );
+
+  console.log("assignedDisplay="+assignedDisplay)
 
   const isComplaintCase =
     /complaint/i.test(
