@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 const norm = (s) => (s ?? "").toString().trim();
+const decodePlus = (s) => (s ? s.replace(/\+/g, " ") : s);
 
 function useQuery() {
   const { search } = useLocation();
@@ -12,7 +13,7 @@ function useQuery() {
 }
 
 const toDMY = (iso /* yyyy-mm-dd */) => {
-  const [y,m,d] = (iso || "").split("-");
+  const [y, m, d] = (iso || "").split("-");
   if (!y || !m || !d) return iso || "";
   return `${d}-${Number(m)}-${y}`;
 };
@@ -26,42 +27,167 @@ const parseWeight = (w) => {
   return m ? Number(m[0]) : 0;
 };
 
+// --- Auditor (logged-in user) helpers ---
+const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
+const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+
+// extract clinic info from a session-like object
+const pickClinic = (o) => ({
+  code: norm(o?.centerCode ?? o?.loginCode ?? o?.topCode ?? ""),
+  name: norm(o?.centerName ?? o?.clinicName ?? "")
+});
+
+function getSessionUserId() {
+  if (typeof window === "undefined") return "";
+  // Common globals
+  const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
+  const fromGlobal = pickUserId(globalObj);
+  if (fromGlobal) return fromGlobal;
+
+  // Common storage keys
+  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    if (!storage) continue;
+    for (const k of keys) {
+      const raw = storage.getItem(k);
+      if (!raw) continue;
+      const parsed = tryParseJSON(raw);
+      const id = parsed ? pickUserId(parsed) : norm(raw);
+      if (id) return id;
+    }
+  }
+  return "";
+}
+
+function getSessionClinic() {
+  if (typeof window === "undefined") return { code: "", name: "" };
+
+  // 1) globals
+  const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
+  const picked = pickClinic(globalObj);
+  if (picked.code || picked.name) return picked;
+
+  // 2) storage
+  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    if (!storage) continue;
+    for (const k of keys) {
+      const raw = storage.getItem(k);
+      if (!raw) continue;
+      const parsed = tryParseJSON(raw);
+      if (parsed && typeof parsed === "object") {
+        const fromStore = pickClinic(parsed);
+        if (fromStore.code || fromStore.name) return fromStore;
+      }
+    }
+  }
+  return { code: "", name: "" };
+}
+
 export default function AuditForm() {
   const qs = useQuery();
 
   // header data passed via URL from AuditCreate
-  const segment        = norm(qs.get("segment"));
-  const clinicCode     = norm(qs.get("clinicCode"));
-  const clinicName     = norm(qs.get("clinicName"));
-  const auditMonth     = norm(qs.get("auditMonth")); // "Sep"
-  const year           = norm(qs.get("year"));
-  const auditDateISO   = norm(qs.get("auditDate"));  // yyyy-mm-dd
-  const mode           = norm(qs.get("mode"));       // "digital" | "standard"
+  const segment = norm(qs.get("segment"));
+  const clinicCodeQS = norm(qs.get("clinicCode"));
+  const clinicNameQS = decodePlus(norm(qs.get("clinicName") || qs.get("clinic")));
+  const auditMonth = norm(qs.get("auditMonth")); // "Sep"
+  const year = norm(qs.get("year"));
+  const auditDateISO = norm(qs.get("auditDate")); // yyyy-mm-dd
+  const mode = norm(qs.get("mode")); // "digital" | "standard"
 
   // who is audited
-  const employeeCode   = norm(qs.get("employeeCode"));   // standard
-  const doctorCode     = norm(qs.get("doctorCode"));     // digital
+  const employeeCode = norm(qs.get("employeeCode")); // standard
+  const employeeNameQS = norm(qs.get("employeeName")); // optional name from URL
+  const doctorCode = norm(qs.get("doctorCode")); // digital
   const departmentCode = norm(qs.get("departmentCode")); // digital
-  const managerCode    = norm(qs.get("managerCode"));    // digital
+  const managerCode = norm(qs.get("managerCode")); // digital
 
-  // optional: if your app knows the current user name/id, set it here
-  const auditor        = norm(qs.get("auditor")); // leave blank if you don't have it
+  // Auditor (logged-in user) → from session; fallback to ?auditor=<code> if provided
+  const [auditorCode, setAuditorCode] = useState(norm(qs.get("auditor")) || getSessionUserId());
+
+  // session clinic (used when URL doesn't provide clinic)
+  const sessionClinic = useMemo(() => getSessionClinic(), []);
+  const [clinicDisplayName, setClinicDisplayName] = useState(clinicNameQS || sessionClinic.name || "");
+  const [clinicDisplayCode, setClinicDisplayCode] = useState(clinicCodeQS || sessionClinic.code || "");
 
   const [criteria, setCriteria] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // row state
-  // scores: null = not answered; 0 or 1 = user choice
-  const [scores, setScores] = useState({});    // { [criteriaCode]: 0|1|null }
-  const [remarks, setRemarks] = useState({});  // { [criteriaCode]: string }
+  const [scores, setScores] = useState({}); // { [criteriaCode]: 0|1|null }
+  const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // resolved employee name (prefer URL value)
+  const [employeeName, setEmployeeName] = useState(employeeNameQS || "");
 
   const showToast = (message, type = "error", ms = 2400) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), ms);
   };
+
+  // keep auditor in sync if session populates after mount (e.g., SSO)
+  useEffect(() => {
+    const onStorage = () => {
+      const id = getSessionUserId();
+      if (id && id !== auditorCode) setAuditorCode(id);
+
+      // also refresh clinic if session changes
+      const sc = getSessionClinic();
+      if (sc.code && !clinicCodeQS) setClinicDisplayCode(sc.code);
+      if (sc.name && !clinicNameQS) setClinicDisplayName(sc.name);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auditorCode, clinicCodeQS, clinicNameQS]);
+
+  // Resolve Clinic display name:
+  // Priority: URL clinicName → session clinicName → resolve by (URL clinicCode || session clinicCode)
+  useEffect(() => {
+    let cancelled = false;
+
+    const code = clinicCodeQS || sessionClinic.code;
+    const namePrefilled = clinicNameQS || sessionClinic.name;
+
+    if (namePrefilled) {
+      setClinicDisplayName(namePrefilled);
+      if (!clinicDisplayCode) setClinicDisplayCode(code || "");
+      return () => { cancelled = true; };
+    }
+
+    if (!code) return; // nothing to resolve
+
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const payload = await r.json();
+        const centers = Array.isArray(payload) ? payload : payload ? [payload] : [];
+        const match =
+          centers.find((c) => norm(c.code) === code) ||
+          centers.find((c) => norm(c.name) === code);
+        if (!cancelled) {
+          setClinicDisplayName(match?.name || "");
+          setClinicDisplayCode(code);
+        }
+      } catch {
+        if (!cancelled) {
+          setClinicDisplayName("");
+          setClinicDisplayCode(code); // at least show code
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [API_BASE_URL, clinicCodeQS, clinicNameQS, sessionClinic.code, sessionClinic.name]);
 
   // load criteria by segment
   useEffect(() => {
@@ -76,7 +202,7 @@ export default function AuditForm() {
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
-        const list = Array.isArray(data) ? data : (data ? [data] : []);
+        const list = Array.isArray(data) ? data : data ? [data] : [];
 
         // initialize scores with null (force user to choose 0/1 for each row)
         const initScores = {};
@@ -92,7 +218,7 @@ export default function AuditForm() {
         setLoading(false);
       }
     })();
-  }, [segment]);
+  }, [segment, API_BASE_URL]);
 
   // compute a row's total based on score (0/1) and weightage
   const rowTotal = (code, weightage) => {
@@ -108,7 +234,7 @@ export default function AuditForm() {
   }, 0);
 
   const handleScoreChange = (code, valStr) => {
-    const val = valStr === "" ? null : Number(valStr);  // "" keeps as null
+    const val = valStr === "" ? null : Number(valStr); // "" keeps as null
     setScores((prev) => ({ ...prev, [code]: val }));
   };
 
@@ -128,44 +254,65 @@ export default function AuditForm() {
     return { ok: true };
   };
 
-  // Build payload for /api/Audit/AuditCreation
+  // Build payload (normalized to avoid empty-string parse errors)
   const buildPayload = (isDraft) => {
+    const normalizeWeight = (w) => {
+      // "10%" -> "10", " 5 % " -> "5", "" -> "0"
+      const n = String(w ?? "").match(/-?\d+(\.\d+)?/);
+      return n ? String(Number(n[0])) : "0";
+    };
+
     const subSegmentJson = criteria.map((row) => {
-      const code = row.criteriaCode;
-      const s = scores[code]; // 0 | 1
-      const weight = String(row.weightage ?? "");
-      const totalVal = s === 1 ? parseWeight(weight) : 0;
+      const code = String(row?.criteriaCode ?? "");
+      const weightStr = normalizeWeight(row?.weightage);
+      const s = scores[code]; // null | 0 | 1
+
+      // Default unanswered to "0" to avoid backend parsing "" -> int
+      const scoreStr = s === 0 || s === 1 ? String(s) : "0";
+      // totalScore as STRING
+      const totalStr = scoreStr === "1" ? weightStr : "0";
 
       return {
-        auditNo: "", // server usually generates; leave blank
-        criteria: String(row.criteria ?? ""),
-        score: String(s ?? ""),                    // "0" or "1"
-        weightage: weight,                         // as string, e.g., "5%"
-        totalScore: String(totalVal),              // "0" or "5"
-        auditorRemarks: String(remarks[code] ?? ""),
-        subSegment: String(row.subSegment ?? ""),
-        criteriaCode: String(code ?? ""),
-        valuePresent: String(s ?? ""),             // mirror of score (0/1)
+        auditNo: "", // server generates
+        criteria: String(row?.criteria ?? ""),
+        score: scoreStr,               // "0" | "1"
+        weightage: weightStr,          // numeric string: "10"
+        totalScore: totalStr,          // "10" or "0"
+        auditorRemarks: String((remarks[code] ?? "").trim()), // can be ""
+        subSegment: String(row?.subSegment ?? ""),
+        criteriaCode: code,
+        valuePresent: scoreStr,        // mirror
       };
     });
 
-    const base = {
+    // header subSegment: use first row's subSegment or ""
+    const headerSubSegment = subSegmentJson.length ? subSegmentJson[0].subSegment : "";
+
+    // compute gross as number
+    const grossFromRows = subSegmentJson.reduce(
+      (sum, r) => sum + Number(r.totalScore || "0"),
+      0
+    );
+
+    return {
+      request: isDraft ? "save" : "submit",
       auditSegment: segment,
-      subSegment: "", // not required at header level; details inside subSegmentJson
+      subSegment: headerSubSegment,
       auditDate: toMidnightUtc(auditDateISO),
-      auditMonth: auditMonth,                     // string, e.g., "Sep"
-      auditor: auditor,                           // if available
+      auditMonth: String(auditMonth || ""),
+      auditor: String(auditorCode || ""),
       employeeCode: mode === "digital" ? "" : employeeCode,
-      doctorCode:   mode === "digital" ? doctorCode : "",
-      managerCode:  mode === "digital" ? managerCode : "",
-      departmentCode: mode === "digital" ? departmentCode : "",
+      grossTotalScore: grossFromRows,
+      auditNo: "",
       auditYear: String(year || ""),
-      grossTotalScore: grossTotal,                // number
+      doctorCode: mode === "digital" ? String(doctorCode || "") : "",
+      managerCode: mode === "digital" ? String(managerCode || "") : "",
+      departmentCode: mode === "digital" ? String(departmentCode || "") : "",
       isDraft: isDraft ? 1 : 0,
       subSegmentJson,
+      status: "",
+      responseMessage: "",
     };
-
-    return base;
   };
 
   const postAuditCreation = async (payload) => {
@@ -188,45 +335,127 @@ export default function AuditForm() {
     }
   };
 
+  // Save can be incomplete; Submit must be complete
   const onSaveOrSubmit = async (isDraft) => {
-    // Must answer every row (0/1)
-    const check = validateAllAnswered();
-    if (!check.ok) {
-      return showToast("Please answer all criteria (Yes/No) before continuing.");
+    if (!isDraft) {
+      const check = validateAllAnswered();
+      if (!check.ok) {
+        return showToast("Please answer all criteria (Yes/No) before submitting.");
+      }
     }
 
     const payload = buildPayload(isDraft);
     try {
       const res = await postAuditCreation(payload);
-      const msg =
-        res?.responseMessage ||
-        (isDraft ? "Saved as draft." : "Submitted successfully.");
+      const msg = res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
       showToast(msg, "success", 2600);
-      // optional: navigate back/list here
     } catch (e) {
       console.error(e);
       showToast(e.message || "Could not save. Please try again.");
     }
   };
 
+  // Resolve employee name:
+  // Prefer the URL-provided name (employeeNameQS). If missing, fetch from /api/Employees.
+  useEffect(() => {
+    if (mode === "digital") return; // not applicable in digital mode
+    if (!employeeCode) {
+      setEmployeeName("");
+      return;
+    }
+
+    // If the name was provided in the URL, use it directly (no fetch)
+    if (employeeNameQS) {
+      setEmployeeName(employeeNameQS);
+      return;
+    }
+
+    let cancelled = false;
+
+    const pickCode = (emp) =>
+      norm(
+        emp?.empCode ??
+          emp?.employeeCode ??
+          emp?.code ??
+          emp?.EmpCode ??
+          emp?.EmployeeCode
+      ).toUpperCase();
+
+    const pickName = (emp) =>
+      norm(
+        emp?.employeeName ??
+          emp?.name ??
+          emp?.fullName ??
+          emp?.empName ??
+          emp?.EmployeeName ??
+          emp?.FullName
+      );
+
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Employees`, {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const list = await r.json();
+        const arr = Array.isArray(list) ? list : list ? [list] : [];
+
+        const targetCode = norm(employeeCode).toUpperCase();
+        const found =
+          arr.find((e) => pickCode(e) === targetCode) ||
+          // secondary loose match for backends that use short codes
+          arr.find((e) => pickCode(e).endsWith(targetCode));
+
+        const name = found ? pickName(found) : "";
+        if (!cancelled) setEmployeeName(name || "");
+      } catch (err) {
+        console.warn("Employee name lookup failed:", err);
+        if (!cancelled) setEmployeeName("");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [API_BASE_URL, mode, employeeCode, employeeNameQS]);
+
   return (
     <div className="wrap">
       <h1 className="title">Fill Audit Segment Details</h1>
 
-      {/* Header summary filled from URL */}
+      {/* Header summary */}
       <div className="summary">
-        <div><b>Audit Segment :</b> {segment || "—"}</div>
-        <div><b>Clinic :</b> {clinicName || clinicCode || "—"}</div>
-        <div><b>Audit Month :</b> {auditMonth ? `${auditMonth} / ${year || "—"}` : "—"}</div>
-        <div><b>Audit Date :</b> {toDMY(auditDateISO) || "—"}</div>
+        <div>
+          <b>Audit Segment :</b> {segment || "—"}
+        </div>
+        <div>
+          <b>Clinic :</b>{" "}
+          {clinicDisplayName || clinicNameQS || clinicDisplayCode || clinicCodeQS || "—"}
+        </div>
+        <div>
+          <b>Audit Month :</b> {auditMonth ? `${auditMonth} / ${year || "—"}` : "—"}
+        </div>
+        <div>
+          <b>Audit Date :</b> {toDMY(auditDateISO) || "—"}
+        </div>
         {mode === "digital" ? (
           <>
-            <div><b>Doctor/Therapist :</b> {doctorCode || "—"}</div>
-            <div><b>Department :</b> {departmentCode || "—"}</div>
-            <div><b>Manager :</b> {managerCode || "—"}</div>
+            <div>
+              <b>Doctor/Therapist :</b> {doctorCode || "—"}
+            </div>
+            <div>
+              <b>Department :</b> {departmentCode || "—"}
+            </div>
+            <div>
+              <b>Manager :</b> {managerCode || "—"}
+            </div>
           </>
         ) : (
-          <div><b>Employee Name :</b> {employeeCode || "—"}</div>
+          <div>
+            <b>Employee Name :</b>{" "}
+            {employeeName || employeeCode || "—"}
+          </div>
         )}
       </div>
 
@@ -238,13 +467,13 @@ export default function AuditForm() {
           <table className="tbl">
             <thead>
               <tr>
-                <th style={{width: 36}}>#</th>
+                <th style={{ width: 36 }}>#</th>
                 <th>Sub Segment</th>
                 <th>Criteria</th>
-                <th style={{width: 120}}>Score (0/1)</th>
-                <th style={{width: 100}}>Weightage</th>
-                <th style={{width: 120}}>Total Score</th>
-                <th style={{width: 220}}>Remarks (optional)</th>
+                <th style={{ width: 120 }}>Score (0/1)</th>
+                <th style={{ width: 100 }}>Weightage</th>
+                <th style={{ width: 120 }}>Total Score</th>
+                <th style={{ width: 220 }}>Remarks (optional)</th>
               </tr>
             </thead>
             <tbody>
@@ -259,7 +488,6 @@ export default function AuditForm() {
                     <td>{idx + 1}</td>
                     <td>{row.subSegment || "—"}</td>
                     <td>
-                      {/* API returns HTML */}
                       <div
                         className="criteriaHtml"
                         dangerouslySetInnerHTML={{ __html: row.criteria || "" }}
@@ -276,7 +504,9 @@ export default function AuditForm() {
                       </select>
                     </td>
                     <td>{weight || "—"}</td>
-                    <td><b>{total}</b></td>
+                    <td>
+                      <b>{total}</b>
+                    </td>
                     <td>
                       <input
                         type="text"
@@ -290,23 +520,12 @@ export default function AuditForm() {
               })}
               {criteria.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{textAlign:"center", padding:"16px"}}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "16px" }}>
                     No criteria found.
                   </td>
                 </tr>
               )}
             </tbody>
-           {/*  {criteria.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "right", fontWeight: 700 }}>
-                    Gross Total:
-                  </td>
-                  <td style={{ fontWeight: 700 }}>{grossTotal}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )} */}
           </table>
         )}
 
@@ -325,37 +544,109 @@ export default function AuditForm() {
           >
             {saving ? "Submitting…" : "Submit"}
           </button>
-          {/* implement your own Back nav if needed */}
         </div>
       </div>
 
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
       <style jsx>{`
-        .wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
-        .title { margin: 6px 0 14px; font-size: 22px; color: #0b1f3a; }
+        .wrap {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 16px;
+        }
+        .title {
+          margin: 6px 0 14px;
+          font-size: 22px;
+          color: #0b1f3a;
+        }
         .summary {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0,1fr));
-          gap:  16px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
           font-weight: 700;
-          background:#fff; border-radius:10px; padding:12px 14px; margin-bottom:12px;
-          box-shadow:0 1px 3px rgba(0,0,0,.06);
+          background: #fff;
+          border-radius: 10px;
+          padding: 12px 14px;
+          margin-bottom: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
         }
-        .card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); padding:12px; }
-        .tbl { width:100%; border-collapse:collapse; }
-        th, td { border:1px solid #e5e8ef; padding:8px; vertical-align:top; font-size: 14px; line-height: 18px; }
-        th { background:#f7f9fc; text-align:left; }
-        .criteriaHtml b { font-weight: 700; }
-        select, input[type="text"] { width:100%; height:34px; border:1px solid #d8dee8; border-radius:8px; padding:0 8px; }
-        .actions { display:flex; gap:8px; justify-content:center; margin-top:14px; }
-        .btn { background:#1d2c43; color:#fff; border:none; border-radius:8px; padding:8px 18px; font-weight:700; cursor:pointer; }
-        .btn.primary { background:#112032; }
-        .btn[disabled] { opacity:.7; cursor:not-allowed; }
-        .loading { padding:16px; text-align:center; }
-        .toast { position: fixed; bottom: 16px; right: 16px; color:#fff; background:#d7263d; padding:10px 14px; border-radius:8px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.15); z-index:9999; }
-        .toast.success { background:#138a36; }
-        @media (max-width: 900px) { .summary { grid-template-columns: 1fr; } }
+        .card {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+          padding: 12px;
+        }
+        .tbl {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th,
+        td {
+          border: 1px solid #e5e8ef;
+          padding: 8px;
+          vertical-align: top;
+          font-size: 14px;
+          line-height: 18px;
+        }
+        th {
+          background: #f7f9fc;
+          text-align: left;
+        }
+        .criteriaHtml b {
+          font-weight: 700;
+        }
+        select,
+        input[type="text"] {
+          width: 100%;
+          height: 34px;
+          border: 1px solid #d8dee8;
+          border-radius: 8px;
+          padding: 0 8px;
+        }
+        .actions {
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          margin-top: 14px;
+        }
+        .btn {
+          background: #1d2c43;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 18px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .btn.primary {
+          background: #112032;
+        }
+        .btn[disabled] {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+        .loading {
+          padding: 16px;
+          text-align: center;
+        }
+        .toast {
+          position: fixed;
+          bottom: 16px;
+          right: 16px;
+          color: #fff;
+          background: #d7263d;
+          padding: 10px 14px;
+          border-radius: 8px;
+          font-weight: 600;
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+        }
+        .toast.success {
+          background: #138a36;
+        }
+        @media (max-width: 900px) {
+          .summary { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   );
