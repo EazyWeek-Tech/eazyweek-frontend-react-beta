@@ -101,13 +101,14 @@ const AuditCreateDashboard = () => {
     );
   }, [rows, searchTerm]);
 
-  // go to details with clinic/employee/auditor in the URL
+  // go to details with clinic/employee(audited code)/employeeName/auditor in the URL
   const goToAudit = (row) => {
-    const url = `/audit/${encodeURIComponent(row.auditNo)}?clinic=${encodeURIComponent(
-      row.clinic || ""
-    )}&employee=${encodeURIComponent(row.employeeName || "")}&auditor=${encodeURIComponent(
-      row.auditor || ""
-    )}`;
+    const url =
+      `/audit/${encodeURIComponent(row.auditNo)}`
+      + `?clinic=${encodeURIComponent(row.clinic || "")}`
+      + `&employee=${encodeURIComponent(row.employeeId || "")}`        // <-- code
+      + `&employeeName=${encodeURIComponent(row.employeeName || "")}`  // <-- name (optional)
+      + `&auditor=${encodeURIComponent(row.auditor || "")}`;
     navigate(url);
   };
 

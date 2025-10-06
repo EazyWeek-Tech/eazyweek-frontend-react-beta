@@ -56,6 +56,9 @@ import CaseCategoryMappingDashboard from "./pages/CaseManagement/CaseCategoryMap
 import AuditDraftDetails from "./pages/Audit/AuditDraftDetails";
 import LoyaltyProgramConfig from "./pages/Loyalty/LoyaltyProgramConfig";
 import MembershipConfig from "./pages/Membership/MembershipConfig";
+import DiscountManagement from "./pages/Discount/DiscountManagement";
+import DiscountConfig from "./pages/Discount/DiscountConfig";
+import DiscountList from "./pages/Discount/DiscountList";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -106,6 +109,9 @@ function App() {
     <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
     <Route path="/loyalty" element={<LoyaltyProgramConfig />} />
     <Route path="/membership" element={<MembershipConfig />} />
+    <Route path="/discounts" element={<DiscountManagement />} />
+    <Route path="/discounts/configure/*" element={<DiscountConfig />} />
+    <Route path="/discounts/manage" element={<DiscountList />} />
 
       {/*Add Routes WITH Sidebar + Header */}
       <Route

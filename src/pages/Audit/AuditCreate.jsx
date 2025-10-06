@@ -317,6 +317,11 @@ export default function AuditCreate() {
 
     if (isDup) return showToast(dupResp.message || "Audit already exists for the selected date/person");
 
+    // --- NEW: resolve selected employee name for standard mode ---
+    const employeeNameSel = !isDigitalSeg
+      ? (employees.find(e => e.employeeCode === employeeCode)?.employeeName || "")
+      : "";
+
     // Build URL with all values so the next page can fill itself
     const qs = new URLSearchParams({
       segment: segmentCode || segmentName,
@@ -328,7 +333,7 @@ export default function AuditCreate() {
       mode: isDigitalSeg ? "digital" : "standard",
       ...(isDigitalSeg
         ? { doctorCode, departmentCode, managerCode }
-        : { employeeCode }),
+        : { employeeCode, employeeName: employeeNameSel }), // <-- include name
     }).toString();
 
     navigate(`/audit/${segForRoute}/form?${qs}`);

@@ -45,7 +45,7 @@ const GuestConsentHistoryForm = ({ custId }) => {
           {showDetails && (
             <div className="medical-form">
                           <div className="header">
-                              <img src="/organization-logo.png" alt="Organization Logo" className="logo" />
+                              <img src="/images/abclogo.png" alt="Organization Logo" className="logo" />
                               <h1>MEDICAL HISTORY FORM</h1>
 
                           </div>
@@ -1316,7 +1316,8 @@ const GuestConsentHistoryForm = ({ custId }) => {
   label {
     display: block;
     margin: 0.5rem 0;
-    font-size: 0.95rem;
+    font-size: 12px;
+    line-height:18px;
   }
 
   input[type="text"],

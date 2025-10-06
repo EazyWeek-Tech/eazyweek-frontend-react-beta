@@ -10,6 +10,7 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 const txt = (v) => (v == null ? "" : String(v));
+const norm = (s) => (s ?? "").toString().trim();
 
 // dd/MM/yyyy -> yyyy-MM-dd
 const dmyToIso = (dmy) => {
@@ -31,15 +32,49 @@ const parseWeight = (w) => {
   return m ? Number(m[0]) : 0;
 };
 
+// --- Auditor (logged-in user) helpers ---
+const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
+const pickUserId = (o) => norm(o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+function getSessionUserId() {
+  if (typeof window === "undefined") return "";
+  const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
+  const fromGlobal = pickUserId(globalObj);
+  if (fromGlobal) return fromGlobal;
+
+  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    if (!storage) continue;
+    for (const k of keys) {
+      const raw = storage.getItem(k);
+      if (!raw) continue;
+      const parsed = tryParseJSON(raw);
+      const id = parsed ? pickUserId(parsed) : norm(raw); // allow plain userId string
+      if (id) return id;
+    }
+  }
+  return "";
+}
+
+// --- Employee helpers ---
+const normalizeName = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+const pickEmpCode = (emp) =>
+  norm(emp?.empCode ?? emp?.employeeCode ?? emp?.code ?? emp?.EmpCode ?? emp?.EmployeeCode);
+
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
   const { auditNo = "" } = useParams();
   const [searchParams] = useSearchParams();
 
-  // optional values passed via URL from dashboard
+  // URL params (robust to either old/new dashboard)
   const clinicFromUrl = searchParams.get("clinic") || "";
-  const employeeFromUrl = searchParams.get("employee") || "";
+  const employeeNameFromUrl =
+    searchParams.get("employeeName") || ""; // explicit name param
+  const employeeCodeFromUrl =
+    searchParams.get("empCode") || searchParams.get("employee") || ""; // prefer empCode; fallback to employee
   const auditorFromUrl = searchParams.get("auditor") || "";
+
+  // Auditor from session userId; fallback to ?auditor
+  const [auditorCode, setAuditorCode] = useState(() => getSessionUserId() || auditorFromUrl || "");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,13 +85,26 @@ export default function AuditDraftDetails() {
   const [scores, setScores] = useState({});   // { [criteriaCode]: 0|1|null }
   const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
-  // saving state / toast
+  // audited employee code for payload
+  const [auditedEmployeeCode, setAuditedEmployeeCode] = useState("");
+
+  // toast
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "error", ms = 2400) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), ms);
   };
+
+  // keep auditor in sync if session hydrates after mount
+  useEffect(() => {
+    const onStorage = () => {
+      const id = getSessionUserId();
+      if (id && id !== auditorCode) setAuditorCode(id);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [auditorCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,16 +116,12 @@ export default function AuditDraftDetails() {
       const tries = [
         () =>
           fetch(
-            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(
-              auditNo
-            )}`,
+            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(auditNo)}`,
             { method: "GET", credentials: "include", headers: { Accept: "application/json" } }
           ),
         () =>
           fetch(
-            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(
-              auditNo
-            )}`,
+            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(auditNo)}`,
             {
               method: "POST",
               credentials: "include",
@@ -115,34 +159,57 @@ export default function AuditDraftDetails() {
       try {
         const list = Array.isArray(data) ? data : [data].filter(Boolean);
 
-        // Header from first row (fallback to URL)
+        // Header from first row (do NOT let a bad employeeName override the URL one)
         const h0 = list[0] ?? {};
         const H = {
           auditNo: auditNo,
           managerName: txt(h0.managerName),
-          employeeName:
-            txt(h0.employeeName ?? h0.employee ?? h0.doctorName ?? h0.therapistName) ||
-            employeeFromUrl,
+          // store what backend says, but we'll PREFER URL name in the UI below
+          employeeName: txt(h0.employeeName ?? h0.employee ?? h0.doctorName ?? h0.therapistName),
           clinicName: txt(h0.clinicName ?? h0.clinic ?? h0.center) || clinicFromUrl,
           auditorName: txt(h0.auditorName ?? h0.auditor ?? h0.auditorsName) || auditorFromUrl,
           auditSegment: txt(h0.audtiSegment ?? h0.auditSegment ?? h0.segment),
           auditMonth: txt(h0.auditMonth),
           auditDateDMY: txt(h0.auditDate), // e.g., 11/04/2025
+          employeeCode:
+            txt(h0.employeeCode ?? h0.empCode ?? h0.code ?? h0.EmployeeCode ?? h0.EmpCode) ||
+            employeeCodeFromUrl ||
+            "",
         };
 
-        // Normalize rows and seed editable state
+        // Normalize rows and seed editable state (score derived from API totalScore)
         const R = list.map((r, i) => {
-          const weightageStr = txt(r.weightage); // e.g., "3%"
+          const weightageStr = txt(r.weightage); // sample shows "10" or "5"
           const weightageNum = parseWeight(weightageStr);
-          const scoreNum = r.valuePresent != null ? Number(r.valuePresent) : num(r.score);
-          const total = r.totalScore != null ? num(r.totalScore) : scoreNum ? weightageNum : 0;
+
+          // Prefer totalScore from API to decide 0/1 for the select
+          const totalFromApi = r.totalScore != null ? num(r.totalScore) : null;
+          const scoreFromTotal = totalFromApi != null ? (totalFromApi > 0 ? 1 : 0) : null;
+
+          // Fallbacks only if totalScore is missing
+          const scoreFallback =
+            r.valuePresent != null ? Number(r.valuePresent) : num(r.score);
+
+          // Normalize to 0/1/null
+          const normalizedScore =
+            scoreFromTotal != null
+              ? scoreFromTotal
+              : (scoreFallback === 0 || scoreFallback === 1 ? scoreFallback : null);
+
+          // Keep a numeric total for display; prefer API value
+          const total =
+            totalFromApi != null
+              ? totalFromApi
+              : normalizedScore === 1
+              ? weightageNum
+              : 0;
 
           return {
             id: r.id ?? `${i}`,
             subSegment: txt(r.subSegment),
             criteria: txt(r.criteria),
             criteriaCode: txt(r.criteriaCode), // important for payload
-            score: (scoreNum === 0 || scoreNum === 1) ? scoreNum : null, // normalize to 0/1/null
+            score: normalizedScore,            // 0/1 from totalScore
             weightageStr,
             weightageNum,
             totalScore: total,
@@ -155,7 +222,7 @@ export default function AuditDraftDetails() {
         const initRemarks = {};
         for (const row of R) {
           const code = row.criteriaCode || row.id;
-          initScores[code] = row.score;          // 0|1|null
+          initScores[code] = row.score;          // 0|1 derived from totalScore
           initRemarks[code] = row.remarks || "";
         }
 
@@ -164,6 +231,42 @@ export default function AuditDraftDetails() {
           setRows(R);
           setScores(initScores);
           setRemarks(initRemarks);
+        }
+
+        // --- Resolve audited employee code ---
+        // 1) From URL ?empCode=... or ?employee=...
+        if (employeeCodeFromUrl) {
+          if (!cancelled) setAuditedEmployeeCode(employeeCodeFromUrl.trim());
+          return;
+        }
+
+        // 2) From header (if backend returned it):
+        if (H.employeeCode) {
+          if (!cancelled) setAuditedEmployeeCode(H.employeeCode);
+          return;
+        }
+
+        // 3) From /api/Employees by matching name (fallback)
+        const targetName = normalizeName(employeeNameFromUrl || H.employeeName);
+        if (!targetName) return;
+
+        try {
+          const r = await fetch(`${API_BASE_URL}/api/Employees`, {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const arrRaw = await r.json();
+          const arr = Array.isArray(arrRaw) ? arrRaw : arrRaw ? [arrRaw] : [];
+
+          const nameOf = (e) => e?.employeeName ?? e?.name ?? e?.fullName ?? e?.empName;
+          const exact = arr.find(e => normalizeName(nameOf(e)) === targetName);
+          const loose = exact ? null : arr.find(e => normalizeName(nameOf(e)).includes(targetName));
+
+          const code = pickEmpCode(exact || loose);
+          if (code && !cancelled) setAuditedEmployeeCode(code);
+        } catch {
+          // silent fallback
         }
       } catch (e) {
         if (!cancelled) setError(e.message || "Failed to parse response");
@@ -176,7 +279,7 @@ export default function AuditDraftDetails() {
     return () => {
       cancelled = true;
     };
-  }, [auditNo, API_BASE_URL, clinicFromUrl, employeeFromUrl, auditorFromUrl]);
+  }, [auditNo, API_BASE_URL, clinicFromUrl, employeeNameFromUrl, employeeCodeFromUrl, auditorFromUrl]);
 
   // compute row total
   const rowTotal = (criteriaCode, weightageStr) => {
@@ -214,28 +317,31 @@ export default function AuditDraftDetails() {
     return { ok: true };
   };
 
-  // Build payload exactly like your AuditForm sample
+  // Build payload (auditor from session; employeeCode filled)
   const buildPayload = (isDraft) => {
     const subSegmentJson = rows.map((r) => {
       const code = r.criteriaCode || r.id;
-      const s = scores[code]; // 0 | 1
+      const s = scores[code]; // 0 | 1 | null
       const weight = String(r.weightageStr ?? "");
-      const totalVal = s === 1 ? parseWeight(weight) : 0;
+      const weightNum = parseWeight(weight);
+
+      const scoreStr = (s === 0 || s === 1) ? String(s) : "0";
+      const totalVal = scoreStr === "1" ? weightNum : 0;
 
       return {
-        auditNo: "", // server usually generates; keep blank
+        auditNo: "",
         criteria: String(r.criteria || ""),
-        score: String(s ?? ""),                 // "0" or "1"
-        weightage: weight,                      // "5%"
-        totalScore: String(totalVal),           // "0" or "5"
+        score: scoreStr,                   // "0" or "1"
+        weightage: weight,                 // "10" or "10%"
+        totalScore: String(totalVal),      // "0" or "10"
         auditorRemarks: String(remarks[code] ?? ""),
         subSegment: String(r.subSegment || ""),
         criteriaCode: String(code || ""),
-        valuePresent: String(s ?? ""),          // mirror 0/1
+        valuePresent: scoreStr,            // mirror 0/1
       };
     });
 
-    // derive year from the audit date when possible
+    // derive year from audit date
     const iso = dmyToIso(header?.auditDateDMY || "");
     const year = iso ? iso.slice(0, 4) : "";
 
@@ -244,13 +350,13 @@ export default function AuditDraftDetails() {
       subSegment: "",
       auditDate: toMidnightUtc(iso),
       auditMonth: header?.auditMonth || "",
-      auditor: header?.auditorName || auditorFromUrl || "",
-      employeeCode: "",     // unknown here; keep blank (OK per sample)
+      auditor: String(auditorCode || ""),              // session userId
+      employeeCode: String(auditedEmployeeCode || ""), // audited person's code
       doctorCode: "",
       managerCode: "",
       departmentCode: "",
       auditYear: String(year || ""),
-      grossTotalScore: grandTotal, // number
+      grossTotalScore: grandTotal,
       isDraft: isDraft ? 1 : 0,
       subSegmentJson,
     };
@@ -258,21 +364,20 @@ export default function AuditDraftDetails() {
 
   const isArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ""));
 
-// small wrapper so every text cell "just works"
-const Txt = ({ children }) => {
-  const t = children ?? "";
-  const arabic = isArabic(t);
-  return (
-    <span
-      className={arabic ? "arb" : "auto-dir"}
-      lang={arabic ? "ar" : undefined}
-      dir={arabic ? "rtl" : "auto"}
-      title={String(t)}
-    >
-      {t}
-    </span>
-  );
-};
+  const Txt = ({ children }) => {
+    const t = children ?? "";
+    const arabic = isArabic(t);
+    return (
+      <span
+        className={arabic ? "arb" : "auto-dir"}
+        lang={arabic ? "ar" : undefined}
+        dir={arabic ? "rtl" : "auto"}
+        title={String(t)}
+      >
+        {t}
+      </span>
+    );
+  };
 
   const postAuditCreation = async (payload) => {
     setSaving(true);
@@ -310,6 +415,11 @@ const Txt = ({ children }) => {
     }
   };
 
+  // Prefer URL name for display, then backend; code from URL/header/resolved
+  const displayEmployeeName = employeeNameFromUrl || header?.employeeName || "";
+  const displayEmployeeCode =
+    auditedEmployeeCode || employeeCodeFromUrl || header?.employeeCode || "";
+
   return (
     <div className="audit-details">
       <div className="page-head">
@@ -330,14 +440,20 @@ const Txt = ({ children }) => {
           <>
             {/* Header summary */}
             <div className="summary">
-              <div><strong>Audit No :</strong> <span>{header?.auditNo}</span></div>
-              <div><strong>Manager Name :</strong> <span>{header?.managerName}</span></div>
-              <div><strong>Employee/Doctor/Therapist :</strong> <span>{header?.employeeName}</span></div>
-              <div><strong>Audit Segment :</strong> <span>{header?.auditSegment}</span></div>
-              <div><strong>Clinic :</strong> <span>{header?.clinicName}</span></div>
-              <div><strong>Auditor’s :</strong> <span>{header?.auditorName}</span></div>
-              <div><strong>Audit Month :</strong> <span>{header?.auditMonth}</span></div>
-              <div><strong>Audit Date :</strong> <span>{header?.auditDateDMY}</span></div>
+              <div><strong>Audit No :</strong> <span><Txt>{header?.auditNo}</Txt></span></div>
+              <div><strong>Manager Name :</strong> <span><Txt>{header?.managerName}</Txt></span></div>
+              <div>
+                <strong>Employee/Doctor/Therapist :</strong>{" "}
+                <span>
+                  <Txt>{displayEmployeeName || "—"}</Txt>
+                  {displayEmployeeCode ? <> (<Txt>{displayEmployeeCode}</Txt>)</> : null}
+                </span>
+              </div>
+              <div><strong>Audit Segment :</strong> <span><Txt>{header?.auditSegment}</Txt></span></div>
+              <div><strong>Clinic :</strong> <span><Txt>{header?.clinicName || clinicFromUrl}</Txt></span></div>
+              <div><strong>Auditor’s :</strong> <span><Txt>{header?.auditorName}</Txt></span></div>
+              <div><strong>Audit Month :</strong> <span><Txt>{header?.auditMonth}</Txt></span></div>
+              <div><strong>Audit Date :</strong> <span><Txt>{header?.auditDateDMY}</Txt></span></div>
               <div><strong>Score :</strong> <span>{grandTotal.toFixed(2)}</span></div>
             </div>
 
@@ -363,8 +479,8 @@ const Txt = ({ children }) => {
                       const total = rowTotal(code, r.weightageStr);
                       return (
                         <tr key={code}>
-                          <td className="left">{r.subSegment}</td>
-                          <td className="left">{r.criteria}</td>
+                          <td className="left"><Txt>{r.subSegment}</Txt></td>
+                          <td className="left"><Txt>{r.criteria}</Txt></td>
                           <td className="center">
                             <select
                               value={scores[code] === null || scores[code] === undefined ? "" : String(scores[code])}
@@ -378,12 +494,12 @@ const Txt = ({ children }) => {
                           <td className="right">{r.weightageStr || `${r.weightageNum}%`}</td>
                           <td className="right">{total.toFixed(2)}</td>
                           <td className="left">
-                           <input
-                              className={isArabic(remarks[code]) ? "arb" : ""}
+                            <input
+                              className={/[\u0600-\u06FF]/.test(remarks[code] || "") ? "arb" : ""}
                               value={remarks[code] ?? ""}
                               onChange={(e) => setRemark(code, e.target.value)}
-                              dir={isArabic(remarks[code]) ? "rtl" : "auto"}
-                              lang={isArabic(remarks[code]) ? "ar" : undefined}
+                              dir={/[\u0600-\u06FF]/.test(remarks[code] || "") ? "rtl" : "auto"}
+                              lang={/[\u0600-\u06FF]/.test(remarks[code] || "") ? "ar" : undefined}
                               placeholder=""
                             />
                           </td>

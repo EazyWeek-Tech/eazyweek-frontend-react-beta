@@ -163,8 +163,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
   const createddate = new Date().toISOString();
   const S = (v) => (isNonEmpty(v) ? String(v) : "");
   const N = (v) => (Number.isFinite(+v) ? Number(v) : 0);
-    const sessionUser = readSessionUser(); 
-
+  const sessionUser = readSessionUser(); 
 
   return {
     casetitle:               S(mergeVal(general?.title, current?.title)),
@@ -220,7 +219,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
 }
 
 // --------------------------------------------
-// Mail helpers
+// Mail helpers (unchanged behaviour for non-closing submits)
 // --------------------------------------------
 async function lookupEmployeeByCode(codeRaw) {
   const code = normCodeId(codeRaw);
@@ -247,19 +246,16 @@ async function lookupEmployeeByCode(codeRaw) {
 }
 function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" }) {
   const clean = (s) => (s ?? "").toString().trim();
-
-  // Basic email sanity check (very permissive)
   const isLikelyEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
   const cleanupList = (s) => {
     const parts = (s ?? "")
       .toString()
-      .replace(/;/g, ",")                // ← convert semicolons to commas
+      .replace(/;/g, ",")
       .split(",")
       .map((x) => x.trim())
       .filter((x) => x.length > 0);
 
-    // de-duplicate (case-insensitive)
     const seen = new Set();
     const out = [];
     for (const p of parts) {
@@ -272,12 +268,11 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" 
     return out.join(",");
   };
 
-  // Ensure emailTo is a single address (first valid one if a list sneaks in)
   const normalizedToList = cleanupList(selected?.email || "");
   const emailToFirst = normalizedToList.split(",").find(isLikelyEmail) || clean(selected?.email);
 
   return {
-    emailTo: emailToFirst,                                  // single address
+    emailTo: emailToFirst,
     centerName: clean(selected?.centerName) || centerNameFallback,
     caseNo: clean(selected?.caseNo),
     categoryName: clean(selected?.caseCategory || selected?.categoryName),
@@ -285,11 +280,10 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" 
     issueDescription: clean(selected?.issueDescription),
     newResponse: clean(selected?.response),
     firstTimeResolution: clean(selected?.firstTimeResolution),
-    emailCC: cleanupList(selected?.cc),                     // normalized list
-    moreCC: cleanupList(selected?.moreCc),                  // normalized list
+    emailCC: cleanupList(selected?.cc),
+    moreCC: cleanupList(selected?.moreCc),
   };
 }
-
 async function sendCaseMail(payload, setToast) {
   try {
     if (!payload.emailTo) {
@@ -304,9 +298,7 @@ async function sendCaseMail(payload, setToast) {
     });
     const txt = await res.text();
     let out; try { out = JSON.parse(txt); } catch { out = { success: res.ok }; }
-    if (res.ok && (out?.success ?? true)) {
-      setToast?.({ type: "success", message: "Assignment email sent." });
-    } else {
+    if (!(res.ok && (out?.success ?? true))) {
       setToast?.({ type: "error", message: `Failed to send email${out?.message ? `: ${out.message}` : ""}` });
     }
   } catch (err) {
@@ -336,8 +328,12 @@ const CaseDetailsPage = () => {
   const [stage1Code, setStage1Code] = useState("");
   const [isResponseFilled, setIsResponseFilled] = useState(false);
 
-  // Capture the status we ARRIVED with (to determine L1 vs L2 reliably)
   const initialStatusRef = useRef(null);
+  const issuesRef = useRef();
+  const generalRef = useRef();
+  const expenseRef = useRef();
+  const journeyRef = useRef();
+  const slaRef = useRef();
 
   const assignedMatchesLoggedInUser = React.useMemo(() => {
     const urlName = normalizeName(assignedFromUrl);
@@ -392,12 +388,6 @@ const CaseDetailsPage = () => {
     assignedMatchesLoggedInUser,
   ]);
 
-  const generalRef = useRef();
-  const issuesRef = useRef();
-  const expenseRef = useRef();
-  const journeyRef = useRef();
-  const slaRef = useRef();
-
   const formatCreatedDate = (raw) => {
     if (!raw || raw === "0001-01-01T00:00:00") return "-";
     const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
@@ -432,7 +422,6 @@ const CaseDetailsPage = () => {
             data.assignToCode,
             data.assignCode,
             data.emailTOCode
-            // NOTE: do NOT fall back to nextLevelID here
           )
         );
         const mappedAssignName = trim(
@@ -516,7 +505,6 @@ const CaseDetailsPage = () => {
         setDisposition(mapped.disposition);
         setStatus(mapped.caseStatus);
 
-        // capture arrival status once
         if (!initialStatusRef.current) {
           initialStatusRef.current = (mapped.caseStatus || "").trim();
         }
@@ -558,205 +546,419 @@ const CaseDetailsPage = () => {
     fetchEmp();
   }, [selectedCaseData?.firstSlaName]);
 
-  // Arrived level (status-driven): if you arrived WIP -> L2; if Open -> L1
-  const arrivedAsL2 = (initialStatusRef.current || selectedCaseData?.caseStatus || "").trim() === "WIP";
+  const arrivedAsL2 =
+    (initialStatusRef.current || selectedCaseData?.caseStatus || "").trim() === "WIP";
 
- // ---- DROP-IN: replace your existing handleAction with this ----
-const handleAction = async (actionType, overrides = {}) => {
-  const generalData =
-    overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
-  const effectiveStatus = trim(overrides.status ?? status);
-  const effectiveDisposition = trim(overrides.disposition ?? disposition);
+  const postCaseOperation = async (payload, label = "CaseOperation") => {
+    const ts = new Date().toISOString();
+    console.groupCollapsed(`[${ts}] POST ${API_BASE_URL}/api/CaseOperation — ${label}`);
+    try {
+      // Focus logs on the fields we keep debugging
+      console.log("Request essentials →", {
+        caseno: payload.caseno,
+        operation: payload.operation,
+        status: payload.status,
+        assignedto: payload.assignedto,
+        caseWith: payload.caseWith,
+        response_len: (payload.response || "").length
+      });
+      console.log("Request payload (full) →", payload);
 
-  const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
-  const effectiveSelected = {
-    ...(overrides.selectedCaseData ?? selectedCaseData),
-    ...issuesData,
+      const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let parsed;
+      try { parsed = JSON.parse(text); } catch {}
+
+      console.log("HTTP status →", res.status, res.statusText);
+      if (parsed !== undefined) {
+        console.log("Response (parsed JSON) →", parsed);
+      } else {
+        console.log("Response (raw text) →", text);
+      }
+
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      if (!parsed || parsed.code !== "200") {
+        throw new Error(parsed?.message || "API did not return code 200");
+      }
+      return parsed;
+    } catch (err) {
+      console.error("CaseOperation error →", err);
+      throw err;
+    } finally {
+      console.groupEnd();
+    }
   };
 
-  const req = buildRequiredBlock({
-    actionType,
-    general: generalData,
-    current: effectiveSelected,
-    status: effectiveStatus,
-    disposition: effectiveDisposition,
-  });
-  const { ok, missing } = validateRequired(req);
-  if (!ok) {
-    setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
-    return;
-  }
+  // --------------------------------------------
+  // Assignee resolver used when persisting a response
+  // --------------------------------------------
+  // Pick the best available assignee code to use when persisting a response.
+  // Priority: explicit new selection → current case assignee → Stage 1 → Stage 2 → owner.
+  const resolveAssigneeForSubmit = ({
+    newAssigneeCode,
+    prevAssigneeCode,
+    stage1Code,
+    stage2Code,
+    ownerCode,
+  }) => {
+    const pick = (v) => (trim(v) ? trim(v) : "");
+    return (
+      pick(newAssigneeCode) ||
+      pick(prevAssigneeCode) ||
+      pick(stage1Code) ||
+      pick(stage2Code) ||
+      pick(ownerCode) ||
+      ""
+    );
+  };
 
-  const prevAssigneeCode = trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || "");
-  const newAssigneeCode  = trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || "");
-  const ownerCode        = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
-  const hierarchyNext    = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+  // -----------------------------
+  // Actions
+  // -----------------------------
+  const handleAction = async (actionType, overrides = {}) => {
+    const generalData =
+      overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
+    const effectiveStatus = trim(overrides.status ?? status);
+    const effectiveDisposition = trim(overrides.disposition ?? disposition);
 
-  const hasUserPickedAssignee = !!newAssigneeCode && norm(newAssigneeCode) !== norm(prevAssigneeCode);
-  const isHierarchyChoice     = !!hierarchyNext && norm(newAssigneeCode) === norm(hierarchyNext);
-  const isAssignToCreator     = !!ownerCode && norm(newAssigneeCode) === norm(ownerCode);
-  const isManualReassign      = hasUserPickedAssignee && !isHierarchyChoice; // includes assign-to-creator (unless creator == L2)
+    const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
+    const effectiveSelected = {
+      ...(overrides.selectedCaseData ?? selectedCaseData),
+      ...issuesData,
+    };
 
-  // If user explicitly chose creator and creator isn't the hierarchy L2, force manual path
-  const treatAsManual = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
+    const closingViaSubmit =
+      actionType === "submit" && effectiveStatus === "Closed";
 
-  // Decide the backend operation we will actually send
-  const operationForBackend =
-    actionType === "submit" && treatAsManual ? "save" : actionType;
-
-  const payload = buildFullPayload({
-    general: generalData,
-    current: effectiveSelected,
-    status: effectiveStatus,
-    disposition: effectiveDisposition,
-    operation: operationForBackend, // ← use overridden op
-  });
-
-  // If creator chosen, make sure assigned fields reflect it
-  if (treatAsManual && isAssignToCreator) {
-    payload.assignedto = ownerCode;
-    payload.caseWith   = ownerCode;
-  }
-
-  if (actionType === "submit") {
-    // Response still required to submit (UX); for manual reassignment we still show the same guard
-    if (!trim(effectiveSelected?.response)) {
-      setToast({ type: "error", message: "Please add a response before submitting." });
+    const req = buildRequiredBlock({
+      actionType: closingViaSubmit ? "updateStatus" : actionType,
+      general: generalData,
+      current: effectiveSelected,
+      status: effectiveStatus,
+      disposition: effectiveDisposition,
+    });
+    const { ok, missing } = validateRequired(req);
+    if (!ok) {
+      setToast({ type: "error", message: `Missing required fields: ${missing.join(", ")}` });
       return;
     }
 
-    if (!arrivedAsL2) {
-      if (treatAsManual) {
-        // Manual reassignment → DO NOT change status
-        if (!isAssignToCreator) {
-          // user picked some other person
-          payload.assignedto = newAssigneeCode || payload.assignedto || "";
-          payload.caseWith   = newAssigneeCode || payload.caseWith   || "";
-        }
-        // status intentionally left as-is
-      } else {
-        // True hierarchy handoff logic
-        if (isHierarchyChoice) {
-          payload.assignedto = hierarchyNext;
-          payload.caseWith   = hierarchyNext;
-          payload.status     = "WIP";
-        } else if (!hasUserPickedAssignee && hierarchyNext) {
-          payload.assignedto = hierarchyNext;
-          payload.caseWith   = hierarchyNext;
-          payload.status     = "WIP";
-        }
+    const prevAssigneeCode = trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || "");
+    const newAssigneeCode  = trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || "");
+    const ownerCode        = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
+    const hierarchyNext    = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+
+    const hasUserPickedAssignee = !!newAssigneeCode && norm(newAssigneeCode) !== norm(prevAssigneeCode);
+    const isHierarchyChoice     = !!hierarchyNext && norm(newAssigneeCode) === norm(hierarchyNext);
+    const isAssignToCreator     = !!ownerCode && norm(newAssigneeCode) === norm(ownerCode);
+    const isManualReassign      = hasUserPickedAssignee && !isHierarchyChoice;
+    const treatAsManual         = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
+
+    // --------------------------------------------
+    // Preflight: Always persist response on save/updateStatus (non-submit actions)
+    // --------------------------------------------
+    const responseText = trim(effectiveSelected?.response || "");
+    if (responseText && actionType !== "submit") {
+      const stage2Code = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
+      const assigneeForSubmit = resolveAssigneeForSubmit({
+        newAssigneeCode: trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || ""),
+        prevAssigneeCode: trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || ""),
+        stage1Code: trim(stage1Code || ""),
+        stage2Code,
+        ownerCode: trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || ""),
+      });
+
+      const nonClosedStatus =
+        (initialStatusRef.current && initialStatusRef.current !== "Closed")
+          ? initialStatusRef.current
+          : ((selectedCaseData?.caseStatus && selectedCaseData.caseStatus !== "Closed")
+              ? selectedCaseData.caseStatus
+              : "WIP");
+
+      const preSubmitPayload = buildFullPayload({
+        general: generalData,
+        current: {
+          ...effectiveSelected, // keep response as typed
+          assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode,
+        },
+        status: nonClosedStatus,
+        disposition: effectiveDisposition, // harmless here
+        operation: "submit",
+      });
+
+      if (assigneeForSubmit) {
+        preSubmitPayload.assignedto = assigneeForSubmit;
+        preSubmitPayload.caseWith   = assigneeForSubmit;
       }
-    } else {
-      // L2 close rules
-      const needsClosed = trim(payload.status) !== "Closed";
-      const needsDisp   = !trim(payload.casedisposition);
-      if (operationForBackend === "submit" && (needsClosed || needsDisp)) {
-        const msg = `Please ${needsClosed ? "set Case Status to 'Closed'" : ""}${
-          needsClosed && needsDisp ? " and " : ""
-        }${needsDisp ? "select Case Disposition" : ""} before submitting.`;
-        setToast({ type: "error", message: msg });
-        return;
-      }
-      if (operationForBackend === "submit") {
-        payload.assignedto = "";
-        payload.caseWith   = "";
-        payload.status     = "Closed";
-      }
+
+      console.groupCollapsed("⓪ PRESUBMIT (persist response before non-submit action)");
+      console.log({
+        status: preSubmitPayload.status,
+        assignedto: preSubmitPayload.assignedto,
+        response_len: (preSubmitPayload.response || "").length,
+      });
+      console.groupEnd();
+
+      await postCaseOperation(preSubmitPayload, "submit (preflight persist response)");
     }
-  }
 
-  if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
-    const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
-    const emailFill = (v) => (isNonEmpty(v) ? v : "-");
-    const ccFill = (v) => (isNonEmpty(v) ? v : "-");
+    // ---- Special branch: Closing via Submit ----
+    if (closingViaSubmit) {
+      try {
+        if (!trim(effectiveSelected?.response)) {
+          setToast({ type: "error", message: "Please add a response before submitting." });
+          return;
+        }
+        setSaving(true);
 
-    payload.assignedto      = fill(payload.assignedto, "");
-    payload.caseWith        = fill(payload.caseWith, "");
-    payload.assignedemailid = emailFill(payload.assignedemailid);
-    payload.cc              = ccFill(payload.cc);
-    payload.moreCC          = ccFill(payload.moreCC);
+        // Ensure the *first* persist call is NOT "Closed"
+        const nonClosedStatus =
+          (initialStatusRef.current && initialStatusRef.current !== "Closed")
+            ? initialStatusRef.current
+            : ((selectedCaseData?.caseStatus && selectedCaseData.caseStatus !== "Closed")
+                ? selectedCaseData.caseStatus
+                : "WIP");
 
-    const stringyKeys = [
-      "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
-      "casemedium","casesource","priority","custID","productCode",
-      "servicecode","serviceccode","createdby","issuedesciption","clientThreat",
-      "doctorCode","firsttimeresolution","response","categorySpecificResolution",
-      "remarks","casedisposition"
-    ];
-    for (const k of stringyKeys) payload[k] = payload[k] ?? "";
-    payload.materialCost = payload.materialCost ?? 0;
-    payload.labourCost   = payload.labourCost ?? 0;
-    payload.otherCharges = payload.otherCharges ?? 0;
-    payload.totalCharges = payload.totalCharges ?? 0;
-  }
+        // Work out a real assignee for the first call (do NOT escalate to Stage 2 when closing)
+        const assigneeForSubmit = resolveAssigneeForSubmit({
+          newAssigneeCode: newAssigneeCode,
+          prevAssigneeCode: prevAssigneeCode,
+          stage1Code: stage1Code,   // from state
+          stage2Code: "",           // 🚫 prevent auto-escalation to next level on close
+          ownerCode: ownerCode,
+        });
 
-  try {
-    setSaving(true);
-    const res = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+        // 1) Persist the response FIRST (operation: submit) with a *real* assignee and non-Closed status
+        const submitPayload = buildFullPayload({
+          general: generalData,
+          current: {
+            ...effectiveSelected,                 // keep the typed response
+            assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode
+          },
+          status: nonClosedStatus,                // NEVER send "Closed" here
+          disposition: effectiveDisposition,
+          operation: "submit",
+        });
+
+        if (assigneeForSubmit) {
+          submitPayload.assignedto = assigneeForSubmit;
+          submitPayload.caseWith   = assigneeForSubmit;
+        }
+        // logging (exactly what matters)
+        console.groupCollapsed("① SUBMIT (persist response before close)");
+        console.log({
+          status: submitPayload.status,
+          assignedto: submitPayload.assignedto,
+          caseWith: submitPayload.caseWith,
+          response_len: (submitPayload.response || "").length,
+          response_preview: (submitPayload.response || "").slice(0,120)
+        });
+        console.groupEnd();
+
+        await postCaseOperation(submitPayload, "submit (close flow — persist response)");
+
+        // 2) Now close the case; placeholders are OK here
+        const closePayload = buildFullPayload({
+          general: generalData,
+          current: { ...effectiveSelected, response: "" }, // avoid duplicate response on close
+          status: "Closed",
+          disposition: effectiveDisposition,
+          operation: "updateStatus",
+        });
+        closePayload.assignedto = "-";
+        closePayload.caseWith   = "-";
+
+        if (USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
+          const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
+          const emailFill = (v) => (isNonEmpty(v) ? v : "-");
+          const ccFill = (v) => (isNonEmpty(v) ? v : "-");
+
+          closePayload.assignedto      = fill(closePayload.assignedto, "-");
+          closePayload.caseWith        = fill(closePayload.caseWith, "-");
+          closePayload.assignedemailid = emailFill(closePayload.assignedemailid);
+          closePayload.cc              = ccFill(closePayload.cc);
+          closePayload.moreCC          = ccFill(closePayload.moreCC);
+
+          const stringyKeys = [
+            "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
+            "casemedium","casesource","priority","custID","productCode",
+            "servicecode","serviceccode","createdby","issuedesciption","clientThreat",
+            "doctorCode","firsttimeresolution","response","categorySpecificResolution",
+            "remarks","casedisposition"
+          ];
+          for (const k of stringyKeys) closePayload[k] = closePayload[k] ?? "";
+          closePayload.materialCost = closePayload.materialCost ?? 0;
+          closePayload.labourCost   = closePayload.labourCost ?? 0;
+          closePayload.otherCharges = closePayload.otherCharges ?? 0;
+          closePayload.totalCharges = closePayload.totalCharges ?? 0;
+        }
+
+        console.groupCollapsed("② UPDATESTATUS (close)");
+        console.log({
+          status: closePayload.status,
+          assignedto: closePayload.assignedto,
+          caseWith: closePayload.caseWith,
+          response_len: (closePayload.response || "").length
+        });
+        console.groupEnd();
+
+        await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
+
+        // 3) Send closure email to CC + More CC (case can be closed at ANY level)
+        const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
+        const hasAnyEmail = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
+        if (hasAnyEmail) {
+          const closureMail = buildCaseMailPayload({
+            selected: {
+              caseNo: effectiveSelected?.caseNo,
+              caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+              subCategoryName: selectedCaseData?.subCategoryName,
+              issueDescription: effectiveSelected?.issueDescription,
+              response: effectiveSelected?.response,
+              firstTimeResolution: effectiveSelected?.firstTimeResolution,
+              cc: effectiveSelected?.cc,
+              moreCc: effectiveSelected?.moreCc,
+              // use CC/MORE CC pool to satisfy API's required emailTo
+              email: ccCombined,
+              centerName: selectedCaseData?.centerName,
+            },
+            centerNameFallback: "Bright Clinics",
+          });
+          await sendCaseMail(closureMail, setToast);
+        }
+
+        // UI reflect
+        setStatus("Closed");
+        setSelectedCaseData((prev) =>
+          prev ? { ...prev, caseStatus: "Closed", disposition: closePayload.casedisposition } : prev
+        );
+        setToast({ type: "success", message: "Case closed successfully." });
+        try { issuesRef.current?.reloadResponses?.(); } catch {}
+        navigate(-1);
+      } catch (err) {
+        console.error("close via submit error:", err);
+        setToast({ type: "error", message: `Failed to close case. Reason: ${err.message}` });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // ---- Normal paths unchanged below ----
+    const operationForBackend = actionType;
+    const payload = buildFullPayload({
+      general: generalData,
+      current: effectiveSelected,
+      status: effectiveStatus,
+      disposition: effectiveDisposition,
+      operation: operationForBackend,
     });
 
-    const responseText = await res.text();
-    let result; try { result = JSON.parse(responseText); } catch { throw new Error(responseText || "Invalid JSON response from server"); }
+    if (actionType !== "submit") {
+      payload.response = "";
+    }
 
-    if (result?.code === "200") {
-      if (payload.status) setStatus(payload.status);
+    if (treatAsManual && isAssignToCreator) {
+      payload.assignedto = ownerCode;
+      payload.caseWith   = ownerCode;
+    }
 
-      const appliedAssignee = trim(payload.assignedto || "");
-      setSelectedCaseData((prev) =>
-        prev ? {
-          ...prev,
-          caseStatus: payload.status ? payload.status : prev.caseStatus,
-          disposition: payload.casedisposition || prev.disposition,
-          assignToCode: appliedAssignee || prev.assignToCode || "",
-          assignName: prev.assignName,
-        } : prev
-      );
-
-      // Decide navigation after success
-      let goBackAfterSuccess = false;
-
-      if (actionType === "submit") {
-        if (treatAsManual) {
-          setToast({ type: "success", message: `Case reassigned to ${appliedAssignee || "selected user"} (status unchanged).` });
-          goBackAfterSuccess = true; // navigate back after manual reassign
-        } else if (payload.status === "WIP") {
-          setToast({ type: "success", message: "Handed off to Level 2. Status set to WIP." });
-          navigate(-1);
-        } else if (payload.status === "Closed") {
-          setToast({ type: "success", message: "Case closed by Level 2." });
-          navigate(-1);
-        } else {
-          setToast({
-            type: "success",
-            message: `Case submitted successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
-          });
-        }
-      } else if (actionType === "save") {
-        if (treatAsManual) {
-          setToast({ type: "success", message: `Case reassigned to ${appliedAssignee || "selected user"} (status unchanged).` });
-          goBackAfterSuccess = true; // navigate back after manual reassign
-        } else {
-          setToast({
-            type: "success",
-            message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
-          });
-        }
-      } else if (actionType === "updateStatus") {
-        const s = (payload.status || "").trim();
-        if (s === "WIP") navigate(-1);
-        else setToast({ type: "success", message: `Status updated to ${s || "—"}.` });
+    if (actionType === "submit") {
+      if (!trim(effectiveSelected?.response)) {
+        setToast({ type: "error", message: "Please add a response before submitting." });
+        return;
       }
+      if (treatAsManual && !isAssignToCreator) {
+        payload.assignedto = newAssigneeCode || payload.assignedto || "";
+        payload.caseWith   = newAssigneeCode || payload.caseWith   || "";
+      }
+      payload.status = "WIP";
+    }
 
-      // Email when: manual reassignment (save/submit) OR true L1→L2 handoff
-      const shouldEmail =
-        treatAsManual ||
-        (actionType === "submit" && !arrivedAsL2 && (isHierarchyChoice || (!hasUserPickedAssignee && !!hierarchyNext)));
+    if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
+      const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
+      const emailFill = (v) => (isNonEmpty(v) ? v : "-");
+      const ccFill = (v) => (isNonEmpty(v) ? v : "-");
 
-      try {
+      payload.assignedto      = fill(payload.assignedto, "");
+      payload.caseWith        = fill(payload.caseWith, "");
+      payload.assignedemailid = emailFill(payload.assignedemailid);
+      payload.cc              = ccFill(payload.cc);
+      payload.moreCC          = ccFill(payload.moreCC);
+
+      const stringyKeys = [
+        "casetitle","category","subCategory","subSubCategory","subSubSubCategory",
+        "casemedium","casesource","priority","custID","productCode",
+        "servicecode","serviceccode","createdby","issuedesciption","clientThreat",
+        "doctorCode","firsttimeresolution","response","categorySpecificResolution",
+        "remarks","casedisposition"
+      ];
+      for (const k of stringyKeys) payload[k] = payload[k] ?? "";
+      payload.materialCost = payload.materialCost ?? 0;
+      payload.labourCost   = payload.labourCost ?? 0;
+      payload.otherCharges = payload.otherCharges ?? 0;
+      payload.totalCharges = payload.totalCharges ?? 0;
+    }
+
+    try {
+      setSaving(true);
+      const result = await postCaseOperation(payload, actionType);
+
+      if (result?.code === "200") {
+        if (actionType === "updateStatus" && isNonEmpty(effectiveStatus)) {
+          setStatus(effectiveStatus);
+        }
+
+        const appliedAssignee = trim(payload.assignedto || "");
+        setSelectedCaseData((prev) =>
+          prev ? {
+            ...prev,
+            caseStatus: actionType === "updateStatus" && isNonEmpty(effectiveStatus)
+              ? effectiveStatus
+              : prev.caseStatus,
+            disposition: payload.casedisposition || prev.disposition,
+            assignToCode: appliedAssignee || prev.assignToCode || "",
+            assignName: prev.assignName,
+          } : prev
+        );
+
+        if (actionType === "submit") {
+          if (treatAsManual) {
+            setToast({ type: "success", message: "Case reassigned (status will be handled by backend)." });
+            navigate(-1);
+          } else {
+            setToast({
+              type: "success",
+              message: `Case submitted successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+            });
+            try { issuesRef.current?.reloadResponses?.(); } catch {}
+            navigate(-1);
+          }
+        } else if (actionType === "save") {
+          if (treatAsManual) {
+            setToast({ type: "success", message: "Case reassigned (status unchanged locally)." });
+          } else {
+            setToast({
+              type: "success",
+              message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
+            });
+          }
+        } else if (actionType === "updateStatus") {
+          setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
+        }
+
+        const shouldEmail =
+          treatAsManual ||
+          (actionType === "submit" &&
+            !arrivedAsL2 &&
+            (isHierarchyChoice || (!hasUserPickedAssignee && !!hierarchyNext)) );
+
         if (shouldEmail) {
           const mailBase = {
             caseNo: effectiveSelected?.caseNo,
@@ -781,22 +983,14 @@ const handleAction = async (actionType, overrides = {}) => {
 
           await sendCaseMail(mailPayload, setToast);
         }
-      } finally {
-        if (goBackAfterSuccess) navigate(-1);
       }
-    } else {
-      throw new Error(result?.message || "API did not return code 200");
+    } catch (err) {
+      console.error(`${actionType} error:`, err);
+      setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
+    } finally {
+      setSaving(false);
     }
-  } catch (err) {
-    console.error(`${actionType} error:`, err);
-    setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
-  } finally {
-    setSaving(false);
-  }
-};
-
-
-
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -843,6 +1037,8 @@ const handleAction = async (actionType, overrides = {}) => {
     "-"
   );
 
+  console.log("assignedDisplay="+assignedDisplay)
+
   const isComplaintCase =
     /complaint/i.test(
       trim(selectedCaseData?.caseCategory) ||
@@ -881,21 +1077,18 @@ const handleAction = async (actionType, overrides = {}) => {
     </span>
   ) : null;
 
-  // Submit is disabled when:
-  // - saving, or
-  // - no response typed (from IssuesTab), or
-  // - at L2 and status is not Closed yet.
-  const submitDisabled =
-    saving ||
-    !isResponseFilled ||
-    (arrivedAsL2 && status !== "Closed");
-
+  // Show Submit even when Closed; hide Save when Closed
+  const showButtonsBase = canEditCase && ["general", "issues", "expense"].includes(activeTab);
+  const showSaveButton = showButtonsBase && status !== "Closed";
+  const showSubmitButton = showButtonsBase; // always allow submit (we gate by validation)
+  const submitDisabled = saving || !isResponseFilled;
   const submitDisabledReason = () => {
     if (saving) return "Saving in progress…";
     if (!isResponseFilled) return "Add a response to enable Submit.";
-    if (arrivedAsL2 && status !== "Closed") return "At Level 2, set Case Status to Closed to submit.";
     return "";
   };
+
+  const closed = status === "Closed";
 
   return (
     <section>
@@ -943,7 +1136,7 @@ const handleAction = async (actionType, overrides = {}) => {
             <select
               value={disposition}
               onChange={(e) => setDisposition(e.target.value)}
-              disabled={saving}
+              disabled={saving || closed}
             >
               <option value="">Select Case Disposition</option>
               <option value="No Solution">No Solution</option>
@@ -967,7 +1160,7 @@ const handleAction = async (actionType, overrides = {}) => {
                       : prev
                   )
                 }
-                disabled={saving}
+                disabled={saving || closed}
               >
                 <option value="">Select</option>
                 <option value="Resolved">Resolved</option>
@@ -983,11 +1176,12 @@ const handleAction = async (actionType, overrides = {}) => {
               <label>Case Status</label>
               <select
                 value={status}
-                disabled={saving}
+                disabled={saving || closed}
                 onChange={async (e) => {
                   const newStatus = e.target.value;
                   const prevStatus = status;
 
+                  // Validation for closing choice (but DO NOT send updateStatus here)
                   if (newStatus === "Closed" && !trim(disposition)) {
                     setToast({
                       type: "error",
@@ -1011,7 +1205,8 @@ const handleAction = async (actionType, overrides = {}) => {
                       if (!csr) {
                         setToast({
                           type: "error",
-                          message: "For Complaint cases, Category Specific Resolution is required before closing.",
+                          message:
+                            "For Complaint cases, Category Specific Resolution is required before closing.",
                         });
                         e.target.value = prevStatus || "";
                         return;
@@ -1019,19 +1214,23 @@ const handleAction = async (actionType, overrides = {}) => {
                     }
                   }
 
+                  // Update UI only
                   setStatus(newStatus);
                   setSelectedCaseData((prev) =>
                     prev ? { ...prev, caseStatus: newStatus } : prev
                   );
 
-                  try {
-                    await handleAction("updateStatus", { status: newStatus, disposition });
-                  } catch {
-                    setStatus(prevStatus);
-                    setSelectedCaseData((prev) =>
-                      prev ? { ...prev, caseStatus: prevStatus } : prev
-                    );
-                    setToast({ type: "error", message: "Failed to save case status." });
+                  // For non-closed statuses, persist immediately
+                  if (newStatus !== "Closed") {
+                    try {
+                      await handleAction("updateStatus", { status: newStatus, disposition });
+                    } catch {
+                      setStatus(prevStatus);
+                      setSelectedCaseData((prev) =>
+                        prev ? { ...prev, caseStatus: prevStatus } : prev
+                      );
+                      setToast({ type: "error", message: "Failed to save case status." });
+                    }
                   }
                 }}
               >
@@ -1040,12 +1239,6 @@ const handleAction = async (actionType, overrides = {}) => {
                 <option value="WIP">WIP</option>
                 <option value="Closed">Closed</option>
               </select>
-              {arrivedAsL2 && status !== "Closed" && (
-                <div style={{fontSize: 12, color: "#6b7280", marginTop: 4}}>
-                  At Level 2, set <strong>Case Status</strong> to <strong>Closed</strong> to enable Submit.
-                </div>
-              )}
-
             </div>
           </div>
         </div>
@@ -1092,15 +1285,22 @@ const handleAction = async (actionType, overrides = {}) => {
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
           <div className="buttongrp mt-3">
-            <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
-              Save
-            </button>
+            {status !== "Closed" && (
+              <button
+                type="button"
+                className="pribtn"
+                onClick={() => handleAction("save")}
+                disabled={saving}
+              >
+                Save
+              </button>
+            )}
             <button
               type="button"
               className="secbtn"
               onClick={() => handleAction("submit")}
-              disabled={submitDisabled}
-              title={submitDisabledReason()}
+              disabled={saving || !isResponseFilled}
+              title={saving ? "Saving in progress…" : (!isResponseFilled ? "Add a response to enable Submit." : "")}
             >
               Submit
             </button>

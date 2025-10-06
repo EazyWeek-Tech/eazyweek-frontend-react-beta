@@ -99,7 +99,12 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "Settings",
       icon: "bx-cog",
-      submenu: [{ name: "Settings", path: "/settings" }],
+      submenu: [
+        { name: "Settings", path: "/settings" },
+        { name: "Loyalty", path: "/loyalty" },
+        { name: "Membership", path: "/membership" },
+        { name: "Discount", path: "/discounts" }
+      ],
     },
   ];
 
@@ -111,7 +116,7 @@ const Sidebar = ({ collapsed }) => {
       <div className="smlnav">
          <a href="/dashboard" className="sw-logo">
           <img
-            src="/images/insightlogo.jpeg"
+            src="/images/smallezywk.png"
             alt="logo"
           />
           {/* <span>INSIGHT</span> */}

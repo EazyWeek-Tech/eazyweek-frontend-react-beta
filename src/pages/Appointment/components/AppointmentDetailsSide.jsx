@@ -105,6 +105,26 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
     navigate(`/customer?${queryParams.toString()}`);
   };
 
+  const goToConsultationConsentPage = () => {
+  const queryParams = new URLSearchParams();
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+
+  navigate(`/consultation?${queryParams.toString()}`);
+};
+
+const goToMedicalHistoryPage = () => {
+  const queryParams = new URLSearchParams();
+  if (appointment?.custId) queryParams.append("custid", appointment.custId);
+  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+
+  navigate(`/history`);
+  navigate(`/history?${queryParams.toString()}`);
+};
+
+
   return (
     <div className={`smdiv expand ${isExpanded ? "expand" : ""}`}>
       <div className="resizable" id="resizableDiv">
@@ -217,14 +237,14 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           </div>
 
           <div className="apptcdet">
-            <a href="#" className="cstlnk">
+            <button onClick={goToMedicalHistoryPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
-            </a>
-            <a href="#" className="cstlnk">
+            </button>
+             <button onClick={goToConsultationConsentPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
               Consent and Treatment Forms
-            </a>
+            </button>
           </div>
 
           <button onClick={goToPaymentPage} className="pndpay">
