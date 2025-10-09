@@ -157,7 +157,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
       employeeMobile: trim(data.employeeMobile || data.empMobileNo || prev.employeeMobile || ""),
       email: trim(data.email || data.assignedemailid || prev.email || ""),
 
-      cc: "", // derive from hierarchy
+      cc: "", // derive from logic below
       moreCc: trim((data.moreCc || prev.moreCc || "").replace(/\s*,\s*/g, ",").replace(/,+$/g, "")),
 
       categorySpecificResolution: data.categorySpecificResolution || prev.categorySpecificResolution || "",
@@ -165,7 +165,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     }));
   }, [data?.caseNo]); // only when case changes
 
-  // Responses
+  // Responses (ActualResponse API)
   const loadResponses = async () => {
     if (!data?.caseNo) {
       setResponses([]);
@@ -294,6 +294,10 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     "-"
   );
 
+  // ======== Stage information by codes (already present earlier) ========
+  const stage2CodeFromCase = normCode(firstNonEmpty(data?.secondSlaCode, data?.nextLevelID, ""));
+  const currentAssigneeCode = normCode(firstNonEmpty(data?.assignToCode, formValues.assignToCode, ""));
+
   // Fetch Case Hierarchy
   useEffect(() => {
     const cat  = trim(data?.caseCategory || data?.categoryName);
@@ -347,8 +351,12 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     data?.subSubSubCategoryName,
   ]);
 
-  // Determine CURRENT level
+  // Determine CURRENT level (code-first, fallback to name)
   const currentLevel = (() => {
+    if (stage2CodeFromCase) {
+      if (currentAssigneeCode && currentAssigneeCode === stage2CodeFromCase) return 2;
+      return 1; // stage2 exists but current is not stage2 → treat as Level 1
+    }
     if (!hierarchy) return 0;
     const curr = normNameBase(currentAssigneeDisplay || "");
     if (!curr) return 0;
@@ -360,40 +368,62 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     if (l1 && curr === l1) return 1;
     if (l2 && curr === l2) return 2;
     if (l3 && curr === l3) return 3;
-    return -1;
-  })();
-
-  // Determine NEXT assignee level (for CC)
-  const nextAssigneeLevel = (() => {
-    if (!hierarchy) return 0;
-    const selected =
-      employees.find((e) => e.employeeCode === trim(formValues.assignToCode)) || null;
-    const selectedNameNorm = normNameBase(selected?.employeeName || formValues.assignedTo || "");
-    if (!selectedNameNorm) return 0;
-
-    const l1 = normNameBase(trim(hierarchy.firstAssignement || ""));
-    const l2 = normNameBase(trim(hierarchy.secondAssignement || ""));
-    if (l1 && selectedNameNorm === l1) return 1;
-    if (l2 && selectedNameNorm === l2) return 2;
     return 0;
   })();
 
-  // Compute CC from hierarchy rule
+  // ======== NEW: Level from ActualResponse history (your requested rule) ========
+  const levelFromHistory = React.useMemo(() => {
+    const s2Name = normNameBase(firstNonEmpty(data?.secondSlaName, ""));
+    if (!s2Name) return "Level 1";
+    const hit = (responses || []).some(
+      (r) => normNameBase(firstNonEmpty(r?.responseBy, "")) === s2Name
+    );
+    return hit ? "Level 2" : "Level 1";
+  }, [responses, data?.secondSlaName]);
+
+  const hasReachedLevel2ByHistory = levelFromHistory === "Level 2";
+
+  // Determine NEXT assignee level (prefer code)
+  const nextAssigneeLevel = (() => {
+    const selectedCode = normCode(formValues.assignToCode);
+    if (!selectedCode) return 0;
+    if (stage2CodeFromCase && selectedCode === stage2CodeFromCase) return 2;
+    return 1; // any other selected user is considered Level 1 handoff
+  })();
+
+  // Compute CC from hierarchy rule (merged logic):
+  // - If Level 2 assignee is selected now → L2 CC
+  // - Else if Level 2 was already reached in ActualResponse → L2 CC
+  // - Else (not reached) → L1 CC
+  // - Fallbacks remain as before
   const computedCc = (() => {
     if (!hierarchy) return "";
+
     const l1cc = normalizeEmailList(hierarchy.firstGroupAssignement || "");
     const l2cc = normalizeEmailList(hierarchy.secondGroupAssignement || "");
 
+    // 1) Next assignee explicit level by code
     if (nextAssigneeLevel === 2) return l2cc;
-    if (nextAssigneeLevel === 1) return l1cc;
 
+    // 2) Use ActualResponse to decide if L2 is reached historically
+    if (hasReachedLevel2ByHistory) return l2cc;
+
+    // 3) Otherwise stick to current level's CC; if current level resolves to 1 → L1 CC
     if (currentLevel === 2) return l2cc;
     if (currentLevel === 1) return l1cc;
 
-    return "";
+    // 4) Fallback (rare) — name heuristic if code logic not available
+    const curr = normNameBase(currentAssigneeDisplay || "");
+    const l1 = normNameBase(trim(hierarchy?.firstAssignement || ""));
+    const l2 = normNameBase(trim(hierarchy?.secondAssignement || ""));
+    if (l2 && curr === l2) return l2cc;
+    if (l1 && curr === l1) return l1cc;
+
+    // Default: if we couldn't deduce anything, keep L1 as safest default
+    return l1cc || "";
   })();
 
-  // Apply CC
+  // Apply CC to the form (auto-fill)
   useEffect(() => {
     const ccFromRule = computedCc;
     if (trim(formValues.cc) !== ccFromRule) {
@@ -405,8 +435,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
   const sessionUser = readSessionUser();
   const isLoggedInCurrentAssignee = (() => {
     if (!sessionUser) return false;
-    const byCode = !!trim(sessionUser.code) && trim(sessionUser.code) === trim(data?.assignToCode);
-    // Prefer URL/display (same as header), then fall back to server name
+    const byCode = !!trim(sessionUser.code) && normCode(sessionUser.code) === currentAssigneeCode;
     const targetName = firstNonEmpty(assignedToName, data?.assignName);
     const byName = normNameBase(sessionUser.fullName || sessionUser.name) === normNameBase(targetName || "");
     return byCode || byName;
@@ -484,14 +513,8 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
         .join("\n")
     : "";
 
-  const currentLevelNote =
-    currentLevel === 1
-      ? "Case is still at Level 1"
-      : currentLevel === 2
-      ? "Case is still at Level 2"
-      : currentLevel === 3
-      ? "Case is still at Level 3"
-      : "Case is at previous level";
+  // Small badge: show level from ActualResponse history (as you asked)
+  const currentLevelNote = levelFromHistory; // "Level 1" or "Level 2"
 
   return (
     <form className="issueform tabform">
@@ -570,7 +593,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
           readOnly
         />
 
-        {currentLevel > 0 && (
+        {currentLevelNote && (
           <div
             style={{
               marginTop: 6,
@@ -583,7 +606,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
               background: "#f6f8fa",
               color: "#065f46",
             }}
-            title="Resolved from Case Hierarchy API"
+            title="Derived from ActualResponse history"
           >
             {currentLevelNote}
           </div>
@@ -619,12 +642,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
         </label>
 
         <select name="assignToCode" value={formValues.assignToCode || ""} onChange={handleChange}>
-          {/* When L2 is the logged-in current assignee, show "Assign To" as the selected placeholder */}
-          {forceAssignToUI ? (
-            <option value="-">Assign To</option>
-          ) : (
-            <option value="-">Select User</option>
-          )}
+          <option value="-">{currentLevel === 2 ? "Assign To" : "Select User"}</option>
 
           {formValues.assignToCode &&
             !employees.some((e) => e.employeeCode === formValues.assignToCode) && (
@@ -633,7 +651,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
               </option>
             )}
 
-          {employees.map((emp, index) => (
+        {employees.map((emp, index) => (
             <option key={index} value={emp.employeeCode}>
               {emp.employeeName}
             </option>
@@ -661,14 +679,23 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
         )}
       </div>
 
-      <div className="form-group">
-        <label>Employee Mobile</label>
-        <input
-          type="text"
-          name="employeeMobile"
-          value={formValues.employeeMobile || ""}
-          onChange={handleChange}
-        />
+      {/* Level badge near the table (as requested) */}
+      <div style={{ marginTop: 8, marginBottom: 4 }}>
+        <span
+          style={{
+            display: "inline-block",
+            fontSize: 12,
+            lineHeight: "16px",
+            padding: "2px 8px",
+            borderRadius: 10,
+            border: "1px solid #d0d7de",
+            background: "#f6f8fa",
+            color: "#065f46",
+          }}
+          title="If Level 2 responder appears in ActualResponse → Level 2; otherwise Level 1"
+        >
+          {levelFromHistory}
+        </span>
       </div>
 
       <div className="tablewrp">
@@ -716,13 +743,13 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
           />
           {(currentLevel === 1 || currentLevel === 2 || nextAssigneeLevel === 1 || nextAssigneeLevel === 2) && (
             <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-              CC is auto-set from Case Hierarchy ({nextAssigneeLevel === 2
-                ? "L2 via Next Assignee"
-                : nextAssigneeLevel === 1
-                ? "L1 via Next Assignee"
+              CC is auto-set from Case Hierarchy {nextAssigneeLevel === 2
+                ? "(L2 via Next Assignee)"
+                : hasReachedLevel2ByHistory
+                ? "(L2 reached via ActualResponse)"
                 : currentLevel === 2
-                ? "L2 (current level)"
-                : "L1 (current level)"}).
+                ? "(L2 by current assignee code)"
+                : "(L1 by rule until Level 2 is reached)"}.
             </div>
           )}
         </div>
