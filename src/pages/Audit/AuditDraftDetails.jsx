@@ -11,6 +11,8 @@ const num = (v) => {
 };
 const txt = (v) => (v == null ? "" : String(v));
 const norm = (s) => (s ?? "").toString().trim();
+// treat null/undefined/"" (after trim) as blank
+const isBlank = (v) => v == null || (typeof v === "string" && v.trim() === "");
 
 // dd/MM/yyyy -> yyyy-MM-dd
 const dmyToIso = (dmy) => {
@@ -177,44 +179,38 @@ export default function AuditDraftDetails() {
             "",
         };
 
-        // Normalize rows and seed editable state (score derived from API totalScore)
         const R = list.map((r, i) => {
-          const weightageStr = txt(r.weightage); // sample shows "10" or "5"
-          const weightageNum = parseWeight(weightageStr);
+          const weightageStr = txt(r.weightage);
+const weightageNum = parseWeight(weightageStr);
 
-          // Prefer totalScore from API to decide 0/1 for the select
-          const totalFromApi = r.totalScore != null ? num(r.totalScore) : null;
-          const scoreFromTotal = totalFromApi != null ? (totalFromApi > 0 ? 1 : 0) : null;
+// ↓↓↓ Only use r.score for the dropdown. If blank -> null ("Select").
+let normalizedScore = null;
+if (!isBlank(r.score)) {
+  const n = Number(r.score);
+  normalizedScore = (n === 0 || n === 1) ? n : null;
+}
 
-          // Fallbacks only if totalScore is missing
-          const scoreFallback =
-            r.valuePresent != null ? Number(r.valuePresent) : num(r.score);
+// Keep API total for display; otherwise derive from normalizedScore
+const totalFromApi = !isBlank(r.totalScore) ? num(r.totalScore) : null;
+const total =
+  totalFromApi != null
+    ? totalFromApi
+    : normalizedScore === 1
+    ? weightageNum
+    : 0;
 
-          // Normalize to 0/1/null
-          const normalizedScore =
-            scoreFromTotal != null
-              ? scoreFromTotal
-              : (scoreFallback === 0 || scoreFallback === 1 ? scoreFallback : null);
+return {
+  id: r.id ?? `${i}`,
+  subSegment: txt(r.subSegment),
+  criteria: txt(r.criteria),
+  criteriaCode: txt(r.criteriaCode),
+  score: normalizedScore,      // 0/1/null (null → "Select")
+  weightageStr,
+  weightageNum,
+  totalScore: total,
+  remarks: txt(r.auditRemarks),
+};
 
-          // Keep a numeric total for display; prefer API value
-          const total =
-            totalFromApi != null
-              ? totalFromApi
-              : normalizedScore === 1
-              ? weightageNum
-              : 0;
-
-          return {
-            id: r.id ?? `${i}`,
-            subSegment: txt(r.subSegment),
-            criteria: txt(r.criteria),
-            criteriaCode: txt(r.criteriaCode), // important for payload
-            score: normalizedScore,            // 0/1 from totalScore
-            weightageStr,
-            weightageNum,
-            totalScore: total,
-            remarks: txt(r.auditRemarks),
-          };
         });
 
         // Build maps for UI controls
@@ -222,7 +218,7 @@ export default function AuditDraftDetails() {
         const initRemarks = {};
         for (const row of R) {
           const code = row.criteriaCode || row.id;
-          initScores[code] = row.score;          // 0|1 derived from totalScore
+          initScores[code] = row.score;          // 0|1|null
           initRemarks[code] = row.remarks || "";
         }
 
@@ -400,20 +396,31 @@ export default function AuditDraftDetails() {
   };
 
   const onSaveOrSubmit = async (isDraft) => {
+  // Only enforce full answers on Submit
+  if (!isDraft) {
     const check = validateAllAnswered();
     if (!check.ok) {
       return showToast("Please answer all criteria (0 or 1) before continuing.");
     }
-    const payload = buildPayload(isDraft);
-    try {
-      const res = await postAuditCreation(payload);
-      const msg = res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
-      showToast(msg, "success", 2600);
-    } catch (e) {
-      console.error(e);
-      showToast(e.message || "Could not save. Please try again.");
+  }
+
+  const payload = buildPayload(isDraft);
+  try {
+    const res = await postAuditCreation(payload);
+    const msg = res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
+    showToast(msg, "success", 1600);
+
+    // After a successful Save (draft), return to the previous page
+    if (isDraft) {
+      // brief delay so the toast can show; adjust/remove if you want instant nav
+      setTimeout(() => navigate(-1), 250);
     }
-  };
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || "Could not save. Please try again.");
+  }
+};
+
 
   // Prefer URL name for display, then backend; code from URL/header/resolved
   const displayEmployeeName = employeeNameFromUrl || header?.employeeName || "";
@@ -486,7 +493,7 @@ export default function AuditDraftDetails() {
                               value={scores[code] === null || scores[code] === undefined ? "" : String(scores[code])}
                               onChange={(e) => setScore(code, e.target.value)}
                             >
-                              <option value="">— Select —</option>
+                              <option value="">Select</option>
                               <option value="0">0</option>
                               <option value="1">1</option>
                             </select>
