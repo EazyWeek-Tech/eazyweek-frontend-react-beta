@@ -64,17 +64,20 @@ const readOrgContext = (general, current) => {
     }
     return "";
   };
+const topGuess = firstNonEmpty(ss("topCode"), fromJson("topCode"));
+const centerGuess = firstNonEmpty(
+  topGuess, // now highest priority
+  general?.centerCode,
+  current?.centerCode,
+  ss("centerCode"),
+  ss("CenterCode"),
+  ss("centercode"),
+  ss("job"),
+  fromJson("centerCode"),
+  fromJson("job")
+);
 
-  const centerGuess = firstNonEmpty(
-    general?.centerCode,
-    current?.centerCode,
-    ss("centerCode"),
-    ss("CenterCode"),
-    ss("centercode"),
-    ss("job"),
-    fromJson("centerCode"),
-    fromJson("job")
-  );
+  console.log(centerGuess);
   const departmentGuess = firstNonEmpty(
     general?.departmentCode,
     current?.departmentCode,
@@ -95,7 +98,7 @@ const readOrgContext = (general, current) => {
   );
 
   return {
-    centercode: centerGuess || "",
+    centercode: "Bright" || "",
     departmentcode: departmentGuess || "department",
     custcliniccode: clinicGuess || "Bright",
   };
@@ -163,7 +166,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
   const createddate = new Date().toISOString();
   const S = (v) => (isNonEmpty(v) ? String(v) : "");
   const N = (v) => (Number.isFinite(+v) ? Number(v) : 0);
-  const sessionUser = readSessionUser(); 
+  const sessionUser = readSessionUser();
 
   return {
     casetitle:               S(mergeVal(general?.title, current?.title)),
@@ -377,15 +380,33 @@ const CaseDetailsPage = () => {
     return !!urlName && !!userFullName && urlName === userFullName;
   }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
 
+  // Allow editing when case is WIP and currently unassigned ("-")
+  const allowEditWhenUnassignedWIP =
+    trim(selectedCaseData?.caseStatus) === "WIP" &&
+    trim(assignedFromUrl) === "-";
+  console.log(allowEditWhenUnassignedWIP);
+
   const canEditCase = React.useMemo(() => {
+    const isWIPUnassigned =
+      trim(selectedCaseData?.caseStatus) === "WIP" &&
+      trim(selectedCaseData?.assignToCode) === "-";
+
     if (trim(assignedFromUrl)) return urlAssignedMatchesUser;
-    return codeMatchesAssigned || assignedMatchesByDisplay || assignedMatchesLoggedInUser;
+
+    return (
+      codeMatchesAssigned ||
+      assignedMatchesByDisplay ||
+      assignedMatchesLoggedInUser ||
+      isWIPUnassigned // ✅ recomputed live when data loads
+    );
   }, [
     assignedFromUrl,
     urlAssignedMatchesUser,
     codeMatchesAssigned,
     assignedMatchesByDisplay,
     assignedMatchesLoggedInUser,
+    selectedCaseData?.caseStatus,
+    selectedCaseData?.assignToCode,
   ]);
 
   const formatCreatedDate = (raw) => {
@@ -598,22 +619,33 @@ const CaseDetailsPage = () => {
   // --------------------------------------------
   // Assignee resolver used when persisting a response
   // --------------------------------------------
+  const isBadAssignee = (v) => {
+    const s = (v ?? "").toString().trim();
+    return !s || s === "-" || /^assign\s*to$/i.test(s);
+  };
+
   // Pick the best available assignee code to use when persisting a response.
-  // Priority: explicit new selection → current case assignee → Stage 1 → Stage 2 → owner.
+  // Priority: explicit new selection → current case assignee → Stage 1 → Stage 2 → owner → current assignee (name) → current user.
   const resolveAssigneeForSubmit = ({
     newAssigneeCode,
     prevAssigneeCode,
     stage1Code,
     stage2Code,
     ownerCode,
+    currentAssigneeCode,
+    currentAssigneeName,
+    currentUserCode,
   }) => {
-    const pick = (v) => (trim(v) ? trim(v) : "");
+    const pick = (v) => (isBadAssignee(v) ? "" : trim(v));
     return (
       pick(newAssigneeCode) ||
       pick(prevAssigneeCode) ||
       pick(stage1Code) ||
       pick(stage2Code) ||
       pick(ownerCode) ||
+      pick(currentAssigneeCode) ||
+      pick(currentAssigneeName) ||
+      pick(currentUserCode) ||
       ""
     );
   };
@@ -672,6 +704,9 @@ const CaseDetailsPage = () => {
         stage1Code: trim(stage1Code || ""),
         stage2Code,
         ownerCode: trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || ""),
+        currentAssigneeCode: selectedCaseData?.assignToCode,
+        currentAssigneeName: selectedCaseData?.assignName,
+        currentUserCode: currentUser?.code,
       });
 
       const nonClosedStatus =
@@ -695,6 +730,10 @@ const CaseDetailsPage = () => {
       if (assigneeForSubmit) {
         preSubmitPayload.assignedto = assigneeForSubmit;
         preSubmitPayload.caseWith   = assigneeForSubmit;
+      }
+      if (isBadAssignee(preSubmitPayload.assignedto)) {
+        preSubmitPayload.assignedto = currentUser?.code || ownerCode || "-";
+        preSubmitPayload.caseWith   = preSubmitPayload.assignedto;
       }
 
       console.groupCollapsed("⓪ PRESUBMIT (persist response before non-submit action)");
@@ -732,6 +771,9 @@ const CaseDetailsPage = () => {
           stage1Code: stage1Code,   // from state
           stage2Code: "",           // 🚫 prevent auto-escalation to next level on close
           ownerCode: ownerCode,
+          currentAssigneeCode: selectedCaseData?.assignToCode,
+          currentAssigneeName: selectedCaseData?.assignName,
+          currentUserCode: currentUser?.code,
         });
 
         // 1) Persist the response FIRST (operation: submit) with a *real* assignee and non-Closed status
@@ -746,10 +788,10 @@ const CaseDetailsPage = () => {
           operation: "submit",
         });
 
-        if (assigneeForSubmit) {
-          submitPayload.assignedto = assigneeForSubmit;
-          submitPayload.caseWith   = assigneeForSubmit;
-        }
+        // Always send a concrete assignee for response persistence
+        submitPayload.assignedto = assigneeForSubmit || submitPayload.assignedto || currentUser?.code || ownerCode || "-";
+        submitPayload.caseWith   = submitPayload.assignedto;
+
         // logging (exactly what matters)
         console.groupCollapsed("① SUBMIT (persist response before close)");
         console.log({
@@ -1037,7 +1079,7 @@ const CaseDetailsPage = () => {
     "-"
   );
 
-  console.log("assignedDisplay="+assignedDisplay)
+  console.log("assignedDisplay=" + assignedDisplay);
 
   const isComplaintCase =
     /complaint/i.test(
