@@ -603,7 +603,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
       </div>
 
       {/* DEBUG: Show L1/L2 assignees resolved from hierarchy/employees */}
-      {hierarchy && (
+      {/* {hierarchy && (
         <div style={{marginBottom: 8}}>
           <div style={{fontSize:12, color:"#374151"}}>
             <strong>Level 1 Assignee:</strong>{" "}
@@ -626,7 +626,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
             })()}
           </div>
         </div>
-      )}
+      )} */}
 
       <div className="form-group">
         <label>Current Assignee</label>

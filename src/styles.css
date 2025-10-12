@@ -1048,7 +1048,7 @@ letter-spacing: -0.6%;
   .emaildiv{width: 50%;}
   .issueform.tabform .emaildiv .form-group{min-width: 600px;}
 
-  .issueform.tabform .form-group{width: 370px;}
+  .issueform.tabform .form-group{width: 325px;}
 
   .jrnygrd{display: flex;gap: 50px; font-family: 'Inter'; align-items: center;font-size: 14px;}
   .jrnyfrst{min-width: 100px;font-weight: 600;}
