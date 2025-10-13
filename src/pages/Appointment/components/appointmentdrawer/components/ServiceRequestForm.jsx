@@ -208,7 +208,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
           isValid = false;
         } else formErrors.duration = "";
         break;
-      // 🔵 Room is optional now: no validation error if empty
+      //  Room is optional now: no validation error if empty
       case "room":
         formErrors.room = "";
         break;
