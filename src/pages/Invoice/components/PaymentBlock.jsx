@@ -108,15 +108,19 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
       setFormData({});
       setFormError('');
     };
-    
-  const handlePopupClose = () => {
+    const handlePopupClose = () => {
+    // reset and redirect to /appointment
+    resetAll();
+    navigate('/appointment');
+  };
+ /*  const handlePopupClose = () => {
         resetAll();
         if (typeof window !== "undefined") {
     window.location.reload();        // refresh current page
   } else {
     navigate(0);                     // fallback for environments without window
   }
-      };
+      }; */
 const generateInvoiceHTML = () => {
     const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 

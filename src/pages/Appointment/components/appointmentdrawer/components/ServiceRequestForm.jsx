@@ -52,7 +52,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     fetchRooms();
   }, []);
 
-   useEffect(() => {
+  useEffect(() => {
     const loadData = async () => {
       if (initialData) {
         setFormData(initialData);
@@ -84,7 +84,6 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     loadData();
   }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
 
-
   const handleServiceChange = (e) => {
     const { value } = e.target;
     setFormData((prevData) => ({ ...prevData, servicename: value }));
@@ -109,18 +108,18 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     }
   };
 
-   const handleServiceSelect = async (serviceName) => {
-  const selectedService = filteredServices.find(s => s.serviceName === serviceName);
-  const serviceCode = selectedService?.serviceCode || "";
+  const handleServiceSelect = async (serviceName) => {
+    const selectedService = filteredServices.find(s => s.serviceName === serviceName);
+    const serviceCode = selectedService?.serviceCode || "";
 
-  setFormData((prevData) => ({
-    ...prevData,
-    servicename: serviceName,
-    servicecode: serviceCode,
-    practitioner: "", // Reset practitioner
-  }));
+    setFormData((prevData) => ({
+      ...prevData,
+      servicename: serviceName,
+      servicecode: serviceCode,
+      practitioner: "", // Reset practitioner
+    }));
 
-  setFilteredServices([]);
+    setFilteredServices([]);
 
     if (!serviceCode) return;
 
@@ -159,7 +158,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     e.preventDefault();
     const isValid = Object.keys(formData).every((field) => validateField(field));
     if (isValid) {
-          const selectedPractitioner = practitioners.find(p => p.id === formData.practitioner);
+      const selectedPractitioner = practitioners.find(p => p.id === formData.practitioner);
 
       const newService = {
         servicename: formData.servicename,
@@ -209,11 +208,9 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
           isValid = false;
         } else formErrors.duration = "";
         break;
+      //  Room is optional now: no validation error if empty
       case "room":
-        if (!formData.room) {
-          formErrors.room = "Please select a room.";
-          isValid = false;
-        } else formErrors.room = "";
+        formErrors.room = "";
         break;
       default:
         break;
@@ -271,7 +268,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     <>
       <div className="srvwrp">
         <div className="frmlgnd">Requesting Services</div>
-        <form onSubmit={handleSubmit}> 
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
             <input
               type="text"
@@ -285,13 +282,11 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             {errors.servicename && <div className="error">{errors.servicename}</div>}
             {filteredServices.length > 0 && (
               <ul className="suggestions">
-               {filteredServices.map((item, index) => (
-  <li key={index} onClick={() => handleServiceSelect(item.serviceName)}>
-    {item.serviceName}
-  </li>
-))}
-
-
+                {filteredServices.map((item, index) => (
+                  <li key={index} onClick={() => handleServiceSelect(item.serviceName)}>
+                    {item.serviceName}
+                  </li>
+                ))}
               </ul>
             )}
           </div>
@@ -373,21 +368,20 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
                 <option value="">Select Room</option>
                 {rooms.map((room, index) => (
                   <option key={index} value={room.id}>{room.roomNo}</option>
-
                 ))}
               </select>
-              {errors.room && <div className="error">{errors.room}</div>}
+              {/* Room is optional — no error display needed */}
             </div>
 
             <span className="notebtn tooltip" data-tooltip="Add Note" data-tooltip-pos="down" onClick={() => setShowAddNote(true)}>
-<img src={`${import.meta.env.BASE_URL}images/notes.svg`} alt="Add Note" />
+              <img src={`${import.meta.env.BASE_URL}images/notes.svg`} alt="Add Note" />
             </span>
 
             <button className="lnkbtn" type="submit">
-<img src={`${import.meta.env.BASE_URL}images/addservice.svg`} alt="Add Service" /> Add Service
+              <img src={`${import.meta.env.BASE_URL}images/addservice.svg`} alt="Add Service" /> Add Service
             </button>
           </div>
-           </form>
+        </form>
       </div>
 
       {showAddNote && (

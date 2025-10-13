@@ -11,6 +11,8 @@ const num = (v) => {
 };
 const txt = (v) => (v == null ? "" : String(v));
 const norm = (s) => (s ?? "").toString().trim();
+// treat null/undefined/"" (after trim) as blank
+const isBlank = (v) => v == null || (typeof v === "string" && v.trim() === "");
 
 // dd/MM/yyyy -> yyyy-MM-dd
 const dmyToIso = (dmy) => {
@@ -82,7 +84,7 @@ export default function AuditDraftDetails() {
   const [rows, setRows] = useState([]);
 
   // editable state
-  const [scores, setScores] = useState({});   // { [criteriaCode]: 0|1|null }
+  const [scores, setScores] = useState({});   // { [criteriaCode]: -1|0|1 }
   const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
   // audited employee code for payload
@@ -113,40 +115,23 @@ export default function AuditDraftDetails() {
       setLoading(true);
       setError("");
 
-      const tries = [
-        () =>
-          fetch(
-            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(auditNo)}`,
-            { method: "GET", credentials: "include", headers: { Accept: "application/json" } }
-          ),
-        () =>
-          fetch(
-            `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(auditNo)}`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { Accept: "application/json", "Content-Type": "application/json" },
-              body: null,
-            }
-          ),
-      ];
-
+      // API: POST /api/Audit/GetAuditDraftDetails/{AuditNo}  (path param)
       let data;
       let lastErr = "";
-      for (const go of tries) {
-        try {
-          const res = await go();
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            lastErr = `HTTP ${res.status}${t ? ` · ${t.slice(0, 180)}` : ""}`;
-            continue;
-          }
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(String(auditNo || "").trim())}`,
+          { method: "POST", credentials: "include", headers: { Accept: "application/json" } }
+        );
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          lastErr = `HTTP ${res.status}${t ? ` · ${t.slice(0, 180)}` : ""}`;
+        } else {
           const text = await res.text();
           data = text ? JSON.parse(text) : [];
-          break;
-        } catch (e) {
-          lastErr = e?.message || "Network error";
         }
+      } catch (e) {
+        lastErr = e?.message || "Network error";
       }
       if (!data) {
         if (!cancelled) {
@@ -159,61 +144,62 @@ export default function AuditDraftDetails() {
       try {
         const list = Array.isArray(data) ? data : [data].filter(Boolean);
 
-        // Header from first row (do NOT let a bad employeeName override the URL one)
+        // Header from first row (use API fields exactly as provided)
         const h0 = list[0] ?? {};
         const H = {
           auditNo: auditNo,
           managerName: txt(h0.managerName),
-          // store what backend says, but we'll PREFER URL name in the UI below
-          employeeName: txt(h0.employeeName ?? h0.employee ?? h0.doctorName ?? h0.therapistName),
-          clinicName: txt(h0.clinicName ?? h0.clinic ?? h0.center) || clinicFromUrl,
-          auditorName: txt(h0.auditorName ?? h0.auditor ?? h0.auditorsName) || auditorFromUrl,
-          auditSegment: txt(h0.audtiSegment ?? h0.auditSegment ?? h0.segment),
+          employeeName: txt(h0.employeeName ?? h0.employee ?? ""),
+          clinicName: clinicFromUrl,                 // not in API payload; keep URL fallback
+          auditorName: auditorFromUrl,               // not in API payload; keep URL fallback
+          auditSegment: txt(h0.audtiSegment || ""),  // note API typo 'audtiSegment'
           auditMonth: txt(h0.auditMonth),
-          auditDateDMY: txt(h0.auditDate), // e.g., 11/04/2025
-          employeeCode:
-            txt(h0.employeeCode ?? h0.empCode ?? h0.code ?? h0.EmployeeCode ?? h0.EmpCode) ||
-            employeeCodeFromUrl ||
-            "",
+          auditDateDMY: txt(h0.auditDate),           // dd/MM/yyyy
+          employeeCode: employeeCodeFromUrl || "",
+          // NEW: carry through managerCode when present (Digital drafts include it)
+          managerCode: txt(h0.managerCode),
         };
 
-        // Normalize rows and seed editable state (score derived from API totalScore)
         const R = list.map((r, i) => {
-          const weightageStr = txt(r.weightage); // sample shows "10" or "5"
-          const weightageNum = parseWeight(weightageStr);
+          // Exact fields from API sample
+          const criteriaCode = txt(r.criteriaCode || `${i}`);
+          const criteriaTxt = txt(r.criteria);
+          const subSegmentTxt = txt(r.subSegment);
 
-          // Prefer totalScore from API to decide 0/1 for the select
-          const totalFromApi = r.totalScore != null ? num(r.totalScore) : null;
-          const scoreFromTotal = totalFromApi != null ? (totalFromApi > 0 ? 1 : 0) : null;
+          // Weightage: numeric string -> keep both string & numeric
+          const weightageRaw = txt(r.weightage);          // e.g. "5"
+          const weightageNum = parseWeight(weightageRaw); // 5
+          const weightageStr = weightageRaw || String(weightageNum);
 
-          // Fallbacks only if totalScore is missing
-          const scoreFallback =
-            r.valuePresent != null ? Number(r.valuePresent) : num(r.score);
+          // Score arrives as "1.000000"/"0.000000"/"-1.000000" (string). Blank → -1.
+          const scoreRaw = r.score;
+          let normalizedScore = -1; // -1 → dropdown "Select"
+          if (!isBlank(scoreRaw)) {
+            const n = Number(scoreRaw);
+            if (Number.isFinite(n)) {
+              if (n < 0) normalizedScore = -1;     // handles -1.000000
+              else if (n >= 0.5) normalizedScore = 1;
+              else normalizedScore = 0;
+            }
+          }
 
-          // Normalize to 0/1/null
-          const normalizedScore =
-            scoreFromTotal != null
-              ? scoreFromTotal
-              : (scoreFallback === 0 || scoreFallback === 1 ? scoreFallback : null);
+          // Prefer API totalScore if present; otherwise derive
+          const totalFromApi = (r.totalScore ?? r.totalScore === 0) ? Number(r.totalScore) : null;
+          const total = totalFromApi != null ? totalFromApi : (normalizedScore === 1 ? weightageNum : 0);
 
-          // Keep a numeric total for display; prefer API value
-          const total =
-            totalFromApi != null
-              ? totalFromApi
-              : normalizedScore === 1
-              ? weightageNum
-              : 0;
+          const remarksTxt = txt(r.auditRemarks);
 
           return {
-            id: r.id ?? `${i}`,
-            subSegment: txt(r.subSegment),
-            criteria: txt(r.criteria),
-            criteriaCode: txt(r.criteriaCode), // important for payload
-            score: normalizedScore,            // 0/1 from totalScore
-            weightageStr,
-            weightageNum,
+            id: criteriaCode,
+            subSegment: subSegmentTxt,
+            criteria: criteriaTxt,
+            criteriaCode,
+            auditSegmentFromApi: txt(r.audtiSegment || ""),
+            score: normalizedScore,          // -1 | 0 | 1
+            weightageStr,                    // for UI string
+            weightageNum,                    // for math
             totalScore: total,
-            remarks: txt(r.auditRemarks),
+            remarks: remarksTxt,
           };
         });
 
@@ -222,7 +208,7 @@ export default function AuditDraftDetails() {
         const initRemarks = {};
         for (const row of R) {
           const code = row.criteriaCode || row.id;
-          initScores[code] = row.score;          // 0|1 derived from totalScore
+          initScores[code] = row.score;          // -1|0|1
           initRemarks[code] = row.remarks || "";
         }
 
@@ -240,7 +226,7 @@ export default function AuditDraftDetails() {
           return;
         }
 
-        // 2) From header (if backend returned it):
+        // 2) From header (none in API right now)
         if (H.employeeCode) {
           if (!cancelled) setAuditedEmployeeCode(H.employeeCode);
           return;
@@ -300,9 +286,10 @@ export default function AuditDraftDetails() {
 
   // UI handlers
   const setScore = (criteriaCode, valStr) => {
-    const val = valStr === "" ? null : Number(valStr);
+    const val = Number(valStr); // "-1" | "0" | "1" -> -1 | 0 | 1
     setScores((prev) => ({ ...prev, [criteriaCode]: val }));
   };
+
   const setRemark = (criteriaCode, value) => {
     setRemarks((prev) => ({ ...prev, [criteriaCode]: value }));
   };
@@ -317,44 +304,57 @@ export default function AuditDraftDetails() {
     return { ok: true };
   };
 
-  // Build payload (auditor from session; employeeCode filled)
   const buildPayload = (isDraft) => {
     const subSegmentJson = rows.map((r) => {
       const code = r.criteriaCode || r.id;
-      const s = scores[code]; // 0 | 1 | null
-      const weight = String(r.weightageStr ?? "");
-      const weightNum = parseWeight(weight);
+      const s = scores[code];                 // -1 | 0 | 1
+      const weightNum = Number(r.weightageNum || 0);
 
-      const scoreStr = (s === 0 || s === 1) ? String(s) : "0";
-      const totalVal = scoreStr === "1" ? weightNum : 0;
+      // Encode score: submit => "0"/"1"; save => "-1"/"0"/"1"
+      const scoreStr =
+        s === 0 || s === 1
+          ? String(s)
+          : isDraft
+          ? "-1"       // <-- send -1 when unselected on Save
+          : "0";       // <-- force 0 on Submit if still unselected
+
+      // Total is weight only for "1", otherwise "0" (never blank)
+      const totalStr = scoreStr === "1" ? String(weightNum) : "0";
 
       return {
         auditNo: "",
         criteria: String(r.criteria || ""),
-        score: scoreStr,                   // "0" or "1"
-        weightage: weight,                 // "10" or "10%"
-        totalScore: String(totalVal),      // "0" or "10"
+        score: scoreStr,                // "-1" | "0" | "1"
+        weightage: String(weightNum),   // normalized numeric string
+        totalScore: totalStr,           // "0" or weight
         auditorRemarks: String(remarks[code] ?? ""),
         subSegment: String(r.subSegment || ""),
         criteriaCode: String(code || ""),
-        valuePresent: scoreStr,            // mirror 0/1
+        valuePresent: scoreStr,         // mirror "-1"/"0"/"1"
       };
     });
 
-    // derive year from audit date
     const iso = dmyToIso(header?.auditDateDMY || "");
     const year = iso ? iso.slice(0, 4) : "";
 
+    // NEW: carry managerCode through (helps Digital drafts reload correctly)
+    const managerCodeOut = txt(header?.managerCode || "");
+    // If you later have doctor/department in this screen, wire them here too:
+    const doctorCodeOut = "";
+    const departmentCodeOut = "";
+
     return {
+      // NEW: tell backend this is draft vs submit
+      request: isDraft ? "save" : "submit",
       auditSegment: header?.auditSegment || "",
       subSegment: "",
       auditDate: toMidnightUtc(iso),
       auditMonth: header?.auditMonth || "",
-      auditor: String(auditorCode || ""),              // session userId
-      employeeCode: String(auditedEmployeeCode || ""), // audited person's code
-      doctorCode: "",
-      managerCode: "",
-      departmentCode: "",
+      auditor: String(auditorCode || ""),
+      employeeCode: String(auditedEmployeeCode || ""),
+      doctorCode: doctorCodeOut,
+      managerCode: managerCodeOut,
+      departmentCode: departmentCodeOut,
       auditYear: String(year || ""),
       grossTotalScore: grandTotal,
       isDraft: isDraft ? 1 : 0,
@@ -400,15 +400,27 @@ export default function AuditDraftDetails() {
   };
 
   const onSaveOrSubmit = async (isDraft) => {
-    const check = validateAllAnswered();
-    if (!check.ok) {
-      return showToast("Please answer all criteria (0 or 1) before continuing.");
+    // Only enforce full answers on Submit
+    if (!isDraft) {
+      const check = validateAllAnswered();
+      if (!check.ok) {
+        return showToast("Please answer all criteria (0 or 1) before continuing.");
+      }
     }
+
     const payload = buildPayload(isDraft);
     try {
       const res = await postAuditCreation(payload);
       const msg = res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
-      showToast(msg, "success", 2600);
+      showToast(msg, "success", 1600);
+
+      if (isDraft) {
+        // After Save (draft), go back
+        setTimeout(() => navigate(-1), 250);
+      } else {
+        // After Submit, go to the listing page
+        navigate("/auditsegmentview");
+      }
     } catch (e) {
       console.error(e);
       showToast(e.message || "Could not save. Please try again.");
@@ -486,7 +498,7 @@ export default function AuditDraftDetails() {
                               value={scores[code] === null || scores[code] === undefined ? "" : String(scores[code])}
                               onChange={(e) => setScore(code, e.target.value)}
                             >
-                              <option value="">— Select —</option>
+                              <option value="-1">Select</option>
                               <option value="0">0</option>
                               <option value="1">1</option>
                             </select>

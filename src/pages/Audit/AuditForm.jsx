@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 const norm = (s) => (s ?? "").toString().trim();
@@ -18,7 +18,7 @@ const toDMY = (iso /* yyyy-mm-dd */) => {
   return `${d}-${Number(m)}-${y}`;
 };
 
-const toMidnightUtc = (iso /* yyyy-mm-dd */) => `${iso}T00:00:00.000Z`;
+const toMidnightUtc = (iso /* yyyy-mm-dd */) => (iso ? `${iso}T00:00:00.000Z` : "");
 
 // Parse "5%" or " 10 % " → 5 (number)
 const parseWeight = (w) => {
@@ -28,13 +28,20 @@ const parseWeight = (w) => {
 };
 
 // --- Auditor (logged-in user) helpers ---
-const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+const tryParseJSON = (s) => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
+const pickUserId = (o) =>
+  norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
 
 // extract clinic info from a session-like object
 const pickClinic = (o) => ({
   code: norm(o?.centerCode ?? o?.loginCode ?? o?.topCode ?? ""),
-  name: norm(o?.centerName ?? o?.clinicName ?? "")
+  name: norm(o?.centerName ?? o?.clinicName ?? ""),
 });
 
 function getSessionUserId() {
@@ -86,6 +93,7 @@ function getSessionClinic() {
 
 export default function AuditForm() {
   const qs = useQuery();
+  const navigate = useNavigate();
 
   // header data passed via URL from AuditCreate
   const segment = norm(qs.get("segment"));
@@ -104,18 +112,25 @@ export default function AuditForm() {
   const managerCode = norm(qs.get("managerCode")); // digital
 
   // Auditor (logged-in user) → from session; fallback to ?auditor=<code> if provided
-  const [auditorCode, setAuditorCode] = useState(norm(qs.get("auditor")) || getSessionUserId());
+  const [auditorCode, setAuditorCode] = useState(
+    norm(qs.get("auditor")) || getSessionUserId()
+  );
 
   // session clinic (used when URL doesn't provide clinic)
   const sessionClinic = useMemo(() => getSessionClinic(), []);
-  const [clinicDisplayName, setClinicDisplayName] = useState(clinicNameQS || sessionClinic.name || "");
-  const [clinicDisplayCode, setClinicDisplayCode] = useState(clinicCodeQS || sessionClinic.code || "");
+  const [clinicDisplayName, setClinicDisplayName] = useState(
+    clinicNameQS || sessionClinic.name || ""
+  );
+  const [clinicDisplayCode, setClinicDisplayCode] = useState(
+    clinicCodeQS || sessionClinic.code || ""
+  );
 
   const [criteria, setCriteria] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // row state
-  const [scores, setScores] = useState({}); // { [criteriaCode]: 0|1|null }
+  // Use -1 to represent "not selected"
+  const [scores, setScores] = useState({}); // { [criteriaCode]: -1|0|1 }
   const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
   const [saving, setSaving] = useState(false);
@@ -145,8 +160,7 @@ export default function AuditForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditorCode, clinicCodeQS, clinicNameQS]);
 
-  // Resolve Clinic display name:
-  // Priority: URL clinicName → session clinicName → resolve by (URL clinicCode || session clinicCode)
+  // Resolve Clinic display name
   useEffect(() => {
     let cancelled = false;
 
@@ -156,7 +170,9 @@ export default function AuditForm() {
     if (namePrefilled) {
       setClinicDisplayName(namePrefilled);
       if (!clinicDisplayCode) setClinicDisplayCode(code || "");
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (!code) return; // nothing to resolve
@@ -185,7 +201,9 @@ export default function AuditForm() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE_URL, clinicCodeQS, clinicNameQS, sessionClinic.code, sessionClinic.name]);
 
@@ -196,18 +214,21 @@ export default function AuditForm() {
       try {
         setLoading(true);
         const seg = encodeURIComponent(segment);
-        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${seg}`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
+        const r = await fetch(
+          `${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${seg}`,
+          {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          }
+        );
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         const list = Array.isArray(data) ? data : data ? [data] : [];
 
-        // initialize scores with null (force user to choose 0/1 for each row)
+        // initialize scores with -1 (force user to choose 0/1 for each row)
         const initScores = {};
         for (const row of list) {
-          if (row?.criteriaCode) initScores[row.criteriaCode] = null;
+          if (row?.criteriaCode) initScores[row.criteriaCode] = -1;
         }
         setScores(initScores);
         setCriteria(list);
@@ -234,7 +255,7 @@ export default function AuditForm() {
   }, 0);
 
   const handleScoreChange = (code, valStr) => {
-    const val = valStr === "" ? null : Number(valStr); // "" keeps as null
+    const val = Number(valStr); // "-1" | "0" | "1" -> -1|0|1
     setScores((prev) => ({ ...prev, [code]: val }));
   };
 
@@ -254,45 +275,55 @@ export default function AuditForm() {
     return { ok: true };
   };
 
-  // Build payload (normalized to avoid empty-string parse errors)
+  // Build payload: on Save send "-1" for unselected; on Submit force "0"/"1"
   const buildPayload = (isDraft) => {
     const normalizeWeight = (w) => {
-      // "10%" -> "10", " 5 % " -> "5", "" -> "0"
       const n = String(w ?? "").match(/-?\d+(\.\d+)?/);
       return n ? String(Number(n[0])) : "0";
+    };
+
+    const encodeScore = (s) => {
+      if (s === 0 || s === 1) return String(s); // "0" | "1"
+      return isDraft ? "-1" : "0"; // SAVE => "-1", SUBMIT => "0"
+    };
+
+    const valuePresentOf = (s) => {
+      // Keep valuePresent strictly "0"/"1" so backend doesn't choke on -1 here.
+      return s === 1 ? "1" : "0";
     };
 
     const subSegmentJson = criteria.map((row) => {
       const code = String(row?.criteriaCode ?? "");
       const weightStr = normalizeWeight(row?.weightage);
-      const s = scores[code]; // null | 0 | 1
+      const scoreStr = encodeScore(scores[code]); // "-1" | "0" | "1"
 
-      // Default unanswered to "0" to avoid backend parsing "" -> int
-      const scoreStr = s === 0 || s === 1 ? String(s) : "0";
-      // totalScore as STRING
+      // totalScore must be numeric; treat -1 like 0
       const totalStr = scoreStr === "1" ? weightStr : "0";
 
       return {
-        auditNo: "", // server generates
+        auditNo: "",
         criteria: String(row?.criteria ?? ""),
-        score: scoreStr,               // "0" | "1"
-        weightage: weightStr,          // numeric string: "10"
-        totalScore: totalStr,          // "10" or "0"
-        auditorRemarks: String((remarks[code] ?? "").trim()), // can be ""
+        score: scoreStr, // "-1" | "0" | "1"
+        weightage: weightStr, // numeric string
+        totalScore: totalStr, // "0" or weight
+        auditorRemarks: String((remarks[code] ?? "").trim()),
         subSegment: String(row?.subSegment ?? ""),
         criteriaCode: code,
-        valuePresent: scoreStr,        // mirror
+        valuePresent: valuePresentOf(scores[code]), // "1" only when selected 1; else "0"
       };
     });
 
-    // header subSegment: use first row's subSegment or ""
     const headerSubSegment = subSegmentJson.length ? subSegmentJson[0].subSegment : "";
 
-    // compute gross as number
+    // Gross total from numeric totals
     const grossFromRows = subSegmentJson.reduce(
       (sum, r) => sum + Number(r.totalScore || "0"),
       0
     );
+
+    // Prefer provided year, otherwise infer from auditDate
+    const yearFromAuditDate = /^\d{4}/.test(auditDateISO) ? auditDateISO.slice(0, 4) : "";
+    const auditYearOut = String(year || yearFromAuditDate || "0");
 
     return {
       request: isDraft ? "save" : "submit",
@@ -304,7 +335,7 @@ export default function AuditForm() {
       employeeCode: mode === "digital" ? "" : employeeCode,
       grossTotalScore: grossFromRows,
       auditNo: "",
-      auditYear: String(year || ""),
+      auditYear: auditYearOut,
       doctorCode: mode === "digital" ? String(doctorCode || "") : "",
       managerCode: mode === "digital" ? String(managerCode || "") : "",
       departmentCode: mode === "digital" ? String(departmentCode || "") : "",
@@ -345,10 +376,29 @@ export default function AuditForm() {
     }
 
     const payload = buildPayload(isDraft);
+
+    // quick console preview
+    try {
+      const sample = payload.subSegmentJson.map((r) => ({
+        criteriaCode: r.criteriaCode,
+        score: r.score,
+        totalScore: r.totalScore,
+        weightage: r.weightage,
+        valuePresent: r.valuePresent,
+      }));
+      console.group(isDraft ? "SAVE payload check" : "SUBMIT payload check");
+      console.table(sample);
+      console.groupEnd();
+    } catch {
+      /* noop */
+    }
+
     try {
       const res = await postAuditCreation(payload);
-      const msg = res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
-      showToast(msg, "success", 2600);
+      const msg =
+        res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
+      showToast(msg, "success", 800);
+      navigate("/auditsegmentview");
     } catch (e) {
       console.error(e);
       showToast(e.message || "Could not save. Please try again.");
@@ -431,7 +481,11 @@ export default function AuditForm() {
         </div>
         <div>
           <b>Clinic :</b>{" "}
-          {clinicDisplayName || clinicNameQS || clinicDisplayCode || clinicCodeQS || "—"}
+          {clinicDisplayName ||
+            clinicNameQS ||
+            clinicDisplayCode ||
+            clinicCodeQS ||
+            "—"}
         </div>
         <div>
           <b>Audit Month :</b> {auditMonth ? `${auditMonth} / ${year || "—"}` : "—"}
@@ -453,8 +507,7 @@ export default function AuditForm() {
           </>
         ) : (
           <div>
-            <b>Employee Name :</b>{" "}
-            {employeeName || employeeCode || "—"}
+            <b>Employee Name :</b> {employeeName || employeeCode || "—"}
           </div>
         )}
       </div>
@@ -480,7 +533,7 @@ export default function AuditForm() {
               {criteria.map((row, idx) => {
                 const code = row.criteriaCode;
                 const weight = row.weightage;
-                const s = scores[code]; // null | 0 | 1
+                const s = scores[code]; // -1 | 0 | 1
                 const total = rowTotal(code, weight);
 
                 return (
@@ -495,10 +548,10 @@ export default function AuditForm() {
                     </td>
                     <td>
                       <select
-                        value={s === null || s === undefined ? "" : String(s)}
+                        value={String(s ?? -1)}
                         onChange={(e) => handleScoreChange(code, e.target.value)}
                       >
-                        <option value="">— Select —</option>
+                        <option value="-1">— Select —</option>
                         <option value="0">0</option>
                         <option value="1">1</option>
                       </select>
@@ -645,7 +698,9 @@ export default function AuditForm() {
           background: #138a36;
         }
         @media (max-width: 900px) {
-          .summary { grid-template-columns: 1fr; }
+          .summary {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </div>
