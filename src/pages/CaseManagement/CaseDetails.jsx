@@ -273,7 +273,7 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" 
 
   const normalizedToList = cleanupList(selected?.email || "");
   const emailToFirst = normalizedToList.split(",").find(isLikelyEmail) || clean(selected?.email);
-
+  console.log('To:' + emailToFirst);
   return {
     emailTo: emailToFirst,
     centerName: clean(selected?.centerName) || centerNameFallback,
@@ -853,27 +853,44 @@ const CaseDetailsPage = () => {
         await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
 
         // 3) Send closure email to CC + More CC (case can be closed at ANY level)
-        const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
-        const hasAnyEmail = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
-        if (hasAnyEmail) {
-          const closureMail = buildCaseMailPayload({
-            selected: {
-              caseNo: effectiveSelected?.caseNo,
-              caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
-              subCategoryName: selectedCaseData?.subCategoryName,
-              issueDescription: effectiveSelected?.issueDescription,
-              response: effectiveSelected?.response,
-              firstTimeResolution: effectiveSelected?.firstTimeResolution,
-              cc: effectiveSelected?.cc,
-              moreCc: effectiveSelected?.moreCc,
-              // use CC/MORE CC pool to satisfy API's required emailTo
-              email: ccCombined,
-              centerName: selectedCaseData?.centerName,
-            },
-            centerNameFallback: "Bright Clinics",
-          });
-          await sendCaseMail(closureMail, setToast);
-        }
+       // 3) Send closure email (To = the Email field on the form; CC & More CC unchanged)
+const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
+const anyEmailPresent =
+  /[^\s@]+@[^\s@]+\.[^\s@]+/.test(effectiveSelected?.email || "") ||
+  /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
+
+if (anyEmailPresent) {
+  const closureMail = buildCaseMailPayload({
+    selected: {
+      caseNo: effectiveSelected?.caseNo,
+      caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+      subCategoryName: selectedCaseData?.subCategoryName,
+      issueDescription: effectiveSelected?.issueDescription,
+      response: effectiveSelected?.response,
+      firstTimeResolution: effectiveSelected?.firstTimeResolution,
+      cc: effectiveSelected?.cc,
+      moreCc: effectiveSelected?.moreCc,
+      email: effectiveSelected?.email,
+      centerName: selectedCaseData?.centerName,
+    },
+    centerNameFallback: "Bright Clinics",
+  });
+
+  // Fallbacks: if no “To” from the Email field, try assignee/owner/current user email
+  if (!closureMail.emailTo) {
+    const prefer = await lookupEmployeeByCode(
+      firstNonEmpty(
+        selectedCaseData?.assignToCode,
+        selectedCaseData?.ownerCode,
+        currentUser?.code
+      )
+    );
+    if (prefer?.emailID) closureMail.emailTo = prefer.emailID;
+  }
+
+  await sendCaseMail(closureMail, setToast);
+}
+
 
         // UI reflect
         setStatus("Closed");
