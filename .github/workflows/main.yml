@@ -1,0 +1,43 @@
+name: Sync Main to Deploy Repo via SSH
+
+on:
+  push:
+    branches:
+      - main  # Trigger when main branch is updated
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone deploy repo
+        run: |
+          git clone git@github.com:AnkurBhayana/insight-react-frontend.git deploy-repo
+          cd deploy-repo
+          git checkout main || git checkout -b main
+
+      - name: Copy files except .github
+        run: |
+          rsync -av --exclude='.github' ../ ./deploy-repo/
+
+      - name: Commit and push changes
+        run: |
+          cd deploy-repo
+          git add .
+          git commit -m "Sync from source repo" || echo "No changes to commit"
+          git push origin main
