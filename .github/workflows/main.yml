@@ -25,8 +25,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Push to deploy repo
+      - name: Clone deploy repo
         run: |
-          git remote add deploy git@github.com:AnkurBhayana/insight-react-frontend.git
-          git fetch deploy
-          git push deploy main:main --force
+          git clone git@github.com:AnkurBhayana/insight-react-frontend.git deploy-repo
+          cd deploy-repo
+          git checkout main || git checkout -b main
+
+      - name: Copy files except .github
+        run: |
+          rsync -av --exclude='.github' ../ ./deploy-repo/
+
+      - name: Commit and push changes
+        run: |
+          cd deploy-repo
+          git add .
+          git commit -m "Sync from source repo" || echo "No changes to commit"
+          git push origin main
