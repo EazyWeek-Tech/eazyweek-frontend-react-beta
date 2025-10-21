@@ -1743,36 +1743,68 @@ const GuestConsentForm = () => {
                       onFilesSelected={async (files) => {
                         const processedFiles = await Promise.all(
                           files.map(async (file) => {
+                            // If file is already processed by FileUploader (has base64Data and fileName), use it
+                            if (file && (file.base64Data || file.base64) && (file.fileName || file.name)) {
+                              return {
+                                fileName: file.fileName || file.name,
+                                fileType: file.fileType || file.type || '',
+                                base64Data: file.base64Data || file.base64
+                              };
+                            }
+
+                            // Otherwise treat it as a File/Blob and convert
                             const base64 = await convertFileToBase64(file);
                             return {
                               fileName: file.name,
                               fileType: file.type,
-                              base64Data: base64.split(",").pop(), // Remove prefix for clean data
+                              base64Data: base64 ? base64.split(',').pop() : ''
                             };
                           })
                         );
 
-                        handleChange({ target: { name: "beforePhotos", value: processedFiles } });
+                        // replace existing beforePhotos
+                        setFormValues(prev => ({ ...prev, beforePhotos: processedFiles }));
                       }}
                     />
-
+                    {Array.isArray(formValues.beforePhotos) && formValues.beforePhotos.length > 0 && (
+                      <ul>
+                        {formValues.beforePhotos.map((file, index) => (
+                          <li key={index}>📄 {file.fileName || file.name}</li>
+                        ))}
+                      </ul>
+                    )}
                     <label><strong>AFTER File Upload</strong></label>
                     <FileUploader
                       onFilesSelected={async (files) => {
                         const processedFiles = await Promise.all(
                           files.map(async (file) => {
+                            if (file && (file.base64Data || file.base64) && (file.fileName || file.name)) {
+                              return {
+                                fileName: file.fileName || file.name,
+                                fileType: file.fileType || file.type || '',
+                                base64Data: file.base64Data || file.base64
+                              };
+                            }
+
                             const base64 = await convertFileToBase64(file);
                             return {
                               fileName: file.name,
                               fileType: file.type,
-                              base64Data: base64.split(",").pop(),
+                              base64Data: base64 ? base64.split(',').pop() : ''
                             };
                           })
                         );
 
-                        handleChange({ target: { name: "afterPhotos", value: processedFiles } });
+                        setFormValues(prev => ({ ...prev, afterPhotos: processedFiles }));
                       }}
                     />
+                    {Array.isArray(formValues.afterPhotos) && formValues.afterPhotos.length > 0 && (
+                      <ul>
+                        {formValues.afterPhotos.map((file, index) => (
+                          <li key={index}>📄 {file.fileName || file.name}</li>
+                        ))}
+                      </ul>
+                    )}
                   </fieldset>
                 </section>
 
@@ -1830,6 +1862,15 @@ const GuestConsentForm = () => {
                 <button type="submit">Submit</button>
             </form>
         </div>
+
+        {/* Toast messages */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
 
         <style>
             {`
