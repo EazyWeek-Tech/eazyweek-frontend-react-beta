@@ -64,18 +64,18 @@ const readOrgContext = (general, current) => {
     }
     return "";
   };
-const topGuess = firstNonEmpty(ss("topCode"), fromJson("topCode"));
-const centerGuess = firstNonEmpty(
-  topGuess, // now highest priority
-  general?.centerCode,
-  current?.centerCode,
-  ss("centerCode"),
-  ss("CenterCode"),
-  ss("centercode"),
-  ss("job"),
-  fromJson("centerCode"),
-  fromJson("job")
-);
+  const topGuess = firstNonEmpty(ss("topCode"), fromJson("topCode"));
+  const centerGuess = firstNonEmpty(
+    topGuess,
+    general?.centerCode,
+    current?.centerCode,
+    ss("centerCode"),
+    ss("CenterCode"),
+    ss("centercode"),
+    ss("job"),
+    fromJson("centerCode"),
+    fromJson("job")
+  );
 
   console.log(centerGuess);
   const departmentGuess = firstNonEmpty(
@@ -222,7 +222,7 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
 }
 
 // --------------------------------------------
-// Mail helpers (unchanged behaviour for non-closing submits)
+// Mail helpers
 // --------------------------------------------
 async function lookupEmployeeByCode(codeRaw) {
   const code = normCodeId(codeRaw);
@@ -338,97 +338,17 @@ const CaseDetailsPage = () => {
   const journeyRef = useRef();
   const slaRef = useRef();
 
-  const assignedMatchesLoggedInUser = React.useMemo(() => {
-    const urlName = normalizeName(assignedFromUrl);
-    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
-    if (!urlName || !userFullName) return false;
-    return urlName === userFullName;
-  }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
+  // NEW: hierarchy state at page-level
+  const [hierarchy, setHierarchy] = useState(null);
+  const [hierLoading, setHierLoading] = useState(false);
+  const [hierErr, setHierErr] = useState("");
 
-  const assignedMatchesByDisplay = React.useMemo(() => {
-    const assignedDisplayLocal = firstNonEmpty(
-      assignedFromUrl,
-      selectedCaseData?.assignName,
-      selectedCaseData?.assignToCode,
-      ""
-    );
-    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
-    const disp = normalizeName(assignedDisplayLocal);
-    return !!disp && !!userFullName && disp === userFullName;
-  }, [
-    assignedFromUrl,
-    selectedCaseData?.assignName,
-    selectedCaseData?.assignToCode,
-    currentUser?.fullName,
-    currentUser?.name,
-  ]);
+  // L2 dialog state
+  const [l2DialogOpen, setL2DialogOpen] = useState(false);
+  const [l2ReassignCode, setL2ReassignCode] = useState("");
+  const [l2DialogError, setL2DialogError] = useState("");
 
-  useEffect(() => { setCurrentUser(readSessionUser()); }, []);
-  useEffect(() => {
-    if (activeTab === "issues" && issuesRef.current?.hasResponse) {
-      setIsResponseFilled(Boolean(issuesRef.current.hasResponse()));
-    }
-  }, [activeTab, selectedCaseData]);
-
-  const codeMatchesAssigned = React.useMemo(() => {
-    return norm(currentUser?.code) && norm(currentUser?.code) === norm(selectedCaseData?.assignToCode);
-  }, [currentUser?.code, selectedCaseData?.assignToCode]);
-
-  const urlAssignedMatchesUser = React.useMemo(() => {
-    const urlName = normalizeName(assignedFromUrl);
-    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
-    return !!urlName && !!userFullName && urlName === userFullName;
-  }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
-
-  // Allow editing when case is WIP and currently unassigned ("-")
-  const allowEditWhenUnassignedWIP =
-    trim(selectedCaseData?.caseStatus) === "WIP" &&
-    trim(assignedFromUrl) === "-";
-  console.log(allowEditWhenUnassignedWIP);
-
-  const canEditCase = React.useMemo(() => {
-    const isWIPUnassigned =
-      trim(selectedCaseData?.caseStatus) === "WIP" &&
-      trim(selectedCaseData?.assignToCode) === "-";
-
-    if (trim(assignedFromUrl)) return urlAssignedMatchesUser;
-
-    return (
-      codeMatchesAssigned ||
-      assignedMatchesByDisplay ||
-      assignedMatchesLoggedInUser ||
-      isWIPUnassigned // ✅ recomputed live when data loads
-    );
-  }, [
-    assignedFromUrl,
-    urlAssignedMatchesUser,
-    codeMatchesAssigned,
-    assignedMatchesByDisplay,
-    assignedMatchesLoggedInUser,
-    selectedCaseData?.caseStatus,
-    selectedCaseData?.assignToCode,
-  ]);
-
-  const formatCreatedDate = (raw) => {
-    if (!raw || raw === "0001-01-01T00:00:00") return "-";
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
-    if (m) {
-      const [, dd, MM, yyyy] = m;
-      return `${dd}/${MM}/${yyyy}`;
-    }
-    const d = new Date(raw);
-    return isNaN(d)
-      ? "-"
-      : d.toLocaleString("en-IN", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-  };
-
+  // --- Fetch case details ---
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
@@ -540,6 +460,158 @@ const CaseDetailsPage = () => {
     fetchCaseDetails();
   }, [caseNumber]);
 
+  // NEW: fetch hierarchy at page level (using same inputs as IssuesTab)
+  useEffect(() => {
+    const cat  = trim(selectedCaseData?.caseCategory || selectedCaseData?.categoryName);
+    const sub  = trim(selectedCaseData?.subCategoryName);
+    const sub2 = trim(selectedCaseData?.subSubCategoryName);
+    const sub3 = trim(selectedCaseData?.subSubSubCategoryName || "NA");
+    if (!cat || !sub || !sub2) {
+      setHierarchy(null);
+      return;
+    }
+
+    const run = async () => {
+      setHierLoading(true);
+      setHierErr("");
+      try {
+        const url = `${API_BASE_URL}/api/CaseOperation/CaseHierarchyDB` +
+          `?categoryName=${encodeURIComponent(cat)}` +
+          `&subCategoryName=${encodeURIComponent(sub)}` +
+          `&subSubCategoryName=${encodeURIComponent(sub2)}` +
+          `&subSubSubCategoryName=${encodeURIComponent(sub3)}`;
+
+        const res = await (async () => {
+          const r = await fetch(url, {
+            method: "GET",
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          });
+          const text = await r.text();
+          if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}: ${text.slice(0,180)}`);
+          let json; try { json = JSON.parse(text); } catch { throw new Error(`Invalid JSON: ${text.slice(0,180)}`); }
+          return json;
+        })();
+
+        let hit = res;
+        if (Array.isArray(res)) {
+          hit = res.find(
+            (r) =>
+              trim(r?.categoryName).toLowerCase() === cat.toLowerCase() &&
+              trim(r?.subCategoryName).toLowerCase() === sub.toLowerCase() &&
+              trim(r?.subSubCategoryName).toLowerCase() === sub2.toLowerCase() &&
+              trim(r?.subSubSubCategoryName || "NA").toLowerCase() === sub3.toLowerCase()
+          ) || null;
+        }
+        setHierarchy(hit?.status ? hit : hit || null);
+      } catch (err) {
+        console.error("Hierarchy fetch failed:", err);
+        setHierarchy(null);
+        setHierErr("Hierarchy not found");
+      } finally {
+        setHierLoading(false);
+      }
+    };
+
+    run();
+  }, [
+    selectedCaseData?.caseCategory,
+    selectedCaseData?.categoryName,
+    selectedCaseData?.subCategoryName,
+    selectedCaseData?.subSubCategoryName,
+    selectedCaseData?.subSubSubCategoryName
+  ]);
+
+  useEffect(() => { setCurrentUser(readSessionUser()); }, []);
+  useEffect(() => {
+    if (activeTab === "issues" && issuesRef.current?.hasResponse) {
+      setIsResponseFilled(Boolean(issuesRef.current.hasResponse()));
+    }
+  }, [activeTab, selectedCaseData]);
+
+  const codeMatchesAssigned = React.useMemo(() => {
+    return norm(currentUser?.code) && norm(currentUser?.code) === norm(selectedCaseData?.assignToCode);
+  }, [currentUser?.code, selectedCaseData?.assignToCode]);
+
+  const urlAssignedMatchesUser = React.useMemo(() => {
+    const urlName = normalizeName(assignedFromUrl);
+    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
+    return !!urlName && !!userFullName && urlName === userFullName;
+  }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
+
+  const allowEditWhenUnassignedWIP =
+    trim(selectedCaseData?.caseStatus) === "WIP" &&
+    trim(assignedFromUrl) === "-";
+  console.log(allowEditWhenUnassignedWIP);
+
+  const assignedMatchesLoggedInUser = React.useMemo(() => {
+    const urlName = normalizeName(assignedFromUrl);
+    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
+    if (!urlName || !userFullName) return false;
+    return urlName === userFullName;
+  }, [assignedFromUrl, currentUser?.fullName, currentUser?.name]);
+
+  const assignedMatchesByDisplay = React.useMemo(() => {
+    const assignedDisplayLocal = firstNonEmpty(
+      assignedFromUrl,
+      selectedCaseData?.assignName,
+      selectedCaseData?.assignToCode,
+      ""
+    );
+    const userFullName = normalizeName(currentUser?.fullName || currentUser?.name);
+    const disp = normalizeName(assignedDisplayLocal);
+    return !!disp && !!userFullName && disp === userFullName;
+  }, [
+    assignedFromUrl,
+    selectedCaseData?.assignName,
+    selectedCaseData?.assignToCode,
+    currentUser?.fullName,
+    currentUser?.name,
+  ]);
+
+  const canEditCase = React.useMemo(() => {
+    const isWIPUnassigned =
+      trim(selectedCaseData?.caseStatus) === "WIP" &&
+      trim(selectedCaseData?.assignToCode) === "-";
+
+    if (trim(assignedFromUrl)) return urlAssignedMatchesUser;
+
+    return (
+      codeMatchesAssigned ||
+      assignedMatchesByDisplay ||
+      assignedMatchesLoggedInUser ||
+      isWIPUnassigned
+    );
+  }, [
+    assignedFromUrl,
+    urlAssignedMatchesUser,
+    codeMatchesAssigned,
+    assignedMatchesByDisplay,
+    assignedMatchesLoggedInUser,
+    selectedCaseData?.caseStatus,
+    selectedCaseData?.assignToCode,
+  ]);
+
+  const formatCreatedDate = (raw) => {
+    if (!raw || raw === "0001-01-01T00:00:00") return "-";
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
+    if (m) {
+      const [, dd, MM, yyyy] = m;
+      return `${dd}/${MM}/${yyyy}`;
+    }
+    const d = new Date(raw);
+    return isNaN(d)
+      ? "-"
+      : d.toLocaleString("en-IN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+  };
+
   useEffect(() => {
     const targetName = (selectedCaseData?.firstSlaName || "").trim();
     if (!targetName) {
@@ -574,7 +646,6 @@ const CaseDetailsPage = () => {
     const ts = new Date().toISOString();
     console.groupCollapsed(`[${ts}] POST ${API_BASE_URL}/api/CaseOperation — ${label}`);
     try {
-      // Focus logs on the fields we keep debugging
       console.log("Request essentials →", {
         caseno: payload.caseno,
         operation: payload.operation,
@@ -617,6 +688,62 @@ const CaseDetailsPage = () => {
   };
 
   // --------------------------------------------
+  // L2 detection (page-level; uses hierarchy + case)
+  // --------------------------------------------
+ // --------------------------------------------
+// L1/L2 detection (page-level; uses hierarchy + case)
+// --------------------------------------------
+const ownerDisplay = firstNonEmpty(
+  ownerFromUrl,
+  selectedCaseData?.ownerName,
+  selectedCaseData?.ownerCode,
+  "-"
+);
+const assignedDisplay = firstNonEmpty(
+  assignedFromUrl,
+  selectedCaseData?.assignName,
+  selectedCaseData?.assignToCode,
+  "-"
+);
+
+// Current assignee (code/name)
+const curCode = normCodeId(selectedCaseData?.assignToCode);
+const curName = normNameBase(assignedDisplay || "");
+
+// ---------- Level 1 signals (compute first) ----------
+const l1Code = normCodeId(stage1Code || "");
+const l1Name = normNameBase(
+  firstNonEmpty(hierarchy?.firstAssignement, selectedCaseData?.firstSlaName, "")
+);
+const isAtLevel1Now =
+  (!!l1Code && !!curCode && l1Code === curCode) ||
+  (!!l1Name && !!curName && l1Name === curName);
+
+// ---------- Level 2 signals (can safely reference isAtLevel1Now now) ----------
+const l2Code = normCodeId(
+  firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
+);
+const l2Name = normNameBase(
+  firstNonEmpty(hierarchy?.secondAssignement, selectedCaseData?.secondSlaName, "")
+);
+const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
+const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
+
+// Must match Level 2 AND NOT Level 1
+const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
+
+// Banner only when L2 and the visible "Assigned To" equals L2 (code or name)
+const showL2Banner = (() => {
+  if (!isAtLevel2Now) return false;
+  const disp = trim(assignedDisplay);
+  if (!disp || disp === "-") return false;
+  const dispAsCodeEq = !!l2Code && normCodeId(disp) === l2Code;
+  const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
+  return dispAsCodeEq || dispAsNameEq;
+})();
+
+
+  // --------------------------------------------
   // Assignee resolver used when persisting a response
   // --------------------------------------------
   const isBadAssignee = (v) => {
@@ -624,8 +751,6 @@ const CaseDetailsPage = () => {
     return !s || s === "-" || /^assign\s*to$/i.test(s);
   };
 
-  // Pick the best available assignee code to use when persisting a response.
-  // Priority: explicit new selection → current case assignee → Stage 1 → Stage 2 → owner → current assignee (name) → current user.
   const resolveAssigneeForSubmit = ({
     newAssigneeCode,
     prevAssigneeCode,
@@ -648,6 +773,16 @@ const CaseDetailsPage = () => {
       pick(currentUserCode) ||
       ""
     );
+  };
+
+  // --- open dialog when submit is clicked at Level 2 ---
+  const onSubmitClick = async () => {
+    if (isAtLevel2Now) {
+      setL2DialogOpen(true);
+      setL2DialogError("");
+      return;
+    }
+    handleAction("submit");
   };
 
   // -----------------------------
@@ -692,9 +827,7 @@ const CaseDetailsPage = () => {
     const isManualReassign      = hasUserPickedAssignee && !isHierarchyChoice;
     const treatAsManual         = isManualReassign || (isAssignToCreator && !isHierarchyChoice);
 
-    // --------------------------------------------
-    // Preflight: Always persist response on save/updateStatus (non-submit actions)
-    // --------------------------------------------
+    // Preflight persist response for non-submit actions
     const responseText = trim(effectiveSelected?.response || "");
     if (responseText && actionType !== "submit") {
       const stage2Code = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
@@ -719,11 +852,11 @@ const CaseDetailsPage = () => {
       const preSubmitPayload = buildFullPayload({
         general: generalData,
         current: {
-          ...effectiveSelected, // keep response as typed
+          ...effectiveSelected,
           assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode,
         },
         status: nonClosedStatus,
-        disposition: effectiveDisposition, // harmless here
+        disposition: effectiveDisposition,
         operation: "submit",
       });
 
@@ -747,7 +880,7 @@ const CaseDetailsPage = () => {
       await postCaseOperation(preSubmitPayload, "submit (preflight persist response)");
     }
 
-    // ---- Special branch: Closing via Submit ----
+    // Closing via submit
     if (closingViaSubmit) {
       try {
         if (!trim(effectiveSelected?.response)) {
@@ -756,7 +889,6 @@ const CaseDetailsPage = () => {
         }
         setSaving(true);
 
-        // Ensure the *first* persist call is NOT "Closed"
         const nonClosedStatus =
           (initialStatusRef.current && initialStatusRef.current !== "Closed")
             ? initialStatusRef.current
@@ -764,35 +896,31 @@ const CaseDetailsPage = () => {
                 ? selectedCaseData.caseStatus
                 : "WIP");
 
-        // Work out a real assignee for the first call (do NOT escalate to Stage 2 when closing)
         const assigneeForSubmit = resolveAssigneeForSubmit({
           newAssigneeCode: newAssigneeCode,
           prevAssigneeCode: prevAssigneeCode,
-          stage1Code: stage1Code,   // from state
-          stage2Code: "",           // 🚫 prevent auto-escalation to next level on close
+          stage1Code: stage1Code,
+          stage2Code: "",
           ownerCode: ownerCode,
           currentAssigneeCode: selectedCaseData?.assignToCode,
           currentAssigneeName: selectedCaseData?.assignName,
           currentUserCode: currentUser?.code,
         });
 
-        // 1) Persist the response FIRST (operation: submit) with a *real* assignee and non-Closed status
         const submitPayload = buildFullPayload({
           general: generalData,
           current: {
-            ...effectiveSelected,                 // keep the typed response
+            ...effectiveSelected,
             assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode
           },
-          status: nonClosedStatus,                // NEVER send "Closed" here
+          status: nonClosedStatus,
           disposition: effectiveDisposition,
           operation: "submit",
         });
 
-        // Always send a concrete assignee for response persistence
         submitPayload.assignedto = assigneeForSubmit || submitPayload.assignedto || currentUser?.code || ownerCode || "-";
         submitPayload.caseWith   = submitPayload.assignedto;
 
-        // logging (exactly what matters)
         console.groupCollapsed("① SUBMIT (persist response before close)");
         console.log({
           status: submitPayload.status,
@@ -805,10 +933,9 @@ const CaseDetailsPage = () => {
 
         await postCaseOperation(submitPayload, "submit (close flow — persist response)");
 
-        // 2) Now close the case; placeholders are OK here
         const closePayload = buildFullPayload({
           general: generalData,
-          current: { ...effectiveSelected, response: "" }, // avoid duplicate response on close
+          current: { ...effectiveSelected, response: "" },
           status: "Closed",
           disposition: effectiveDisposition,
           operation: "updateStatus",
@@ -852,47 +979,42 @@ const CaseDetailsPage = () => {
 
         await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
 
-        // 3) Send closure email to CC + More CC (case can be closed at ANY level)
-       // 3) Send closure email (To = the Email field on the form; CC & More CC unchanged)
-const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
-const anyEmailPresent =
-  /[^\s@]+@[^\s@]+\.[^\s@]+/.test(effectiveSelected?.email || "") ||
-  /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
+        const ccCombined = [effectiveSelected?.cc, effectiveSelected?.moreCc].filter(Boolean).join(",");
+        const anyEmailPresent =
+          /[^\s@]+@[^\s@]+\.[^\s@]+/.test(effectiveSelected?.email || "") ||
+          /[^\s@]+@[^\s@]+\.[^\s@]+/.test(ccCombined || "");
 
-if (anyEmailPresent) {
-  const closureMail = buildCaseMailPayload({
-    selected: {
-      caseNo: effectiveSelected?.caseNo,
-      caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
-      subCategoryName: selectedCaseData?.subCategoryName,
-      issueDescription: effectiveSelected?.issueDescription,
-      response: effectiveSelected?.response,
-      firstTimeResolution: effectiveSelected?.firstTimeResolution,
-      cc: effectiveSelected?.cc,
-      moreCc: effectiveSelected?.moreCc,
-      email: effectiveSelected?.email,
-      centerName: selectedCaseData?.centerName,
-    },
-    centerNameFallback: "Bright Clinics",
-  });
+        if (anyEmailPresent) {
+          const closureMail = buildCaseMailPayload({
+            selected: {
+              caseNo: effectiveSelected?.caseNo,
+              caseCategory: selectedCaseData?.caseCategory || selectedCaseData?.categoryName,
+              subCategoryName: selectedCaseData?.subCategoryName,
+              issueDescription: effectiveSelected?.issueDescription,
+              response: effectiveSelected?.response,
+              firstTimeResolution: effectiveSelected?.firstTimeResolution,
+              cc: effectiveSelected?.cc,
+              moreCc: effectiveSelected?.moreCc,
+              email: effectiveSelected?.email,
+              centerName: selectedCaseData?.centerName,
+            },
+            centerNameFallback: "Bright Clinics",
+          });
 
-  // Fallbacks: if no “To” from the Email field, try assignee/owner/current user email
-  if (!closureMail.emailTo) {
-    const prefer = await lookupEmployeeByCode(
-      firstNonEmpty(
-        selectedCaseData?.assignToCode,
-        selectedCaseData?.ownerCode,
-        currentUser?.code
-      )
-    );
-    if (prefer?.emailID) closureMail.emailTo = prefer.emailID;
-  }
+          if (!closureMail.emailTo) {
+            const prefer = await lookupEmployeeByCode(
+              firstNonEmpty(
+                selectedCaseData?.assignToCode,
+                selectedCaseData?.ownerCode,
+                currentUser?.code
+              )
+            );
+            if (prefer?.emailID) closureMail.emailTo = prefer.emailID;
+          }
 
-  await sendCaseMail(closureMail, setToast);
-}
+          await sendCaseMail(closureMail, setToast);
+        }
 
-
-        // UI reflect
         setStatus("Closed");
         setSelectedCaseData((prev) =>
           prev ? { ...prev, caseStatus: "Closed", disposition: closePayload.casedisposition } : prev
@@ -1083,21 +1205,6 @@ if (anyEmailPresent) {
   if (loading) return <div>Loading case details...</div>;
   if (!selectedCaseData) return <div>Case not found</div>;
 
-  const ownerDisplay = firstNonEmpty(
-    ownerFromUrl,
-    selectedCaseData.ownerName,
-    selectedCaseData.ownerCode,
-    "-"
-  );
-  const assignedDisplay = firstNonEmpty(
-    assignedFromUrl,
-    selectedCaseData.assignName,
-    selectedCaseData.assignToCode,
-    "-"
-  );
-
-  console.log("assignedDisplay=" + assignedDisplay);
-
   const isComplaintCase =
     /complaint/i.test(
       trim(selectedCaseData?.caseCategory) ||
@@ -1136,16 +1243,9 @@ if (anyEmailPresent) {
     </span>
   ) : null;
 
-  // Show Submit even when Closed; hide Save when Closed
   const showButtonsBase = canEditCase && ["general", "issues", "expense"].includes(activeTab);
   const showSaveButton = showButtonsBase && status !== "Closed";
-  const showSubmitButton = showButtonsBase; // always allow submit (we gate by validation)
   const submitDisabled = saving || !isResponseFilled;
-  const submitDisabledReason = () => {
-    if (saving) return "Saving in progress…";
-    if (!isResponseFilled) return "Add a response to enable Submit.";
-    return "";
-  };
 
   const closed = status === "Closed";
 
@@ -1187,6 +1287,24 @@ if (anyEmailPresent) {
           </div>
         </div>
       </div>
+
+      {showL2Banner && (
+        <div
+          className="info-banner"
+          style={{
+            margin: "12px 0 0",
+            padding: "10px 12px",
+            border: "1px solid #cfe3ff",
+            background: "#f3f8ff",
+            color: "#0b3d91",
+            borderRadius: 6,
+            fontSize: 14
+          }}
+        >
+          <strong>Heads up:</strong> This case is currently at <strong>Level 2</strong>.{" "}
+          On submit, you can either close the case or reassign it to someone else if more information is needed.
+        </div>
+      )}
 
       <div className="casedetwrp">
         <div className="casecell">
@@ -1240,7 +1358,6 @@ if (anyEmailPresent) {
                   const newStatus = e.target.value;
                   const prevStatus = status;
 
-                  // Validation for closing choice (but DO NOT send updateStatus here)
                   if (newStatus === "Closed" && !trim(disposition)) {
                     setToast({
                       type: "error",
@@ -1273,13 +1390,11 @@ if (anyEmailPresent) {
                     }
                   }
 
-                  // Update UI only
                   setStatus(newStatus);
                   setSelectedCaseData((prev) =>
                     prev ? { ...prev, caseStatus: newStatus } : prev
                   );
 
-                  // For non-closed statuses, persist immediately
                   if (newStatus !== "Closed") {
                     try {
                       await handleAction("updateStatus", { status: newStatus, disposition });
@@ -1344,7 +1459,7 @@ if (anyEmailPresent) {
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
           <div className="buttongrp mt-3">
-            {status !== "Closed" && (
+            {showSaveButton && (
               <button
                 type="button"
                 className="pribtn"
@@ -1357,8 +1472,8 @@ if (anyEmailPresent) {
             <button
               type="button"
               className="secbtn"
-              onClick={() => handleAction("submit")}
-              disabled={saving || !isResponseFilled}
+              onClick={onSubmitClick}
+              disabled={submitDisabled}
               title={saving ? "Saving in progress…" : (!isResponseFilled ? "Add a response to enable Submit." : "")}
             >
               Submit
@@ -1366,6 +1481,93 @@ if (anyEmailPresent) {
           </div>
         )}
       </section>
+
+      {/* L2 Decision Dialog */}
+      {l2DialogOpen && (
+        <div
+          aria-modal="true"
+          role="dialog"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+          onClick={() => setL2DialogOpen(false)}
+        >
+          <div
+            style={{
+              width: "min(520px, 92vw)",
+              background: "#fff",
+              borderRadius: 8,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+              overflow: "hidden"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #eee" }}>
+              <h3 style={{ margin: 0, fontSize: 18 }}>Submit at Level 2</h3>
+            </div>
+
+            <div style={{ padding: 16 }}>
+              <p style={{ marginTop: 0, color: "#444" }}>
+                This case is currently assigned to the <strong>Level 2</strong> assignee.
+                Choose how you want to proceed:
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  marginTop: 12,
+                  border: "1px solid #f0f0f0",
+                  borderRadius: 8,
+                  padding: 12,
+                  background: "#fafafa"
+                }}
+              >
+                {/* Option A: Close the case now */}
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Option A: Close the case</div>
+                  <div style={{ fontSize: 13, color: "#555", lineHeight: 2 }}>
+                    Closes the case now. Make sure you’ve entered a response and selected a disposition.
+                  </div>
+                  <button
+                    className="pribtn"
+                    style={{ marginTop: 8 }}
+                    onClick={async () => {
+                      if (!trim(disposition)) {
+                        setToast?.({ type: "error", message: "Please select Case Disposition before closing." });
+                        return;
+                      }
+                      setL2DialogOpen(false);
+                      await handleAction("submit", { status: "Closed" });
+                    }}
+                    disabled={saving}
+                  >
+                    Close Case
+                  </button>
+                </div>
+
+                {/* Option B: Reassign to someone else */}
+                <div style={{ borderTop: "1px dashed #e6e6e6", paddingTop: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                    Option B: Assign to another person (needs more info)
+                  </div>
+                 
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: 12, borderTop: "1px solid #eee", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button className="secbtn" onClick={() => setL2DialogOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

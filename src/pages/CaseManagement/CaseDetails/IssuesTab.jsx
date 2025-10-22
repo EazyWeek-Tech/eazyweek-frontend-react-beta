@@ -125,6 +125,11 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     getIssuesData: () => formValues,
     hasResponse: () => trim(formValues.response) !== "",
     reloadResponses: () => loadResponses(),
+
+    getCurrentLevel: () => currentLevel,              // 0/1/2/3 (our computed level)
+  isAtLevel2Now: () => currentLevel === 2,          // boolean
+  hasLevel2InHistory: () => hasReachedLevel2ByHistory, // boolean (from ActualResponse)
+  nextAssigneeIsL2: () => nextAssigneeIsL2          // boolean (UI selection)
   }));
 
   // Notify parent about response field status
@@ -730,7 +735,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
       <div style={{ marginTop: 8, marginBottom: 4 }}>
         <span
           style={{
-            display: "none",
+            display: "inline-block",
             fontSize: 12,
             lineHeight: "16px",
             padding: "2px 8px",

@@ -575,12 +575,12 @@ export default function AuditSummaryReport() {
         .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
         .tbl thead th { text-align: left; font-size: 13px; color: #6c7688; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #eef1f6; }
-        .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; }
+                .tbl tbody td { font-size: 12px; line-height:18px; white-space:nowrap; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; }
         .link { background: none; border: none; color: #2e5aac; cursor: pointer; padding: 0; text-decoration: none; font-weight: 600; }
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
         .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 14px; }
-        .pagebtn { background: #fff; color: #6b7280; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+        .pagebtn { background: #0f1f33; color: white; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
         .pageno, .pagecount { color: #4b5563; font-weight: 600; }
 
         .toast { position: fixed; height: 50px; bottom: 16px; right: 16px; color:#fff; background:#d7263d; padding:10px 14px; border-radius:8px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.15); z-index:9999; }
