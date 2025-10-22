@@ -125,6 +125,11 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
     getIssuesData: () => formValues,
     hasResponse: () => trim(formValues.response) !== "",
     reloadResponses: () => loadResponses(),
+
+    getCurrentLevel: () => currentLevel,              // 0/1/2/3 (our computed level)
+  isAtLevel2Now: () => currentLevel === 2,          // boolean
+  hasLevel2InHistory: () => hasReachedLevel2ByHistory, // boolean (from ActualResponse)
+  nextAssigneeIsL2: () => nextAssigneeIsL2          // boolean (UI selection)
   }));
 
   // Notify parent about response field status
@@ -603,7 +608,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
       </div>
 
       {/* DEBUG: Show L1/L2 assignees resolved from hierarchy/employees */}
-      {/* {hierarchy && (
+       {/* {hierarchy && (
         <div style={{marginBottom: 8}}>
           <div style={{fontSize:12, color:"#374151"}}>
             <strong>Level 1 Assignee:</strong>{" "}
@@ -626,7 +631,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
             })()}
           </div>
         </div>
-      )} */}
+      )}  */}
 
       <div className="form-group">
         <label>Current Assignee</label>
@@ -645,7 +650,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
               fontSize: 12,
               lineHeight: "16px",
               padding: "2px 8px",
-              display: "inline-block",
+              display: "none",
               borderRadius: 10,
               border: "1px solid #d0d7de",
               background: "#f6f8fa",
@@ -661,9 +666,9 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
       <div className="form-group">
         <label title={hierTooltip || undefined} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           Next Assignee
-          {hierLoading && (
+         {/*  {hierLoading && (
             <span style={{ fontSize: 12, color: "#6b7280" }}>(loading…)</span>
-          )}
+          )} */}
           {!hierLoading && hierarchy?.recId && (
             <span
               style={{
@@ -675,6 +680,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
                 background: "#f6f8fa",
                 color: "#57606a",
                 whiteSpace: "nowrap",
+                display:"none"
               }}
               title={hierTooltip || "Case hierarchy match"}
             >
@@ -703,7 +709,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
             </option>
           ))}
         </select>
-
+{/* 
         {hierarchy && (hierarchy.firstGroupAssignement || hierarchy.secondGroupAssignement || hierarchy.thirdGroupAssignement) && (
           <div style={{ marginTop: 6 }}>
             {hierarchy.firstGroupAssignement && (
@@ -722,7 +728,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
               </div>
             )}
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Level badge near the table */}
@@ -787,7 +793,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
             value={formValues.cc || ""}
             onChange={handleChange}
           />
-          {(currentLevel === 1 || currentLevel === 2 || nextAssigneeIsL2) && (
+          {/* {(currentLevel === 1 || currentLevel === 2 || nextAssigneeIsL2) && (
             <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
               CC is auto-set from Case Hierarchy{" "}
               {nextAssigneeIsL2
@@ -796,7 +802,7 @@ const IssuesTab = forwardRef(({ data, assignedToName, assignedToCode, onResponse
                 ? "(Level 2 because case is at L2)"
                 : "(Level 1 by rule until Level 2 is reached)"}.
             </div>
-          )}
+          )} */}
 
         </div>
 

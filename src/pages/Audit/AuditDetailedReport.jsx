@@ -8,23 +8,6 @@ import { API_BASE_URL } from "../../config";
    Utils
    =========================== */
 const norm = (s) => (s ?? "").toString().trim();
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
-// Normalize to YYYY-MM-DD from ISO or DD-MM-YYYY
-function toISODateOnly(s) {
-  const t = norm(s);
-  if (!t) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  const m = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-  if (m) {
-    const [, d, mo, y] = m;
-    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  }
-  const d = new Date(t);
-  return isNaN(d) ? "" : d.toISOString().slice(0, 10);
-}
-const atStartOfDayZ = (dateISO) => (dateISO ? `${dateISO}T00:00:00Z` : "");
-const atEndOfDayZ   = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
 const pick = (obj, keys, fallback = "") => {
   for (const k of keys) {
     const v = obj?.[k];
@@ -32,6 +15,70 @@ const pick = (obj, keys, fallback = "") => {
   }
   return fallback;
 };
+
+// Normalize to YYYY-MM-DD from ISO, DD-MM-YYYY, DD/MM/YYYY
+function toISODateOnly(s) {
+  const t = norm(s);
+  if (!t) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t; // already ISO
+
+  // DD-MM-YYYY or D-M-YYYY
+  let m = t.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  // DD/MM/YYYY or D/M/YYYY
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  const d = new Date(t);
+  return isNaN(d) ? "" : d.toISOString().slice(0, 10);
+}
+
+// "Jan/2024" or "01/2024" → "Jan/2024" (or derive from date-like string)
+function normalizeMonthYear(s) {
+  const t = norm(s);
+  if (!t) return "";
+  if (/^[A-Za-z]{3}\/\d{4}$/.test(t)) return t; // Mon/YYYY
+  const m = t.match(/^(\d{1,2})\/(\d{4})$/); // MM/YYYY
+  if (m) {
+    const [, mm, yyyy] = m;
+    const monthIndex = Math.max(1, Math.min(12, Number(mm))) - 1;
+    const month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][monthIndex];
+    return `${month}/${yyyy}`;
+  }
+  const iso = toISODateOnly(t);
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  return `${month}/${d.getFullYear()}`;
+}
+
+// Safe DD/MM/YYYY (or any supported input) → "DD/MM/YYYY"
+function toDDMMYYYY(s) {
+  const iso = toISODateOnly(s);
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+const atStartOfDayZ = (dateISO) => (dateISO ? `${dateISO}T00:00:00Z` : "");
+const atEndOfDayZ   = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
+
+// TODAY in local timezone → YYYY-MM-DD
+function todayLocalISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 /* ===========================
    Searchable Dropdown (single/multi)
@@ -45,13 +92,12 @@ function SearchableDropdown({
   disabled = false,
   width = "100%",
   maxMenuHeight = 280,
-  showSelectAll = true, // only relevant for multiple
+  showSelectAll = true,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef(null);
 
-  // close on outside click
   useEffect(() => {
     function onDocClick(e) {
       if (!wrapRef.current) return;
@@ -67,7 +113,8 @@ function SearchableDropdown({
     return options.filter((o) => norm(o.label).toLowerCase().includes(q));
   }, [options, query]);
 
-  const isSelected = (val) => (multiple ? Array.isArray(value) && value.includes(val) : value === val);
+  const isSelected = (val) =>
+    multiple ? Array.isArray(value) && value.includes(val) : value === val;
 
   const displayText = useMemo(() => {
     if (multiple) {
@@ -217,12 +264,7 @@ function SearchableDropdown({
           background: none; border: none; font-size: 18px; line-height: 1;
           color: #7a8599; cursor: pointer;
         }
-        .dd-list { }
-        .dd-option {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 12px;
-          cursor: pointer; user-select: none;
-        }
+        .dd-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; user-select: none; }
         .dd-option + .dd-option { border-top: 1px solid #f6f7fb; }
         .dd-option:hover { background: #f7f9fc; }
         .dd-option input { width: 16px; height: 16px; }
@@ -240,11 +282,9 @@ export default function AuditDetailedReport() {
   const navigate = useNavigate();
   const { state } = useLocation() || {};
 
-  // dates (empty by default to match your screenshot)
+  // filters (UI state) — leave dates EMPTY initially (per request)
   const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || "");
   const [toDate, setToDate]     = useState(toISODateOnly(state?.toDate)   || "");
-
-  // filters
   const [segmentCodes, setSegmentCodes] = useState(
     Array.isArray(state?.segments) ? state.segments.map(norm) :
     norm(state?.segment) ? [norm(state?.segment)] : []
@@ -257,11 +297,11 @@ export default function AuditDetailedReport() {
   const [subSegment, setSubSegment] = useState(norm(state?.auditSubSegment) || "");
 
   // options
-  const [segments, setSegments]   = useState([]);    // [{value,label}]
-  const [clinics, setClinics]     = useState([]);    // [{value,label}]
-  const [employees, setEmployees] = useState([]);    // [{value,label}]  (from /api/Audit/LoadEmployeesInAudit/{Segment})
-  const [auditors, setAuditors]   = useState([]);    // [{value,label}]
-  const [subSegments, setSubSegments] = useState([]);// [{value,label}] derived from results
+  const [segments, setSegments]   = useState([]);
+  const [clinics, setClinics]     = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [auditors, setAuditors]   = useState([]);
+  const [subSegments, setSubSegments] = useState([]);
 
   // data & ui
   const [rows, setRows] = useState([]);
@@ -281,11 +321,49 @@ export default function AuditDetailedReport() {
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- load static filter options on mount ---- */
+  const didInit = useRef(false);
+
+  /* ---- load static filter options + initial fetch ---- */
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
+
+        // Session (for clinic topCode)
+        let sessionTopCode = "Bright";
+        try {
+          const sres = await fetch(`${API_BASE_URL}/api/session/get`, { credentials: "include" });
+          if (sres.ok) {
+            const sdata = await sres.json();
+            sessionTopCode = sdata?.TopCode || sdata?.topCode || sdata?.tCenterCode || sdata?.loginCode || "Bright";
+          }
+        } catch {
+          /* fallback default already set */
+        }
+
+        // Initial defaults and first load — DO NOT set date inputs; pass overrides only
+        if (!didInit.current) {
+          didInit.current = true;
+
+          const initFrom = "2022-01-01";
+          const initTo   = todayLocalISO();
+          const initClinic = sessionTopCode;
+
+          // leave fromDate/toDate states as "" (so inputs stay blank)
+          setClinic(initClinic); // it's fine to preselect clinic; remove if you want this blank too
+
+          await loadDetailed({
+            fromDate: initFrom,
+            toDate:   initTo,
+            clinic:   initClinic,
+            dateFlag: "1",
+            auditSegment: "",
+            auditor: "",
+            employee: "",
+            auditSubSegment: "",
+            isDigitalInTheList: "",
+          });
+        }
 
         // Segments
         try {
@@ -344,7 +422,6 @@ export default function AuditDetailedReport() {
     let abort = false;
 
     async function loadEmployeesForSegments() {
-      // nothing selected → clear
       if (!segmentCodes?.length) {
         setEmployees([]);
         setEmployeeCode("");
@@ -352,19 +429,14 @@ export default function AuditDetailedReport() {
       }
 
       try {
-        // fetch each segment in parallel
         const results = await Promise.all(
           segmentCodes.map(seg =>
-            fetch(
-              `${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`,
-              { credentials: "include" }
-            )
-            .then(r => (r.ok ? r.json() : []))
-            .catch(() => [])
+            fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`, { credentials: "include" })
+              .then(r => (r.ok ? r.json() : []))
+              .catch(() => [])
           )
         );
 
-        // flatten, normalize, dedupe by code (fallback to name if code missing)
         const merged = results.flatMap(d => (Array.isArray(d) ? d : d ? [d] : []));
         const seen = new Set();
         const mapped = [];
@@ -372,7 +444,7 @@ export default function AuditDetailedReport() {
         for (const x of merged) {
           const code = x.code ?? x.employeeCode ?? "";
           const name = x.name ?? x.employeeName ?? "";
-          const key  = code || name;    // unique key for dedupe
+          const key  = code || name;
           if (!key || seen.has(key)) continue;
           seen.add(key);
           mapped.push({ value: code || name, label: name || code });
@@ -396,24 +468,27 @@ export default function AuditDetailedReport() {
 
     loadEmployeesForSegments();
     return () => { abort = true; };
-    // trigger when the selected set changes (order-insensitive)
-  }, [segmentCodes.slice().sort().join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentCodes.slice().sort().join("|")]);
 
-  /* ---- call detailed report ---- */
-  const loadDetailed = async () => {
+  /* ---- core loader (accepts overrides for the initial call) ---- */
+  const loadDetailed = async (overrides) => {
     setLoading(true);
     setPage(1);
     try {
+      const from = overrides?.fromDate ?? fromDate;
+      const to   = overrides?.toDate   ?? toDate;
+
       const body = {
-        fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate: atEndOfDayZ(toISODateOnly(toDate)),
-        clinic: clinic || "",
-        auditSegment: segmentCodes.join(","),     // multi -> CSV
-        auditor: auditorCodes.join(","),          // multi -> CSV
-        employee: employeeCode || "",
-        auditSubSegment: subSegment || "",
-        dateFlag: "",
-        isDigitalInTheList: "",
+        fromDate: atStartOfDayZ(toISODateOnly(from)),
+        toDate:   atEndOfDayZ(toISODateOnly(to)),
+        clinic:   overrides?.clinic ?? (clinic || ""),
+        auditSegment: overrides?.auditSegment ?? segmentCodes.join(","), // CSV
+        auditor:      overrides?.auditor ?? auditorCodes.join(","),      // CSV
+        employee:     overrides?.employee ?? (employeeCode || ""),
+        auditSubSegment: overrides?.auditSubSegment ?? (subSegment || ""),
+        dateFlag: overrides?.dateFlag ?? (from && to ? "1" : ""),
+        isDigitalInTheList: overrides?.isDigitalInTheList ?? "",
       };
 
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditDetailedReport`, {
@@ -423,43 +498,52 @@ export default function AuditDetailedReport() {
         body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
+
+      // Robust JSON parse
+      const text = await r.text();
+      let d;
+      try {
+        d = text ? JSON.parse(text) : [];
+      } catch (e) {
+        console.error("JSON parse failed", e, { textPreview: text.slice(0, 200) });
+        d = [];
+      }
       const arr = Array.isArray(d) ? d : d ? [d] : [];
 
-      const normalized = arr.map((x, i) => {
-        const auditDateRaw = pick(x, ["auditDate", "date", "dt"]);
-        const createdRaw   = pick(x, ["auditCreatedDate", "createdDate"]);
-        const submittedRaw = pick(x, ["auditSubmittedDate", "submittedDate"]);
-        const mm = pick(x, ["auditMonth", "month"]);
-        const yy = pick(x, ["auditYear", "year"]);
-        const monthYear =
-          (mm && yy) ? `${mm}/${yy}` :
-          (auditDateRaw ? new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(auditDateRaw)) : "");
+      // Map rows safely (row-by-row guard)
+      const normalized = [];
+      for (let i = 0; i < arr.length; i++) {
+        const x = arr[i];
+        try {
+          const auditDateRaw = pick(x, ["auditDate", "date", "dt"]);           // e.g., "30/10/2024"
+          const createdRaw   = pick(x, ["createdDate", "auditCreatedDate"]);   // e.g., "30/10/2024"
+          const submittedRaw = pick(x, ["submittedDate", "auditSubmittedDate"]);
+          const mmYrRaw      = pick(x, ["auditMonth", "month"]);               // e.g., "Jan/2024" or "01/2024"
 
-        const fmt = (s) => {
-          const iso = toISODateOnly(s);
-          if (!iso) return "";
-          const d = new Date(iso);
-          return isNaN(d) ? "" :
-            new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
-        };
+          const monthYear    = normalizeMonthYear(mmYrRaw) || normalizeMonthYear(auditDateRaw);
+          const auditDate    = toDDMMYYYY(auditDateRaw);
+          const createdDate  = toDDMMYYYY(createdRaw);
+          const submittedDate= toDDMMYYYY(submittedRaw);
 
-        return {
-          key: pick(x, ["auditNo", "auditNumber", "auditId", "code"], `row-${i}`),
-          auditNo: pick(x, ["auditNo", "auditNumber", "auditId", "code"]),
-          monthYear,
-          auditDate: fmt(auditDateRaw),
-          employeeId: pick(x, ["employeeId", "employeeCode", "empCode"]),
-          employeeName: pick(x, ["employeeName", "empName", "name"]),
-          clinic: pick(x, ["clinic", "clinicName", "centerName"]),
-          segment: pick(x, ["auditSegment", "segment", "segmentName"]),
-          subSegment: pick(x, ["subSegment", "subsegment", "auditSubSegment", "subSegmentName"]),
-          score: pick(x, ["auditScore", "score"], ""),
-          auditor: pick(x, ["auditor", "auditorName"]),
-          createdDate: fmt(createdRaw),
-          submittedDate: fmt(submittedRaw),
-        };
-      });
+          normalized.push({
+            key:         pick(x, ["auditNo", "auditNumber", "auditId", "code"], `row-${i}`),
+            auditNo:     pick(x, ["auditNo", "auditNumber", "auditId", "code"]),
+            monthYear,
+            auditDate,
+            employeeId:   pick(x, ["employeeId", "employeeCode", "empCode", "employeeCode"]),
+            employeeName: pick(x, ["employeeName", "empName", "name"]),
+            clinic:       pick(x, ["clinic", "clinicName", "centerName", "clinicname"]),
+            segment:      pick(x, ["auditSegment", "segment", "segmentName"]),
+            subSegment:   pick(x, ["auditSubSegment", "subSegment", "subsegment", "subSegmentName"]),
+            score:        pick(x, ["auditScore", "score"], ""),
+            auditor:      pick(x, ["auditor", "auditorName"]),
+            createdDate,
+            submittedDate,
+          });
+        } catch (rowErr) {
+          console.warn("Skipping bad row", i, rowErr, x);
+        }
+      }
 
       setRows(normalized);
 
@@ -482,41 +566,89 @@ export default function AuditDetailedReport() {
     }
   };
 
-  // initial load
-  useEffect(() => { loadDetailed(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
-
   function onClickAudit(no) {
     if (!no) return;
     navigate(`/audit/view/${encodeURIComponent(no)}`, { state: { from: "detail" } });
   }
 
-  function exportCSV() {
-    if (!rows.length) return;
-    const headers = [
-      "Audit No","Audit Month / Year","Audit Date","Employee ID","Employee Name",
-      "Clinic","Audit Segment","SubSegment","Audit Score","Auditor","Audit Created Date","Audit Submitted Date",
-    ];
-    const csv = [
-      headers.join(","),
-      ...rows.map(r =>
-        [
-          r.auditNo, r.monthYear, r.auditDate, r.employeeId,
-          quoteCSV(r.employeeName), quoteCSV(r.clinic), quoteCSV(r.segment),
-          quoteCSV(r.subSegment), r.score, quoteCSV(r.auditor), r.createdDate, r.submittedDate,
-        ].map(v => v ?? "").join(",")
-      ),
-    ].join("\r\n");
+ function exportExcel() {
+  if (!rows.length) return;
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Audit_Detailed_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  // Columns (header → row field)
+  const cols = [
+    ["Audit No", "auditNo"],
+    ["Audit Month / Year", "monthYear"],
+    ["Audit Date", "auditDate"],
+    ["Employee ID", "employeeId"],
+    ["Employee Name", "employeeName"],
+    ["Clinic", "clinic"],
+    ["Audit Segment", "segment"],
+    ["SubSegment", "subSegment"],
+    ["Audit Score", "score"],
+    ["Auditor", "auditor"],
+    ["Audit Created Date", "createdDate"],
+    ["Audit Submitted Date", "submittedDate"],
+  ];
+
+  // Helper to escape HTML
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  // Build table HTML
+  const thead = `<tr>${cols.map(([h]) => `<th style="text-align:left;border:1px solid #ccc;padding:4px 6px;">${esc(h)}</th>`).join("")}</tr>`;
+  const tbody = rows
+    .map((r) => {
+      const tds = cols
+        .map(([, key]) => `<td style="border:1px solid #eee;padding:4px 6px;mso-number-format:'\\@';">${esc(r[key])}</td>`)
+        .join("");
+      return `<tr>${tds}</tr>`;
+    })
+    .join("");
+
+  const table = `<table cellspacing="0" cellpadding="0">${thead}${tbody}</table>`;
+
+  // Minimal Excel HTML wrapper (so Excel opens it cleanly)
+  const html =
+    `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Ensure Excel treats as worksheet -->
+  <!--[if gte mso 9]><xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>Audit Detail</x:Name>
+          <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml><![endif]-->
+  <style>
+    table, td, th { font-family: Arial, sans-serif; font-size: 12px; }
+  </style>
+</head>
+<body>${table}</body>
+</html>`;
+
+  // Blob as Excel-compatible HTML
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Audit_Detailed_${todayLocalISO()}.xls`; // <- Excel file
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
   function quoteCSV(val) {
     const s = String(val ?? "");
     if (s.includes(",") || s.includes("\n") || s.includes("\"")) {
@@ -598,8 +730,9 @@ export default function AuditDetailedReport() {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={loadDetailed} disabled={loading}>View</button>
-          <button className="btn" onClick={exportCSV} disabled={!rows.length}>Export</button>
+          <button className="btn" onClick={() => loadDetailed()} disabled={loading}>View</button>
+          <button className="btn" onClick={exportExcel} disabled={!rows.length}>Export</button>
+
         </div>
       </div>
 
@@ -674,7 +807,7 @@ export default function AuditDetailedReport() {
         .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
         .tbl thead th { text-align: left; font-size: 13px; color: #6c7688; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #eef1f6; }
-        .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; }
+        .tbl tbody td { font-size: 12px; line-height:18px; white-space:nowrap; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; }
         .link { background: none; border: none; color: #2e5aac; cursor: pointer; padding: 0; text-decoration: none; font-weight: 600; }
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
