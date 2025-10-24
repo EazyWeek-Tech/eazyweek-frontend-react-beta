@@ -267,6 +267,12 @@
   border: 1px solid #ffeaa7;
 }
 
+.status-badge.partialy-completed {
+  background-color: #f1e4ba;
+  color: #413204;
+  border: 1px solid #ffeaa7;
+}
+
 .status-badge.completed {
   background-color: #d4edda;
   color: #155724;
@@ -278,6 +284,39 @@
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
+
+.pagination-container button {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+        }
+
+        .pagination-container button {
+          padding: 8px 12px;
+          border: 1px solid #dee2e6;
+          background-color: white;
+          color: #495057;
+          cursor: pointer;
+          border-radius: 4px;
+          font-size: 14px;
+          transition: all 0.2s;
+        }
+
+        .pagination-container button:hover {
+          background-color: #e9ecef;
+          border-color: #adb5bd;
+        }
+
+        .pagination-container button.active {
+          background-color: #334B71;
+          border-color: #334B71;
+          color: white;
+        }
+
+        .pagination-ellipsis {
+          padding: 8px 4px;
+          color: #6c757d;
+        }
 
 .no-data {
   text-align: center;
@@ -321,17 +360,17 @@
   min-width: 40px;
 }
 
-.pagination-btn:hover:not(:disabled) {
+.pagination-container button:hover:not(:disabled) {
   background-color: #e9ecef;
   border-color: #adb5bd;
 }
 
-.pagination-btn:disabled {
+.pagination-container button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.pagination-btn.active {
+.pagination-container button.active {
   background-color: #334B71;
   color: white;
   border-color: #334B71;

@@ -22,7 +22,6 @@ const SignaturePad = forwardRef(({ onSave }, ref) => {
 
   return (
     <div style={{ marginTop: '1rem', maxWidth: '100%' }}>
-      <label><strong>Signature</strong></label>
       <div style={{
         position: 'relative',
         border: '1px solid #ddd',
@@ -37,7 +36,7 @@ const SignaturePad = forwardRef(({ onSave }, ref) => {
           backgroundColor="#f9f9f1"
           penColor="black"
           canvasProps={{
-            width: 600,
+            width: 800,
             height: 200,
             style: { display: 'block' }
           }}

@@ -34,6 +34,7 @@ const GuestConsentForm = () => {
         const qp = new URLSearchParams({ custId, custName, appointmentId }).toString();
 
 
+
     const [formValues, setFormValues] = useState({
                 clientName: custName || "",
                 street: "",
@@ -115,6 +116,14 @@ const GuestConsentForm = () => {
                 skinConditions: [],
                 tattoos: "",
                 otherMedicalIssues: "",
+                coldSoreOutbreak: "",
+                bladderEmptying: "",
+                erectionMaintain: "",
+                crookedErection: "",
+                streamInitiation: "",
+                enlargedProstate: "",
+                lessFirmErections: "",
+                lowerSexInterest: "",
                 concerns: [],
                 genderIdentity: "",
                 genderPronoun: "",
@@ -2005,6 +2014,16 @@ const GuestConsentForm = () => {
                                                           }
 
                                                           // Otherwise treat it as a File/Blob and convert
+                              // If file is already processed by FileUploader (has base64Data and fileName), use it
+                                                          if (file && (file.base64Data || file.base64) && (file.fileName || file.name)) {
+                                                            return {
+                                                              fileName: file.fileName || file.name,
+                                                              fileType: file.fileType || file.type || '',
+                                                              base64Data: file.base64Data || file.base64
+                                                            };
+                                                          }
+
+                                                          // Otherwise treat it as a File/Blob and convert
                             const base64 = await convertFileToBase64(file);
                             return {
                               fileName: file.name,
@@ -2015,7 +2034,7 @@ const GuestConsentForm = () => {
                         );
 
                          // replace existing beforePhotos
-                                                setFormValues(prev => ({ ...prev, beforePhotos: processedFiles }));
+                         setFormValues(prev => ({ ...prev, beforePhotos: processedFiles }));
                       }}
                     />
                     {Array.isArray(formValues.beforePhotos) && formValues.beforePhotos.length > 0 && (
@@ -2031,6 +2050,14 @@ const GuestConsentForm = () => {
                       onFilesSelected={async (files) => {
                         const processedFiles = await Promise.all(
                           files.map(async (file) => {
+                              if (file && (file.base64Data || file.base64) && (file.fileName || file.name)) {
+                                                            return {
+                                                              fileName: file.fileName || file.name,
+                                                              fileType: file.fileType || file.type || '',
+                                                              base64Data: file.base64Data || file.base64
+                                                            };
+                                                          }
+
                               if (file && (file.base64Data || file.base64) && (file.fileName || file.name)) {
                                                             return {
                                                               fileName: file.fileName || file.name,
@@ -2082,13 +2109,14 @@ const GuestConsentForm = () => {
 
                   <div className="">
                     <label>
-                      Guest Signature: </label>
-                      <div className="cnfrmcellwrp" onClick={(e) => e.stopPropagation()}>
-                        <SignaturePad
-                           ref={guestSignatureRef}
-                           onSave={handleGuestSignatureSave}
-                           />
-                      </div>
+                      Guest Signature:
+                    </label>
+                    <div className="cnfrmcellwrp" onClick={(e) => e.stopPropagation()}>
+                      <SignaturePad
+                        ref={guestSignatureRef}
+                        onSave={handleGuestSignatureSave}
+                      />
+                    </div>
                   </div>
 
                   {/* Provider Info */}
@@ -2110,6 +2138,10 @@ const GuestConsentForm = () => {
                     <label>
                       Provider Signature: </label>
                       <div className="cnfrmcellwrp" onClick={(e) => e.stopPropagation()}>
+                          <SignaturePad
+                              ref={providerSignatureRef}
+                              onSave={handleProviderSignatureSave}
+                          />
                           <SignaturePad
                               ref={providerSignatureRef}
                               onSave={handleProviderSignatureSave}

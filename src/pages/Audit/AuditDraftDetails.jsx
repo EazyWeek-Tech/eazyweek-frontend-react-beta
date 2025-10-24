@@ -62,6 +62,60 @@ const normalizeName = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").
 const pickEmpCode = (emp) =>
   norm(emp?.empCode ?? emp?.employeeCode ?? emp?.code ?? emp?.EmpCode ?? emp?.EmployeeCode);
 
+// ---- Simple HTML sanitizer (no external libs) ----
+function sanitizeHtml(html) {
+  if (typeof window === "undefined") return ""; // SSR safety
+  const ALLOWED = new Set(["b","strong","i","em","u","br","p","ul","ol","li","span","div"]);
+  const container = document.createElement("div");
+  container.innerHTML = String(html || "");
+
+  const walk = (node) => {
+    const kids = Array.from(node.childNodes);
+    for (const child of kids) {
+      // Remove comments
+      if (child.nodeType === 8) { // comment
+        node.removeChild(child);
+        continue;
+      }
+      // Elements
+      if (child.nodeType === 1) {
+        const tag = child.tagName.toLowerCase();
+
+        // Remove <script>, <style> entirely (and anything not allowed)
+        if (!ALLOWED.has(tag)) {
+          // unwrap: keep inner text/children, drop the element
+          while (child.firstChild) node.insertBefore(child.firstChild, child);
+          node.removeChild(child);
+          continue;
+        }
+
+        // strip risky attributes
+        for (const attr of Array.from(child.attributes)) {
+          const name = attr.name.toLowerCase();
+          // remove event handlers and risky attrs
+          if (
+            name.startsWith("on") ||
+            name === "style" ||
+            name === "href" ||
+            name === "src" ||
+            name === "srcdoc" ||
+            name === "xlink:href"
+          ) {
+            child.removeAttribute(attr.name);
+          } else if (name !== "class") {
+            child.removeAttribute(attr.name);
+          }
+        }
+      }
+      // Recurse
+      if (child.childNodes && child.childNodes.length) walk(child);
+    }
+  };
+
+  walk(container);
+  return container.innerHTML;
+}
+
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
   const { auditNo = "" } = useParams();
@@ -192,12 +246,12 @@ export default function AuditDraftDetails() {
           return {
             id: criteriaCode,
             subSegment: subSegmentTxt,
-            criteria: criteriaTxt,
+            criteria: criteriaTxt,        // may contain HTML
             criteriaCode,
             auditSegmentFromApi: txt(r.audtiSegment || ""),
-            score: normalizedScore,          // -1 | 0 | 1
-            weightageStr,                    // for UI string
-            weightageNum,                    // for math
+            score: normalizedScore,       // -1 | 0 | 1
+            weightageStr,                 // for UI string
+            weightageNum,                 // for math
             totalScore: total,
             remarks: remarksTxt,
           };
@@ -265,6 +319,7 @@ export default function AuditDraftDetails() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditNo, API_BASE_URL, clinicFromUrl, employeeNameFromUrl, employeeCodeFromUrl, auditorFromUrl]);
 
   // compute row total
@@ -401,7 +456,7 @@ export default function AuditDraftDetails() {
 
   const onSaveOrSubmit = async (isDraft) => {
     // Only enforce full answers on Submit
-    if (!isDraft) {
+       if (!isDraft) {
       const check = validateAllAnswered();
       if (!check.ok) {
         return showToast("Please answer all criteria (0 or 1) before continuing.");
@@ -492,7 +547,15 @@ export default function AuditDraftDetails() {
                       return (
                         <tr key={code}>
                           <td className="left"><Txt>{r.subSegment}</Txt></td>
-                          <td className="left"><Txt>{r.criteria}</Txt></td>
+
+                          {/* Renders the HTML criteria safely */}
+                          <td className="left">
+                            <div
+                              className="rich"
+                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(r.criteria) }}
+                            />
+                          </td>
+
                           <td className="center">
                             <select
                               value={scores[code] === null || scores[code] === undefined ? "" : String(scores[code])}
@@ -581,10 +644,17 @@ export default function AuditDraftDetails() {
           background: #f3f4f6; color: #111827; font-weight: 700; font-size: 13px;
           padding: 10px; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 1;
         }
-        tbody td { font-size: 13px; color: #111827; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+        tbody td { font-size: 13px; color: #111827; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
         .left { text-align: left; }
         .center { text-align: center; }
         .right { text-align: right; }
+
+        /* Rich HTML cell styling */
+        .rich { line-height: 1.35; }
+        .rich p { margin: 0 0 6px; }
+        .rich ul, .rich ol { margin: 6px 0 6px 18px; padding: 0; }
+        .rich li { margin: 2px 0; }
+        .rich b, .rich strong { font-weight: 700; }
 
         tbody select {
           width: 100%; height: 32px; border: 1px solid #d1d5db; border-radius: 6px; padding: 0 6px; background: #fff;

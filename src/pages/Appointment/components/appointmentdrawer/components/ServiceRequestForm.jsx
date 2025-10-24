@@ -16,7 +16,14 @@ const createDataHandler = async (url) => {
   }
 };
 
-const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, selectedDoctor, selectedTime }) => {
+const ServiceRequestForm = ({
+  onAddService,
+  resetKey,
+  initialData,
+  lastEndTime,
+  selectedDoctor,
+  selectedTime,
+}) => {
   const [formData, setFormData] = useState({
     servicename: "",
     servicecode: "",
@@ -26,7 +33,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     duration: "5",
     endTime: "10:05 AM",
     room: "",
-    note: ""
+    note: "",
+    equipment: "N/A",
   });
 
   const [errors, setErrors] = useState({});
@@ -34,6 +42,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   const [filteredServices, setFilteredServices] = useState([]);
   const [practitioners, setPractitioners] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [extraDurationOption, setExtraDurationOption] = useState(null); // if API returns a non-5-min step
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -44,7 +53,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       const roomURL = `${API_BASE_URL}/api/Master/LoadRoom/${centerCode}`;
       try {
         const roomData = await createDataHandler(roomURL);
-        setRooms(roomData);
+        setRooms(roomData || []);
       } catch (error) {
         console.error("Failed to load rooms:", error);
       }
@@ -75,7 +84,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
           duration: defaultDuration,
           endTime: defaultEnd,
           room: "",
-          note: ""
+          note: "",
+          equipment: "N/A",
         });
         setPractitioners([]);
       }
@@ -83,6 +93,25 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
 
     loadData();
   }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
+
+  const fetchPractitioners = async (serviceCode, preselectPractitionerId) => {
+    try {
+      const stored =
+        sessionStorage.getItem("user") || localStorage.getItem("user");
+      const centerCode = stored ? JSON.parse(stored).centerCode : "";
+      const practitionerUrl = `${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(
+        serviceCode
+      )}/${centerCode}`;
+      const doctors = await createDataHandler(practitionerUrl);
+      setPractitioners(doctors || []);
+      if (preselectPractitionerId) {
+        setFormData((prev) => ({ ...prev, practitioner: preselectPractitionerId }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch practitioners for selected service code:", error);
+      setPractitioners([]);
+    }
+  };
 
   const handleServiceChange = (e) => {
     const { value } = e.target;
@@ -92,10 +121,13 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
 
     if (value.length >= 2) {
       debounceRef.current = setTimeout(async () => {
-        const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+        const stored =
+          sessionStorage.getItem("user") || localStorage.getItem("user");
         const centerCode = stored ? JSON.parse(stored).centerCode : "";
         try {
-          const url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(value)}/${centerCode}`;
+          const url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(
+            value
+          )}/${centerCode}`;
           const data = await createDataHandler(url);
           setFilteredServices(data || []);
         } catch (err) {
@@ -109,40 +141,58 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   };
 
   const handleServiceSelect = async (serviceName) => {
-    const selectedService = filteredServices.find(s => s.serviceName === serviceName);
+    const selectedService = filteredServices.find(
+      (s) => s.serviceName === serviceName
+    );
     const serviceCode = selectedService?.serviceCode || "";
+    const apiDuration = selectedService?.serviceInTime; // e.g., 140 from API
+    const normalizedDuration =
+      apiDuration !== undefined && apiDuration !== null
+        ? String(apiDuration)
+        : null;
 
-    setFormData((prevData) => ({
-      ...prevData,
-      servicename: serviceName,
-      servicecode: serviceCode,
-      practitioner: "", // Reset practitioner
-    }));
+    // Ensure duration option exists; if API returns something not in 5-min steps, inject it
+    if (
+      normalizedDuration &&
+      (!/^\d+$/.test(normalizedDuration) ||
+        Number(normalizedDuration) < 5 ||
+        Number(normalizedDuration) > 720 ||
+        Number(normalizedDuration) % 5 !== 0)
+    ) {
+      setExtraDurationOption(normalizedDuration);
+    } else {
+      setExtraDurationOption(null);
+    }
+
+    setFormData((prevData) => {
+      const nextDuration = normalizedDuration || prevData.duration;
+      return {
+        ...prevData,
+        servicename: serviceName,
+        servicecode: serviceCode,
+        practitioner: "", // Reset practitioner on service change
+        duration: nextDuration,
+        endTime: calculateEndTime(prevData.startTime, nextDuration),
+      };
+    });
 
     setFilteredServices([]);
 
     if (!serviceCode) return;
-
-    try {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-      const centerCode = stored ? JSON.parse(stored).centerCode : "";
-      const practitionerUrl = `${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(serviceCode)}/${centerCode}`;
-      const doctors = await createDataHandler(practitionerUrl);
-      setPractitioners(doctors);
-    } catch (error) {
-      console.error("Failed to fetch practitioners for selected service code:", error);
-      setPractitioners([]);
-    }
+    await fetchPractitioners(serviceCode);
   };
 
   const handleChange = (e) => {
     const { id, value } = e.target;
     if (id === "room") {
-      const selectedRoom = rooms.find((room) => room.RoomNo === value);
+      // Room object shape varies; try both lower/upper case keys
+      const selectedRoom =
+        rooms.find((r) => (r.RoomNo ?? r.roomNo) === value) ||
+        rooms.find((r) => String(r.id) === String(value));
       setFormData((prevData) => ({
         ...prevData,
         room: value,
-        equipment: selectedRoom?.Equipment || "N/A"
+        equipment: selectedRoom?.Equipment ?? selectedRoom?.equipment ?? "N/A",
       }));
     } else {
       setFormData((prevData) => ({ ...prevData, [id]: value }));
@@ -158,12 +208,16 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     e.preventDefault();
     const isValid = Object.keys(formData).every((field) => validateField(field));
     if (isValid) {
-      const selectedPractitioner = practitioners.find(p => p.id === formData.practitioner);
+      const selectedPractitioner = practitioners.find(
+        (p) => String(p.id) === String(formData.practitioner)
+      );
 
       const newService = {
         servicename: formData.servicename,
         servicecode: formData.servicecode,
-        preference: formData.preference.charAt(0).toUpperCase() + formData.preference.slice(1),
+        preference:
+          formData.preference.charAt(0).toUpperCase() +
+          formData.preference.slice(1),
         practitioner: formData.practitioner,
         practitionerName: selectedPractitioner?.name || "",
         amount: 100,
@@ -172,9 +226,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
         duration: `${formData.duration} mins`,
         note: formData.note,
         equipment: formData.equipment,
-        room: formData.room
+        room: formData.room,
       };
-      console.log(newService);
       onAddService?.(newService);
     }
   };
@@ -208,9 +261,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
           isValid = false;
         } else formErrors.duration = "";
         break;
-      //  Room is optional now: no validation error if empty
       case "room":
-        formErrors.room = "";
+        formErrors.room = ""; // optional
         break;
       default:
         break;
@@ -224,14 +276,15 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
 
   const calculateEndTime = (startTime, duration) => {
     const startTimeInMinutes = convertToMinutes(startTime);
-    const endTimeInMinutes = startTimeInMinutes + parseInt(duration, 10);
+    const endTimeInMinutes =
+      startTimeInMinutes + parseInt(String(duration || 0), 10);
     return convertToTime(endTimeInMinutes);
   };
 
   const convertToMinutes = (time) => {
     const [hours, minutesPeriod] = time.split(":");
     const [minutes, period] = minutesPeriod.split(" ");
-    let totalMinutes = parseInt(hours) * 60 + parseInt(minutes);
+    let totalMinutes = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
     if (period === "PM" && hours !== "12") totalMinutes += 12 * 60;
     if (period === "AM" && hours === "12") totalMinutes -= 12 * 60;
     return totalMinutes;
@@ -251,7 +304,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     setFormData((prevData) => ({
       ...prevData,
       startTime: value,
-      endTime: calculateEndTime(value, formData.duration),
+      endTime: calculateEndTime(value, prevData.duration),
     }));
   };
 
@@ -260,9 +313,24 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     setFormData((prevData) => ({
       ...prevData,
       duration: value,
-      endTime: calculateEndTime(formData.startTime, value),
+      endTime: calculateEndTime(prevData.startTime, value),
     }));
   };
+
+  // Build the duration options: 5..720 step 5, plus extra if needed
+  const durationOptions = (() => {
+    const opts = [];
+    for (let i = 5; i <= 720; i += 5) opts.push(i);
+    if (
+      extraDurationOption &&
+      /^\d+$/.test(extraDurationOption) &&
+      !opts.includes(Number(extraDurationOption))
+    ) {
+      // put the custom one at the top so it’s visible
+      return [Number(extraDurationOption), ...opts];
+    }
+    return opts;
+  })();
 
   return (
     <>
@@ -278,18 +346,26 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
               onChange={handleServiceChange}
               onBlur={handleBlur}
             />
-            <label htmlFor="servicename" className="frmlbl">Service</label>
-            {errors.servicename && <div className="error">{errors.servicename}</div>}
+            <label htmlFor="servicename" className="frmlbl">
+              Service
+            </label>
+            {errors.servicename && (
+              <div className="error">{errors.servicename}</div>
+            )}
             {filteredServices.length > 0 && (
               <ul className="suggestions">
                 {filteredServices.map((item, index) => (
-                  <li key={index} onClick={() => handleServiceSelect(item.serviceName)}>
+                  <li
+                    key={index}
+                    onClick={() => handleServiceSelect(item.serviceName)}
+                  >
                     {item.serviceName}
                   </li>
                 ))}
               </ul>
             )}
           </div>
+
           {formData.servicecode && (
             <div className="form-group">
               <input
@@ -305,55 +381,106 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
           <div className="form-group radgrp">
             <label>Preference</label>
             <div className="rdbox">
-              <input type="radio" id="pref_any" name="preference" value="any" checked={formData.preference === "any"} onChange={handleRadioChange} />
+              <input
+                type="radio"
+                id="pref_any"
+                name="preference"
+                value="any"
+                checked={formData.preference === "any"}
+                onChange={handleRadioChange}
+              />
               <label htmlFor="pref_any">Any</label>
             </div>
             <div className="rdbox">
-              <input type="radio" id="pref_male" name="preference" value="male" checked={formData.preference === "male"} onChange={handleRadioChange} />
+              <input
+                type="radio"
+                id="pref_male"
+                name="preference"
+                value="male"
+                checked={formData.preference === "male"}
+                onChange={handleRadioChange}
+              />
               <label htmlFor="pref_male">Male</label>
             </div>
             <div className="rdbox">
-              <input type="radio" id="pref_female" name="preference" value="female" checked={formData.preference === "female"} onChange={handleRadioChange} />
+              <input
+                type="radio"
+                id="pref_female"
+                name="preference"
+                value="female"
+                checked={formData.preference === "female"}
+                onChange={handleRadioChange}
+              />
               <label htmlFor="pref_female">Female</label>
             </div>
           </div>
 
           <div className="form-group slctgrp">
             <label>Practitioner:</label>
-            <select id="practitioner" value={formData.practitioner} className="pract" onChange={handleChange} onBlur={handleBlur}>
+            <select
+              id="practitioner"
+              value={formData.practitioner}
+              className="pract"
+              onChange={handleChange}
+              onBlur={handleBlur}
+            >
               <option value="">Select Practitioner</option>
               {practitioners.map((doc, index) => (
-                <option key={index} value={doc.id}>{doc.name} </option>
+                <option key={index} value={doc.id}>
+                  {doc.name}
+                </option>
               ))}
             </select>
-            {errors.practitioner && <div className="error">{errors.practitioner}</div>}
+            {errors.practitioner && (
+              <div className="error">{errors.practitioner}</div>
+            )}
           </div>
 
           <div className="form-group slctgrp">
             <label htmlFor="startTime">Start Time:</label>
-            <select id="startTime" value={formData.startTime} onChange={handleStartTimeChange} onBlur={handleBlur}>
+            <select
+              id="startTime"
+              value={formData.startTime}
+              onChange={handleStartTimeChange}
+              onBlur={handleBlur}
+            >
               {[...Array(144)].map((_, i) => {
-                const minutes = 600 + i * 5;
+                const minutes = 600 + i * 5; // start 10:00 AM
                 const hours = Math.floor(minutes / 60);
                 const mins = minutes % 60;
                 const period = hours >= 12 ? "PM" : "AM";
                 const displayHours = hours % 12 === 0 ? 12 : hours % 12;
                 const displayMins = mins.toString().padStart(2, "0");
                 const timeString = `${displayHours}:${displayMins} ${period}`;
-                return <option key={i} value={timeString}>{timeString}</option>;
+                return (
+                  <option key={i} value={timeString}>
+                    {timeString}
+                  </option>
+                );
               })}
             </select>
-            {errors.startTime && <div className="error">{errors.startTime}</div>}
+            {errors.startTime && (
+              <div className="error">{errors.startTime}</div>
+            )}
           </div>
 
           <div className="form-group slctgrp">
             <label htmlFor="duration">Duration:</label>
-            <select id="duration" value={formData.duration} onChange={handleDurationChange} onBlur={handleBlur}>
-              {[...Array(144)].map((_, i) => (
-                <option key={i} value={i * 5 + 5}>{i * 5 + 5} mins</option>
+            <select
+              id="duration"
+              value={formData.duration}
+              onChange={handleDurationChange}
+              onBlur={handleBlur}
+            >
+              {durationOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m} mins
+                </option>
               ))}
             </select>
-            {errors.duration && <div className="error">{errors.duration}</div>}
+            {errors.duration && (
+              <div className="error">{errors.duration}</div>
+            )}
           </div>
 
           <div className="form-group">
@@ -367,18 +494,32 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
               <select id="room" value={formData.room} onChange={handleChange} onBlur={handleBlur}>
                 <option value="">Select Room</option>
                 {rooms.map((room, index) => (
-                  <option key={index} value={room.id}>{room.roomNo}</option>
+                  <option key={index} value={room.id}>
+                    {room.roomNo ?? room.RoomNo}
+                  </option>
                 ))}
               </select>
               {/* Room is optional — no error display needed */}
             </div>
 
-            <span className="notebtn tooltip" data-tooltip="Add Note" data-tooltip-pos="down" onClick={() => setShowAddNote(true)}>
-              <img src={`${import.meta.env.BASE_URL}images/notes.svg`} alt="Add Note" />
+            <span
+              className="notebtn tooltip"
+              data-tooltip="Add Note"
+              data-tooltip-pos="down"
+              onClick={() => setShowAddNote(true)}
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}images/notes.svg`}
+                alt="Add Note"
+              />
             </span>
 
             <button className="lnkbtn" type="submit">
-              <img src={`${import.meta.env.BASE_URL}images/addservice.svg`} alt="Add Service" /> Add Service
+              <img
+                src={`${import.meta.env.BASE_URL}images/addservice.svg`}
+                alt="Add Service"
+              />{" "}
+              Add Service
             </button>
           </div>
         </form>
