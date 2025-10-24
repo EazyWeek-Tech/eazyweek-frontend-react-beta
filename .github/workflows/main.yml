@@ -3,14 +3,14 @@ name: Sync Main to Deploy Repo via SSH
 on:
   push:
     branches:
-      - main  # Trigger when main branch is updated
+      - main  
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main repo
+      - name: Checkout source repo
         uses: actions/checkout@v4
 
       - name: Setup SSH
@@ -18,6 +18,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Configure Git
@@ -31,11 +33,11 @@ jobs:
           cd deploy-repo
           git checkout main || git checkout -b main
 
-      - name: Copy files except .github
+      - name: Copy files excluding .github
         run: |
-          rsync -av --exclude='.github' ../ ./deploy-repo/
+          rsync -av --exclude='.github' --exclude='deploy-repo' ./ deploy-repo/
 
-      - name: Commit and push changes
+      - name: Commit and push
         run: |
           cd deploy-repo
           git add .
