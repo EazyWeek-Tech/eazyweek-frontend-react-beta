@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+} from "../../../components/ui/select";
+import { Badge } from "../../../components/ui/badge";
 import { Trash2, Plus, Eye, EyeOff } from "lucide-react";
+import "./form-field-properties.css";
 
 // Props:
 // - field: { conditionalRules: Array }
@@ -53,14 +54,14 @@ export const ConditionalRuleEditor = ({ field, availableFields, onUpdateRules })
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 field-properties">
       <div className="flex items-center gap-2">
-        <Eye className="w-4 h-4 text-muted-foreground" />
+        <Eye className="w-4 h-4 text-muted-foreground iconright" />
         <Label className="text-sm font-medium">Show this field when:</Label>
       </div>
 
       {rules.length === 0 ? (
-        <div className="text-center p-4 border border-dashed border-builder-border rounded-lg">
+        <div className="text-center p-4 border border-dashed border-builder-border rounded-lg icon">
           <EyeOff className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground mb-3">
             No conditional rules set. Field is always visible.

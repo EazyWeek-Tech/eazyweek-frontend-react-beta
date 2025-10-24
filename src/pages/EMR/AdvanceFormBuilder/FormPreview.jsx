@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Textarea } from "../../../components/ui/textarea";
+import { Checkbox } from "../../../components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "../../../components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { FileText } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "./use-toast";
+import "./FormPreview.css"; // Import the external CSS file
 
 export const FormPreview = ({ config }) => {
   const [formData, setFormData] = useState({});
@@ -160,13 +161,13 @@ export const FormPreview = ({ config }) => {
 
   if (config.fields.length === 0) {
     return (
-      <Card className="p-8 text-center border-builder-border">
-        <div className="w-24 h-24 rounded-full bg-builder-hover flex items-center justify-center mx-auto mb-4">
+      <div className="form-preview-empty">
+        <div className="form-preview-empty-icon">
           <FileText className="w-8 h-8 text-primary" />
         </div>
-        <h3 className="text-lg font-medium mb-2">No fields to preview</h3>
-        <p className="text-muted-foreground">Add some fields to your form to see the preview</p>
-      </Card>
+        <h3 className="form-preview-empty-title">No fields to preview</h3>
+        <p className="form-preview-empty-description">Add some fields to your form to see the preview</p>
+      </div>
     );
   }
 
@@ -174,52 +175,57 @@ export const FormPreview = ({ config }) => {
   const currentStepInfo = config.steps[currentStep];
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Card className="p-8 border-builder-border shadow-soft">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold mb-2">{config.title}</h2>
-          {config.description && <p className="text-muted-foreground mb-4">{config.description}</p>}
+    <div className="form-preview-container">
+      <div className="form-preview-card">
+        <div className="form-preview-header">
+          <h2 className="form-preview-title">{config.title}</h2>
+          {config.description && <p className="form-preview-description">{config.description}</p>}
           {config.isMultiStep && (
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Step {currentStep + 1} of {config.steps.length}</span>
-                <span className="text-sm text-muted-foreground">{Math.round(((currentStep + 1) / config.steps.length) * 100)}% Complete</span>
+            <div className="form-preview-progress">
+              <div className="form-preview-progress-info">
+                <span className="form-preview-progress-step">Step {currentStep + 1} of {config.steps.length}</span>
+                <span className="form-preview-progress-percentage">{Math.round(((currentStep + 1) / config.steps.length) * 100)}% Complete</span>
               </div>
-              <div className="w-full bg-secondary rounded-full h-2">
-                <div className="bg-primary h-2 rounded-full transition-all duration-300 ease-out" style={{ width: `${((currentStep + 1) / config.steps.length) * 100}%` }} />
+              <div className="form-preview-progress-bar">
+                <div
+                  className="form-preview-progress-fill"
+                  style={{ width: `${((currentStep + 1) / config.steps.length) * 100}%` }}
+                />
               </div>
               {currentStepInfo && (
-                <div className="mt-4 animate-fade-in">
-                  <h3 className="text-lg font-semibold">{currentStepInfo.title}</h3>
-                  {currentStepInfo.description && <p className="text-muted-foreground text-sm">{currentStepInfo.description}</p>}
+                <div className="form-preview-step-info">
+                  <h3 className="form-preview-step-title">{currentStepInfo.title}</h3>
+                  {currentStepInfo.description && <p className="form-preview-step-description">{currentStepInfo.description}</p>}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-6 animate-fade-in">
+        <form onSubmit={handleSubmit} className="form-preview-form">
+          <div className="form-preview-fields">
             {currentStepFields.map((field) => (
-              <div key={field.id} className="space-y-2">
-                <Label htmlFor={field.id} className="text-sm font-medium">
+              <div key={field.id} className="form-preview-field">
+                <Label htmlFor={field.id} className="form-preview-label">
                   {field.label}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
+                  {field.required && <span className="form-preview-required">*</span>}
                 </Label>
-                {renderField(field)}
+                <div className="form-preview-input">{renderField(field)}</div>
               </div>
             ))}
           </div>
-          <div className="flex justify-between pt-6">
+          <div className="form-preview-actions">
             {config.isMultiStep && currentStep > 0 ? (
-              <Button type="button" variant="outline" onClick={goToPreviousStep}>Previous</Button>
+              <Button type="button" variant="outline" onClick={goToPreviousStep} className="form-preview-btn-previous">
+                Previous
+              </Button>
             ) : <div />}
-            <Button type="submit">
+            <Button type="submit" className="form-preview-btn-submit">
               {config.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 };

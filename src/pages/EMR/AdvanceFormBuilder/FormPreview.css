@@ -1,0 +1,220 @@
+/* CSS Variables for easy theming (customize these to match your app's theme) */
+:root {
+  --primary-color: #3b82f6; /* Blue accent */
+  --secondary-bg: #f3f4f6; /* Light gray for progress bar */
+  --background-color: #ffffff;
+  --text-color: #374151;
+  --muted-text: #6b7280;
+  --destructive-color: #ef4444; /* Red for required/errors */
+  --border-color: #e5e7eb;
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --transition-duration: 0.3s;
+  --border-radius: 8px;
+  --max-width: 42rem; /* 672px, equivalent to max-w-2xl */
+}
+
+/* Container for centering and max width */
+.form-preview-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* Main card styling */
+.form-preview-card {
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-soft);
+  padding: 2rem; /* Equivalent to p-8 */
+  transition: box-shadow var(--transition-duration) ease;
+}
+
+.form-preview-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Header section */
+.form-preview-header {
+  margin-bottom: 1.5rem;
+}
+
+.form-preview-title {
+  font-size: 1.5rem; /* Equivalent to text-2xl */
+  font-weight: 700; /* Equivalent to font-bold */
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.form-preview-description {
+  color: var(--muted-text);
+  margin-bottom: 1rem;
+}
+
+/* Progress section for multi-step */
+.form-preview-progress {
+  margin-bottom: 1.5rem;
+}
+
+.form-preview-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.form-preview-progress-step,
+.form-preview-progress-percentage {
+  font-size: 0.875rem; /* Equivalent to text-sm */
+}
+
+.form-preview-progress-step {
+  font-weight: 500;
+}
+
+.form-preview-progress-percentage {
+  color: var(--muted-text);
+}
+
+.form-preview-progress-bar {
+  width: 100%;
+  height: 0.5rem; /* Equivalent to h-2 */
+  background: var(--secondary-bg);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.form-preview-progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 9999px;
+  transition: width var(--transition-duration) ease-out;
+}
+
+.form-preview-step-info {
+  margin-top: 1rem;
+  animation: fade-in 0.5s ease-in-out;
+}
+
+.form-preview-step-title {
+  font-size: 1.125rem; /* Equivalent to text-lg */
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.form-preview-step-description {
+  font-size: 0.875rem;
+  color: var(--muted-text);
+}
+
+/* Form styling */
+.form-preview-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-preview-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Equivalent to space-y-6 */
+  animation: fade-in 0.5s ease-in-out;
+}
+
+.form-preview-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* Equivalent to space-y-2 */
+}
+
+.form-preview-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form-preview-required {
+  color: var(--destructive-color);
+  margin-left: 0.25rem;
+}
+
+.form-preview-input {
+  /* Additional styling for inputs if needed */
+}
+
+/* Actions (buttons) */
+.form-preview-actions {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 1.5rem; /* Equivalent to pt-6 */
+}
+
+.form-preview-btn-previous,
+.form-preview-btn-submit {
+  transition: all var(--transition-duration) ease;
+}
+
+.form-preview-btn-previous:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.form-preview-btn-submit:hover {
+  background: var(--primary-color);
+  color: var(--background-color);
+}
+
+/* Empty state */
+.form-preview-empty {
+  text-align: center;
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--background-color);
+}
+
+.form-preview-empty-icon {
+  width: 6rem; /* Equivalent to w-24 */
+  height: 6rem; /* Equivalent to h-24 */
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.form-preview-empty-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.form-preview-empty-description {
+  color: var(--muted-text);
+}
+
+/* Animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-preview-container {
+    padding: 0.5rem;
+  }
+
+  .form-preview-card {
+    padding: 1rem;
+  }
+
+  .form-preview-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .form-preview-btn-previous,
+  .form-preview-btn-submit {
+    width: 100%;
+  }
+}

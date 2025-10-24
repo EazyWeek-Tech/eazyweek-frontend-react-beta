@@ -59,6 +59,7 @@ import MembershipConfig from "./pages/Membership/MembershipConfig";
 import DiscountManagement from "./pages/Discount/DiscountManagement";
 import DiscountConfig from "./pages/Discount/DiscountConfig";
 import DiscountList from "./pages/Discount/DiscountList";
+import { AdvancedFormBuilder } from "./pages/EMR/AdvanceFormBuilder/AdvancedFormBuilder";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -168,6 +169,8 @@ function App() {
 <Route path="/categories-mapping" element={<CaseCategoryMappingDashboard />} />
 
 <Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
+<Route path="/lrm" element={<AdvancedFormBuilder />} />
+
 
 
 

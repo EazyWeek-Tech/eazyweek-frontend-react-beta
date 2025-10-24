@@ -97,6 +97,11 @@ const Sidebar = ({ collapsed }) => {
       submenu: [{ name: "On Demand Triggers", path: "/on-demand" }],
     },
     {
+      label: "LRM",
+      icon: "bx-edit",
+      submenu: [{ name: "Advanced Form Builder", path: "/lrm" }],
+    },
+    {
       label: "Settings",
       icon: "bx-cog",
       submenu: [

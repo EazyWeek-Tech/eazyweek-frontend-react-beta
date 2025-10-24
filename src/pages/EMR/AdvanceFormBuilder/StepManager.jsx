@@ -1,22 +1,14 @@
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Badge } from "../../../components/ui/badge";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, GripVertical, Trash2, Layers } from "lucide-react";
-import type { FormStep, FormField } from "@/types/form";
 
-interface StepManagerProps {
-  steps: FormStep[];
-  fields: FormField[];
-  onUpdateSteps: (steps: FormStep[]) => void;
-}
-
-export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) => {
+export const StepManager = ({ steps, fields, onUpdateSteps }) => {
   const addStep = () => {
-    const newStep: FormStep = {
+    const newStep = {
       id: `step-${Date.now()}`,
       title: `Step ${steps.length + 1}`,
       description: "",
@@ -25,28 +17,27 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
     onUpdateSteps([...steps, newStep]);
   };
 
-  const updateStep = (stepId: string, updates: Partial<FormStep>) => {
-    const updatedSteps = steps.map(step =>
+  const updateStep = (stepId, updates) => {
+    const updatedSteps = steps.map(step => 
       step.id === stepId ? { ...step, ...updates } : step
     );
     onUpdateSteps(updatedSteps);
   };
 
-  const deleteStep = (stepId: string) => {
-    if (steps.length <= 1) return; // Don't allow deleting the last step
-
+  const deleteStep = (stepId) => {
+    if (steps.length <= 1) return;
+    
     const stepToDelete = steps.find(step => step.id === stepId);
     const updatedSteps = steps.filter(step => step.id !== stepId);
-
-    // Move fields from deleted step to first step
+    
     if (stepToDelete && stepToDelete.fields.length > 0) {
       updatedSteps[0].fields = [...updatedSteps[0].fields, ...stepToDelete.fields];
     }
-
+    
     onUpdateSteps(updatedSteps);
   };
 
-  const handleDragEnd = (result: any) => {
+  const handleDragEnd = (result) => {
     if (!result.destination) return;
 
     const items = Array.from(steps);
@@ -56,10 +47,10 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
     onUpdateSteps(items);
   };
 
-  const moveFieldToStep = (fieldId: string, targetStepId: string) => {
+  const moveFieldToStep = (fieldId, targetStepId) => {
     const updatedSteps = steps.map(step => ({
       ...step,
-      fields: step.id === targetStepId
+      fields: step.id === targetStepId 
         ? [...step.fields.filter(id => id !== fieldId), fieldId]
         : step.fields.filter(id => id !== fieldId)
     }));
@@ -75,7 +66,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
         </div>
         <Badge variant="outline">{steps.length} steps</Badge>
       </div>
-
+      
       <DragDropContext onDragEnd={handleDragEnd}>
         <Droppable droppableId="form-steps">
           {(provided) => (
@@ -97,7 +88,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
                         >
                           <GripVertical className="w-4 h-4" />
                         </div>
-
+                        
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="text-xs">
@@ -107,14 +98,14 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
                               {step.fields.length} fields
                             </Badge>
                           </div>
-
+                          
                           <Input
                             value={step.title}
                             onChange={(e) => updateStep(step.id, { title: e.target.value })}
                             className="h-8 font-medium"
                             placeholder="Step title"
                           />
-
+                          
                           <Input
                             value={step.description || ""}
                             onChange={(e) => updateStep(step.id, { description: e.target.value })}
@@ -122,7 +113,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
                             placeholder="Step description (optional)"
                           />
                         </div>
-
+                        
                         {steps.length > 1 && (
                           <Button
                             size="sm"
@@ -134,8 +125,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
                           </Button>
                         )}
                       </div>
-
-                      {/* Field Assignment */}
+                      
                       {fields.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-builder-border">
                           <Label className="text-xs text-muted-foreground">Assigned Fields:</Label>
@@ -163,17 +153,17 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
           )}
         </Droppable>
       </DragDropContext>
-
-      <Button
-        size="sm"
-        variant="outline"
+      
+      <Button 
+        size="sm" 
+        variant="outline" 
         onClick={addStep}
         className="w-full mt-3"
       >
         <Plus className="w-3 h-3 mr-1" />
         Add Step
       </Button>
-
+      
       {fields.length > 0 && (
         <div className="mt-4 p-3 bg-builder-hover rounded-lg">
           <Label className="text-xs font-medium">Quick Field Assignment:</Label>
@@ -203,3 +193,5 @@ export const StepManager = ({ steps, fields, onUpdateSteps }: StepManagerProps) 
     </Card>
   );
 };
+
+

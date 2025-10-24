@@ -1,0 +1,143 @@
+/* General container style */
+.field-properties {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Tabs (Basic / Logic / Rules) */
+.flex{
+  display: flex;
+  gap:5px
+}
+.iconright{
+  width: 16px;
+  height: 16px;
+}
+.icon{
+  display: flex ;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.field-tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+.field-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+}
+
+.field-tab.active {
+  font-weight: 500;
+  color: #111827;
+  border-bottom: 2px solid #2563eb;
+}
+
+/* Label and Inputs */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.field-group label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: #111827;
+}
+
+.field-group input,
+.field-group textarea,
+.field-group select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.field-group input:focus,
+.field-group textarea:focus,
+.field-group select:focus {
+  border-color: #2563eb;
+  outline: none;
+}
+
+/* Placeholder / empty states */
+.field-placeholder {
+  text-align: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 1.5rem;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.field-placeholder svg {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 0.5rem;
+  opacity: 0.7;
+}
+
+/* Buttons */
+.btn-outline {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #111827;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+  background-color: #f9fafb;
+}
+
+.btn-danger {
+  color: #dc2626;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* Rule card */
+.rule-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Info tips */
+.info-tip {
+  background: #f9fafb;
+  color: #6b7280;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
