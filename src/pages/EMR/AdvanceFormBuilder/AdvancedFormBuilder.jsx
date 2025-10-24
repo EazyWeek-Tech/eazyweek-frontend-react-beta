@@ -45,16 +45,46 @@ export const AdvancedFormBuilder = () => {
       label: `${type.charAt(0).toUpperCase() + type.slice(1)} Field`,
       placeholder: type === "textarea" ? "Enter your message..." : `Enter your ${type}...`,
       required: false,
-      options: type === "select" || type === "radio" ? ["Option 1", "Option 2"] : undefined,
       conditionalRules: [],
       validationRules: [],
       step: 0,
     };
-    
+
+    // Add type-specific properties
+    if (type === "select" || type === "radio" || type === "selectboxes") {
+      newField.options = ["Option 1", "Option 2"];
+    }
+    if (type === "number") {
+      newField.min = "";
+      newField.max = "";
+      newField.step = 1;
+    }
+    if (type === "date" || type === "datetime" || type === "time") {
+      newField.min = "";
+      newField.max = "";
+    }
+    if (type === "textarea") {
+      newField.rows = 4;
+    }
+    if (type === "file" || type === "image") {
+      newField.accept = type === "image" ? "image/*" : "";
+    }
+    if (type === "table") {
+      newField.rows = 1;
+      newField.columns = 2;
+    }
+    if (type === "signature" || type === "annotation") {
+      newField.width = type === "signature" ? 300 : 400;
+      newField.height = type === "signature" ? 100 : 200;
+    }
+    if (type === "tabs") {
+      newField.options = ["Tab 1", "Tab 2"];
+    }
+
     const updatedFields = [...config.fields, newField];
     const updatedSteps = [...config.steps];
     updatedSteps[0].fields.push(newField.id);
-    
+
     setConfig({ ...config, fields: updatedFields, steps: updatedSteps });
     setSelectedField(newField);
   };
@@ -127,7 +157,9 @@ export const AdvancedFormBuilder = () => {
         <div className="form-preview-wrapper">
           <div className="form-preview-header">
             <div>
-              <h1 className="form-preview-title">Form Preview</h1>
+              <h1 className="form-preview-title">
+                Form Preview
+              </h1>
               <p className="form-preview-subtitle">
                 {config.isMultiStep ? `Multi-step form with ${config.steps.length} steps` : "Single page form"}
               </p>
@@ -262,6 +294,11 @@ export const AdvancedFormBuilder = () => {
                                 {...provided.draggableProps}
                                 className={`form-builder-field ${snapshot.isDragging ? "dragging" : ""} ${selectedField?.id === field.id ? "selected" : ""}`}
                                 onClick={() => setSelectedField(field)}
+                                style={{
+                                  borderColor: selectedField?.id === field.id ? 'var(--primary)' : 'var(--builder-border)',
+                                  boxShadow: selectedField?.id === field.id ? '0 0 0 3px rgba(59, 130, 246, 0.1)' : 'var(--shadow-sm)',
+                                  backgroundColor: selectedField?.id === field.id ? 'var(--primary-light)' : 'var(--card-bg)'
+                                }}
                               >
                                 <div className="form-builder-field-content">
                                   <div
@@ -359,7 +396,7 @@ export const AdvancedFormBuilder = () => {
                         <Label>Required field</Label>
                       </div>
 
-                      {(selectedField.type === "select" || selectedField.type === "radio") && (
+                      {(selectedField.type === "select" || selectedField.type === "radio" || selectedField.type === "selectboxes") && (
                         <div className="form-builder-field-setting">
                           <Label>Options</Label>
                           <div className="form-builder-options">
@@ -386,6 +423,174 @@ export const AdvancedFormBuilder = () => {
                             >
                               <Plus className="w-3 h-3 mr-1" />
                               Add Option
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedField.type === "number" && (
+                        <>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-min">Minimum Value</Label>
+                            <Input
+                              id="field-min"
+                              type="number"
+                              value={selectedField.min || ""}
+                              onChange={(e) => updateField(selectedField.id, { min: e.target.value })}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-max">Maximum Value</Label>
+                            <Input
+                              id="field-max"
+                              type="number"
+                              value={selectedField.max || ""}
+                              onChange={(e) => updateField(selectedField.id, { max: e.target.value })}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-step">Step</Label>
+                            <Input
+                              id="field-step"
+                              type="number"
+                              value={selectedField.step || 1}
+                              onChange={(e) => updateField(selectedField.id, { step: parseFloat(e.target.value) })}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {(selectedField.type === "date" || selectedField.type === "datetime" || selectedField.type === "time") && (
+                        <>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-min-date">Minimum Date/Time</Label>
+                            <Input
+                              id="field-min-date"
+                              type={selectedField.type}
+                              value={selectedField.min || ""}
+                              onChange={(e) => updateField(selectedField.id, { min: e.target.value })}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-max-date">Maximum Date/Time</Label>
+                            <Input
+                              id="field-max-date"
+                              type={selectedField.type}
+                              value={selectedField.max || ""}
+                              onChange={(e) => updateField(selectedField.id, { max: e.target.value })}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {selectedField.type === "textarea" && (
+                        <div className="form-builder-field-setting">
+                          <Label htmlFor="field-rows">Rows</Label>
+                          <Input
+                            id="field-rows"
+                            type="number"
+                            value={selectedField.rows || 4}
+                            onChange={(e) => updateField(selectedField.id, { rows: parseInt(e.target.value) })}
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+
+                      {(selectedField.type === "file" || selectedField.type === "image") && (
+                        <div className="form-builder-field-setting">
+                          <Label htmlFor="field-accept">Accept File Types</Label>
+                          <Input
+                            id="field-accept"
+                            value={selectedField.accept || ""}
+                            onChange={(e) => updateField(selectedField.id, { accept: e.target.value })}
+                            className="mt-1"
+                            placeholder="e.g., .pdf,.doc,image/*"
+                          />
+                        </div>
+                      )}
+
+                      {selectedField.type === "table" && (
+                        <>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-rows">Number of Rows</Label>
+                            <Input
+                              id="field-rows"
+                              type="number"
+                              value={selectedField.rows || 1}
+                              onChange={(e) => updateField(selectedField.id, { rows: parseInt(e.target.value) })}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-columns">Number of Columns</Label>
+                            <Input
+                              id="field-columns"
+                              type="number"
+                              value={selectedField.columns || 2}
+                              onChange={(e) => updateField(selectedField.id, { columns: parseInt(e.target.value) })}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {(selectedField.type === "signature" || selectedField.type === "annotation") && (
+                        <>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-width">Width</Label>
+                            <Input
+                              id="field-width"
+                              type="number"
+                              value={selectedField.width || (selectedField.type === "signature" ? 300 : 400)}
+                              onChange={(e) => updateField(selectedField.id, { width: parseInt(e.target.value) })}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="form-builder-field-setting">
+                            <Label htmlFor="field-height">Height</Label>
+                            <Input
+                              id="field-height"
+                              type="number"
+                              value={selectedField.height || (selectedField.type === "signature" ? 100 : 200)}
+                              onChange={(e) => updateField(selectedField.id, { height: parseInt(e.target.value) })}
+                              className="mt-1"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {selectedField.type === "tabs" && (
+                        <div className="form-builder-field-setting">
+                          <Label>Tab Names</Label>
+                          <div className="form-builder-options">
+                            {selectedField.options?.map((option, index) => (
+                              <Input
+                                key={index}
+                                value={option}
+                                onChange={(e) => {
+                                  const newOptions = [...(selectedField.options || [])];
+                                  newOptions[index] = e.target.value;
+                                  updateField(selectedField.id, { options: newOptions });
+                                }}
+                                className="form-builder-option-input"
+                              />
+                            ))}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const newOptions = [...(selectedField.options || []), `Tab ${(selectedField.options?.length || 0) + 1}`];
+                                updateField(selectedField.id, { options: newOptions });
+                              }}
+                              className="form-builder-add-option"
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Add Tab
                             </Button>
                           </div>
                         </div>

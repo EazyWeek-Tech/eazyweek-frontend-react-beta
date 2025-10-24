@@ -9,11 +9,13 @@ import { RadioGroup, RadioGroupItem } from "../../../components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { FileText } from "lucide-react";
 import { useToast } from "./use-toast";
+import * as FieldComponents from "./FieldComponents";
 import "./FormPreview.css"; // Import the external CSS file
 
 export const FormPreview = ({ config }) => {
   const [formData, setFormData] = useState({});
   const [currentStep, setCurrentStep] = useState(0);
+  const [formKey, setFormKey] = useState(0);
   const { toast } = useToast();
 
   const isFieldVisible = (fieldId) => {
@@ -97,6 +99,7 @@ export const FormPreview = ({ config }) => {
     console.log("Form Data:", formData);
     setFormData({});
     setCurrentStep(0);
+    setFormKey(prev => prev + 1);
   };
 
   const goToPreviousStep = () => {
@@ -105,52 +108,23 @@ export const FormPreview = ({ config }) => {
 
   const renderField = (field) => {
     if (!isFieldVisible(field.id)) return null;
-    const commonProps = { id: field.id, placeholder: field.placeholder, value: formData[field.id] || "" };
 
-    switch (field.type) {
-      case "text":
-      case "email":
-      case "number":
-      case "date":
-        return <Input {...commonProps} type={field.type} onChange={(e) => updateFormData(field.id, e.target.value)} />;
-      case "file":
-        return <Input {...commonProps} type="file" onChange={(e) => updateFormData(field.id, e.target.files?.[0] || null)} />;
-      case "textarea":
-        return <Textarea {...commonProps} rows={4} onChange={(e) => updateFormData(field.id, e.target.value)} />;
-      case "checkbox":
-        return (
-          <div className="flex items-center space-x-2">
-            <Checkbox id={field.id} checked={formData[field.id] || false} onCheckedChange={(checked) => updateFormData(field.id, checked)} />
-            <Label htmlFor={field.id} className="text-sm font-normal">{field.placeholder || "Check this option"}</Label>
-          </div>
-        );
-      case "radio":
-        return (
-          <RadioGroup value={formData[field.id] || ""} onValueChange={(value) => updateFormData(field.id, value)}>
-            {field.options?.map((option, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <RadioGroupItem value={option} id={`${field.id}-${index}`} />
-                <Label htmlFor={`${field.id}-${index}`} className="text-sm font-normal">{option}</Label>
-              </div>
-            ))}
-          </RadioGroup>
-        );
-      case "select":
-        return (
-          <Select value={formData[field.id] || ""} onValueChange={(value) => updateFormData(field.id, value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options?.map((option, index) => (
-                <SelectItem key={index} value={option}>{option}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      default:
-        return null;
+    const ComponentName = field.type.charAt(0).toUpperCase() + field.type.slice(1) + 'Field';
+    const Component = FieldComponents[ComponentName];
+
+    if (Component) {
+      return (
+        <Component
+          field={field}
+          value={formData[field.id]}
+          onChange={updateFormData}
+          error={null} // You can implement error handling here
+        />
+      );
     }
+
+    // Fallback for unknown field types
+    return <Input type="text" placeholder={field.placeholder} value={formData[field.id] || ""} onChange={(e) => updateFormData(field.id, e.target.value)} />;
   };
 
   const getCurrentStepFields = () => {
@@ -202,14 +176,14 @@ export const FormPreview = ({ config }) => {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="form-preview-form">
+        <form key={formKey} onSubmit={handleSubmit} className="form-preview-form">
           <div className="form-preview-fields">
             {currentStepFields.map((field) => (
               <div key={field.id} className="form-preview-field">
-                <Label htmlFor={field.id} className="form-preview-label">
+                {/* <Label htmlFor={field.id} className="form-preview-label">
                   {field.label}
                   {field.required && <span className="form-preview-required">*</span>}
-                </Label>
+                </Label> */}
                 <div className="form-preview-input">{renderField(field)}</div>
               </div>
             ))}

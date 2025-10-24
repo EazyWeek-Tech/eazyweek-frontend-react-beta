@@ -1,25 +1,27 @@
 /* General container style */
 .field-properties {
-  background-color: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  border: 1px solid #e5e7eb;
-  padding: 20px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  padding: 18px;
   width: 100%;
   font-family: 'Inter', sans-serif;
+  color: #111827;
 }
 
 /* Tabs (Basic / Logic / Rules) */
 .flex{
   display: flex;
-  gap:5px
+  gap: 8px;
+  align-items: center;
 }
 .iconright{
   width: 16px;
   height: 16px;
 }
 .icon{
-  display: flex ;
+  display: flex;
   flex-direction: column;
   gap: 10px;
   justify-content: center;
@@ -28,7 +30,7 @@
 
 .field-tabs {
   display: flex;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
   margin-bottom: 1rem;
 }
 
@@ -39,7 +41,7 @@
   cursor: pointer;
   font-size: 14px;
   color: #6b7280;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .field-tab.active {
@@ -82,30 +84,31 @@
 /* Placeholder / empty states */
 .field-placeholder {
   text-align: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 1.5rem;
+  border: 1px dashed rgba(15,23,42,0.06);
+  border-radius: 10px;
+  padding: 1.5rem 1.25rem;
   color: #6b7280;
   font-size: 14px;
+  background: linear-gradient(180deg, rgba(37,99,235,0.01), transparent);
 }
 
 .field-placeholder svg {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   margin: 0 auto 0.5rem;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 /* Buttons */
 .btn-outline {
-  border: 1px solid #d1d5db;
+  border: 1px solid rgba(15,23,42,0.06);
   background: white;
   color: #111827;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 8px;
+  padding: 8px 12px;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.16s ease;
 }
 
 .btn-outline:hover {
@@ -121,16 +124,64 @@
 
 /* Rule card */
 .rule-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid rgba(15,23,42,0.04);
+  border-radius: 10px;
   padding: 12px;
   margin-bottom: 12px;
-  animation: fadeIn 0.2s ease;
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(15,23,42,0.03);
+  animation: fadeIn 0.18s ease;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility classes used by ConditionalRuleEditor.jsx (tailwind-like names used in markup) */
+.border-builder-border {
+  border-color: rgba(15,23,42,0.06) !important;
+}
+
+.text-muted-foreground {
+  color: #6b7280 !important;
+}
+
+.bg-builder-hover {
+  background-color: #f8fafc !important;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s ease both;
+}
+
+.text-destructive {
+  color: #dc2626 !important;
+}
+
+/* Badge styling for "Rule X" label */
+.badge,
+.Badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(15,23,42,0.06);
+  color: #374151;
+  background: rgba(247,250,252,0.6);
+}
+
+/* Small tweaks for input-like controls inside the panel to better match screenshot */
+.field-properties .h-8 {
+  height: 36px;
+}
+
+.field-properties .w-full {
+  width: 100%;
+}
+
+.text-xs {
+  font-size: 12px;
 }
 
 /* Info tips */

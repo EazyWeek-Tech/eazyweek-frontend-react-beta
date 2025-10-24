@@ -703,6 +703,7 @@ label, .label, .label-root {
   font-weight: 600;
   font-size: 1rem;
   color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .form-builder-field-required {
@@ -739,6 +740,231 @@ label, .label, .label-root {
 
 .form-builder-field:hover .form-builder-field-delete {
   opacity: 1;
+}
+
+/* Field Component Styles */
+.form-field-component {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.form-field-component label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-field-component-required {
+  color: var(--error);
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.form-field-component input[type="text"],
+.form-field-component input[type="email"],
+.form-field-component input[type="password"],
+.form-field-component input[type="number"],
+.form-field-component input[type="tel"],
+.form-field-component input[type="url"],
+.form-field-component textarea,
+.form-field-component select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.form-field-component input:focus,
+.form-field-component textarea:focus,
+.form-field-component select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-field-component textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.form-field-component select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.form-field-component input[type="radio"],
+.form-field-component input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.75rem;
+  accent-color: var(--primary);
+}
+
+.form-field-radio-group,
+.form-field-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.form-field-radio-option,
+.form-field-checkbox-option {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.form-field-radio-option:hover,
+.form-field-checkbox-option:hover {
+  background: var(--builder-hover);
+}
+
+.form-field-radio-option label,
+.form-field-checkbox-option label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* Field Type Specific Styles */
+.form-field-text,
+.form-field-email,
+.form-field-password,
+.form-field-number,
+.form-field-tel,
+.form-field-url {
+  /* Standard input styling */
+}
+
+.form-field-textarea {
+  /* Textarea specific styling */
+}
+
+.form-field-select {
+  /* Select dropdown styling */
+}
+
+.form-field-radio,
+.form-field-checkbox {
+  /* Radio and checkbox group styling */
+}
+
+.form-field-date,
+.form-field-datetime {
+  /* Date picker styling */
+}
+
+.form-field-file {
+  /* File upload styling */
+}
+
+.form-field-image {
+  /* Image upload styling */
+}
+
+.form-field-signature {
+  /* Signature pad styling */
+  border: 2px dashed var(--builder-border);
+  border-radius: var(--border-radius-md);
+  padding: 2rem;
+  text-align: center;
+  background: var(--builder-hover);
+  transition: var(--transition);
+}
+
+.form-field-signature:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.form-field-table {
+  /* Table input styling */
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+}
+
+.form-field-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.form-field-table th,
+.form-field-table td {
+  padding: 0.75rem;
+  border: 1px solid var(--builder-border);
+  text-align: left;
+}
+
+.form-field-table th {
+  background: var(--builder-hover);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-field-table input {
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.form-field-table input:focus {
+  background: var(--card-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--border-radius-sm);
+}
+
+/* Field Validation States */
+.form-field-error {
+  border-color: var(--error) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.form-field-error-message {
+  color: var(--error);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.form-field-success {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Field Placeholder Styling */
+.form-field-component input::placeholder,
+.form-field-component textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Field Disabled State */
+.form-field-component input:disabled,
+.form-field-component textarea:disabled,
+.form-field-component select:disabled {
+  background: var(--builder-hover);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Properties Panel */
