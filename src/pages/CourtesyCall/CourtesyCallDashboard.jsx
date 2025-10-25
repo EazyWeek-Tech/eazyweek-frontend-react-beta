@@ -45,49 +45,67 @@ const CourtesyCallDashboard = () => {
   }
 
   const fetchCourtesyData = async (filterValues, options = {}) => {
-    const { forcePayload } = options
-    setLoading(true)
-    try {
-      let payload
+  const { forcePayload } = options;
+  setLoading(true);
+  try {
+    let payload;
 
-      if (forcePayload) {
-        payload = forcePayload
-      } else {
-        const { status, auditor, fromDate, toDate } = filterValues
-        const fromY = toYMD(fromDate)
-        const toY = toYMD(toDate)
-        const dateFlag = fromY && toY ? "1" : "0"
+    if (forcePayload) {
+      payload = forcePayload;
+    } else {
+      const { status, auditor, fromDate, toDate } = filterValues;
+      let fromY = toYMD(fromDate);
+      let toY = toYMD(toDate);
 
-        payload = {
-          status: status ?? "",
-          auditor: auditor ?? "",
-          fromDate: fromY || "",
-          toDate: toY || "",
-          dateFlag,
-        }
+      // --- NEW: default dates when user doesn't provide them ---
+      // Case A: both dates missing → use baseline to today
+      if (!fromY && !toY) {
+        fromY = "2020-01-01";
+        toY = todayYMD();
+      }
+      // Case B: only from provided → set to today
+      else if (fromY && !toY) {
+        toY = todayYMD();
+      }
+      // Case C: only to provided → set from to baseline
+      else if (!fromY && toY) {
+        fromY = "2020-01-01";
       }
 
-      console.log("CourtesyViewList payload →", payload)
+      // If any date range is in effect (including defaults), flag = "1"
+      const dateFlag = fromY && toY ? "1" : "0";
 
-      const res = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      const text = await res.text()
-      const data = text ? JSON.parse(text) : {}
-
-      if (Array.isArray(data)) setCourtesyCallData(data)
-      else setCourtesyCallData([])
-    } catch (error) {
-      console.error("Failed to fetch courtesy call data:", error)
-      setCourtesyCallData([])
-    } finally {
-      setLoading(false)
+      payload = {
+        status: status ?? "",
+        auditor: auditor ?? "",
+        fromDate: fromY || "",
+        toDate: toY || "",
+        dateFlag,
+      };
     }
+
+    console.log("CourtesyViewList payload →", payload);
+
+    const res = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+
+    if (Array.isArray(data)) setCourtesyCallData(data);
+    else setCourtesyCallData([]);
+  } catch (error) {
+    console.error("Failed to fetch courtesy call data:", error);
+    setCourtesyCallData([]);
+  } finally {
+    setLoading(false);
   }
+};
+
 
   // Page-load request (exact expected payload; toDate = today)
   useEffect(() => {
