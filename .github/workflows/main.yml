@@ -33,7 +33,7 @@ jobs:
 
       - name: Sync files (exclude only .github/workflows)
         run: |
-         rsync -av --dry-run --delete \
+         rsync -av --delete \
           --exclude='.git/' \
           --exclude='deploy-repo/' \
           --exclude='.github/workflows/***' \
