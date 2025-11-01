@@ -33,11 +33,13 @@ jobs:
 
       - name: Sync files (exclude only .github/workflows)
         run: |
-         rsync -av --delete \
+         rsync -av --dry-run --delete \
           --exclude='.git/' \
-          --exclude='.github/workflows/' \
           --exclude='deploy-repo/' \
-          ./ deploy-repo/ || [ $? -eq 24 ]
+          --exclude='.github/workflows/***' \
+          --filter='P .github/workflows/' \
+          ./ deploy-repo/
+
 
       - name: Commit and push changes safely
         run: |
