@@ -92,6 +92,25 @@ const Sidebar = ({ collapsed }) => {
       ],
     },
     {
+      label: "Consent Forms",
+      icon: "bx-file-blank",
+      submenu: [{ name: "Laser Session Consent", path: "/consent-form/laser-session-consent" }
+,{ name: "Injectable Treatment Consent", path: "/consent-form/injectable-treatment-consent" },
+{ name: "Hyaluronidase Consent", path: "/consent-form/hyaluronidase-consent" },
+
+      ],
+
+    },
+    {
+      label:"Custom Forms",
+      icon:"bx-customize",
+      submenu:[{ name:"Laser Session", path:"/custom-forms/laser-session"}
+,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
+{ name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
+{ name:"General Form", path:"/custom-forms/general-form"},
+      ]
+    },
+    {
       label: "On Demand",
       icon: "bx-cloud-download",
       submenu: [{ name: "On Demand Triggers", path: "/on-demand" }],

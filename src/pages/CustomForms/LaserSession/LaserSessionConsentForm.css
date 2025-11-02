@@ -1,0 +1,183 @@
+.consent-form-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--pribg-color);
+  padding: 20px;
+  font-family: 'Inter', sans-serif;
+}
+
+.consent-form {
+  max-width: 800px;
+  width: 100%;
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.consent-form h1 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--secft-color);
+  font-weight: bold;
+  font-size: 20px;
+}
+
+.consent-form p {
+  line-height: 1.6;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.consent-form h3 {
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.consent-form ul {
+  line-height: 1.6;
+  color: #555;
+  padding-left: 20px;
+  margin-bottom: 20px;
+}
+
+.consent-form li {
+  margin-bottom: 5px;
+}
+
+.consent-form label {
+  font-weight: 600;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.signature-section {
+  margin-bottom: 20px;
+}
+
+.signature-pad {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 10px;
+  background: #f9f9f9;
+  margin-bottom: 10px;
+}
+
+.signature-pad canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+.clear-signature-btn {
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.submit-btn,
+.print-btn,
+.download-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.submit-btn {
+  background: var(--secbg-color);
+  color: white;
+}
+
+.print-btn {
+  background: #28a745;
+  color: white;
+}
+
+.download-btn {
+  background: #007bff;
+  color: white;
+}
+
+.success-message {
+  text-align: center;
+  padding: 20px;
+}
+
+.success-message h2 {
+  margin-bottom: 10px;
+}
+
+.success-message button {
+  padding: 10px 20px;
+  background: var(--secbg-color);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.error-message {
+  color: red;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .consent-form {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .consent-form h1 {
+    font-size: 18px;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .submit-btn,
+  .print-btn,
+  .download-btn {
+    width: 100%;
+  }
+}
