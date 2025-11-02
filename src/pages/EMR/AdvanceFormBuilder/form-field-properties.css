@@ -20,6 +20,10 @@
   width: 16px;
   height: 16px;
 }
+.signature-canvas{
+  width: 90%;
+  height: 15rem;
+}
 .icon{
   display: flex;
   flex-direction: column;

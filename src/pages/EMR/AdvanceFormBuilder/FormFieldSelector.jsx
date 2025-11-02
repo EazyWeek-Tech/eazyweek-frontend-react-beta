@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import {
@@ -228,12 +229,6 @@ const fieldTypes = [
     label: "Home Phone",
     icon: Phone,
     description: "Home phone number",
-  },
-  {
-    type: "email",
-    label: "Email",
-    icon: Mail,
-    description: "Email validation",
   },
   {
     type: "birthday",

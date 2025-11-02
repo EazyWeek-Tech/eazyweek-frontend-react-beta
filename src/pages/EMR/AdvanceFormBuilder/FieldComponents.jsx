@@ -1,12 +1,12 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import { Checkbox } from "../../../components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "../../../components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { Label } from "../../../components/ui/label";
 import { Card } from "../../../components/ui/card";
 import { FileText, MapPin, Phone, Mail, Calendar, DollarSign, User, Hash, Globe, Home, Building } from "lucide-react";
+import FileUploader from "../Components/FileUploader";
 
 // Text Field Component
 export const TextField = ({ field, value, onChange, error }) => (
@@ -415,41 +415,63 @@ export const ContentField = ({ field, value, onChange, error }) => (
 );
 
 // Checkbox Field Component
-export const CheckboxField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-checkbox">
-    <div className="flex items-center space-x-2">
-      <Checkbox
-        id={field.id}
-        checked={value || false}
-        onCheckedChange={(checked) => onChange(field.id, checked)}
-      />
-      <Label htmlFor={field.id} className="text-sm font-normal">
+export const CheckboxField = ({ field, value, onChange, error }) => {
+  const handleChange = (checked) => {
+    onChange(field.id, checked);
+  };
+
+  return (
+    <div className="form-field-component form-field-checkbox">
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id={field.id}
+          checked={value || false}
+          onChange={(e) => handleChange(e.target.checked)}
+          className="form-checkbox"
+        />
+        <Label htmlFor={field.id} className="text-sm font-normal">
+          {field.label}
+          {field.required && <span className="form-field-required">*</span>}
+        </Label>
+      </div>
+      {error && <span className="form-field-error-message">{error}</span>}
+    </div>
+  );
+};
+
+// Radio Field Component
+export const RadioField = ({ field, value, onChange, error }) => {
+  const handleChange = (selectedValue) => {
+    onChange(field.id, selectedValue);
+  };
+
+  return (
+    <div className="form-field-component form-field-radio">
+      <Label>
         {field.label}
         {field.required && <span className="form-field-required">*</span>}
       </Label>
+      <div className="space-y-2">
+        {field.options?.map((option, index) => (
+          <div key={index} className="flex items-center space-x-2 form-field-option">
+            <input
+              type="radio"
+              id={`${field.id}-${index}`}
+              name={field.id}
+              value={option}
+              checked={value === option}
+              onChange={(e) => handleChange(e.target.value)}
+              className="form-radio"
+            />
+            <Label htmlFor={`${field.id}-${index}`} className="text-sm font-normal">{option}</Label>
+          </div>
+        ))}
+      </div>
+      {error && <span className="form-field-error-message">{error}</span>}
     </div>
-    {error && <span className="form-field-error-message">{error}</span>}
-  </div>
-);
-
-// Radio Field Component
-export const RadioField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-radio">
-    <Label>
-      {field.label}
-      {field.required && <span className="form-field-required">*</span>}
-    </Label>
-    <RadioGroup value={value || ""} onValueChange={(val) => onChange(field.id, val)}>
-      {field.options?.map((option, index) => (
-        <div key={index} className="flex items-center space-x-2 form-field-option">
-          <RadioGroupItem value={option} id={`${field.id}-${index}`} />
-          <Label htmlFor={`${field.id}-${index}`} className="text-sm font-normal">{option}</Label>
-        </div>
-      ))}
-    </RadioGroup>
-    {error && <span className="form-field-error-message">{error}</span>}
-  </div>
-);
+  );
+};
 
 // Select Field Component
 export const SelectField = ({ field, value, onChange, error }) => (
@@ -546,69 +568,129 @@ export const SelectboxesField = ({ field, value, onChange, error }) => (
 );
 
 // File Field Component
-export const FileField = ({ field, onChange, error }) => (
-  <div className="form-field-component form-field-file">
-    <Label htmlFor={field.id}>
-      <FileText className="w-4 h-4 mr-2" />
-      {field.label}
-      {field.required && <span className="form-field-required">*</span>}
-    </Label>
-    <Input
-      id={field.id}
-      type="file"
-      onChange={(e) => onChange(field.id, e.target.files?.[0] || null)}
-      className={error ? "form-field-error" : ""}
-    />
-    {error && <span className="form-field-error-message">{error}</span>}
-  </div>
-);
+export const FileField = ({ field, value, onChange, error }) => {
+  const handleFilesSelected = (files) => {
+    onChange(field.id, files);
+  };
+
+  return (
+    <div className="form-field-component form-field-file">
+      <Label htmlFor={field.id}>
+        <FileText className="w-4 h-4 mr-2" />
+        {field.label}
+        {field.required && <span className="form-field-required">*</span>}
+      </Label>
+      <FileUploader onFilesSelected={handleFilesSelected} accept={{ '*/*': [] }} />
+      {value && value.length > 0 && (
+        <div className="mt-2">
+          <p className="text-sm text-gray-600 mb-2">Selected Files:</p>
+          <ul className="space-y-1">
+            {value.map((file, index) => (
+              <li key={index} className="text-sm text-gray-800 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                {file.fileName}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {error && <span className="form-field-error-message">{error}</span>}
+    </div>
+  );
+};
 
 // Image Field Component
-export const ImageField = ({ field, onChange, error }) => (
-  <div className="form-field-component form-field-image">
-    <Label htmlFor={field.id}>
-      <FileText className="w-4 h-4 mr-2" />
-      {field.label}
-      {field.required && <span className="form-field-required">*</span>}
-    </Label>
-    <Input
-      id={field.id}
-      type="file"
-      accept="image/*"
-      onChange={(e) => onChange(field.id, e.target.files?.[0] || null)}
-      className={error ? "form-field-error" : ""}
-    />
-    {error && <span className="form-field-error-message">{error}</span>}
-  </div>
-);
+export const ImageField = ({ field, value, onChange, error }) => {
+  const handleFilesSelected = (files) => {
+    onChange(field.id, files);
+  };
+
+  return (
+    <div className="form-field-component form-field-image">
+      <Label htmlFor={field.id}>
+        <FileText className="w-4 h-4 mr-2" />
+        {field.label}
+        {field.required && <span className="form-field-required">*</span>}
+      </Label>
+      <FileUploader onFilesSelected={handleFilesSelected} accept={{ 'image/*': [] }} />
+      {value && value.length > 0 && (
+        <div className="mt-2">
+          <p className="text-sm text-gray-600 mb-2">Selected Images:</p>
+          <ul className="space-y-1">
+            {value.map((file, index) => (
+              <li key={index} className="text-sm text-gray-800 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                {file.fileName}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {error && <span className="form-field-error-message">{error}</span>}
+    </div>
+  );
+};
 
 // Signature Field Component
-export const SignatureField = ({ field, onChange, error }) => {
+export const SignatureField = ({ field, value, onChange, error }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000';
+      // Load existing signature if available
+      if (value) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = value;
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [value]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     ctx.beginPath();
-    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctx.moveTo(x, y);
     setIsDrawing(true);
   };
 
   const handleMouseMove = (e) => {
-    if (isDrawing) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-      ctx.stroke();
-    }
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    ctx.lineTo(x, y);
+    ctx.stroke();
   };
 
   const handleMouseUp = () => {
+    if (!isDrawing) return;
     setIsDrawing(false);
     const canvas = canvasRef.current;
     const dataURL = canvas.toDataURL();
     onChange(field.id, dataURL);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    onChange(field.id, null); // Clear the value
   };
 
   return (
@@ -623,13 +705,17 @@ export const SignatureField = ({ field, onChange, error }) => {
         <canvas
           ref={canvasRef}
           id={`signature-${field.id}`}
-          className="border border-gray-200"
-          width="300"
-          height="100"
+          className="border border-gray-200 cursor-crosshair"
+          width="500"
+          height="140"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
         />
+        <div className="mt-2">
+          <Button onClick={clearCanvas} size="sm" variant="outline">Clear Signature</Button>
+        </div>
       </div>
       {error && <span className="form-field-error-message">{error}</span>}
     </div>
@@ -688,32 +774,65 @@ export const TableField = ({ field, onChange, error }) => {
 };
 
 // Annotation Field Component
-export const AnnotationField = ({ field, onChange, error }) => {
+export const AnnotationField = ({ field, value, onChange, error }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000';
+      // Load existing annotation if available
+      if (value) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = value;
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [value]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     ctx.beginPath();
-    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctx.moveTo(x, y);
     setIsDrawing(true);
   };
 
   const handleMouseMove = (e) => {
-    if (isDrawing) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-      ctx.stroke();
-    }
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    ctx.lineTo(x, y);
+    ctx.stroke();
   };
 
   const handleMouseUp = () => {
+    if (!isDrawing) return;
     setIsDrawing(false);
     const canvas = canvasRef.current;
     const dataURL = canvas.toDataURL();
     onChange(field.id, dataURL);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    onChange(field.id, null); // Clear the value
   };
 
   return (
@@ -728,13 +847,17 @@ export const AnnotationField = ({ field, onChange, error }) => {
         <canvas
           ref={canvasRef}
           id={`annotation-${field.id}`}
-          className="border border-gray-200"
+          className="border border-gray-200 cursor-crosshair"
           width="400"
           height="200"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
         />
+        <div className="mt-2">
+          <Button onClick={clearCanvas} size="sm" variant="outline">Clear Annotation</Button>
+        </div>
       </div>
       {error && <span className="form-field-error-message">{error}</span>}
     </div>

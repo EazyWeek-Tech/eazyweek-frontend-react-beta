@@ -1,7 +1,7 @@
 /* CSS Variables for easy theming (customize these to match your app's theme) */
 :root {
-  --primary-color: #3b82f6; /* Blue accent */
-  --secondary-bg: #f3f4f6; /* Light gray for progress bar */
+  --primary-color: #2D3250; /* Updated primary accent */
+  --secondary-bg: #f1f5f9; /* Light gray for progress bar */
   --background-color: #ffffff;
   --text-color: #374151;
   --muted-text: #6b7280;
@@ -13,11 +13,45 @@
   --max-width: 42rem; /* 672px, equivalent to max-w-2xl */
 }
 
-/* Container for centering and max width */
+/* Container for full width */
 .form-preview-container {
-  max-width: var(--max-width);
+  width: 100%;
   margin: 0 auto;
   padding: 1rem;
+}
+
+/* Header section matching AdvancedFormBuilder */
+.form-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-color);
+}
+
+.form-preview-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #334B71 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.form-preview-description {
+  color: var(--muted-text);
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
 }
 
 /* Main card styling */
@@ -186,8 +220,8 @@
 .form-preview-field textarea:focus,
 .form-preview-field select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15);
+  border-color: #334B71;
+  box-shadow: 0 0 0 3px rgba(51, 75, 113, 0.1), 0 4px 12px rgba(51, 75, 113, 0.15);
   transform: translateY(-1px);
 }
 

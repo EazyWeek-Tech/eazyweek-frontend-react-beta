@@ -12,10 +12,8 @@ const Login = ({ onLoginSuccess }) => {
 
   const navigate = useNavigate();
   
-  // canonical headers object requested by user
   const commonHeaders = {
     "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
   };
 
   // helper that returns headers suitable for the method. We keep the canonical

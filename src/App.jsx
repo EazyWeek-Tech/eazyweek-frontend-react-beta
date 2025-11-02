@@ -305,7 +305,7 @@ function App() {
                   />
 
 <Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
-<Route path="/lrm" element={<AdvancedFormBuilder />} />
+<Route path="/custom-forms/form-builder" element={<AdvancedFormBuilder />} />
 
                   <Route 
                   path="/custom-forms/hyaluronidase-treatment"

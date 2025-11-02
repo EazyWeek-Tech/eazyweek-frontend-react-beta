@@ -4,7 +4,7 @@ import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
-import { Switch } from "../../../components/ui/switch";
+import ToggleSwitch from "./ToggleSwitch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Badge } from "../../../components/ui/badge";
 import {
@@ -147,9 +147,7 @@ export const AdvancedFormBuilder = () => {
     });
   };
 
-  const toggleMultiStep = () => {
-    setConfig({ ...config, isMultiStep: !config.isMultiStep });
-  };
+
 
   if (currentView === "preview") {
     return (
@@ -174,8 +172,8 @@ export const AdvancedFormBuilder = () => {
               </Button>
             </div>
           </div>
-          <FormPreview config={config} />
         </div>
+          <FormPreview config={config} />
       </div>
     );
   }
@@ -186,7 +184,7 @@ export const AdvancedFormBuilder = () => {
         <div className="form-builder-header">
           <div>
             <h1 className="form-builder-title">
-              Advanced Form Builder
+              Create Form
             </h1>
             <p className="form-builder-subtitle">
               Create sophisticated forms with conditional logic & multi-step workflows
@@ -231,11 +229,12 @@ export const AdvancedFormBuilder = () => {
                 </div>
 
                 <div className="form-builder-toggle">
-                  <Switch
-                    checked={config.isMultiStep}
-                    onCheckedChange={toggleMultiStep}
+                  <ToggleSwitch
+                    leftLabel="Single Step"
+                    rightLabel="Multi-Step"
+                    value={config.isMultiStep ? "Multi-Step" : "Single Step"}
+                    onChange={(value) => setConfig({ ...config, isMultiStep: value === "Multi-Step" })}
                   />
-                  <Label>Multi-step form</Label>
                 </div>
               </div>
             </Card>
@@ -389,11 +388,12 @@ export const AdvancedFormBuilder = () => {
                       </div>
 
                       <div className="form-builder-toggle">
-                        <Switch
-                          checked={selectedField.required}
-                          onCheckedChange={(checked) => updateField(selectedField.id, { required: checked })}
+                        <ToggleSwitch
+                          leftLabel="Optional"
+                          rightLabel="Required"
+                          value={selectedField.required ? "Required" : "Optional"}
+                          onChange={(value) => updateField(selectedField.id, { required: value === "Required" })}
                         />
-                        <Label>Required field</Label>
                       </div>
 
                       {(selectedField.type === "select" || selectedField.type === "radio" || selectedField.type === "selectboxes") && (

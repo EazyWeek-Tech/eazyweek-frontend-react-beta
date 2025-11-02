@@ -1,12 +1,6 @@
 import { useState } from "react";
-import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
-import { Textarea } from "../../../components/ui/textarea";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "../../../components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { FileText } from "lucide-react";
 import { useToast } from "./use-toast";
 import * as FieldComponents from "./FieldComponents";
@@ -97,7 +91,15 @@ export const FormPreview = ({ config }) => {
     });
 
     console.log("Form Data:", formData);
-    setFormData({});
+    // Preserve signatures and annotations on form clear
+    const preservedData = Object.keys(formData).reduce((acc, key) => {
+      const field = config.fields.find(f => f.id === key);
+      if (field && (field.type === 'signature' || field.type === 'annotation')) {
+        acc[key] = formData[key];
+      }
+      return acc;
+    }, {});
+    setFormData(preservedData);
     setCurrentStep(0);
     setFormKey(prev => prev + 1);
   };

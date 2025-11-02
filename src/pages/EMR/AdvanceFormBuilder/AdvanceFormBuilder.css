@@ -1,13 +1,13 @@
 /* Advanced Form Builder - Enhanced Professional Design */
 
 :root {
-  --builder-bg: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  --builder-border: #e2e8f0;
+  --builder-bg: #fff;
+  --builder-border: #ccc;
   --builder-hover: #f1f5f9;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-light: rgba(59, 130, 246, 0.1);
-  --primary-glow: rgba(59, 130, 246, 0.2);
+  --primary: #2D3250;
+  --primary-hover: #334B71;
+  --primary-light: rgba(45, 50, 80, 0.1);
+  --primary-glow: rgba(45, 50, 80, 0.2);
   --secondary: #64748b;
   --secondary-hover: #475569;
   --success: #10b981;
@@ -404,6 +404,16 @@ label, .label, .label-root {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+button {
+  background-color:rgb(248, 243, 243) !important;
+  color: var(--text-primary) !important;
+}
+
+button:hover {
+  background-color: rgb(234, 226, 226) !important;  
+  color: var(--text-primary) !important;
 }
 
 /* Header Section */
@@ -1140,7 +1150,7 @@ label, .label, .label-root {
 }
 
 .form-preview-wrapper {
-  max-width: 800px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
