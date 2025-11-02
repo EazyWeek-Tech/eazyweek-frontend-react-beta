@@ -1,0 +1,116 @@
+/* CSS Variables for easy theming (customize these to match your app's theme) */
+:root {
+  --primary-color: #3b82f6; /* Blue accent (matches Tailwind's primary) */
+  --primary-hover: #2563eb;
+  --background-color: #ffffff;
+  --card-background: #f9fafb;
+  --border-color: #e5e7eb; /* Fallback for border-builder-border */
+  --text-color: #374151;
+  --muted-text: #6b7280;
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Fallback for shadow-soft */
+  --shadow-glow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05);
+  --hover-bg: rgba(59, 130, 246, 0.1); /* Fallback for bg-builder-hover */
+  --border-radius: 12px;
+  --transition-duration: 0.2s;
+}
+
+/* Main card styling (enhances the Card component) */
+.form-field-selector-card {
+  background: var(--card-background);
+  border-radius: var(--border-radius);
+  transition: box-shadow var(--transition-duration) ease;
+}
+
+.form-field-selector-card:hover {
+  box-shadow: var(--shadow-glow); /* Add a subtle glow on hover */
+}
+
+/* Title styling */
+.form-field-selector-title {
+  font-size: large;
+  color: var(--text-color);
+}
+
+/* List container for buttons */
+.form-field-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* Adds consistent spacing between buttons */
+}
+
+/* Individual field button (enhances the Button component) */
+.field-button {
+  border-radius: 8px;
+  transition: all var(--transition-duration) ease, transform var(--transition-duration) ease;
+}
+
+.field-button:hover,
+.field-button:focus {
+  background: var(--hover-bg); /* Use custom hover background */
+  transform: translateY(-1px); /* Subtle lift effect */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.field-button:focus {
+  box-shadow: 0 0 0 2px var(--primary-color); /* Visible focus ring for accessibility */
+}
+
+/* Button content layout */
+.field-button-content {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Consistent gap between icon and text */
+}
+
+/* Icon container */
+.field-icon-container {
+  transition: background var(--transition-duration) ease;
+}
+
+/* Icon styling */
+.field-icon {
+  color: var(--primary-color);
+}
+
+/* Text content */
+.field-text {
+  /* Ensures left alignment */
+}
+
+.field-label {
+  color: var(--text-color);
+  margin-bottom: 0.25rem; /* Space between label and description */
+}
+
+.field-description {
+  color: var(--muted-text);
+}
+
+/* Error state */
+.form-field-selector-error {
+  color: #ef4444; /* Red for errors */
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 1rem;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-field-selector-card {
+    padding: 1rem; /* Reduce padding on mobile */
+  }
+
+  .field-button-content {
+    flex-direction: column; /* Stack icon and text vertically on small screens */
+    align-items: center;
+    text-align: center;
+    gap: 8px; /* Smaller gap on mobile */
+  }
+
+  .field-icon-container {
+    margin-bottom: 0.5rem;
+  }
+}

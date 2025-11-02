@@ -1,9 +1,9 @@
 import React from 'react';
 import { useDropzone } from 'react-dropzone';
 
-export default function FileUploader({ onFilesSelected }) {
+export default function FileUploader({ onFilesSelected, accept = { 'image/*': [] } }) {
   const { getRootProps, getInputProps } = useDropzone({
-    accept: { 'image/*': [] },
+    accept,
     maxFiles: 10,
     maxSize: 10 * 1024 * 1024,
     onDrop: async acceptedFiles => {

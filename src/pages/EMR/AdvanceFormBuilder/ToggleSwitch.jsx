@@ -1,33 +1,30 @@
-import React from 'react';
 import './ToggleSwitch.css';
 
-const ToggleSwitch = ({ activeTab, onTabChange }) => {
+const ToggleSwitch = ({ leftLabel = 'Left', rightLabel = 'Right', value, onChange }) => {
   return (
     <div className="mode-toggle-container">
-
       <input
         type="radio"
-        id="builderMode"
-        name="formMode"
-        value="builder"
-        checked={activeTab === 'builder'}
-        onChange={() => onTabChange('builder')}
+        id={`${leftLabel}-${rightLabel}-left`}
+        name={`${leftLabel}-${rightLabel}`}
+        value={leftLabel}
+        checked={value === leftLabel}
+        onChange={() => onChange(leftLabel)}
       />
-      <label htmlFor="builderMode" className="mode-button">
-        Builder
+      <label htmlFor={`${leftLabel}-${rightLabel}-left`} className="mode-button">
+        {leftLabel}
       </label>
 
-
       <input
         type="radio"
-        id="previewMode"
-        name="formMode"
-        value="preview"
-        checked={activeTab === 'preview'}
-        onChange={() => onTabChange('preview')}
+        id={`${leftLabel}-${rightLabel}-right`}
+        name={`${leftLabel}-${rightLabel}`}
+        value={rightLabel}
+        checked={value === rightLabel}
+        onChange={() => onChange(rightLabel)}
       />
-      <label htmlFor="previewMode" className="mode-button">
-        Preview
+      <label htmlFor={`${leftLabel}-${rightLabel}-right`} className="mode-button">
+        {rightLabel}
       </label>
     </div>
   );

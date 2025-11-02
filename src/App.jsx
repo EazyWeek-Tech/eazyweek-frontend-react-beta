@@ -59,6 +59,7 @@ import MembershipConfig from "./pages/Membership/MembershipConfig";
 import DiscountManagement from "./pages/Discount/DiscountManagement";
 import DiscountConfig from "./pages/Discount/DiscountConfig";
 import DiscountList from "./pages/Discount/DiscountList";
+import { AdvancedFormBuilder } from "./pages/EMR/AdvanceFormBuilder/AdvancedFormBuilder";
 import LaserSessionCF from "./pages/CustomForms/LaserSession/LaserSessionCF";
 import HyaluronidaseCF from "./pages/CustomForms/Hyaluronidase/HyaluronidaseCF";
 import InjectableTreatment from "./pages/CustomForms/InjectableTreatment/InjectableTreatment";
@@ -302,6 +303,9 @@ function App() {
                   path="/custom-forms/consultation-assessment"
                   element={<ConsultationAssessmentForm/>}
                   />
+
+<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
+<Route path="/custom-forms/form-builder" element={<AdvancedFormBuilder />} />
 
                   <Route 
                   path="/custom-forms/hyaluronidase-treatment"

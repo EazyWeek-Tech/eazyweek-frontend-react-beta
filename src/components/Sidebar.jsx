@@ -108,6 +108,7 @@ const Sidebar = ({ collapsed }) => {
 ,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
 { name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
 { name:"General Form", path:"/custom-forms/general-form"},
+{ name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
       ]
     },
     {

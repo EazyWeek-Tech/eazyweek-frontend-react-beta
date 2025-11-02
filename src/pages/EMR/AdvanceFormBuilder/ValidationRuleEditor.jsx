@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { Textarea } from "../../../components/ui/textarea";
+import { Badge } from "../../../components/ui/badge";
 import { Trash2, Plus, Shield, AlertTriangle } from "lucide-react";
+import "./form-field-properties.css";
 
 export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
   const [rules, setRules] = useState(field.validationRules || []);
@@ -43,15 +44,15 @@ export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 field-properties">
       <div className="flex items-center gap-2">
-        <Shield className="w-4 h-4 text-muted-foreground" />
+        <Shield className="w-4 h-4 text-muted-foreground iconright" />
         <Label className="text-sm font-medium">Validation Rules</Label>
       </div>
 
       {rules.length === 0 ? (
-        <div className="text-center p-4 border border-dashed border-builder-border rounded-lg">
-          <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+        <div className="icon">
+          <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2 " />
           <p className="text-sm text-muted-foreground mb-3">
             No validation rules set. Only basic type validation will apply.
           </p>

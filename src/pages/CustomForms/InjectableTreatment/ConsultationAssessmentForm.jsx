@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { useReactToPrint } from 'react-to-print';
 import './ConsultationAssessmentForm.css';
 
 const ConsultationAssessmentForm = () => {
@@ -17,6 +16,7 @@ const ConsultationAssessmentForm = () => {
     planningNotes: '',
     beforePhotos: [],
     afterPhotos: [],
+    faceMapper: null,
     providerName: '',
     providerSignature: null,
     signatureDate: '',
@@ -25,6 +25,13 @@ const ConsultationAssessmentForm = () => {
   const [errors, setErrors] = useState({});
   const sigCanvas = useRef(null);
   const formRef = useRef(null);
+  const faceCanvas = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [color, setColor] = useState('#000000');
+  const [brushSize, setBrushSize] = useState(2);
+  const [tool, setTool] = useState('pencil');
+  const [startPos, setStartPos] = useState(null);
+  const [rectangles, setRectangles] = useState([]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -64,6 +71,106 @@ const ConsultationAssessmentForm = () => {
     setFormData(prev => ({ ...prev, providerSignature: null }));
   };
 
+  const startDrawing = (e) => {
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setStartPos({ x, y });
+    setIsDrawing(true);
+
+    if (tool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tool === 'pencil') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+    }
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (tool === 'eraser') {
+      ctx.beginPath();
+      ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tool === 'pencil') {
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+  };
+
+  const stopDrawing = (e) => {
+    if (!isDrawing) return;
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (tool === 'line') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(startPos.x, startPos.y);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.stroke();
+    } else if (tool === 'rectangle') {
+      ctx.globalCompositeOperation = 'source-over';
+      const width = x - startPos.x;
+      const height = y - startPos.y;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.strokeRect(startPos.x, startPos.y, width, height);
+      const newRect = {
+        id: Date.now(),
+        x: startPos.x,
+        y: startPos.y,
+        width,
+        height,
+        text: '',
+      };
+      setRectangles(prev => [...prev, newRect]);
+    } else if (tool === 'circle') {
+      ctx.globalCompositeOperation = 'source-over';
+      const radius = Math.sqrt((x - startPos.x) ** 2 + (y - startPos.y) ** 2);
+      ctx.beginPath();
+      ctx.arc(startPos.x, startPos.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.stroke();
+    }
+
+    setIsDrawing(false);
+    setStartPos(null);
+    setFormData(prev => ({ ...prev, faceMapper: canvas.toDataURL() }));
+  };
+
+  const clearFaceMapper = () => {
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setRectangles([]);
+    setFormData(prev => ({ ...prev, faceMapper: null }));
+  };
+
+  const updateRectangleText = (id, text) => {
+    setRectangles(prev => prev.map(rect => rect.id === id ? { ...rect, text } : rect));
+  };
+
   const validateForm = () => {
     const newErrors = {};
     if (!formData.dateOfAppointment) newErrors.dateOfAppointment = 'Date of appointment is required';
@@ -79,8 +186,10 @@ const ConsultationAssessmentForm = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validateForm()) {
+      const rectanglesData = rectangles.map(rect => ({ x: rect.x, y: rect.y, width: rect.width, height: rect.height, text: rect.text }));
+      const updatedFormData = { ...formData, rectangles: rectanglesData };
       alert('Form submitted successfully');
-      console.log('Form submitted:', formData);
+      console.log('Form submitted:', updatedFormData);
     }
   };
 
@@ -313,6 +422,75 @@ const ConsultationAssessmentForm = () => {
   </div>
 </div>
 
+        <div className="face-mapper-section">
+          <div className="face-mapper-container">
+            <img src="/images/facediagram.jpg" alt="Face Diagram" className="face-diagram" />
+            <canvas
+              ref={faceCanvas}
+              width={700}
+              height={700}
+              className="face-canvas"
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+            />
+            {rectangles.map(rect => (
+              <textarea
+                key={rect.id}
+                value={rect.text}
+                onChange={(e) => updateRectangleText(rect.id, e.target.value)}
+                style={{
+                  position: 'absolute',
+                  left: `${rect.x}px`,
+                  top: `${rect.y}px`,
+                  width: `${rect.width}px`,
+                  height: `${rect.height}px`,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '12px',
+                  padding: '2px',
+                  boxSizing: 'border-box',
+                  resize: 'none',
+                  overflow: 'hidden',
+                }}
+                placeholder="Enter text"
+              />
+            ))}
+          </div>
+          <div className="face-mapper-tools">
+            <label>
+              Tool:
+              <select value={tool} onChange={(e) => setTool(e.target.value)}>
+                <option value="pencil">Pencil</option>
+                <option value="eraser">Eraser</option>
+                <option value="line">Line</option>
+                <option value="rectangle">Rectangle</option>
+              </select>
+            </label>
+            <label>
+              Color:
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+              />
+            </label>
+            <label>
+              Brush Size:
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={brushSize}
+                onChange={(e) => setBrushSize(e.target.value)}
+              />
+            </label>
+            <button type="button" className="clear-face-mapper-btn" onClick={clearFaceMapper}>
+              Clear Drawing
+            </button>
+          </div>
+        </div>
 
         <div className="form-group">
           <label>Provider Name:</label>

@@ -12,11 +12,27 @@ const Login = ({ onLoginSuccess }) => {
 
   const navigate = useNavigate();
   
+  const commonHeaders = {
+    "Content-Type": "application/json",
+  };
+
+  // helper that returns headers suitable for the method. We keep the canonical
+  // object intact but omit Content-Type for GET requests to avoid preflight/CORS
+  // issues while still storing the canonical header shape in the file.
+  const headersFor = (method = "GET") => {
+    if (String(method).toUpperCase() === "GET") {
+      const { ["Content-Type"]: _, ...rest } = commonHeaders;
+      return rest;
+    }
+    return commonHeaders;
+  };
+
   const getSessionFromApi = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/session/get`, {
       method: "GET",
-      credentials: "include"
+        credentials: "include",
+        headers: headersFor("GET"),
     });
 
     if (!response.ok) throw new Error("Failed to fetch session info");
@@ -36,9 +52,9 @@ const setSessionToApi = async ({ user }) => {
     const payload = { LoginCode: "Bright", TopCode: "Bright", userID: user.userId };
     const response = await fetch(`${API_BASE_URL}/api/session/set`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headersFor("POST"),
       body: JSON.stringify(payload),
-      credentials: "include"
+      credentials: "include",
     });
 
     if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
@@ -61,15 +77,33 @@ const setSessionToApi = async ({ user }) => {
     return;
   }
 
-  const url = `${API_BASE_URL}/api/Employees/Login/${email}/${password}`;
   try {
-    const response = await fetch(url, {
+    // Use encoded credentials in URL to avoid issues with special characters
+    const loginUrl = `${API_BASE_URL}/api/Employees/Login/${encodeURIComponent(
+      email
+    )}/${encodeURIComponent(password)}`;
+
+    const response = await fetch(loginUrl, {
       method: "GET",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: headersFor("GET"),
     });
 
-    if (!response.ok) throw new Error("Login failed");
+    if (!response.ok) {
+      // try to read response body for diagnostics
+      let text = "<no body>";
+      try {
+        text = await response.text();
+      } catch {
+        /* ignore */
+      }
+      console.error(`Login failed: ${response.status} ${response.statusText}`, text);
+      setError(
+        `Login failed (${response.status}). Check console for server response.`
+      );
+      setLoading(false);
+      return;
+    }
 
     const data = await response.json();
     console.log("Login API Response:", data);
