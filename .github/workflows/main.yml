@@ -3,14 +3,14 @@ name: Sync Main to Deploy Repo via SSH
 on:
   push:
     branches:
-      - main  # Trigger when main branch is updated
+      - main
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main repo
+      - name: Checkout source repo
         uses: actions/checkout@v4
 
       - name: Setup SSH
@@ -18,6 +18,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Configure Git
@@ -28,16 +30,24 @@ jobs:
       - name: Clone deploy repo
         run: |
           git clone git@github.com:AnkurBhayana/insight-react-frontend.git deploy-repo
+
+      - name: Sync files (exclude only .github/workflows)
+        run: |
+         rsync -av --delete \
+          --exclude='.git/' \
+          --exclude='deploy-repo/' \
+          --exclude='.github/workflows/***' \
+          --filter='P .github/workflows/' \
+          ./ deploy-repo/
+
+
+      - name: Commit and push changes safely
+        run: |
           cd deploy-repo
+          git fetch origin main
           git checkout main || git checkout -b main
-
-      - name: Copy files except .github
-        run: |
-          rsync -av --exclude='.github' ../ ./deploy-repo/
-
-      - name: Commit and push changes
-        run: |
-          cd deploy-repo
+          git pull origin main --rebase
           git add .
-          git commit -m "Sync from source repo" || echo "No changes to commit"
+          git diff --quiet && echo "No changes to sync" && exit 0
+          git commit -m "Sync from source repo on $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           git push origin main

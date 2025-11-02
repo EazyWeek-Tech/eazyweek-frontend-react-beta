@@ -1,0 +1,643 @@
+import React, { useState, useRef } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
+import { useReactToPrint } from 'react-to-print';
+import './HyaluronidaseTreatmentForm.css';
+
+const HyaluronidaseTreatmentForm = () => {
+  const [formData, setFormData] = useState({
+    allergies: '',
+    gfeComplete: false,
+    noTreatmentPerformed: false,
+    patientName: '',
+    date: '',
+    treatmentNumber: '',
+    historyNSAID: '',
+    pregnancy: '',
+    indicationsDissolve: false,
+    preProcedureDiscontinue: false,
+    indications: '',
+    preProcedureText: '',
+    skinNumbedWith: '',
+    numbingMinutes: '',
+    numbingCreamRemoved: false,
+    chiefComplaint: '',
+    diagnosis: '',
+    treatmentPlan: '',
+    treatmentSettings: [{
+      areaTreated: '',
+      product: '',
+      volume: '',
+      lotNumber: '',
+      expiration: '',
+      dateTime: '',
+    }],
+    postProcedureText: '',
+    postCare: '',
+    additionalNotes: '',
+    providerName: '',
+    providerDate: '',
+    providerSignature: null,
+    supervisingSignature: null,
+    supervisingDate: '',
+    beforePhotos: [],
+    afterPhotos: [],
+  });
+
+  const [errors, setErrors] = useState({});
+  const providerSigCanvas = useRef(null);
+  const supervisingSigCanvas = useRef(null);
+  const formRef = useRef(null);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleRadioChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleCheckboxChange = (name, checked) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: checked
+    }));
+  };
+
+  const handleTableChange = (index, field, value) => {
+    const updatedSettings = [...formData.treatmentSettings];
+    updatedSettings[index][field] = value;
+    setFormData(prev => ({
+      ...prev,
+      treatmentSettings: updatedSettings
+    }));
+  };
+
+  const addRow = () => {
+    setFormData(prev => ({
+      ...prev,
+      treatmentSettings: [...prev.treatmentSettings, {
+        areaTreated: '',
+        product: '',
+        volume: '',
+        lotNumber: '',
+        expiration: '',
+        dateTime: '',
+      }]
+    }));
+  };
+
+  const deleteRow = (index) => {
+    if (formData.treatmentSettings.length > 1) {
+      const updatedSettings = formData.treatmentSettings.filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        treatmentSettings: updatedSettings
+      }));
+    }
+  };
+
+  const handleFileChange = (e, type) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 10) {
+      alert('You can upload a maximum of 10 files at a time.');
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      [type]: files
+    }));
+  };
+
+  const clearProviderSignature = () => {
+    providerSigCanvas.current.clear();
+    setFormData(prev => ({ ...prev, providerSignature: null }));
+  };
+
+  const clearSupervisingSignature = () => {
+    supervisingSigCanvas.current.clear();
+    setFormData(prev => ({ ...prev, supervisingSignature: null }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.patientName.trim()) newErrors.patientName = 'Patient name is required';
+    if (!formData.date) newErrors.date = 'Date is required';
+    if (!formData.historyNSAID) newErrors.historyNSAID = 'History of recent NSAID/ASA is required';
+    if (!formData.pregnancy) newErrors.pregnancy = 'Pregnancy and/or breast feeding is required';
+    if (!formData.providerName.trim()) newErrors.providerName = 'Provider name is required';
+    if (!formData.providerSignature) newErrors.providerSignature = 'Provider signature is required';
+    if (!formData.supervisingSignature) newErrors.supervisingSignature = 'Supervising physician signature is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      alert('Form submitted successfully');
+      console.log('Form submitted:', formData);
+    }
+  };
+
+  const handlePrint = useReactToPrint({
+    content: () => formRef.current,
+  });
+
+  return (
+    <div className="form-container-1">
+      <div ref={formRef} className="forms">
+        <h1>HYALURONIDASE TREATMENT FORM</h1>
+         <div className="form-row">
+          <div className="form-group">
+          <label>Patient Name:</label>
+          <input
+            type="text"
+            name="patientName"
+            value={formData.patientName}
+            onChange={handleInputChange}
+            placeholder="Enter patient name"
+          />
+          {errors.patientName && <span className="error-message">{errors.patientName}</span>}
+        </div>
+
+        <div className="form-group">
+          <label>Date:</label>
+          <input
+            type="date"
+            name="date"
+            value={formData.date}
+            onChange={handleInputChange}
+          />
+          {errors.date && <span className="error-message">{errors.date}</span>}
+        </div>
+
+        <div className="form-group">
+          <label>Treatment Number: </label>
+          <input
+            type="text"
+            name="treatmentNumber"
+            value={formData.treatmentNumber}
+            onChange={handleInputChange}
+            placeholder="Enter treatment number"
+          />
+        </div>
+         </div>
+        <div className="form-group">
+          <label>Allergies:</label>
+          <textarea
+            type="text"
+            name="allergies"
+            value={formData.allergies}
+            onChange={handleInputChange}
+            placeholder="Enter allergies"
+          />
+        </div>
+
+        <div className="form-section">
+  <div className="checkbox-row">
+    <label className="checkbox-label">
+      <input
+        type="checkbox"
+        checked={formData.gfeComplete}
+        onChange={(e) => handleCheckboxChange('gfeComplete', e.target.checked)}
+      />
+      <span>GFE Complete</span>
+    </label>
+
+    <label className="checkbox-label">
+      <input
+        type="checkbox"
+        checked={formData.noTreatmentPerformed}
+        onChange={(e) =>
+          handleCheckboxChange('noTreatmentPerformed', e.target.checked)
+        }
+      />
+      <span>No Treatment Performed</span>
+    </label>
+  </div>
+</div>
+
+<div className="form-section">
+  <label className="section-label">History of recent NSAID/ASA:</label>
+  <div className="radio-row">
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="historyNSAID"
+        value="Yes"
+        checked={formData.historyNSAID === 'Yes'}
+        onChange={(e) => handleRadioChange('historyNSAID', e.target.value)}
+      />
+      <span>Yes</span>
+    </label>
+
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="historyNSAID"
+        value="No"
+        checked={formData.historyNSAID === 'No'}
+        onChange={(e) => handleRadioChange('historyNSAID', e.target.value)}
+      />
+      <span>No</span>
+    </label>
+  </div>
+  {errors.historyNSAID && (
+    <span className="error-message">{errors.historyNSAID}</span>
+  )}
+</div>
+
+<div className="form-section">
+  <label className="section-label">Pregnancy and/or breast feeding:</label>
+  <div className="radio-row">
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="pregnancy"
+        value="Yes"
+        checked={formData.pregnancy === 'Yes'}
+        onChange={(e) => handleRadioChange('pregnancy', e.target.value)}
+      />
+      <span>Yes</span>
+    </label>
+
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="pregnancy"
+        value="No"
+        checked={formData.pregnancy === 'No'}
+        onChange={(e) => handleRadioChange('pregnancy', e.target.value)}
+      />
+      <span>No</span>
+    </label>
+  </div>
+  {errors.pregnancy && (
+    <span className="error-message">{errors.pregnancy}</span>
+  )}
+</div>
+
+
+        <div className="form-section">
+  <label className="section-label">Indications for Treatment:</label>
+  <div className="checkbox-row">
+    <label className="checkbox-label">
+      <input
+        type="checkbox"
+        checked={formData.indicationsDissolve}
+        onChange={(e) =>
+          handleCheckboxChange('indicationsDissolve', e.target.checked)
+        }
+      />
+      <span>Dissolve hyaluronic acid fillers</span>
+    </label>
+  </div>
+</div>
+
+<div className="form-section">
+  <label className="section-label">Pre-Procedure Text:</label>
+  <div className="checkbox-row">
+    <label className="checkbox-label long-text">
+      <input
+        type="checkbox"
+        checked={formData.preProcedureDiscontinue}
+        onChange={(e) =>
+          handleCheckboxChange('preProcedureDiscontinue', e.target.checked)
+        }
+      />
+      <span>
+        Discontinue omega 3 fish oils, Vitamin E, St. John’s Wart, Aspirin,
+        Ibuprofen, Naproxen (Aleve), and anything containing these (cold
+        medicine, Alka-Seltzer, etc.) for a minimum of 3 days before your
+        treatment. If you are taking a medically prescribed blood thinner or any
+        type of steroid, please notify your practitioner prior to treatment.
+      </span>
+    </label>
+  </div>
+</div>
+
+
+
+<div className="form-section">
+  <label className="section-label">Skin Numbed With:</label>
+  <div className="radio-row">
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="skinNumbedWith"
+        value="23/7% Lidocaine/Tetracaine"
+        checked={formData.skinNumbedWith === '23/7% Lidocaine/Tetracaine'}
+        onChange={(e) => handleRadioChange('skinNumbedWith', e.target.value)}
+      />
+      <span>23/7% Lidocaine/Tetracaine</span>
+    </label>
+
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="skinNumbedWith"
+        value="20/8/4% BLT"
+        checked={formData.skinNumbedWith === '20/8/4% BLT'}
+        onChange={(e) => handleRadioChange('skinNumbedWith', e.target.value)}
+      />
+      <span>20/8/4% BLT</span>
+    </label>
+  <div className="numbing-duration">
+    <label>
+      For{' '}
+      <input
+        type="text"
+        name="numbingMinutes"
+        value={formData.numbingMinutes}
+        onChange={handleInputChange}
+        className="minutes-input"
+      />{' '}
+      minutes prior to treatment
+    </label>
+  </div>
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="skinNumbedWith"
+        value="Local infiltration sodium bicarb, 1% lidocaine, and epinephrine"
+        checked={
+          formData.skinNumbedWith ===
+          'Local infiltration sodium bicarb, 1% lidocaine, and epinephrine'
+        }
+        onChange={(e) => handleRadioChange('skinNumbedWith', e.target.value)}
+      />
+      <span>
+        Local infiltration sodium bicarb, 1% lidocaine, and epinephrine
+      </span>
+    </label>
+
+    <label className="radio-label">
+      <input
+        type="radio"
+        name="skinNumbedWith"
+        value="Tumescent with sodium bicarb, 1% lidocaine"
+        checked={
+          formData.skinNumbedWith ===
+          'Tumescent with sodium bicarb, 1% lidocaine'
+        }
+        onChange={(e) => handleRadioChange('skinNumbedWith', e.target.value)}
+      />
+      <span>Tumescent with sodium bicarb, 1% lidocaine</span>
+    </label>
+  </div>
+
+
+
+  <label className="checkbox-label">
+    <input
+      type="checkbox"
+      checked={formData.numbingCreamRemoved}
+      onChange={(e) =>
+        handleCheckboxChange('numbingCreamRemoved', e.target.checked)
+      }
+    />
+    <span>Numbing cream removed prior to treatment</span>
+  </label>
+</div>
+
+
+        <div className="form-group">
+          <label>Chief Complaint:</label>
+          <textarea
+            name="chiefComplaint"
+            value={formData.chiefComplaint}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <div className="form-group">
+          <label>Diagnosis:</label>
+          <textarea
+            name="diagnosis"
+            value={formData.diagnosis}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <div className="form-group">
+          <label>Treatment Plan:</label>
+          <textarea
+            name="treatmentPlan"
+            value={formData.treatmentPlan}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <div className="TitleandButton">
+           <h2>Treatment Settings:</h2>
+          <button type="button" onClick={addRow} className="add-row-btn">Add Row</button>
+        </div>
+       <table className="treatment-table">
+          <thead>
+            <tr>
+              <th>Area Treated</th>
+              <th>Product</th>
+              <th>Volume (mL)</th>
+              <th>Lot Number</th>
+              <th>Expiration</th>
+              <th>Date/Time</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {formData.treatmentSettings.map((setting, index) => (
+              <tr key={index}>
+                <td><input type="text" value={setting.areaTreated} onChange={(e) => handleTableChange(index, 'areaTreated', e.target.value)} /></td>
+                <td><input type="text" value={setting.product} onChange={(e) => handleTableChange(index, 'product', e.target.value)} /></td>
+                <td><input type="text" value={setting.volume} onChange={(e) => handleTableChange(index, 'volume', e.target.value)} /></td>
+                <td><input type="text" value={setting.lotNumber} onChange={(e) => handleTableChange(index, 'lotNumber', e.target.value)} /></td>
+                <td><input type="date" value={setting.expiration} onChange={(e) => handleTableChange(index, 'expiration', e.target.value)} /></td>
+                <td><input type="datetime-local" value={setting.dateTime} onChange={(e) => handleTableChange(index, 'dateTime', e.target.value)} /></td>
+                <td>
+                  {formData.treatmentSettings.length > 1 && (
+                    <button type="button" onClick={() => deleteRow(index)} className="delete-row-btn">Delete</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="form-group">
+          <label>Post Procedure Text:</label>
+          <textarea
+            name="postProcedureText"
+            value={formData.postProcedureText}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <div className="form-group">
+          <label>Post Care:</label>
+          <textarea
+            name="postCare"
+            value={formData.postCare}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <div className="form-group">
+          <label>Additional Notes:</label>
+          <textarea
+            name="additionalNotes"
+            value={formData.additionalNotes}
+            onChange={handleInputChange}
+            placeholder="_____________________________________________________________"
+          ></textarea>
+        </div>
+
+        <p>The patient tolerated the procedure well.</p>
+        <p>No discomfort reported by patient during or post treatment.</p>
+        <p>Arnica applied.</p>
+        <p>Ibuprofen 800mg given.</p>
+        <p>I reviewed with the patient in detail post-care instructions. Patient should do the following for minimum 1 week: sleep on back, no exercise, and no excessive heat (saunas, Jacuzzis, etc.). No massaging treatment site unless specified by provider. No laser or resurfacing treatments for one month.</p>
+
+        <div className="form-group">
+          <label>Provider Name: [TherapistName]</label>
+          <input
+            type="text"
+            name="providerName"
+            value={formData.providerName}
+            onChange={handleInputChange}
+            placeholder="Enter provider name"
+          />
+          {errors.providerName && <span className="error-message">{errors.providerName}</span>}
+        </div>
+
+        <div className="form-group">
+          <label>Date: ____________</label>
+          <input
+            type="date"
+            name="providerDate"
+            value={formData.providerDate}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <h2>PHOTO UPLOADS</h2>
+
+        <div className="signature-section">
+          <h2>Provider Signature:</h2>
+          <p>Sign above</p>
+          <div className="signature-pad">
+            <SignatureCanvas
+              ref={providerSigCanvas}
+              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              onEnd={() => setFormData(prev => ({ ...prev, providerSignature: providerSigCanvas.current.toDataURL() }))}
+            />
+          </div>
+          <button type="button" className="clear-signature-btn" onClick={clearProviderSignature}>
+            Clear Signature
+          </button>
+          {errors.providerSignature && <span className="error-message">{errors.providerSignature}</span>}
+        </div>
+
+        <div className="form-group">
+          <label>Date: ____________</label>
+          <input
+            type="date"
+            name="supervisingDate"
+            value={formData.supervisingDate}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="signature-section">
+          <h2>Supervising Physician Signature:</h2>
+          <p>Sign above</p>
+          <div className="signature-pad">
+            <SignatureCanvas
+              ref={supervisingSigCanvas}
+              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              onEnd={() => setFormData(prev => ({ ...prev, supervisingSignature: supervisingSigCanvas.current.toDataURL() }))}
+            />
+          </div>
+          <button type="button" className="clear-signature-btn" onClick={clearSupervisingSignature}>
+            Clear Signature
+          </button>
+          {errors.supervisingSignature && <span className="error-message">{errors.supervisingSignature}</span>}
+        </div>
+
+        <div className="photo-upload-section">
+          <h3>BEFORE</h3>
+          <p>File Upload</p>
+          <p>Drop files to attach, or browse</p>
+          <input
+            type="file"
+            multiple
+            accept=".jpg,.png,.jpeg,.pdf"
+            onChange={(e) => handleFileChange(e, 'beforePhotos')}
+            className="file-input"
+          />
+          <p>Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.</p>
+          {formData.beforePhotos.length > 0 && (
+            <div className="file-list">
+              <ul>
+                {formData.beforePhotos.map((file, index) => (
+                  <li key={index}>{file.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="photo-upload-section">
+          <h3>AFTER</h3>
+          <p>File Upload</p>
+          <p>Drop files to attach, or browse</p>
+          <input
+            type="file"
+            multiple
+            accept=".jpg,.png,.jpeg,.pdf"
+            onChange={(e) => handleFileChange(e, 'afterPhotos')}
+            className="file-input"
+          />
+          <p>Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.</p>
+          {formData.afterPhotos.length > 0 && (
+            <div className="file-list">
+              <ul>
+                {formData.afterPhotos.map((file, index) => (
+                  <li key={index}>{file.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="button-group">
+          <button type="button" className="print-btn" onClick={handlePrint}>
+            Print Form
+          </button>
+          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+            Submit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default HyaluronidaseTreatmentForm;
