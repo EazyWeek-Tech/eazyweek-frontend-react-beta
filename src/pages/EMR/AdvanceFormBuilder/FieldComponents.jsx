@@ -725,12 +725,45 @@ export const SignatureField = ({ field, value, onChange, error }) => {
 import { Button } from "../../../components/ui/button";
 
 // Table Field Component
-export const TableField = ({ field, onChange, error }) => {
-  const [rows, setRows] = useState(1);
-  const [columns, setColumns] = useState(2);
+export const TableField = ({ field, value, onChange, error }) => {
+  const tableData = value || { rows: 1, columns: 2, data: {} };
+  const [rows, setRows] = useState(tableData.rows || 1);
+  const [columns, setColumns] = useState(tableData.columns || 2);
 
-  const addRow = () => setRows(rows + 1);
-  const addColumn = () => setColumns(columns + 1);
+  const addRow = () => {
+    const newRows = rows + 1;
+    setRows(newRows);
+    const updatedData = {
+      ...tableData,
+      rows: newRows,
+      data: tableData.data || {}
+    };
+    onChange(field.id, updatedData);
+  };
+
+  const addColumn = () => {
+    const newColumns = columns + 1;
+    setColumns(newColumns);
+    const updatedData = {
+      ...tableData,
+      columns: newColumns,
+      data: tableData.data || {}
+    };
+    onChange(field.id, updatedData);
+  };
+
+  const handleCellChange = (rowIndex, colIndex, cellValue) => {
+    const updatedData = {
+      ...tableData,
+      rows,
+      columns,
+      data: {
+        ...tableData.data,
+        [`${rowIndex}-${colIndex}`]: cellValue
+      }
+    };
+    onChange(field.id, updatedData);
+  };
 
   return (
     <div className="form-field-component form-field-table">
@@ -740,8 +773,8 @@ export const TableField = ({ field, onChange, error }) => {
         {field.required && <span className="form-field-required">*</span>}
       </Label>
       <div className="mb-2 flex gap-2">
-        <Button onClick={addRow} size="sm" variant="outline">Add Row</Button>
-        <Button onClick={addColumn} size="sm" variant="outline">Add Column</Button>
+        <Button type="button" onClick={addRow} size="sm" variant="outline">Add Row</Button>
+        <Button type="button" onClick={addColumn} size="sm" variant="outline">Add Column</Button>
       </div>
       <div className="border border-gray-200 p-2">
         <table className="w-full border-collapse border border-gray-300">
@@ -759,7 +792,8 @@ export const TableField = ({ field, onChange, error }) => {
                   <td key={colIndex} className="border border-gray-300 p-2">
                     <Input
                       placeholder={`Row ${rowIndex + 1}, Col ${colIndex + 1}`}
-                      onChange={(e) => onChange(`${field.id}-${rowIndex}-${colIndex}`, e.target.value)}
+                      value={tableData.data?.[`${rowIndex}-${colIndex}`] || ""}
+                      onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
                     />
                   </td>
                 ))}
@@ -875,11 +909,18 @@ export const ColumnsField = ({ field, onChange, error }) => (
     <div className="grid grid-cols-2 gap-4">
       <div>
         <Label>Column 1</Label>
-        <Input placeholder="Column 1 content" onChange={(e) => onChange(`${field.id}-col1`, e.target.value)} />
+        {/* <Input
+      id={field.id} 
+      type="text"
+      placeholder={'Column 1 content'}
+      onChange={(e) => onChange(`${field.id}-col1`, e.target.value)}
+      className={error ? "form-field-error" : ""}
+    /> */}
+        <Input type="text" placeholder="Column 1 content" onChange={(e) => onChange(`${field.id}-col1`, e.target.value)} />
       </div>
       <div>
         <Label>Column 2</Label>
-        <Input placeholder="Column 2 content" onChange={(e) => onChange(`${field.id}-col2`, e.target.value)} />
+        <Input type="text" placeholder="Column 2 content" onChange={(e) => onChange(`${field.id}-col2`, e.target.value)} />
       </div>
     </div>
     {error && <span className="form-field-error-message">{error}</span>}

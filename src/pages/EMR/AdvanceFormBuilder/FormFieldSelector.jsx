@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
+import { Draggable, Droppable } from "@hello-pangea/dnd";
 import {
   Type,
   Mail,
@@ -256,29 +257,43 @@ export const FormFieldSelector = ({ onAddField }) => {
       <h1 className="form-field-selector-title text-lg font-semibold mb-4">
         Field Types
       </h1>
-      <div className="form-field-selector-list space-y-2"> 
-        {fieldTypes.map(({ type, label,icon:Icon,description }) => (
-          <Button
-            key={type}
-            variant="ghost"
-            className="field-button w-full justify-start h-auto p-3 hover:bg-builder-hover transition-all duration-200 group"
-            onClick={() => onAddField(type)}
-            aria-label={`Add ${label} field`}
+      <Droppable droppableId="field-selector">
+        {(provided) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="form-field-selector-list space-y-2"
           >
-            <div className="field-button-content">
-              <div className="field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                <Icon className="field-icon w-4 h-4 text-primary" />
-              </div>
-              <div className="field-text text-left">
-                <div className="field-label font-medium text-sm">{label}</div>
-                <div className="field-description text-xs text-muted-foreground">
-                  {description}
-                </div>
-              </div>
-            </div>
-          </Button>
-        ))}
-      </div>
+            {fieldTypes.map(({ type, label, icon: Icon, description }, index) => (
+              <Draggable key={type} draggableId={`selector-${type}`} index={index}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    className={`field-button w-full justify-start h-auto p-3 hover:bg-builder-hover transition-all duration-200 group selector-button ${snapshot.isDragging ? "dragging" : ""}`}
+                    onClick={() => onAddField(type)}
+                    aria-label={`Add ${label} field`}
+                  >
+                    <div className="field-button-content">
+                      <div className="field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                        <Icon className="field-icon w-4 h-4 text-primary" />
+                      </div>
+                      <div className="field-text text-left">
+                        <div className="field-label font-medium text-sm">{label}</div>
+                        <div className="field-description text-xs text-muted-foreground">
+                          {description}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Draggable>
+            ))}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
     </Card>
   );
 };
