@@ -1,4 +1,4 @@
-.form-container-1 {
+/* .form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -9,7 +9,6 @@
 }
 
 .forms {
-  /* max-width: 1000px !important; */
   max-width: 100% !important;
   background-color: white;
   color: black;
@@ -276,4 +275,4 @@
   .print-btn {
     width: 100%;
   }
-}
+} */

@@ -1,22 +1,26 @@
-/* CSS Variables for easy theming (customize these to match your app's theme) */
-:root {
-  --primary-color: #3b82f6; /* Blue accent (matches Tailwind's primary) */
+/* :root {
+  --primary-color: #3b82f6; 
   --primary-hover: #2563eb;
   --background-color: #ffffff;
   --card-background: #ffffff;
-  --border-color: #e5e7eb; /* Fallback for border-builder-border */
+  --border-color: #e5e7eb; 
   --text-color: #374151;
   --muted-text: #6b7280;
-  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Fallback for shadow-soft */
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-glow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --hover-bg: rgba(59, 130, 246, 0.1); /* Fallback for bg-builder-hover */
+  --hover-bg: rgba(59, 130, 246, 0.1); 
   --border-radius: 12px;
   --transition-duration: 0.2s;
 } 
+} 
 
-/* Main card styling (enhances the Card component) */
 .form-field-selector-card {
   background: var(--card-background);
+  border: 1px solid var(--builder-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid var(--builder-border);
   border-radius: 16px;
   padding: 1.5rem;
@@ -27,9 +31,10 @@
 .form-field-selector-card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border-color:rgba(45, 50, 80, 0.1)
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-color:rgba(45, 50, 80, 0.1)
 }
 
-/* Title styling */
 .form-field-selector-title {
   font-size: 1.125rem;
   font-weight: 600;
@@ -40,65 +45,55 @@
   gap: 0.5rem;
 }
 
-/* List container for buttons */
 .form-field-selector-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem; /* Adds consistent spacing between buttons */
+  gap: 0.5rem; 
 }
 
-/* Individual field button (enhances the Button component) */
 .field-button {
   border-radius: 8px;
+  padding: 10px;
   padding: 10px;
   transition: all var(--transition-duration) ease, transform var(--transition-duration) ease;
 }
 
 .field-button:hover,
 .field-button:focus {
-  background: var(--hover-bg); /* Use custom hover background */
-  transform: translateY(-1px); /* Subtle lift effect */
+  background: var(--hover-bg); 
+  transform: translateY(-1px); 
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .field-button:focus {
-  box-shadow: 0 0 0 2px var(--primary-color); /* Visible focus ring for accessibility */
+  box-shadow: 0 0 0 2px var(--primary-color); 
 }
 
-/* Button content layout */
 .field-button-content {
   display: flex;
   align-items: center;
-  gap: 12px; /* Consistent gap between icon and text */
+  gap: 12px; 
 }
 
-/* Icon container */
 .field-icon-container {
   transition: background var(--transition-duration) ease;
 }
 
-/* Icon styling */
 .field-icon {
   color: var(--primary-color);
 }
 
-/* Text content */
-.field-text {
-  /* Ensures left alignment */
-}
-
 .field-label {
   color: var(--text-color);
-  margin-bottom: 0.25rem; /* Space between label and description */
+  margin-bottom: 0.25rem; 
 }
 
 .field-description {
   color: var(--muted-text);
 }
 
-/* Error state */
 .form-field-selector-error {
-  color: #ef4444; /* Red for errors */
+  color: #ef4444; 
   font-size: 0.875rem;
   text-align: center;
   padding: 1rem;
@@ -116,20 +111,19 @@
   color: var(--text-primary) !important;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+=@media (max-width: 768px) {
   .form-field-selector-card {
-    padding: 1rem; /* Reduce padding on mobile */
+    padding: 1rem; 
   }
 
   .field-button-content {
-    flex-direction: column; /* Stack icon and text vertically on small screens */
+    flex-direction: column; 
     align-items: center;
     text-align: center;
-    gap: 8px; /* Smaller gap on mobile */
+    gap: 8px; 
   }
 
   .field-icon-container {
     margin-bottom: 0.5rem;
   }
-}
+} */

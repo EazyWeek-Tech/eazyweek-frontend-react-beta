@@ -1,26 +1,23 @@
-/* CSS Variables for easy theming (customize these to match your app's theme) */
-:root {
-  --primary-color: #2D3250; /* Updated primary accent */
-  --secondary-bg: #f1f5f9; /* Light gray for progress bar */
+/* :root {
+  --primary-color: #2D3250;
+  --secondary-bg: #f1f5f9; 
   --background-color: #ffffff;
   --text-color: #374151;
   --muted-text: #6b7280;
-  --destructive-color: #ef4444; /* Red for required/errors */
+  --destructive-color: #ef4444; 
   --border-color: #e5e7eb;
   --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --transition-duration: 0.3s;
   --border-radius: 8px;
-  --max-width: 42rem; /* 672px, equivalent to max-w-2xl */
+  --max-width: 42rem; 
 }
 
-/* Container for full width */
 .form-preview-container {
   width: 100%;
   margin: 0 auto;
   padding: 1rem;
 }
 
-/* Header section matching AdvancedFormBuilder */
 .form-preview-header {
   display: flex;
   justify-content: space-between;
@@ -54,13 +51,12 @@
   font-weight: 500;
 }
 
-/* Main card styling */
 .form-preview-card {
   background: var(--background-color);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-soft);
-  padding: 2rem; /* Equivalent to p-8 */
+  padding: 2rem; 
   transition: box-shadow var(--transition-duration) ease;
 }
 
@@ -68,14 +64,13 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* Header section */
 .form-preview-header {
   margin-bottom: 1.5rem;
 }
 
 .form-preview-title {
-  font-size: 1.5rem; /* Equivalent to text-2xl */
-  font-weight: 700; /* Equivalent to font-bold */
+  font-size: 1.5rem; 
+  font-weight: 700; 
   margin-bottom: 0.5rem;
   color: var(--text-color);
 }
@@ -85,7 +80,6 @@
   margin-bottom: 1rem;
 }
 
-/* Progress section for multi-step */
 .form-preview-progress {
   margin-bottom: 1.5rem;
 }
@@ -98,7 +92,7 @@
 
 .form-preview-progress-step,
 .form-preview-progress-percentage {
-  font-size: 0.875rem; /* Equivalent to text-sm */
+  font-size: 0.875rem;
 }
 
 .form-preview-progress-step {
@@ -111,7 +105,7 @@
 
 .form-preview-progress-bar {
   width: 100%;
-  height: 0.5rem; /* Equivalent to h-2 */
+  height: 0.5rem; 
   background: var(--secondary-bg);
   border-radius: 9999px;
   overflow: hidden;
@@ -130,7 +124,7 @@
 }
 
 .form-preview-step-title {
-  font-size: 1.125rem; /* Equivalent to text-lg */
+  font-size: 1.125rem; 
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
@@ -140,7 +134,6 @@
   color: var(--muted-text);
 }
 
-/* Form styling */
 .form-preview-form {
   display: flex;
   flex-direction: column;
@@ -149,14 +142,14 @@
 .form-preview-fields {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem; /* Equivalent to space-y-6 */
+  gap: 1.5rem; 
   animation: fade-in 0.5s ease-in-out;
 }
 
 .form-preview-field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem; /* Equivalent to space-y-2 */
+  gap: 0.5rem;
 }
 
 .form-preview-label {
@@ -170,11 +163,6 @@
   margin-left: 0.25rem;
 }
 
-.form-preview-input {
-  /* Additional styling for inputs if needed */
-}
-
-/* Form Fields - Professional Design */
 .form-preview-field {
   margin-bottom: 2rem;
   position: relative;
@@ -240,7 +228,6 @@
   padding-right: 2.5rem;
 }
 
-/* Radio and Checkbox Styling */
 .form-preview-field input[type="radio"],
 .form-preview-field input[type="checkbox"] {
   width: auto;
@@ -278,7 +265,6 @@
   font-weight: 500;
 }
 
-/* Form Field Option Styling - Enhanced for better UI */
 .form-field-option {
   display: flex;
   align-items: center;
@@ -332,11 +318,10 @@
   height: 1rem;
   accent-color: #3b82f6;
   flex-shrink: 0;
-  transform: none !important; /* Prevent scaling */
+  transform: none !important; 
   cursor: pointer;
 }
 
-/* Select Dropdown Options Styling */
 .form-preview-field select option {
   padding: 0.5rem 0.75rem;
   background: #ffffff;
@@ -349,19 +334,17 @@
   background: #f1f5f9;
 }
 
-/* Ensure consistent sizing for radio and checkbox */
 .form-preview-field input[type="radio"]:checked,
 .form-preview-field input[type="checkbox"]:checked {
-  transform: none; /* Prevent any scaling */
+  transform: none; 
   width: 1rem;
   height: 1rem;
 }
 
-/* Actions (buttons) */
 .form-preview-actions {
   display: flex;
   justify-content: space-between;
-  padding-top: 1.5rem; /* Equivalent to pt-6 */
+  padding-top: 1.5rem; 
 }
 
 .form-preview-btn-previous,
@@ -378,7 +361,6 @@
   color: var(--background-color);
 }
 
-/* File & Image input enhancements */
 .form-preview-file-input {
   display: flex;
   align-items: center;
@@ -419,7 +401,6 @@
   object-fit: cover;
 }
 
-/* Signature & Annotation canvases */
 .form-preview-canvas-wrap {
   display: flex;
   flex-direction: column;
@@ -433,7 +414,7 @@
   border-radius: 8px;
   border: 1px solid var(--border-color);
   box-shadow: 0 6px 18px rgba(15,23,42,0.04);
-  touch-action: none; /* better on touch devices */
+  touch-action: none;
 }
 
 .canvas-toolbar {
@@ -456,7 +437,6 @@
   border-color: rgba(59,130,246,0.2);
 }
 
-/* Table field styling */
 .form-preview-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border-color);
@@ -480,7 +460,6 @@
   font-weight: 600;
 }
 
-/* Columns layout */
 .form-preview-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -491,7 +470,6 @@
   .form-preview-columns { grid-template-columns: 1fr; }
 }
 
-/* Panel */
 .form-preview-panel {
   background: linear-gradient(180deg, #ffffff, #fbfdff);
   border-radius: 10px;
@@ -499,28 +477,22 @@
   padding: 1rem;
 }
 
-/* Tabs */
 .form-preview-tabs { border-radius: 8px; overflow: hidden; }
 .form-preview-tabs .tab-list { display: flex; }
 .form-preview-tabs button { flex: 1; padding: 0.6rem 0.75rem; background: transparent; border: none; cursor: pointer; }
 .form-preview-tabs button.active { background: #f8fafc; font-weight: 600; border-bottom: 2px solid var(--primary-color); }
 
-/* Selectboxes chips */
 .form-preview-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 999px; background: #f1f5f9; border: 1px solid #e6eef8; font-size: 0.875rem; }
 
-/* Checkbox/Radio option visual box (for the grouped options UI) */
 .form-preview-option-box { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-radius: 8px; border: 1px solid transparent; }
 .form-preview-option-box input:checked + label { font-weight: 600; }
 .form-preview-option-box:hover { background: #fbfdff; }
 
-/* Validation / error state */
 .form-preview-error { color: var(--destructive-color); font-size: 0.875rem; margin-top: 0.5rem; }
 .form-preview-field.error input, .form-preview-field.error textarea, .form-preview-field.error select { border-color: var(--destructive-color); box-shadow: 0 0 0 3px rgba(239,68,68,0.08); }
 
-/* Small utility */
 .muted { color: var(--muted-text); font-size: 0.875rem; }
 
-/* Empty state */
 .form-preview-empty {
   text-align: center;
   padding: 2rem;
@@ -530,8 +502,8 @@
 }
 
 .form-preview-empty-icon {
-  width: 6rem; /* Equivalent to w-24 */
-  height: 6rem; /* Equivalent to h-24 */
+  width: 6rem; 
+  height: 6rem; 
   border-radius: 50%;
   background: rgba(59, 130, 246, 0.1);
   display: flex;
@@ -551,13 +523,11 @@
   color: var(--muted-text);
 }
 
-/* Animations */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
   .form-preview-container {
     padding: 0.5rem;
@@ -578,7 +548,6 @@
   }
 }
 
-/* Form Field Components - Professional Design */
 .form-field-component {
   margin-bottom: 1rem;
 }
@@ -645,7 +614,6 @@
   padding-right: 2.5rem;
 }
 
-/* Radio and Checkbox Styling */
 .form-field-component input[type="radio"],
 .form-field-component input[type="checkbox"] {
   width: auto;
@@ -692,10 +660,9 @@
   height: 1rem;
   accent-color: #3b82f6;
   flex-shrink: r50;
-  transform: none; /* Prevent scaling */
+  transform: none; 
 }
 
-/* Select Dropdown Options Styling */
 .form-field-component select option {
   padding: 0.5rem 0.75rem;
   background: #ffffff;
@@ -708,15 +675,13 @@
   background: #f1f5f9;
 }
 
-/* Ensure consistent sizing for radio and checkbox */
 .form-field-component input[type="radio"]:checked,
 .form-field-component input[type="checkbox"]:checked {
-  transform: none; /* Prevent any scaling */
+  transform: none;
   width: 1rem;
   height: 1rem;
 }
 
-/* Checkbox field specific */
 .form-field-component.form-field-checkbox {
   display: flex;
   align-items: center;
@@ -727,7 +692,6 @@
   margin: 0;
 }
 
-/* File input styling */
 .form-field-component input[type="file"] {
   padding: 0.5rem;
   border: 2px dashed #e5e7eb;
@@ -741,14 +705,12 @@
   background: #f3f4f6;
 }
 
-/* Error message */
 .form-field-error-message {
   color: #ef4444;
   font-size: 0.875rem;
   margin-top: 0.5rem;
 }
 
-/* Table field */
 .form-field-component.form-field-table table {
   width: 100%;
   border-collapse: collapse;
@@ -775,8 +737,6 @@
   padding: 0.25rem;
   background: transparent;
 }
-
-/* Canvas for signature and annotation */
 .form-field-component canvas {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -784,7 +744,6 @@
   cursor: crosshair;
 }
 
-/* Columns field */
 .form-field-component.form-field-columns .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -797,7 +756,6 @@
   }
 }
 
-/* Panel field */
 .form-field-component.form-field-panel .card {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -805,7 +763,6 @@
   background: #f9fafb;
 }
 
-/* Tabs field */
 .form-field-component.form-field-tabs .border {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -831,7 +788,6 @@
   font-weight: 600;
 }
 
-/* Select dropdown styling for shadcn/ui Select component */
 .form-field-component [data-radix-select-content] {
   background: #ffffff;
   border: 1px solid #e5e7eb;
@@ -860,7 +816,6 @@
   color: #0c4a6e;
 }
 
-/* Date input styling */
 .form-field-component input[type="date"] {
   cursor: pointer;
 }
@@ -874,7 +829,6 @@
   opacity: 1;
 }
 
-/* Gender field specific styling (assuming radio group) */
 .form-field-component.form-field-gender .form-field-radio-group {
   display: flex;
   flex-direction: row;
@@ -900,7 +854,6 @@
   color: #667eea;
 }
 
-/* Day selection field (assuming select dropdown) */
 .form-field-component.form-field-day-select select {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.75rem center;
@@ -909,7 +862,6 @@
   padding-right: 2.5rem;
 }
 
-/* Enhanced radio button options */
 .form-field-component .form-field-radio-group .form-field-option {
   position: relative;
   padding: 0.75rem 1rem;
@@ -935,7 +887,6 @@
   border-color: #667eea;
 }
 
-/* Select Field Component specific styling - Enhanced for user-friendliness */
 .form-field-component.form-field-select {
   position: relative;
   margin-bottom: 1.5rem;
@@ -1033,7 +984,6 @@
   border-left: 4px solid #3b82f6;
 }
 
-/* Day Field specific styling - User-friendly with calendar icon */
 .form-field-component.form-field-day [data-radix-select-trigger] {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23667eea' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'/%3e%3c/svg%3e");
   background-position: right 1rem center;
@@ -1042,11 +992,10 @@
   padding-right: 3rem;
 }
 
-/* Gender Field specific styling - Friendly with user icon */
 .form-field-component.form-field-gender [data-radix-select-trigger] {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23667eea' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'/%3e%3c/svg%3e");
   background-position: right 1rem center;
   background-repeat: no-repeat;
   background-size: 1.25rem;
   padding-right: 3rem;
-}
+} */
