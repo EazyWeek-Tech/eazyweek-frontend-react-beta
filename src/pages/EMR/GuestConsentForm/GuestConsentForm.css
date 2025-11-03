@@ -1,5 +1,4 @@
-.medical-form {
-  /* max-width: 800px; */
+/* .medical-form {
   margin: 0 auto;
   padding: 0;
   font-family: 'Arial', sans-serif;
@@ -12,7 +11,6 @@
   flex-direction: column;
 }
 
-/* Form Header - Static */
 .form-header {
   flex-shrink: 0;
   background: #fff;
@@ -48,7 +46,6 @@
   padding: 0 1rem;
 }
 
-/* Scrollable Content Area */
 .form-content {
   flex: 1;
   overflow-y: auto;
@@ -58,7 +55,6 @@
   z-index: 1;
 }
 
-/* Use browser default scrollbar */
 
 form h2,
 form h3,
@@ -319,7 +315,6 @@ button:hover {
   margin: 0 7px 0 0;
 }
 
-/* Responsive Design */
 @media (max-width: 600px) {
   .medical-form {
     padding: 0;
@@ -363,4 +358,4 @@ button:hover {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #d0d0d0;
 }
-
+ */

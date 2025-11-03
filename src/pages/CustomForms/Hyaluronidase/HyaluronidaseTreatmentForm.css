@@ -1,4 +1,4 @@
-.form-container-1 {
+/* .form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -92,7 +92,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #007bff; /* makes them visually better */
+  accent-color: #007bff; 
 }
 
 .error-message {
@@ -414,4 +414,4 @@
   .add-row-btn {
     width: 100%;
   }
-}
+} */
