@@ -32,7 +32,12 @@ const HyaluronidaseTreatmentForm = () => {
       dateTime: '',
     }],
     postProcedureText: '',
+    toleratedWell: false,
+    noDiscomfort: false,
+    arnicaApplied: false,
+    ibuprofenGiven: false,
     postCare: '',
+    postCareReviewed: false,
     additionalNotes: '',
     providerName: '',
     providerDate: '',
@@ -47,6 +52,14 @@ const HyaluronidaseTreatmentForm = () => {
   const providerSigCanvas = useRef(null);
   const supervisingSigCanvas = useRef(null);
   const formRef = useRef(null);
+  const faceCanvas = useRef(null);
+  const [rectangles, setRectangles] = useState([]);
+  const [tool, setTool] = useState('pencil');
+  const [color, setColor] = useState('#000000');
+  const [brushSize, setBrushSize] = useState(5);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState({x: 0, y: 0});
+  const [lastPos, setLastPos] = useState({x: 0, y: 0});
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -131,6 +144,71 @@ const HyaluronidaseTreatmentForm = () => {
     setFormData(prev => ({ ...prev, supervisingSignature: null }));
   };
 
+  const startDrawing = (e) => {
+    const canvas = faceCanvas.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setIsDrawing(true);
+    setStartPos({ x, y });
+    setLastPos({ x, y });
+    if (tool === 'rectangle') {
+      setRectangles(prev => [...prev, { id: Date.now(), x, y, width: 0, height: 0, text: '' }]);
+    }
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const canvas = faceCanvas.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (tool === 'pencil' || tool === 'eraser' || tool === 'line') {
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      if (tool === 'pencil') {
+        ctx.beginPath();
+        ctx.moveTo(lastPos.x, lastPos.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else if (tool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      } else if (tool === 'line') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.moveTo(startPos.x, startPos.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+    } else if (tool === 'rectangle') {
+      // Rectangle drawing is handled in real-time via state updates
+    }
+    setLastPos({ x, y });
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const updateRectangleText = (id, text) => {
+    setRectangles(prev => prev.map(rect =>
+      rect.id === id ? { ...rect, text } : rect
+    ));
+  };
+
+  const clearFaceMapper = () => {
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setRectangles([]);
+  };
+
   const validateForm = () => {
     const newErrors = {};
     if (!formData.patientName.trim()) newErrors.patientName = 'Patient name is required';
@@ -152,49 +230,47 @@ const HyaluronidaseTreatmentForm = () => {
     }
   };
 
-  const handlePrint = useReactToPrint({
-    content: () => formRef.current,
-  });
 
   return (
     <div className="form-container-1">
       <div ref={formRef} className="forms">
-        <h1>HYALURONIDASE TREATMENT FORM</h1>
+          <h1>HYALURONIDASE TREATMENT FORM</h1>
          <div className="form-row">
-          <div className="form-group">
-          <label>Patient Name:</label>
-          <input
-            type="text"
-            name="patientName"
-            value={formData.patientName}
-            onChange={handleInputChange}
-            placeholder="Enter patient name"
-          />
-          {errors.patientName && <span className="error-message">{errors.patientName}</span>}
-        </div>
+  <div className="form-group">
+    <label>Patient Name:</label>
+    <input
+      type="text"
+      name="patientName"
+      value={formData.patientName}
+      onChange={handleInputChange}
+      placeholder="Enter patient name"
+    />
+    {errors.patientName && <span className="error-message">{errors.patientName}</span>}
+  </div>
 
-        <div className="form-group">
-          <label>Date:</label>
-          <input
-            type="date"
-            name="date"
-            value={formData.date}
-            onChange={handleInputChange}
-          />
-          {errors.date && <span className="error-message">{errors.date}</span>}
-        </div>
+  <div className="form-group">
+    <label>Date:</label>
+    <input
+      type="date"
+      name="date"
+      value={formData.date}
+      onChange={handleInputChange}
+    />
+    {errors.date && <span className="error-message">{errors.date}</span>}
+  </div>
 
-        <div className="form-group">
-          <label>Treatment Number: </label>
-          <input
-            type="text"
-            name="treatmentNumber"
-            value={formData.treatmentNumber}
-            onChange={handleInputChange}
-            placeholder="Enter treatment number"
-          />
-        </div>
-         </div>
+  <div className="form-group">
+    <label>Treatment Number:</label>
+    <input
+      type="text"
+      name="treatmentNumber"
+      value={formData.treatmentNumber}
+      onChange={handleInputChange}
+      placeholder="Enter treatment number"
+    />
+  </div>
+</div>
+
         <div className="form-group">
           <label>Allergies:</label>
           <textarea
@@ -416,22 +492,20 @@ const HyaluronidaseTreatmentForm = () => {
 
         <div className="form-group">
           <label>Chief Complaint:</label>
-          <textarea
+          <input
             name="chiefComplaint"
             value={formData.chiefComplaint}
             onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
-          ></textarea>
+          ></input>
         </div>
 
         <div className="form-group">
           <label>Diagnosis:</label>
-          <textarea
+          <input
             name="diagnosis"
             value={formData.diagnosis}
             onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
-          ></textarea>
+          ></input>
         </div>
 
         <div className="form-group">
@@ -440,13 +514,81 @@ const HyaluronidaseTreatmentForm = () => {
             name="treatmentPlan"
             value={formData.treatmentPlan}
             onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
           ></textarea>
         </div>
 
+        <div className="face-mapper-section">
+          <div className="face-mapper-container">
+            <img src="/images/facediagram.jpg" alt="Face Diagram" className="face-diagram" />
+            <canvas
+              ref={faceCanvas}
+              width={700}
+              height={700}
+              className="face-canvas"
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+            />
+            {rectangles.map(rect => (
+              <textarea
+                key={rect.id}
+                value={rect.text}
+                onChange={(e) => updateRectangleText(rect.id, e.target.value)}
+                style={{
+                  position: 'absolute',
+                  left: `${rect.x}px`,
+                  top: `${rect.y}px`,
+                  width: `${rect.width}px`,
+                  height: `${rect.height}px`,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '12px',
+                  padding: '2px',
+                  boxSizing: 'border-box',
+                  resize: 'none',
+                  overflow: 'hidden',
+                }}
+                placeholder="Enter text"
+              />
+            ))}
+          </div>
+          <div className="face-mapper-tools">
+            <label>
+              Tool:
+              <select value={tool} onChange={(e) => setTool(e.target.value)}>
+                <option value="pencil">Pencil</option>
+                <option value="eraser">Eraser</option>
+                <option value="line">Line</option>
+                <option value="rectangle">Rectangle</option>
+              </select>
+            </label>
+            <label>
+              Color:
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+              />
+            </label>
+            <label>
+              Brush Size:
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={brushSize}
+                onChange={(e) => setBrushSize(e.target.value)}
+              />
+            </label>
+            <button type="button" className="clear-face-mapper-btn" onClick={clearFaceMapper}>
+              Clear Drawing
+            </button>
+          </div>
+        </div>
+
         <div className="TitleandButton">
-           <h2>Treatment Settings:</h2>
-          <button type="button" onClick={addRow} className="add-row-btn">Add Row</button>
+           <h1>Treatment Settings:</h1>
         </div>
        <table className="treatment-table">
           <thead>
@@ -456,7 +598,7 @@ const HyaluronidaseTreatmentForm = () => {
               <th>Volume (mL)</th>
               <th>Lot Number</th>
               <th>Expiration</th>
-              <th>Date/Time</th>
+              {/* <th>Date/Time</th> */}
               <th>Actions</th>
             </tr>
           </thead>
@@ -468,7 +610,7 @@ const HyaluronidaseTreatmentForm = () => {
                 <td><input type="text" value={setting.volume} onChange={(e) => handleTableChange(index, 'volume', e.target.value)} /></td>
                 <td><input type="text" value={setting.lotNumber} onChange={(e) => handleTableChange(index, 'lotNumber', e.target.value)} /></td>
                 <td><input type="date" value={setting.expiration} onChange={(e) => handleTableChange(index, 'expiration', e.target.value)} /></td>
-                <td><input type="datetime-local" value={setting.dateTime} onChange={(e) => handleTableChange(index, 'dateTime', e.target.value)} /></td>
+                {/* <td><input type="datetime-local" value={setting.dateTime} onChange={(e) => handleTableChange(index, 'dateTime', e.target.value)} /></td> */}
                 <td>
                   {formData.treatmentSettings.length > 1 && (
                     <button type="button" onClick={() => deleteRow(index)} className="delete-row-btn">Delete</button>
@@ -477,26 +619,60 @@ const HyaluronidaseTreatmentForm = () => {
               </tr>
             ))}
           </tbody>
+                    <button type="button" onClick={addRow} className="add-row-btn">Add Row</button>
+
         </table>
 
-        <div className="form-group">
-          <label>Post Procedure Text:</label>
-          <textarea
-            name="postProcedureText"
-            value={formData.postProcedureText}
-            onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
-          ></textarea>
+        <div className="form-section">
+          <label className="section-label">Post Procedure Text:</label>
+          <div className="checkbox-row">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.toleratedWell}
+                onChange={(e) => handleCheckboxChange('toleratedWell', e.target.checked)}
+              />
+              <span>The patient tolerated the procedure well.</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.noDiscomfort}
+                onChange={(e) => handleCheckboxChange('noDiscomfort', e.target.checked)}
+              />
+              <span>No discomfort reported by patient during or post treatment.</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.arnicaApplied}
+                onChange={(e) => handleCheckboxChange('arnicaApplied', e.target.checked)}
+              />
+              <span>Arnica applied.</span>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.ibuprofenGiven}
+                onChange={(e) => handleCheckboxChange('ibuprofenGiven', e.target.checked)}
+              />
+              <span>Ibuprofen 800mg given.</span>
+            </label>
+          </div>
         </div>
 
-        <div className="form-group">
-          <label>Post Care:</label>
-          <textarea
-            name="postCare"
-            value={formData.postCare}
-            onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
-          ></textarea>
+        <div className="form-section">
+          <label className="section-label">Post Care:</label>
+          <div className="checkbox-row">
+            <label className="checkbox-label long-text">
+              <input
+                type="checkbox"
+                checked={formData.postCareReviewed}
+                onChange={(e) => handleCheckboxChange('postCareReviewed', e.target.checked)}
+              />
+              <span>I reviewed with the patient in detail post-care instructions. Patient should do the following for minimum 1 week: sleep on back, no exercise, and no excessive heat (saunas, Jacuzzis, etc.). No massaging treatment site unless specified by provider. No laser or resurfacing treatments for one month.</span>
+            </label>
+          </div>
         </div>
 
         <div className="form-group">
@@ -505,18 +681,11 @@ const HyaluronidaseTreatmentForm = () => {
             name="additionalNotes"
             value={formData.additionalNotes}
             onChange={handleInputChange}
-            placeholder="_____________________________________________________________"
           ></textarea>
         </div>
 
-        <p>The patient tolerated the procedure well.</p>
-        <p>No discomfort reported by patient during or post treatment.</p>
-        <p>Arnica applied.</p>
-        <p>Ibuprofen 800mg given.</p>
-        <p>I reviewed with the patient in detail post-care instructions. Patient should do the following for minimum 1 week: sleep on back, no exercise, and no excessive heat (saunas, Jacuzzis, etc.). No massaging treatment site unless specified by provider. No laser or resurfacing treatments for one month.</p>
-
         <div className="form-group">
-          <label>Provider Name: [TherapistName]</label>
+          <label>Provider Name:</label>
           <input
             type="text"
             name="providerName"
@@ -528,7 +697,7 @@ const HyaluronidaseTreatmentForm = () => {
         </div>
 
         <div className="form-group">
-          <label>Date: ____________</label>
+          <label>Date: </label>
           <input
             type="date"
             name="providerDate"
@@ -536,8 +705,6 @@ const HyaluronidaseTreatmentForm = () => {
             onChange={handleInputChange}
           />
         </div>
-
-        <h2>PHOTO UPLOADS</h2>
 
         <div className="signature-section">
           <h2>Provider Signature:</h2>
@@ -556,7 +723,7 @@ const HyaluronidaseTreatmentForm = () => {
         </div>
 
         <div className="form-group">
-          <label>Date: ____________</label>
+          <label>Date: </label>
           <input
             type="date"
             name="supervisingDate"
@@ -581,56 +748,85 @@ const HyaluronidaseTreatmentForm = () => {
           {errors.supervisingSignature && <span className="error-message">{errors.supervisingSignature}</span>}
         </div>
 
-        <div className="photo-upload-section">
-          <h3>BEFORE</h3>
-          <p>File Upload</p>
-          <p>Drop files to attach, or browse</p>
-          <input
-            type="file"
-            multiple
-            accept=".jpg,.png,.jpeg,.pdf"
-            onChange={(e) => handleFileChange(e, 'beforePhotos')}
-            className="file-input"
-          />
-          <p>Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.</p>
-          {formData.beforePhotos.length > 0 && (
-            <div className="file-list">
-              <ul>
-                {formData.beforePhotos.map((file, index) => (
-                  <li key={index}>{file.name}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+       <div className="photo-upload-container">
+      <h2 className="title">PHOTOS UPLOADS</h2>
+
+      {/* BEFORE UPLOAD */}
+      <div className="photo-upload-section">
+        <h3>BEFORE</h3>
+        <p className="label">File Upload</p>
+
+        <div className="upload-box">
+
+          <span>
+            Drop files to attach, or{' '}
+            <label className="browse">
+              browse
+              <input
+                type="file"
+                multiple
+                accept=".jpg,.png,.jpeg,.pdf"
+                onChange={(e) => handleFileChange(e, 'beforePhotos')}
+                className="file-input"
+              />
+            </label>
+          </span>
         </div>
 
-        <div className="photo-upload-section">
-          <h3>AFTER</h3>
-          <p>File Upload</p>
-          <p>Drop files to attach, or browse</p>
-          <input
-            type="file"
-            multiple
-            accept=".jpg,.png,.jpeg,.pdf"
-            onChange={(e) => handleFileChange(e, 'afterPhotos')}
-            className="file-input"
-          />
-          <p>Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.</p>
-          {formData.afterPhotos.length > 0 && (
-            <div className="file-list">
-              <ul>
-                {formData.afterPhotos.map((file, index) => (
-                  <li key={index}>{file.name}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+        <p className="info-text">
+          Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
+        </p>
+
+        {formData.beforePhotos.length > 0 && (
+          <div className="file-list">
+            <ul>
+              {formData.beforePhotos.map((file, index) => (
+                <li key={index}>{file.name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* AFTER UPLOAD */}
+      <div className="photo-upload-section">
+        <h3>AFTER</h3>
+        <p className="label">File Upload</p>
+
+        <div className="upload-box">
+          <span>
+            Drop files to attach, or{' '}
+            <label className="browse">
+              browse
+              <input
+                type="file"
+                multiple
+                accept=".jpg,.png,.jpeg,.pdf"
+                onChange={(e) => handleFileChange(e, 'afterPhotos')}
+                className="file-input"
+              />
+            </label>
+          </span>
         </div>
+
+        <p className="info-text">
+          Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
+        </p>
+
+        {formData.afterPhotos.length > 0 && (
+          <div className="file-list">
+            <ul>
+              {formData.afterPhotos.map((file, index) => (
+                <li key={index}>{file.name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
 
         <div className="button-group">
-          <button type="button" className="print-btn" onClick={handlePrint}>
-            Print Form
-          </button>
+         
           <button type="submit" className="submit-btn" onClick={handleSubmit}>
             Submit
           </button>
