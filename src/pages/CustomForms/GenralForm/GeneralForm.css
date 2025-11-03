@@ -1,5 +1,5 @@
 /* General Container */
-.general-form-container {
+.gf-general-form-container {
   background: linear-gradient(135deg, #f5f7fa 0%, #e4ebf1 100%);
   min-height: 100vh;
   padding: 3rem 1rem;
@@ -9,7 +9,7 @@
 }
 
 /* Form Wrapper */
-.form-container {
+.gf-form-container {
   background: #fff;
   width: 90%;
   max-width: 900px;
@@ -19,17 +19,17 @@
   transition: all 0.3s ease;
 }
 
-.form-container:hover {
+.gf-form-container:hover {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.1);
 }
 
 /* Page Header */
-.page-header {
+.gf-page-header {
   text-align: center;
   margin-bottom: 2rem;
 }
 
-.page-title {
+.gf-page-title {
   font-size: 1.8rem;
   font-weight: 700;
   color: #333;
@@ -37,13 +37,13 @@
 }
 
 /* Form Layout */
-.form-row {
+.gf-form-row {
   margin-bottom: 1.2rem;
   display: flex;
   flex-direction: column;
 }
 
-.form-label {
+.gf-form-label {
   font-weight: 600;
   color: #333;
   margin-bottom: 0rem;
@@ -51,9 +51,9 @@
 }
 
 /* Inputs */
-.form-input,
-.form-select,
-.form-textarea {
+.gf-form-input,
+.gf-form-select,
+.gf-form-textarea {
   border: 1px solid #d1d9e0;
   border-radius: 8px;
   padding: 0.75rem 1rem;
@@ -62,20 +62,20 @@
   transition: 0.25s border-color, 0.25s box-shadow;
 }
 
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
+.gf-form-input:focus,
+.gf-form-select:focus,
+.gf-form-textarea:focus {
   border-color: #6c63ff;
   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
 }
 
-.form-textarea {
+.gf-form-textarea {
   resize: vertical;
   min-height: 80px;
 }
 
 /* Section Titles */
-.section-title {
+.gf-section-title {
   margin: 2rem 0 1rem;
   font-size: 1.2rem;
   color: #444;
@@ -84,7 +84,7 @@
   padding-left: 0.6rem;
 }
 
-.section-subtitle {
+.gf-section-subtitle {
   font-size: 1rem;
   font-weight: 600;
   color: #555;
@@ -92,12 +92,12 @@
 }
 
 /* Status Buttons */
-.status-buttons {
+.gf-status-buttons {
   display: flex;
   gap: 1rem;
 }
 
-.status-btn {
+.gf-status-btn {
   background: #f4f6f8;
   border: 1px solid #d1d9e0;
   padding: 0.5rem 1.2rem;
@@ -109,11 +109,11 @@
   transition: all 0.25s ease;
 }
 
-.status-btn:hover {
+.gf-status-btn:hover {
   background: #edf0ff;
 }
 
-.status-btn.active {
+.gf-status-btn.active {
   background: #6c63ff;
   color: #fff;
   border-color: #6c63ff;
@@ -121,7 +121,7 @@
 }
 
 /* Checkboxes */
-.checkbox-label {
+.gf-checkbox-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -131,19 +131,19 @@
   cursor: pointer;
 }
 
-.checkbox-label input {
+.gf-checkbox-input {
   accent-color: #6c63ff;
   width: 16px;
   height: 16px;
 }
 
 /* Buttons */
-.form-buttons {
+.gf-form-buttons {
   text-align: right;
   margin-top: 2rem;
 }
 
-.save-btn {
+.gf-save-btn {
   background: linear-gradient(135deg, #6c63ff, #5a52f2);
   border: none;
   color: #fff;
@@ -156,13 +156,13 @@
   box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
 }
 
-.save-btn:hover {
+.gf-save-btn:hover {
   background: linear-gradient(135deg, #5a52f2, #6c63ff);
   transform: translateY(-2px);
 }
 
 /* Modal Overlay */
-.modal-overlay {
+.gf-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -176,18 +176,18 @@
 }
 
 /* Modal Box */
-.modal {
+.gf-modal {
   background: #fff;
   border-radius: 8px;
   width: 92%;
   max-width: 560px;
   text-align: left;
   box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
-  animation: fadeInUp 0.28s ease-out;
+  animation: gf-fadeInUp 0.28s ease-out;
   overflow: hidden;
 }
 
-.modal-header {
+.gf-modal-header {
   background-color: #0b5fa8; /* deep blue */
   color: #fff;
   padding: 14px 18px;
@@ -198,15 +198,16 @@
   gap: 12px;
 }
 
-.modal-title {
+.gf-modal-title {
   margin: 0;
+  color: white;
 }
 
-.modal .modal-body {
+.gf-modal-body {
   padding: 18px 20px 22px;
 }
 
-.modal .modal-body p {
+.gf-modal-body .gf-modal-body-p {
   color: #333;
   font-size: 0.95rem;
   margin-bottom: 1rem;
@@ -214,14 +215,14 @@
   line-height: 1.45;
 }
 
-.modal .warning-row {
+.gf-warning-row {
   display: flex;
   gap: 14px;
   align-items: flex-start;
   margin-bottom: 12px;
 }
 
-.warning-icon {
+.gf-warning-icon {
   flex: 0 0 44px;
   height: 44px;
   border-radius: 6px;
@@ -234,15 +235,15 @@
   border: 1px solid rgba(180,83,9,0.12);
 }
 
-.modal-buttons {
+.gf-modal-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   padding: 0 20px 20px;
 }
 
-.agree-btn,
-.cancel-btn {
+.gf-agree-btn,
+.gf-cancel-btn {
   padding: 10px 18px;
   border-radius: 6px;
   cursor: pointer;
@@ -251,29 +252,29 @@
   font-size: 0.95rem;
 }
 
-.agree-btn {
+.gf-agree-btn {
   background: #0b64b2;
   color: #fff;
   border: none;
   box-shadow: 0 6px 16px rgba(11,100,178,0.28);
 }
 
-.agree-btn:hover {
+.gf-agree-btn:hover {
   transform: translateY(-2px);
 }
 
-.cancel-btn {
+.gf-cancel-btn {
   background: #fff;
   color: #0b64b2;
   border: 1px solid #0b64b2;
 }
 
-.cancel-btn:hover {
+.gf-cancel-btn:hover {
   background: #f6fbff;
 }
 
 /* Animation */
-@keyframes fadeInUp {
+@keyframes gf-fadeInUp {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -286,16 +287,16 @@
 
 /* Responsive */
 @media (max-width: 600px) {
-  .form-container {
+  .gf-form-container {
     padding: 1.5rem;
   }
 
-  .status-buttons {
+  .gf-status-buttons {
     flex-wrap: wrap;
     gap: 0.6rem;
   }
 
-  .save-btn {
+  .gf-save-btn {
     width: 100%;
   }
 }

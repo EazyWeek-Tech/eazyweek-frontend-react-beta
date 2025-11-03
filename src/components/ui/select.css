@@ -24,7 +24,8 @@
 .select-trigger {
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  background-color: white;
+  background-color: rgba(244, 238, 238, 0) !important;
+  color: black !important;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
