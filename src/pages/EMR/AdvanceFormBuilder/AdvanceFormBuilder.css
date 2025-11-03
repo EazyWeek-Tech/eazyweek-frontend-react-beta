@@ -98,7 +98,10 @@
   font-size: 0.875rem;
   background-color:rgb(248, 243, 243) !important;
   color: var(--text-primary) !important;;
+  background-color:rgb(248, 243, 243) !important;
+  color: var(--text-primary) !important;;
   cursor: pointer;
+  line-height: inherit;
   line-height: inherit;
   transition: var(--transition);
   display: inline-flex;
@@ -114,10 +117,17 @@
 }
 
 .form-builder-button:focus {
+.form-builder-button:hover{
+  background-color: rgb(234, 226, 226) !important;  
+  color: var(--text-primary) !important;
+}
+
+.form-builder-button:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.form-builder-button-primary, .form-builder-button[data-variant="default"] {
 .form-builder-button-primary, .form-builder-button[data-variant="default"] {
   background: var(--primary);
   color: white;
@@ -132,6 +142,7 @@
 }
 
 .form-builder-button-outline, .form-builder-button[data-variant="outline"] {
+.form-builder-button-outline, .form-builder-button[data-variant="outline"] {
   background: var(--card-bg);
   color: var(--text-primary);
   border-color: var(--builder-border);
@@ -144,6 +155,7 @@
 }
 
 .form-builder-button-ghost, .form-builder-button[data-variant="ghost"] {
+.form-builder-button-ghost, .form-builder-button[data-variant="ghost"] {
   background: transparent;
   color: var(--text-primary);
   border-color: transparent;
@@ -153,6 +165,7 @@
   background: var(--builder-hover);
 }
 
+.form-builder-button-destructive {
 .form-builder-button-destructive {
   background: var(--error);
   color: white;
@@ -164,6 +177,7 @@
   border-color: #dc2626;
 }
 
+.form-builder-button-sm {
 .form-builder-button-sm {
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
@@ -195,11 +209,13 @@
 }
 
 .form-builder-input:focus {
+.form-builder-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.form-builder-textarea {
 .form-builder-textarea {
   min-height: 120px;
   resize: vertical;
@@ -266,6 +282,7 @@
 }
 
 .form-builder-tabs-trigger {
+.form-builder-tabs-trigger {
   padding: 0.75rem 1rem;
   border: none;
   background: transparent;
@@ -279,10 +296,12 @@
 }
 
 .form-builder-tabs-trigger:hover {
+.form-builder-tabs-trigger:hover {
   color: var(--text-primary);
   background: var(--card-bg);
 }
 
+.form-builder-tabs-trigger[data-state="active"] {
 .form-builder-tabs-trigger[data-state="active"] {
   background: var(--card-bg);
   color: var(--primary);
@@ -407,6 +426,7 @@
   align-items: center;
   margin-bottom: 2rem;
   padding: 0.5rem 2rem;
+  padding: 0.5rem 2rem;
   background: var(--card-bg);
   border-radius: var(--border-radius-xl);
   box-shadow: var(--shadow-md);
@@ -414,6 +434,7 @@
 }
 
 .form-builder-title {
+  font-size: 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
@@ -625,6 +646,7 @@
   gap: 0.75rem;
   min-height: 200px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .form-builder-field {
@@ -633,6 +655,7 @@
   border-radius: var(--border-radius-lg);
   padding: 1.25rem;
   background: var(--card-bg);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   user-select: none;
@@ -643,12 +666,14 @@
   border-color: var(--primary-light);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px) scale(1.01);
+  transform: translateY(-2px) scale(1.01);
 }
 
 .form-builder-field.selected {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   animation: scaleIn 0.2s ease-out;
+  transform: translateY(-1px) scale(1.005);
   transform: translateY(-1px) scale(1.005);
 }
 
@@ -688,6 +713,7 @@
   align-items: flex-start;
   gap: 1rem;
   transition: all 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .form-builder-field-drag-handle {
@@ -695,8 +721,10 @@
   color: var(--text-muted);
   cursor: grab;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0.25rem;
   border-radius: var(--border-radius-sm);
+  transform: translateZ(0);
   transform: translateZ(0);
 }
 
@@ -704,16 +732,19 @@
   color: var(--text-primary);
   background: var(--builder-hover);
   transform: scale(1.1);
+  transform: scale(1.1);
 }
 
 .form-builder-field-drag-handle:active {
   cursor: grabbing;
+  transform: scale(0.95);
   transform: scale(0.95);
 }
 
 .form-builder-field-info {
   flex: 1;
   min-width: 0;
+  transition: all 0.2s ease;
   transition: all 0.2s ease;
 }
 
@@ -727,12 +758,14 @@
   color: var(--text-primary);
   line-height: 1.4;
   transition: all 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .form-builder-field-required {
   color: var(--error);
   font-size: 1rem;
   font-weight: bold;
+  transition: all 0.2s ease;
   transition: all 0.2s ease;
 }
 
@@ -745,10 +778,12 @@
   text-transform: capitalize;
   font-weight: 500;
   transition: all 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .form-builder-field-delete {
   opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--error);
   padding: 0.5rem;
@@ -757,11 +792,13 @@
   border: none;
   cursor: pointer;
   transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .form-builder-field-delete:hover {
   background: rgba(239, 68, 68, 0.1);
   opacity: 1 !important;
+  transform: scale(1.1);
   transform: scale(1.1);
 }
 
@@ -1132,6 +1169,7 @@
 
 .form-builder-tab-trigger.active {
   background: rgb(248, 243, 243) !important;
+  background: rgb(248, 243, 243) !important;
   color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
@@ -1480,6 +1518,8 @@
   padding: 0.75rem 1.5rem;
   background-color:rgb(248, 243, 243) !important;
   color: var(--text-primary) !important;
+  background-color:rgb(248, 243, 243) !important;
+  color: var(--text-primary) !important;
   border-radius: var(--border-radius-md);
   font-weight: 600;
   font-size: 0.875rem;
@@ -1580,6 +1620,7 @@
 @media (max-width: 1024px) {
   .form-builder-wrapper {
     padding: 0.5rem 2rem;
+    padding: 0.5rem 2rem;
   }
 
   .form-builder-grid {
@@ -1601,12 +1642,15 @@
 
   .form-builder-header {
     flex-direction: row;
+    flex-direction: row;
     gap: 1.5rem;
     text-align: center;
+    padding: 0.5rem 1rem;
     padding: 0.5rem 1rem;
   }
 
   .form-builder-title {
+    font-size: 1rem;
     font-size: 1rem;
   }
   .form-builder-subtitle {

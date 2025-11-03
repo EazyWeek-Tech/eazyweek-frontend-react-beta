@@ -18,6 +18,7 @@
 }
 
 .gf-form-container:hover {
+.gf-form-container:hover {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.1);
 }
 
@@ -26,6 +27,7 @@
   margin-bottom: 2rem;
 }
 
+.gf-page-title {
 .gf-page-title {
   font-size: 1.8rem;
   font-weight: 700;
@@ -39,6 +41,7 @@
   flex-direction: column;
 }
 
+.gf-form-label {
 .gf-form-label {
   font-weight: 600;
   color: #333;
@@ -60,10 +63,14 @@
 .gf-form-input:focus,
 .gf-form-select:focus,
 .gf-form-textarea:focus {
+.gf-form-input:focus,
+.gf-form-select:focus,
+.gf-form-textarea:focus {
   border-color: #6c63ff;
   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
 }
 
+.gf-form-textarea {
 .gf-form-textarea {
   resize: vertical;
   min-height: 80px;
@@ -79,6 +86,7 @@
 }
 
 .gf-section-subtitle {
+.gf-section-subtitle {
   font-size: 1rem;
   font-weight: 600;
   color: #555;
@@ -90,6 +98,7 @@
   gap: 1rem;
 }
 
+.gf-status-btn {
 .gf-status-btn {
   background: #f4f6f8;
   border: 1px solid #d1d9e0;
@@ -103,9 +112,11 @@
 }
 
 .gf-status-btn:hover {
+.gf-status-btn:hover {
   background: #edf0ff;
 }
 
+.gf-status-btn.active {
 .gf-status-btn.active {
   background: #6c63ff;
   color: #fff;
@@ -124,6 +135,7 @@
 }
 
 .gf-checkbox-input {
+.gf-checkbox-input {
   accent-color: #6c63ff;
   width: 16px;
   height: 16px;
@@ -134,6 +146,7 @@
   margin-top: 2rem;
 }
 
+.gf-save-btn {
 .gf-save-btn {
   background: linear-gradient(135deg, #6c63ff, #5a52f2);
   border: none;
@@ -147,6 +160,7 @@
   box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
 }
 
+.gf-save-btn:hover {
 .gf-save-btn:hover {
   background: linear-gradient(135deg, #5a52f2, #6c63ff);
   transform: translateY(-2px);
@@ -173,6 +187,7 @@
   text-align: left;
   box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
   animation: gf-fadeInUp 0.28s ease-out;
+  animation: gf-fadeInUp 0.28s ease-out;
   overflow: hidden;
 }
 
@@ -188,14 +203,18 @@
 }
 
 .gf-modal-title {
+.gf-modal-title {
   margin: 0;
+  color: white;
   color: white;
 }
 
 .gf-modal-body {
+.gf-modal-body {
   padding: 18px 20px 22px;
 }
 
+.gf-modal-body .gf-modal-body-p {
 .gf-modal-body .gf-modal-body-p {
   color: #333;
   font-size: 0.95rem;
@@ -205,12 +224,14 @@
 }
 
 .gf-warning-row {
+.gf-warning-row {
   display: flex;
   gap: 14px;
   align-items: flex-start;
   margin-bottom: 12px;
 }
 
+.gf-warning-icon {
 .gf-warning-icon {
   flex: 0 0 44px;
   height: 44px;
@@ -225,12 +246,15 @@
 }
 
 .gf-modal-buttons {
+.gf-modal-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   padding: 0 20px 20px;
 }
 
+.gf-agree-btn,
+.gf-cancel-btn {
 .gf-agree-btn,
 .gf-cancel-btn {
   padding: 10px 18px;
@@ -242,6 +266,7 @@
 }
 
 .gf-agree-btn {
+.gf-agree-btn {
   background: #0b64b2;
   color: #fff;
   border: none;
@@ -249,15 +274,18 @@
 }
 
 .gf-agree-btn:hover {
+.gf-agree-btn:hover {
   transform: translateY(-2px);
 }
 
+.gf-cancel-btn {
 .gf-cancel-btn {
   background: #fff;
   color: #0b64b2;
   border: 1px solid #0b64b2;
 }
 
+.gf-cancel-btn:hover {
 .gf-cancel-btn:hover {
   background: #f6fbff;
 }
@@ -275,14 +303,17 @@
 
 @media (max-width: 600px) {
   .gf-form-container {
+  .gf-form-container {
     padding: 1.5rem;
   }
 
+  .gf-status-buttons {
   .gf-status-buttons {
     flex-wrap: wrap;
     gap: 0.6rem;
   }
 
+  .gf-save-btn {
   .gf-save-btn {
     width: 100%;
   }
