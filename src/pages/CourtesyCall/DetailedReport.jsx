@@ -5,26 +5,38 @@ import Select from "react-select"
 import "./DetailedReport.css"
 import { API_BASE_URL } from "../../config"
 
+// --- helpers ---
+const ymd = (d) => {
+  const dt = d instanceof Date ? d : new Date(d)
+  const yyyy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, "0")
+  const dd = String(dt.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+const iso = (yyyy_mm_dd) => (yyyy_mm_dd ? new Date(yyyy_mm_dd).toISOString() : "")
+
+// Invisible defaults for the API (NOT shown in UI)
+const INVISIBLE_FROM_DEFAULT = "1999-01-01"
+const INVISIBLE_TO_DEFAULT   = ymd(new Date()) // today
+
 const DetailedReport = () => {
   const [filters, setFilters] = useState({
-    fromDate: "",
+    fromDate: "",                  // UI stays empty unless user picks
     toDate: "",
-    therapistDoctors: [],       // values will be practitioner IDs from API
+    therapistDoctors: [],
     experienceRating: [],
     customerFeedback: [],
     overallSatisfied: [],
     futureAppTaken: [],
     customerType: [],
-    status: [],
-    auditor: [],
+    status: [],                    // [{ value: "0"|"1"|"2", label }]
+    auditor: [],                   // [{ value: "<code>", label: "<name>" }]
   })
 
   const [totalRecords, setTotalRecords] = useState(0)
   const [reportData, setReportData] = useState([])
   const [showResults, setShowResults] = useState(false)
   const [auditorOptions, setAuditorOptions] = useState([])
-
-  // options for Therapist/Doctors from API
   const [therapistOptions, setTherapistOptions] = useState([])
 
   const handleFilterChange = (field, value) => {
@@ -34,15 +46,27 @@ const DetailedReport = () => {
   const toOptionList = (arr) => arr.map((v) => ({ value: v, label: v }))
 
   // ----- Normalizers for API → UI table -----
-  // Normalize mixed "YES"/"NO"/"1"/"2"/true/false → "Yes" | "No" | ""
   const toYesNoLabel = (v) => {
     const t = String(v ?? "").trim().toUpperCase()
     if (t === "1" || t === "YES" || t === "TRUE") return "Yes"
-    if (t === "2" || t === "NO" || t === "FALSE") return "No"
+    if (t === "2" || t === "NO"  || t === "FALSE") return "No"
     return ""
   }
 
-  // Compute a human status from after-call fields (fallback if API doesn't send a string)
+  // Robustly map courtesyStatus (handles "Partialy Completed" typo)
+  const normalizeCourtesyStatus = (raw) => {
+    if (!raw) return ""
+    const t = String(raw).trim().toLowerCase()
+    if (t.includes("pending")) return "Pending"
+    if (t.includes("complete")) {
+      // "partially completed", "partialy completed", "completed"
+      if (t.startsWith("part")) return "Partially Completed"
+      return "Completed"
+    }
+    return ""
+  }
+
+  // Fallback when courtesyStatus is absent/unknown
   const deriveStatus = (row) => {
     const fields = [
       row.googleReview,
@@ -62,21 +86,26 @@ const DetailedReport = () => {
     return "Partially Completed"
   }
 
-  // Turn the API item into the shape your table expects
-  const normalizeRow = (x) => ({
-    referenceId: x.referenceId || x.referenceID || "",
-    apptDate: x.apptDate || x.appointmentDate || "",
-    custName: x.custName || x.customerName || "",
-    expRating: x.expRating || x.experienceRating || "",
-    customerType: x.customerType || "",
-    clinic: x.clinic || x.clinicName || "",
-    therapistDoctors: x.therapistDoctors || x.therapist || x.doctorName || "",
-    futureAppTaken: toYesNoLabel(x.futureAppointmentTaken),
-    overallSatisfied: toYesNoLabel(x.overallSatisfied),
-    customerFeedback: x.customerFeedback || x.customerComplaintRemarks || "",
-    auditor: x.auditor || x.auditorName || "",
-    status: typeof x.status === "string" ? x.status : deriveStatus(x),
-  })
+  // Shape each API row for the table (prefer courtesyStatus)
+  const normalizeRow = (x) => {
+    const courtesy = normalizeCourtesyStatus(x.courtesyStatus)
+    const finalStatus = courtesy || deriveStatus(x)
+
+    return {
+      referenceId: x.referenceId || x.referenceID || "",
+      apptDate: x.apptDate || x.appointmentDate || "",
+      custName: x.custName || x.customerName || "",
+      expRating: x.expRating || x.experienceRating || "",
+      customerType: x.customerType || "",
+      clinic: x.clinic || x.clinicName || "",
+      therapistDoctors: x.therapistDoctors || x.therapist || x.doctorName || "",
+      futureAppTaken: toYesNoLabel(x.futureAppointmentTaken),
+      overallSatisfied: toYesNoLabel(x.overallSatisfied),
+      customerFeedback: x.customerFeedback || x.customerComplaintRemarks || "",
+      auditor: x.auditor || x.auditorName || "",
+      status: finalStatus,
+    }
+  }
   // ------------------------------------------
 
   // Helper: pull centerCode from session/local storage
@@ -87,7 +116,6 @@ const DetailedReport = () => {
       if (!raw) continue
       try {
         const u = JSON.parse(raw)
-        // try common shapes
         const code =
           u?.centerCode ||
           u?.center?.code ||
@@ -97,9 +125,7 @@ const DetailedReport = () => {
           u?.centerID ||
           ""
         if (code && String(code).trim()) return String(code).trim()
-      } catch {
-        /* ignore parse errors */
-      }
+      } catch { /* ignore */ }
     }
     return ""
   }
@@ -111,17 +137,12 @@ const DetailedReport = () => {
       console.warn("centerCode not found in session/local storage; therapist list will be empty.")
       return
     }
-
     const loadPractitioners = async () => {
       try {
         const url = `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
         const res = await fetch(url, { credentials: "include" })
         const data = await res.json()
-
-        // Accept both array and single-object responses
         const list = Array.isArray(data) ? data : (data ? [data] : [])
-
-        // Map to react-select {value,label}. Use id as value, name as label.
         const options = list
           .filter(x => x && (x.id || x.name))
           .map(x => ({ value: x.id ?? x.code ?? x.name, label: x.name ?? x.id }))
@@ -131,35 +152,40 @@ const DetailedReport = () => {
         setTherapistOptions([])
       }
     }
-
     loadPractitioners()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleView = async () => {
     try {
-      // strings only (API expects strings, not null)
-      const hasDates = Boolean(filters.fromDate && filters.toDate)
+      // User-entered (visible) values
+      const userFrom = filters.fromDate
+      const userTo   = filters.toDate
+
+      // Effective values to SEND (invisible defaults when not selected)
+      const effFrom = userFrom || INVISIBLE_FROM_DEFAULT
+      const effTo   = userTo   || INVISIBLE_TO_DEFAULT
+
+      // dateFlag indicates whether the user explicitly set any date filter
+      const dateFlag = (userFrom || userTo) ? "1" : "0"
+
       const payload = {
-        fromDate: hasDates ? new Date(filters.fromDate).toISOString() : "",
-        todate:   hasDates ? new Date(filters.toDate).toISOString()   : "",
-        therapist:              (filters.therapistDoctors?.map(t => t.value) || []).join(","), // IDs or names per your Select 'value'
+        fromDate: iso(effFrom),
+        todate:   iso(effTo),
+        therapist:              (filters.therapistDoctors?.map(t => t.value) || []).join(","),
         experienceRating:       (filters.experienceRating?.map(r => r.value) || []).join(","),
         customerFeedback:       (filters.customerFeedback?.map(f => f.value) || []).join(","),
         overallSatisfied:       (filters.overallSatisfied?.map(o => o.value) || []).join(","),
         futureAppointmentTaken: (filters.futureAppTaken?.map(f => f.value) || []).join(","),
         customerType:           (filters.customerType?.map(c => c.value) || []).join(","),
+        // numeric status codes 0/1/2
         status:                 (filters.status?.map(s => s.value) || []).join(","),
+        // CODES ONLY for auditors (handles audtiorCode typo, auditorCode, or code)
         auditor:                (filters.auditor?.map(a => a.value) || []).join(","),
-        dateFlag: hasDates ? "1" : "0",
-        // If ONLY "Pending" is selected (and no other statuses), flag it; otherwise empty.
+        dateFlag,
         isPendingStatus:
-          (filters.status?.length === 1 && (filters.status[0].value || "").toLowerCase() === "pending")
-            ? "1"
-            : ""
+          (filters.status?.length === 1 && (filters.status[0].value || "") === "0") ? "1" : ""
       }
-
-      console.log("Request Payload:", payload)
 
       const response = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyDetailReport`, {
         method: "POST",
@@ -168,7 +194,6 @@ const DetailedReport = () => {
         body: JSON.stringify(payload),
       })
       const data = await response.json()
-      console.log("API Response:", data)
 
       if (Array.isArray(data)) {
         const normalized = data.map(normalizeRow)
@@ -184,6 +209,7 @@ const DetailedReport = () => {
     }
   }
 
+  // Load auditors
   useEffect(() => {
     const fetchAuditors = async () => {
       try {
@@ -251,7 +277,7 @@ const DetailedReport = () => {
 
   const handleClearFilters = () => {
     setFilters({
-      fromDate: "",
+      fromDate: "",   // UI stays empty
       toDate: "",
       therapistDoctors: [],
       experienceRating: [],
@@ -271,7 +297,12 @@ const DetailedReport = () => {
     console.log("Clicked reference ID:", referenceId)
   }
 
-  const statusOptions = toOptionList(["Pending", "Partially Completed", "Completed"])
+  // Select options (status uses numeric codes)
+  const statusOptions = [
+    { value: "0", label: "Pending" },
+    { value: "1", label: "Partially Completed" },
+    { value: "2", label: "Completed" },
+  ]
   const ratingOptions = toOptionList(["1", "2", "3", "4", "5"])
   const feedbackOptions = toOptionList(["Very Satisfied", "Satisfied", "Neutral", "Dissatisfied", "Very Dissatisfied"])
   const futureAppOptions = toOptionList(["Yes", "No"])
@@ -298,7 +329,7 @@ const DetailedReport = () => {
             <input
               type="date"
               id="fromDate"
-              value={filters.fromDate}
+              value={filters.fromDate} // stays empty until user picks
               onChange={(e) => handleFilterChange("fromDate", e.target.value)}
               className="filter-input"
             />
@@ -309,7 +340,7 @@ const DetailedReport = () => {
             <input
               type="date"
               id="toDate"
-              value={filters.toDate}
+              value={filters.toDate} // stays empty until user picks
               onChange={(e) => handleFilterChange("toDate", e.target.value)}
               className="filter-input"
             />
@@ -406,9 +437,9 @@ const DetailedReport = () => {
               isMulti
               id="auditor"
               className="filter-select"
-              options={auditorOptions.map((auditor) => ({
-                value: auditor.audtiorCode,
-                label: auditor.auditorName,
+              options={auditorOptions.map((a) => ({
+                value: a.audtiorCode || a.auditorCode || a.code || "", // <-- pass CODE
+                label: a.auditorName || a.name || (a.code ?? ""),      // <-- show NAME
               }))}
               value={filters.auditor}
               onChange={(selected) => handleFilterChange("auditor", selected || [])}
@@ -434,7 +465,6 @@ const DetailedReport = () => {
         <span className="total-count">{totalRecords}</span>
       </div>
 
-      {/* Report Results */}
       {showResults && reportData.length > 0 && (
         <div className="report-results">
           <div className="table-container">
