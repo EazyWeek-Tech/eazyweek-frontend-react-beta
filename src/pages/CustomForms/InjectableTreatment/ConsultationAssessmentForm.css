@@ -1,4 +1,4 @@
-/* .form-container-1 {
+.CAF-form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -8,7 +8,7 @@
   font-family: Arial, sans-serif;
 }
 
-.forms {
+.CAF-forms {
   max-width: 700px;
   width: 100%;
   background-color: white;
@@ -19,30 +19,30 @@
   padding: 20px;
   margin: 20px auto;
 }
-.photo-upload-container {
+.CAF-photo-upload-container {
   font-family: Arial, sans-serif;
   margin: 20px;
 }
 
-.title {
+.CAF-title {
   text-align: center;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.photo-upload-section {
+.CAF-photo-upload-section {
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   padding: 20px;
   margin-bottom: 20px;
 }
 
-.label {
+.CAF-label {
   font-weight: 500;
   margin-bottom: 10px;
 }
 
-.upload-box {
+.CAF-upload-box {
   border: 2px dashed #ccc;
   border-radius: 6px;
   padding: 30px;
@@ -54,76 +54,76 @@
   position: relative;
 }
 
-.upload-box:hover {
+.CAF-upload-box:hover {
   border-color: #888;
 }
 
-.upload-icon {
+.CAF-upload-icon {
   font-size: 22px;
   margin-bottom: 5px;
 }
 
-.browse {
+.CAF-browse {
   color: #007bff;
   text-decoration: underline;
   cursor: pointer;
   position: relative;
 }
 
-.file-input {
+.CAF-file-input {
   display: none;
 }
 
-.info-text {
+.CAF-info-text {
   font-size: 13px;
   color: #555;
 }
 
-.file-list ul {
+.CAF-file-list ul {
   margin: 10px 0 0;
   padding: 0;
   list-style-type: disc;
   padding-left: 20px;
 }
 
-.file-list li {
+.CAF-file-list li {
   font-size: 14px;
   margin-bottom: 5px;
 }
 
-.form h1 {
+.CAF-form h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.form h2 {
+.CAF-form h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.form p {
+.CAF-form p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
-.form-group {
+.CAF-form-group {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.CAF-form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.form-group input[type="text"],
-.form-group input[type="date"],
-.form-group select,
-.form-group textarea {
+.CAF-form-group input[type="text"],
+.CAF-form-group input[type="date"],
+.CAF-form-group select,
+.CAF-form-group textarea {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -132,27 +132,27 @@
   box-sizing: border-box;
 }
 
-.form-group textarea {
+.CAF-form-group textarea {
   resize: vertical;
   min-height: 100px;
 }
 
-.form-row {
+.CAF-form-row {
   display: flex;
   gap: 20px;
   margin-bottom: 20px;
 }
 
-.form-row .form-group {
+.CAF-form-row .CAF-form-group {
   flex: 1;
   margin-bottom: 0;
 }
 
-.signature-section {
+.CAF-signature-section {
   margin-bottom: 20px;
 }
 
-.signature-pad {
+.CAF-signature-pad {
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
@@ -160,12 +160,12 @@
   margin-bottom: 10px;
 }
 
-.signature-pad canvas {
+.CAF-signature-pad canvas {
   display: block;
   margin: 0 auto;
 }
 
-.clear-signature-btn {
+.CAF-clear-signature-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -174,43 +174,43 @@
   font-size: 12px;
 }
 
-.photo-upload-section {
+.CAF-photo-upload-section {
   margin-bottom: 20px;
 }
 
-.photo-upload-section h3 {
+.CAF-photo-upload-section h3 {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
 }
 
-.file-input {
+.CAF-file-input {
   margin-bottom: 10px;
 }
 
-.file-list {
+.CAF-file-list {
   margin-top: 10px;
 }
 
-.file-list ul {
+.CAF-file-list ul {
   list-style-type: none;
   padding: 0;
 }
 
-.file-list li {
+.CAF-file-list li {
   margin-bottom: 5px;
   font-size: 12px;
 }
 
-.button-group {
+.CAF-button-group {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-top: 30px;
 }
 
-.submit-btn,
-.print-btn {
+.CAF-submit-btn,
+.CAF-print-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 5px;
@@ -219,47 +219,47 @@
   font-weight: bold;
 }
 
-.submit-btn {
+.CAF-submit-btn {
   background-color: #007bff;
   color: white;
 }
 
-.print-btn {
+.CAF-print-btn {
   background-color: #28a745;
   color: white;
 }
 
-.submit-btn:hover {
+.CAF-submit-btn:hover {
   background-color: #0056b3;
 }
 
-.print-btn:hover {
+.CAF-print-btn:hover {
   background-color: #1e7e34;
 }
 
-.error-message {
+.CAF-error-message {
   color: red;
   font-size: 12px;
   margin-top: 5px;
 }
 
-.face-mapper-section {
+.CAF-face-mapper-section {
   margin-bottom: 20px;
 }
 
-.face-mapper-section h2 {
+.CAF-face-mapper-section h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.face-mapper-section p {
+.CAF-face-mapper-section p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
-.face-mapper-container {
+.CAF-face-mapper-container {
   position: relative;
   display: block;
   border: 1px solid #ddd;
@@ -269,21 +269,21 @@
   text-align: center;
 }
 
-.face-diagram {
+.CAF-face-diagram {
   display: block;
   width: 400px;
   height: 500px;
   margin: 0 auto;
 }
 
-.face-canvas {
+.CAF-face-canvas {
   position: absolute;
   top: 0;
   left: 0;
   cursor: crosshair;
 }
 
-.face-mapper-tools {
+.CAF-face-mapper-tools {
   display: flex;
   gap: 15px;
   align-items: center;
@@ -296,7 +296,7 @@
   flex-wrap: wrap;
 }
 
-.face-mapper-tools label {
+.CAF-face-mapper-tools label {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -305,20 +305,20 @@
   color: #495057;
 }
 
-.face-mapper-tools select,
-.face-mapper-tools input[type="color"],
-.face-mapper-tools input[type="range"] {
+.CAF-face-mapper-tools select,
+.CAF-face-mapper-tools input[type="color"],
+.CAF-face-mapper-tools input[type="range"] {
   padding: 4px 8px;
   border: 1px solid #ced4da;
   border-radius: 4px;
   font-size: 14px;
 }
 
-.face-mapper-tools input[type="range"] {
+.CAF-face-mapper-tools input[type="range"] {
   width: 80px;
 }
 
-.clear-face-mapper-btn {
+.CAF-clear-face-mapper-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -327,41 +327,41 @@
   font-size: 12px;
 }
 
-.clear-face-mapper-btn:hover {
+.CAF-clear-face-mapper-btn:hover {
   background-color: #e0e0e0;
 }
 
 @media (max-width: 768px) {
-  .form {
+  .CAF-form {
     padding: 15px;
     margin: 10px;
   }
 
-  .form h1 {
+  .CAF-form h1 {
     font-size: 20px;
   }
 
-  .button-group {
+  .CAF-button-group {
     flex-direction: column;
   }
 
-  .submit-btn,
-  .print-btn {
+  .CAF-submit-btn,
+  .CAF-print-btn {
     width: 100%;
   }
 
-  .face-diagram {
+  .CAF-face-diagram {
     width: 300px;
     height: 375px;
   }
 
-  .face-canvas {
+  .CAF-face-canvas {
     width: 300px;
     height: 375px;
   }
 
-  .face-mapper-tools {
+  .CAF-face-mapper-tools {
     flex-direction: column;
     align-items: flex-start;
   }
-} */
+}

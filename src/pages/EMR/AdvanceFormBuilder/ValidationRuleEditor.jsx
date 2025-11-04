@@ -44,7 +44,7 @@ export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
   ];
 
   return (
-    <div className="space-y-4 field-properties">
+    <div className="space-y-4 FFP-field-properties">
       <div className="flex items-center gap-2">
         <Shield className="w-4 h-4 text-muted-foreground iconright" />
         <Label className="text-sm font-medium">Validation Rules</Label>
@@ -67,7 +67,7 @@ export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
             const ruleType = validationTypes.find(type => type.value === rule.type);
 
             return (
-              <div key={index} className="border border-builder-border rounded-lg p-3 animate-fade-in">
+              <div key={index} className="FFP-AdvFormBuilder-border rounded-lg p-3 animate-fade-in">
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="outline" className="text-xs">
                     Rule {index + 1}
@@ -155,7 +155,7 @@ export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
       )}
 
       {rules.length > 0 && (
-        <div className="text-xs text-muted-foreground bg-builder-hover p-2 rounded">
+        <div className="text-xs text-muted-foreground FFP-AdvFormBuilder-bg-hover p-2 rounded">
           💡 Validation rules are checked when the user submits the form
         </div>
       )}

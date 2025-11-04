@@ -87,11 +87,11 @@ const AntiAgeingInjectablesConsentForm = () => {
   });
 
   return (
-    <div className="consent-form-container">
-      <div ref={formRef} className="consent-form">
+    <div className="AAICF-consent-form-container">
+      <div ref={formRef} className="AAICF-consent-form">
         <h1>Informed Consent form for patients Undergoing Injectable (PRP, Filler, Threads, Hyaluronidase, Mesotherapy) Treatment</h1>
 
-        <div className="form-group">
+        <div className="AAICF-form-group">
           <label>Name of Patient:</label>
           <input
             type="text"
@@ -107,8 +107,8 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <h2>Services</h2>
 
-        <div className="checkbox-group">
-          <label className="checkbox-item">
+        <div className="AAICF-checkbox-group">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="prpSkinHair"
@@ -117,7 +117,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             />
             PRP Skin/Hair
           </label>
-          <label className="checkbox-item">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="fillers"
@@ -126,7 +126,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             />
             Fillers
           </label>
-          <label className="checkbox-item">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="threads"
@@ -135,7 +135,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             />
             Threads
           </label>
-          <label className="checkbox-item">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="mesotherapy"
@@ -146,7 +146,7 @@ const AntiAgeingInjectablesConsentForm = () => {
           </label>
         </div>
 
-        <table className="services-table">
+        <table className="AAICF-services-table">
           <thead>
             <tr>
               <th>Service</th>
@@ -213,17 +213,17 @@ const AntiAgeingInjectablesConsentForm = () => {
           <li>I am aware that the outcome of the procedure is not always predictable. No guarantee or assurance has been given to me by anyone of the result that may be obtained.</li>
         </ul>
 
-        <div className="signature-section">
+        <div className="AAICF-signature-section">
           <h2>Doctor Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={doctorSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, doctorSignature: doctorSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearDoctorSignature}>
+          <button type="button" className="AAICF-clear-signature-btn" onClick={clearDoctorSignature}>
             Clear Signature
           </button>
           {errors.doctorSignature && <span style={{ color: 'red', fontSize: '12px', display: 'block', marginTop: '5px' }}>{errors.doctorSignature}</span>}
@@ -235,17 +235,17 @@ const AntiAgeingInjectablesConsentForm = () => {
         <h2>Patient Consent statement</h2>
         <p>I have read the foregoing information, or it has been read to me. I have had the opportunity to ask questions about it and any questions that I have asked have been answered to my satisfaction. I consent voluntarily to try this new treatment and understand that I have the right to withdraw from the procedure or treatment at any time without in any way affecting my medical care.</p>
 
-        <div className="signature-section">
+        <div className="AAICF-signature-section">
           <h2>Patient Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={patientSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, patientSignature: patientSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearPatientSignature}>
+          <button type="button" className="AAICF-clear-signature-btn" onClick={clearPatientSignature}>
             Clear Signature
           </button>
           {errors.patientSignature && <span style={{ color: 'red', fontSize: '12px', display: 'block', marginTop: '5px' }}>{errors.patientSignature}</span>}
@@ -255,7 +255,7 @@ const AntiAgeingInjectablesConsentForm = () => {
         <p>I have adequately explained to the patient the procedure along with risks, adverse effects, and the standard alternatives that are available for the procedure. I have permitted time and opportunity for the patient to ask questions and all questions have been answered to my knowledge.</p>
 
         <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Patient Name:</label>
             <input
               type="text"
@@ -265,7 +265,7 @@ const AntiAgeingInjectablesConsentForm = () => {
               placeholder="Enter patient name"
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Date:</label>
             <input
               type="date"
@@ -277,7 +277,7 @@ const AntiAgeingInjectablesConsentForm = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Doctor's Name:</label>
             <input
               type="text"
@@ -287,7 +287,7 @@ const AntiAgeingInjectablesConsentForm = () => {
               placeholder="Enter doctor's name"
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Age:</label>
             <input
               type="number"
@@ -299,11 +299,11 @@ const AntiAgeingInjectablesConsentForm = () => {
           </div>
         </div>
 
-        <div className="button-group">
-          <button type="button" className="print-btn" onClick={handlePrint}>
+        <div className="AAICF-button-group">
+          <button type="button" className="AAICF-print-btn" onClick={handlePrint}>
             Print Form
           </button>
-          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+          <button type="submit" className="AAICF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
         </div>

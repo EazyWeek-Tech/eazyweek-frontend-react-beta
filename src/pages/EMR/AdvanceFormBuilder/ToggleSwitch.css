@@ -1,4 +1,4 @@
-/* .mode-toggle-container {
+.AdvFormBuilder-mode-toggle-container {
     display: flex;
     border: 1px solid #ddd;
     border-radius: 20px;
@@ -9,11 +9,11 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 
-.mode-toggle-container input[type="radio"] {
+.AdvFormBuilder-mode-toggle-container input[type="radio"] {
     display: none;
 }
 
-.mode-button {
+.AdvFormBuilder-mode-button {
     padding: 8px 15px;
     cursor: pointer;
     font-size: 14px;
@@ -26,13 +26,13 @@
     flex-grow: 1;
 }
 
-.mode-toggle-container input[type="radio"]:checked + .mode-button {
+.AdvFormBuilder-mode-toggle-container input[type="radio"]:checked + .AdvFormBuilder-mode-button {
     background-color: #fff;
     color: #333;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     font-weight: 600;
 }
 
-.mode-toggle-container input[type="radio"]:not(:checked) + .mode-button:hover {
+.AdvFormBuilder-mode-toggle-container input[type="radio"]:not(:checked) + .AdvFormBuilder-mode-button:hover {
     background-color: #e8e8e8;
-} */
+}

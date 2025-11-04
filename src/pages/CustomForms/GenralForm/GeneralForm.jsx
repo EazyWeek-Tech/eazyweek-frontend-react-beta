@@ -115,41 +115,41 @@ const GeneralForm = () => {
   const handleAgree = () => setShowModal(false);
 
   return (
-    <div className="gf-general-form-container">
-      <div className="gf-form-container">
-        <div className="gf-page-header">
-          <h1 className="gf-page-title">General Form</h1>
+    <div className="GF-general-form-container">
+      <div className="GF-form-container">
+        <div className="GF-page-header">
+          <h1 className="GF-page-title">General Form</h1>
         </div>
-        <div className="gf-form-content">
+        <div className="GF-form-content">
           {/* Base Fields */}
-          <div className="gf-form-row">
-            <label className="gf-form-label">Form Name</label>
+          <div className="GF-form-row">
+            <label className="GF-form-label">Form Name</label>
             <input
               type="text"
               name="formName"
               value={formData.formName}
               onChange={handleBaseChange}
-              className="gf-form-input"
+              className="GF-form-input"
               placeholder="Enter form name"
             />
           </div>
 
-          <div className="gf-form-row">
-            <label className="gf-form-label">Code</label>
+          <div className="GF-form-row">
+            <label className="GF-form-label">Code</label>
             <input
               type="text"
               name="code"
               value={formData.code}
               onChange={handleBaseChange}
-              className="gf-form-input"
+              className="GF-form-input"
               placeholder="Enter code"
             />
           </div>
 
-          <div className="gf-form-row">
-            <label className="gf-form-label">Description</label>
+          <div className="GF-form-row">
+            <label className="GF-form-label">Description</label>
             <textarea
-              className="gf-form-textarea"
+              className="GF-form-textarea"
               name="description"
               value={formData.description}
               onChange={handleBaseChange}
@@ -157,13 +157,13 @@ const GeneralForm = () => {
             />
           </div>
 
-          <div className="gf-form-row">
-            <label className="gf-form-label">Form Type</label>
+          <div className="GF-form-row">
+            <label className="GF-form-label">Form Type</label>
             <select
               name="formType"
               value={formData.formType}
               onChange={handleBaseChange}
-              className="gf-form-select"
+              className="GF-form-select"
             >
               <option value="">Select Form Type</option>
               <option value="Service">Service</option>
@@ -175,14 +175,14 @@ const GeneralForm = () => {
             </select>
           </div>
 
-          <div className="gf-form-row">
-            <label className="gf-form-label">Create form using</label>
+          <div className="GF-form-row">
+            <label className="GF-form-label">Create form using</label>
             <select
               value={packagesData.createFormUsing}
               onChange={(e) =>
                 handleChange("Packages", "createFormUsing", e.target.value)
               }
-              className="gf-form-select"
+              className="GF-form-select"
             >
               <option>Form builder</option>
               <option>HTML code</option>
@@ -191,13 +191,13 @@ const GeneralForm = () => {
 
           {/* ================= Service ================= */}
           {formData.formType === "Service" && (
-            <div className="gf-form-section">
-              <div className="gf-form-row">
-                <label className="gf-form-label">Status</label>
-                <div className="gf-status-buttons">
+            <div className="GF-form-section">
+              <div className="GF-form-row">
+                <label className="GF-form-label">Status</label>
+                <div className="GF-status-buttons">
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       serviceData.status === "Active" ? "active" : ""
                     }`}
                     onClick={() => handleChange("Service", "status", "Active")}
@@ -206,7 +206,7 @@ const GeneralForm = () => {
                   </button>
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       serviceData.status === "Inactive" ? "active" : ""
                     }`}
                     onClick={() =>
@@ -218,14 +218,14 @@ const GeneralForm = () => {
                 </div>
               </div>
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Form validity</label>
+              <div className="GF-form-row">
+                <label className="GF-form-label">Form validity</label>
                 <select
                   value={serviceData.formValidity}
                   onChange={(e) =>
                     handleChange("Service", "formValidity", e.target.value)
                   }
-                  className="gf-form-select"
+                  className="GF-form-select"
                 >
                   <option value="noExpirySameDay">
                     No expiry - Common form for all services on the same day
@@ -239,8 +239,8 @@ const GeneralForm = () => {
               </div>
 
               {serviceData.formValidity === "expiresAfter" && (
-                <div className="gf-form-row">
-                  <label className="gf-form-label">Days</label>
+                <div className="GF-form-row">
+                  <label className="GF-form-label">Days</label>
                   <input
                     type="number"
                     maxLength="6"
@@ -248,28 +248,28 @@ const GeneralForm = () => {
                     onChange={(e) =>
                       handleChange("Service", "expiryDays", e.target.value)
                     }
-                    className="gf-form-input"
+                    className="GF-form-input"
                     placeholder="Enter days"
                   />
                 </div>
               )}
 
               {serviceData.formValidity === "expiresOn" && (
-                <div className="gf-form-row">
-                  <label className="gf-form-label">Expiry Date</label>
+                <div className="GF-form-row">
+                  <label className="GF-form-label">Expiry Date</label>
                   <input
                     type="date"
                     value={serviceData.expiryDate}
                     onChange={(e) =>
                       handleChange("Service", "expiryDate", e.target.value)
                     }
-                    className="gf-form-input"
+                    className="GF-form-input"
                   />
                 </div>
               )}
 
-              <h3 className="gf-section-subtitle">Additional settings</h3>
-              <label className="gf-checkbox-label">
+              <h3 className="GF-section-subtitle">Additional settings</h3>
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={serviceData.requireReview}
@@ -285,7 +285,7 @@ const GeneralForm = () => {
               </label>
 
               {serviceData.requireReview && (
-                <label className="gf-checkbox-label">
+                <label className="GF-checkbox-label">
                   <input
                     type="checkbox"
                     checked={serviceData.requireReviewOnce}
@@ -301,8 +301,8 @@ const GeneralForm = () => {
                 </label>
               )}
 
-              <h3 className="gf-section-subtitle">Form behavior settings</h3>
-              <label className="gf-checkbox-label">
+              <h3 className="GF-section-subtitle">Form behavior settings</h3>
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={serviceData.readOnlyForGuests}
@@ -318,7 +318,7 @@ const GeneralForm = () => {
                 CMA)
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={serviceData.prefillData}
@@ -333,7 +333,7 @@ const GeneralForm = () => {
                 Prefill form with data from previous visit
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={serviceData.copyDetails}
@@ -348,7 +348,7 @@ const GeneralForm = () => {
                 Copy details from old version of the form to the new version
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={serviceData.emailCopy}
@@ -367,10 +367,10 @@ const GeneralForm = () => {
 
           {/* ================= Guest ================= */}
           {formData.formType === "Guest" && (
-            <div className="gf-form-section">
-              <h3 className="gf-section-subtitle">Form behavior settings</h3>
+            <div className="GF-form-section">
+              <h3 className="GF-section-subtitle">Form behavior settings</h3>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={guestData.webstore}
@@ -381,7 +381,7 @@ const GeneralForm = () => {
                 Show this form on Webstore
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={guestData.readOnlyForGuests}
@@ -397,7 +397,7 @@ const GeneralForm = () => {
                 CMA)
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={guestData.copyDetails}
@@ -412,7 +412,7 @@ const GeneralForm = () => {
                 Copy details from old version of the form to the new version
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={guestData.emailCopy}
@@ -427,13 +427,13 @@ const GeneralForm = () => {
 
           {/* ================= Tag ================= */}
           {formData.formType === "Tag" && (
-            <div className="gf-form-section">
-              <div className="gf-form-row">
-                <label className="gf-form-label">Status</label>
-                <div className="gf-status-buttons">
+            <div className="GF-form-section">
+              <div className="GF-form-row">
+                <label className="GF-form-label">Status</label>
+                <div className="GF-status-buttons">
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       tagData.status === "Active" ? "active" : ""
                     }`}
                     onClick={() => handleChange("Tag", "status", "Active")}
@@ -442,7 +442,7 @@ const GeneralForm = () => {
                   </button>
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       tagData.status === "Inactive" ? "active" : ""
                     }`}
                     onClick={() => handleChange("Tag", "status", "Inactive")}
@@ -452,14 +452,14 @@ const GeneralForm = () => {
                 </div>
               </div>
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Form validity</label>
+              <div className="GF-form-row">
+                <label className="GF-form-label">Form validity</label>
                 <select
                   value={tagData.formValidity}
                   onChange={(e) =>
                     handleChange("Tag", "formValidity", e.target.value)
                   }
-                  className="gf-form-select"
+                  className="GF-form-select"
                 >
                   <option value="noExpirySameDay">
                     No expiry - Common form for all services on the same day
@@ -473,8 +473,8 @@ const GeneralForm = () => {
               </div>
 
               {tagData.formValidity === "expiresAfter" && (
-                <div className="gf-form-row">
-                  <label className="gf-form-label">Days</label>
+                <div className="GF-form-row">
+                  <label className="GF-form-label">Days</label>
                   <input
                     type="number"
                     maxLength="6"
@@ -482,28 +482,28 @@ const GeneralForm = () => {
                     onChange={(e) =>
                       handleChange("Tag", "expiryDays", e.target.value)
                     }
-                    className="gf-form-input"
+                    className="GF-form-input"
                     placeholder="Enter days"
                   />
                 </div>
               )}
 
               {tagData.formValidity === "expiresOn" && (
-                <div className="gf-form-row">
-                  <label className="gf-form-label">Expiry Date</label>
+                <div className="GF-form-row">
+                  <label className="GF-form-label">Expiry Date</label>
                   <input
                     type="date"
                     value={tagData.expiryDate}
                     onChange={(e) =>
                       handleChange("Tag", "expiryDate", e.target.value)
                     }
-                    className="gf-form-input"
+                    className="GF-form-input"
                   />
                 </div>
               )}
 
-              <h3 className="gf-section-subtitle">Additional settings</h3>
-              <label className="gf-checkbox-label">
+              <h3 className="GF-section-subtitle">Additional settings</h3>
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={tagData.requireReview}
@@ -519,7 +519,7 @@ const GeneralForm = () => {
               </label>
 
               {tagData.requireReview && (
-                <label className="gf-checkbox-label">
+                <label className="GF-checkbox-label">
                   <input
                     type="checkbox"
                     checked={tagData.requireReviewOnce}
@@ -535,8 +535,8 @@ const GeneralForm = () => {
                 </label>
               )}
 
-              <h3 className="gf-section-subtitle">Form behavior settings</h3>
-              <label className="gf-checkbox-label">
+              <h3 className="GF-section-subtitle">Form behavior settings</h3>
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={tagData.readOnlyForGuests}
@@ -552,7 +552,7 @@ const GeneralForm = () => {
                 CMA)
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={tagData.prefillData}
@@ -563,7 +563,7 @@ const GeneralForm = () => {
                 Prefill form with data from previous visit
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={tagData.copyDetails}
@@ -574,7 +574,7 @@ const GeneralForm = () => {
                 Copy details from old version of the form to the new version
               </label>
 
-              <label className="gf-checkbox-label">
+              <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
                   checked={tagData.emailCopy}
@@ -589,14 +589,14 @@ const GeneralForm = () => {
 
           {/* ================= Membership ================= */}
           {formData.formType === "Membership" && (
-            <div className="gf-form-section">
+            <div className="GF-form-section">
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Mode</label>
-                <div className="gf-status-buttons">
+              <div className="GF-form-row">
+                <label className="GF-form-label">Mode</label>
+                <div className="GF-status-buttons">
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       membershipData.mode === "Online" ? "active" : ""
                     }`}
                     onClick={() => handleChange("Membership", "mode", "Online")}
@@ -605,7 +605,7 @@ const GeneralForm = () => {
                   </button>
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       membershipData.mode === "Offline" ? "active" : ""
                     }`}
                     onClick={() =>
@@ -617,14 +617,14 @@ const GeneralForm = () => {
                 </div>
               </div>
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Purpose</label>
+              <div className="GF-form-row">
+                <label className="GF-form-label">Purpose</label>
                 <select
                   value={membershipData.purpose}
                   onChange={(e) =>
                     handleChange("Membership", "purpose", e.target.value)
                   }
-                  className="gf-form-select"
+                  className="GF-form-select"
                 >
                   <option value="">Select Purpose</option>
                   <option value="Sign-Up">Sign-Up</option>
@@ -636,12 +636,12 @@ const GeneralForm = () => {
                 </select>
               </div>
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Status</label>
-                <div className="gf-status-buttons">
+              <div className="GF-form-row">
+                <label className="GF-form-label">Status</label>
+                <div className="GF-status-buttons">
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       membershipData.status === "Active" ? "active" : ""
                     }`}
                     onClick={() =>
@@ -652,7 +652,7 @@ const GeneralForm = () => {
                   </button>
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       membershipData.status === "Inactive" ? "active" : ""
                     }`}
                     onClick={() =>
@@ -668,17 +668,17 @@ const GeneralForm = () => {
 
           {/* ================= Packages ================= */}
           {formData.formType === "Packages" && (
-            <div className="gf-form-section">
+            <div className="GF-form-section">
               {/* <h2 className="section-title">Packages Configuration</h2> */}
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Purpose</label>
+              <div className="GF-form-row">
+                <label className="GF-form-label">Purpose</label>
                 <select
                   value={packagesData.purpose}
                   onChange={(e) =>
                     handleChange("Packages", "purpose", e.target.value)
                   }
-                  className="gf-form-select"
+                  className="GF-form-select"
                 >
                   <option value="">Select Purpose</option>
                   <option value="Sign-Up">Sign-Up</option>
@@ -688,12 +688,12 @@ const GeneralForm = () => {
                 </select>
               </div>
 
-              <div className="gf-form-row">
-                <label className="gf-form-label">Status</label>
-                <div className="gf-status-buttons">
+              <div className="GF-form-row">
+                <label className="GF-form-label">Status</label>
+                <div className="GF-status-buttons">
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       packagesData.status === "Active" ? "active" : ""
                     }`}
                     onClick={() => handleChange("Packages", "status", "Active")}
@@ -702,7 +702,7 @@ const GeneralForm = () => {
                   </button>
                   <button
                     type="button"
-                    className={`gf-status-btn ${
+                    className={`GF-status-btn ${
                       packagesData.status === "Inactive" ? "active" : ""
                     }`}
                     onClick={() =>
@@ -718,15 +718,15 @@ const GeneralForm = () => {
 
           {/* ================= Loyalty ================= */}
           {formData.formType === "Loyalty" && (
-            <div className="gf-form-section">
+            <div className="GF-form-section">
 
             </div>
           )}
         </div>
 
         {/* Buttons */}
-        <div className="gf-form-buttons">
-          <button className="gf-save-btn" onClick={handleSave}>
+        <div className="GF-form-buttons">
+          <button className="GF-save-btn" onClick={handleSave}>
             Save
           </button>
         </div>
@@ -734,18 +734,18 @@ const GeneralForm = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="gf-modal-overlay">
-          <div className="gf-modal">
-            <div className="gf-modal-header">
-              <h2 className="gf-modal-title">Prefill Old Version Data</h2>
+        <div className="GF-modal-overlay">
+          <div className="GF-modal">
+            <div className="GF-modal-header">
+              <h2 className="GF-modal-title">Prefill Old Version Data</h2>
             </div>
 
-            <div className="gf-modal-body">
-              <div className="gf-warning-row">
-                <div className="gf-warning-icon" aria-hidden>
+            <div className="GF-modal-body">
+              <div className="GF-warning-row">
+                <div className="GF-warning-icon" aria-hidden>
                   ⚠
                 </div>
-                <div className="gf-warning-text">
+                <div className="GF-warning-text">
                   <p>
                     When you select this option, Zenoti will automatically copy
                     and fill details from the old form into the new version of
@@ -766,11 +766,11 @@ const GeneralForm = () => {
               </div>
             </div>
 
-            <div className="gf-modal-buttons">
-              <button onClick={handleAgree} className="gf-agree-btn">
+            <div className="GF-modal-buttons">
+              <button onClick={handleAgree} className="GF-agree-btn">
                 I Agree
               </button>
-              <button onClick={handleCancel} className="gf-cancel-btn">
+              <button onClick={handleCancel} className="GF-cancel-btn">
                 Cancel
               </button>
             </div>

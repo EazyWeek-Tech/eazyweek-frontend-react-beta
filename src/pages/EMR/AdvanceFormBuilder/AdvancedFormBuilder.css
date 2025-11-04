@@ -1,4 +1,4 @@
-/* :root {
+:root {
   --builder-bg: #fff;
   --builder-border: #ccc;
   --builder-hover: #f1f5f9;
@@ -91,17 +91,14 @@
   }
 }
 
-.form-builder-button {
+.AdvFormBuilder-button {
   padding: 0.75rem 1.5rem;
   border-radius: var(--border-radius-md);
   font-weight: 600;
   font-size: 0.875rem;
-  background-color:rgb(248, 243, 243) !important;
-  color: var(--text-primary) !important;;
-  background-color:rgb(248, 243, 243) !important;
-  color: var(--text-primary) !important;;
+  background-color:rgb(248, 243, 243);
+  color: var(--text-primary);
   cursor: pointer;
-  line-height: inherit;
   line-height: inherit;
   transition: var(--transition);
   display: inline-flex;
@@ -111,79 +108,68 @@
   text-decoration: none;
 }
 
-.form-builder-button:hover{
-  background-color: rgb(234, 226, 226) !important;  
-  color: var(--text-primary) !important;
+.AdvFormBuilder-button:hover{
+  background-color: rgb(234, 226, 226);  
+  color: var(--text-primary);
 }
 
-.form-builder-button:focus {
-.form-builder-button:hover{
-  background-color: rgb(234, 226, 226) !important;  
-  color: var(--text-primary) !important;
-}
-
-.form-builder-button:focus {
+.AdvFormBuilder-button:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-button-primary, .form-builder-button[data-variant="default"] {
-.form-builder-button-primary, .form-builder-button[data-variant="default"] {
+.AdvFormBuilder-button-primary, .AdvFormBuilder-button[data-variant="default"] {
   background: var(--primary);
   color: white;
   border-color: var(--primary);
 }
 
-.button-primary:hover, button[data-variant="default"]:hover {
+.AdvFormBuilder-button-primary:hover, .AdvFormBuilder-button[data-variant="default"]:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-.form-builder-button-outline, .form-builder-button[data-variant="outline"] {
-.form-builder-button-outline, .form-builder-button[data-variant="outline"] {
+.AdvFormBuilder-button-outline, .AdvFormBuilder-button[data-variant="outline"] {
   background: var(--card-bg);
   color: var(--text-primary);
   border-color: var(--builder-border);
 }
 
-.button-outline:hover, button[data-variant="outline"]:hover {
+.AdvFormBuilder-button-outline:hover, .AdvFormBuilder-button[data-variant="outline"]:hover {
   background: var(--builder-hover);
   border-color: var(--primary);
   color: var(--primary);
 }
 
-.form-builder-button-ghost, .form-builder-button[data-variant="ghost"] {
-.form-builder-button-ghost, .form-builder-button[data-variant="ghost"] {
+.AdvFormBuilder-button-ghost, .AdvFormBuilder-button[data-variant="ghost"] {
   background: transparent;
   color: var(--text-primary);
   border-color: transparent;
 }
 
-.button-ghost:hover, button[data-variant="ghost"]:hover {
+.AdvFormBuilder-button-ghost:hover, .AdvFormBuilder-button[data-variant="ghost"]:hover {
   background: var(--builder-hover);
 }
 
-.form-builder-button-destructive {
-.form-builder-button-destructive {
+.AdvFormBuilder-button-destructive {
   background: var(--error);
   color: white;
   border-color: var(--error);
 }
 
-.button-destructive:hover {
+.AdvFormBuilder-button-destructive:hover {
   background: #dc2626;
   border-color: #dc2626;
 }
 
-.form-builder-button-sm {
-.form-builder-button-sm {
+.AdvFormBuilder-button-sm {
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
 }
 
-.card, .card-root {
+.AdvFormBuilder-card, .AdvFormBuilder-card-root {
   background: var(--card-bg);
   border: 1px solid var(--builder-border);
   border-radius: var(--border-radius-lg);
@@ -192,12 +178,12 @@
   transition: var(--transition);
 }
 
-.card:hover, .card-root:hover {
+.AdvFormBuilder-card:hover, .AdvFormBuilder-card-root:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--primary-light);
 }
 
-.form-builder-input {
+.AdvFormBuilder-input {
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -208,20 +194,18 @@
   width: 100%;
 }
 
-.form-builder-input:focus {
-.form-builder-input:focus {
+.AdvFormBuilder-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-textarea {
-.form-builder-textarea {
+.AdvFormBuilder-textarea {
   min-height: 120px;
   resize: vertical;
 }
 
-.form-builder-label {
+.AdvFormBuilder-label {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -229,13 +213,13 @@
   display: block;
 }
 
-.form-builder-switch {
+.AdvFormBuilder-switch {
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.switch input[type="checkbox"] {
+.AdvFormBuilder-switch input[type="checkbox"] {
   width: 44px;
   height: 24px;
   border-radius: 12px;
@@ -246,11 +230,11 @@
   position: relative;
 }
 
-.switch input[type="checkbox"]:checked {
+.AdvFormBuilder-switch input[type="checkbox"]:checked {
   background: var(--primary);
 }
 
-.switch input[type="checkbox"]:before {
+.AdvFormBuilder-switch input[type="checkbox"]:before {
   content: '';
   position: absolute;
   top: 2px;
@@ -263,15 +247,15 @@
   transform: translateX(0);
 }
 
-.switch input[type="checkbox"]:checked:before {
+.AdvFormBuilder-switch input[type="checkbox"]:checked:before {
   transform: translateX(20px);
 }
 
-.tabs, .tabs-root {
+.AdvFormBuilder-tabs, .AdvFormBuilder-tabs-root {
   width: 100%;
 }
 
-.tabs-list, .tabs-list-root {
+.AdvFormBuilder-tabs-list, .AdvFormBuilder-tabs-list-root {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(3, 1fr);
@@ -281,8 +265,7 @@
   margin-bottom: 1.5rem;
 }
 
-.form-builder-tabs-trigger {
-.form-builder-tabs-trigger {
+.AdvFormBuilder-tabs-trigger {
   padding: 0.75rem 1rem;
   border: none;
   background: transparent;
@@ -295,25 +278,23 @@
   flex: 1;
 }
 
-.form-builder-tabs-trigger:hover {
-.form-builder-tabs-trigger:hover {
+.AdvFormBuilder-tabs-trigger:hover {
   color: var(--text-primary);
   background: var(--card-bg);
 }
 
-.form-builder-tabs-trigger[data-state="active"] {
-.form-builder-tabs-trigger[data-state="active"] {
+.AdvFormBuilder-tabs-trigger[data-state="active"] {
   background: var(--card-bg);
   color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
 
-.tabs-content, .tabs-content-root {
+.AdvFormBuilder-tabs-content, .AdvFormBuilder-tabs-content-root {
   margin-top: 0;
   animation: fadeIn 0.3s ease-out;
 }
 
-.badge, .badge-root {
+.AdvFormBuilder-badge, .AdvFormBuilder-badge-root {
   display: inline-flex;
   align-items: center;
   padding: 0.375rem 0.75rem;
@@ -324,27 +305,27 @@
   letter-spacing: 0.025em;
 }
 
-.badge-secondary, .badge-root[data-variant="secondary"] {
+.AdvFormBuilder-badge-secondary, .AdvFormBuilder-badge-root[data-variant="secondary"] {
   background: var(--builder-hover);
   color: var(--text-secondary);
 }
 
-.badge-outline, .badge-root[data-variant="outline"] {
+.AdvFormBuilder-badge-outline, .AdvFormBuilder-badge-root[data-variant="outline"] {
   border: 1px solid var(--builder-border);
   background: var(--card-bg);
   color: var(--text-primary);
 }
 
-.badge-destructive {
+.AdvFormBuilder-badge-destructive {
   background: var(--error);
   color: white;
 }
 
-.form-builder-form-setting input {
+.AdvFormBuilder-form-setting input {
   margin-top: 0.25rem;
 }
 
-.form-builder-toggle {
+.AdvFormBuilder-toggle {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -354,7 +335,7 @@
   border: 1px solid var(--builder-border);
 }
 
-.form-builder-toggle label {
+.AdvFormBuilder-toggle label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-primary);
@@ -362,14 +343,14 @@
   cursor: pointer;
 }
 
-.form-builder-options {
+.AdvFormBuilder-options {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
 
-.form-builder-option-input {
+.AdvFormBuilder-option-input {
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -379,13 +360,13 @@
   color: var(--text-primary);
 }
 
-.form-builder-option-input:focus {
+.AdvFormBuilder-option-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-add-option {
+.AdvFormBuilder-add-option {
   padding: 0.75rem 1rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -401,12 +382,12 @@
   justify-content: center;
 }
 
-.form-builder-add-option:hover {
+.AdvFormBuilder-add-option:hover {
   background: var(--builder-hover);
   border-color: var(--primary);
 }
 
-.form-builder-container {
+.AdvFormBuilder-container {
   min-height: 100vh;
   background: linear-gradient(135deg, var(--builder-bg) 0%, #f1f5f9 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -414,18 +395,17 @@
   color: var(--text-primary);
 }
 
-.form-builder-wrapper {
+.AdvFormBuilder-wrapper {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0.5rem 2rem;
 }
 
-.form-builder-header {
+.AdvFormBuilder-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
-  padding: 0.5rem 2rem;
   padding: 0.5rem 2rem;
   background: var(--card-bg);
   border-radius: var(--border-radius-xl);
@@ -433,8 +413,7 @@
   border: 1px solid var(--builder-border);
 }
 
-.form-builder-title {
-  font-size: 1.5rem;
+.AdvFormBuilder-title {
   font-size: 1.5rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
@@ -445,7 +424,7 @@
   letter-spacing: -0.025em;
 }
 
-.form-builder-subtitle {
+.AdvFormBuilder-subtitle {
   color: var(--text-secondary);
   margin: 0.5rem 0 0;
   font-size: 1rem;
@@ -455,26 +434,26 @@
   font-weight: 500;
 }
 
-.form-builder-actions {
+.AdvFormBuilder-actions {
   display: flex;
   gap: 1rem;
   align-items: center;
 }
 
-.form-builder-grid {
+.AdvFormBuilder-grid {
   display: grid;
   grid-template-columns: 320px 1fr 320px;
   gap: 2rem;
   min-height: 600px;
 }
 
-.form-builder-sidebar {
+.AdvFormBuilder-sidebar {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.form-builder-card {
+.AdvFormBuilder-card {
   background: var(--card-bg);
   border: 1px solid var(--builder-border);
   border-radius: var(--border-radius-lg);
@@ -483,19 +462,19 @@
   transition: var(--transition);
 }
 
-.form-builder-card:hover {
+.AdvFormBuilder-card:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--primary-light);
 }
 
-.form-builder-card-header {
+.AdvFormBuilder-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.25rem;
 }
 
-.form-builder-card-title {
+.AdvFormBuilder-card-title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -505,26 +484,26 @@
   gap: 0.5rem;
 }
 
-.form-builder-form-settings {
+.AdvFormBuilder-form-settings {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.form-builder-form-setting {
+.AdvFormBuilder-form-setting {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.form-builder-form-setting label {
+.AdvFormBuilder-form-setting label {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
-.form-builder-form-setting input {
+.AdvFormBuilder-form-setting input {
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -534,13 +513,13 @@
   color: var(--text-primary);
 }
 
-.form-builder-form-setting input:focus {
+.AdvFormBuilder-form-setting input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-toggle {
+.AdvFormBuilder-toggle {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -550,7 +529,7 @@
   border: 1px solid var(--builder-border);
 }
 
-.form-builder-toggle label {
+.AdvFormBuilder-toggle label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-primary);
@@ -558,7 +537,7 @@
   cursor: pointer;
 }
 
-.form-builder-main {
+.AdvFormBuilder-main {
   background: var(--card-bg);
   border: 1px solid var(--builder-border);
   border-radius: var(--border-radius-lg);
@@ -568,15 +547,15 @@
   transition: var(--transition);
 }
 
-.form-builder-main:hover {
+.AdvFormBuilder-main:hover {
   box-shadow: var(--shadow-md);
 }
 
-.form-builder-fields-container {
+.AdvFormBuilder-fields-container {
   min-height: 500px;
 }
 
-.form-builder-fields-header {
+.AdvFormBuilder-fields-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -585,20 +564,20 @@
   border-bottom: 1px solid var(--builder-border);
 }
 
-.form-builder-fields-header-left {
+.AdvFormBuilder-fields-header-left {
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-.form-builder-fields-header-left h2 {
+.AdvFormBuilder-fields-header-left h2 {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
 
-.form-builder-empty-state {
+.AdvFormBuilder-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -608,7 +587,7 @@
   animation: fadeIn 0.5s ease-out;
 }
 
-.form-builder-empty-icon {
+.AdvFormBuilder-empty-icon {
   width: 5rem;
   height: 5rem;
   border-radius: 50%;
@@ -620,64 +599,60 @@
   box-shadow: var(--shadow-md);
 }
 
-.form-builder-empty-icon svg {
+.AdvFormBuilder-empty-icon svg {
   width: 2rem;
   height: 2rem;
   color: var(--primary);
 }
 
-.form-builder-empty-title {
+.AdvFormBuilder-empty-title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
-.form-builder-empty-text {
+.AdvFormBuilder-empty-text {
   color: var(--text-secondary);
   font-size: 1rem;
   max-width: 300px;
   line-height: 1.6;
 }
 
-.form-builder-fields-list {
+.AdvFormBuilder-fields-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-height: 200px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.form-builder-field {
+.AdvFormBuilder-field {
   position: relative;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-lg);
   padding: 1.25rem;
   background: var(--card-bg);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   user-select: none;
   transform: translateZ(0); 
 }
 
-.form-builder-field:hover {
+.AdvFormBuilder-field:hover {
   border-color: var(--primary-light);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px) scale(1.01);
-  transform: translateY(-2px) scale(1.01);
 }
 
-.form-builder-field.selected {
+.AdvFormBuilder-field.selected {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   animation: scaleIn 0.2s ease-out;
   transform: translateY(-1px) scale(1.005);
-  transform: translateY(-1px) scale(1.005);
 }
 
-.form-builder-field.dragging {
+.AdvFormBuilder-field.dragging {
   box-shadow: var(--shadow-xl);
   transform: rotate(1deg) scale(1.02);
   opacity: 0.95;
@@ -685,11 +660,11 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.form-builder-field.dragging:hover {
+.AdvFormBuilder-field.dragging:hover {
   transform: rotate(1deg) scale(1.02);
 }
 
-.form-builder-field-placeholder {
+.AdvFormBuilder-field-placeholder {
   background: var(--builder-hover);
   border: 2px dashed var(--primary-light);
   border-radius: var(--border-radius-lg);
@@ -708,47 +683,41 @@
   }
 }
 
-.form-builder-field-content {
+.AdvFormBuilder-field-content {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
   transition: all 0.2s ease;
-  transition: all 0.2s ease;
 }
 
-.form-builder-field-drag-handle {
+.AdvFormBuilder-field-drag-handle {
   margin-top: 0.25rem;
   color: var(--text-muted);
   cursor: grab;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0.25rem;
   border-radius: var(--border-radius-sm);
   transform: translateZ(0);
-  transform: translateZ(0);
 }
 
-.form-builder-field-drag-handle:hover {
+.AdvFormBuilder-field-drag-handle:hover {
   color: var(--text-primary);
   background: var(--builder-hover);
   transform: scale(1.1);
-  transform: scale(1.1);
 }
 
-.form-builder-field-drag-handle:active {
+.AdvFormBuilder-field-drag-handle:active {
   cursor: grabbing;
   transform: scale(0.95);
-  transform: scale(0.95);
 }
 
-.form-builder-field-info {
+.AdvFormBuilder-field-info {
   flex: 1;
   min-width: 0;
   transition: all 0.2s ease;
-  transition: all 0.2s ease;
 }
 
-.form-builder-field-label {
+.AdvFormBuilder-field-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -758,18 +727,16 @@
   color: var(--text-primary);
   line-height: 1.4;
   transition: all 0.2s ease;
-  transition: all 0.2s ease;
 }
 
-.form-builder-field-required {
+.AdvFormBuilder-field-required {
   color: var(--error);
   font-size: 1rem;
   font-weight: bold;
   transition: all 0.2s ease;
-  transition: all 0.2s ease;
 }
 
-.form-builder-field-type {
+.AdvFormBuilder-field-type {
   font-size: 0.875rem;
   color: var(--text-secondary);
   display: flex;
@@ -778,12 +745,10 @@
   text-transform: capitalize;
   font-weight: 500;
   transition: all 0.2s ease;
-  transition: all 0.2s ease;
 }
 
-.form-builder-field-delete {
+.AdvFormBuilder-field-delete {
   opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--error);
   padding: 0.5rem;
@@ -792,17 +757,15 @@
   border: none;
   cursor: pointer;
   transform: translateZ(0);
-  transform: translateZ(0);
 }
 
-.form-builder-field-delete:hover {
+.AdvFormBuilder-field-delete:hover {
   background: rgba(239, 68, 68, 0.1);
   opacity: 1 !important;
   transform: scale(1.1);
-  transform: scale(1.1);
 }
 
-.form-builder-field:hover .form-builder-field-delete {
+.AdvFormBuilder-field:hover .AdvFormBuilder-field-delete {
   opacity: 1;
 }
 
@@ -828,15 +791,15 @@
   }
 }
 
-.field-enter {
+.AdvFormBuilder-field-enter {
   animation: slideInFromBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.field-exit {
+.AdvFormBuilder-field-exit {
   animation: slideOutToTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.drag-preview {
+.AdvFormBuilder-drag-preview {
   background: var(--card-bg);
   border: 2px solid var(--primary);
   border-radius: var(--border-radius-lg);
@@ -848,7 +811,7 @@
   z-index: 9999;
 }
 
-.drop-zone-active {
+.AdvFormBuilder-drop-zone-active {
   background: var(--primary-light);
   border-color: var(--primary);
   animation: glow 1s ease-in-out infinite alternate;
@@ -865,12 +828,12 @@
 
 
 
-.form-field-component {
+.AdvFormBuilder-form-field-component {
   margin-bottom: 1rem;
   position: relative;
 }
 
-.form-field-component label {
+.AdvFormBuilder-form-field-component label {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
@@ -881,20 +844,20 @@
   gap: 0.5rem;
 }
 
-.form-field-component-required {
+.AdvFormBuilder-form-field-component-required {
   color: var(--error);
   font-size: 1rem;
   font-weight: bold;
 }
 
-.form-field-component input[type="text"],
-.form-field-component input[type="email"],
-.form-field-component input[type="password"],
-.form-field-component input[type="number"],
-.form-field-component input[type="tel"],
-.form-field-component input[type="url"],
-.form-field-component textarea,
-.form-field-component select {
+.AdvFormBuilder-form-field-component input[type="text"],
+.AdvFormBuilder-form-field-component input[type="email"],
+.AdvFormBuilder-form-field-component input[type="password"],
+.AdvFormBuilder-form-field-component input[type="number"],
+.AdvFormBuilder-form-field-component input[type="tel"],
+.AdvFormBuilder-form-field-component input[type="url"],
+.AdvFormBuilder-form-field-component textarea,
+.AdvFormBuilder-form-field-component select {
   width: 100%;
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
@@ -905,21 +868,21 @@
   color: var(--text-primary);
 }
 
-.form-field-component input:focus,
-.form-field-component textarea:focus,
-.form-field-component select:focus {
+.AdvFormBuilder-form-field-component input:focus,
+.AdvFormBuilder-form-field-component textarea:focus,
+.AdvFormBuilder-form-field-component select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-field-component textarea {
+.AdvFormBuilder-form-field-component textarea {
   min-height: 120px;
   resize: vertical;
   line-height: 1.6;
 }
 
-.form-field-component select {
+.AdvFormBuilder-form-field-component select {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.75rem center;
@@ -928,23 +891,23 @@
   padding-right: 2.5rem;
 }
 
-.form-field-component input[type="radio"],
-.form-field-component input[type="checkbox"] {
+.AdvFormBuilder-form-field-component input[type="radio"],
+.AdvFormBuilder-form-field-component input[type="checkbox"] {
   width: auto;
   margin-right: 0.75rem;
   accent-color: var(--primary);
 }
 
-.form-field-radio-group,
-.form-field-checkbox-group {
+.AdvFormBuilder-form-field-radio-group,
+.AdvFormBuilder-form-field-checkbox-group {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
-.form-field-radio-option,
-.form-field-checkbox-option {
+.AdvFormBuilder-form-field-radio-option,
+.AdvFormBuilder-form-field-checkbox-option {
   display: flex;
   align-items: center;
   padding: 0.75rem;
@@ -953,18 +916,18 @@
   cursor: pointer;
 }
 
-.form-field-radio-option:hover,
-.form-field-checkbox-option:hover {
+.AdvFormBuilder-form-field-radio-option:hover,
+.AdvFormBuilder-form-field-checkbox-option:hover {
   background: var(--builder-hover);
 }
 
-.form-field-radio-option label,
-.form-field-checkbox-option label {
+.AdvFormBuilder-form-field-radio-option label,
+.AdvFormBuilder-form-field-checkbox-option label {
   margin: 0;
   cursor: pointer;
   font-weight: 500;
 }
-.form-field-signature {
+.AdvFormBuilder-form-field-signature {
   border: 2px dashed var(--builder-border);
   border-radius: var(--border-radius-md);
   padding: 2rem;
@@ -973,110 +936,110 @@
   transition: var(--transition);
 }
 
-.form-field-signature:hover {
+.AdvFormBuilder-form-field-signature:hover {
   border-color: var(--primary);
   background: var(--primary-light);
 }
 
-.form-field-table {
+.AdvFormBuilder-form-field-table {
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
   overflow: hidden;
 }
 
-.form-field-table table {
+.AdvFormBuilder-form-field-table table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.form-field-table th,
-.form-field-table td {
+.AdvFormBuilder-form-field-table th,
+.AdvFormBuilder-form-field-table td {
   padding: 0.75rem;
   border: 1px solid var(--builder-border);
   text-align: left;
 }
 
-.form-field-table th {
+.AdvFormBuilder-form-field-table th {
   background: var(--builder-hover);
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.form-field-table input {
+.AdvFormBuilder-form-field-table input {
   border: none;
   background: transparent;
   padding: 0.5rem;
   width: 100%;
 }
 
-.form-field-table input:focus {
+.AdvFormBuilder-form-field-table input:focus {
   background: var(--card-bg);
   border: 1px solid var(--primary);
   border-radius: var(--border-radius-sm);
 }
 
-.form-field-error {
+.AdvFormBuilder-form-field-error {
   border-color: var(--error) !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
 }
 
-.form-field-error-message {
+.AdvFormBuilder-form-field-error-message {
   color: var(--error);
   font-size: 0.75rem;
   margin-top: 0.25rem;
   display: block;
 }
 
-.form-field-success {
+.AdvFormBuilder-form-field-success {
   border-color: var(--success) !important;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
 }
 
-.form-field-component input::placeholder,
-.form-field-component textarea::placeholder {
+.AdvFormBuilder-form-field-component input::placeholder,
+.AdvFormBuilder-form-field-component textarea::placeholder {
   color: var(--text-muted);
   opacity: 0.7;
 }
 
-.form-field-component input:disabled,
-.form-field-component textarea:disabled,
-.form-field-component select:disabled {
+.AdvFormBuilder-form-field-component input:disabled,
+.AdvFormBuilder-form-field-component textarea:disabled,
+.AdvFormBuilder-form-field-component select:disabled {
   background: var(--builder-hover);
   color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.form-builder-properties {
+.AdvFormBuilder-properties {
   position: sticky;
   top: 2rem;
   height: fit-content;
 }
 
-.form-builder-properties .form-builder-card {
+.AdvFormBuilder-properties .AdvFormBuilder-card {
   max-height: 80vh;
   overflow-y: auto;
 }
 
-.form-builder-properties-content {
+.AdvFormBuilder-properties-content {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.form-builder-field-setting {
+.AdvFormBuilder-field-setting {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.form-builder-field-setting label {
+.AdvFormBuilder-field-setting label {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.form-builder-field-setting input {
+.AdvFormBuilder-field-setting input {
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -1086,20 +1049,20 @@
   color: var(--text-primary);
 }
 
-.form-builder-field-setting input:focus {
+.AdvFormBuilder-field-setting input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-options {
+.AdvFormBuilder-options {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
 
-.form-builder-option-input {
+.AdvFormBuilder-option-input {
   padding: 0.75rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -1109,13 +1072,13 @@
   color: var(--text-primary);
 }
 
-.form-builder-option-input:focus {
+.AdvFormBuilder-option-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-builder-add-option {
+.AdvFormBuilder-add-option {
   padding: 0.75rem 1rem;
   border: 2px solid var(--builder-border);
   border-radius: var(--border-radius-md);
@@ -1131,16 +1094,16 @@
   justify-content: center;
 }
 
-.form-builder-add-option:hover {
+.AdvFormBuilder-add-option:hover {
   background: var(--builder-hover);
   border-color: var(--primary);
 }
 
-.form-builder-tabs {
+.AdvFormBuilder-tabs {
   width: 100%;
 }
 
-.form-builder-tabs-list {
+.AdvFormBuilder-tabs-list {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(3, 1fr);
@@ -1149,7 +1112,7 @@
   margin-bottom: 1.5rem;
 }
 
-.form-builder-tab-trigger {
+.AdvFormBuilder-tab-trigger {
   padding: 0.75rem 1rem;
   border: none;
   background: transparent;
@@ -1162,31 +1125,30 @@
   flex: 1;
 }
 
-.form-builder-tab-trigger:hover {
+.AdvFormBuilder-tab-trigger:hover {
   color: var(--text-primary);
   background: var(--card-bg);
 }
 
-.form-builder-tab-trigger.active {
-  background: rgb(248, 243, 243) !important;
-  background: rgb(248, 243, 243) !important;
+.AdvFormBuilder-tab-trigger.active {
+  background: rgb(248, 243, 243);
   color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
 
-.form-builder-tabs-content {
+.AdvFormBuilder-tabs-content {
   margin-top: 0;
   animation: fadeIn 0.3s ease-out;
 }
 
-.form-builder-no-selection {
+.AdvFormBuilder-no-selection {
   text-align: center;
   color: var(--text-muted);
   animation: fadeIn 0.5s ease-out;
   padding: 2rem;
 }
 
-.form-builder-no-selection-icon {
+.AdvFormBuilder-no-selection-icon {
   width: 4rem;
   height: 4rem;
   border-radius: 50%;
@@ -1197,30 +1159,30 @@
   margin: 0 auto 1rem;
 }
 
-.form-builder-no-selection-icon svg {
+.AdvFormBuilder-no-selection-icon svg {
   width: 1.5rem;
   height: 1.5rem;
   color: var(--primary);
 }
 
-.form-builder-no-selection p {
+.AdvFormBuilder-no-selection p {
   font-size: 1rem;
   margin: 0;
   font-weight: 500;
 }
 
-.form-preview-container {
+.AdvFormBuilder-form-preview-container {
   min-height: 100vh;
   padding: 2rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-.form-preview-wrapper {
+.AdvFormBuilder-form-preview-wrapper {
   max-width: 100%;
   margin: 0 auto;
 }
 
-.form-preview-header {
+.AdvFormBuilder-form-preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1230,26 +1192,26 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.form-preview-title {
+.AdvFormBuilder-form-preview-title {
   font-weight: 700;
   color: #1e293b;
   margin: 0;
   background-clip: text;
 }
 
-.form-preview-subtitle {
+.AdvFormBuilder-form-preview-subtitle {
   color: #64748b;
   margin: 0.5rem 0 0;
   font-size: 1rem;
   font-weight: 500;
 }
 
-.form-preview-actions {
+.AdvFormBuilder-form-preview-actions {
   display: flex;
   gap: 1rem;
 }
 
-.form-preview-form-card {
+.AdvFormBuilder-form-preview-form-card {
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
   border-radius: 20px;
@@ -1260,7 +1222,7 @@
   overflow: hidden;
 }
 
-.form-preview-form-card::before {
+.AdvFormBuilder-form-preview-form-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1270,7 +1232,7 @@
   background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
 }
 
-.form-preview-form-title {
+.AdvFormBuilder-form-preview-form-title {
   font-size: 1.875rem;
   font-weight: 700;
   color: #1e293b;
@@ -1278,7 +1240,7 @@
   text-align: center;
 }
 
-.form-preview-form-description {
+.AdvFormBuilder-form-preview-form-description {
   color: #64748b;
   font-size: 1rem;
   text-align: center;
@@ -1286,12 +1248,12 @@
   line-height: 1.6;
 }
 
-.form-preview-field {
+.AdvFormBuilder-form-preview-field {
   margin-bottom: 2rem;
   position: relative;
 }
 
-.form-preview-field label {
+.AdvFormBuilder-form-preview-field label {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
@@ -1302,20 +1264,20 @@
   gap: 0.5rem;
 }
 
-.form-preview-field-required {
+.AdvFormBuilder-form-preview-field-required {
   color: #ef4444;
   font-size: 1rem;
   font-weight: bold;
 }
 
-.form-preview-field input[type="text"],
-.form-preview-field input[type="email"],
-.form-preview-field input[type="password"],
-.form-preview-field input[type="number"],
-.form-preview-field input[type="tel"],
-.form-preview-field input[type="url"],
-.form-preview-field textarea,
-.form-preview-field select {
+.AdvFormBuilder-form-preview-field input[type="text"],
+.AdvFormBuilder-form-preview-field input[type="email"],
+.AdvFormBuilder-form-preview-field input[type="password"],
+.AdvFormBuilder-form-preview-field input[type="number"],
+.AdvFormBuilder-form-preview-field input[type="tel"],
+.AdvFormBuilder-form-preview-field input[type="url"],
+.AdvFormBuilder-form-preview-field textarea,
+.AdvFormBuilder-form-preview-field select {
   width: 100%;
   padding: 1rem 1.25rem;
   border: 2px solid #e5e7eb;
@@ -1327,22 +1289,22 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.form-preview-field input:focus,
-.form-preview-field textarea:focus,
-.form-preview-field select:focus {
+.AdvFormBuilder-form-preview-field input:focus,
+.AdvFormBuilder-form-preview-field textarea:focus,
+.AdvFormBuilder-form-preview-field select:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15);
   transform: translateY(-1px);
 }
 
-.form-preview-field textarea {
+.AdvFormBuilder-form-preview-field textarea {
   min-height: 120px;
   resize: vertical;
   line-height: 1.6;
 }
 
-.form-preview-field select {
+.AdvFormBuilder-form-preview-field select {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.75rem center;
@@ -1351,23 +1313,23 @@
   padding-right: 2.5rem;
 }
 
-.form-preview-field input[type="radio"],
-.form-preview-field input[type="checkbox"] {
+.AdvFormBuilder-form-preview-field input[type="radio"],
+.AdvFormBuilder-form-preview-field input[type="checkbox"] {
   width: auto;
   margin-right: 0.75rem;
   accent-color: #667eea;
 }
 
-.form-preview-radio-group,
-.form-preview-checkbox-group {
+.AdvFormBuilder-form-preview-radio-group,
+.AdvFormBuilder-form-preview-checkbox-group {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
-.form-preview-radio-option,
-.form-preview-checkbox-option {
+.AdvFormBuilder-form-preview-radio-option,
+.AdvFormBuilder-form-preview-checkbox-option {
   display: flex;
   align-items: center;
   padding: 0.75rem;
@@ -1376,19 +1338,19 @@
   cursor: pointer;
 }
 
-.form-preview-radio-option:hover,
-.form-preview-checkbox-option:hover {
+.AdvFormBuilder-form-preview-radio-option:hover,
+.AdvFormBuilder-form-preview-checkbox-option:hover {
   background: #f8fafc;
 }
 
-.form-preview-radio-option label,
-.form-preview-checkbox-option label {
+.AdvFormBuilder-form-preview-radio-option label,
+.AdvFormBuilder-form-preview-checkbox-option label {
   margin: 0;
   cursor: pointer;
   font-weight: 500;
 }
 
-.form-preview-submit-container {
+.AdvFormBuilder-form-preview-submit-container {
   display: flex;
   justify-content: center;
   margin-top: 3rem;
@@ -1396,7 +1358,7 @@
   border-top: 1px solid #e5e7eb;
 }
 
-.form-preview-submit-button {
+.AdvFormBuilder-form-preview-submit-button {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
@@ -1411,23 +1373,23 @@
   letter-spacing: 0.025em;
 }
 
-.form-preview-submit-button:hover {
+.AdvFormBuilder-form-preview-submit-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
-.form-preview-submit-button:active {
+.AdvFormBuilder-form-preview-submit-button:active {
   transform: translateY(0);
 }
 
-.form-preview-progress {
+.AdvFormBuilder-form-preview-progress {
   display: flex;
   justify-content: center;
   margin-bottom: 2rem;
   gap: 0.5rem;
 }
 
-.form-preview-step {
+.AdvFormBuilder-form-preview-step {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -1440,7 +1402,7 @@
   position: relative;
 }
 
-.form-preview-step::before {
+.AdvFormBuilder-form-preview-step::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -1451,213 +1413,113 @@
   transform: translateY(-50%);
 }
 
-.form-preview-step:last-child::before {
+.AdvFormBuilder-form-preview-step:last-child::before {
   display: none;
 }
 
-.form-preview-step.active {
+.AdvFormBuilder-form-preview-step.active {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-.form-preview-step.completed {
+.AdvFormBuilder-form-preview-step.completed {
   background: #10b981;
   color: white;
 }
 
-.form-preview-step.pending {
+.AdvFormBuilder-form-preview-step.pending {
   background: #e5e7eb;
   color: #6b7280;
 }
 
 @media (max-width: 768px) {
-  .form-preview-container {
+  .AdvFormBuilder-form-preview-container {
     padding: 1rem;
   }
 
-  .form-preview-header {
+  .AdvFormBuilder-form-preview-header {
     padding: 1.5rem;
     flex-direction: column;
     gap: 1rem;
     text-align: center;
   }
 
-  .form-preview-title {
+  .AdvFormBuilder-form-preview-title {
     font-size: 1.875rem;
   }
 
-  .form-preview-form-card {
+  .AdvFormBuilder-form-preview-form-card {
     padding: 2rem;
   }
 
-  .form-preview-submit-button {
+  .AdvFormBuilder-form-preview-submit-button {
     width: 100%;
     padding: 1rem 2rem;
   }
 }
 
 @media (max-width: 480px) {
-  .form-preview-form-card {
+  .AdvFormBuilder-form-preview-form-card {
     padding: 1.5rem;
   }
 
-  .form-preview-form-title {
+  .AdvFormBuilder-form-preview-form-title {
     font-size: 1.5rem;
   }
 
-  .form-preview-field input,
-  .form-preview-field textarea,
-  .form-preview-field select {
+  .AdvFormBuilder-form-preview-field input,
+  .AdvFormBuilder-form-preview-field textarea,
+  .AdvFormBuilder-form-preview-field select {
     padding: 0.875rem 1rem;
     font-size: 0.875rem;
   }
 }
 
-.form-builder-button {
-  padding: 0.75rem 1.5rem;
-  background-color:rgb(248, 243, 243) !important;
-  color: var(--text-primary) !important;
-  background-color:rgb(248, 243, 243) !important;
-  color: var(--text-primary) !important;
-  border-radius: var(--border-radius-md);
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: var(--transition);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 2px solid transparent;
-  text-decoration: none;
-}
-
-.form-builder-button:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.form-builder-button-primary {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
-.form-builder-button-primary:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-.form-builder-button-outline {
-  background: var(--card-bg);
-  color: var(--text-primary);
-  border-color: var(--builder-border);
-}
-
-.form-builder-button-outline:hover {
-  background: var(--builder-hover);
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.form-builder-button-ghost {
-  background: transparent;
-  color: var(--text-primary);
-  border-color: transparent;
-}
-
-.form-builder-button-ghost:hover {
-  background: var(--builder-hover);
-}
-
-.form-builder-button-destructive {
-  background: var(--error);
-  color: white;
-  border-color: var(--error);
-}
-
-.form-builder-button-destructive:hover {
-  background: #dc2626;
-  border-color: #dc2626;
-}
-
-.form-builder-button-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.75rem;
-}
-
-.form-builder-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.375rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.form-builder-badge-secondary {
-  background: var(--builder-hover);
-  color: var(--text-secondary);
-}
-
-.form-builder-badge-outline {
-  border: 1px solid var(--builder-border);
-  background: var(--card-bg);
-  color: var(--text-primary);
-}
-
 @media (max-width: 1280px) {
-  .form-builder-grid {
+  .AdvFormBuilder-grid {
     grid-template-columns: 280px 1fr 280px;
     gap: 1.5rem;
   }
 }
 
 @media (max-width: 1024px) {
-  .form-builder-wrapper {
-    padding: 0.5rem 2rem;
+  .AdvFormBuilder-wrapper {
     padding: 0.5rem 2rem;
   }
 
-  .form-builder-grid {
+  .AdvFormBuilder-grid {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
 
-  .form-builder-sidebar {
+  .AdvFormBuilder-sidebar {
     order: 2;
   }
 
-  .form-builder-main {
+  .AdvFormBuilder-main {
     order: 1;
   }
 
-  .form-builder-properties {
+  .AdvFormBuilder-properties {
     order: 3;
   }
 
-  .form-builder-header {
-    flex-direction: row;
+  .AdvFormBuilder-header {
     flex-direction: row;
     gap: 1.5rem;
     text-align: center;
     padding: 0.5rem 1rem;
-    padding: 0.5rem 1rem;
   }
 
-  .form-builder-title {
-    font-size: 1rem;
+  .AdvFormBuilder-title {
     font-size: 1rem;
   }
-  .form-builder-subtitle {
+  .AdvFormBuilder-subtitle {
     font-size: 0.875rem;
     color: var(--text-secondary);
   }
-  .form-builder-actions {
+  .AdvFormBuilder-actions {
     justify-content: center;
   }
-} */
+}

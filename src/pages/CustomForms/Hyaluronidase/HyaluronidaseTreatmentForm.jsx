@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { useReactToPrint } from 'react-to-print';
 import './HyaluronidaseTreatmentForm.css';
 
 const HyaluronidaseTreatmentForm = () => {
@@ -232,11 +231,11 @@ const HyaluronidaseTreatmentForm = () => {
 
 
   return (
-    <div className="form-container-1">
-      <div ref={formRef} className="forms">
+    <div className="HTF-form-container-1">
+      <div ref={formRef} className="HTF-forms">
           <h1>HYALURONIDASE TREATMENT FORM</h1>
-         <div className="form-row">
-  <div className="form-group">
+         <div className="HTF-form-row">
+  <div className="HTF-form-group">
     <label>Patient Name:</label>
     <input
       type="text"
@@ -245,10 +244,10 @@ const HyaluronidaseTreatmentForm = () => {
       onChange={handleInputChange}
       placeholder="Enter patient name"
     />
-    {errors.patientName && <span className="error-message">{errors.patientName}</span>}
+    {errors.patientName && <span className="HTF-error-message">{errors.patientName}</span>}
   </div>
 
-  <div className="form-group">
+  <div className="HTF-form-group">
     <label>Date:</label>
     <input
       type="date"
@@ -256,10 +255,10 @@ const HyaluronidaseTreatmentForm = () => {
       value={formData.date}
       onChange={handleInputChange}
     />
-    {errors.date && <span className="error-message">{errors.date}</span>}
+    {errors.date && <span className="HTF-error-message">{errors.date}</span>}
   </div>
 
-  <div className="form-group">
+  <div className="HTF-form-group">
     <label>Treatment Number:</label>
     <input
       type="text"
@@ -271,7 +270,7 @@ const HyaluronidaseTreatmentForm = () => {
   </div>
 </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Allergies:</label>
           <textarea
             type="text"
@@ -282,9 +281,9 @@ const HyaluronidaseTreatmentForm = () => {
           />
         </div>
 
-        <div className="form-section">
-  <div className="checkbox-row">
-    <label className="checkbox-label">
+        <div className="HTF-form-section">
+  <div className="HTF-checkbox-row">
+    <label className="HTF-checkbox-label">
       <input
         type="checkbox"
         checked={formData.gfeComplete}
@@ -293,7 +292,7 @@ const HyaluronidaseTreatmentForm = () => {
       <span>GFE Complete</span>
     </label>
 
-    <label className="checkbox-label">
+    <label className="HTF-checkbox-label">
       <input
         type="checkbox"
         checked={formData.noTreatmentPerformed}
@@ -306,10 +305,10 @@ const HyaluronidaseTreatmentForm = () => {
   </div>
 </div>
 
-<div className="form-section">
-  <label className="section-label">History of recent NSAID/ASA:</label>
-  <div className="radio-row">
-    <label className="radio-label">
+<div className="HTF-form-section">
+  <label className="HTF-section-label">History of recent NSAID/ASA:</label>
+  <div className="HTF-radio-row">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="historyNSAID"
@@ -320,7 +319,7 @@ const HyaluronidaseTreatmentForm = () => {
       <span>Yes</span>
     </label>
 
-    <label className="radio-label">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="historyNSAID"
@@ -332,14 +331,14 @@ const HyaluronidaseTreatmentForm = () => {
     </label>
   </div>
   {errors.historyNSAID && (
-    <span className="error-message">{errors.historyNSAID}</span>
+    <span className="HTF-error-message">{errors.historyNSAID}</span>
   )}
 </div>
 
-<div className="form-section">
-  <label className="section-label">Pregnancy and/or breast feeding:</label>
-  <div className="radio-row">
-    <label className="radio-label">
+<div className="HTF-form-section">
+  <label className="HTF-section-label">Pregnancy and/or breast feeding:</label>
+  <div className="HTF-radio-row">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="pregnancy"
@@ -350,7 +349,7 @@ const HyaluronidaseTreatmentForm = () => {
       <span>Yes</span>
     </label>
 
-    <label className="radio-label">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="pregnancy"
@@ -362,15 +361,14 @@ const HyaluronidaseTreatmentForm = () => {
     </label>
   </div>
   {errors.pregnancy && (
-    <span className="error-message">{errors.pregnancy}</span>
+    <span className="HTF-error-message">{errors.pregnancy}</span>
   )}
 </div>
 
 
-        <div className="form-section">
-  <label className="section-label">Indications for Treatment:</label>
-  <div className="checkbox-row">
-    <label className="checkbox-label">
+        <div className="HTF-form-section">
+  <div className="HTF-checkbox-row">
+    <label className="HTF-checkbox-label">
       <input
         type="checkbox"
         checked={formData.indicationsDissolve}
@@ -383,10 +381,10 @@ const HyaluronidaseTreatmentForm = () => {
   </div>
 </div>
 
-<div className="form-section">
-  <label className="section-label">Pre-Procedure Text:</label>
-  <div className="checkbox-row">
-    <label className="checkbox-label long-text">
+<div className="HTF-form-section">
+  <label className="HTF-section-label">Pre-Procedure Text:</label>
+  <div className="HTF-checkbox-row">
+    <label className="HTF-checkbox-label long-text">
       <input
         type="checkbox"
         checked={formData.preProcedureDiscontinue}
@@ -407,10 +405,10 @@ const HyaluronidaseTreatmentForm = () => {
 
 
 
-<div className="form-section">
-  <label className="section-label">Skin Numbed With:</label>
-  <div className="radio-row">
-    <label className="radio-label">
+<div className="HTF-form-section">
+  <label className="HTF-section-label">Skin Numbed With:</label>
+  <div className="HTF-radio-row">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="skinNumbedWith"
@@ -421,7 +419,7 @@ const HyaluronidaseTreatmentForm = () => {
       <span>23/7% Lidocaine/Tetracaine</span>
     </label>
 
-    <label className="radio-label">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="skinNumbedWith"
@@ -431,7 +429,7 @@ const HyaluronidaseTreatmentForm = () => {
       />
       <span>20/8/4% BLT</span>
     </label>
-  <div className="numbing-duration">
+  <div className="HTF-numbing-duration">
     <label>
       For{' '}
       <input
@@ -439,12 +437,12 @@ const HyaluronidaseTreatmentForm = () => {
         name="numbingMinutes"
         value={formData.numbingMinutes}
         onChange={handleInputChange}
-        className="minutes-input"
+        className="HTF-minutes-input"
       />{' '}
       minutes prior to treatment
     </label>
   </div>
-    <label className="radio-label">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="skinNumbedWith"
@@ -460,7 +458,7 @@ const HyaluronidaseTreatmentForm = () => {
       </span>
     </label>
 
-    <label className="radio-label">
+    <label className="HTF-radio-label">
       <input
         type="radio"
         name="skinNumbedWith"
@@ -477,7 +475,7 @@ const HyaluronidaseTreatmentForm = () => {
 
 
 
-  <label className="checkbox-label">
+  <label className="HTF-checkbox-label">
     <input
       type="checkbox"
       checked={formData.numbingCreamRemoved}
@@ -490,7 +488,7 @@ const HyaluronidaseTreatmentForm = () => {
 </div>
 
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Chief Complaint:</label>
           <input
             name="chiefComplaint"
@@ -499,7 +497,7 @@ const HyaluronidaseTreatmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Diagnosis:</label>
           <input
             name="diagnosis"
@@ -508,7 +506,7 @@ const HyaluronidaseTreatmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Treatment Plan:</label>
           <textarea
             name="treatmentPlan"
@@ -517,14 +515,14 @@ const HyaluronidaseTreatmentForm = () => {
           ></textarea>
         </div>
 
-        <div className="face-mapper-section">
-          <div className="face-mapper-container">
-            <img src="/images/facediagram.jpg" alt="Face Diagram" className="face-diagram" />
+        <div className="HTF-face-mapper-section">
+          <div className="HTF-face-mapper-container">
+            <img src="/images/facediagram.jpg" alt="Face Diagram" className="HTF-face-diagram" />
             <canvas
               ref={faceCanvas}
               width={700}
               height={700}
-              className="face-canvas"
+              className="HTF-face-canvas"
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
@@ -553,7 +551,7 @@ const HyaluronidaseTreatmentForm = () => {
               />
             ))}
           </div>
-          <div className="face-mapper-tools">
+          <div className="HTF-face-mapper-tools">
             <label>
               Tool:
               <select value={tool} onChange={(e) => setTool(e.target.value)}>
@@ -581,16 +579,16 @@ const HyaluronidaseTreatmentForm = () => {
                 onChange={(e) => setBrushSize(e.target.value)}
               />
             </label>
-            <button type="button" className="clear-face-mapper-btn" onClick={clearFaceMapper}>
+            <button type="button" className="HTF-clear-face-mapper-btn" onClick={clearFaceMapper}>
               Clear Drawing
             </button>
           </div>
         </div>
 
-        <div className="TitleandButton">
+        <div className="HTF-TitleandButton">
            <h1>Treatment Settings:</h1>
         </div>
-       <table className="treatment-table">
+       <table className="HTF-treatment-table">
           <thead>
             <tr>
               <th>Area Treated</th>
@@ -613,20 +611,20 @@ const HyaluronidaseTreatmentForm = () => {
                 {/* <td><input type="datetime-local" value={setting.dateTime} onChange={(e) => handleTableChange(index, 'dateTime', e.target.value)} /></td> */}
                 <td>
                   {formData.treatmentSettings.length > 1 && (
-                    <button type="button" onClick={() => deleteRow(index)} className="delete-row-btn">Delete</button>
+                    <button type="button" onClick={() => deleteRow(index)} className="HTF-delete-row-btn">Delete</button>
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
-                    <button type="button" onClick={addRow} className="add-row-btn">Add Row</button>
+                    <button type="button" onClick={addRow} className="HTF-add-row-btn">Add Row</button>
 
         </table>
 
-        <div className="form-section">
-          <label className="section-label">Post Procedure Text:</label>
-          <div className="checkbox-row">
-            <label className="checkbox-label">
+        <div className="HTF-form-section">
+          <label className="HTF-section-label">Post Procedure Text:</label>
+          <div className="HTF-checkbox-row">
+            <label className="HTF-checkbox-label">
               <input
                 type="checkbox"
                 checked={formData.toleratedWell}
@@ -634,7 +632,7 @@ const HyaluronidaseTreatmentForm = () => {
               />
               <span>The patient tolerated the procedure well.</span>
             </label>
-            <label className="checkbox-label">
+            <label className="HTF-checkbox-label">
               <input
                 type="checkbox"
                 checked={formData.noDiscomfort}
@@ -642,7 +640,7 @@ const HyaluronidaseTreatmentForm = () => {
               />
               <span>No discomfort reported by patient during or post treatment.</span>
             </label>
-            <label className="checkbox-label">
+            <label className="HTF-checkbox-label">
               <input
                 type="checkbox"
                 checked={formData.arnicaApplied}
@@ -650,7 +648,7 @@ const HyaluronidaseTreatmentForm = () => {
               />
               <span>Arnica applied.</span>
             </label>
-            <label className="checkbox-label">
+            <label className="HTF-checkbox-label">
               <input
                 type="checkbox"
                 checked={formData.ibuprofenGiven}
@@ -661,10 +659,10 @@ const HyaluronidaseTreatmentForm = () => {
           </div>
         </div>
 
-        <div className="form-section">
-          <label className="section-label">Post Care:</label>
-          <div className="checkbox-row">
-            <label className="checkbox-label long-text">
+        <div className="HTF-form-section">
+          <label className="HTF-section-label">Post Care:</label>
+          <div className="HTF-checkbox-row">
+            <label className="HTF-checkbox-label long-text">
               <input
                 type="checkbox"
                 checked={formData.postCareReviewed}
@@ -675,7 +673,7 @@ const HyaluronidaseTreatmentForm = () => {
           </div>
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Additional Notes:</label>
           <textarea
             name="additionalNotes"
@@ -684,7 +682,7 @@ const HyaluronidaseTreatmentForm = () => {
           ></textarea>
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Provider Name:</label>
           <input
             type="text"
@@ -693,10 +691,10 @@ const HyaluronidaseTreatmentForm = () => {
             onChange={handleInputChange}
             placeholder="Enter provider name"
           />
-          {errors.providerName && <span className="error-message">{errors.providerName}</span>}
+          {errors.providerName && <span className="HTF-error-message">{errors.providerName}</span>}
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Date: </label>
           <input
             type="date"
@@ -706,23 +704,23 @@ const HyaluronidaseTreatmentForm = () => {
           />
         </div>
 
-        <div className="signature-section">
+        <div className="HTF-signature-section">
           <h2>Provider Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="HTF-signature-pad">
             <SignatureCanvas
               ref={providerSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'HTF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, providerSignature: providerSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearProviderSignature}>
+          <button type="button" className="HTF-clear-signature-btn" onClick={clearProviderSignature}>
             Clear Signature
           </button>
-          {errors.providerSignature && <span className="error-message">{errors.providerSignature}</span>}
+          {errors.providerSignature && <span className="HTF-error-message">{errors.providerSignature}</span>}
         </div>
 
-        <div className="form-group">
+        <div className="HTF-form-group">
           <label>Date: </label>
           <input
             type="date"
@@ -732,53 +730,53 @@ const HyaluronidaseTreatmentForm = () => {
           />
         </div>
 
-        <div className="signature-section">
+        <div className="HTF-signature-section">
           <h2>Supervising Physician Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="HTF-signature-pad">
             <SignatureCanvas
               ref={supervisingSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'HTF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, supervisingSignature: supervisingSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearSupervisingSignature}>
+          <button type="button" className="HTF-clear-signature-btn" onClick={clearSupervisingSignature}>
             Clear Signature
           </button>
-          {errors.supervisingSignature && <span className="error-message">{errors.supervisingSignature}</span>}
+          {errors.supervisingSignature && <span className="HTF-error-message">{errors.supervisingSignature}</span>}
         </div>
 
-       <div className="photo-upload-container">
-      <h2 className="title">PHOTOS UPLOADS</h2>
+       <div className="HTF-photo-upload-container">
+      <h2 className="HTF-title">PHOTOS UPLOADS</h2>
 
       {/* BEFORE UPLOAD */}
-      <div className="photo-upload-section">
+      <div className="HTF-photo-upload-section">
         <h3>BEFORE</h3>
-        <p className="label">File Upload</p>
+        <p className="HTF-label">File Upload</p>
 
-        <div className="upload-box">
+        <div className="HTF-upload-box">
 
           <span>
             Drop files to attach, or{' '}
-            <label className="browse">
+            <label className="HTF-browse">
               browse
               <input
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'beforePhotos')}
-                className="file-input"
+                className="HTF-file-input"
               />
             </label>
           </span>
         </div>
 
-        <p className="info-text">
+        <p className="HTF-info-text">
           Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
         </p>
 
         {formData.beforePhotos.length > 0 && (
-          <div className="file-list">
+          <div className="HTF-file-list">
             <ul>
               {formData.beforePhotos.map((file, index) => (
                 <li key={index}>{file.name}</li>
@@ -789,32 +787,32 @@ const HyaluronidaseTreatmentForm = () => {
       </div>
 
       {/* AFTER UPLOAD */}
-      <div className="photo-upload-section">
+      <div className="HTF-photo-upload-section">
         <h3>AFTER</h3>
-        <p className="label">File Upload</p>
+        <p className="HTF-label">File Upload</p>
 
-        <div className="upload-box">
+        <div className="HTF-upload-box">
           <span>
             Drop files to attach, or{' '}
-            <label className="browse">
+            <label className="HTF-browse">
               browse
               <input
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'afterPhotos')}
-                className="file-input"
+                className="HTF-file-input"
               />
             </label>
           </span>
         </div>
 
-        <p className="info-text">
+        <p className="HTF-info-text">
           Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
         </p>
 
         {formData.afterPhotos.length > 0 && (
-          <div className="file-list">
+          <div className="HTF-file-list">
             <ul>
               {formData.afterPhotos.map((file, index) => (
                 <li key={index}>{file.name}</li>
@@ -825,9 +823,9 @@ const HyaluronidaseTreatmentForm = () => {
       </div>
     </div>
 
-        <div className="button-group">
+        <div className="HTF-button-group">
          
-          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+          <button type="submit" className="HTF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
         </div>
