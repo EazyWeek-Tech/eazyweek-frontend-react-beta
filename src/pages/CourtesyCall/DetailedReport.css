@@ -246,6 +246,13 @@
   color: #991b1b;
 }
 
+.status-badge.partially-completed {
+  background-color: #f1e4ba;
+  color: #413204;
+  border: 1px solid #ffeaa7;
+  white-space: nowrap;
+}
+
 .status-badge.in-progress {
   background: #dbeafe;
   color: #1e40af;
