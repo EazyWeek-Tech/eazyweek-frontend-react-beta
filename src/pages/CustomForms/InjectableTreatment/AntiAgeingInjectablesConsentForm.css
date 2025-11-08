@@ -1,4 +1,4 @@
-/* .consent-form-container {
+.consent-form-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -51,20 +51,20 @@
   line-height: 1.6;
 }
 
-.form-group {
+.consent-form .form-group {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.consent-form .form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
   color: #333;
 }
 
-.form-group input[type="text"],
-.form-group input[type="number"],
-.form-group input[type="date"] {
+.consent-form .form-group input[type="text"],
+.consent-form .form-group input[type="number"],
+.consent-form .form-group input[type="date"] {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -201,4 +201,4 @@
   .print-btn {
     width: 100%;
   }
-} */
+} 

@@ -1,4 +1,4 @@
-/* :root {
+ :root {
   --primary-color: #3b82f6; 
   --primary-hover: #2563eb;
   --background-color: #ffffff;
@@ -11,7 +11,7 @@
   --hover-bg: rgba(59, 130, 246, 0.1); 
   --border-radius: 12px;
   --transition-duration: 0.2s;
-} 
+
 } 
 
 .form-field-selector-card {
@@ -111,7 +111,7 @@
   color: var(--text-primary) !important;
 }
 
-=@media (max-width: 768px) {
+@media (max-width: 768px) {
   .form-field-selector-card {
     padding: 1rem; 
   }
@@ -126,4 +126,4 @@
   .field-icon-container {
     margin-bottom: 0.5rem;
   }
-} */
+}
