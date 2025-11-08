@@ -71,9 +71,11 @@ const truncateName = (name, maxLength = 35) => {
     if (lower.includes("anti")) return "images/antiage.svg";
     return "images/default.svg";
   };
-
-  const handleAddService = (item) => {
-  if (!customer || !customer.custid) {
+const getCustomerId = (c) =>
+  c?.custid || c?.custId || c?.custID || c?.id || c?.customerId || "";
+ const handleAddService = (item) => {
+  const cid = getCustomerId(customer);
+  if (!cid) {
     showErrToast?.("Please select a customer before adding a service.");
     return;
   }
@@ -89,6 +91,7 @@ const truncateName = (name, maxLength = 35) => {
 
   showToast?.("Service added to invoice");
 };
+
 
 
   const filteredServices = services.filter((svc) =>

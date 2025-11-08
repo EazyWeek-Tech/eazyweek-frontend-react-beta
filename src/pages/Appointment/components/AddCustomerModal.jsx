@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
 
 const AddCustomerModal = ({ onClose }) => {
   const [formData, setFormData] = useState({
+    countryCode: "+966",         // NEW: default KSA
     mobile: "",
     firstName: "",
     lastName: "",
     email: "",
     gender: "",
-    nationalityCountry: "10", // Default to Saudi
+    nationalityCountry: "10",    // Default to Saudi
     nationality: "",
     nationalityLabel: "",
     nationalityStatus: "",
@@ -21,63 +22,88 @@ const AddCustomerModal = ({ onClose }) => {
   const [toast, setToast] = useState(null);
   const [countryList, setCountryList] = useState([]);
 
+  // Refs for focusing on conflict
+  const mobileRef = useRef(null);
+  const emailRef = useRef(null);
 
-  useEffect(() => {
-  const fetchCountries = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/Master/LoadCountry`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) setCountryList(data);
-    } catch (err) {
-      console.error("Error loading country list", err);
-    }
+  // Duplicate confirmation modal state
+  const [dupDialog, setDupDialog] = useState({
+    open: false,
+    reason: "", // "mobile" | "email" | "both"
+    matches: [], // Array of matched customer summaries
+    pendingPayload: null
+  });
+
+  // --- Helpers ---
+  const isValidCountryCode = (cc) => /^\+\d{1,3}$/.test(cc);
+  const isValidMobile = (m) => /^\d{10}$/.test(m);
+  const isValidEmail = (e) => /\S+@\S+\.\S+/.test(e);
+
+  const sanitizeCountryCode = (raw) => {
+    // keep + and digits only, max + + 3 digits
+    const cleaned = ("+" + raw.replace(/[^\d]/g, "")).slice(0, 4);
+    return cleaned === "+" ? "" : cleaned;
   };
 
-  fetchCountries();
-}, []);
-
-
-
+  // --- Load Countries ---
   useEffect(() => {
-  const fetchNationalities = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setCountryOptions(data);
-        setFormData((prev) => ({
-          ...prev,
-          nationality: data[0]?.id?.toString() || "",
-          nationalityLabel: data[0]?.name || "",
-        }));
+    const fetchCountries = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Master/LoadCountry`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) setCountryList(data);
+      } catch (err) {
+        console.error("Error loading country list", err);
       }
-    } catch (err) {
-      console.error("Error loading nationality list", err);
+    };
+    fetchCountries();
+  }, []);
+
+  // --- Load Nationalities by Country ---
+  useEffect(() => {
+    const fetchNationalities = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setCountryOptions(data);
+          setFormData((prev) => ({
+            ...prev,
+            nationality: data[0]?.id?.toString() || "",
+            nationalityLabel: data[0]?.name || "",
+          }));
+        }
+      } catch (err) {
+        console.error("Error loading nationality list", err);
+      }
+    };
+
+    if (formData.nationalityCountry) {
+      fetchNationalities();
     }
-  };
+  }, [formData.nationalityCountry]);
 
-  if (formData.nationalityCountry) {
-    fetchNationalities();
-  }
-}, [formData.nationalityCountry]);
-
-
+  // --- Auto nationality status (84 => Citizen else Expat) ---
   useEffect(() => {
     const status = formData.nationality === "84" ? "Citizen" : "Expat";
     setFormData((prev) => ({ ...prev, nationalityStatus: status }));
   }, [formData.nationality]);
 
+  // --- Validation ---
   const validateField = (fieldId, value) => {
     let error = "";
     switch (fieldId) {
+      case "countryCode":
+        if (!value || !isValidCountryCode(value)) error = "Country code like +966 (max 3 digits).";
+        break;
       case "mobile":
-        if (!value || !/^\d{10}$/.test(value)) error = "Mobile number must be 10 digits.";
+        if (!value || !isValidMobile(value)) error = "Mobile number must be 10 digits.";
         break;
       case "firstName":
         if (!value) error = "First name is required.";
@@ -86,7 +112,7 @@ const AddCustomerModal = ({ onClose }) => {
         if (!value) error = "Last name is required.";
         break;
       case "email":
-        if (!value || !/\S+@\S+\.\S+/.test(value)) error = "Enter a valid email.";
+        if (!value || !isValidEmail(value)) error = "Enter a valid email.";
         break;
       case "gender":
         if (!value) error = "Select gender.";
@@ -104,7 +130,11 @@ const AddCustomerModal = ({ onClose }) => {
     const formErrors = {};
     let isValid = true;
 
-    if (!formData.mobile || !/^\d{10}$/.test(formData.mobile)) {
+    if (!formData.countryCode || !isValidCountryCode(formData.countryCode)) {
+      formErrors.countryCode = "Country code like +966 (max 3 digits).";
+      isValid = false;
+    }
+    if (!formData.mobile || !isValidMobile(formData.mobile)) {
       formErrors.mobile = "Mobile number must be 10 digits.";
       isValid = false;
     }
@@ -116,7 +146,7 @@ const AddCustomerModal = ({ onClose }) => {
       formErrors.lastName = "Last name is required.";
       isValid = false;
     }
-    if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+    if (!formData.email || !isValidEmail(formData.email)) {
       formErrors.email = "Enter a valid email.";
       isValid = false;
     }
@@ -133,19 +163,37 @@ const AddCustomerModal = ({ onClose }) => {
     return isValid;
   };
 
+  // --- Change/Blur handlers ---
   const handleChange = (e) => {
     const { id, value } = e.target;
 
+    if (id === "countryCode") {
+      const v = sanitizeCountryCode(value.startsWith("+") ? value.slice(1) : value);
+      setFormData((prev) => ({ ...prev, countryCode: v }));
+      if (errors.countryCode) validateField("countryCode", v);
+      return;
+    }
+
+    if (id === "mobile") {
+      // Keep only digits, cap at 10
+      const v = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, mobile: v }));
+      if (errors.mobile) validateField("mobile", v);
+      return;
+    }
+
     if (id === "nationality") {
-      const selected = countryOptions.find((c) => c.id === value);
+      const selected = countryOptions.find((c) => c.id?.toString() === value);
       setFormData((prev) => ({
         ...prev,
         nationality: value,
         nationalityLabel: selected?.name || ""
       }));
-    } else {
-      setFormData((prev) => ({ ...prev, [id]: value }));
+      if (errors.nationality) validateField("nationality", value);
+      return;
     }
+
+    setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
   const handleBlur = (e) => {
@@ -153,24 +201,54 @@ const AddCustomerModal = ({ onClose }) => {
     validateField(id, value);
   };
 
-  const createDataHandler = async (dataToSubmit) => {
-    console.log('Customer Data:', dataToSubmit);
+  // --- Duplicate check using /api/Customer/LoadCustomers ---
+  const findDuplicates = async (mobile10, email) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include"
+      });
+      const list = await res.json();
 
+      if (!Array.isArray(list)) return { matches: [], reason: "" };
+
+      // normalize helper
+      const last10 = (s) => (s || "").replace(/\D/g, "").slice(-10);
+
+      const byMobile = list.filter((c) => last10(c.mobile) === mobile10);
+      const byEmail = email ? list.filter((c) => (c.email || "").toLowerCase() === email.toLowerCase()) : [];
+
+      const matches = [...new Map([...byMobile, ...byEmail].map(m => [m.custId || m.id || m.mobile, m])).values()];
+
+      let reason = "";
+      if (byMobile.length && byEmail.length) reason = "both";
+      else if (byMobile.length) reason = "mobile";
+      else if (byEmail.length) reason = "email";
+
+      return { matches, reason };
+    } catch (err) {
+      console.error("Duplicate check failed", err);
+      return { matches: [], reason: "" };
+    }
+  };
+
+  // --- Create call ---
+  const createDataHandler = async (dataToSubmit) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
         method: "POST",
-         credentials: "include",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dataToSubmit),
       });
 
       const data = await response.json();
-      console.log('API Response:', data);
-      if (response.ok && data.success) {
+      if (response.ok && (data?.success ?? true)) {
         setToast({ message: "Customer added successfully!", type: "success" });
-        setTimeout(() => onClose(), 2000);
+        setTimeout(() => onClose(), 1200);
       } else {
-        setToast({ message: data.message || "Failed to add customer.", type: "error" });
+        setToast({ message: data?.message || "Failed to add customer.", type: "error" });
       }
     } catch (error) {
       console.error(error);
@@ -178,29 +256,67 @@ const AddCustomerModal = ({ onClose }) => {
     }
   };
 
+  // --- Submit handler with duplicate flow ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-      const centerCode = stored ? JSON.parse(stored).centerCode : "";
+    if (!validateForm()) return;
 
-      const payload = {
-  id: "",
-  mobile: formData.mobile,
-  firstName: formData.firstName,
-  lastName: formData.lastName,
-  email: formData.email,
-  gender: formData.gender,
-  nationalityId: Number(formData.nationality),
-  nationalityStatus: formData.nationalityStatus,
-  centerCode: centerCode,
-  fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-  custId: ""
-};
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
+    const payload = {
+      id: "",
+      mobile: formData.mobile, // NOTE: backend expects mobile without country code
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      gender: formData.gender,
+      nationalityId: Number(formData.nationality),
+      nationalityStatus: formData.nationalityStatus,
+      centerCode: centerCode,
+      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+      custId: ""
+    };
 
-      createDataHandler(payload);
-      console.log(payload)
+    // Duplicate check (mobile/email)
+    const { matches, reason } = await findDuplicates(formData.mobile, formData.email);
+
+    if (matches.length > 0) {
+      setDupDialog({
+        open: true,
+        reason,
+        matches: matches.slice(0, 3).map((m) => ({
+          name: (m.fullName || `${m.firstName || ""} ${m.lastName || ""}`).trim(),
+          mobile: m.mobile || "",
+          email: m.email || "",
+          custId: m.custId || m.id || ""
+        })),
+        pendingPayload: payload
+      });
+      return;
+    }
+
+    // No duplicates → proceed
+    createDataHandler(payload);
+  };
+
+  const proceedAfterDuplicate = () => {
+    if (dupDialog.pendingPayload) {
+      createDataHandler(dupDialog.pendingPayload);
+    }
+    setDupDialog({ open: false, reason: "", matches: [], pendingPayload: null });
+  };
+
+  const cancelAfterDuplicate = () => {
+    const reason = dupDialog.reason;
+    setDupDialog({ open: false, reason: "", matches: [], pendingPayload: null });
+
+    if (reason === "mobile" || reason === "both") {
+      if (mobileRef.current) mobileRef.current.focus();
+      setToast({ message: "Please update the mobile number.", type: "info" });
+    } else if (reason === "email") {
+      if (emailRef.current) emailRef.current.focus();
+      setToast({ message: "Please update the email address.", type: "info" });
     }
   };
 
@@ -217,7 +333,40 @@ const AddCustomerModal = ({ onClose }) => {
 
         <div className="popfrm">
           <form onSubmit={handleSubmit}>
-            {["mobile", "firstName", "lastName", "email"].map((field) => (
+            {/* Country Code + Mobile */}
+            <div className="frmdiv">
+              <label htmlFor="mobile">
+                Mobile: <span className="rd">*</span>
+              </label>
+              <div className="inptdiv" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  id="countryCode"
+                  value={formData.countryCode}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  maxLength={4} // '+' + up to 3 digits
+                  placeholder="+966"
+                  style={{ width: "72px" }}
+                />
+                <input
+                  type="text"
+                  id="mobile"
+                  ref={mobileRef}
+                  value={formData.mobile}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  maxLength={10}
+                  placeholder="10-digit mobile"
+                  style={{ flex: 1 }}
+                />
+              </div>
+              {errors.countryCode && <div className="error">{errors.countryCode}</div>}
+              {errors.mobile && <div className="error">{errors.mobile}</div>}
+            </div>
+
+            {/* First/Last/Email */}
+            {["firstName", "lastName"].map((field) => (
               <div className="frmdiv" key={field}>
                 <label htmlFor={field}>
                   {field.charAt(0).toUpperCase() + field.slice(1)}: <span className="rd">*</span>
@@ -236,6 +385,24 @@ const AddCustomerModal = ({ onClose }) => {
             ))}
 
             <div className="frmdiv">
+              <label htmlFor="email">
+                Email: <span className="rd">*</span>
+              </label>
+              <div className="inptdiv">
+                <input
+                  type="text"
+                  id="email"
+                  ref={emailRef}
+                  value={formData.email}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                />
+                {errors.email && <div className="error">{errors.email}</div>}
+              </div>
+            </div>
+
+            {/* Gender */}
+            <div className="frmdiv">
               <label htmlFor="gender">Gender: <span className="rd">*</span></label>
               <div className="inptdiv">
                 <select
@@ -252,26 +419,26 @@ const AddCustomerModal = ({ onClose }) => {
               </div>
             </div>
 
+            {/* Country (for nationality list) */}
             <div className="frmdiv">
-  <label htmlFor="nationalityCountry">Country:</label>
-  <div className="inptdiv">
-    <select
-      id="nationalityCountry"
-      value={formData.nationalityCountry}
-      onChange={handleChange}
-    >
-      <option value="">Select Country</option>
-      {countryList.map((item) => (
-        <option key={item.code} value={item.code}>
-          {item.name}
-        </option>
-      ))}
-    </select>
-  </div>
-</div>
+              <label htmlFor="nationalityCountry">Country:</label>
+              <div className="inptdiv">
+                <select
+                  id="nationalityCountry"
+                  value={formData.nationalityCountry}
+                  onChange={handleChange}
+                >
+                  <option value="">Select Country</option>
+                  {countryList.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-
-
+            {/* Nationality */}
             <div className="frmdiv">
               <label htmlFor="nationality">Nationality: <span className="rd">*</span></label>
               <div className="inptdiv">
@@ -303,6 +470,44 @@ const AddCustomerModal = ({ onClose }) => {
           </form>
         </div>
       </div>
+
+      {/* Duplicate Confirmation Modal */}
+      {dupDialog.open && (
+        <div className="popouter" style={{ position: "fixed", inset: 0, zIndex: 1001 }}>
+          <div className="popovrly" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }}></div>
+          <div className="popin" style={{ position: "relative", margin: "5% auto", maxWidth: 520, background: "#fff", borderRadius: 8 }}>
+            <div className="popuphdr">
+              Duplicate Found
+              <span className="clsbtn" onClick={cancelAfterDuplicate}>
+                <img src={`${import.meta.env.BASE_URL}images/clsic.svg`} alt="Close" />
+              </span>
+            </div>
+            <div className="popfrm" style={{ padding: "16px 20px" }}>
+              <p style={{ marginBottom: 12 }}>
+                Same entry found by <b>{dupDialog.reason === "both" ? "mobile & email" : dupDialog.reason}</b>.
+                Do you want to continue with the same {dupDialog.reason === "both" ? "details" : dupDialog.reason}?
+              </p>
+
+              {dupDialog.matches.length > 0 && (
+                <div style={{ background: "#fafafa", border: "1px solid #eee", borderRadius: 6, padding: 10, marginBottom: 12 }}>
+                  {dupDialog.matches.map((m) => (
+                    <div key={`${m.custId}-${m.mobile}`} style={{ fontSize: 13, padding: "6px 0", borderBottom: "1px dashed #e5e5e5" }}>
+                      <div><b>{m.name || "(No name)"}</b> {m.custId ? `• ${m.custId}` : ""}</div>
+                      <div>Mobile: {m.mobile || "-"}</div>
+                      <div>Email: {m.email || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="btnbar" style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button className="seclnk" onClick={cancelAfterDuplicate} type="button">No, Change</button>
+                <button className="prilnk" onClick={proceedAfterDuplicate} type="button">Yes, Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <Toast

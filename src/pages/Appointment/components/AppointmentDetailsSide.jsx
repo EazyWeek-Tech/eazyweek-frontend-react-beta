@@ -9,6 +9,24 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
+  const BASE_STATUSES = [
+    "Booked",
+    "Confirmed",
+    "Checked In",
+    "Active",
+    "Completed",
+    "Cancelled",
+    "No Show",
+  ];
+
+  // When status is one of these, hide "Cancelled" and "No Show"
+  const RESTRICTED_FROM_NO_SHOW_CANCEL = ["Checked In", "Active", "Completed"];
+  const isRestrictedNow = RESTRICTED_FROM_NO_SHOW_CANCEL.includes(status);
+
+  const VISIBLE_STATUSES = BASE_STATUSES.filter(
+    (s) => !(isRestrictedNow && (s === "Cancelled" || s === "No Show"))
+  );
+
   const createDataHandler = async (payload, newStatusForUpdate) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/Appointment/AppOperation`,{
@@ -26,11 +44,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
       if (result?.success) {
         setToast({ message: "Appointment updated successfully!", type: "success" });
 
-        // ✅ update the cell immediately in the scheduler
+        // Update the cell immediately in the scheduler
         if (typeof onStatusUpdated === "function") {
           onStatusUpdated(appointment?.appointmentId, newStatusForUpdate);
         }
-        // ✅ and optionally refetch from server
+        // Optionally refetch from server
         if (typeof onRefresh === "function") onRefresh();
       } else {
         setToast({ message: result.message || "Update failed. Please try again.", type: "error" });
@@ -43,6 +61,19 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
 
   const handleStatusChange = (e) => {
     const newStatus = e.target.value;
+
+    // Hard guard: if currently restricted, block moving to Cancelled / No Show
+    if (
+      RESTRICTED_FROM_NO_SHOW_CANCEL.includes(status) &&
+      (newStatus === "Cancelled" || newStatus === "No Show")
+    ) {
+      setToast({
+        message: "You can't mark this appointment as Cancelled/No Show after it is Checked In/Active/Completed.",
+        type: "error",
+      });
+      return;
+    }
+
     setStatus(newStatus);
 
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
@@ -106,24 +137,22 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
   };
 
   const goToConsultationConsentPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
-  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+    const queryParams = new URLSearchParams();
+    if (appointment?.custId) queryParams.append("custid", appointment.custId);
+    if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+    if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+    navigate(`/consultation?${queryParams.toString()}`);
+  };
 
-  navigate(`/consultation?${queryParams.toString()}`);
-};
+  const goToMedicalHistoryPage = () => {
+    const queryParams = new URLSearchParams();
+    if (appointment?.custId) queryParams.append("custid", appointment.custId);
+    if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
+    if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
 
-const goToMedicalHistoryPage = () => {
-  const queryParams = new URLSearchParams();
-  if (appointment?.custId) queryParams.append("custid", appointment.custId);
-  if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
-  if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
-
-  navigate(`/history`);
-  navigate(`/history?${queryParams.toString()}`);
-};
-
+    navigate(`/history`);
+    navigate(`/history?${queryParams.toString()}`);
+  };
 
   return (
     <div className={`smdiv expand ${isExpanded ? "expand" : ""}`}>
@@ -183,13 +212,9 @@ const goToMedicalHistoryPage = () => {
             <div className="form-group slctgrp">
               <label>Status</label>
               <select id="stSelect" value={status} onChange={handleStatusChange}>
-                <option value="Booked">Booked</option>
-                <option value="Confirmed">Confirmed</option>
-                <option value="Checked In">Checked In</option>
-                <option value="Active">Active</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
-                <option value="No Show">No Show</option>
+                {VISIBLE_STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -241,7 +266,7 @@ const goToMedicalHistoryPage = () => {
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
             </button>
-             <button onClick={goToConsultationConsentPage} className="cstlnk">
+            <button onClick={goToConsultationConsentPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
               Consent and Treatment Forms
             </button>
