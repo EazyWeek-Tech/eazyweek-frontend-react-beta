@@ -84,6 +84,7 @@ const LaserConsentForm = () => {
   return (
     <div className="LSCF-consent-form-container">
       <div ref={formRef} className="LSCF-consent-form">
+        <h1>Consent for Laser Session</h1>
 
         <div>
           <p>
