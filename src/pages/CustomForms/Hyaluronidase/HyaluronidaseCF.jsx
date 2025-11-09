@@ -52,8 +52,8 @@ const VolumeFillingHyaluronidaseConsentForm = () => {
   });
 
   return (
-    <div className="consent-form-container">
-      <div ref={formRef} className="consent-form">
+    <div className="VFHC-consent-form-container">
+      <div ref={formRef} className="VFHC-consent-form">
         <h1>Consent for Filler Removal Procedure (Hyaluronidase)</h1>
 
         <p>I, Undersigned, agree on the procedure of filler removal injection to which will be done by the Doctor.</p>
@@ -78,24 +78,24 @@ const VolumeFillingHyaluronidaseConsentForm = () => {
 
         <p>I have read and understand the provided information and have had the opportunity to ask questions. I understand that my participation is voluntary and that I am free to withdraw at any time, without giving a reason and without cost.</p>
 
-        <div className="signature-section">
+        <div className="VFHC-signature-section">
           <h2>Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="VFHC-signature-pad">
             <SignatureCanvas
               ref={sigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'VFHC-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, signature: sigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearSignature}>
+          <button type="button" className="VFHC-clear-signature-btn" onClick={clearSignature}>
             Clear Signature
           </button>
           {errors.signature && <span style={{ color: 'red', fontSize: '12px', display: 'block', marginTop: '5px' }}>{errors.signature}</span>}
         </div>
 
         <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="VFHC-form-group" style={{ flex: 1 }}>
             <label>Client Name: </label>
             <input
               type="text"
@@ -106,7 +106,7 @@ const VolumeFillingHyaluronidaseConsentForm = () => {
             />
             {errors.clientName && <span style={{ color: 'red', fontSize: '12px' }}>{errors.clientName}</span>}
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="VFHC-form-group" style={{ flex: 1 }}>
             <label>Date: </label>
             <input
               type="date"
@@ -118,11 +118,11 @@ const VolumeFillingHyaluronidaseConsentForm = () => {
           </div>
         </div>
 
-        <div className="button-group">
-          <button type="button" className="print-btn" onClick={handlePrint}>
+        <div className="VFHC-button-group">
+          <button type="button" className="VFHC-print-btn" onClick={handlePrint}>
             Print Form
           </button>
-          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+          <button type="submit" className="VFHC-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
         </div>

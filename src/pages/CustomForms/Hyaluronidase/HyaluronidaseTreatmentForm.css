@@ -1,4 +1,4 @@
-.form-container-1 {
+.HTF-form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -6,8 +6,8 @@
   font-family: Arial, sans-serif;
 }
 
-.form-container-1 .forms {
-   max-width: 100% !important;
+.HTF-forms {
+   max-width: 100%;
   background-color: white;
   color: black;
   border: 1px solid #ddd;
@@ -17,56 +17,55 @@
   margin: 20px auto;
 }
 
-.form-container-1 .forms h1 {
+.HTF-form h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.form-container-1 .forms h2 {
+.HTF-form h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.form-container-1 .forms p {
+.HTF-form p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
-
-.form-container-1 .form-row {
+.HTF-form-row {
   display: grid;
-  flex-direction: row !important;
+  flex-direction: row;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   margin-bottom: 20px;
 }
 
-.form-container-1 .form-group {
+.HTF-form-group {
   display: flex;
   flex-direction: column;
   margin-bottom: 20px;
 }
 
-.form-container-1 .form-group input {
+.HTF-form-group input {
   width: 100%;
 }
 
-.form-container-1 .form-section {
+.HTF-form-section {
   margin-bottom: 15px;
 }
 
-.form-container-1 .section-label {
+.HTF-section-label {
   display: block;
   font-weight: 500;
   margin-bottom: 6px;
   color: #333;
 }
 
-.form-container-1 .checkbox-row,
-.form-container-1 .radio-row {
+.HTF-checkbox-row,
+.HTF-radio-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -74,8 +73,8 @@
   margin-top: 5px;
 }
 
-.form-container-1 .checkbox-label,
-.form-container-1 .radio-label {
+.HTF-checkbox-label,
+.HTF-radio-label {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -84,32 +83,33 @@
   cursor: pointer;
 }
 
-.form-container-1 .checkbox-label input,
-.form-container-1 .radio-label input {
+.HTF-checkbox-label input,
+.HTF-radio-label input {
   width: 16px;
   height: 16px;
   cursor: pointer;
   accent-color: #007bff;
 }
 
-.form-container-1 .error-message {
+.HTF-error-message {
   display: block;
   margin-top: 5px;
   font-size: 13px;
   color: red;
 }
 
-.form-container-1 .form-group label {
+
+.HTF-form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.form-container-1 .form-group input[type="text"],
-.form-container-1 .form-group input[type="date"],
-.form-container-1 .form-group input[type="datetime-local"],
-.form-container-1 .form-group select,
-.form-container-1 .form-group textarea {
+.HTF-form-group input[type="text"],
+.HTF-form-group input[type="date"],
+.HTF-form-group input[type="datetime-local"],
+.HTF-form-group select,
+.HTF-form-group textarea {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -118,42 +118,42 @@
   box-sizing: border-box;
 }
 
-.form-container-1 .form-group textarea {
+.HTF-form-group textarea {
   resize: vertical;
   min-height: 100px;
 }
 
-.form-container-1 .treatment-table {
+.HTF-treatment-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
 }
 
-.form-container-1 .treatment-table th,
-.form-container-1 .treatment-table td {
+.HTF-treatment-table th,
+.HTF-treatment-table td {
   border: 1px solid #ddd;
   padding: 8px;
   text-align: left;
   vertical-align: top;
 }
 
-.form-container-1 .treatment-table th {
+.HTF-treatment-table th {
   background-color: #f2f2f2;
   font-weight: bold;
 }
 
-.form-container-1 .treatment-table input {
+.HTF-treatment-table input {
   width: 100%;
   padding: 5px;
   border: none;
   font-size: 14px;
 }
 
-.form-container-1 .signature-section {
+.HTF-signature-section {
   margin-bottom: 20px;
 }
 
-.form-container-1 .signature-pad {
+.HTF-signature-pad {
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
@@ -161,12 +161,12 @@
   margin-bottom: 10px;
 }
 
-.form-container-1 .signature-pad canvas {
+.HTF-signature-pad canvas {
   display: block;
   margin: 0 auto;
 }
 
-.form-container-1 .clear-signature-btn {
+.HTF-clear-signature-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -175,43 +175,43 @@
   font-size: 12px;
 }
 
-.form-container-1 .photo-upload-section {
+.HTF-photo-upload-section {
   margin-bottom: 20px;
 }
 
-.form-container-1 .photo-upload-section h3 {
+.HTF-photo-upload-section h3 {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
 }
 
-.form-container-1 .file-input {
+.HTF-file-input {
   margin-bottom: 10px;
 }
 
-.form-container-1 .file-list {
+.HTF-file-list {
   margin-top: 10px;
 }
 
-.form-container-1 .file-list ul {
+.HTF-file-list ul {
   list-style-type: none;
   padding: 0;
 }
 
-.form-container-1 .file-list li {
+.HTF-file-list li {
   margin-bottom: 5px;
   font-size: 12px;
 }
 
-.form-container-1 .button-group {
+.HTF-button-group {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-top: 30px;
 }
 
-.form-container-1 .submit-btn,
-.form-container-1 .print-btn {
+.HTF-submit-btn,
+.HTF-print-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 5px;
@@ -220,25 +220,31 @@
   font-weight: bold;
 }
 
-.form-container-1 .submit-btn {
+.HTF-submit-btn {
   background-color: #007bff;
   color: white;
 }
 
-.form-container-1 .print-btn {
+.HTF-print-btn {
   background-color: #28a745;
   color: white;
 }
 
-.form-container-1 .submit-btn:hover {
+.HTF-submit-btn:hover {
   background-color: #0056b3;
 }
 
-.form-container-1 .print-btn:hover {
+.HTF-print-btn:hover {
   background-color: #1e7e34;
 }
 
-.form-container-1 .add-row-btn {
+.HTF-error-message {
+  color: red;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.HTF-add-row-btn {
   padding: 8px 16px;
   background-color: #28a745;
   color: white;
@@ -250,11 +256,11 @@
   margin-top: 10px;
 }
 
-.form-container-1 .add-row-btn:hover {
+.HTF-add-row-btn:hover {
   background-color: #1e7e34;
 }
 
-.form-container-1 .delete-row-btn {
+.HTF-delete-row-btn {
   padding: 5px 10px;
   background-color: #dc3545;
   color: white;
@@ -265,33 +271,33 @@
   font-weight: bold;
 }
 
-.form-container-1 .delete-row-btn:hover {
+.HTF-delete-row-btn:hover {
   background-color: #c82333;
 }
 
-.form-container-1 .TitleandButton {
+.HTF-TitleandButton{
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.form-container-1 .face-mapper-section {
+.HTF-face-mapper-section {
   margin-bottom: 20px;
 }
 
-.form-container-1 .face-mapper-section h2 {
+.HTF-face-mapper-section h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.form-container-1 .face-mapper-section p {
+.HTF-face-mapper-section p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
-.form-container-1 .face-mapper-container {
+.HTF-face-mapper-container {
   position: relative;
   display: block;
   border: 1px solid #ddd;
@@ -301,21 +307,21 @@
   text-align: center;
 }
 
-.form-container-1 .face-diagram {
+.HTF-face-diagram {
   display: block;
   width: 400px;
   height: 500px;
   margin: 0 auto;
 }
 
-.form-container-1 .face-canvas {
+.HTF-face-canvas {
   position: absolute;
   top: 0;
   left: 0;
   cursor: crosshair;
 }
 
-.form-container-1 .face-mapper-tools {
+.HTF-face-mapper-tools {
   display: flex;
   gap: 15px;
   align-items: center;
@@ -328,7 +334,7 @@
   flex-wrap: wrap;
 }
 
-.form-container-1 .face-mapper-tools label {
+.HTF-face-mapper-tools label {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -337,20 +343,20 @@
   color: #495057;
 }
 
-.form-container-1 .face-mapper-tools select,
-.form-container-1 .face-mapper-tools input[type="color"],
-.form-container-1 .face-mapper-tools input[type="range"] {
+.HTF-face-mapper-tools select,
+.HTF-face-mapper-tools input[type="color"],
+.HTF-face-mapper-tools input[type="range"] {
   padding: 4px 8px;
   border: 1px solid #ced4da;
   border-radius: 4px;
   font-size: 14px;
 }
 
-.form-container-1 .face-mapper-tools input[type="range"] {
+.HTF-face-mapper-tools input[type="range"] {
   width: 80px;
 }
 
-.form-container-1 .clear-face-mapper-btn {
+.HTF-clear-face-mapper-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -359,42 +365,49 @@
   font-size: 12px;
 }
 
-.form-container-1 .clear-face-mapper-btn:hover {
+.HTF-clear-face-mapper-btn:hover {
   background-color: #e0e0e0;
 }
 
 @media (max-width: 768px) {
-  .form-container-1 .checkbox-row,
-  .form-container-1 .radio-row {
+  .HTF-checkbox-row {
     flex-direction: column;
     gap: 10px;
   }
 
-  .form-container-1 .form {
+  .HTF-radio-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .HTF-form {
     padding: 15px;
     margin: 10px;
   }
 
-  .form-container-1 .form h1 {
+  .HTF-form h1 {
     font-size: 20px;
   }
 
-  .form-container-1 .treatment-table {
+  .HTF-treatment-table {
     font-size: 12px;
   }
 
-  .form-container-1 .treatment-table th,
-  .form-container-1 .treatment-table td {
+  .HTF-treatment-table th,
+  .HTF-treatment-table td {
     padding: 5px;
   }
 
-  .form-container-1 .button-group {
+  .HTF-button-group {
     flex-direction: column;
   }
 
-  .form-container-1 .submit-btn,
-  .form-container-1 .print-btn,
-  .form-container-1 .add-row-btn {
+  .HTF-submit-btn,
+  .HTF-print-btn {
+    width: 100%;
+  }
+
+  .HTF-add-row-btn {
     width: 100%;
   }
 }

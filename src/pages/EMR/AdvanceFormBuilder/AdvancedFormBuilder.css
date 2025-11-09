@@ -1,0 +1,1477 @@
+:root {
+  --builder-bg: #fff;
+  --builder-border: #ccc;
+  --builder-hover: #f1f5f9;
+  --primary: #2D3250;
+  --primary-hover: #334B71;
+  --primary-light: rgba(45, 50, 80, 0.1);
+  --primary-glow: rgba(45, 50, 80, 0.2);
+  --secondary: #64748b;
+  --secondary-hover: #475569;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --card-bg: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 20px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes glow {
+  0%,100% { box-shadow: 0 0 5px var(--primary-glow); }
+  50%     { box-shadow: 0 0 20px var(--primary-glow), 0 0 30px var(--primary-glow); }
+}
+@keyframes bounce {
+  0%,20%,50%,80%,100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+  60% { transform: translateY(-5px); }
+}
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.AdvFormBuilder-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  background-color:rgb(248, 243, 243);
+  color: var(--text-primary);
+  cursor: pointer;
+  line-height: inherit;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px solid transparent;
+  text-decoration: none;
+}
+
+.AdvFormBuilder-button:hover{
+  background-color: rgb(234, 226, 226);  
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-button-primary, .AdvFormBuilder-button[data-variant="default"] {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.AdvFormBuilder-button-primary:hover, .AdvFormBuilder-button[data-variant="default"]:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.AdvFormBuilder-button-outline, .AdvFormBuilder-button[data-variant="outline"] {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border-color: var(--builder-border);
+}
+
+.AdvFormBuilder-button-outline:hover, .AdvFormBuilder-button[data-variant="outline"]:hover {
+  background: var(--builder-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.AdvFormBuilder-button-ghost, .AdvFormBuilder-button[data-variant="ghost"] {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.AdvFormBuilder-button-ghost:hover, .AdvFormBuilder-button[data-variant="ghost"]:hover {
+  background: var(--builder-hover);
+}
+
+.AdvFormBuilder-button-destructive {
+  background: var(--error);
+  color: white;
+  border-color: var(--error);
+}
+
+.AdvFormBuilder-button-destructive:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.AdvFormBuilder-button-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+}
+
+.AdvFormBuilder-card, .AdvFormBuilder-card-root {
+  background: var(--card-bg);
+  border: 1px solid var(--builder-border);
+  border-radius: var(--border-radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.AdvFormBuilder-card:hover, .AdvFormBuilder-card-root:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+}
+
+.AdvFormBuilder-input {
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.AdvFormBuilder-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.AdvFormBuilder-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.AdvFormBuilder-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.AdvFormBuilder-switch input[type="checkbox"] {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--builder-border);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.AdvFormBuilder-switch input[type="checkbox"]:checked {
+  background: var(--primary);
+}
+
+.AdvFormBuilder-switch input[type="checkbox"]:before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  transition: var(--transition);
+  transform: translateX(0);
+}
+
+.AdvFormBuilder-switch input[type="checkbox"]:checked:before {
+  transform: translateX(20px);
+}
+
+.AdvFormBuilder-tabs, .AdvFormBuilder-tabs-root {
+  width: 100%;
+}
+
+.AdvFormBuilder-tabs-list, .AdvFormBuilder-tabs-list-root {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--builder-hover);
+  border-radius: var(--border-radius-md);
+  padding: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.AdvFormBuilder-tabs-trigger {
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  flex: 1;
+}
+
+.AdvFormBuilder-tabs-trigger:hover {
+  color: var(--text-primary);
+  background: var(--card-bg);
+}
+
+.AdvFormBuilder-tabs-trigger[data-state="active"] {
+  background: var(--card-bg);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.AdvFormBuilder-tabs-content, .AdvFormBuilder-tabs-content-root {
+  margin-top: 0;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.AdvFormBuilder-badge, .AdvFormBuilder-badge-root {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.AdvFormBuilder-badge-secondary, .AdvFormBuilder-badge-root[data-variant="secondary"] {
+  background: var(--builder-hover);
+  color: var(--text-secondary);
+}
+
+.AdvFormBuilder-badge-outline, .AdvFormBuilder-badge-root[data-variant="outline"] {
+  border: 1px solid var(--builder-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-badge-destructive {
+  background: var(--error);
+  color: white;
+}
+
+.AdvFormBuilder-form-setting input {
+  margin-top: 0.25rem;
+}
+
+.AdvFormBuilder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--builder-hover);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--builder-border);
+}
+
+.AdvFormBuilder-toggle label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  cursor: pointer;
+}
+
+.AdvFormBuilder-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.AdvFormBuilder-option-input {
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-option-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-add-option {
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.AdvFormBuilder-add-option:hover {
+  background: var(--builder-hover);
+  border-color: var(--primary);
+}
+
+.AdvFormBuilder-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--builder-bg) 0%, #f1f5f9 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.5rem 2rem;
+}
+
+.AdvFormBuilder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 0.5rem 2rem;
+  background: var(--card-bg);
+  border-radius: var(--border-radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--builder-border);
+}
+
+.AdvFormBuilder-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.AdvFormBuilder-subtitle {
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+}
+
+.AdvFormBuilder-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.AdvFormBuilder-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: 2rem;
+  min-height: 600px;
+}
+
+.AdvFormBuilder-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.AdvFormBuilder-card {
+  background: var(--card-bg);
+  border: 1px solid var(--builder-border);
+  border-radius: var(--border-radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.AdvFormBuilder-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+}
+
+.AdvFormBuilder-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.AdvFormBuilder-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.AdvFormBuilder-form-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.AdvFormBuilder-form-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.AdvFormBuilder-form-setting label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.AdvFormBuilder-form-setting input {
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-form-setting input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--builder-hover);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--builder-border);
+}
+
+.AdvFormBuilder-toggle label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  cursor: pointer;
+}
+
+.AdvFormBuilder-main {
+  background: var(--card-bg);
+  border: 1px solid var(--builder-border);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+  min-height: 600px;
+  transition: var(--transition);
+}
+
+.AdvFormBuilder-main:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.AdvFormBuilder-fields-container {
+  min-height: 500px;
+}
+
+.AdvFormBuilder-fields-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--builder-border);
+}
+
+.AdvFormBuilder-fields-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.AdvFormBuilder-fields-header-left h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.AdvFormBuilder-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.AdvFormBuilder-empty-icon {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--builder-hover) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.AdvFormBuilder-empty-icon svg {
+  width: 2rem;
+  height: 2rem;
+  color: var(--primary);
+}
+
+.AdvFormBuilder-empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.AdvFormBuilder-empty-text {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  max-width: 300px;
+  line-height: 1.6;
+}
+
+.AdvFormBuilder-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 200px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.AdvFormBuilder-field {
+  position: relative;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+  background: var(--card-bg);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+  transform: translateZ(0); 
+}
+
+.AdvFormBuilder-field:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px) scale(1.01);
+}
+
+.AdvFormBuilder-field.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  animation: scaleIn 0.2s ease-out;
+  transform: translateY(-1px) scale(1.005);
+}
+
+.AdvFormBuilder-field.dragging {
+  box-shadow: var(--shadow-xl);
+  transform: rotate(1deg) scale(1.02);
+  opacity: 0.95;
+  z-index: 1000;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.AdvFormBuilder-field.dragging:hover {
+  transform: rotate(1deg) scale(1.02);
+}
+
+.AdvFormBuilder-field-placeholder {
+  background: var(--builder-hover);
+  border: 2px dashed var(--primary-light);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+  margin: 0.75rem 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 0.5; }
+  50%     { opacity: 1; }
+}
+
+.AdvFormBuilder-field-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  transition: all 0.2s ease;
+}
+
+.AdvFormBuilder-field-drag-handle {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  cursor: grab;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0.25rem;
+  border-radius: var(--border-radius-sm);
+  transform: translateZ(0);
+}
+
+.AdvFormBuilder-field-drag-handle:hover {
+  color: var(--text-primary);
+  background: var(--builder-hover);
+  transform: scale(1.1);
+}
+
+.AdvFormBuilder-field-drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+.AdvFormBuilder-field-info {
+  flex: 1;
+  min-width: 0;
+  transition: all 0.2s ease;
+}
+
+.AdvFormBuilder-field-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  transition: all 0.2s ease;
+}
+
+.AdvFormBuilder-field-required {
+  color: var(--error);
+  font-size: 1rem;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.AdvFormBuilder-field-type {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: capitalize;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.AdvFormBuilder-field-delete {
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--error);
+  padding: 0.5rem;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transform: translateZ(0);
+}
+
+.AdvFormBuilder-field-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  opacity: 1 !important;
+  transform: scale(1.1);
+}
+
+.AdvFormBuilder-field:hover .AdvFormBuilder-field-delete {
+  opacity: 1;
+}
+
+@keyframes slideInFromBottom {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes slideOutToTop {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+
+.AdvFormBuilder-field-enter {
+  animation: slideInFromBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.AdvFormBuilder-field-exit {
+  animation: slideOutToTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.AdvFormBuilder-drag-preview {
+  background: var(--card-bg);
+  border: 2px solid var(--primary);
+  border-radius: var(--border-radius-lg);
+  padding: 1rem;
+  box-shadow: var(--shadow-xl);
+  transform: rotate(1deg);
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.AdvFormBuilder-drop-zone-active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  animation: glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px var(--primary-glow);
+  }
+  to {
+    box-shadow: 0 0 20px var(--primary-glow), 0 0 30px var(--primary-glow);
+  }
+}
+
+
+
+.AdvFormBuilder-form-field-component {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.AdvFormBuilder-form-field-component label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.AdvFormBuilder-form-field-component-required {
+  color: var(--error);
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.AdvFormBuilder-form-field-component input[type="text"],
+.AdvFormBuilder-form-field-component input[type="email"],
+.AdvFormBuilder-form-field-component input[type="password"],
+.AdvFormBuilder-form-field-component input[type="number"],
+.AdvFormBuilder-form-field-component input[type="tel"],
+.AdvFormBuilder-form-field-component input[type="url"],
+.AdvFormBuilder-form-field-component textarea,
+.AdvFormBuilder-form-field-component select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-form-field-component input:focus,
+.AdvFormBuilder-form-field-component textarea:focus,
+.AdvFormBuilder-form-field-component select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-form-field-component textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.AdvFormBuilder-form-field-component select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.AdvFormBuilder-form-field-component input[type="radio"],
+.AdvFormBuilder-form-field-component input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.75rem;
+  accent-color: var(--primary);
+}
+
+.AdvFormBuilder-form-field-radio-group,
+.AdvFormBuilder-form-field-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.AdvFormBuilder-form-field-radio-option,
+.AdvFormBuilder-form-field-checkbox-option {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.AdvFormBuilder-form-field-radio-option:hover,
+.AdvFormBuilder-form-field-checkbox-option:hover {
+  background: var(--builder-hover);
+}
+
+.AdvFormBuilder-form-field-radio-option label,
+.AdvFormBuilder-form-field-checkbox-option label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+.AdvFormBuilder-form-field-signature {
+  border: 2px dashed var(--builder-border);
+  border-radius: var(--border-radius-md);
+  padding: 2rem;
+  text-align: center;
+  background: var(--builder-hover);
+  transition: var(--transition);
+}
+
+.AdvFormBuilder-form-field-signature:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.AdvFormBuilder-form-field-table {
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+}
+
+.AdvFormBuilder-form-field-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.AdvFormBuilder-form-field-table th,
+.AdvFormBuilder-form-field-table td {
+  padding: 0.75rem;
+  border: 1px solid var(--builder-border);
+  text-align: left;
+}
+
+.AdvFormBuilder-form-field-table th {
+  background: var(--builder-hover);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-form-field-table input {
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.AdvFormBuilder-form-field-table input:focus {
+  background: var(--card-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--border-radius-sm);
+}
+
+.AdvFormBuilder-form-field-error {
+  border-color: var(--error) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.AdvFormBuilder-form-field-error-message {
+  color: var(--error);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.AdvFormBuilder-form-field-success {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+.AdvFormBuilder-form-field-component input::placeholder,
+.AdvFormBuilder-form-field-component textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.AdvFormBuilder-form-field-component input:disabled,
+.AdvFormBuilder-form-field-component textarea:disabled,
+.AdvFormBuilder-form-field-component select:disabled {
+  background: var(--builder-hover);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.AdvFormBuilder-properties {
+  position: sticky;
+  top: 2rem;
+  height: fit-content;
+}
+
+.AdvFormBuilder-properties .AdvFormBuilder-card {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.AdvFormBuilder-properties-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.AdvFormBuilder-field-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.AdvFormBuilder-field-setting label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-field-setting input {
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-field-setting input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.AdvFormBuilder-option-input {
+  padding: 0.75rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  font-size: 0.875rem;
+  transition: var(--transition);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.AdvFormBuilder-option-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.AdvFormBuilder-add-option {
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--builder-border);
+  border-radius: var(--border-radius-md);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.AdvFormBuilder-add-option:hover {
+  background: var(--builder-hover);
+  border-color: var(--primary);
+}
+
+.AdvFormBuilder-tabs {
+  width: 100%;
+}
+
+.AdvFormBuilder-tabs-list {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, 1fr);
+  border-radius: var(--border-radius-md);
+  padding: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.AdvFormBuilder-tab-trigger {
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  flex: 1;
+}
+
+.AdvFormBuilder-tab-trigger:hover {
+  color: var(--text-primary);
+  background: var(--card-bg);
+}
+
+.AdvFormBuilder-tab-trigger.active {
+  background: rgb(248, 243, 243);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.AdvFormBuilder-tabs-content {
+  margin-top: 0;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.AdvFormBuilder-no-selection {
+  text-align: center;
+  color: var(--text-muted);
+  animation: fadeIn 0.5s ease-out;
+  padding: 2rem;
+}
+
+.AdvFormBuilder-no-selection-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: var(--builder-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.AdvFormBuilder-no-selection-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--primary);
+}
+
+.AdvFormBuilder-no-selection p {
+  font-size: 1rem;
+  margin: 0;
+  font-weight: 500;
+}
+
+.AdvFormBuilder-form-preview-container {
+  min-height: 100vh;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.AdvFormBuilder-form-preview-wrapper {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.AdvFormBuilder-form-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.AdvFormBuilder-form-preview-title {
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  background-clip: text;
+}
+
+.AdvFormBuilder-form-preview-subtitle {
+  color: #64748b;
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.AdvFormBuilder-form-preview-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.AdvFormBuilder-form-preview-form-card {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 3rem;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.AdvFormBuilder-form-preview-form-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+}
+
+.AdvFormBuilder-form-preview-form-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+  text-align: center;
+}
+
+.AdvFormBuilder-form-preview-form-description {
+  color: #64748b;
+  font-size: 1rem;
+  text-align: center;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.AdvFormBuilder-form-preview-field {
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.AdvFormBuilder-form-preview-field label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.AdvFormBuilder-form-preview-field-required {
+  color: #ef4444;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.AdvFormBuilder-form-preview-field input[type="text"],
+.AdvFormBuilder-form-preview-field input[type="email"],
+.AdvFormBuilder-form-preview-field input[type="password"],
+.AdvFormBuilder-form-preview-field input[type="number"],
+.AdvFormBuilder-form-preview-field input[type="tel"],
+.AdvFormBuilder-form-preview-field input[type="url"],
+.AdvFormBuilder-form-preview-field textarea,
+.AdvFormBuilder-form-preview-field select {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.AdvFormBuilder-form-preview-field input:focus,
+.AdvFormBuilder-form-preview-field textarea:focus,
+.AdvFormBuilder-form-preview-field select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1), 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
+}
+
+.AdvFormBuilder-form-preview-field textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.AdvFormBuilder-form-preview-field select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.AdvFormBuilder-form-preview-field input[type="radio"],
+.AdvFormBuilder-form-preview-field input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.75rem;
+  accent-color: #667eea;
+}
+
+.AdvFormBuilder-form-preview-radio-group,
+.AdvFormBuilder-form-preview-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.AdvFormBuilder-form-preview-radio-option,
+.AdvFormBuilder-form-preview-checkbox-option {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.AdvFormBuilder-form-preview-radio-option:hover,
+.AdvFormBuilder-form-preview-checkbox-option:hover {
+  background: #f8fafc;
+}
+
+.AdvFormBuilder-form-preview-radio-option label,
+.AdvFormBuilder-form-preview-checkbox-option label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.AdvFormBuilder-form-preview-submit-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.AdvFormBuilder-form-preview-submit-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.AdvFormBuilder-form-preview-submit-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.AdvFormBuilder-form-preview-submit-button:active {
+  transform: translateY(0);
+}
+
+.AdvFormBuilder-form-preview-progress {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+  gap: 0.5rem;
+}
+
+.AdvFormBuilder-form-preview-step {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.AdvFormBuilder-form-preview-step::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 40px;
+  height: 2px;
+  background: #e5e7eb;
+  transform: translateY(-50%);
+}
+
+.AdvFormBuilder-form-preview-step:last-child::before {
+  display: none;
+}
+
+.AdvFormBuilder-form-preview-step.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.AdvFormBuilder-form-preview-step.completed {
+  background: #10b981;
+  color: white;
+}
+
+.AdvFormBuilder-form-preview-step.pending {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+@media (max-width: 768px) {
+  .AdvFormBuilder-form-preview-container {
+    padding: 1rem;
+  }
+
+  .AdvFormBuilder-form-preview-header {
+    padding: 1.5rem;
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .AdvFormBuilder-form-preview-title {
+    font-size: 1.875rem;
+  }
+
+  .AdvFormBuilder-form-preview-form-card {
+    padding: 2rem;
+  }
+
+  .AdvFormBuilder-form-preview-submit-button {
+    width: 100%;
+    padding: 1rem 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .AdvFormBuilder-form-preview-form-card {
+    padding: 1.5rem;
+  }
+
+  .AdvFormBuilder-form-preview-form-title {
+    font-size: 1.5rem;
+  }
+
+  .AdvFormBuilder-form-preview-field input,
+  .AdvFormBuilder-form-preview-field textarea,
+  .AdvFormBuilder-form-preview-field select {
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 1280px) {
+  .AdvFormBuilder-grid {
+    grid-template-columns: 280px 1fr 280px;
+    gap: 1.5rem;
+  }
+}
+@media (max-width: 1024px) {
+  .AdvFormBuilder-wrapper {
+    padding: 0.5rem 2rem;
+  }
+
+  .AdvFormBuilder-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .AdvFormBuilder-sidebar {
+    order: 2;
+  }
+
+  .AdvFormBuilder-main {
+    order: 1;
+  }
+
+  .AdvFormBuilder-properties {
+    order: 3;
+  }
+
+  .AdvFormBuilder-header {
+    flex-direction: row;
+    gap: 1.5rem;
+    text-align: center;
+    padding: 0.5rem 1rem;
+  }
+
+  .AdvFormBuilder-title {
+    font-size: 1rem;
+  }
+  .AdvFormBuilder-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+  .AdvFormBuilder-actions {
+    justify-content: center;
+  }
+}

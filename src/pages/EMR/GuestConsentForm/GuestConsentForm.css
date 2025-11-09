@@ -1,4 +1,4 @@
-/* .medical-form {
+.GCF-medical-form {
   margin: 0 auto;
   padding: 0;
   font-family: 'Arial', sans-serif;
@@ -11,7 +11,7 @@
   flex-direction: column;
 }
 
-.form-header {
+.GCF-form-header {
   flex-shrink: 0;
   background: #fff;
   padding: 1rem 0;
@@ -26,19 +26,19 @@
   z-index: 10;
 }
 
-.logo {
+.GCF-logo {
   max-width: 120px;
   margin: 0 auto;
 }
 
-.page-title {
+.GCF-page-title {
   font-size: 1.8rem;
   font-weight: bold;
   color: #2b4c7e;
   margin: 0.5rem 0;
 }
 
-.subtitle {
+.GCF-subtitle {
   font-size: 0.95rem;
   color: #555;
   margin-top: 0.5rem;
@@ -46,7 +46,7 @@
   padding: 0 1rem;
 }
 
-.form-content {
+.GCF-form-content {
   flex: 1;
   overflow-y: auto;
   padding: 0 30px 30px 30px;
@@ -56,9 +56,9 @@
 }
 
 
-form h2,
-form h3,
-form legend {
+.GCF-form h2,
+.GCF-form h3,
+.GCF-form legend {
   font-size: 1.2rem;
   font-weight: bold;
   margin-top: 2rem;
@@ -67,7 +67,7 @@ form legend {
   padding: 0 0 20px;
 }
 
-fieldset {
+.GCF-fieldset {
   border: 1px solid #ddd;
   border-radius: 6px;
   padding: 1rem;
@@ -75,31 +75,31 @@ fieldset {
   background: #f9f9f9;
 }
 
-label {
+.GCF-label {
   display: block;
   margin: 0.5rem 0;
   font-size: 14px;
   line-height: 20px;
 }
 
-.checkbox-group label input {
+.GCF-checkbox-group label input {
   margin: 0;
 }
 
-form h2, 
-form h3, 
-form legend {
+.GCF-form h2, 
+.GCF-form h3, 
+.GCF-form legend {
   position: relative; 
   top: 9px; 
   font-size: 20px; 
   line-height: 24px;
 }
 
-input[type="text"],
-input[type="date"],
-input[type="number"],
-select,
-textarea {
+.GCF-input[type="text"],
+.GCF-input[type="date"],
+.GCF-input[type="number"],
+.GCF-select,
+.GCF-textarea {
   width: 100%;
   padding: 0.5rem;
   margin-top: 15px;
@@ -108,22 +108,22 @@ textarea {
   box-sizing: border-box;
 }
 
-textarea {
+.GCF-textarea {
   min-height: 80px;
   resize: vertical;
 }
 
-input[type="radio"],
-input[type="checkbox"] {
+.GCF-input[type="radio"],
+.GCF-input[type="checkbox"] {
   margin-right: 0.5rem;
 }
 
-.tandc {
+.GCF-tandc {
   margin: 10px 0;
   line-height: 180%;
 }
 
-.signature-box {
+.GCF-signature-box {
   width: 100%;
   height: 150px;
   border: 1px solid #ccc;
@@ -132,14 +132,14 @@ input[type="checkbox"] {
   position: relative;
 }
 
-.signature-actions {
+.GCF-signature-actions {
   margin-top: 0.5rem;
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
 }
 
-.signature-actions button {
+.GCF-signature-actions button {
   padding: 0.3rem 0.8rem;
   background-color: #e74c3c;
   color: white;
@@ -148,11 +148,11 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-.signature-actions button:hover {
+.GCF-signature-actions button:hover {
   background-color: #c0392b;
 }
 
-button[type="submit"] {
+.GCF-button[type="submit"] {
   margin: 0 auto;
   padding: 0.75rem 2rem;
   font-size: 1rem;
@@ -163,64 +163,89 @@ button[type="submit"] {
   cursor: pointer;
 }
 
-button[type="submit"]:hover {
+.GCF-button[type="submit"]:hover {
   background-color: #1f375e;
 }
 
 @media (max-width: 600px) {
-  .medical-form {
-    padding: 1rem;
+  .GCF-medical-form {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
-  .signature-box {
-    height: 120px;
+  .GCF-form-header {
+    padding: 0.5rem 15px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+
+  .GCF-form-content {
+    padding: 0 15px 15px 15px;
+    max-height: calc(100vh - 150px);
+  }
+
+  .GCF-page-title {
+    font-size: 1.4rem;
+    margin: 0.5rem 0;
+  }
+
+  .GCF-subtitle {
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+  }
+
+  .GCF-logo {
+    max-width: 100px;
   }
 }
 
-.form-section {
+.GCF-form-section {
   margin-bottom: 2rem;
 }
 
-.form-row {
+.GCF-form-row {
   display: flex;
   flex-wrap: wrap;
   gap: 2rem;
   margin-bottom: 1.5rem;
 }
 
-.gform-group {
+.GCF-gform-group {
   flex: 1 1 45%;
   display: flex;
   flex-direction: column;
 }
 
-.gform-group.full-width {
+.GCF-gform-group.full-width {
   flex: 1 1 100%;
 }
 
-.gform-group label {
+.GCF-gform-group label {
   margin-bottom: 0.5rem;
   font-weight: 500;
-  display: inline !important;
+  display: inline;
 }
 
-.gform-group input,
-.gform-group textarea {
+.GCF-gform-group input,
+.GCF-gform-group textarea {
   padding: 0.5rem;
   font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
-  display: inline !important;
-  width: auto !important;
+  display: inline;
+  width: auto;
 }
 
-.radio-group {
+.GCF-radio-group {
   display: flex;
   gap: 1rem;
   margin-top: 0.5rem;
 }
 
-.gst-form-grid {
+.GCF-gst-form-grid {
   max-width: 100%;
   width: 100%;
   margin: 0 auto;
@@ -230,11 +255,11 @@ button[type="submit"]:hover {
   gap: 1rem;
 }
 
-section {
+.GCF-section {
   margin-bottom: 2rem;
 }
 
-h2 {
+.GCF-h2 {
   font-size: 1.2rem;
   margin-bottom: 1rem;
   color: #1f3c88;
@@ -242,23 +267,23 @@ h2 {
   padding-bottom: 0.25rem;
 }
 
-.form-row {
+.GCF-form-row {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
 
-.form-row label {
+.GCF-form-row label {
   flex: 1;
   display: flex;
   flex-direction: column;
   font-size: 0.95rem;
 }
 
-.form-row input,
-.form-row textarea,
-.form-row select {
+.GCF-form-row input,
+.GCF-form-row textarea,
+.GCF-form-row select {
   padding: 0.5rem;
   font-size: 0.95rem;
   border: 1px solid #ccc;
@@ -267,19 +292,19 @@ h2 {
   box-sizing: border-box;
 }
 
-.signature-container {
+.GCF-signature-container {
   border: 1px solid #ccc;
   width: 100%;
   height: 120px;
   margin-top: 0.5rem;
 }
 
-.signature-pad {
+.GCF-signature-pad {
   width: 100%;
   height: 100px;
 }
 
-button {
+.GCF-button {
   padding: 0.5rem 1rem;
   margin-top: 1rem;
   background-color: #1f3c88;
@@ -289,68 +314,68 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+.GCF-button:hover {
   background-color: #3952a3;
 }
 
-.confrmwrp {
+.GCF-confrmwrp {
   max-width: 800px; 
   margin: 0 auto;
   padding: 30px;
 }
 
-.cnfrmcellwrp {
+.GCF-cnfrmcellwrp {
   margin: 0 0 20px;
   font-size: 14px; 
 }
 
-.cnfrmcellwrp label {
+.GCF-cnfrmcellwrp label {
   margin: 0 0 10px;
   display: block;
   font-weight: bold;
 }
 
-.cnfrmcellwrp input[type='checkbox'] {
+.GCF-cnfrmcellwrp input[type='checkbox'] {
   display: inline-block;
   margin: 0 7px 0 0;
 }
 
 @media (max-width: 600px) {
-  .medical-form {
+  .GCF-medical-form {
     padding: 0;
     margin: 0;
     border-radius: 0;
     box-shadow: none;
   }
   
-  .form-header {
+  .GCF-form-header {
     padding: 0.5rem 15px;
     position: sticky;
     top: 0;
     z-index: 1000;
   }
   
-  .form-content {
+  .GCF-form-content {
     padding: 0 15px 15px 15px;
     max-height: calc(100vh - 150px);
   }
   
-  .page-title {
+  .GCF-page-title {
     font-size: 1.4rem;
     margin: 0.5rem 0;
   }
   
-  .subtitle {
+  .GCF-subtitle {
     font-size: 0.85rem;
     padding: 0 0.5rem;
   }
   
-  .logo {
+  .GCF-logo {
     max-width: 100px;
   }
 }
 
-.section-title {
+.GCF-section-title {
   font-size: 1.3rem;
   font-weight: bold;
   color: #2b4c7e;
@@ -358,4 +383,3 @@ button:hover {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #d0d0d0;
 }
- */

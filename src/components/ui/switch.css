@@ -1,4 +1,4 @@
-/* :root {
+:root {
   --primary-color: #3b82f6;
   --input-bg: #e5e7eb;
   --background-color: #ffffff;
@@ -9,7 +9,7 @@
   --border-radius: 9999px;
 }
 
-.switch {
+.AdvFormBuilder-switch {
   display: inline-flex;
   height: 1.5rem;
   width: 2.75rem;
@@ -24,21 +24,21 @@
   position: relative;
 }
 
-.switch:focus-visible {
+.AdvFormBuilder-switch:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring-color), 0 0 0 4px var(--ring-offset);
 }
 
-.switch[data-state="checked"] {
+.AdvFormBuilder-switch[data-state="checked"] {
   background-color: var(--primary-color);
 }
 
-.switch[data-disabled] {
+.AdvFormBuilder-switch[data-disabled] {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-.switch-thumb {
+.AdvFormBuilder-switch-thumb {
   pointer-events: none;
   display: block;
   height: 1.25rem;
@@ -50,17 +50,17 @@
   transform: translateX(0);
 }
 
-.switch[data-state="checked"] .switch-thumb {
+.AdvFormBuilder-switch[data-state="checked"] .AdvFormBuilder-switch-thumb {
   transform: translateX(1.25rem);
-  animation: toggle-bounce 0.3s ease;
+  animation: AdvFormBuilder-toggle-bounce 0.3s ease;
 }
 
-@keyframes toggle-bounce {
+@keyframes AdvFormBuilder-toggle-bounce {
   0% { transform: translateX(0); }
   50% { transform: translateX(1.5rem); }
   100% { transform: translateX(1.25rem); }
 }
 
-.switch:hover:not([data-disabled]) {
+.AdvFormBuilder-switch:hover:not([data-disabled]) {
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
-} */
+}

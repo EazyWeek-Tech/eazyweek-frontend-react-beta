@@ -1,14 +1,9 @@
-import React from 'react'
-
-
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import './LaserHairReductionTreatmentForm.css';
 
-
 const LaserSessionForm = () => {
-  
-          const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState({
     chiefComplaint: '',
     diagnosis: 'Excessive Hair Growth on the Skin',
     treatmentPlan: 'Laser Hair Reduction',
@@ -128,11 +123,22 @@ const LaserSessionForm = () => {
   };
 
   return (
-    <div className="form-container-1">
-      <div ref={formRef} className="forms">
+    <div className="LHRTF-form-container-1">
+      <div ref={formRef} className="LHRTF-forms">
         <h1>LASER HAIR REDUCTION</h1>
         <h1>TREATMENT FORM</h1>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+          <div className="LHRTF-form-group">
+            <label>Patient name:</label>
+            <input
+              type="text"
+              name="patient"
+              value={formData.patient}
+              onChange={handleInputChange}
+              placeholder="Enter patient name"
+            />
+            {errors.patient && <span className="LHRTF-error-message">{errors.patient}</span>}
+          </div>
           <div className="form-group">
             <label>Patient name:</label>
             <input
@@ -144,7 +150,7 @@ const LaserSessionForm = () => {
             />
             {errors.patient && <span className="error-message">{errors.patient}</span>}
           </div>
-          <div className="form-group">
+          <div className="LHRTF-form-group">
             <label>DOB:</label>
             <input
               type="date"
@@ -152,9 +158,9 @@ const LaserSessionForm = () => {
               value={formData.dob}
               onChange={handleInputChange}
             />
-            {errors.dob && <span className="error-message">{errors.dob}</span>}
+            {errors.dob && <span className="LHRTF-error-message">{errors.dob}</span>}
           </div>
-          <div className="form-group">
+          <div className="LHRTF-form-group">
             <label>Skin Type:</label>
             <select
               name="skinType"
@@ -169,9 +175,9 @@ const LaserSessionForm = () => {
               <option value="V">V</option>
               <option value="VI">VI</option>
             </select>
-            {errors.skinType && <span className="error-message">{errors.skinType}</span>}
+            {errors.skinType && <span className="LHRTF-error-message">{errors.skinType}</span>}
           </div>
-          <div className="form-group">
+          <div className="LHRTF-form-group">
             <label>Sex:</label>
             <select
               name="sex"
@@ -183,11 +189,11 @@ const LaserSessionForm = () => {
               <option value="Female">Female</option>
               <option value="Other">Other</option>
             </select>
-            {errors.sex && <span className="error-message">{errors.sex}</span>}
+            {errors.sex && <span className="LHRTF-error-message">{errors.sex}</span>}
           </div>
         </div>
 
-        <div className="form-group">
+        <div className="LHRTF-form-group">
           <label>Chief Complaint:</label>
           <input
             type="text"
@@ -198,29 +204,29 @@ const LaserSessionForm = () => {
           />
         </div>
 
-        <div className="form-group">
+        <div className="LHRTF-form-group">
           <label>Diagnosis:</label>
           <input
             type="text"
             name="diagnosis"
             value={formData.diagnosis}
             onChange={handleInputChange}
-            
+
           />
         </div>
 
-        <div className="form-group">
+        <div className="LHRTF-form-group">
           <label>Treatment Plan:</label>
           <input
             type="text"
             name="treatmentPlan"
             value={formData.treatmentPlan}
             onChange={handleInputChange}
-            
+
           />
         </div>
 
-        <table className="treatment-table">
+        <table className="LHRTF-treatment-table">
           <thead>
             <tr>
               <th>Service Date</th>
@@ -317,7 +323,7 @@ const LaserSessionForm = () => {
           Add Treatment Session
         </button>
 
-        <div className="form-group">
+        <div className="LHRTF-form-group">
           <label>NOTES:</label>
           <textarea
             name="notes"
@@ -327,7 +333,7 @@ const LaserSessionForm = () => {
           ></textarea>
         </div>
 <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="LHRTF-form-group" style={{ flex: 1 }}>
             <label>Provider Name : </label>
             <input
               type="text"
@@ -337,7 +343,7 @@ const LaserSessionForm = () => {
               placeholder="Enter provider name"
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="LHRTF-form-group" style={{ flex: 1 }}>
             <label>Signature Date:</label>
             <input
               type="date"
@@ -347,24 +353,24 @@ const LaserSessionForm = () => {
             />
           </div>
         </div>
-        <div className="signature-section">
+        <div className="LHRTF-signature-section">
           <h2>Provider Signature:</h2>
-         
-          <div className="signature-pad">
+
+          <div className="LHRTF-signature-pad">
             <SignatureCanvas
               ref={providerSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'LHRTF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, providerSignature: providerSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearProviderSignature}>
+          <button type="button" className="LHRTF-clear-signature-btn" onClick={clearProviderSignature}>
             Clear Signature
           </button>
-          {errors.providerSignature && <span className="error-message">{errors.providerSignature}</span>}
+          {errors.providerSignature && <span className="LHRTF-error-message">{errors.providerSignature}</span>}
         </div>
 
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="LHRTF-form-group" style={{ flex: 1 }}>
             <label>Medical Director Name </label>
             <input
               type="text"
@@ -374,7 +380,7 @@ const LaserSessionForm = () => {
               placeholder="Enter medical director name"
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="LHRTF-form-group" style={{ flex: 1 }}>
             <label>Signature Date:</label>
             <input
               type="date"
@@ -385,55 +391,55 @@ const LaserSessionForm = () => {
           </div>
         </div>
 
-        <div className="signature-section">
+        <div className="LHRTF-signature-section">
           <h2>Medical Director Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="LHRTF-signature-pad">
             <SignatureCanvas
               ref={medicalDirectorSigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'LHRTF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, medicalDirectorSignature: medicalDirectorSigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearMedicalDirectorSignature}>
+          <button type="button" className="LHRTF-clear-signature-btn" onClick={clearMedicalDirectorSignature}>
             Clear Signature
           </button>
-          {errors.medicalDirectorSignature && <span className="error-message">{errors.medicalDirectorSignature}</span>}
+          {errors.medicalDirectorSignature && <span className="LHRTF-error-message">{errors.medicalDirectorSignature}</span>}
         </div>
 
         
 
-       <div className="photo-upload-container">
-      <h2 className="title">PHOTOS UPLOADS</h2>
+       <div className="LHRTF-photo-upload-container">
+      <h2 className="LHRTF-title">PHOTOS UPLOADS</h2>
 
       {/* BEFORE UPLOAD */}
-      <div className="photo-upload-section">
+      <div className="LHRTF-photo-upload-section">
         <h3>BEFORE</h3>
-        <p className="label">File Upload</p>
+        <p className="LHRTF-label">File Upload</p>
 
-        <div className="upload-box">
-         
+        <div className="LHRTF-upload-box">
+
           <span>
             Drop files to attach, or{' '}
-            <label className="browse">
+            <label className="LHRTF-browse">
               browse
               <input
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'beforePhotos')}
-                className="file-input"
+                className="LHRTF-file-input"
               />
             </label>
           </span>
         </div>
 
-        <p className="info-text">
+        <p className="LHRTF-info-text">
           Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
         </p>
 
         {formData.beforePhotos.length > 0 && (
-          <div className="file-list">
+          <div className="LHRTF-file-list">
             <ul>
               {formData.beforePhotos.map((file, index) => (
                 <li key={index}>{file.name}</li>
@@ -444,32 +450,32 @@ const LaserSessionForm = () => {
       </div>
 
       {/* AFTER UPLOAD */}
-      <div className="photo-upload-section">
+      <div className="LHRTF-photo-upload-section">
         <h3>AFTER</h3>
-        <p className="label">File Upload</p>
+        <p className="LHRTF-label">File Upload</p>
 
-        <div className="upload-box">
+        <div className="LHRTF-upload-box">
           <span>
             Drop files to attach, or{' '}
-            <label className="browse">
+            <label className="LHRTF-browse">
               browse
               <input
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'afterPhotos')}
-                className="file-input"
+                className="LHRTF-file-input"
               />
             </label>
           </span>
         </div>
 
-        <p className="info-text">
+        <p className="LHRTF-info-text">
           Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If the form has more than a total of 20 files, the form may be slow to load.
         </p>
 
         {formData.afterPhotos.length > 0 && (
-          <div className="file-list">
+          <div className="LHRTF-file-list">
             <ul>
               {formData.afterPhotos.map((file, index) => (
                 <li key={index}>{file.name}</li>
@@ -480,9 +486,9 @@ const LaserSessionForm = () => {
       </div>
     </div>
 
-        <div className="button-group">
-          
-          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+        <div className="LHRTF-button-group">
+
+          <button type="submit" className="LHRTF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
         </div>
@@ -492,6 +498,7 @@ const LaserSessionForm = () => {
 }
 
 export default LaserSessionForm ;
+
 
 
 

@@ -58,7 +58,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }) => {
   };
 
   return (
-    <Card className="p-6 border-builder-border shadow-soft">
+    <Card className="p-6 FFP-AdvFormBuilder-border AdvFormBuilder-shadow-soft">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-primary" />
@@ -77,8 +77,8 @@ export const StepManager = ({ steps, fields, onUpdateSteps }) => {
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className={`border border-builder-border rounded-lg p-3 bg-card transition-all ${
-                        snapshot.isDragging ? "shadow-builder rotate-1" : "hover:shadow-soft"
+                      className={`FFP-AdvFormBuilder-border rounded-lg p-3 bg-card transition-all ${
+                        snapshot.isDragging ? "AdvFormBuilder-shadow-builder rotate-1" : "hover:AdvFormBuilder-shadow-soft"
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -127,7 +127,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }) => {
                       </div>
                       
                       {fields.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-builder-border">
+                        <div className="mt-3 pt-3 border-t FFP-AdvFormBuilder-border">
                           <Label className="text-xs text-muted-foreground">Assigned Fields:</Label>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {step.fields.map(fieldId => {
@@ -165,7 +165,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }) => {
       </Button>
       
       {fields.length > 0 && (
-        <div className="mt-4 p-3 bg-builder-hover rounded-lg">
+        <div className="mt-4 p-3 AdvFormBuilder-bg-hover rounded-lg">
           <Label className="text-xs font-medium">Quick Field Assignment:</Label>
           <div className="grid grid-cols-1 gap-1 mt-2">
             {fields.map(field => {
@@ -176,7 +176,7 @@ export const StepManager = ({ steps, fields, onUpdateSteps }) => {
                   <select
                     value={currentStep?.id || ""}
                     onChange={(e) => moveFieldToStep(field.id, e.target.value)}
-                    className="ml-2 px-1 py-0.5 border border-builder-border rounded text-xs"
+                    className="ml-2 px-1 py-0.5 FFP-AdvFormBuilder-border rounded text-xs"
                   >
                     {steps.map((step, index) => (
                       <option key={step.id} value={step.id}>

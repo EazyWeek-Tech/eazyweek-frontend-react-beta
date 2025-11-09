@@ -70,20 +70,20 @@ const LaserConsentForm = () => {
   };
 
   if (submitted) {
-    return (
-      <div className="success-message">
-        <h2>Consent Form Submitted Successfully!</h2>
-        <p>Thank you for your consent.</p>
-        <button onClick={() => setSubmitted(false)}>
-          Back to Form
-        </button>
-      </div>
-    );
+  return (
+    <div className="LSCF-success-message">
+      <h2>Consent Form Submitted Successfully!</h2>
+      <p>Thank you for your consent.</p>
+      <button onClick={() => setSubmitted(false)}>
+        Back to Form
+      </button>
+    </div>
+  );
   }
 
   return (
-    <div className="consent-form-container">
-      <div ref={formRef} className="consent-form">
+    <div className="LSCF-consent-form-container">
+      <div ref={formRef} className="LSCF-consent-form">
         <h1>Consent for Laser Session</h1>
 
         <div>
@@ -125,7 +125,7 @@ const LaserConsentForm = () => {
 
         <form onSubmit={handleSubmit}>
           <div>
-            <label className="checkbox-label">
+            <label className="LSCF-checkbox-label">
               <input
                 type="checkbox"
                 name="acknowledged"
@@ -134,10 +134,10 @@ const LaserConsentForm = () => {
               />
               I have read and understood the information provided above regarding the laser procedure, its risks, and post-treatment care.
             </label>
-            {errors.acknowledged && <span className="error-message">{errors.acknowledged}</span>}
+            {errors.acknowledged && <span className="LSCF-error-message">{errors.acknowledged}</span>}
           </div>
 
-          <div className="form-group">
+          <div className="LSCF-form-group">
             <label>Client Name *</label>
             <input
               type="text"
@@ -146,10 +146,10 @@ const LaserConsentForm = () => {
               onChange={handleInputChange}
               placeholder="Enter your full name"
             />
-            {errors.clientName && <span className="error-message">{errors.clientName}</span>}
+            {errors.clientName && <span className="LSCF-error-message">{errors.clientName}</span>}
           </div>
 
-          <div className="form-group">
+          <div className="LSCF-form-group">
             <label>Date *</label>
             <input
               type="date"
@@ -157,45 +157,45 @@ const LaserConsentForm = () => {
               value={formData.date}
               onChange={handleInputChange}
             />
-            {errors.date && <span className="error-message">{errors.date}</span>}
+            {errors.date && <span className="LSCF-error-message">{errors.date}</span>}
           </div>
 
-          <div className="signature-section">
+          <div className="LSCF-signature-section">
             <label>Digital Signature *</label>
-            <div className="signature-pad">
+            <div className="LSCF-signature-pad">
               <SignatureCanvas
                 ref={sigCanvas}
-                canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+                canvasProps={{ width: 500, height: 200, className: 'LSCF-sigCanvas' }}
                 onEnd={() => setSignature(sigCanvas.current.toDataURL())}
               />
             </div>
             <button
               type="button"
-              className="clear-signature-btn"
+              className="LSCF-clear-signature-btn"
               onClick={clearSignature}
             >
               Clear Signature
             </button>
-            {errors.signature && <span className="error-message">{errors.signature}</span>}
+            {errors.signature && <span className="LSCF-error-message">{errors.signature}</span>}
           </div>
 
-          <div className="button-group">
+          <div className="LSCF-button-group">
             <button
               type="submit"
-              className="submit-btn"
+              className="LSCF-submit-btn"
             >
               Submit Consent
             </button>
             <button
               type="button"
-              className="print-btn"
+              className="LSCF-print-btn"
               onClick={handlePrint}
             >
               Print Form
             </button>
             <button
               type="button"
-              className="download-btn"
+              className="LSCF-download-btn"
               onClick={handleDownloadPDF}
             >
               Download PDF

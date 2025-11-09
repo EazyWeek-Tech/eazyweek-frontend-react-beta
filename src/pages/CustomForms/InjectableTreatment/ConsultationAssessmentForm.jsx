@@ -196,11 +196,11 @@ const ConsultationAssessmentForm = () => {
  
 
   return (
-    <div className="form-container-1">
-      <div ref={formRef} className="forms">
+    <div className="CAF-form-container-1">
+      <div ref={formRef} className="CAF-forms">
         <h1>Consultation Assessment Form</h1>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Date of appointment:</label>
           <input
             type="date"
@@ -208,13 +208,13 @@ const ConsultationAssessmentForm = () => {
             value={formData.dateOfAppointment}
             onChange={handleInputChange}
           />
-          {errors.dateOfAppointment && <span className="error-message">{errors.dateOfAppointment}</span>}
+          {errors.dateOfAppointment && <span className="CAF-error-message">{errors.dateOfAppointment}</span>}
         </div>
 
-        <div className="form-section">
-          <label className="section-label">Changes in meds:</label>
-          <div className="radio-row">
-            <label className="radio-label">
+        <div className="CAF-form-section">
+          <label className="CAF-section-label">Changes in meds:</label>
+          <div className="CAF-radio-row">
+            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInMeds"
@@ -225,7 +225,7 @@ const ConsultationAssessmentForm = () => {
               <span>Yes</span>
             </label>
 
-            <label className="radio-label">
+            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInMeds"
@@ -237,14 +237,14 @@ const ConsultationAssessmentForm = () => {
             </label>
           </div>
           {errors.changesInMeds && (
-            <span className="error-message">{errors.changesInMeds}</span>
+            <span className="CAF-error-message">{errors.changesInMeds}</span>
           )}
         </div>
 
-        <div className="form-section">
-          <label className="section-label">Changes in health:</label>
-          <div className="radio-row">
-            <label className="radio-label">
+        <div className="CAF-form-section">
+          <label className="CAF-section-label">Changes in health:</label>
+          <div className="CAF-radio-row">
+            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInHealth"
@@ -255,7 +255,7 @@ const ConsultationAssessmentForm = () => {
               <span>Yes</span>
             </label>
 
-            <label className="radio-label">
+            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInHealth"
@@ -267,21 +267,21 @@ const ConsultationAssessmentForm = () => {
             </label>
           </div>
           {errors.changesInHealth && (
-            <span className="error-message">{errors.changesInHealth}</span>
+            <span className="CAF-error-message">{errors.changesInHealth}</span>
           )}
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Chief Complaint:</label>
           <input
             name="chiefComplaint"
             value={formData.chiefComplaint}
             onChange={handleInputChange}
-            
+
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Diagnosis:</label>
           <input
             name="diagnosis"
@@ -290,7 +290,7 @@ const ConsultationAssessmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Treatment Plan:</label>
           <input
             name="treatmentPlan"
@@ -299,7 +299,7 @@ const ConsultationAssessmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Subjective Notes:</label>
           <input
             name="subjectiveNotes"
@@ -308,7 +308,7 @@ const ConsultationAssessmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Objective Notes:</label>
           <input
             name="objectiveNotes"
@@ -317,7 +317,7 @@ const ConsultationAssessmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Assessment Notes:</label>
           <input
             name="assessmentNotes"
@@ -326,7 +326,7 @@ const ConsultationAssessmentForm = () => {
           ></input>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Planning Notes:</label>
           <input
             name="planningNotes"
@@ -336,19 +336,19 @@ const ConsultationAssessmentForm = () => {
         </div>
 
 
-        <div className="photo-upload-container">
-  <h2 className="title">PHOTOS UPLOADS</h2>
+        <div className="CAF-photo-upload-container">
+  <h2 className="CAF-title">PHOTOS UPLOADS</h2>
 
   {/* BEFORE Section */}
-  <div className="photo-upload-section">
-    <h3 className="label">BEFORE</h3>
+  <div className="CAF-photo-upload-section">
+    <h3 className="CAF-label">BEFORE</h3>
 
-    <div className="upload-box">
-      <div className="upload-icon">☁️</div>
+    <div className="CAF-upload-box">
+      <div className="CAF-upload-icon">☁️</div>
       <p>
         Drop files to attach, or{' '}
         <span
-          className="browse"
+          className="CAF-browse"
           onClick={() => document.getElementById('beforeUpload').click()}
         >
           browse
@@ -360,17 +360,17 @@ const ConsultationAssessmentForm = () => {
         multiple
         accept=".jpg,.png,.jpeg,.pdf"
         onChange={(e) => handleFileChange(e, 'beforePhotos')}
-        className="file-input"
+        className="CAF-file-input"
       />
     </div>
 
-    <p className="info-text">
+    <p className="CAF-info-text">
       Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
       the form has more than a total of 20 files, the form may be slow to load.
     </p>
 
     {formData.beforePhotos.length > 0 && (
-      <div className="file-list">
+      <div className="CAF-file-list">
         <ul>
           {formData.beforePhotos.map((file, index) => (
             <li key={index}>{file.name}</li>
@@ -381,15 +381,15 @@ const ConsultationAssessmentForm = () => {
   </div>
 
   {/* AFTER Section */}
-  <div className="photo-upload-section">
-    <h3 className="label">AFTER</h3>
+  <div className="CAF-photo-upload-section">
+    <h3 className="CAF-label">AFTER</h3>
 
-    <div className="upload-box">
-      <div className="upload-icon">☁️</div>
+    <div className="CAF-upload-box">
+      <div className="CAF-upload-icon">☁️</div>
       <p>
         Drop files to attach, or{' '}
         <span
-          className="browse"
+          className="CAF-browse"
           onClick={() => document.getElementById('afterUpload').click()}
         >
           browse
@@ -401,17 +401,17 @@ const ConsultationAssessmentForm = () => {
         multiple
         accept=".jpg,.png,.jpeg,.pdf"
         onChange={(e) => handleFileChange(e, 'afterPhotos')}
-        className="file-input"
+        className="CAF-file-input"
       />
     </div>
 
-    <p className="info-text">
+    <p className="CAF-info-text">
       Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
       the form has more than a total of 20 files, the form may be slow to load.
     </p>
 
     {formData.afterPhotos.length > 0 && (
-      <div className="file-list">
+      <div className="CAF-file-list">
         <ul>
           {formData.afterPhotos.map((file, index) => (
             <li key={index}>{file.name}</li>
@@ -422,14 +422,14 @@ const ConsultationAssessmentForm = () => {
   </div>
 </div>
 
-        <div className="face-mapper-section">
-          <div className="face-mapper-container">
-            <img src="/images/facediagram.jpg" alt="Face Diagram" className="face-diagram" />
+        <div className="CAF-face-mapper-section">
+          <div className="CAF-face-mapper-container">
+            <img src="/images/facediagram.jpg" alt="Face Diagram" className="CAF-face-diagram" />
             <canvas
               ref={faceCanvas}
               width={700}
               height={700}
-              className="face-canvas"
+              className="CAF-face-canvas"
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
@@ -458,7 +458,7 @@ const ConsultationAssessmentForm = () => {
               />
             ))}
           </div>
-          <div className="face-mapper-tools">
+          <div className="CAF-face-mapper-tools">
             <label>
               Tool:
               <select value={tool} onChange={(e) => setTool(e.target.value)}>
@@ -486,13 +486,13 @@ const ConsultationAssessmentForm = () => {
                 onChange={(e) => setBrushSize(e.target.value)}
               />
             </label>
-            <button type="button" className="clear-face-mapper-btn" onClick={clearFaceMapper}>
+            <button type="button" className="CAF-clear-face-mapper-btn" onClick={clearFaceMapper}>
               Clear Drawing
             </button>
           </div>
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Provider Name:</label>
           <input
             type="text"
@@ -501,26 +501,26 @@ const ConsultationAssessmentForm = () => {
             onChange={handleInputChange}
             placeholder="Enter provider name"
           />
-          {errors.providerName && <span className="error-message">{errors.providerName}</span>}
+          {errors.providerName && <span className="CAF-error-message">{errors.providerName}</span>}
         </div>
 
-        <div className="signature-section">
+        <div className="CAF-signature-section">
           <h2>Signature:</h2>
           <p>Sign above</p>
-          <div className="signature-pad">
+          <div className="CAF-signature-pad">
             <SignatureCanvas
               ref={sigCanvas}
-              canvasProps={{ width: 500, height: 200, className: 'sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'CAF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, providerSignature: sigCanvas.current.toDataURL() }))}
             />
           </div>
-          <button type="button" className="clear-signature-btn" onClick={clearSignature}>
+          <button type="button" className="CAF-clear-signature-btn" onClick={clearSignature}>
             Clear Signature
           </button>
-          {errors.providerSignature && <span className="error-message">{errors.providerSignature}</span>}
+          {errors.providerSignature && <span className="CAF-error-message">{errors.providerSignature}</span>}
         </div>
 
-        <div className="form-group">
+        <div className="CAF-form-group">
           <label>Signature Date:</label>
           <input
             type="date"
@@ -528,12 +528,12 @@ const ConsultationAssessmentForm = () => {
             value={formData.signatureDate}
             onChange={handleInputChange}
           />
-          {errors.signatureDate && <span className="error-message">{errors.signatureDate}</span>}
+          {errors.signatureDate && <span className="CAF-error-message">{errors.signatureDate}</span>}
         </div>
 
-        <div className="button-group">
-         
-          <button type="submit" className="submit-btn" onClick={handleSubmit}>
+        <div className="CAF-button-group">
+
+          <button type="submit" className="CAF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
         </div>
