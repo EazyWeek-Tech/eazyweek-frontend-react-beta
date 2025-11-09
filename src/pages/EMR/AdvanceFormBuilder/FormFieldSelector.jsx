@@ -248,13 +248,13 @@ const fieldTypes = [
 export const FormFieldSelector = ({ onAddField }) => {
   if (!fieldTypes.length) {
     return (
-      <div className="form-field-selector-error">No field types available.</div>
+      <div className="FFS-form-field-selector-error">No field types available.</div>
     );
   }
 
   return (
-    <Card className="form-field-selector-card p-6 border-builder-border shadow-md sticky top-6">
-      <h1 className="form-field-selector-title text-lg font-semibold mb-4">
+    <Card className="FFS-form-field-selector-card p-6 FFP-AdvFormBuilder-border AdvFormBuilder-shadow-md sticky top-6">
+      <h1 className="FFS-form-field-selector-title text-lg font-semibold mb-4">
         Field Types
       </h1>
       <Droppable droppableId="field-selector">
@@ -262,7 +262,7 @@ export const FormFieldSelector = ({ onAddField }) => {
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="form-field-selector-list space-y-2"
+            className="FFS-form-field-selector-list space-y-2"
           >
             {fieldTypes.map(({ type, label, icon: Icon, description }, index) => (
               <Draggable key={type} draggableId={`selector-${type}`} index={index}>
@@ -271,17 +271,17 @@ export const FormFieldSelector = ({ onAddField }) => {
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    className={`field-button w-full justify-start h-auto p-3 hover:bg-builder-hover transition-all duration-200 group selector-button ${snapshot.isDragging ? "dragging" : ""}`}
+                    className={`FFS-field-button w-full justify-start h-auto p-3 hover:AdvFormBuilder-bg-hover transition-all duration-200 group FFS-selector-button ${snapshot.isDragging ? "dragging" : ""}`}
                     onClick={() => onAddField(type)}
                     aria-label={`Add ${label} field`}
                   >
-                    <div className="field-button-content">
-                      <div className="field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                        <Icon className="field-icon w-4 h-4 text-primary" />
+                    <div className="FFS-field-button-content">
+                      <div className="FFS-field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                        <Icon className="FFS-field-icon w-4 h-4 text-primary" />
                       </div>
-                      <div className="field-text text-left">
-                        <div className="field-label font-medium text-sm">{label}</div>
-                        <div className="field-description text-xs text-muted-foreground">
+                      <div className="FFS-field-text text-left">
+                        <div className="FFS-field-label font-medium text-sm">{label}</div>
+                        <div className="FFS-field-description text-xs text-muted-foreground">
                           {description}
                         </div>
                       </div>

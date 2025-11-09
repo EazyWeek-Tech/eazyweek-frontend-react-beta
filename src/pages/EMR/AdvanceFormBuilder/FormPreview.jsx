@@ -137,12 +137,12 @@ export const FormPreview = ({ config }) => {
 
   if (config.fields.length === 0) {
     return (
-      <div className="form-preview-empty">
-        <div className="form-preview-empty-icon">
+      <div className="FP-form-preview-empty">
+        <div className="FP-form-preview-empty-icon">
           <FileText className="w-8 h-8 text-primary" />
         </div>
-        <h3 className="form-preview-empty-title">No fields to preview</h3>
-        <p className="form-preview-empty-description">Add some fields to your form to see the preview</p>
+        <h3 className="FP-form-preview-empty-title">No fields to preview</h3>
+        <p className="FP-form-preview-empty-description">Add some fields to your form to see the preview</p>
       </div>
     );
   }
@@ -151,52 +151,52 @@ export const FormPreview = ({ config }) => {
   const currentStepInfo = config.steps[currentStep];
 
   return (
-    <div className="form-preview-container">
-      <div className="form-preview-card">
-        <div className="form-preview-header">
-          <h2 className="form-preview-title">{config.title}</h2>
-          {config.description && <p className="form-preview-description">{config.description}</p>}
+    <div className="FP-form-preview-container">
+      <div className="FP-form-preview-card">
+        <div className="FP-form-preview-header">
+          <h2 className="FP-form-preview-title">{config.title}</h2>
+          {config.description && <p className="FP-form-preview-description">{config.description}</p>}
           {config.isMultiStep && (
-            <div className="form-preview-progress">
-              <div className="form-preview-progress-info">
-                <span className="form-preview-progress-step">Step {currentStep + 1} of {config.steps.length}</span>
-                <span className="form-preview-progress-percentage">{Math.round(((currentStep + 1) / config.steps.length) * 100)}% Complete</span>
+            <div className="FP-form-preview-progress">
+              <div className="FP-form-preview-progress-info">
+                <span className="FP-form-preview-progress-step">Step {currentStep + 1} of {config.steps.length}</span>
+                <span className="FP-form-preview-progress-percentage">{Math.round(((currentStep + 1) / config.steps.length) * 100)}% Complete</span>
               </div>
-              <div className="form-preview-progress-bar">
+              <div className="FP-form-preview-progress-bar">
                 <div
-                  className="form-preview-progress-fill"
+                  className="FP-form-preview-progress-fill"
                   style={{ width: `${((currentStep + 1) / config.steps.length) * 100}%` }}
                 />
               </div>
               {currentStepInfo && (
-                <div className="form-preview-step-info">
-                  <h3 className="form-preview-step-title">{currentStepInfo.title}</h3>
-                  {currentStepInfo.description && <p className="form-preview-step-description">{currentStepInfo.description}</p>}
+                <div className="FP-form-preview-step-info">
+                  <h3 className="FP-form-preview-step-title">{currentStepInfo.title}</h3>
+                  {currentStepInfo.description && <p className="FP-form-preview-step-description">{currentStepInfo.description}</p>}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <form key={formKey} onSubmit={handleSubmit} className="form-preview-form">
-          <div className="form-preview-fields">
+        <form key={formKey} onSubmit={handleSubmit} className="FP-form-preview-form">
+          <div className="FP-form-preview-fields">
             {currentStepFields.map((field) => (
-              <div key={field.id} className="form-preview-field">
-                {/* <Label htmlFor={field.id} className="form-preview-label">
+              <div key={field.id} className="FP-form-preview-field">
+                {/* <Label htmlFor={field.id} className="FP-form-preview-label">
                   {field.label}
-                  {field.required && <span className="form-preview-required">*</span>}
+                  {field.required && <span className="FP-form-preview-required">*</span>}
                 </Label> */}
-                <div className="form-preview-input">{renderField(field)}</div>
+                <div className="FP-form-preview-input">{renderField(field)}</div>
               </div>
             ))}
           </div>
-          <div className="form-preview-actions">
+          <div className="FP-form-preview-actions">
             {config.isMultiStep && currentStep > 0 ? (
-              <Button type="button" variant="outline" onClick={goToPreviousStep} className="form-preview-btn-previous">
+              <Button type="button" variant="outline" onClick={goToPreviousStep} className="FP-form-preview-btn-previous">
                 Previous
               </Button>
             ) : <div />}
-            <Button type="submit" className="form-preview-btn-submit">
+            <Button type="submit" className="FP-form-preview-btn-submit">
               {config.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
             </Button>
           </div>

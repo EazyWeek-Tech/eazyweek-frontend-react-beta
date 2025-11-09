@@ -54,14 +54,14 @@ export const ConditionalRuleEditor = ({ field, availableFields, onUpdateRules })
   ];
 
   return (
-    <div className="space-y-4 field-properties">
+    <div className="space-y-4 FFP-field-properties">
       <div className="flex items-center gap-2">
         <Eye className="w-4 h-4 text-muted-foreground iconright" />
         <Label className="text-sm font-medium">Show this field when:</Label>
       </div>
 
       {rules.length === 0 ? (
-        <div className="text-center p-4 border border-dashed border-builder-border rounded-lg icon">
+        <div className="text-center p-4 border border-dashed FFP-border-builder-border rounded-lg icon">
           <EyeOff className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground mb-3">
             No conditional rules set. Field is always visible.
@@ -76,7 +76,7 @@ export const ConditionalRuleEditor = ({ field, availableFields, onUpdateRules })
           {rules.map((rule, index) => (
             <div
               key={index}
-              className="border border-builder-border rounded-lg p-3 animate-fade-in"
+              className="FFP-border-builder-border rounded-lg p-3 animate-fade-in"
             >
               <div className="flex items-center justify-between mb-3">
                 <Badge variant="outline" className="text-xs">
@@ -152,7 +152,7 @@ export const ConditionalRuleEditor = ({ field, availableFields, onUpdateRules })
       )}
 
       {rules.length > 0 && (
-        <div className="text-xs text-muted-foreground bg-builder-hover p-2 rounded">
+        <div className="text-xs text-muted-foreground .FFP-AdvFormBuilder-bg-hover p-2 rounded">
           💡 All rules must be satisfied for the field to be visible
         </div>
       )}

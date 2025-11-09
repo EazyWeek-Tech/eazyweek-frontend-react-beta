@@ -80,7 +80,10 @@ export const FormBuilder = () => {
   const exportForm = () => {
     const formData = {
       title: "Custom Form",
-      fields: fields.map(({ id, ...field }) => field),
+      fields: fields.map(field => {
+        const { id: _, ...rest } = field;
+        return rest;
+      }),
       created: new Date().toISOString(),
     };
 
@@ -165,7 +168,7 @@ export const FormBuilder = () => {
           </div>
 
           <div className="lg:col-span-2">
-            <Card className="p-6 min-h-[600px] border-builder-border shadow-soft">
+            <Card className="p-6 min-h-[600px] FFP-FFP-AdvFormBuilder-border AdvFormBuilder-shadow-soft">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Form Fields</h2>
                 {fields.length > 0 && (
@@ -177,7 +180,7 @@ export const FormBuilder = () => {
 
               {fields.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-96 text-center">
-                  <div className="w-24 h-24 rounded-full bg-builder-hover flex items-center justify-center mb-4">
+                  <div className="w-24 h-24 rounded-full FFP-AdvFormBuilder-bg-hover flex items-center justify-center mb-4">
                     <Plus className="w-8 h-8 text-primary" />
                   </div>
                   <h3 className="text-lg font-medium mb-2">No fields yet</h3>
@@ -200,10 +203,10 @@ export const FormBuilder = () => {
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className={`group relative border border-builder-border rounded-lg p-4 bg-card transition-all ${
+                                className={`group relative FFP-AdvFormBuilder-border rounded-lg p-4 bg-card transition-all ${
                                   snapshot.isDragging
-                                    ? "shadow-builder rotate-2"
-                                    : "hover:shadow-soft"
+                                    ? "AdvFormBuilder-shadow-builder rotate-2"
+                                    : "hover:AdvFormBuilder-shadow-soft"
                                 } ${
                                   selectedField?.id === field.id ? "border-primary" : ""
                                 }`}
@@ -253,7 +256,7 @@ export const FormBuilder = () => {
           </div>
 
           <div className="lg:col-span-1">
-            <Card className="p-6 border-builder-border shadow-soft sticky top-6">
+            <Card className="p-6 FFP-AdvFormBuilder-border AdvFormBuilder-shadow-soft sticky top-6">
               <h2 className="text-lg font-semibold mb-4">Field Properties</h2>
 
               {selectedField ? (
@@ -328,7 +331,7 @@ export const FormBuilder = () => {
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground">
-                  <div className="w-16 h-16 rounded-full bg-builder-hover flex items-center justify-center mx-auto mb-3">
+                  <div className="w-16 h-16 rounded-full AdvFormBuilder-bg-hover flex items-center justify-center mx-auto mb-3">
                     <GripVertical className="w-6 h-6" />
                   </div>
                   <p>Select a field to edit its properties</p>

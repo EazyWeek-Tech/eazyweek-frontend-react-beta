@@ -1,26 +1,20 @@
-/* :root {
-  --primary-color: #3b82f6; 
-  --primary-hover: #2563eb;
-  --background-color: #ffffff;
-  --card-background: #ffffff;
-  --border-color: #e5e7eb; 
-  --text-color: #374151;
-  --muted-text: #6b7280;
-  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-glow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --hover-bg: rgba(59, 130, 246, 0.1); 
-  --border-radius: 12px;
-  --transition-duration: 0.2s;
-} 
+:root {
+  --FFS-primary-color: #3b82f6; 
+  --FFS-primary-hover: #2563eb;
+  --FFS-background-color: #ffffff;
+  --FFS-card-background: #ffffff;
+  --FFS-border-color: #e5e7eb; 
+  --FFS-text-color: #374151;
+  --FFS-muted-text: #6b7280;
+  --FFS-shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --FFS-shadow-glow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --FFS-hover-bg: rgba(59, 130, 246, 0.1); 
+  --FFS-border-radius: 12px;
+  --FFS-transition-duration: 0.2s;
 } 
 
-.form-field-selector-card {
-  background: var(--card-background);
-  border: 1px solid var(--builder-border);
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.FFS-form-field-selector-card {
+  background: var(--FFS-card-background);
   border: 1px solid var(--builder-border);
   border-radius: 16px;
   padding: 1.5rem;
@@ -28,14 +22,12 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.form-field-selector-card:hover {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border-color:rgba(45, 50, 80, 0.1)
+.FFS-form-field-selector-card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border-color:rgba(45, 50, 80, 0.1)
 }
 
-.form-field-selector-title {
+.FFS-form-field-selector-title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -45,85 +37,84 @@
   gap: 0.5rem;
 }
 
-.form-field-selector-list {
+.FFS-form-field-selector-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem; 
 }
 
-.field-button {
+.FFS-field-button {
   border-radius: 8px;
   padding: 10px;
-  padding: 10px;
-  transition: all var(--transition-duration) ease, transform var(--transition-duration) ease;
+  transition: all var(--FFS-transition-duration) ease, transform var(--FFS-transition-duration) ease;
 }
 
-.field-button:hover,
-.field-button:focus {
-  background: var(--hover-bg); 
+.FFS-field-button:hover,
+.FFS-field-button:focus {
+  background: var(--FFS-hover-bg); 
   transform: translateY(-1px); 
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.field-button:focus {
-  box-shadow: 0 0 0 2px var(--primary-color); 
+.FFS-field-button:focus {
+  box-shadow: 0 0 0 2px var(--FFS-primary-color); 
 }
 
-.field-button-content {
+.FFS-field-button-content {
   display: flex;
   align-items: center;
   gap: 12px; 
 }
 
-.field-icon-container {
-  transition: background var(--transition-duration) ease;
+.FFS-field-icon-container {
+  transition: background var(--FFS-transition-duration) ease;
 }
 
-.field-icon {
-  color: var(--primary-color);
+.FFS-field-icon {
+  color: var(--FFS-primary-color);
 }
 
-.field-label {
-  color: var(--text-color);
+.FFS-field-label {
+  color: var(--FFS-text-color);
   margin-bottom: 0.25rem; 
 }
 
-.field-description {
-  color: var(--muted-text);
+.FFS-field-description {
+  color: var(--FFS-muted-text);
 }
 
-.form-field-selector-error {
+.FFS-form-field-selector-error {
   color: #ef4444; 
   font-size: 0.875rem;
   text-align: center;
   padding: 1rem;
-  background: var(--card-background);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  background: var(--FFS-card-background);
+  border: 1px solid var(--FFS-border-color);
+  border-radius: var(--FFS-border-radius);
 }
 
-.selector-button{
-  background-color:rgb(248, 243, 243) !important;
-  color: var(--text-primary) !important;;
+.FFS-selector-button{
+  background-color:rgb(248, 243, 243);
+  color: var(--text-primary);
 }
-.selector-button:hover{
-  background-color: rgb(234, 226, 226) !important;  
-  color: var(--text-primary) !important;
+.FFS-selector-button:hover{
+  background-color: rgb(234, 226, 226);  
+  color: var(--text-primary);
 }
 
-=@media (max-width: 768px) {
-  .form-field-selector-card {
+@media (max-width: 768px) {
+  .FFS-form-field-selector-card {
     padding: 1rem; 
   }
 
-  .field-button-content {
+  .FFS-field-button-content {
     flex-direction: column; 
     align-items: center;
     text-align: center;
     gap: 8px; 
   }
 
-  .field-icon-container {
+  .FFS-field-icon-container {
     margin-bottom: 0.5rem;
   }
-} */
+}

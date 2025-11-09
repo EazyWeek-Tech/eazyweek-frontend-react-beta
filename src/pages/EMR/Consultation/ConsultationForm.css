@@ -1,4 +1,4 @@
-/* .medical-form {
+.CF-medical-form {
   margin: 0 auto;
   padding: 0;
   font-family: 'Arial', sans-serif;
@@ -11,7 +11,7 @@
   flex-direction: column;
 }
   
-  .form-header {
+  .CF-form-header {
     flex-shrink: 0;
     background: #000;
     padding: 1rem 0;
@@ -26,13 +26,13 @@
     z-index: 10;
   }
 
-  .sticky-header {
+  .CF-sticky-header {
     position: sticky;
     top: 0;
     z-index: 1000;
   }
   
-  .page-title {
+  .CF-page-title {
     font-size: 1.8rem;
     font-weight: bold;
     color: #2b4c7e;
@@ -40,7 +40,7 @@
     margin-top: 12px;
   }
   
-  .form-content {
+  .CF-form-content {
     flex: 1;
     overflow-y: auto;
     padding: 0 30px 30px 30px;
@@ -49,7 +49,7 @@
     z-index: 1;
   }
 
-  .form-section {
+  .CF-form-section {
     margin-bottom: 2.5rem;
     padding: 1.5rem;
     background: #f9f9f9;
@@ -57,7 +57,7 @@
     border: 1px solid #e0e0e0;
   }
   
-  .section-title {
+  .CF-section-title {
     font-size: 1.3rem;
     font-weight: bold;
     color: #2b4c7e;
@@ -66,32 +66,32 @@
     border-bottom: 1px solid #d0d0d0;
   }
   
-  .subsection-title {
+  .CF-subsection-title {
     font-size: 1.1rem;
     font-weight: 600;
     color: #444;
     margin-bottom: 1rem;
   }
   
-  .cnfrmcellwrp {
+  .CF-cnfrmcellwrp {
     margin: 0 0 20px;
     font-size: 14px;
   }
   
-  .cnfrmcellwrp label {
+  .CF-cnfrmcellwrp label {
     margin: 0 0 10px;
     display: block;
     font-weight: bold;
     color: #2b4c7e;
   }
   
-  .required-asterisk {
+  .CF-required-asterisk {
     color: #f44336;
     margin-left: 3px;
   }
   
-  .cnfrmcellwrp input[type='text'],
-  .cnfrmcellwrp input[type='date'] {
+  .CF-cnfrmcellwrp input[type='text'],
+  .CF-cnfrmcellwrp input[type='date'] {
     padding: 12px;
     border: 1px solid #a6a4a4;
     border-radius: 5px;
@@ -100,14 +100,14 @@
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
-  .cnfrmcellwrp input[type='text']:focus,
-  .cnfrmcellwrp input[type='date']:focus {
+  .CF-cnfrmcellwrp input[type='text']:focus,
+  .CF-cnfrmcellwrp input[type='date']:focus {
     outline: none;
     border-color: #2b4c7e;
     box-shadow: 0 0 5px rgba(43, 76, 126, 0.3);
   }
   
-  .cnfrmcellwrp textarea {
+  .CF-cnfrmcellwrp textarea {
     padding: 12px;
     border: 1px solid #a6a4a4;
     border-radius: 5px;
@@ -119,19 +119,19 @@
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
-  .cnfrmcellwrp textarea:focus {
+  .CF-cnfrmcellwrp textarea:focus {
     outline: none;
     border-color: #2b4c7e;
     box-shadow: 0 0 5px rgba(43, 76, 126, 0.3);
   }
   
-  .checkbox-group {
+  .CF-checkbox-group {
     display: flex;
     gap: 1.5rem;
     margin-top: 0.5rem;
   }
   
-  .radio-option {
+  .CF-radio-option {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -140,15 +140,15 @@
     cursor: pointer;
   }
   
-  .radio-option input[type='radio'] {
+  .CF-radio-option input[type='radio'] {
     margin: 0;
   }
   
-  .radio-option:hover {
+  .CF-radio-option:hover {
     color: #2b4c7e;
   }
   
-  .error-text {
+  .CF-error-text {
     display: none;
     color: #f44336;
     font-size: 12px;
@@ -156,20 +156,20 @@
     font-weight: 500;
   }
   
-  .error-text.show {
+  .CF-error-text.show {
     display: block;
   }
   
-  .input-error {
-    border-color: #f44336 !important;
+  .CF-input-error {
+    border-color: #f44336;
   }
   
-  .input-error:focus {
-    border-color: #f44336 !important;
-    box-shadow: 0 0 5px rgba(244, 67, 54, 0.3) !important;
+  .CF-input-error:focus {
+    border-color: #f44336;
+    box-shadow: 0 0 5px rgba(244, 67, 54, 0.3);
   }
   
-  .btn-primary {
+  .CF-btn-primary {
     background-color: #2b4c7e;
     color: white;
     border: none;
@@ -182,11 +182,11 @@
     transition: background-color 0.3s ease;
   }
   
-  .btn-primary:hover {
+  .CF-btn-primary:hover {
     background-color: #1f375e;
   }
   
-  .btn-submit {
+  .CF-btn-submit {
     background-color: #2b4c7e;
     color: white;
     border: none;
@@ -202,17 +202,17 @@
     display: block;
   }
   
-  .btn-submit:hover {
+  .CF-btn-submit:hover {
     background-color: #1f375e;
   }
   
-  .btn-submit:disabled {
+  .CF-btn-submit:disabled {
     background-color: #666;
     cursor: not-allowed;
     opacity: 0.6;
   }
   
-  .pribtn {
+  .CF-pribtn {
     background-color: #2b4c7e;
     color: white;
     border: none;
@@ -222,11 +222,11 @@
     transition: background-color 0.3s ease;
   }
   
-  .pribtn:hover {
+  .CF-pribtn:hover {
     background-color: #1f375e;
   }
   
-  .bckbtn {
+  .CF-bckbtn {
     background: none;
     border: 1px solid #666;
     border-radius: 4px;
@@ -235,49 +235,49 @@
     transition: all 0.3s ease;
   }
   
-  .bckbtn:hover {
+  .CF-bckbtn:hover {
     background-color: #f5f5f5;
     border-color: #2b4c7e;
   }
   
-  .invflex {
+  .CF-invflex {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
   }
   
-  .leftsect {
+  .CF-leftsect {
     position: absolute;
     right: 15px;
     top: 50%;
     transform: translateY(-50%);
   }
   
-  .media-upload {
+  .CF-media-upload {
     margin-bottom: 2rem;
   }
   
-  .file-list {
+  .CF-file-list {
     margin-top: 1rem;
     padding: 1rem;
     background: #f0f0f0;
     border-radius: 5px;
   }
   
-  .file-list h4 {
+  .CF-file-list h4 {
     margin: 0 0 0.5rem 0;
     color: #2b4c7e;
     font-size: 14px;
   }
   
-  .file-list ul {
+  .CF-file-list ul {
     list-style: none;
     padding: 0;
     margin: 0;
   }
   
-  .file-list li {
+  .CF-file-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -288,7 +288,7 @@
     border: 1px solid #ddd;
   }
   
-  .remove-file-btn {
+  .CF-remove-file-btn {
     background: #f44336;
     color: white;
     border: none;
@@ -298,32 +298,32 @@
     font-size: 12px;
   }
   
-  .remove-file-btn:hover {
+  .CF-remove-file-btn:hover {
     background: #d32f2f;
   }
   
-  .face-mapping {
+  .CF-face-mapping {
     margin-top: 1rem;
   }
   
-  .submit-section {
+  .CF-submit-section {
     text-align: center;
     background: #f0f8ff;
     border: 2px solid #2b4c7e;
   }
   
-  .validation-message {
+  .CF-validation-message {
     color: #666;
     font-style: italic;
     margin-top: 0.5rem;
     font-size: 14px;
   }
   
-  .tooltip {
+  .CF-tooltip {
     position: relative;
   }
   
-  .tooltip[data-tooltip]:hover::after {
+  .CF-tooltip[data-tooltip]:hover::after {
     content: attr(data-tooltip);
     position: absolute;
     background: #333;
@@ -335,7 +335,7 @@
     z-index: 1000;
   }
   
-  .tooltip[data-tooltip-pos="down"]:hover::after {
+  .CF-tooltip[data-tooltip-pos="down"]:hover::after {
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
@@ -343,40 +343,40 @@
   }
   
   @media (max-width: 600px) {
-    .medical-form {
+    .CF-medical-form {
       padding: 0;
       margin: 0;
       border-radius: 0;
       box-shadow: none;
     }
 
-    .form-header {
+    .CF-form-header {
       padding: 0.5rem 15px;
       position: sticky;
       top: 0;
       z-index: 1000;
     }
 
-    .form-content {
+    .CF-form-content {
       padding: 0 15px 15px 15px;
       max-height: calc(100vh - 150px);
     }
 
-    .page-title {
+    .CF-page-title {
       font-size: 1.4rem;
       margin: 0.5rem 0;
     }
 
-    .form-section {
+    .CF-form-section {
       padding: 1rem;
     }
 
-    .checkbox-group {
+    .CF-checkbox-group {
       flex-direction: column;
       gap: 0.5rem;
     }
 
-    .btn-submit {
+    .CF-btn-submit {
       width: 100%;
     }
-  } */
+  }
