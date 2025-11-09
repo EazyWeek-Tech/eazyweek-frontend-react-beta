@@ -1,4 +1,4 @@
-/* .consent-form-container {
+.VFHC-consent-form-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -8,7 +8,7 @@
   font-family: 'Inter', sans-serif;
 }
 
-.consent-form {
+.VFHC-consent-form {
   max-width: 700px;
   width: 100%;
   background-color: white;
@@ -20,40 +20,40 @@
   margin: 20px auto;
 }
 
-.consent-form h1 {
+.VFHC-consent-form h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.consent-form p {
+.VFHC-consent-form p {
   margin-bottom: 15px;
   line-height: 1.6;
 }
 
-.consent-form ol {
+.VFHC-consent-form ol {
   margin-left: 20px;
   margin-bottom: 15px;
 }
 
-.consent-form li {
+.VFHC-consent-form li {
   margin-bottom: 5px;
   line-height: 1.6;
 }
 
-.form-group {
+.VFHC-form-group {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.VFHC-form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.form-group input[type="text"],
-.form-group input[type="date"] {
+.VFHC-form-group input[type="text"],
+.VFHC-form-group input[type="date"] {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -62,11 +62,11 @@
   box-sizing: border-box;
 }
 
-.signature-section {
+.VFHC-signature-section {
   margin-bottom: 20px;
 }
 
-.signature-pad {
+.VFHC-signature-pad {
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
@@ -74,12 +74,12 @@
   margin-bottom: 10px;
 }
 
-.signature-pad canvas {
+.VFHC-signature-pad canvas {
   display: block;
   margin: 0 auto;
 }
 
-.clear-signature-btn {
+.VFHC-clear-signature-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -88,15 +88,15 @@
   font-size: 12px;
 }
 
-.button-group {
+.VFHC-button-group {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-top: 30px;
 }
 
-.submit-btn,
-.print-btn {
+.VFHC-submit-btn,
+.VFHC-print-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 5px;
@@ -105,40 +105,40 @@
   font-weight: bold;
 }
 
-.submit-btn {
+.VFHC-submit-btn {
   background-color: #007bff;
   color: white;
 }
 
-.print-btn {
+.VFHC-print-btn {
   background-color: #28a745;
   color: white;
 }
 
-.submit-btn:hover {
+.VFHC-submit-btn:hover {
   background-color: #0056b3;
 }
 
-.print-btn:hover {
+.VFHC-print-btn:hover {
   background-color: #1e7e34;
 }
 
 @media (max-width: 768px) {
-  .consent-form {
+  .VFHC-consent-form {
     padding: 20px;
     margin: 10px;
   }
 
-  .consent-form h1 {
+  .VFHC-consent-form h1 {
     font-size: 20px;
   }
 
-  .button-group {
+  .VFHC-button-group {
     flex-direction: column;
   }
 
-  .submit-btn,
-  .print-btn {
+  .VFHC-submit-btn,
+  .VFHC-print-btn {
     width: 100%;
   }
-} */
+}

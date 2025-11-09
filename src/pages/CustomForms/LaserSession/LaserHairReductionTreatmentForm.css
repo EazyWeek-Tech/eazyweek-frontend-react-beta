@@ -1,4 +1,4 @@
-/* .form-container-1 {
+.LHRTF-form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -8,50 +8,50 @@
   font-family: 'Inter', sans-serif;
 }
 
-.forms {
-  max-width: 100% !important;
+.LHRTF-forms {
+  max-width: 100%;
   background-color: white;
   color: black;
   border: 1px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 20px !important;
-  margin: 0px !important;
+  padding: 20px;
+  margin: 0px;
 }
 
-.forms h1 {
+.LHRTF-forms h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.forms h2 {
+.LHRTF-forms h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.forms p {
+.LHRTF-forms p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
-.form-group {
+.LHRTF-form-group {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.LHRTF-form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.form-group input[type="text"],
-.form-group input[type="date"],
-.form-group select,
-.form-group textarea {
+.LHRTF-form-group input[type="text"],
+.LHRTF-form-group input[type="date"],
+.LHRTF-form-group select,
+.LHRTF-form-group textarea {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
@@ -60,42 +60,42 @@
   box-sizing: border-box;
 }
 
-.form-group textarea {
+.LHRTF-form-group textarea {
   resize: vertical;
   min-height: 100px;
 }
 
-.treatment-table {
+.LHRTF-treatment-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
 }
 
-.treatment-table th,
-.treatment-table td {
+.LHRTF-treatment-table th,
+.LHRTF-treatment-table td {
   border: 1px solid #ddd;
   padding: 8px;
   text-align: left;
   vertical-align: top;
 }
 
-.treatment-table th {
+.LHRTF-treatment-table th {
   background-color: #f2f2f2;
   font-weight: bold;
 }
 
-.treatment-table input {
+.LHRTF-treatment-table input {
   width: 100%;
   padding: 5px;
   border: none;
   font-size: 14px;
 }
 
-.signature-section {
+.LHRTF-signature-section {
   margin-bottom: 20px;
 }
 
-.signature-pad {
+.LHRTF-signature-pad {
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
@@ -103,12 +103,12 @@
   margin-bottom: 10px;
 }
 
-.signature-pad canvas {
+.LHRTF-signature-pad canvas {
   display: block;
   margin: 0 auto;
 }
 
-.clear-signature-btn {
+.LHRTF-clear-signature-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
   border: 1px solid #ddd;
@@ -116,30 +116,30 @@
   cursor: pointer;
   font-size: 12px;
 }
-.photo-upload-container {
+.LHRTF-photo-upload-container {
   font-family: Arial, sans-serif;
   margin: 20px;
 }
 
-.title {
+.LHRTF-title {
   text-align: center;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.photo-upload-section {
+.LHRTF-photo-upload-section {
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   padding: 20px;
   margin-bottom: 20px;
 }
 
-.label {
+.LHRTF-label {
   font-weight: 500;
   margin-bottom: 10px;
 }
 
-.upload-box {
+.LHRTF-upload-box {
   border: 2px dashed #ccc;
   border-radius: 6px;
   padding: 30px;
@@ -151,71 +151,71 @@
   position: relative;
 }
 
-.upload-box:hover {
+.LHRTF-upload-box:hover {
   border-color: #888;
 }
 
-.upload-icon {
+.LHRTF-upload-icon {
   font-size: 22px;
   margin-bottom: 5px;
 }
 
-.browse {
+.LHRTF-browse {
   color: #007bff;
   text-decoration: underline;
   cursor: pointer;
   position: relative;
 }
 
-.file-input {
+.LHRTF-file-input {
   display: none;
 }
 
-.info-text {
+.LHRTF-info-text {
   font-size: 13px;
   color: #555;
 }
 
-.file-list ul {
+.LHRTF-file-list ul {
   margin: 10px 0 0;
   padding: 0;
   list-style-type: disc;
   padding-left: 20px;
 }
 
-.file-list li {
+.LHRTF-file-list li {
   font-size: 14px;
   margin-bottom: 5px;
 }
 
 
-.file-input {
+.LHRTF-file-input {
   margin-bottom: 10px;
 }
 
-.file-list {
+.LHRTF-file-list {
   margin-top: 10px;
 }
 
-.file-list ul {
+.LHRTF-file-list ul {
   list-style-type: none;
   padding: 0;
 }
 
-.file-list li {
+.LHRTF-file-list li {
   margin-bottom: 5px;
   font-size: 12px;
 }
 
-.button-group {
+.LHRTF-button-group {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-top: 30px;
 }
 
-.submit-btn,
-.print-btn {
+.LHRTF-submit-btn,
+.LHRTF-print-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 5px;
@@ -224,55 +224,55 @@
   font-weight: bold;
 }
 
-.submit-btn {
+.LHRTF-submit-btn {
   background-color: #007bff;
   color: white;
 }
 
-.print-btn {
+.LHRTF-print-btn {
   background-color: #28a745;
   color: white;
 }
 
-.submit-btn:hover {
+.LHRTF-submit-btn:hover {
   background-color: #0056b3;
 }
 
-.print-btn:hover {
+.LHRTF-print-btn:hover {
   background-color: #1e7e34;
 }
 
-.error-message {
+.LHRTF-error-message {
   color: red;
   font-size: 12px;
   margin-top: 5px;
 }
 
 @media (max-width: 768px) {
-  .form {
+  .LHRTF-form {
     padding: 15px;
     margin: 10px;
   }
 
-  .form h1 {
+  .LHRTF-form h1 {
     font-size: 20px;
   }
 
-  .treatment-table {
+  .LHRTF-treatment-table {
     font-size: 12px;
   }
 
-  .treatment-table th,
-  .treatment-table td {
+  .LHRTF-treatment-table th,
+  .LHRTF-treatment-table td {
     padding: 5px;
   }
 
-  .button-group {
+  .LHRTF-button-group {
     flex-direction: column;
   }
 
-  .submit-btn,
-  .print-btn {
+  .LHRTF-submit-btn,
+  .LHRTF-print-btn {
     width: 100%;
   }
-} */
+}

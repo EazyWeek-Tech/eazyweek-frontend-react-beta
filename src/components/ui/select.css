@@ -1,4 +1,4 @@
-/* .select-content {
+.AdvFormBuilder-select-content {
   background-color: white;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -6,31 +6,31 @@
   z-index: 9999;
 }
 
-.select-item {
+.AdvFormBuilder-select-item {
   padding: 8px 12px;
   cursor: pointer;
   transition: background-color 0.15s ease-in-out;
 }
 
-.select-item:hover {
+.AdvFormBuilder-select-item:hover {
   background-color: #f9fafb;
 }
 
-.select-item:focus {
+.AdvFormBuilder-select-item:focus {
   background-color: #f3f4f6;
   outline: none;
 }
 
-.select-trigger {
+.AdvFormBuilder-select-trigger {
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  background-color: rgba(244, 238, 238, 0) !important;
-  color: black !important;
+  background-color: rgba(244, 238, 238, 0);
+  color: black;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
-.select-trigger:focus {
+.AdvFormBuilder-select-trigger:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   outline: none;
-} */
+}
