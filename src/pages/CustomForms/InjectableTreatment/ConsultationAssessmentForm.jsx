@@ -199,7 +199,6 @@ const ConsultationAssessmentForm = () => {
         <h1 className='CFA-SuperTitle'>Consultation Assessment Form</h1>
 
         <div className="CAF-form-group">
-        <div className="CAF-form-group">
           <label>Date of appointment:</label>
           <input
             type="date"
@@ -208,13 +207,8 @@ const ConsultationAssessmentForm = () => {
             onChange={handleInputChange}
           />
           {errors.dateOfAppointment && <span className="CAF-error-message">{errors.dateOfAppointment}</span>}
-          {errors.dateOfAppointment && <span className="CAF-error-message">{errors.dateOfAppointment}</span>}
         </div>
 
-        <div className="CAF-form-section">
-          <label className="CAF-section-label">Changes in meds:</label>
-          <div className="CAF-radio-row">
-            <label className="CAF-radio-label">
         <div className="CAF-form-section">
           <label className="CAF-section-label">Changes in meds:</label>
           <div className="CAF-radio-row">
@@ -230,7 +224,6 @@ const ConsultationAssessmentForm = () => {
             </label>
 
             <label className="CAF-radio-label">
-            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInMeds"
@@ -243,14 +236,9 @@ const ConsultationAssessmentForm = () => {
           </div>
           {errors.changesInMeds && (
             <span className="CAF-error-message">{errors.changesInMeds}</span>
-            <span className="CAF-error-message">{errors.changesInMeds}</span>
           )}
         </div>
 
-        <div className="CAF-form-section">
-          <label className="CAF-section-label">Changes in health:</label>
-          <div className="CAF-radio-row">
-            <label className="CAF-radio-label">
         <div className="CAF-form-section">
           <label className="CAF-section-label">Changes in health:</label>
           <div className="CAF-radio-row">
@@ -266,7 +254,6 @@ const ConsultationAssessmentForm = () => {
             </label>
 
             <label className="CAF-radio-label">
-            <label className="CAF-radio-label">
               <input
                 type="radio"
                 name="changesInHealth"
@@ -279,11 +266,9 @@ const ConsultationAssessmentForm = () => {
           </div>
           {errors.changesInHealth && (
             <span className="CAF-error-message">{errors.changesInHealth}</span>
-            <span className="CAF-error-message">{errors.changesInHealth}</span>
           )}
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Chief Complaint:</label>
           <input
@@ -295,7 +280,6 @@ const ConsultationAssessmentForm = () => {
         </div>
 
         <div className="CAF-form-group">
-        <div className="CAF-form-group">
           <label>Diagnosis:</label>
           <input
             type="text"
@@ -305,7 +289,6 @@ const ConsultationAssessmentForm = () => {
           />
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Treatment Plan:</label>
           <input
@@ -317,7 +300,6 @@ const ConsultationAssessmentForm = () => {
         </div>
 
         <div className="CAF-form-group">
-        <div className="CAF-form-group">
           <label>Subjective Notes:</label>
           <input
             type="text"
@@ -327,7 +309,6 @@ const ConsultationAssessmentForm = () => {
           />
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Objective Notes:</label>
           <input
@@ -339,7 +320,6 @@ const ConsultationAssessmentForm = () => {
         </div>
 
         <div className="CAF-form-group">
-        <div className="CAF-form-group">
           <label>Assessment Notes:</label>
           <input
             type="text"
@@ -349,7 +329,6 @@ const ConsultationAssessmentForm = () => {
           />
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Planning Notes:</label>
           <input
@@ -459,14 +438,10 @@ const ConsultationAssessmentForm = () => {
         <div className="CAF-face-mapper-section">
           <div className="CAF-face-mapper-container">
             <img src="/images/facediagram.jpg" alt="Face Diagram" className="CAF-face-diagram" />
-        <div className="CAF-face-mapper-section">
-          <div className="CAF-face-mapper-container">
-            <img src="/images/facediagram.jpg" alt="Face Diagram" className="CAF-face-diagram" />
             <canvas
               ref={faceCanvas}
               width={700}
               height={700}
-              className="CAF-face-canvas"
               className="CAF-face-canvas"
               onMouseDown={startDrawing}
               onMouseMove={draw}
@@ -497,7 +472,6 @@ const ConsultationAssessmentForm = () => {
             ))}
           </div>
           <div className="CAF-face-mapper-tools">
-          <div className="CAF-face-mapper-tools">
             <label>
               Tool:
               <select value={tool} onChange={(e) => setTool(e.target.value)}>
@@ -526,13 +500,11 @@ const ConsultationAssessmentForm = () => {
               />
             </label>
             <button type="button" className="CAF-clear-face-mapper-btn" onClick={clearFaceMapper}>
-            <button type="button" className="CAF-clear-face-mapper-btn" onClick={clearFaceMapper}>
               Clear Drawing
             </button>
           </div>
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Provider Name:</label>
           <input
@@ -543,7 +515,6 @@ const ConsultationAssessmentForm = () => {
             placeholder="Enter provider name"
           />
           {errors.providerName && <span className="CAF-error-message">{errors.providerName}</span>}
-          {errors.providerName && <span className="CAF-error-message">{errors.providerName}</span>}
         </div>
 
         <div className="CAF-signature-section">
@@ -552,19 +523,15 @@ const ConsultationAssessmentForm = () => {
             <SignatureCanvas
               ref={sigCanvas}
               canvasProps={{ width: 500, height: 200, className: 'CAF-sigCanvas' }}
-              canvasProps={{ width: 500, height: 200, className: 'CAF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, providerSignature: sigCanvas.current.toDataURL() }))}
             />
           </div>
           <button type="button" className="CAF-clear-signature-btn" onClick={clearSignature}>
-          <button type="button" className="CAF-clear-signature-btn" onClick={clearSignature}>
             Clear Signature
           </button>
           {errors.providerSignature && <span className="CAF-error-message">{errors.providerSignature}</span>}
-          {errors.providerSignature && <span className="CAF-error-message">{errors.providerSignature}</span>}
         </div>
 
-        <div className="CAF-form-group">
         <div className="CAF-form-group">
           <label>Signature Date:</label>
           <input
@@ -573,7 +540,6 @@ const ConsultationAssessmentForm = () => {
             value={formData.signatureDate}
             onChange={handleInputChange}
           />
-          {errors.signatureDate && <span className="CAF-error-message">{errors.signatureDate}</span>}
           {errors.signatureDate && <span className="CAF-error-message">{errors.signatureDate}</span>}
         </div>
 
