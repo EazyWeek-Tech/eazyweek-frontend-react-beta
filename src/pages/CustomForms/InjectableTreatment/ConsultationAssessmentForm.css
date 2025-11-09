@@ -91,6 +91,14 @@
   margin-bottom: 5px;
 }
 
+.CAF-uploaded-image {
+  max-width: 100px;
+  max-height: 100px;
+  margin-left: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
 .CAF-form h1 {
   text-align: center;
   font-size: 24px;
@@ -146,6 +154,34 @@
 .CAF-form-row .CAF-form-group {
   flex: 1;
   margin-bottom: 0;
+}
+
+.CAF-form-section {
+  margin-bottom: 20px;
+}
+
+.CAF-section-label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.CAF-radio-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.CAF-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.CAF-radio-label input[type="radio"] {
+  margin: 0;
 }
 
 .CAF-signature-section {
@@ -364,4 +400,22 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .CAF-radio-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+
+.cfa-signature{
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.CFA-SuperTitle {
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
 }

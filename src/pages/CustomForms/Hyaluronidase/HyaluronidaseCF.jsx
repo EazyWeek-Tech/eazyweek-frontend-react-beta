@@ -60,17 +60,17 @@ const VolumeFillingHyaluronidaseConsentForm = () => {
 
         <p>I acknowledge that I have disclosed any health problems that I have, and I am not pregnant when the procedure was done.</p>
 
-        <p>Hyaluronidase is an enzyme that can be injected to dissolve dermal filler and is the best treatment option for those looking at dissolving lip filler and reducing any lumps or puffiness associated with dermal filler in the face or body.</p>
+        <p><span style={{fontWeight:"600"}}>Hyaluronidase</span> is an enzyme that can be injected to dissolve dermal filler and is the best treatment option for those looking at dissolving lip filler and reducing any lumps or puffiness associated with dermal filler in the face or body.</p>
 
-        <h2>WHAT DOES DERMAL FILLER DISSOLVING TREATMENT INVOLVE?</h2>
+        <h2 style={{fontWeight:"600"}}>WHAT DOES DERMAL FILLER DISSOLVING TREATMENT INVOLVE?</h2>
 
-        <ol>
-          <li>You will have a "Hyaluronidase consultation" with one of our Dermatologist doctors.</li>
-          <li>The consultation will determine if Hyaluronidase treatment is suitable for you. If you wish to proceed with the treatment, a test patch or skin test will be scheduled, as there is a risk of a serious allergic reaction. This can be on the same day or the following day, whichever suits you.</li>
-          <li>Numbing cream will be applied to the target area.</li>
+        <ol style={{marginTop:"10px"}}>
+          <li>1. -You will have a <span style={{fontWeight:"600"}}>"Hyaluronidase consultation"</span> with one of our Dermatologist doctors.</li>
+          <li>2. -The consultation will determine if Hyaluronidase treatment is suitable for you. If you wish to proceed with the treatment, a test patch or skin test will be scheduled, as there is a risk of a serious allergic reaction. This can be on the same day or the following day, whichever suits you.</li>
+          <li>3. -Numbing cream will be applied to the target area.</li>
         </ol>
 
-        <h2>WHAT TO EXPECT AFTER THE PROCEDURE</h2>
+        <h2 style={{fontWeight:"600",marginBottom:"10px"}}>WHAT TO EXPECT AFTER THE PROCEDURE</h2>
 
         <p>You will notice a reduction in volume to the area immediately after the treatment; however, swelling is common so it may be difficult to see the full effects of filler removal treatment so quickly. We advise patients to allow 72 hours for the treatment to take full effect.</p>
 

@@ -215,7 +215,7 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div className="AAICF-signature-section">
           <h2>Doctor Signature:</h2>
-          <p>Sign above</p>
+          {/* <p>Sign above</p> */}
           <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={doctorSigCanvas}
@@ -237,7 +237,7 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div className="AAICF-signature-section">
           <h2>Patient Signature:</h2>
-          <p>Sign above</p>
+          {/* <p>Sign above</p> */}
           <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={patientSigCanvas}
