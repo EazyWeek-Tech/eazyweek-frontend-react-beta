@@ -46,8 +46,8 @@ jobs:
           cd deploy-repo
           git fetch origin main
           git checkout main || git checkout -b main
-          git pull origin main --rebase
           git add .
           git diff --quiet && echo "No changes to sync" && exit 0
           git commit -m "Sync from source repo on $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git pull origin main --rebase || git rebase --abort
           git push origin main

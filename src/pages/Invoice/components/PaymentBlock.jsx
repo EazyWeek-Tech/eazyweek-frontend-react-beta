@@ -1,6 +1,6 @@
   import React, { useState, useEffect } from 'react';
   import { API_BASE_URL } from '../../../config';
-  import { useNavigate } from 'react-router-dom';
+  import { useNavigate, useSearchParams } from 'react-router-dom';
 
 
   const paymentModes = [
@@ -22,7 +22,8 @@
 }) => {
 
     const parsedTotalAmount = typeof totalAmount === 'string' ? parseFloat(totalAmount) : totalAmount;
-
+  const [searchParams] = useSearchParams();
+  const appointmentIdFromUrl = (searchParams.get('appointmentid') || appointmentID || '').trim();
     const [activeTab, setActiveTab] = useState('cash');
     const [amount, setAmount] = useState(parsedTotalAmount.toString());
     const [payments, setPayments] = useState([]);
@@ -32,6 +33,10 @@
     const [invoiceSuccessPopup, setInvoiceSuccessPopup] = useState(false);
 const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
 const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
+const [submittedPayments, setSubmittedPayments] = useState([]);
+const [submittedInvoiceItems, setSubmittedInvoiceItems] = useState([]);
+const [submittedTotalAmount, setSubmittedTotalAmount] = useState(0);
+
  const navigate = useNavigate();
 
 
@@ -122,118 +127,122 @@ const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
   }
       }; */
 const generateInvoiceHTML = () => {
-    const isCitizen = customer?.status?.toLowerCase() === 'citizen';
+  const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
-    const invoiceItemRows = invoiceItems.map((item, idx) => {
-      const price = parseFloat(item.price) || 0;
-      const discount = parseFloat(item.discount) || 0;
-      const amountWithoutVat = Math.max(price - discount, 0);
-      const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
-      const tax = (amountWithoutVat * taxRate) / 100;
-      const total = amountWithoutVat + tax;
-      return `
-        <tr>
-          <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
-          <td style="border:1px solid #000;padding:6px;">${item.name}</td>
-          <td style="border:1px solid #000;padding:6px;">1</td>
-          <td style="border:1px solid #000;padding:6px;">${price.toFixed(2)}</td>
-          <td style="border:1px solid #000;padding:6px;">${discount.toFixed(2)}</td>
-          <td style="border:1px solid #000;padding:6px;">${amountWithoutVat.toFixed(2)}</td>
-          <td style="border:1px solid #000;padding:6px;">${tax.toFixed(2)} (${taxRate.toFixed(0)}%)</td>
-          <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
-        </tr>
-      `;
-    }).join('');
+  // Prefer submitted snapshots after invoice is created
+  const srcItems = submittedInvoiceItems?.length ? submittedInvoiceItems : invoiceItems;
+  const srcPayments = submittedPayments?.length ? submittedPayments : payments;
+  const grossTotal = submittedTotalAmount || parsedTotalAmount;
 
-    const paymentRows = payments.map((p, index) => `
-      <tr>
-        <td style="border:1px solid #000;padding:6px;">${index + 1}</td>
-        <td style="border:1px solid #000;padding:6px;">${p.mode}</td>
-        <td style="border:1px solid #000;padding:6px;">${p.amount.toFixed(2)}</td>
-        <td style="border:1px solid #000;padding:6px;">${p.date}</td>
-      </tr>
-    `).join('');
-
+  const invoiceItemRows = srcItems.map((item, idx) => {
+    const price = parseFloat(item.price) || 0;
+    const discount = parseFloat(item.discount) || 0;
+    const amountWithoutVat = Math.max(price - discount, 0);
+    const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
+    const tax = (amountWithoutVat * taxRate) / 100;
+    const total = amountWithoutVat + tax;
     return `
-      <!DOCTYPE html>
-      <html lang="en" dir="rtl">
-      <head>
-        <meta charset="UTF-8" />
-        <title>Invoice</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000;">
-       <table style="width: 600px; max-width: 600px; margin: auto;  font-size: 12px; line-height: 1.6; padding: 20px; border-collapse: collapse;">
-  <tr>
-    <td colspan="3" style="padding-bottom: 20px;">
-      <table style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
+        <td style="border:1px solid #000;padding:6px;">${item.name}</td>
+        <td style="border:1px solid #000;padding:6px;">1</td>
+        <td style="border:1px solid #000;padding:6px;">${price.toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:6px;">${discount.toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:6px;">${amountWithoutVat.toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:6px;">${tax.toFixed(2)} (${taxRate.toFixed(0)}%)</td>
+        <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const paymentRows = srcPayments.map((p, index) => `
+    <tr>
+      <td style="border:1px solid #000;padding:6px;">${index + 1}</td>
+      <td style="border:1px solid #000;padding:6px;">${p.mode}</td>
+      <td style="border:1px solid #000;padding:6px;">${(p.amount || 0).toFixed(2)}</td>
+      <td style="border:1px solid #000;padding:6px;">${p.date || ''}</td>
+    </tr>
+  `).join('');
+
+  const totalPaid = srcPayments.reduce((sum, x) => sum + (x.amount || 0), 0);
+  const amountDue = Math.max(0, grossTotal - totalPaid);
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en" dir="rtl">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Invoice</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000;">
+      <table style="width: 600px; max-width: 600px; margin: auto; font-size: 12px; line-height: 1.6; padding: 20px; border-collapse: collapse;">
         <tr>
-          <td style="width: 33%; text-align: left; vertical-align: middle;">
-            <img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />
-          </td>
-          <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
-            Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
-          </td>
-          <td style="width: 33%; text-align: right; vertical-align: middle;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?data=Invoice123&size=100x100" alt="QR" style="max-height: 80px;" />
+          <td colspan="3" style="padding-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="width: 33%; text-align: left; vertical-align: middle;">
+                  <img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />
+                </td>
+                <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
+                  Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
+                </td>
+                <td style="width: 33%; text-align: right; vertical-align: middle;">
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(generatedInvoiceNumber || 'Invoice')}&size=100x100" alt="QR" style="max-height: 80px;" />
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
       </table>
-    </td>
-  </tr>
-</table>
 
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${generatedInvoiceNumber || ''}</p></td></tr>
+        <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.fullName || ''}</td></tr>
+        <tr><td style="border:1px solid #000;padding:6px;"><strong>Mobile:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.mobile || customer?.number || ''}</td></tr>
+        <tr><td style="border:1px solid #000;padding:6px;"><strong>Nationality Status:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.status || ''}</td></tr>
+        <tr><td style="border:1px solid #000;padding:6px;"><strong>Date:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleDateString()}</td></tr>
+        <tr><td style="border:1px solid #000;padding:6px;"><strong>Time:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleTimeString()}</td></tr>
+      </table>
 
-        <table style="width: 100%; border-collapse: collapse;">
-        <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${generatedInvoiceNumber}</p>
-</td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.fullName || ''} </td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Mobile:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.mobile || customer?.number || ''}</td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Nationality Status:</strong></td><td style="border:1px solid #000;padding:6px;">${customer?.status || ''}</td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Date:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleDateString()}</td></tr>
-          <tr><td style="border:1px solid #000;padding:6px;"><strong>Time:</strong></td><td style="border:1px solid #000;padding:6px;">${new Date().toLocaleTimeString()}</td></tr>
-        </table>
+      <h4 style="margin-top: 20px;">Invoice Items</h4>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #000;padding:6px;">No</th>
+            <th style="border:1px solid #000;padding:6px;">Item</th>
+            <th style="border:1px solid #000;padding:6px;">Qty</th>
+            <th style="border:1px solid #000;padding:6px;">Price</th>
+            <th style="border:1px solid #000;padding:6px;">Discount</th>
+            <th style="border:1px solid #000;padding:6px;">Net</th>
+            <th style="border:1px solid #000;padding:6px;">VAT</th>
+            <th style="border:1px solid #000;padding:6px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>${invoiceItemRows}</tbody>
+      </table>
 
+      <h4 style="margin-top: 20px;">Payment Summary</h4>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #000;padding:6px;">Sr No</th>
+            <th style="border:1px solid #000;padding:6px;">Mode</th>
+            <th style="border:1px solid #000;padding:6px;">Amount</th>
+            <th style="border:1px solid #000;padding:6px;">Date</th>
+          </tr>
+        </thead>
+        <tbody>${paymentRows}</tbody>
+      </table>
 
-          <h4 style="margin-top: 20px;">Invoice Items</h4>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th style="border:1px solid #000;padding:6px;">No</th>
-              <th style="border:1px solid #000;padding:6px;">Item</th>
-              <th style="border:1px solid #000;padding:6px;">Qty</th>
-              <th style="border:1px solid #000;padding:6px;">Price</th>
-              <th style="border:1px solid #000;padding:6px;">Discount</th>
-              <th style="border:1px solid #000;padding:6px;">Net</th>
-              <th style="border:1px solid #000;padding:6px;">VAT</th>
-              <th style="border:1px solid #000;padding:6px;">Total</th>
-            </tr>
-          </thead>
-          <tbody>${invoiceItemRows}</tbody>
-        </table>
-
-        <h4 style="margin-top: 20px;">Payment Summary</h4>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th style="border:1px solid #000;padding:6px;">Sr No</th>
-              <th style="border:1px solid #000;padding:6px;">Mode</th>
-              <th style="border:1px solid #000;padding:6px;">Amount</th>
-              <th style="border:1px solid #000;padding:6px;">Date</th>
-            </tr>
-          </thead>
-          <tbody>${paymentRows}</tbody>
-        </table>
-
-        <div style="text-align: right; margin-top: 10px;">
-          <strong>Total Paid:</strong> ${totalPaid.toFixed(2)} SAR<br />
-          <strong>Amount Due:</strong> ${parsedTotalAmount.toFixed(2)} SAR
-        </div>
+      <div style="text-align: right; margin-top: 10px;">
+        <strong>Total Paid:</strong> ${totalPaid.toFixed(2)} SAR<br />
+        <strong>Amount Due:</strong> ${amountDue.toFixed(2)} SAR
       </div>
-        <!-- Full original print HTML ends -->
-      </body>
-      </html>
-    `;
-  };
+    </body>
+    </html>
+  `;
+};
+
 
   const handlePrintInvoice = () => {
     const html = generateInvoiceHTML();
@@ -300,6 +309,10 @@ const resetAll = () => {
     
 
     const handleSubmitInvoice = async () => {
+  //     if (!appointmentIdFromUrl) {
+  //   setFormError('Missing appointment ID in URL.');
+  //   return;
+  // }
   if (payments.length === 0) {
     setFormError('Please add at least one payment method.');
     return;
@@ -328,7 +341,7 @@ console.log(customer)
       roundingOff: 0,
       sumTotal: parseFloat(parsedTotalAmount.toFixed(2)),
       isClosed: 1,
-      appointmentID: "",
+      appointmentID: appointmentIdFromUrl,
     }
   ];
 
@@ -375,7 +388,7 @@ const createdBy = user?.userId || '';
 const centerCode = user?.centerCode || '';
 
   const payload = {
-    appointmentID,
+   appointmentID: appointmentIdFromUrl,
     invoiceDate: now,
       createdBy, // logged-in user ID
 
@@ -397,7 +410,10 @@ console.log("Invoice Payload", JSON.stringify(payload, null, 2));
     console.log(result);
     if (result.success) {
       setToast({ message: 'Invoice submitted successfully!', type: 'success' });
-  setPayments([]);
+      setSubmittedPayments(payments);
+  setSubmittedInvoiceItems(invoiceItems);
+  setSubmittedTotalAmount(parsedTotalAmount);
+
   setGeneratedInvoiceNumber(result.message || ''); // Adjust key based on actual API response
   setInvoiceSuccessPopup(true);
     } else {

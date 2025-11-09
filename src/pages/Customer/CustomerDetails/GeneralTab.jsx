@@ -24,39 +24,40 @@ const GeneralTab = ({ customer }) => {
     isoDate && isoDate !== "0001-01-01T00:00:00" ? isoDate.slice(0, 10) : "";
 
   // Validate birthDay and anniversary dates
-  const validateDates = () => {
-    const errors = {};
+  // --- replace your validateDates with this ---
+const validateDates = () => {
+  const errors = {};
 
-    const birthDay = formData.birthDay;
-    const anniversary = formData.anniversary;
+  const birthDay = formData.birthDay;
+  const anniversary = formData.anniversary;
 
-    // Validate birthDay
-    if (birthDay) {
-      const birthDate = new Date(birthDay);
-      if (isNaN(birthDate.getTime()) || birthDate < new Date("1753-01-01")) {
-        errors.birthDay = "Birth date must be a valid date after 01/01/1753";
-      } else if (birthDate > new Date()) {
-        errors.birthDay = "Birth date cannot be in the future";
-      }
-    } else {
-      errors.birthDay = "Birth date is required";
+  // Validate birthDay (still required)
+  if (birthDay) {
+    const birthDate = new Date(birthDay);
+    if (isNaN(birthDate.getTime()) || birthDate < new Date("1753-01-01")) {
+      errors.birthDay = "Birth date must be a valid date after 01/01/1753";
+    } else if (birthDate > new Date()) {
+      errors.birthDay = "Birth date cannot be in the future";
     }
+  } else {
+    errors.birthDay = "Birth date is required";
+  }
 
-    // Validate anniversary
-    if (anniversary) {
-      const anniversaryDate = new Date(anniversary);
-      if (isNaN(anniversaryDate.getTime()) || anniversaryDate < new Date("1753-01-01")) {
-        errors.anniversary = "Anniversary date must be a valid date after 01/01/1753";
-      } else if (anniversaryDate > new Date()) {
-        errors.anniversary = "Anniversary date cannot be in the past";
-      }
-    } else {
-      errors.anniversary = "Anniversary date is required";
+  // Anniversary is NOT mandatory. Only validate if provided.
+  if (anniversary) {
+    const anniversaryDate = new Date(anniversary);
+    if (isNaN(anniversaryDate.getTime()) || anniversaryDate < new Date("1753-01-01")) {
+      errors.anniversary = "Anniversary date must be a valid date after 01/01/1753";
+
+   } else if (anniversaryDate > new Date()) {
+     errors.anniversary = "Anniversary date cannot be in the future";
     }
+  }
 
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  setFormErrors(errors);
+  return Object.keys(errors).length === 0;
+};
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,16 +66,19 @@ const GeneralTab = ({ customer }) => {
       return; // Do not submit if there are validation errors
     }
 
-    const cleanedData = { ...formData };
+   // --- inside handleSubmit before POST ---
+const cleanedData = { ...formData };
 
-    // Prevent invalid SQL dates
-    if (!cleanedData.birthDay || cleanedData.birthDay < "1753-01-01") {
-      delete cleanedData.birthDay;
-    }
+// Prevent invalid SQL dates (keep birthDay required rule)
+if (!cleanedData.birthDay || cleanedData.birthDay < "1753-01-01") {
+  delete cleanedData.birthDay;
+}
 
-    if (!cleanedData.anniversary || cleanedData.anniversary < "1753-01-01") {
-      delete cleanedData.anniversary;
-    }
+// Anniversary optional: remove if blank or invalid lower bound
+if (!cleanedData.anniversary || cleanedData.anniversary < "1753-01-01") {
+  delete cleanedData.anniversary;
+}
+
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/Customer/SaveCustomer`, {

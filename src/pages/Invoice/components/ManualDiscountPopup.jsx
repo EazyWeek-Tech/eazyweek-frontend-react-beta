@@ -115,6 +115,7 @@ const ManualDiscountPopup = ({
               onRemove={handleRemove}
               showDiscountPercent={true}
               readOnlyInputs={false}
+              editableDiscount={true} 
             />
 
             <div className="frmdiv">
@@ -124,8 +125,8 @@ const ManualDiscountPopup = ({
 
             {showApprovalInput && (
               <div className="frmdiv approvalcodebox">
-                <h4>Enter Approval Code</h4>
-                <label htmlFor="approvalcode">Approval Code:</label>
+               
+                <label htmlFor="approvalcode" className='appvlcode'>Enter Approval Code:</label>
                 <input
                   type="number"
                   id="approvalcode"
