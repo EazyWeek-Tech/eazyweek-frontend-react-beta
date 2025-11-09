@@ -1,4 +1,4 @@
-
+// InvoiceTable.jsx
 import React from 'react';
 
 const InvoiceTable = ({
@@ -10,7 +10,8 @@ const InvoiceTable = ({
   showDiscountPercent = false,
   readOnlyInputs = false,
   customer,
-  isPriceOverride
+  isPriceOverride,
+  editableDiscount = false,   // <— NEW
 }) => {
   const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
@@ -59,30 +60,30 @@ const InvoiceTable = ({
               const discount = parseFloat(item.discount) || 0;
               const discountPercent = price > 0 ? ((discount / price) * 100).toFixed(2) : '';
               const amountWithoutVat = Math.max(price - discount, 0);
+
               const taxRate = isCitizen
-  ? parseFloat(item.citizentax) || 0
-  : parseFloat(item.taxpercent) || 0;
+                ? parseFloat(item.citizentax) || 0
+                : parseFloat(item.taxpercent) || 0;
 
-const tax = (amountWithoutVat * taxRate) / 100;
-const total = amountWithoutVat + tax;
-
+              const tax = (amountWithoutVat * taxRate) / 100;
+              const total = amountWithoutVat + tax;
 
               return (
                 <tr key={idx}>
                   <td className="invno">{idx + 1}</td>
                   <td>{item.name}</td>
                   <td className="qtyno">1</td>
+
                   {isPriceOverride ? (
                     <>
                       <td>{originalPrice.toFixed(2)}</td>
                       <td>
-                       <input
-  type="number"
-  value={newPrice}
-  onChange={(e) => onPriceChange?.(idx, e.target.value)}
-  readOnly={readOnlyInputs}
-/>
-
+                        <input
+                          type="number"
+                          value={newPrice}
+                          onChange={(e) => onPriceChange?.(idx, e.target.value)}
+                          readOnly={readOnlyInputs}
+                        />
                       </td>
                     </>
                   ) : (
@@ -95,16 +96,20 @@ const total = amountWithoutVat + tax;
                       />
                     </td>
                   )}
+
                   {!isPriceOverride && (
                     <>
                       <td>
+                        {/* Now controlled by editableDiscount */}
                         <input
                           type="text"
                           value={item.discount || ''}
                           onChange={(e) => onDiscountChange?.(idx, e.target.value)}
-                          readOnly={readOnlyInputs}
+                          disabled={!editableDiscount || readOnlyInputs}
+                          title={!editableDiscount ? "Discount amount is controlled by Discount %" : undefined}
                         />
                       </td>
+
                       {showDiscountPercent && (
                         <td>
                           <input
@@ -117,12 +122,11 @@ const total = amountWithoutVat + tax;
                       )}
                     </>
                   )}
+
                   <td className="discno">{amountWithoutVat.toFixed(2)}</td>
                   <td className="discno">
                     {tax.toFixed(2)}{' '}
-                    <span style={{ color: '#888' }}>
-                      ({taxRate.toFixed(0)}%)
-                    </span>
+                    <span style={{ color: '#888' }}>({taxRate.toFixed(0)}%)</span>
                   </td>
                   <td className="discno">{total.toFixed(2)}</td>
                   <td className="actbtncell">

@@ -10,6 +10,16 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
   const suggestionsRef = useRef(null);  // <-- useRef for managing suggestions list
   const [todayDate, setTodayDate] = useState("");
   const [noResults, setNoResults] = useState(false);
+    const [user, setUser] = useState(null);
+   useEffect(() => {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    if (stored) {
+      const parsedUser = JSON.parse(stored);
+      setUser(parsedUser);
+  
+      
+    }
+  }, []);
 
   useEffect(() => {
     const today = new Date();
@@ -84,6 +94,28 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
     }
   };
 
+  useEffect(() => {
+      const fetchClinics = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          const data = await res.json();
+          setClinics(data);
+          if (data.length) {
+            setSelectedClinic(data[0]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch clinics", err);
+        }
+      };
+      fetchClinics();
+    }, []);
+
+      const centerName = user?.centerName ?? "Clinic";
+
   const handleSuggestionClick = (item) => {
     const fullText = `${item.firstName} - ${item.mobile}`;
     setSearchTerm(fullText);
@@ -108,10 +140,13 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
   return (
     <header className="appthdr">
       <div className="flx-spcbt">
-        <div>
-          <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
-            <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
+        <div className="backbtnapp">
+        
+    <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Go Back" data-tooltip-pos="right">
+            <img src={`${import.meta.env.BASE_URL}images/back.svg`} width="24" height="24" alt="Home" />
           </Link>
+           <span className="c-name">{centerName}</span>
+
         </div>
         <div className="datepkrdiv">
           <input
@@ -123,10 +158,13 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
         </div>
 
         <div className="actbtnsdiv">
+            <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
+            <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="24" height="24" alt="Home" />
+          </Link>
           <div
             className="apptimg tooltip"
             data-tooltip="Add Appointment"
-            data-tooltip-pos="down"
+            data-tooltip-pos="right"
             onClick={() => onAddAppointment(null)}
           >
             <img
@@ -138,7 +176,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
           <div
             className="apptstgs tooltip"
             data-tooltip="Settings"
-            data-tooltip-pos="down"
+            data-tooltip-pos="right"
           >
             <img
               src={`${import.meta.env.BASE_URL}images/settings.svg`}
@@ -149,7 +187,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
           <span
             className="apptstgs tooltip"
             data-tooltip="Add Customer"
-            data-tooltip-pos="down"
+            data-tooltip-pos="right"
             onClick={onAddCustomer}
           >
             <img

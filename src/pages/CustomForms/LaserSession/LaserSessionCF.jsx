@@ -79,9 +79,20 @@ const LaserConsentForm = () => {
       </button>
     </div>
   );
+  return (
+    <div className="LSCF-success-message">
+      <h2>Consent Form Submitted Successfully!</h2>
+      <p>Thank you for your consent.</p>
+      <button onClick={() => setSubmitted(false)}>
+        Back to Form
+      </button>
+    </div>
+  );
   }
 
   return (
+    <div className="LSCF-consent-form-container">
+      <div ref={formRef} className="LSCF-consent-form">
     <div className="LSCF-consent-form-container">
       <div ref={formRef} className="LSCF-consent-form">
         <h1>Consent for Laser Session</h1>
@@ -126,6 +137,7 @@ const LaserConsentForm = () => {
         <form onSubmit={handleSubmit}>
           <div>
             <label className="LSCF-checkbox-label">
+            <label className="LSCF-checkbox-label">
               <input
                 type="checkbox"
                 name="acknowledged"
@@ -135,8 +147,10 @@ const LaserConsentForm = () => {
               I have read and understood the information provided above regarding the laser procedure, its risks, and post-treatment care.
             </label>
             {errors.acknowledged && <span className="LSCF-error-message">{errors.acknowledged}</span>}
+            {errors.acknowledged && <span className="LSCF-error-message">{errors.acknowledged}</span>}
           </div>
 
+          <div className="LSCF-form-group">
           <div className="LSCF-form-group">
             <label>Client Name *</label>
             <input
@@ -147,8 +161,10 @@ const LaserConsentForm = () => {
               placeholder="Enter your full name"
             />
             {errors.clientName && <span className="LSCF-error-message">{errors.clientName}</span>}
+            {errors.clientName && <span className="LSCF-error-message">{errors.clientName}</span>}
           </div>
 
+          <div className="LSCF-form-group">
           <div className="LSCF-form-group">
             <label>Date *</label>
             <input
@@ -158,6 +174,7 @@ const LaserConsentForm = () => {
               onChange={handleInputChange}
             />
             {errors.date && <span className="LSCF-error-message">{errors.date}</span>}
+            {errors.date && <span className="LSCF-error-message">{errors.date}</span>}
           </div>
 
           <div className="LSCF-signature-section">
@@ -166,22 +183,27 @@ const LaserConsentForm = () => {
               <SignatureCanvas
                 ref={sigCanvas}
                 canvasProps={{ width: 500, height: 200, className: 'LSCF-sigCanvas' }}
+                canvasProps={{ width: 500, height: 200, className: 'LSCF-sigCanvas' }}
                 onEnd={() => setSignature(sigCanvas.current.toDataURL())}
               />
             </div>
             <button
               type="button"
               className="LSCF-clear-signature-btn"
+              className="LSCF-clear-signature-btn"
               onClick={clearSignature}
             >
               Clear Signature
             </button>
             {errors.signature && <span className="LSCF-error-message">{errors.signature}</span>}
+            {errors.signature && <span className="LSCF-error-message">{errors.signature}</span>}
           </div>
 
           <div className="LSCF-button-group">
+          <div className="LSCF-button-group">
             <button
               type="submit"
+              className="LSCF-submit-btn"
               className="LSCF-submit-btn"
             >
               Submit Consent
@@ -189,12 +211,14 @@ const LaserConsentForm = () => {
             <button
               type="button"
               className="LSCF-print-btn"
+              className="LSCF-print-btn"
               onClick={handlePrint}
             >
               Print Form
             </button>
             <button
               type="button"
+              className="LSCF-download-btn"
               className="LSCF-download-btn"
               onClick={handleDownloadPDF}
             >

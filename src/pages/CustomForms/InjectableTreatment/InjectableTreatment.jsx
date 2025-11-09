@@ -89,8 +89,11 @@ const AntiAgeingInjectablesConsentForm = () => {
   return (
     <div className="AAICF-consent-form-container">
       <div ref={formRef} className="AAICF-consent-form">
+    <div className="AAICF-consent-form-container">
+      <div ref={formRef} className="AAICF-consent-form">
         <h1>Informed Consent form for patients Undergoing Injectable (PRP, Filler, Threads, Hyaluronidase, Mesotherapy) Treatment</h1>
 
+        <div className="AAICF-form-group">
         <div className="AAICF-form-group">
           <label>Name of Patient:</label>
           <input
@@ -109,6 +112,8 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div className="AAICF-checkbox-group">
           <label className="AAICF-checkbox-item">
+        <div className="AAICF-checkbox-group">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="prpSkinHair"
@@ -117,6 +122,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             />
             PRP Skin/Hair
           </label>
+          <label className="AAICF-checkbox-item">
           <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
@@ -127,6 +133,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             Fillers
           </label>
           <label className="AAICF-checkbox-item">
+          <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
               name="threads"
@@ -135,6 +142,7 @@ const AntiAgeingInjectablesConsentForm = () => {
             />
             Threads
           </label>
+          <label className="AAICF-checkbox-item">
           <label className="AAICF-checkbox-item">
             <input
               type="checkbox"
@@ -146,6 +154,7 @@ const AntiAgeingInjectablesConsentForm = () => {
           </label>
         </div>
 
+        <table className="AAICF-services-table">
         <table className="AAICF-services-table">
           <thead>
             <tr>
@@ -214,15 +223,18 @@ const AntiAgeingInjectablesConsentForm = () => {
         </ul>
 
         <div className="AAICF-signature-section">
+        <div className="AAICF-signature-section">
           <h2>Doctor Signature:</h2>
           {/* <p>Sign above</p> */}
           <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={doctorSigCanvas}
               canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, doctorSignature: doctorSigCanvas.current.toDataURL() }))}
             />
           </div>
+          <button type="button" className="AAICF-clear-signature-btn" onClick={clearDoctorSignature}>
           <button type="button" className="AAICF-clear-signature-btn" onClick={clearDoctorSignature}>
             Clear Signature
           </button>
@@ -236,15 +248,18 @@ const AntiAgeingInjectablesConsentForm = () => {
         <p>I have read the foregoing information, or it has been read to me. I have had the opportunity to ask questions about it and any questions that I have asked have been answered to my satisfaction. I consent voluntarily to try this new treatment and understand that I have the right to withdraw from the procedure or treatment at any time without in any way affecting my medical care.</p>
 
         <div className="AAICF-signature-section">
+        <div className="AAICF-signature-section">
           <h2>Patient Signature:</h2>
           {/* <p>Sign above</p> */}
           <div className="AAICF-signature-pad">
             <SignatureCanvas
               ref={patientSigCanvas}
               canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
+              canvasProps={{ width: 500, height: 200, className: 'AAICF-sigCanvas' }}
               onEnd={() => setFormData(prev => ({ ...prev, patientSignature: patientSigCanvas.current.toDataURL() }))}
             />
           </div>
+          <button type="button" className="AAICF-clear-signature-btn" onClick={clearPatientSignature}>
           <button type="button" className="AAICF-clear-signature-btn" onClick={clearPatientSignature}>
             Clear Signature
           </button>
@@ -256,6 +271,7 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
           <div className="AAICF-form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Patient Name:</label>
             <input
               type="text"
@@ -265,6 +281,7 @@ const AntiAgeingInjectablesConsentForm = () => {
               placeholder="Enter patient name"
             />
           </div>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
           <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Date:</label>
             <input
@@ -278,6 +295,7 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
           <div className="AAICF-form-group" style={{ flex: 1 }}>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Doctor's Name:</label>
             <input
               type="text"
@@ -287,6 +305,7 @@ const AntiAgeingInjectablesConsentForm = () => {
               placeholder="Enter doctor's name"
             />
           </div>
+          <div className="AAICF-form-group" style={{ flex: 1 }}>
           <div className="AAICF-form-group" style={{ flex: 1 }}>
             <label>Age:</label>
             <input
@@ -301,8 +320,11 @@ const AntiAgeingInjectablesConsentForm = () => {
 
         <div className="AAICF-button-group">
           <button type="button" className="AAICF-print-btn" onClick={handlePrint}>
+        <div className="AAICF-button-group">
+          <button type="button" className="AAICF-print-btn" onClick={handlePrint}>
             Print Form
           </button>
+          <button type="submit" className="AAICF-submit-btn" onClick={handleSubmit}>
           <button type="submit" className="AAICF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>

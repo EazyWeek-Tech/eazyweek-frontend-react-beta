@@ -1,4 +1,5 @@
 .HTF-form-container-1 {
+.HTF-form-container-1 {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -8,6 +9,8 @@
   font-family: Arial, sans-serif;
 }
 
+.HTF-forms {
+   max-width: 100%;
 .HTF-forms {
    max-width: 100%;
   background-color: white;
@@ -20,12 +23,14 @@
 }
 
 .HTF-form h1 {
+.HTF-form h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
+.HTF-form h2 {
 .HTF-form h2 {
   font-size: 18px;
   font-weight: bold;
@@ -34,11 +39,14 @@
 }
 
 .HTF-form p {
+.HTF-form p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 .HTF-form-row {
+.HTF-form-row {
   display: grid;
+  flex-direction: row;
   flex-direction: row;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
@@ -46,19 +54,24 @@
 }
 
 .HTF-form-group {
+.HTF-form-group {
   display: flex;
   flex-direction: column;
   margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
+.HTF-form-group input {
 .HTF-form-group input {
   width: 100%;
 }
 
 .HTF-form-section {
+.HTF-form-section {
   margin-bottom: 15px;
 }
 
+.HTF-section-label {
 .HTF-section-label {
   display: block;
   font-weight: 500;
@@ -68,6 +81,8 @@
 
 .HTF-checkbox-row,
 .HTF-radio-row {
+.HTF-checkbox-row,
+.HTF-radio-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -75,6 +90,8 @@
   margin-top: 5px;
 }
 
+.HTF-checkbox-label,
+.HTF-radio-label {
 .HTF-checkbox-label,
 .HTF-radio-label {
   display: flex;
@@ -87,12 +104,15 @@
 
 .HTF-checkbox-label input,
 .HTF-radio-label input {
+.HTF-checkbox-label input,
+.HTF-radio-label input {
   width: 16px;
   height: 16px;
   cursor: pointer;
   accent-color: #007bff; 
 }
 
+.HTF-error-message {
 .HTF-error-message {
   display: block;
   margin-top: 5px;
@@ -102,11 +122,17 @@
 
 
 .HTF-form-group label {
+.HTF-form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
+.HTF-form-group input[type="text"],
+.HTF-form-group input[type="date"],
+.HTF-form-group input[type="datetime-local"],
+.HTF-form-group select,
+.HTF-form-group textarea {
 .HTF-form-group input[type="text"],
 .HTF-form-group input[type="date"],
 .HTF-form-group input[type="datetime-local"],
@@ -121,16 +147,20 @@
 }
 
 .HTF-form-group textarea {
+.HTF-form-group textarea {
   resize: vertical;
   min-height: 100px;
 }
 
+.HTF-treatment-table {
 .HTF-treatment-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
 }
 
+.HTF-treatment-table th,
+.HTF-treatment-table td {
 .HTF-treatment-table th,
 .HTF-treatment-table td {
   border: 1px solid #ddd;
@@ -140,10 +170,12 @@
 }
 
 .HTF-treatment-table th {
+.HTF-treatment-table th {
   background-color: #f2f2f2;
   font-weight: bold;
 }
 
+.HTF-treatment-table input {
 .HTF-treatment-table input {
   width: 100%;
   padding: 5px;
@@ -152,9 +184,11 @@
 }
 
 .HTF-signature-section {
+.HTF-signature-section {
   margin-bottom: 20px;
 }
 
+.HTF-signature-pad {
 .HTF-signature-pad {
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -164,10 +198,12 @@
 }
 
 .HTF-signature-pad canvas {
+.HTF-signature-pad canvas {
   display: block;
   margin: 0 auto;
 }
 
+.HTF-clear-signature-btn {
 .HTF-clear-signature-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
@@ -178,9 +214,11 @@
 }
 
 .HTF-photo-upload-section {
+.HTF-photo-upload-section {
   margin-bottom: 20px;
 }
 
+.HTF-photo-upload-section h3 {
 .HTF-photo-upload-section h3 {
   font-size: 16px;
   font-weight: bold;
@@ -188,23 +226,28 @@
 }
 
 .HTF-file-input {
+.HTF-file-input {
   margin-bottom: 10px;
 }
 
 .HTF-file-list {
+.HTF-file-list {
   margin-top: 10px;
 }
 
+.HTF-file-list ul {
 .HTF-file-list ul {
   list-style-type: none;
   padding: 0;
 }
 
 .HTF-file-list li {
+.HTF-file-list li {
   margin-bottom: 5px;
   font-size: 12px;
 }
 
+.HTF-button-group {
 .HTF-button-group {
   display: flex;
   gap: 10px;
@@ -212,6 +255,8 @@
   margin-top: 30px;
 }
 
+.HTF-submit-btn,
+.HTF-print-btn {
 .HTF-submit-btn,
 .HTF-print-btn {
   padding: 12px 24px;
@@ -223,29 +268,35 @@
 }
 
 .HTF-submit-btn {
+.HTF-submit-btn {
   background-color: #007bff;
   color: white;
 }
 
+.HTF-print-btn {
 .HTF-print-btn {
   background-color: #28a745;
   color: white;
 }
 
 .HTF-submit-btn:hover {
+.HTF-submit-btn:hover {
   background-color: #0056b3;
 }
 
 .HTF-print-btn:hover {
+.HTF-print-btn:hover {
   background-color: #1e7e34;
 }
 
+.HTF-error-message {
 .HTF-error-message {
   color: red;
   font-size: 12px;
   margin-top: 5px;
 }
 
+.HTF-add-row-btn {
 .HTF-add-row-btn {
   padding: 8px 16px;
   background-color: #28a745;
@@ -259,9 +310,11 @@
 }
 
 .HTF-add-row-btn:hover {
+.HTF-add-row-btn:hover {
   background-color: #1e7e34;
 }
 
+.HTF-delete-row-btn {
 .HTF-delete-row-btn {
   padding: 5px 10px;
   background-color: #dc3545;
@@ -274,9 +327,11 @@
 }
 
 .HTF-delete-row-btn:hover {
+.HTF-delete-row-btn:hover {
   background-color: #c82333;
 }
 
+.HTF-TitleandButton{
 .HTF-TitleandButton{
   display: flex;
   justify-content: space-between;
@@ -284,9 +339,11 @@
 }
 
 .HTF-face-mapper-section {
+.HTF-face-mapper-section {
   margin-bottom: 20px;
 }
 
+.HTF-face-mapper-section h2 {
 .HTF-face-mapper-section h2 {
   font-size: 18px;
   font-weight: bold;
@@ -295,10 +352,12 @@
 }
 
 .HTF-face-mapper-section p {
+.HTF-face-mapper-section p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
+.HTF-face-mapper-container {
 .HTF-face-mapper-container {
   position: relative;
   display: block;
@@ -310,6 +369,7 @@
 }
 
 .HTF-face-diagram {
+.HTF-face-diagram {
   display: block;
   width: 400px;
   height: 500px;
@@ -317,12 +377,14 @@
 }
 
 .HTF-face-canvas {
+.HTF-face-canvas {
   position: absolute;
   top: 0;
   left: 0;
   cursor: crosshair;
 }
 
+.HTF-face-mapper-tools {
 .HTF-face-mapper-tools {
   display: flex;
   gap: 15px;
@@ -337,6 +399,7 @@
 }
 
 .HTF-face-mapper-tools label {
+.HTF-face-mapper-tools label {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -348,6 +411,9 @@
 .HTF-face-mapper-tools select,
 .HTF-face-mapper-tools input[type="color"],
 .HTF-face-mapper-tools input[type="range"] {
+.HTF-face-mapper-tools select,
+.HTF-face-mapper-tools input[type="color"],
+.HTF-face-mapper-tools input[type="range"] {
   padding: 4px 8px;
   border: 1px solid #ced4da;
   border-radius: 4px;
@@ -355,9 +421,11 @@
 }
 
 .HTF-face-mapper-tools input[type="range"] {
+.HTF-face-mapper-tools input[type="range"] {
   width: 80px;
 }
 
+.HTF-clear-face-mapper-btn {
 .HTF-clear-face-mapper-btn {
   padding: 5px 10px;
   background-color: #f0f0f0;
@@ -368,47 +436,59 @@
 }
 
 .HTF-clear-face-mapper-btn:hover {
+.HTF-clear-face-mapper-btn:hover {
   background-color: #e0e0e0;
 }
 
 @media (max-width: 768px) {
+  .HTF-checkbox-row {
   .HTF-checkbox-row {
     flex-direction: column;
     gap: 10px;
   }
 
   .HTF-radio-row {
+  .HTF-radio-row {
     flex-direction: column;
     gap: 10px;
   }
 
+  .HTF-form {
   .HTF-form {
     padding: 15px;
     margin: 10px;
   }
 
   .HTF-form h1 {
+  .HTF-form h1 {
     font-size: 20px;
   }
 
+  .HTF-treatment-table {
   .HTF-treatment-table {
     font-size: 12px;
   }
 
   .HTF-treatment-table th,
   .HTF-treatment-table td {
+  .HTF-treatment-table th,
+  .HTF-treatment-table td {
     padding: 5px;
   }
 
+  .HTF-button-group {
   .HTF-button-group {
     flex-direction: column;
   }
 
   .HTF-submit-btn,
   .HTF-print-btn {
+  .HTF-submit-btn,
+  .HTF-print-btn {
     width: 100%;
   }
 
+  .HTF-add-row-btn {
   .HTF-add-row-btn {
     width: 100%;
   }
