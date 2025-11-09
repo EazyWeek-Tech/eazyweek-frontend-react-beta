@@ -114,25 +114,29 @@ const CaseTab = ({ custId }) => {
           color: #333;
           margin-bottom: 10px;
         }
-        .cases-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 20px;
-          font-size: 16px;
-        }
+        
+        .cases-table a{color: #334B71;font-weight: 700;}
+         .cases-table { width: 100%; border-collapse: collapse; margin: 20px 0;background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden; }
+        .cases-table td {padding: 12px 18px;
+    font-size: 14px;
+    color: #0f172a;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+ }
+        .cases-table th { background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: .2px; }
           .case-tab{padding: 30px; width: calc(100% - 300px);}
-        .cases-table th {
-          background: #f0f0f0;
-          padding: 15px 10px;
-          text-align: left;
-          border-bottom: 1px solid #ccc;
-        }
-        .cases-table td {
-          font-size: 16px;
-          line-height: 19px;
-          padding: 15px 10px;
-          border-bottom: 1px solid #e0e0e0;
-        }
+       
         .action-btn {
           background-color: #334B71;
           color: white;

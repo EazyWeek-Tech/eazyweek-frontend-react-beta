@@ -361,8 +361,8 @@ table {
   font-size: 14px;
 }
 
-.suggestionssrc{position: absolute;left:0;    position: absolute;
-    left: 0;
+.suggestionssrc{position: absolute;top:30px;z-index:22;
+    left: -110px;
     width: 300px;
     background: #fff;
     padding: 5px;}
@@ -939,7 +939,9 @@ table {
             border-radius: 2px;
             color: #fff;
         }
-
+#addcust .popin{width: 650px;}
+#addcust .frmdiv{justify-content: flex-start;}
+#addcust .inptdiv{display: flex; gap: 10px; align-items: center;}
 
  .frmdiv {
             display: flex;
