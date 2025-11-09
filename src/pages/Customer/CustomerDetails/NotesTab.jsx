@@ -176,25 +176,26 @@ const NotesTab = ({ custId }) => {
           font-size: 13px;
         }
 
-        .notes-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 16px;
-        }
-
-        .notes-table th {
-          background-color: #f0f0f0;
-          padding: 15px 10px;
-          border-bottom: 1px solid #ccc;
-          text-align: left;
-        }
-
-        .notes-table td {
-          font-size: 13px;
-          line-height: 19px;
-          padding: 8px;
-          border-bottom: 1px solid #e0e0e0;
-        }
+       .notes-table a{color: #334B71;font-weight: 700;}
+         .notes-table { width: 100%; border-collapse: collapse; margin: 20px 0;background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden; }
+        .notes-table td {padding: 12px 18px;
+    font-size: 14px;
+    color: #0f172a;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+ }
+        .notes-table th { background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: .2px; }
 
         .pagination {
           margin-top: 10px;

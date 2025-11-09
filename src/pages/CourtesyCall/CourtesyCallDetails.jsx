@@ -185,7 +185,7 @@ const CourtesyCallDetails = () => {
       agentdecision: formData.agentdecision ?? "",
       complaintDetails: formData.customerFeedback ?? "",
 
-      isDraft,
+      isDraft, // ← 1 for Save, 2 for Submit
       createdBy: effectiveUserId,
 
       // convert numeric UI value back to string for API
@@ -480,7 +480,7 @@ const CourtesyCallDetails = () => {
           <button className="cc-btn-save" onClick={() => handleSubmit(1)} disabled={loading}>
             Save
           </button>
-          <button className="cc-btn-submit" onClick={() => handleSubmit(0)} disabled={loading}>
+          <button className="cc-btn-submit" onClick={() => handleSubmit(2)} disabled={loading}>
             Submit
           </button>
           <button className="cc-btn-back" onClick={() => navigate(-1)} disabled={loading}>
