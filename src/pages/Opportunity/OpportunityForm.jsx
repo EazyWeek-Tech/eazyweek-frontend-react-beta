@@ -1,4 +1,5 @@
 "use client"
+
 import { useNavigate } from "react-router-dom"
 import { useRef, useState, useMemo, useEffect } from "react"
 import { API_BASE_URL } from "../../config"
@@ -41,7 +42,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const [masterRules, setMasterRules] = useState([])
   const [rulesLoading, setRulesLoading] = useState(false)
 
-  // DB code -> internal ruleId used by your RuleForm switch()
+  // DB code -> internal ruleId used by RuleForm switch()
   const ruleCodeToId = {
     R1: "paidForXButNotY",
     R2: "paidForXCategoryInYDays",
@@ -50,6 +51,13 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     R5: "customerSpecialDay",
     R6: "customerType",
   }
+// Compute the exact noShowDays value the API expects
+const computeNoShowDays = (v) => {
+  if (String(v.fetchType) === "1") return "9999";                           // STATIC sentinel
+  if (isCustom(v.windowType)) return String(v.customDays || "");            // user-entered number
+  if (isRange(v.windowType))  return daysBetween(v.fromDate, v.toDate) || ""; // computed from dates
+  return numericDays(v.windowType);                                         // 1 / 7 / 30 / 90
+};
 
   const mapApiRule = (r) => ({
     id: ruleCodeToId[r?.code] ?? (r?.code || ""),
@@ -64,7 +72,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     const loadRules = async (type, setter) => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadRules/${type}`, { credentials: "include" })
-        const data = await res.json() // [{name, code, value}]
+        const data = await res.json()
         const arr = Array.isArray(data) ? data.map(mapApiRule) : []
         if (alive) setter(arr)
       } catch (e) {
@@ -86,7 +94,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     return () => { alive = false }
   }, [])
 
-  // Manual rules remain hardcoded
+  // Manual rule
   const manualRules = [
     { id: "manualCreateLead", title: "Create Manual Lead", desc: "Create a lead without auto-segmentation." },
   ]
@@ -100,18 +108,17 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const [opportunityName, setOpportunityName] = useState("")
   const [selectedRule, setSelectedRule] = useState("")
   const [ruleValues, setRuleValues] = useState({
-    // Paid for X but not for Y
+    // R1
     paidForXButNotY: {
       categoryX: [],
       categoryY: [],
-      fetchType: "",        // "1" | "2" (required)
-      categoryWindow: "",   // "" | "CUSTOM" | "RANGE" | P1D | P1W | P1M | P3M
-      customDays: "",       // when categoryWindow === "CUSTOM"
-      fromDate: "",         // when RANGE or STATIC
-      toDate: ""            // when RANGE or STATIC
+      fetchType: "",        // "1" | "2"
+      categoryWindow: "",   // "", "1","7","30","90","0"(CUSTOM),"9999"(RANGE)
+      customDays: "",
+      fromDate: "",
+      toDate: ""
     },
-
-    // Paid for X Category in Y Days and no future appt in Z days for Category P
+    // R2
     paidForXCategoryInYDays: {
       categoryX: [],
       fromDate1: "",
@@ -120,19 +127,17 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       fromDate2: "",
       toDate2: "",
       categoryP: [],
-      fetchType: ""         // "1" | "2" (required)
+      fetchType: ""
     },
-
-    // No-show
+    // R3
     noShowAppointment: {
-      fetchType: "",        // "1" | "2" (required)
-      windowType: "",       // "" | P1D | P1W | P1M | P3M | CUSTOM | RANGE
-      customDays: "",       // when CUSTOM
-      fromDate: "",         // when RANGE or STATIC
-      toDate: ""            // when RANGE or STATIC
+      fetchType: "",
+      windowType: "",
+      customDays: "",
+      fromDate: "",
+      toDate: ""
     },
-
-    // Cancelled
+    // R4
     cancelledAppointment: {
       fetchType: "",
       windowType: "",
@@ -140,10 +145,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       fromDate: "",
       toDate: ""
     },
-
-    // Masters / Manual
-    customerSpecialDay: { dayType: "", offsetDays: "", fetchType: "", fromDate: "", toDate: "" },
+    // R5
+    customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" }, // dayType is numeric days now
+    // R6
     customerType:       { type: "", fetchType: "" },
+    // Manual
     manualCreateLead:   { note: "", fetchType: "" },
   })
   const [errors, setErrors] = useState({ name: "", rule: "", fields: "" })
@@ -191,45 +197,46 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
 
   const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
 
+  // window helpers
+  const isCustom = (v) => String(v) === "0"
+  const isRange  = (v) => String(v) === "9999"
+  const numericDays = (v) => {
+    const s = (v ?? "").toString()
+    if (!s || isCustom(s) || isRange(s)) return ""
+    return s
+  }
+
   const isRuleValid = (ruleId) => {
     if (!ruleId) return false
     const vals = ruleValues[ruleId] || {}
-
-    // fetchType must be "1" (Static) or "2" (Dynamic)
     if (!["1", "2"].includes(String(vals.fetchType))) return false
-
-    // Rule-specific required fields
     const baseReq = requiredFields[ruleId] || []
     if (!baseReq.every(k => isFilled(vals[k]))) return false
 
     if (ruleId === "paidForXButNotY") {
-      if (vals.categoryWindow === "CUSTOM" && !isFilled(vals.customDays)) return false
-
-      // Dynamic + RANGE requires dates
-      if (String(vals.fetchType) === "2" && vals.categoryWindow === "RANGE") {
+      if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false
+      if (String(vals.fetchType) === "2" && isRange(vals.categoryWindow)) {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
       }
-
-      // Static always requires dates
       if (String(vals.fetchType) === "1") {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
       }
     }
 
     if (ruleId === "noShowAppointment" || ruleId === "cancelledAppointment") {
-      if (vals.windowType === "CUSTOM" && !isFilled(vals.customDays)) return false
-
-      // Dynamic + RANGE requires dates
-      if (vals.windowType === "RANGE" && String(vals.fetchType) === "2") {
+      if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false
+      if (isRange(vals.windowType) && String(vals.fetchType) === "2") {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
       }
-
-      // Static always requires dates
       if (String(vals.fetchType) === "1") {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
       }
     }
 
+     if (ruleId === "noShowAppointment") {
+   const nd = computeNoShowDays(vals);
+   if (!nd) return false; // ensure API-required noShowDays will be present
+ }
     return true
   }
 
@@ -245,27 +252,15 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     manualBased: { createManualLead: selectedRule === MANUAL_ID },
   })
 
-  // helper to resolve ruleCode (R1..R6) and ruleType
   const getSelectedRuleMeta = () => {
     const match = ALL_RULES.find(r => r.id === selectedRule)
-    const ruleCode = match?.raw?.code || "" // e.g., R1
-    const ruleType =
-      TX_IDS.includes(selectedRule) ? "TRANSACTION" :
-      MS_IDS.includes(selectedRule) ? "MASTERS" : "MANUAL"
-    return { ruleCode, ruleType }
+    const ruleCode = match?.raw?.code || ""
+    return { ruleCode }
   }
 
-  // helpers for days & joins
-  const daysFromWindow = (w) => {
-    switch (w) {
-      case "P1D": return "1"
-      case "P1W": return "7"
-      case "P1M": return "30"
-      case "P3M": return "90"
-      default: return "" // CUSTOM/RANGE/"" -> leave blank
-    }
-  }
-  const joinVals = (arr) => Array.isArray(arr) ? arr.join(",") : (arr ?? "")
+  // helpers
+  const labelsFromValues = (vals = []) =>
+    (Array.isArray(vals) ? vals : []).map(v => catOptions.find(o => o.value === v)?.label || v)
 
   const daysBetween = (start, end) => {
     if (!start || !end) return ""
@@ -274,48 +269,61 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     if (isNaN(s) || isNaN(e)) return ""
     const ms = e.getTime() - s.getTime()
     if (ms < 0) return ""
-    // round up to whole days
     const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
     return String(d)
   }
 
-  // simple client-side oppCode generator so it’s never blank
-  const generateOppCode = () => {
-    const d = new Date()
-    const pad = (n) => String(n).padStart(2, "0")
-    return `OPP-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  const toDMY = (ymd) => {
+    if (!ymd) return ""
+    const [y, m, d] = (ymd || "").split("-")
+    if (!y || !m || !d) return ""
+    return `${d}/${m}/${y}`
+  }
+  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "")
+
+  const computeWindowDays = ({ fetchType, windowSelect, fromDate, toDate, customDays }) => {
+    const ft = String(fetchType || "")
+    const ws = String(windowSelect || "")
+    if (ft === "1") {
+      // STATIC — we won’t compute here for R3 static (we use 9999),
+      // but R1 static uses range days:
+      return daysBetween(fromDate, toDate) || ""
+    }
+    if (isCustom(ws)) return "" // handled via customDays fields
+    if (isRange(ws)) return daysBetween(fromDate, toDate) || ""
+    return numericDays(ws)
   }
 
-  // Build EXACT API payload (missing values -> "")
-  const buildApiPayload = (isDraftNum, campaignDates) => {
-    const { ruleCode, ruleType } = getSelectedRuleMeta()
+  // Build EXACT API payload
+  const buildApiPayload = (/* isDraftNum, */ campaignDates) => {
+    const { ruleCode } = getSelectedRuleMeta()
     const v = ruleValues[selectedRule] || {}
 
-    // base skeleton
     const base = {
-      oppCode: generateOppCode(),
+      request: "save",          // <— always "save"
+      oppCode: "",
       oppName: opportunityName.trim(),
       ruleCode,
       xvalue: "",
       yvalue: "",
       zValue: "",
       pvalue: "",
-      ruleDetails: JSON.stringify({ id: selectedRule, vals: v }),
+      ruleDetails: JSON.stringify({ id: selectedRule, vals: v }), // overridden per R3/R4 later if needed
       ruleZFromDate: "",
       ruleZToDate: "",
-      isDraft: Number(isDraftNum),  // <-- numeric 1/0
+      isDraft: "1",             // <— always "1"
       ruleDays: "",
-      ruleType,
+      ruleType: v.fetchType ? String(v.fetchType) : "",
       ruleYFromDate: "",
       ruleYToDate: "",
       staticFromDate: "",
       staticToDate: "",
-      ruleFetchType: v.fetchType ? String(v.fetchType) : "", // "1" | "2" or ""
+      ruleFetchType: v.fetchType ? String(v.fetchType) : "",
       ruleCustomDays: "",
       customFromDate: "",
       customToDate: "",
-      campStartDate: campaignDates?.startDate || "",
-      campEndDate: campaignDates?.endDate || "",
+      campStartDate: safeDMY(campaignDates?.startDate),
+      campEndDate:   safeDMY(campaignDates?.endDate),
       noShowDays: "",
       noShowCustomDays: "",
       cancelDays: "",
@@ -326,77 +334,89 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
 
     switch (selectedRule) {
       case "paidForXButNotY": { // R1
-        base.xvalue = joinVals(v.categoryX)
-        base.yvalue = joinVals(v.categoryY)
+        base.xvalue = labelsFromValues(v.categoryX).join(",")
+        base.yvalue = labelsFromValues(v.categoryY).join(",")
 
-        const d = daysFromWindow(v.categoryWindow)
-        if (d) base.ruleDays = d
-        if (v.categoryWindow === "CUSTOM") {
-          base.ruleCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.categoryWindow === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
+        base.ruleDays = computeWindowDays({
+          fetchType: v.fetchType,
+          windowSelect: v.categoryWindow,
+          fromDate: v.fromDate,
+          toDate: v.toDate,
+          customDays: v.customDays
+        })
+
+        if (isCustom(v.categoryWindow)) base.ruleCustomDays = String(v.customDays || "")
+        if (String(v.fetchType) === "2" && isRange(v.categoryWindow)) {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
         }
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
         }
         break
       }
 
       case "paidForXCategoryInYDays": { // R2
-        base.xvalue = joinVals(v.categoryX)
-        // Y days — compute from fromDate1/toDate1 if provided
+        base.xvalue = labelsFromValues(v.categoryX).join(",")
+        base.pvalue = labelsFromValues(v.categoryP).join(",")
+
         const yDays = daysBetween(v.fromDate1, v.toDate1)
         base.ruleDays = yDays || ""
-        base.zValue = String(v.zDays || "")
-        base.pvalue = joinVals(v.categoryP)
-        base.ruleYFromDate = v.fromDate1 || ""
-        base.ruleYToDate   = v.toDate1 || ""
-        base.ruleZFromDate = v.fromDate2 || ""
-        base.ruleZToDate   = v.toDate2 || ""
+        base.zValue   = String(v.zDays || "")
+
+        base.ruleYFromDate = safeDMY(v.fromDate1)
+        base.ruleYToDate   = safeDMY(v.toDate1)
+        base.ruleZFromDate = safeDMY(v.fromDate2)
+        base.ruleZToDate   = safeDMY(v.toDate2)
         break
       }
 
       case "noShowAppointment": { // R3
-        const d = daysFromWindow(v.windowType)
-        if (d) base.noShowDays = d
-        if (v.windowType === "CUSTOM") {
-          base.noShowCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.windowType === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
-        }
-        if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
-        }
-        break
-      }
+  const nDays = computeNoShowDays(v);          // always "9999" for static, else a number string
+  base.noShowDays = nDays;
+  base.noShowCustomDays = "";                  // your Swagger samples leave this empty
+  // Dates: samples show them empty for R3; keep them blank:
+  base.staticFromDate = "";
+  base.staticToDate   = "";
+  base.customFromDate = "";
+  base.customToDate   = "";
+  // Plain-text ruleDetails per your screenshots
+  base.ruleDetails = `No show for ${nDays} days`;
+  break;
+}
 
       case "cancelledAppointment": { // R4
-        const d = daysFromWindow(v.windowType)
-        if (d) base.cancelDays = d
-        if (v.windowType === "CUSTOM") {
-          base.cancelCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.windowType === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
-        }
-        if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
-        }
+        // Allow cancelDays and allow staticFrom/To even if ruleType = "2"
+        const cDays =
+          String(v.fetchType) === "1"
+            ? (daysBetween(v.fromDate, v.toDate) || "")
+            : (String(v.customDays || "") || numericDays(v.windowType) || (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : ""))
+
+        base.cancelDays = cDays
+        base.cancelCustomDays = (String(v.fetchType) === "2" && isCustom(v.windowType)) ? String(v.customDays || "") : ""
+
+        // Your sample shows static dates even with ruleType "2":
+        base.staticFromDate = base.campStartDate
+        base.staticToDate   = base.campEndDate
+
+
+        // Keep custom range empty to match sample
+        base.customFromDate = ""
+        base.customToDate   = ""
+
+        base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
         break
       }
 
       case "customerSpecialDay": { // R5
-        base.customerSpecialDays = v.dayType || ""
-        base.staticFromDate = v.fromDate || ""
-        base.staticToDate = v.toDate || ""
+        // R5 wants a numeric string in "customerSpecialDays"
+        base.customerSpecialDays = String(v.dayType || "")
+        base.staticFromDate = base.campStartDate
+        base.staticToDate   = base.campEndDate
+        base.customFromDate = ""
+        base.customToDate   = ""
+        base.ruleDetails = "Customer Special Day"
         break
       }
 
@@ -405,11 +425,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         break
       }
 
-      case "manualCreateLead": {
-        // nothing extra
-        break
-      }
-
+      case "manualCreateLead":
       default:
         break
     }
@@ -419,14 +435,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       if (base[k] === undefined || base[k] === null) base[k] = ""
     })
 
-    // keep numeric isDraft as 0/1
-    base.isDraft = Number(isDraftNum)
-
     return base
   }
 
-  const postCreate = async (isDraftNum, campaignDates) => {
-    const body = buildApiPayload(isDraftNum, campaignDates)
+  const postCreate = async (/* isDraftNum, */ campaignDates) => {
+    const body = buildApiPayload(campaignDates)
     console.log("CreateNewOpp payload:", body)
     const res = await fetch(`${API_BASE_URL}/api/Opportunity/CreateNewOpp`, {
       method: "POST",
@@ -446,51 +459,29 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       throw new Error(msg)
     }
     if (data && data.success === false) {
-      // surface backend message if present, otherwise generic error
       throw new Error(data.message || "CreateNewOpp returned success:false")
     }
     return data || {}
   }
 
-  const handleSave = async () => {
-    const nameMissing = !opportunityName.trim()
-    const ruleMissing = !selectedRule
-    const fieldsMissing = selectedRule && !isRuleValid(selectedRule)
-
-    if (nameMissing || ruleMissing || fieldsMissing) {
-      setErrors({
-        name: nameMissing ? "Please enter an opportunity name." : "",
-        rule: ruleMissing ? "Please choose one rule." : "",
-        fields: fieldsMissing ? "Please complete the required fields for the selected rule." : "",
-      })
-      if (nameMissing && nameRef.current) nameRef.current.focus()
-      else if (ruleMissing && rulesRef.current) rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
-      return
-    }
-
-    try {
-      await postCreate(1) // isDraft = 1 for Save (numeric)
-      alert("Saved as draft.")
-      onNext?.(buildPayload())
-    } catch (e) {
-      console.error(e)
-      alert(`Failed to save draft. ${e.message || ""}`)
-    }
-  }
-
-  // Open modal on Activate (only when form is valid)
+  // Only “Activate” flow in this screen (but posting as save/isDraft=1)
   const handleActivateClick = () => {
     setActivateErr("")
     if (!canSubmit) {
-      // trigger current validation messages
-      handleSave()
+      setErrors(prev => ({
+        ...prev,
+        name: !opportunityName.trim() ? "Please enter an opportunity name." : "",
+        rule: !selectedRule ? "Please choose one rule." : "",
+        fields: selectedRule && !isRuleValid(selectedRule) ? "Please complete the required fields for the selected rule." : "",
+      }))
+      if (!opportunityName.trim() && nameRef.current) nameRef.current.focus()
+      else if (!selectedRule && rulesRef.current) rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
       return
     }
     setActivateOpen(true)
   }
 
   const confirmActivate = async () => {
-    // validate campaign dates
     if (!campStart || !campEnd) {
       setActivateErr("Please select both campaign start and end dates.")
       return
@@ -501,13 +492,14 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     }
 
     try {
-      await postCreate(0, { startDate: campStart, endDate: campEnd }) // isDraft = 0 for Activate
+      await postCreate({ startDate: campStart, endDate: campEnd }) // posts as request:"save", isDraft:"1"
       setActivateOpen(false)
-      alert("Campaign activated.")
+      alert("Saved (activation-style) with request:'save' and isDraft:'1'.")
       onNext?.(buildPayload())
+      navigate("/opportunity")
     } catch (e) {
       console.error(e)
-      setActivateErr(e.message || "Failed to activate campaign. Please try again.")
+      setActivateErr(e.message || "Failed to save. Please try again.")
     }
   }
 
@@ -521,12 +513,10 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   }) => {
     const [open, setOpen] = useState(false)
     const [q, setQ] = useState("")
-    const [local, setLocal] = useState(values) // edit buffer while open
+    const [local, setLocal] = useState(values)
 
-    // seed local from parent when opening
     useEffect(() => { if (open) setLocal(values) }, [open, values])
 
-    // Esc closes
     useEffect(() => {
       const onKey = (e) => { if (e.key === "Escape") setOpen(false) }
       if (open) document.addEventListener("keydown", onKey)
@@ -558,7 +548,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
     }
 
-    // Commit then close (ordered)
     const closeWithCommit = (e) => {
       e.preventDefault()
       e.stopPropagation()
@@ -566,7 +555,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       setTimeout(() => setOpen(false), 0)
     }
 
-    // show local while open, parent when closed
     const shown = open ? local : values
     const buttonLabel =
       shown.length === 0
@@ -581,7 +569,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         <button
           className="msel-btn"
           type="button"
-          onMouseDown={(e) => e.preventDefault()} // avoid blur/focus issues
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setOpen(v => !v)}
         >
           {buttonLabel}<span className="msel-caret">▾</span>
@@ -590,7 +578,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         {open && (
           <div
             className="msel-dd"
-            // keep events inside
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -651,7 +638,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 type="button"
                 className="msel-done"
                 onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-                onClick={closeWithCommit} // commit → close
+                onClick={closeWithCommit}
               >
                 Done
               </button>
@@ -664,22 +651,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
 
   // ---------- Shared row: Rule Data Fetch Type ----------
   const FetchTypeRow = ({ ruleId, vals }) => (
-  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
-    <label className="rf-field">
-      <span className="rf-label">Segment</span>
-      <select
-        className="rf-input"
-        value={vals.fetchType || ""}
-        onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
-      >
-        <option value="">Select</option>
-        <option value="1">Static</option>
-        <option value="2">Dynamic</option>
-      </select>
-    </label>
-  </div>
-)
-
+    <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
+      <label className="rf-field">
+        <span className="rf-label">Segment</span>
+        <select
+          className="rf-input"
+          value={vals.fetchType || ""}
+          onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
+        >
+          <option value="">Select</option>
+          <option value="1">Static</option>
+          <option value="2">Dynamic</option>
+        </select>
+      </label>
+    </div>
+  )
 
   // ---------- RULE FORMS ----------
   const RuleForm = ({ ruleId }) => {
@@ -712,10 +698,10 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                     onChange={(e) => {
                       const val = e.target.value
                       setField(ruleId, "categoryWindow", val)
-                      if (val !== "CUSTOM") setField(ruleId, "customDays", "")
-                      if (val !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                      if (!isCustom(val)) setField(ruleId, "customDays", "")
+                      if (!isRange(val)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
                     }}
-                    disabled={String(v.fetchType) === "1"} // Disable when STATIC
+                    disabled={String(v.fetchType) === "1"}
                   >
                     <option value="">Select</option>
                     <option value="1">Past 1 day</option>
@@ -723,12 +709,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                     <option value="30">Past 1 Month</option>
                     <option value="90">Past 3 Month</option>
                     <option value="0">Custom</option>
-                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
+                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
                   </select>
                   <span className="rf-label">days</span>
                 </label>
 
-                {v.categoryWindow === "CUSTOM" && (
+                {isCustom(v.categoryWindow) && (
                   <label className="rf-field">
                     <span className="rf-label">days</span>
                     <input
@@ -742,7 +728,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   </label>
                 )}
 
-                {v.categoryWindow === "RANGE" && String(v.fetchType) !== "1" && (
+                {isRange(v.categoryWindow) && String(v.fetchType) !== "1" && (
                   <>
                     <label className="rf-field">
                       <span className="rf-label">From Date</span>
@@ -855,10 +841,10 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   onChange={(e) => {
                     const t = e.target.value
                     setField(ruleId, "windowType", t)
-                    if (t !== "CUSTOM") setField(ruleId, "customDays", "")
-                    if (t !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    if (!isCustom(t)) setField(ruleId, "customDays", "")
+                    if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
                   }}
-                  disabled={String(v.fetchType) === "1"} // Disable when STATIC
+                  disabled={String(v.fetchType) === "1"}
                 >
                   <option value="">Select</option>
                   <option value="1">Past 1 day</option>
@@ -866,11 +852,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   <option value="30">Past 1 Month</option>
                   <option value="90">Past 3 Month</option>
                   <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
+                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
                 </select>
               </label>
 
-              {v.windowType === "CUSTOM" && (
+              {isCustom(v.windowType) && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -884,7 +870,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 </>
               )}
 
-              {v.windowType === "RANGE" && String(v.fetchType) !== "1" && (
+              {isRange(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -946,10 +932,10 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   onChange={(e) => {
                     const t = e.target.value
                     setField(ruleId, "windowType", t)
-                    if (t !== "CUSTOM") setField(ruleId, "customDays", "")
-                    if (t !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    if (!isCustom(t)) setField(ruleId, "customDays", "")
+                    if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
                   }}
-                  disabled={String(v.fetchType) === "1"} // Disable when STATIC
+                  disabled={String(v.fetchType) === "1"}
                 >
                   <option value="">Select</option>
                   <option value="1">Past 1 day</option>
@@ -957,11 +943,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   <option value="30">Past 1 Month</option>
                   <option value="90">Past 3 Month</option>
                   <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
+                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
                 </select>
               </label>
 
-              {v.windowType === "CUSTOM" && (
+              {isCustom(v.windowType) && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -975,7 +961,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 </>
               )}
 
-              {v.windowType === "RANGE" && String(v.fetchType) !== "1" && (
+              {isRange(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -1030,12 +1016,15 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid">
               <label className="rf-field">
-                <span className="rf-label">Day type</span>
-                <select className="rf-input" value={v.dayType} onChange={(e) => setField(ruleId, "dayType", e.target.value)}>
-                  <option value="">Select</option>
-                  <option value="birthday">Birthday</option>
-                  <option value="anniversary">Anniversary</option>
-                </select>
+                <span className="rf-label">Days</span>
+                <input
+                  type="number"
+                  min="1"
+                  className="rf-input"
+                  value={v.dayType}
+                  onChange={(e) => setField(ruleId, "dayType", e.target.value)}
+                  placeholder="e.g., 30"
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
@@ -1114,9 +1103,8 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .cdesc { font-size:12px; color:#4b5563; margin-top:2px; }
         .help { margin-left:6px; font-size:12px; border:1px solid #d1d5db; border-radius:50%; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; cursor:help; }
 
-        /* rule form */
         .rf { font-size: 16px; margin-top: 14px; border:1px dashed #d1d5db; border-radius:10px; padding:14px; background:#fcfcff; }
-        .rf-title { font-weight:700;  color:#111827; margin-bottom:15px; }
+        .rf-title { font-weight:700; color:#111827; margin-bottom:15px; }
         .rf-grid { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .rf-field { display:flex; align-items: center; gap:6px; }
         .rf-label { font-size:12px; color:#374151; }
@@ -1289,13 +1277,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           {/* Actions */}
           <div className="actions">
             <button className="btn back" type="button" onClick={onBack}>Back</button>
-            <button className="btn save" type="button" onClick={handleSave} disabled={!canSubmit}>Save</button>
             <button className="btn save" type="button" onClick={handleActivateClick} disabled={!canSubmit}>Activate</button>
           </div>
         </div>
       </div>
 
-      {/* Activate Modal */}
+      {/* Activate Modal (posts as save/isDraft=1) */}
       {activateOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal">
@@ -1323,7 +1310,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             {activateErr ? <div className="modal-err">{activateErr}</div> : null}
             <div className="modal-actions">
               <button className="btn back" type="button" onClick={() => setActivateOpen(false)}>Cancel</button>
-              <button className="btn save" type="button" onClick={confirmActivate}>Activate</button>
+              <button className="btn save" type="button" onClick={confirmActivate}>Save</button>
             </div>
           </div>
         </div>

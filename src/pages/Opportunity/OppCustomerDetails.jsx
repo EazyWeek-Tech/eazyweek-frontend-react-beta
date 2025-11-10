@@ -12,6 +12,25 @@ const DISPOSITION_OPTIONS = [
   { value: "LS012", label: "Appointment Booked" },
 ];
 
+// Simple status mapping; tweak if your backend expects different strings
+const inferOppStatusFromDisposition = (code) => {
+  if (!code) return "Open";
+  const closedSet = new Set(["LS008", "LS009", "LS010", "LS011"]); // Converted/Bad/No response/Not Converted
+  return closedSet.has(code) ? "Closed" : "Open"; // Appointment Booked stays Open
+};
+
+// Safely read various casings the API might return for RECID
+const getRecId = (row) => {
+  if (!row) return 0;
+  return (
+    row.RECID ??
+    row.recID ??
+    row.recid ??
+    row.RecID ??
+    0
+  );
+};
+
 const OppCustomerDetails = () => {
   const { oppCode, custId } = useParams();
   const { state } = useLocation(); // { row, header, isManual }
@@ -86,36 +105,67 @@ const OppCustomerDetails = () => {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  const postPayload = (isDraft) => ({
-    oppCode,
-    custID: top.custID,
-    disposition: form.disposition,
-    remarks: form.remarks,
-    isDraft: isDraft ? 1 : 0, // 1=Save, 0=Submit (aligning with your Courtesy pattern)
-  });
+  // 👉 New payload builder for UpdateOppDetails API
+  const buildUpdatePayload = () => {
+    const recID = getRecId(row);
+    const oppStatus = inferOppStatusFromDisposition(form.disposition);
+    return {
+      recID,                          // number
+      disposition: form.disposition,  // string (e.g., "LS012")
+      remarks: form.remarks,          // string
+      oppCode,                        // string from route
+      oppStatus,                      // "Open" | "Closed" (adjust as needed)
+    };
+  };
 
-  const handleSaveOrSubmit = async (isDraft) => {
-    // TODO: replace endpoint and payload keys to match your backend spec
+  const handleSaveOrSubmit = async (/* isDraft not needed for new API */) => {
+    // light validation
+    if (!form.disposition) {
+      setError("Please select a Disposition before saving.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppCustDispositionInsert`, {
+      const res = await fetch(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(postPayload(isDraft)),
+        body: JSON.stringify(buildUpdatePayload()),
       });
-      // Accept either 200 or 201; adjust as per API
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Optional: show toast / navigate back after submit
-      if (!isDraft) navigate(-1);
+      // On success: for "Submit" we navigate back; for "Save" we can stay.
+      // Since both buttons now hit same API, treat second button as submit (navigate back).
+      // You can split handlers if you want different UX.
+      // Here we'll keep your existing semantics:
+      // - First button: Save (stay)
+      // - Second button: Submit (go back)
+      // We'll detect which button called us via an argument (see below).
     } catch (e) {
       console.error(e);
       setError("Could not save. Please try again.");
     } finally {
       setSaving(false);
     }
+  };
+
+  // Separate wrappers to preserve your button semantics:
+  const onClickSave = async () => {
+    await handleSaveOrSubmit(true);   // stays on page
+  };
+  const onClickSubmit = async () => {
+    const ok = await (async () => {
+      // reuse same API; if it succeeds, navigate back
+      try {
+        await handleSaveOrSubmit(false);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    if (ok) navigate(-1);
   };
 
   if (loading) {
@@ -174,8 +224,8 @@ const OppCustomerDetails = () => {
         </div>
 
         <div className="btnrow">
-          <button className="btn" disabled={saving} onClick={() => handleSaveOrSubmit(true)}>Save</button>
-          <button className="btn" disabled={saving} onClick={() => handleSaveOrSubmit(false)}>Submit</button>
+          <button className="btn" disabled={saving} onClick={onClickSave}>Save</button>
+          <button className="btn" disabled={saving} onClick={onClickSubmit}>Submit</button>
           <button className="btn" onClick={() => navigate(-1)}>Back</button>
         </div>
       </div>

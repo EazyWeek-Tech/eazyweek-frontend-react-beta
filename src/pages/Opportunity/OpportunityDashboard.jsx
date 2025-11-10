@@ -25,22 +25,20 @@ import {
 const COLORS = {
   total: "#334b71",     // deep navy
   open: "#cc6b5c",      // warm coral
-  wip: "#F3DCB0",       // soft gray-blue
+  wip: "#F3DCB0",       // soft sand
   closed: "#8da0b8",    // slate
-  converted: "#A7D1CD", // darker navy
+  converted: "#A7D1CD", // teal-ish
   grid: "#eef2f7",
   axis: "#6e7b8f",
 };
 
 /* -------------------- STATIC CHART DATA -------------------- */
-/* Single-series cards (each card has its own static dataset) */
 const STATUS_DATA_MANUAL_LEAD = [
   { label: "Total", value: 10, fill: COLORS.total },
   { label: "Open", value: 4, fill: COLORS.open },
   { label: "WIP", value: 1, fill: COLORS.wip },
   { label: "Closed", value: 3, fill: COLORS.closed },
   { label: "Converted", value: 2, fill: COLORS.converted },
-  
 ];
 
 const STATUS_DATA_PAID_X_NOT_Y = [
@@ -49,28 +47,24 @@ const STATUS_DATA_PAID_X_NOT_Y = [
   { label: "WIP", value: 20, fill: COLORS.wip },
   { label: "Closed", value: 20, fill: COLORS.closed },
   { label: "Converted", value: 10, fill: COLORS.converted },
-  
 ];
 
 const STATUS_DATA_NO_SHOW = [
   { label: "Total", value: 9, fill: COLORS.total },
   { label: "Open", value: 9, fill: COLORS.open },
-   { label: "WIP", value: 0, fill: COLORS.wip },
+  { label: "WIP", value: 0, fill: COLORS.wip },
   { label: "Closed", value: 0, fill: COLORS.closed },
   { label: "Converted", value: 6, fill: COLORS.converted },
- 
 ];
 
 const STATUS_DATA_PAID_X_CAT = [
   { label: "Total", value: 6, fill: COLORS.total },
   { label: "Open", value: 3, fill: COLORS.open },
-   { label: "WIP", value: 0, fill: COLORS.wip },
+  { label: "WIP", value: 0, fill: COLORS.wip },
   { label: "Closed", value: 3, fill: COLORS.closed },
   { label: "Converted", value: 3, fill: COLORS.converted },
- 
 ];
 
-/* Stacked-by-clinic cards (static) */
 const STACKED_CUSTOMER_SPECIAL_DAY = [
   { name: "Bright-00112", Total: 120, Open: 60, WIP: 40, Closed: 20, Converted: 0 },
 ];
@@ -79,11 +73,29 @@ const STACKED_CANCELLED_APPT = [
   { name: "Bright-00111", Total: 10,   Open: 4,  WIP: 2,  Closed: 2,  Converted: 2 },
   { name: "Bright-00187", Total: 20,   Open: 8,  WIP: 4,  Closed: 4,  Converted: 4 },
   { name: "Bright-00195", Total: 30,  Open: 10, WIP: 0,  Closed: 15, Converted: 5 },
-  { name: "Bright-00217", Total: 20,   Open: 8,  WIP: 4,  Closed: 4,  Converted: 4   },
+  { name: "Bright-00217", Total: 20,   Open: 8,  WIP: 4,  Closed: 4,  Converted: 4 },
 ];
 
 /* Small helpers */
 const n = (v) => (Number.isFinite(+v) ? +v : 0);
+
+/** Convert Date | 'yyyy-MM-dd' | 'dd/MM/yyyy' -> 'yyyy-MM-dd' */
+const toISODateOnly = (d) => {
+  if (!d) return "";
+  if (d instanceof Date) {
+    if (Number.isNaN(+d)) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;               // already yyyy-MM-dd
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);           // dd/MM/yyyy
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const dt = new Date(s);                                     // last resort
+  return Number.isNaN(+dt) ? "" : toISODateOnly(dt);
+};
 
 const OpportunityDashboard = () => {
   const [currentView, setCurrentView] = useState("dashboard");
@@ -128,23 +140,55 @@ const OpportunityDashboard = () => {
 
   const data = currentView === "dashboard" ? opportunityData : [];
 
-  const handleViewDetails = async (oppCode, fromDate, toDate) => {
+  /**
+   * Load details. If API returns empty/invalid, show a local fallback panel with:
+   * Opportunity Code, Opportunity Name, Rule Details, X
+   */
+  const handleViewDetails = async (row) => {
     try {
       const payload = {
-        oppCode,
-        fromDate: new Date(fromDate).toISOString(),
-        toDate: new Date(toDate).toISOString(),
+        oppCode: row?.oppCode,
+        fromDate: toISODateOnly(row?.fromDate),
+        toDate:   toISODateOnly(row?.toDate),
       };
+
       const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      const resData = await response.json();
-      setSelectedOppDetails(resData?.[0]);
+
+      let resData = null;
+      try { resData = await response.json(); } catch { resData = null; }
+
+      const first = Array.isArray(resData) ? resData[0] : null;
+
+      if (first && Object.keys(first || {}).length > 0) {
+        setSelectedOppDetails(first);
+      } else {
+        // ---- Fallback details (requested behavior) ----
+        setSelectedOppDetails({
+          __fallback: true,
+          oppCode: row?.oppCode || "",
+          oppName: row?.oppName || "",
+          // Fallback label/text — adjust as needed:
+          ruleDetails: "Cancelled appointment for X days",
+          x: "7",
+        });
+      }
+      setCurrentView("details");
     } catch (error) {
       console.error("Failed to load opportunity details:", error);
+      // On hard error, still show fallback with whatever we know.
+      setSelectedOppDetails({
+        __fallback: true,
+        oppCode: row?.oppCode || "",
+        oppName: row?.oppName || "",
+        ruleDetails: "Cancelled appointment for X days",
+        x: "7",
+      });
+      setCurrentView("details");
       showToast("Failed to load details", "error");
     }
   };
@@ -213,6 +257,7 @@ const OpportunityDashboard = () => {
   const handleBackToDashboard = () => {
     setCurrentView("dashboard");
     setSelectedOpportunity(null);
+    setSelectedOppDetails(null);
   };
 
   const handleOpportunityNext = () => setCurrentView("create-rule");
@@ -265,30 +310,16 @@ const OpportunityDashboard = () => {
   };
 
   const handleRefresh = () => setStatusFilter("1");
-  // utils
-const toISODateOnly = (d) => {
-  const dt = (d instanceof Date) ? d : new Date(d);
-  if (Number.isNaN(+dt)) return "";
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const day = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
 
-const handleOpportunityClick = (oppCode, fromDate, toDate) => {
-  // fallback: use today and last 14 days if not provided by row
-  const now = new Date();
-  const from = fromDate ? new Date(fromDate) : new Date(now.setDate(now.getDate() - 13));
-  const to = toDate ? new Date(toDate) : new Date();
-
-  navigate(`/opportunity/details/${oppCode}`, {
-    state: {
-      fromDate: toISODateOnly(from),
-      toDate: toISODateOnly(to),
-    },
-  });
-};
-
+  // Optional alternate navigation-based flow (kept for reference)
+  const handleOpportunityClick = (oppCode, fromDate, toDate) => {
+    const now = new Date();
+    const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
+    const to   = toDate   ? toDate   : toISODateOnly(new Date());
+    navigate(`/opportunity/details/${oppCode}`, {
+      state: { fromDate: toISODateOnly(from), toDate: toISODateOnly(to) },
+    });
+  };
 
   /* -------------------- CHART CARDS -------------------- */
   const SimpleBarCard = ({ title, dataset }) => (
@@ -336,8 +367,63 @@ const handleOpportunityClick = (oppCode, fromDate, toDate) => {
 
   /* -------------------- VIEW SWITCHERS -------------------- */
   if (currentView === "details" && selectedOppDetails) {
+    // If we set a fallback object, render the simple block here
+    if (selectedOppDetails.__fallback) {
+      return (
+        <>
+          <style jsx="true">{`
+            .fallback-wrap { padding: 20px; }
+            .fallback-card {
+              background: #fff;
+              border: 1px solid #e5e7eb;
+              border-radius: 10px;
+              padding: 18px;
+              box-shadow: 0 2px 6px rgba(0,0,0,.06);
+              max-width: 720px;
+              margin: 0 auto;
+            }
+            .fb-row { display: grid; grid-template-columns: 220px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px dashed #eee; }
+            .fb-row:last-child { border-bottom: 0; }
+            .fb-key { color: #374151; font-weight: 600; }
+            .fb-val { color: #111827; }
+            .fb-ttl { font-size: 18px; font-weight: 700; margin: 0 0 14px; color: #1f2937; }
+            .fb-actions { margin-top: 16px; display: flex; gap: 10px; }
+            .btn { padding: 10px 16px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+            .back { background: #6b7280; color: #fff; }
+          `}</style>
+          <div className="fallback-wrap">
+            <div className="fallback-card">
+              <div className="fb-ttl">Opportunity Details</div>
+              <div className="fb-row">
+                <div className="fb-key">Opportunity Code :</div>
+                <div className="fb-val">{selectedOppDetails.oppCode || "-"}</div>
+              </div>
+              <div className="fb-row">
+                <div className="fb-key">Opportunity Name :</div>
+                <div className="fb-val">{selectedOppDetails.oppName || "-"}</div>
+              </div>
+              <div className="fb-row">
+                <div className="fb-key">Rule Details :</div>
+                <div className="fb-val">{selectedOppDetails.ruleDetails || "-"}</div>
+              </div>
+              <div className="fb-row">
+                <div className="fb-key">X :</div>
+                <div className="fb-val">{selectedOppDetails.x || "-"}</div>
+              </div>
+
+              <div className="fb-actions">
+                <button className="btn back" onClick={handleBackToDashboard}>Back</button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    // Otherwise render your full details component
     return <OpportunityDetails details={selectedOppDetails} onBack={handleBackToDashboard} />;
   }
+
   if (currentView === "create-opportunity") {
     return <OpportunityForm onBack={handleBackToDashboard} onNext={handleOpportunityNext} mode="create" />;
   }
@@ -452,11 +538,9 @@ const handleOpportunityClick = (oppCode, fromDate, toDate) => {
 
         {/* Charts Grid */}
         <div className="charts-grid">
-          {/* Single-series bars */}
           <SimpleBarCard title="Rule: Manual Lead" dataset={STATUS_DATA_MANUAL_LEAD} />
           <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={STATUS_DATA_PAID_X_NOT_Y} />
           <SimpleBarCard title="Rule: No show appointment for X days" dataset={STATUS_DATA_NO_SHOW} />
-          {/* Stacked by clinic */}
           <StackedByClinicCard title="Rule: Customer Special Day" dataset={STACKED_CUSTOMER_SPECIAL_DAY} />
           <SimpleBarCard title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P" dataset={STATUS_DATA_PAID_X_CAT} />
           <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={STACKED_CANCELLED_APPT} />
@@ -603,12 +687,11 @@ const handleOpportunityClick = (oppCode, fromDate, toDate) => {
                     </td>
                     <td>
                       <button
-  onClick={() => handleOpportunityClick(item.oppCode, item.fromDate, item.toDate)}
-  className="opp-code-link"
->
-  {item.oppCode}
-</button>
-
+                        className="opp-code-link"
+                        onClick={() => handleViewDetails(item)}    // ← fetch details, show fallback if none
+                      >
+                        {item.oppCode}
+                      </button>
                     </td>
                     <td>{item.oppName}</td>
                     <td>{item.clinic}</td>
