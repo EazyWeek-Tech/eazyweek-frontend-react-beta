@@ -528,150 +528,169 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   }
 
   // ---------- MULTISELECT ----------
-  const MultiSelect = ({
-    label,
-    values = [],
-    onChange,
-    placeholder = "None selected",
-    disabledValues = []
-  }) => {
-    const [open, setOpen] = useState(false)
-    const [q, setQ] = useState("")
-    const [local, setLocal] = useState(values)
+ const MultiSelect = ({
+  label,
+  values = [],
+  onChange,
+  placeholder = "None selected",
+  disabledValues = []
+}) => {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState("")
+  const [local, setLocal] = useState(values)
+  const containerRef = useRef(null)
+  const [openUpwards, setOpenUpwards] = useState(false)
 
-    useEffect(() => { if (open) setLocal(values) }, [open, values])
+  useEffect(() => { if (open) setLocal(values) }, [open, values])
 
-    useEffect(() => {
-      const onKey = (e) => { if (e.key === "Escape") setOpen(false) }
-      if (open) document.addEventListener("keydown", onKey)
-      return () => document.removeEventListener("keydown", onKey)
-    }, [open])
-
-    const filtered = useMemo(() => {
-      if (!q.trim()) return catOptions
-      const qq = q.toLowerCase()
-      return catOptions.filter(o => (o.label || "").toLowerCase().includes(qq))
-    }, [q, catOptions])
-
-    const selectableFiltered = filtered.filter(o => !disabledValues.includes(o.value))
-    const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(o => local.includes(o.value))
-
-    const toggleAll = () => {
-      if (allSelected) {
-        const toRemove = new Set(selectableFiltered.map(o => o.value))
-        setLocal(prev => prev.filter(v => !toRemove.has(v)))
-      } else {
-        const union = new Set(local)
-        selectableFiltered.forEach(o => union.add(o.value))
-        setLocal(Array.from(union))
+  // Detect click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false)
       }
     }
+    if (open) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
 
-    const toggleOne = (v) => {
-      if (disabledValues.includes(v)) return
-      setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  // Detect if dropdown should open upwards
+  useEffect(() => {
+    if (!open) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    if (rect) {
+      const spaceBelow = viewportHeight - rect.bottom
+      setOpenUpwards(spaceBelow < 260) // threshold (approx dropdown height)
     }
+  }, [open])
 
-    const closeWithCommit = (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      onChange(local)
-      setTimeout(() => setOpen(false), 0)
+  const filtered = useMemo(() => {
+    if (!q.trim()) return catOptions
+    const qq = q.toLowerCase()
+    return catOptions.filter(o => (o.label || "").toLowerCase().includes(qq))
+  }, [q, catOptions])
+
+  const selectableFiltered = filtered.filter(o => !disabledValues.includes(o.value))
+  const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(o => local.includes(o.value))
+
+  const toggleAll = () => {
+    if (allSelected) {
+      const toRemove = new Set(selectableFiltered.map(o => o.value))
+      setLocal(prev => prev.filter(v => !toRemove.has(v)))
+    } else {
+      const union = new Set(local)
+      selectableFiltered.forEach(o => union.add(o.value))
+      setLocal(Array.from(union))
     }
-
-    const shown = open ? local : values
-    const buttonLabel =
-      shown.length === 0
-        ? placeholder
-        : shown.length === 1
-        ? (catOptions.find(o => o.value === shown[0])?.label ?? placeholder)
-        : `${shown.length} selected`
-
-    return (
-      <div className="msel" data-msel tabIndex={0}>
-        <span className="rf-label">{label}</span>
-        <button
-          className="msel-btn"
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setOpen(v => !v)}
-        >
-          {buttonLabel}<span className="msel-caret">▾</span>
-        </button>
-
-        {open && (
-          <div
-            className="msel-dd"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="msel-search">
-              <input
-                placeholder="Search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                className="msel-search-input"
-                onPointerDown={(e) => e.stopPropagation()}
-              />
-              <button className="msel-clear" type="button" onClick={() => setQ("")}>✕</button>
-            </div>
-
-            <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleAll}
-                onMouseDown={(e) => e.preventDefault()}
-              />
-              <span>Select all</span>
-            </div>
-
-            <div className="msel-list">
-              {catLoading ? (
-                <div className="msel-empty">Loading…</div>
-              ) : filtered.length === 0 ? (
-                <div className="msel-empty">No results</div>
-              ) : (
-                filtered.map(opt => {
-                  const isDisabled = disabledValues.includes(opt.value)
-                  const checked = local.includes(opt.value)
-                  return (
-                    <div
-                      key={opt.value}
-                      className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        className="msel-opt"
-                        data-val={opt.value}
-                        type="checkbox"
-                        checked={checked}
-                        disabled={isDisabled}
-                        onChange={() => toggleOne(opt.value)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span>{opt.label}</span>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            <div className="msel-footer">
-              <button
-                type="button"
-                className="msel-done"
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-                onClick={closeWithCommit}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    )
   }
+
+  const toggleOne = (v) => {
+    if (disabledValues.includes(v)) return
+    setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  }
+
+  const closeWithCommit = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onChange(local)
+    setTimeout(() => setOpen(false), 100)
+  }
+
+  const shown = open ? local : values
+  const buttonLabel =
+    shown.length === 0
+      ? placeholder
+      : shown.length === 1
+      ? (catOptions.find(o => o.value === shown[0])?.label ?? placeholder)
+      : `${shown.length} selected`
+
+  return (
+    <div className="msel" data-msel tabIndex={0} ref={containerRef}>
+      <span className="rf-label">{label}</span>
+      <button
+        className="msel-btn"
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen(v => !v)}
+      >
+        {buttonLabel}<span className="msel-caret">▾</span>
+      </button>
+
+      {open && (
+        <div
+          className={`msel-dd ${openUpwards ? "msel-up" : ""}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="msel-search">
+            <input
+              placeholder="Search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="msel-search-input"
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+            <button className="msel-clear" type="button" onClick={() => setQ("")}>✕</button>
+          </div>
+
+          <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              onMouseDown={(e) => e.preventDefault()}
+            />
+            <span>Select all</span>
+          </div>
+
+          <div className="msel-list">
+            {catLoading ? (
+              <div className="msel-empty">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="msel-empty">No results</div>
+            ) : (
+              filtered.map(opt => {
+                const isDisabled = disabledValues.includes(opt.value)
+                const checked = local.includes(opt.value)
+                return (
+                  <div
+                    key={opt.value}
+                    className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      className="msel-opt"
+                      data-val={opt.value}
+                      type="checkbox"
+                      checked={checked}
+                      disabled={isDisabled}
+                      onChange={() => toggleOne(opt.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span>{opt.label}</span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="msel-footer">
+            <button
+              type="button"
+              className="msel-done"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              onClick={closeWithCommit}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
   // ---------- Shared row: Rule Data Fetch Type ----------
   const FetchTypeRow = ({ ruleId, vals }) => (
@@ -1127,7 +1146,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .msel-footer { border-top:1px solid #eee; padding:8px; display:flex; justify-content:flex-end; }
         .msel-done { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
         .msel-done:focus { outline:none; border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.15); }
-
+.msel-up {
+  bottom: 100%;
+  top: auto;
+  margin-top: 0;
+  margin-bottom: 6px;
+}
         /* Activate Modal */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 99999; }
         .modal { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.16); padding: 16px; width: 100%; max-width: 420px; }
