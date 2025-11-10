@@ -131,10 +131,10 @@ const InvoiceForm = ({ onAddItem, resetKey, customer, showToast, servicename, se
   };
 
   const handleAdd = () => {
-    if (!customer || !customer.firstName || !customer.fullName) {
-      showToast?.("Please fill in the customer details before adding a product.");
-      return;
-    }
+    if (!customer || (!customer.custid && !customer.fullName)) {
+  showToast?.("Please fill in the customer details before adding a product.");
+  return;
+}
 
     if (!formData.practitioner || !formData.practitioner.trim()) {
       showToast?.("Please select a practitioner before adding the item.");

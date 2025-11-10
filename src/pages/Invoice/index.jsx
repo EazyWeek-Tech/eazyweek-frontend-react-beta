@@ -32,6 +32,7 @@ const InvoicePage = () => {
   const custidFromUrl = searchParams.get('custid');
   const appointmentIdFromUrl = searchParams.get('appointmentid');
   const custNameFromUrl = searchParams.get('custname');
+  const isPaidInUrl = searchParams.get('isPaymentMade') === '1';
 
 useEffect(() => {
   const loadCustomerAndItems = async () => {
@@ -55,14 +56,17 @@ useEffect(() => {
         console.log("Appointment details result:", result);
 
         if (Array.isArray(result) && result.length > 0) {
-          const mappedItems = result.map((item) => ({
+           const mappedItems = result.map((item) => ({
             name: item.serviceName || '',
             servicecode: item.serviceCode || '',
-            price: item.price || '',
+            // If URL has isPaymentMade=1, make preloaded items free
+            price: isPaidInUrl ? 0 : (item.price || ''),
             discount: 0,
             taxpercent: item.taxPercent || 0,
             citizentax: item.taxPercent || 0,
             doctorId: item.doctorId || '',
+            _source: 'appointment',       // (optional) tag for debugging/visibility
+            _prepaid: isPaidInUrl ? 1 : 0 // (optional) internal marker
           }));
 
           setItems(mappedItems);
