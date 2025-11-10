@@ -116,7 +116,7 @@ const AddCustomerModal = ({ onClose }) => {
         if (!value || !isValidCountryCode(value)) error = "Select a valid country code.";
         break;
       case "mobile":
-        if (!value || !isValidMobile(value)) error = "Mobile number must be 10 digits.";
+        if (!value || !isValidMobile(value)) error = "Mobile number must be 9 digits.";
         break;
       case "firstName":
         if (!value) error = "First name is required.";
@@ -188,7 +188,7 @@ const AddCustomerModal = ({ onClose }) => {
 
     if (id === "mobile") {
       // Keep only digits, cap at 10
-      const v = value.replace(/\D/g, "").slice(0, 10);
+      const v = value.replace(/\D/g, "").slice(0, 9);
       setFormData((prev) => ({ ...prev, mobile: v }));
       if (errors.mobile) validateField("mobile", v);
       return;

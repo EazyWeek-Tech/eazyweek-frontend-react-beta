@@ -217,8 +217,8 @@ a {
 }
 .lhs-nav.expand,
 .lhs-nav:hover {
-  max-width: 250px;
-  min-width: 250px;
+  max-width: 290px;
+  min-width: 290px;
 }
 .lhs-nav.expand .lhs-mnu span,
 .lhs-nav.expand .sw-logo span,
