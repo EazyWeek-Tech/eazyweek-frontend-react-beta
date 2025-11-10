@@ -12,23 +12,32 @@ const DISPOSITION_OPTIONS = [
   { value: "LS012", label: "Appointment Booked" },
 ];
 
-// Simple status mapping; tweak if your backend expects different strings
-const inferOppStatusFromDisposition = (code) => {
-  if (!code) return "Open";
-  const closedSet = new Set(["LS008", "LS009", "LS010", "LS011"]); // Converted/Bad/No response/Not Converted
-  return closedSet.has(code) ? "Closed" : "Open"; // Appointment Booked stays Open
+// Numeric status expected by backend
+const OPP_STATUS = {
+  OPEN: '2',
+  CLOSED: '2',
+};
+
+/** Map disposition -> numeric oppStatus.
+ * Closed for: LS008, LS009, LS010, LS011
+ * Open for: "", LS012
+ */
+const oppStatusFromDisposition = (code) => {
+  if (!code || code === "LS012") return OPP_STATUS.OPEN; // empty or Appointment Booked
+  const closedSet = new Set(["LS008", "LS009", "LS010", "LS011"]);
+  return closedSet.has(code) ? OPP_STATUS.CLOSED : OPP_STATUS.OPEN;
 };
 
 // Safely read various casings the API might return for RECID
 const getRecId = (row) => {
   if (!row) return 0;
-  return (
+  const id =
     row.RECID ??
     row.recID ??
     row.recid ??
     row.RecID ??
-    0
-  );
+    0;
+  return Number(id) || 0;
 };
 
 const OppCustomerDetails = () => {
@@ -46,6 +55,17 @@ const OppCustomerDetails = () => {
     remarks: "",
   });
   const [saving, setSaving] = useState(false);
+
+  // Prefill disposition/remarks from incoming state row (if any)
+  useEffect(() => {
+    if (state?.row) {
+      setForm((p) => ({
+        ...p,
+        disposition: state.row.disposition ?? "",
+        remarks: state.row.remarks ?? "",
+      }));
+    }
+  }, [state?.row]);
 
   // fetch if opened directly
   useEffect(() => {
@@ -75,6 +95,15 @@ const OppCustomerDetails = () => {
         const arr = Array.isArray(data) ? data : (data ? [data] : []);
         const found = arr.find((o) => (o?.custID || "").toString() === (custId || "").toString());
         setRow(found || null);
+
+        // prefill if found
+        if (found) {
+          setForm((p) => ({
+            ...p,
+            disposition: found.disposition ?? "",
+            remarks: found.remarks ?? "",
+          }));
+        }
       } catch (e) {
         console.error(e);
         setError("Failed to load customer details.");
@@ -105,73 +134,82 @@ const OppCustomerDetails = () => {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // 👉 New payload builder for UpdateOppDetails API
+  // Build payload for UpdateOppDetails
   const buildUpdatePayload = () => {
     const recID = getRecId(row);
-    const oppStatus = inferOppStatusFromDisposition(form.disposition);
+    const oppStatus = oppStatusFromDisposition(form.disposition); // numeric (1=open, 2=closed)
     return {
       recID,                          // number
       disposition: form.disposition,  // string (e.g., "LS012")
       remarks: form.remarks,          // string
-      oppCode,                        // string from route
-      oppStatus,                      // "Open" | "Closed" (adjust as needed)
+      oppCode,                        // string
+      oppStatus,                      // number
     };
   };
 
-  const handleSaveOrSubmit = async (/* isDraft not needed for new API */) => {
-    // light validation
+  const callUpdate = async () => {
+    const res = await fetch(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(buildUpdatePayload()),
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      // ignore parse error; we'll still treat non-OK as failure
+    }
+    if (!res.ok) {
+      const msg = data?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    if (data && data.success === false) {
+      throw new Error(data.message || "UpdateOppDetails returned success:false");
+    }
+    return data || {};
+  };
+
+  const handleSave = async () => {
     if (!form.disposition) {
       setError("Please select a Disposition before saving.");
       return;
     }
-
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(buildUpdatePayload()),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      // On success: for "Submit" we navigate back; for "Save" we can stay.
-      // Since both buttons now hit same API, treat second button as submit (navigate back).
-      // You can split handlers if you want different UX.
-      // Here we'll keep your existing semantics:
-      // - First button: Save (stay)
-      // - Second button: Submit (go back)
-      // We'll detect which button called us via an argument (see below).
+      await callUpdate();
+      // stay on page for Save
     } catch (e) {
       console.error(e);
-      setError("Could not save. Please try again.");
+      setError(e.message || "Could not save. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Separate wrappers to preserve your button semantics:
-  const onClickSave = async () => {
-    await handleSaveOrSubmit(true);   // stays on page
-  };
-  const onClickSubmit = async () => {
-    const ok = await (async () => {
-      // reuse same API; if it succeeds, navigate back
-      try {
-        await handleSaveOrSubmit(false);
-        return true;
-      } catch {
-        return false;
-      }
-    })();
-    if (ok) navigate(-1);
+  const handleSubmit = async () => {
+    if (!form.disposition) {
+      setError("Please select a Disposition before submitting.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await callUpdate();
+      navigate(-1);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Could not submit. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
     return <div className="load">Loading…</div>;
   }
-  if (error) {
+  if (error && !row) {
     return <div className="load" style={{ color: "#c33" }}>{error}</div>;
   }
   if (!row) {
@@ -223,9 +261,15 @@ const OppCustomerDetails = () => {
           />
         </div>
 
+        {error && (
+          <div style={{ color: "#c33", margin: "8px 0" }}>
+            {error}
+          </div>
+        )}
+
         <div className="btnrow">
-          <button className="btn" disabled={saving} onClick={onClickSave}>Save</button>
-          <button className="btn" disabled={saving} onClick={onClickSubmit}>Submit</button>
+          <button className="btn" disabled={saving} onClick={handleSave}>Save</button>
+          <button className="btn" disabled={saving} onClick={handleSubmit}>Submit</button>
           <button className="btn" onClick={() => navigate(-1)}>Back</button>
         </div>
       </div>
