@@ -51,13 +51,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     R5: "customerSpecialDay",
     R6: "customerType",
   }
-// Compute the exact noShowDays value the API expects
-const computeNoShowDays = (v) => {
-  if (String(v.fetchType) === "1") return "9999";                           // STATIC sentinel
-  if (isCustom(v.windowType)) return String(v.customDays || "");            // user-entered number
-  if (isRange(v.windowType))  return daysBetween(v.fromDate, v.toDate) || ""; // computed from dates
-  return numericDays(v.windowType);                                         // 1 / 7 / 30 / 90
-};
 
   const mapApiRule = (r) => ({
     id: ruleCodeToId[r?.code] ?? (r?.code || ""),
@@ -113,7 +106,7 @@ const computeNoShowDays = (v) => {
       categoryX: [],
       categoryY: [],
       fetchType: "",        // "1" | "2"
-      categoryWindow: "",   // "", "1","7","30","90","0"(CUSTOM),"9999"(RANGE)
+      categoryWindow: "",   // "", "1","7","30","90","0","9999" — hidden for static
       customDays: "",
       fromDate: "",
       toDate: ""
@@ -132,7 +125,7 @@ const computeNoShowDays = (v) => {
     // R3
     noShowAppointment: {
       fetchType: "",
-      windowType: "",
+      windowType: "",   // hidden for static
       customDays: "",
       fromDate: "",
       toDate: ""
@@ -140,13 +133,13 @@ const computeNoShowDays = (v) => {
     // R4
     cancelledAppointment: {
       fetchType: "",
-      windowType: "",
+      windowType: "",   // hidden for static
       customDays: "",
       fromDate: "",
       toDate: ""
     },
     // R5
-    customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" }, // dayType is numeric days now
+    customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" },
     // R6
     customerType:       { type: "", fetchType: "" },
     // Manual
@@ -185,6 +178,7 @@ const computeNoShowDays = (v) => {
     if (errors.fields) setErrors(prev => ({ ...prev, fields: "" }))
   }
 
+  // Required fields baseline (dynamic filtering for static happens in isRuleValid)
   const requiredFields = useMemo(() => ({
     paidForXButNotY: ["categoryX", "categoryY", "categoryWindow"],
     paidForXCategoryInYDays: ["categoryX", "fromDate1", "toDate1", "zDays", "fromDate2", "toDate2", "categoryP"],
@@ -195,9 +189,6 @@ const computeNoShowDays = (v) => {
     manualCreateLead: [],
   }), [])
 
-  const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
-
-  // window helpers
   const isCustom = (v) => String(v) === "0"
   const isRange  = (v) => String(v) === "9999"
   const numericDays = (v) => {
@@ -206,37 +197,77 @@ const computeNoShowDays = (v) => {
     return s
   }
 
+  const daysBetween = (start, end) => {
+    if (!start || !end) return ""
+    const s = new Date(start)
+    const e = new Date(end)
+    if (isNaN(s) || isNaN(e)) return ""
+    const ms = e.getTime() - s.getTime()
+    if (ms < 0) return ""
+    const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
+    return String(d)
+  }
+
+  const toDMY = (ymd) => {
+    if (!ymd) return ""
+    const [y, m, d] = (ymd || "").split("-")
+    if (!y || !m || !d) return ""
+    return `${d}/${m}/${y}`
+  }
+  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "")
+
+  // Compute the exact noShowDays value the API expects
+  const computeNoShowDays = (v) => {
+    if (String(v.fetchType) === "1") return "9999"        // STATIC sentinel
+    if (isCustom(v.windowType)) return String(v.customDays || "")
+    if (isRange(v.windowType))  return daysBetween(v.fromDate, v.toDate) || ""
+    return numericDays(v.windowType)                      // 1 / 7 / 30 / 90
+  }
+
   const isRuleValid = (ruleId) => {
     if (!ruleId) return false
     const vals = ruleValues[ruleId] || {}
-    if (!["1", "2"].includes(String(vals.fetchType))) return false
-    const baseReq = requiredFields[ruleId] || []
+    const ft = String(vals.fetchType || "")
+
+    if (!["1", "2"].includes(ft)) return false
+
+    // dynamically filter required fields for static (hide dropdowns -> don't require them)
+    let baseReq = requiredFields[ruleId] || []
+    if (ft === "1") {
+      baseReq = baseReq.filter(k => !["categoryWindow", "windowType"].includes(k))
+    }
+    const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
     if (!baseReq.every(k => isFilled(vals[k]))) return false
 
+    // Rule-specific checks
     if (ruleId === "paidForXButNotY") {
-      if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false
-      if (String(vals.fetchType) === "2" && isRange(vals.categoryWindow)) {
+      if (ft === "1") {
+        // static requires its own date range
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
-      }
-      if (String(vals.fetchType) === "1") {
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+      } else {
+        if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false
+        if (isRange(vals.categoryWindow)) {
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        }
       }
     }
 
     if (ruleId === "noShowAppointment" || ruleId === "cancelledAppointment") {
-      if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false
-      if (isRange(vals.windowType) && String(vals.fetchType) === "2") {
+      if (ft === "1") {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
-      }
-      if (String(vals.fetchType) === "1") {
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+      } else {
+        if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false
+        if (isRange(vals.windowType)) {
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        }
       }
     }
 
-     if (ruleId === "noShowAppointment") {
-   const nd = computeNoShowDays(vals);
-   if (!nd) return false; // ensure API-required noShowDays will be present
- }
+    if (ruleId === "noShowAppointment") {
+      const nd = computeNoShowDays(vals)
+      if (!nd) return false
+    }
+
     return true
   }
 
@@ -262,45 +293,24 @@ const computeNoShowDays = (v) => {
   const labelsFromValues = (vals = []) =>
     (Array.isArray(vals) ? vals : []).map(v => catOptions.find(o => o.value === v)?.label || v)
 
-  const daysBetween = (start, end) => {
-    if (!start || !end) return ""
-    const s = new Date(start)
-    const e = new Date(end)
-    if (isNaN(s) || isNaN(e)) return ""
-    const ms = e.getTime() - s.getTime()
-    if (ms < 0) return ""
-    const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
-    return String(d)
-  }
-
-  const toDMY = (ymd) => {
-    if (!ymd) return ""
-    const [y, m, d] = (ymd || "").split("-")
-    if (!y || !m || !d) return ""
-    return `${d}/${m}/${y}`
-  }
-  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "")
-
   const computeWindowDays = ({ fetchType, windowSelect, fromDate, toDate, customDays }) => {
     const ft = String(fetchType || "")
     const ws = String(windowSelect || "")
     if (ft === "1") {
-      // STATIC — we won’t compute here for R3 static (we use 9999),
-      // but R1 static uses range days:
       return daysBetween(fromDate, toDate) || ""
     }
-    if (isCustom(ws)) return "" // handled via customDays fields
+    if (isCustom(ws)) return ""
     if (isRange(ws)) return daysBetween(fromDate, toDate) || ""
     return numericDays(ws)
   }
 
   // Build EXACT API payload
-  const buildApiPayload = (/* isDraftNum, */ campaignDates) => {
+  const buildApiPayload = (campaignDates) => {
     const { ruleCode } = getSelectedRuleMeta()
     const v = ruleValues[selectedRule] || {}
 
     const base = {
-      request: "save",          // <— always "save"
+      request: "save",
       oppCode: "",
       oppName: opportunityName.trim(),
       ruleCode,
@@ -308,10 +318,10 @@ const computeNoShowDays = (v) => {
       yvalue: "",
       zValue: "",
       pvalue: "",
-      ruleDetails: JSON.stringify({ id: selectedRule, vals: v }), // overridden per R3/R4 later if needed
+      ruleDetails: JSON.stringify({ id: selectedRule, vals: v }),
       ruleZFromDate: "",
       ruleZToDate: "",
-      isDraft: "1",             // <— always "1"
+      isDraft: "1",
       ruleDays: "",
       ruleType: v.fetchType ? String(v.fetchType) : "",
       ruleYFromDate: "",
@@ -351,7 +361,7 @@ const computeNoShowDays = (v) => {
           base.customToDate   = safeDMY(v.toDate)
         }
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticFromDate = safeDMY(v.fromDate)   // ← static uses its own inputs
           base.staticToDate   = safeDMY(v.toDate)
         }
         break
@@ -369,53 +379,68 @@ const computeNoShowDays = (v) => {
         base.ruleYToDate   = safeDMY(v.toDate1)
         base.ruleZFromDate = safeDMY(v.fromDate2)
         base.ruleZToDate   = safeDMY(v.toDate2)
+
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate1)
+          base.staticToDate   = safeDMY(v.toDate1)
+        } else {
+          base.customFromDate = safeDMY(v.fromDate1)
+          base.customToDate   = safeDMY(v.toDate1)
+        }
         break
       }
 
       case "noShowAppointment": { // R3
-  const nDays = computeNoShowDays(v);          // always "9999" for static, else a number string
-  base.noShowDays = nDays;
-  base.noShowCustomDays = "";                  // your Swagger samples leave this empty
-  // Dates: samples show them empty for R3; keep them blank:
-  base.staticFromDate = "";
-  base.staticToDate   = "";
-  base.customFromDate = "";
-  base.customToDate   = "";
-  // Plain-text ruleDetails per your screenshots
-  base.ruleDetails = `No show for ${nDays} days`;
-  break;
-}
+        const nDays = computeNoShowDays(v)        // "9999" for static; else computed
+        base.noShowDays = nDays
+        base.noShowCustomDays = ""
+        // Set static/custom date range from inputs
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+        } else if (isRange(v.windowType)) {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+        }
+        base.ruleDetails = `No show for ${nDays} days`
+        break
+      }
 
       case "cancelledAppointment": { // R4
-        // Allow cancelDays and allow staticFrom/To even if ruleType = "2"
-        const cDays =
-          String(v.fetchType) === "1"
-            ? (daysBetween(v.fromDate, v.toDate) || "")
-            : (String(v.customDays || "") || numericDays(v.windowType) || (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : ""))
-
+        let cDays = ""
+        if (String(v.fetchType) === "1") {
+          cDays = daysBetween(v.fromDate, v.toDate) || ""
+        } else {
+          cDays =
+            (isCustom(v.windowType) ? String(v.customDays || "") : "") ||
+            numericDays(v.windowType) ||
+            (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : "")
+        }
         base.cancelDays = cDays
         base.cancelCustomDays = (String(v.fetchType) === "2" && isCustom(v.windowType)) ? String(v.customDays || "") : ""
 
-        // Your sample shows static dates even with ruleType "2":
-        base.staticFromDate = base.campStartDate
-        base.staticToDate   = base.campEndDate
-
-
-        // Keep custom range empty to match sample
-        base.customFromDate = ""
-        base.customToDate   = ""
+        // static from/to from inputs; dynamic range -> custom dates
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+        } else if (isRange(v.windowType)) {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+        }
 
         base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
         break
       }
 
       case "customerSpecialDay": { // R5
-        // R5 wants a numeric string in "customerSpecialDays"
         base.customerSpecialDays = String(v.dayType || "")
-        base.staticFromDate = base.campStartDate
-        base.staticToDate   = base.campEndDate
-        base.customFromDate = ""
-        base.customToDate   = ""
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+        } else {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+        }
         base.ruleDetails = "Customer Special Day"
         break
       }
@@ -430,7 +455,6 @@ const computeNoShowDays = (v) => {
         break
     }
 
-    // ensure any undefined become ""
     Object.keys(base).forEach(k => {
       if (base[k] === undefined || base[k] === null) base[k] = ""
     })
@@ -438,7 +462,7 @@ const computeNoShowDays = (v) => {
     return base
   }
 
-  const postCreate = async (/* isDraftNum, */ campaignDates) => {
+  const postCreate = async (campaignDates) => {
     const body = buildApiPayload(campaignDates)
     console.log("CreateNewOpp payload:", body)
     const res = await fetch(`${API_BASE_URL}/api/Opportunity/CreateNewOpp`, {
@@ -671,6 +695,7 @@ const computeNoShowDays = (v) => {
   const RuleForm = ({ ruleId }) => {
     if (!ruleId) return null
     const v = ruleValues[ruleId] || {}
+    const isStatic = String(v.fetchType) === "1"
 
     switch (ruleId) {
       case "paidForXButNotY":
@@ -689,49 +714,78 @@ const computeNoShowDays = (v) => {
                 onChange={(arr) => setField(ruleId, "categoryY", arr)}
                 disabledValues={v.categoryX}
               />
-              <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
-                <label className="rf-field">
-                  <span className="rf-label">Category for</span>
-                  <select
-                    className="rf-input"
-                    value={v.categoryWindow}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setField(ruleId, "categoryWindow", val)
-                      if (!isCustom(val)) setField(ruleId, "customDays", "")
-                      if (!isRange(val)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                    }}
-                    disabled={String(v.fetchType) === "1"}
-                  >
-                    <option value="">Select</option>
-                    <option value="1">Past 1 day</option>
-                    <option value="7">Past 1 Week</option>
-                    <option value="30">Past 1 Month</option>
-                    <option value="90">Past 3 Month</option>
-                    <option value="0">Custom</option>
-                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
-                  </select>
-                  <span className="rf-label">days</span>
-                </label>
 
-                {isCustom(v.categoryWindow) && (
+              {/* Hide the days dropdown entirely for STATIC */}
+              {!isStatic && (
+                <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
                   <label className="rf-field">
-                    <span className="rf-label">days</span>
-                    <input
+                    <span className="rf-label">Category for</span>
+                    <select
                       className="rf-input"
-                      type="number"
-                      min="1"
-                      placeholder="e.g., 7"
-                      value={v.customDays}
-                      onChange={(e) => setField(ruleId, "customDays", e.target.value)}
+                      value={v.categoryWindow}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setField(ruleId, "categoryWindow", val)
+                        if (!isCustom(val)) setField(ruleId, "customDays", "")
+                        if (!isRange(val)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                      }}
+                    >
+                      <option value="">Select</option>
+                      <option value="1">Past 1 day</option>
+                      <option value="7">Past 1 Week</option>
+                      <option value="30">Past 1 Month</option>
+                      <option value="90">Past 3 Month</option>
+                      <option value="0">Custom</option>
+                      {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                    </select>
+                    <span className="rf-label">days</span>
+                  </label>
+
+                  {isCustom(v.categoryWindow) && (
+                    <label className="rf-field">
+                      <span className="rf-label">days</span>
+                      <input
+                        className="rf-input"
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 7"
+                        value={v.customDays}
+                        onChange={(e) => setField(ruleId, "customDays", e.target.value)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Date inputs */}
+              {isStatic ? (
+                // STATIC -> always show date range inputs (these feed staticFromDate/staticToDate)
+                <div className="rf-grid" style={{ alignItems: "center" }}>
+                  <label className="rf-field">
+                    <span className="rf-label">From</span>
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.fromDate}
+                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
                     />
                   </label>
-                )}
-
-                {isRange(v.categoryWindow) && String(v.fetchType) !== "1" && (
-                  <>
+                  <label className="rf-field">
+                    <span className="rf-label">To</span>
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.toDate}
+                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : (
+                // DYNAMIC: Show date range only when "Date Range" selected
+                isRange(v.categoryWindow) && (
+                  <div className="rf-grid" style={{ alignItems: "center" }}>
                     <label className="rf-field">
-                      <span className="rf-label">From Date</span>
+                      <span className="rf-label">From</span>
                       <input
                         type="date"
                         className="rf-input"
@@ -740,7 +794,7 @@ const computeNoShowDays = (v) => {
                       />
                     </label>
                     <label className="rf-field">
-                      <span className="rf-label">To Date</span>
+                      <span className="rf-label">To</span>
                       <input
                         type="date"
                         className="rf-input"
@@ -748,32 +802,9 @@ const computeNoShowDays = (v) => {
                         onChange={(e) => setField(ruleId, "toDate", e.target.value)}
                       />
                     </label>
-                  </>
-                )}
-
-                {String(v.fetchType) === "1" && (
-                  <>
-                    <label className="rf-field">
-                      <span className="rf-label">From Date</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.fromDate}
-                        onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                      />
-                    </label>
-                    <label className="rf-field">
-                      <span className="rf-label">To Date</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.toDate}
-                        onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
+                  </div>
+                )
+              )}
             </div>
           </>
         )
@@ -833,30 +864,32 @@ const computeNoShowDays = (v) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              <label className="rf-field">
-                <span className="rf-label">No show appointment for</span>
-                <select
-                  className="rf-input"
-                  value={v.windowType}
-                  onChange={(e) => {
-                    const t = e.target.value
-                    setField(ruleId, "windowType", t)
-                    if (!isCustom(t)) setField(ruleId, "customDays", "")
-                    if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                  }}
-                  disabled={String(v.fetchType) === "1"}
-                >
-                  <option value="">Select</option>
-                  <option value="1">Past 1 day</option>
-                  <option value="7">Past 1 Week</option>
-                  <option value="30">Past 1 Month</option>
-                  <option value="90">Past 3 Month</option>
-                  <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
-                </select>
-              </label>
+              {/* Hide dropdown for STATIC */}
+              {String(v.fetchType) !== "1" && (
+                <label className="rf-field">
+                  <span className="rf-label">No show appointment for</span>
+                  <select
+                    className="rf-input"
+                    value={v.windowType}
+                    onChange={(e) => {
+                      const t = e.target.value
+                      setField(ruleId, "windowType", t)
+                      if (!isCustom(t)) setField(ruleId, "customDays", "")
+                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    }}
+                  >
+                    <option value="">Select</option>
+                    <option value="1">Past 1 day</option>
+                    <option value="7">Past 1 Week</option>
+                    <option value="30">Past 1 Month</option>
+                    <option value="90">Past 3 Month</option>
+                    <option value="0">Custom</option>
+                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                  </select>
+                </label>
+              )}
 
-              {isCustom(v.windowType) && (
+              {isCustom(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -870,7 +903,8 @@ const computeNoShowDays = (v) => {
                 </>
               )}
 
-              {isRange(v.windowType) && String(v.fetchType) !== "1" && (
+              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
+              {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -883,29 +917,6 @@ const computeNoShowDays = (v) => {
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
-
-              {String(v.fetchType) === "1" && (
-                <>
-                  <label className="rf-field">
-                    <span className="rf-label">From Date</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
-                  </label>
-                  <label className="rf-field">
-                    <span className="rf-label">To Date</span>
                     <input
                       type="date"
                       className="rf-input"
@@ -924,30 +935,32 @@ const computeNoShowDays = (v) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              <label className="rf-field">
-                <span className="rf-label">Cancelled appointment for</span>
-                <select
-                  className="rf-input"
-                  value={v.windowType}
-                  onChange={(e) => {
-                    const t = e.target.value
-                    setField(ruleId, "windowType", t)
-                    if (!isCustom(t)) setField(ruleId, "customDays", "")
-                    if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                  }}
-                  disabled={String(v.fetchType) === "1"}
-                >
-                  <option value="">Select</option>
-                  <option value="1">Past 1 day</option>
-                  <option value="7">Past 1 Week</option>
-                  <option value="30">Past 1 Month</option>
-                  <option value="90">Past 3 Month</option>
-                  <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
-                </select>
-              </label>
+              {/* Hide dropdown for STATIC */}
+              {String(v.fetchType) !== "1" && (
+                <label className="rf-field">
+                  <span className="rf-label">Cancelled appointment for</span>
+                  <select
+                    className="rf-input"
+                    value={v.windowType}
+                    onChange={(e) => {
+                      const t = e.target.value
+                      setField(ruleId, "windowType", t)
+                      if (!isCustom(t)) setField(ruleId, "customDays", "")
+                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    }}
+                  >
+                    <option value="">Select</option>
+                    <option value="1">Past 1 day</option>
+                    <option value="7">Past 1 Week</option>
+                    <option value="30">Past 1 Month</option>
+                    <option value="90">Past 3 Month</option>
+                    <option value="0">Custom</option>
+                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                  </select>
+                </label>
+              )}
 
-              {isCustom(v.windowType) && (
+              {isCustom(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -961,7 +974,8 @@ const computeNoShowDays = (v) => {
                 </>
               )}
 
-              {isRange(v.windowType) && String(v.fetchType) !== "1" && (
+              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
+              {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -974,29 +988,6 @@ const computeNoShowDays = (v) => {
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
-
-              {String(v.fetchType) === "1" && (
-                <>
-                  <label className="rf-field">
-                    <span className="rf-label">From Date</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
-                  </label>
-                  <label className="rf-field">
-                    <span className="rf-label">To Date</span>
                     <input
                       type="date"
                       className="rf-input"
