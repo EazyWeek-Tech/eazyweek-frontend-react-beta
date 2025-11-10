@@ -125,7 +125,46 @@ const OpportunityDashboard = () => {
           { credentials: "include" }
         );
         const data = await response.json();
-        setOpportunityData(Array.isArray(data) ? data : (data ? [data] : []));
+
+        const asArray = Array.isArray(data) ? data : (data ? [data] : []);
+
+        // --- Normalize API payload into a consistent UI shape ---
+        const normalize = (it) => ({
+          ...it,
+
+          // Map clinic name (API returns centerName)
+          clinic:
+            it.clinic ??
+            it.centerName ??
+            "",
+
+          // Total counts (defensive against casing variants)
+          totalOpportunities:
+            it.totalOpportunities ??
+            it.totalopportunities ??
+            0,
+
+          noOfOpenOpportunities:
+            it.noOfOpenOpportunities ??
+            it.noOfOpenopportunities ??
+            it.noOfOpen ??
+            0,
+
+          noOfClosedOpportunities:
+            it.noOfClosedOpportunities ??
+            it.noOfClosedopportunities ??
+            it.noOfClosed ??
+            0,
+
+          // Converted out of Closed (API sends noOfConvertedoutofClosed)
+          noOfConvertedOutOfClosed:
+            it.noOfConvertedOutOfClosed ??
+            it.noOfConvertedoutofClosed ??
+            it.noOfConvertedOutofClosed ??
+            0,
+        });
+
+        setOpportunityData(asArray.map(normalize));
       } catch (error) {
         console.error("Failed to load opportunities:", error);
         setOpportunityData([]);
@@ -165,10 +204,11 @@ const OpportunityDashboard = () => {
     const filtered = data.filter((item) => {
       const s = searchTerm.toLowerCase();
       return (
-        (item.oppCode?.toLowerCase().includes(s) || "") ||
-        (item.oppName?.toLowerCase().includes(s) || "") ||
-        (item.centerName?.toLowerCase().includes(s) || "") ||
-        (item.segmentType?.toLowerCase().includes(s) || "")
+        (item.oppCode || "").toLowerCase().includes(s) ||
+        (item.oppName || "").toLowerCase().includes(s) ||
+        (item.centerName || "").toLowerCase().includes(s) || // legacy
+        (item.clinic || "").toLowerCase().includes(s) ||      // normalized
+        (item.segmentType || "").toLowerCase().includes(s)
       );
     });
 
@@ -194,10 +234,9 @@ const OpportunityDashboard = () => {
   };
 
   // below other handlers, e.g., after handleEditSave / handleRefresh
-const handleCreateNewCampaign = () => {
-  navigate("/opportunity/create");
-};
-
+  const handleCreateNewCampaign = () => {
+    navigate("/opportunity/create");
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {

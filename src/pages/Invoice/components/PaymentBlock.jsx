@@ -169,7 +169,7 @@ const generateInvoiceHTML = () => {
 
   return `
     <!DOCTYPE html>
-    <html lang="en" dir="rtl">
+    <html lang="en" dir="ltr">
     <head>
       <meta charset="UTF-8" />
       <title>Invoice</title>
