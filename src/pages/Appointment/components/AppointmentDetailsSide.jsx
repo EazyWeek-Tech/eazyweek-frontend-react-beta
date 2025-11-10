@@ -125,6 +125,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
     if (appointment?.custId) queryParams.append("custid", appointment.custId);
     if (appointment?.fullName) queryParams.append("custname", appointment.fullName);
     if (appointment?.appointmentId) queryParams.append("appointmentid", appointment.appointmentId);
+    if (appointment?.isPaymentMade) queryParams.append("isPaymentMade", appointment.isPaymentMade);
     navigate(`/invoice?${queryParams.toString()}`);
   };
 
