@@ -407,28 +407,43 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       }
 
       case "cancelledAppointment": { // R4
-        let cDays = ""
         if (String(v.fetchType) === "1") {
-          cDays = daysBetween(v.fromDate, v.toDate) || ""
+          // STATIC:
+          const computedDays = daysBetween(v.fromDate, v.toDate) || ""
+          // Per your requirement:
+          // - cancelDays => "9999" (sentinel)
+          // - cancelCustomDays => "9999"
+          // - customFromDate/customToDate are mandatory and come from the same static inputs
+          base.cancelDays = "9999"
+          base.cancelCustomDays = "9999"
+
+          // Dates from static inputs
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+
+          // Also fill custom range from same inputs (mandatory)
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+
+          base.ruleDetails = `Cancelled appointment for ${computedDays} days`
         } else {
+          // DYNAMIC:
+          let cDays = ""
           cDays =
             (isCustom(v.windowType) ? String(v.customDays || "") : "") ||
             numericDays(v.windowType) ||
             (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : "")
-        }
-        base.cancelDays = cDays
-        base.cancelCustomDays = (String(v.fetchType) === "2" && isCustom(v.windowType)) ? String(v.customDays || "") : ""
 
-        // static from/to from inputs; dynamic range -> custom dates
-        if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate)
-          base.staticToDate   = safeDMY(v.toDate)
-        } else if (isRange(v.windowType)) {
-          base.customFromDate = safeDMY(v.fromDate)
-          base.customToDate   = safeDMY(v.toDate)
-        }
+          base.cancelDays = cDays
+          base.cancelCustomDays = isCustom(v.windowType) ? String(v.customDays || "") : ""
 
-        base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
+          if (isRange(v.windowType)) {
+            base.customFromDate = safeDMY(v.fromDate)
+            base.customToDate   = safeDMY(v.toDate)
+          }
+
+          base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
+        }
         break
       }
 
@@ -1146,12 +1161,13 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .msel-footer { border-top:1px solid #eee; padding:8px; display:flex; justify-content:flex-end; }
         .msel-done { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
         .msel-done:focus { outline:none; border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.15); }
-.msel-up {
-  bottom: 100%;
-  top: auto;
-  margin-top: 0;
-  margin-bottom: 6px;
-}
+        .msel-up {
+          bottom: 100%;
+          top: auto;
+          margin-top: 0;
+          margin-bottom: 6px;
+        }
+
         /* Activate Modal */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 99999; }
         .modal { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.16); padding: 16px; width: 100%; max-width: 420px; }

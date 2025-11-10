@@ -67,6 +67,8 @@ import LaserSessionForm from "./pages/CustomForms/LaserSession/LaserSessionForm"
 import ConsultationAssessmentForm from "./pages/CustomForms/InjectableTreatment/ConsultationAssessmentForm";
 import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/HyaluronidaseTreatmentForm";
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
+//import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
+import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -138,6 +140,9 @@ function App() {
                     path="/segmentaddform/:employeeCode"
                     element={<SegmentAddForm />}
                   />
+<Route path="/opportunity/:oppCode/customers" element={<AddLeadCustomerList />} />
+<Route path="/opportunity/customers" element={<AddLeadCustomerList />} /> {/* optional fallback */}
+<Route path="/opportunity/:oppCode/add-lead/:custId" element={<ManualOppCustomerDetails />} />
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
                     path="/cases/:caseNumber"
@@ -209,10 +214,7 @@ function App() {
                     path="/opportunity/:oppCode/customer/:custId"
                     element={<OppCustomerDetails />}
                   />
-                  <Route
-                    path="/opportunity/:oppCode/manual/:custId"
-                    element={<ManualOppCustomerDetails />}
-                  />
+
                   <Route
                     path="/create-category"
                     element={<ItemCategoryCreateTabs />}
@@ -315,6 +317,9 @@ function App() {
                   path="/custom-forms/general-form"
                   element={<GeneralForm/>}
                   />
+<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
+      {/* <Route path="/purchase-category/create" element={<CreatePurchaseCategory />} /> */}
+
 
                 </Routes>
               </div>

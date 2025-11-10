@@ -191,7 +191,7 @@ top:0;
 flex: 1;
 transition: max-width 500ms ease-in-out, min-width 500ms ease-in-out;
 }
- .lhs-nav.expand, .lhs-nav:hover{max-width: 250px; min-width: 250px; transition: max-width 500ms ease-in-out,  min-width 500ms ease-in-out;}
+ .lhs-nav.expand, .lhs-nav:hover{max-width: 250px; min-width: 290px; transition: max-width 500ms ease-in-out,  min-width 500ms ease-in-out;}
   .lhs-nav.expand .lhs-mnu span, .lhs-nav.expand .sw-logo span, .lhs-nav:hover .lhs-mnu span, .lhs-nav:hover .sw-logo span  {opacity: 1; transition: opacity 900ms;}
 li i{display: block;}
 .lhs-mnu span, .sw-logo span {opacity:0;white-space: nowrap;}
