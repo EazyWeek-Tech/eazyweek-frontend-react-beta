@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import AppointmentDrawer from './appointmentdrawer/AppointmentDrawer';
 import AppointmentDetails from './AppointmentDetailsSide';
 import FilterHeader from './FilterHeader';
@@ -16,23 +16,16 @@ const fetchData = async (url, payload = null) => {
 
 const convertTo24Hour = (time12h) => {
   if (!time12h) return '';
-  // normalize weird spaces
   const cleaned = String(time12h).trim().replace(/\u202F|\u00A0/g, ' ');
-
-  // hh:mm[:ss] [am|pm]  (case-insensitive, seconds optional, space optional)
   const m = cleaned.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]\.?m\.?)?$/i);
   if (!m) return '';
-
   let hours = parseInt(m[1], 10);
   const minutes = m[2];
-  const mer = (m[3] || '').toUpperCase(); // AM/PM or empty
-
+  const mer = (m[3] || '').toUpperCase();
   if (mer.startsWith('P') && hours !== 12) hours += 12;
   if (mer.startsWith('A') && hours === 12) hours = 0;
-
   return `${String(hours).padStart(2, '0')}:${minutes}`;
 };
-
 
 const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -76,6 +69,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
 
     fetchDoctors();
     fetchAppointments(selectedDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   const fetchAppointments = async (date) => {
@@ -90,7 +84,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
         ...appt,
         starttime: appt.startTime,
         doctorname: appt.doctorName,
-        isPaymentMade: appt.isPaymentMade ?? 0, // ← keep this
+        isPaymentMade: appt.isPaymentMade ?? 0,
       }));
 
       setAppointments(adapted);
@@ -101,8 +95,8 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
 
   const refreshAppointments = () => fetchAppointments(selectedDate);
 
-  // ✅ update the local list immediately when a status changes in the details pane
   const handleStatusUpdated = (appointmentId, newStatus) => {
+    // update local state immediately
     setAppointments(prev =>
       prev.map(a => a.appointmentId === appointmentId ? { ...a, status: newStatus } : a)
     );
@@ -131,6 +125,24 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
       default: return '';
     }
   };
+
+  // 🔢 live counts override computed from the grid (recomputes whenever appointments change)
+  const countsOverride = useMemo(() => {
+    const byStatus = (target) =>
+      appointments.filter(a => (a.status || '').toLowerCase() === target).length;
+
+    return {
+      Completed: byStatus('completed'),
+      Confirmed: byStatus('confirmed'),
+      CheckedIn: byStatus('checked in'),
+      Active: byStatus('active'),
+      Booked: byStatus('booked'),
+      Cancelled: byStatus('cancelled'),
+      NoShow: byStatus('no show'),
+      // Payment Pending: isPaymentMade === 0
+      PaymentPending: appointments.filter(a => Number(a.isPaymentMade) === 0).length,
+    };
+  }, [appointments]);
 
   const doctorHeights = doctors.map((doctor) => {
     let maxStack = 1;
@@ -174,8 +186,8 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
               </div>
               <div className="apptype"><strong>{appt?.serviceName || 'N/A'}</strong></div>
               {Number(appt.isPaymentMade) > 0 && (
-  <div className="paidst">Paid</div> 
-)}
+                <div className="paidst">Paid</div>
+              )}
               <span
                 className="expopup"
                 onClick={() => {
@@ -207,7 +219,8 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
         selectedDate={selectedDate}
       />
 
-      <FilterHeader />
+      {/* 👇 send all live counts down */}
+      <FilterHeader countsOverride={countsOverride} />
 
       <div className="msttbl">
         <div className="lfthrdiv">
@@ -275,7 +288,6 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
             setIsSidebarOpen(false);
             setIsDrawerOpen(true);
           }}
-          // ✅ pass refresh + status updater
           onRefresh={refreshAppointments}
           onStatusUpdated={handleStatusUpdated}
         />
