@@ -85,20 +85,26 @@ const CreditMemoTab = () => {
           font-size: 14px;
           padding: 10px;
         }
-        .creditmemo-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .creditmemo-table th {
-          background-color: #f0f0f0;
-          padding: 8px;
-          text-align: left;
-          border-bottom: 1px solid #ccc;
-        }
-        .creditmemo-table td {
-          padding: 10px 8px;
-          border-bottom: 1px solid #e0e0e0;
-        }
+       .creditmemo-table a{color: #334B71;font-weight: 700;}
+         .creditmemo-table { width: 100%; border-collapse: collapse; margin: 20px 0;background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden; }
+        .creditmemo-table td {padding: 12px 18px;
+    font-size: 14px;
+    color: #0f172a;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+ }
+        .creditmemo-table th { background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: .2px; }
         .pagination {
           margin-top: 10px;
           text-align: right;

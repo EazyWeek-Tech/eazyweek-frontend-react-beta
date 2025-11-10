@@ -1,15 +1,24 @@
 // src/pages/Opportunity/OpportunityDetails.jsx
-import { useParams, useNavigate, useLocation  } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../../config";
 
+/** Date | 'yyyy-MM-dd' | 'dd/MM/yyyy' -> 'yyyy-MM-dd' */
 const toISODateOnly = (d) => {
-  const dt = (d instanceof Date) ? d : new Date(d);
-  if (Number.isNaN(+dt)) return "";
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const day = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  if (!d) return "";
+  if (d instanceof Date) {
+    if (Number.isNaN(+d)) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const dt = new Date(s);
+  return Number.isNaN(+dt) ? "" : toISODateOnly(dt);
 };
 
 const OpportunityDetails = () => {
@@ -28,19 +37,15 @@ const OpportunityDetails = () => {
       setError("");
 
       try {
-        // If dates are passed from Dashboard, use them
+        // If dates are passed from Dashboard, use them; else: last 14 days window
         const now = new Date();
         const defaultFrom = new Date(now);
         defaultFrom.setDate(now.getDate() - 13);
 
         const fromDate = state?.fromDate || toISODateOnly(defaultFrom);
-        const toDate = state?.toDate || toISODateOnly(now);
+        const toDate   = state?.toDate   || toISODateOnly(now);
 
-        const payload = {
-          oppCode,
-          fromDate,
-          toDate,
-        };
+        const payload = { oppCode, fromDate, toDate };
 
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
           method: "POST",
@@ -67,30 +72,43 @@ const OpportunityDetails = () => {
   }, [oppCode, state?.fromDate, state?.toDate]);
 
   const hasRows = rows?.length > 0;
-  const safe = (v, fallback = "") => (v === null || v === undefined ? fallback : v);
+  const safe = (v, fallback = "") => (v === null || v === undefined || v === "" ? fallback : v);
 
+  // Primary header source: explicit header -> first row -> null
   const top = useMemo(() => header ?? (hasRows ? rows[0] : null), [header, hasRows, rows]);
 
-  // Manual vs rule-driven resolver
+  // Fallback header when API returned no rows:
+  const fallbackHeader = useMemo(
+    () => ({
+      oppCode: oppCode,
+      oppName: state?.oppName || "—",
+      oRuleDetails: state?.oRuleDetails || "—",
+      oRuleXvalue: state?.oRuleXvalue || "—",
+    }),
+    [oppCode, state?.oppName, state?.oRuleDetails, state?.oRuleXvalue]
+  );
+
+  // Manual vs rule-driven resolver (kept from your version)
   const inferIsManualLead = (row, hdr) => {
     if (row?.manualLead || row?.isManualLead) return true;
     if (hdr?.manualLead || hdr?.isManualLead) return true;
-    // If rule-driven opps have oRuleCode like "R1" and manual leads don't:
     if (!row?.oRuleCode && !hdr?.oRuleCode) return true;
     return false;
   };
 
   const openCustomer = (row) => {
-    const isManual = inferIsManualLead(row, header);
+    const isManual = inferIsManualLead(row, top);
     const path = isManual
       ? `/opportunity/${oppCode}/manual/${row.custID}`
       : `/opportunity/${oppCode}/customer/${row.custID}`;
-    navigate(path, { state: { row, header, isManual } });
+    navigate(path, { state: { row, header: top, isManual } });
   };
 
   if (loading) return <div className="loading-msg">Loading…</div>;
   if (error) return <div className="loading-msg" style={{ color: "#c33" }}>{error}</div>;
-  if (!top) return <div className="loading-msg">No data found for this opportunity.</div>;
+
+  // Choose which header to show: API header when rows present, else fallback
+  const H = top || fallbackHeader;
 
   return (
     <>
@@ -108,25 +126,25 @@ const OpportunityDetails = () => {
             <div className="title-col">
               <div className="pair">
                 <span className="label">Opportunity Code :</span>
-                <span className="value pill">{safe(top.oppCode)}</span>
+                <span className="value pill">{safe(H.oppCode, "—")}</span>
               </div>
               <div className="pair">
                 <span className="label">Opportunity Name :</span>
-                <span className="value">{safe(top.oppName)}</span>
+                <span className="value">{safe(H.oppName, "—")}</span>
               </div>
               <div className="pair">
                 <span className="label">Rule Details :</span>
-                <span className="value">{safe(top.oRuleDetails)}</span>
+                <span className="value">{safe(H.oRuleDetails, "—")}</span>
               </div>
               <div className="xywrap">
                 <div className="pair">
                   <span className="label short">X :</span>
-                  <span className="value">{safe(top.oRuleXvalue)}</span>
+                  <span className="value">{safe(H.oRuleXvalue, "—")}</span>
                 </div>
-                {top.oRuleYvalue ? (
+                {safe(H.oRuleYvalue) ? (
                   <div className="pair">
                     <span className="label short">Y :</span>
-                    <span className="value">{top.oRuleYvalue}</span>
+                    <span className="value">{H.oRuleYvalue}</span>
                   </div>
                 ) : null}
               </div>
@@ -155,24 +173,25 @@ const OpportunityDetails = () => {
                     <tr key={`${r.recid || r.custID || i}-${i}`}>
                       <td>
                         <button className="linkish" onClick={() => openCustomer(r)}>
-                          {safe(r.custID)}
+                          {safe(r.custID, "—")}
                         </button>
                       </td>
-                      <td>{safe(r.custName)}</td>
-                      <td>{safe(r.custMobileNo)}</td>
-                      <td>{safe(r.oppStatus)}</td>
-                      <td>{safe(r.appointmentdatetime)}</td>
-                      <td>{safe(r.disposition)}</td>
-                      <td>{safe(r.remarks)}</td>
-                      <td>{safe(r.salesOwner)}</td>
-                      <td>{safe(r.createddate)}</td>
+                      <td>{safe(r.custName, "—")}</td>
+                      <td>{safe(r.custMobileNo, "—")}</td>
+                      <td>{safe(r.oppStatus, "—")}</td>
+                      <td>{safe(r.appointmentdatetime, "—")}</td>
+                      <td>{safe(r.disposition, "—")}</td>
+                      <td>{safe(r.remarks, "—")}</td>
+                      <td>{safe(r.salesOwner, "—")}</td>
+                      <td>{safe(r.createddate, "—")}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="empty-note">No line items for the selected period.</div>
+            // Clean empty state (just the header summary per your screenshot)
+            <div className="empty-note">No data found for this opportunity.</div>
           )}
         </div>
       </div>
