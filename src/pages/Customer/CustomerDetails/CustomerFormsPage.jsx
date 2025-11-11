@@ -142,7 +142,7 @@ setForms(list);
     padding: 14px 18px;
     border-bottom: 1px solid #e2e8f0;
     letter-spacing: .2px; }
-        .frbformtable button { background-color: #007bff; color: #fff; padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; }
+        .frbformtable button { background-color: #334b71; color: #fff; padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; }
         .frbformtable button:hover { background-color: #0056b3; }
       `}</style>
     </div>

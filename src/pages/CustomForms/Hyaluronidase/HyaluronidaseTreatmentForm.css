@@ -7,7 +7,7 @@
 }
 
 .HTF-forms {
-   max-width: 100%;
+   max-width: 70%;
   background-color: white;
   color: black;
   border: 1px solid #ddd;
@@ -17,21 +17,21 @@
   margin: 20px auto;
 }
 
-.HTF-form h1 {
+.HTF-forms h1 {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.HTF-form h2 {
+.HTF-forms h2 {
   font-size: 18px;
   font-weight: bold;
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.HTF-form p {
+.HTF-forms p {
   margin-bottom: 10px;
   line-height: 1.6;
 }
@@ -88,7 +88,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #007bff;
+  accent-color: #334b71;
 }
 
 .HTF-error-message {
@@ -221,7 +221,7 @@
 }
 
 .HTF-submit-btn {
-  background-color: #007bff;
+  background-color: #334b71;
   color: white;
 }
 
@@ -380,12 +380,12 @@
     gap: 10px;
   }
 
-  .HTF-form {
+  .HTF-forms {
     padding: 15px;
     margin: 10px;
   }
 
-  .HTF-form h1 {
+  .HTF-forms h1 {
     font-size: 20px;
   }
 

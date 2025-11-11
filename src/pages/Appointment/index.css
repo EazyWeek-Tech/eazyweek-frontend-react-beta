@@ -2053,10 +2053,12 @@ table {
                                 .apptype {
                                     font-size: 11px;
                                     line-height: 18px;
-                                    margin: 7px 0;
+                                    margin: 4px 0;
                                     padding: 0 5px;
                                 }
 
+                                .appflx{display: flex; justify-content: space-between; align-items: center;}
+                                .pytmd{display: flex;gap:10px;align-items: center;}
                                 .pymt {
                                     font-size: 11px;
                                     line-height: 18px;

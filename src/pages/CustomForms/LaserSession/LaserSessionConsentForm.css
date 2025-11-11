@@ -50,12 +50,15 @@
 
 .LSCF-consent-form label {
   font-weight: 600;
+  margin: 0 0 10px;
+  display: inline-block;
 }
 
 .LSCF-checkbox-label {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin: 0 0 15px;
 }
 
 .LSCF-checkbox-label input[type="checkbox"] {
@@ -124,7 +127,7 @@
 }
 
 .LSCF-submit-btn {
-  background: #007bff; /* Replaced var(--secbg-color) */
+  background: #334b71; /* Replaced var(--secbg-color) */
   color: white;
 }
 
@@ -134,7 +137,7 @@
 }
 
 .LSCF-download-btn {
-  background: #007bff;
+  background: #334b71;
   color: white;
 }
 
@@ -149,7 +152,7 @@
 
 .LSCF-success-message button {
   padding: 10px 20px;
-  background: #007bff; /* Replaced var(--secbg-color) */
+  background: #334b71; /* Replaced var(--secbg-color) */
   color: white;
   border: none;
   border-radius: 5px;

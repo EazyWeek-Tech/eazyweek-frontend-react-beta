@@ -44,7 +44,7 @@ export default function FileUploader({ onFilesSelected, accept = { 'image/*': []
         <input {...getInputProps()} />
         <p>
           <span role="img" aria-label="upload">📤</span>{' '}
-          <strong>Drop files to attach, or <span style={{ color: '#007bff', textDecoration: 'underline' }}>browse</span></strong>
+          <strong>Drop files to attach, or <span style={{ color: '#334b71', textDecoration: 'underline' }}>browse</span></strong>
         </p>
         <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '1rem' }}>
           Upload a maximum of 10 files at a time. Each file cannot exceed 10MB.<br />
