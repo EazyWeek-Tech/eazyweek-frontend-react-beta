@@ -552,7 +552,7 @@ export default function OpportunitySummaryReport() {
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
         .tbl thead th { text-align: left; font-size: 13px; color: #6c7688; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #eef1f6; }
         .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: middle; }
-        .link { background: none; border: none; color: #2e5aac; cursor: pointer; padding: 0; text-decoration: underline; font-weight: 600; }
+        .link { background: none; border: none;  padding: 0; }
 
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
