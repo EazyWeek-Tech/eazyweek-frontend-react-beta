@@ -97,6 +97,7 @@ const Sidebar = ({ collapsed }) => {
       submenu: [{ name: "Laser Session Consent", path: "/consent-form/laser-session-consent" }
 ,{ name: "Injectable Treatment Consent", path: "/consent-form/injectable-treatment-consent" },
 { name: "Hyaluronidase Consent", path: "/consent-form/hyaluronidase-consent" },
+{ name: "Antiaging Consent", path: "/consent-form/antiaging-consent" }
 
       ],
 
@@ -109,6 +110,7 @@ const Sidebar = ({ collapsed }) => {
 { name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
 { name:"General Form", path:"/custom-forms/general-form"},
 { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
+{ name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
       ]
     },
     {

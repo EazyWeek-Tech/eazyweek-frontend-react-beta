@@ -335,7 +335,6 @@ export const AdvancedFormBuilder = () => {
   //     description: "Your advanced form configuration has been downloaded.",
   //   });
   // };
-
   return (
     <div className="AdvFormBuilder-container">
       <div className="AdvFormBuilder-wrapper">
@@ -346,6 +345,44 @@ export const AdvancedFormBuilder = () => {
             </h1>
           </div>
           <div className="AdvFormBuilder-actions">
+            {currentView === 'builder' && (
+              <div className="AdvBuilder-button">
+                <Button
+                onClick={() => {
+                  const formConfig = {
+                    ...config,
+                    fields: config.fields.map(field => ({
+                      id: field.id,
+                      type: field.type,
+                      label: field.label,
+                      placeholder: field.placeholder || "",
+                      required: field.required ? "required" : "optional",
+                      parentId: field.parentId || null,
+                      // Include other field-specific properties
+                      ...(field.options && { options: field.options }),
+                      ...(field.min !== undefined && { min: field.min }),
+                      ...(field.max !== undefined && { max: field.max }),
+                      ...(field.step !== undefined && { step: field.step }),
+                      ...(field.rows !== undefined && { rows: field.rows }),
+                      ...(field.columns !== undefined && { columns: field.columns }),
+                      ...(field.accept && { accept: field.accept }),
+                      ...(field.width !== undefined && { width: field.width }),
+                      ...(field.height !== undefined && { height: field.height }),
+                      ...(field.layout && { layout: field.layout }),
+                      conditionalRules: field.conditionalRules || [],
+                      validationRules: field.validationRules || []
+                    }))
+                  };
+                  console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
+                  alert("Form configuration saved! Check console for JSON.");
+                }}
+                
+                className="mr-2 destructive"
+              >
+                Save Form
+              </Button>
+              </div>
+            )}
             <ToggleSwitch
               leftLabel="Builder"
               rightLabel="Preview"

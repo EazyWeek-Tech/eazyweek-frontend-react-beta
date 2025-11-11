@@ -1523,3 +1523,10 @@
     justify-content: center;
   }
 }
+.AdvBuilder-button button{
+  padding: 5px;
+  border-radius: 10px;
+  background-color: #268de1;
+  color: white;
+  cursor: pointer;
+}

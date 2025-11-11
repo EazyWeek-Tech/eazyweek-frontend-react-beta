@@ -57,6 +57,19 @@ export const FormPreview = ({ config }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Generate JSON for all fields metadata
+    const fieldsMetadata = config.fields.map(field => ({
+      id: field.id,
+      label: field.label,
+      placeholder: field.placeholder || "",
+      required: field.required ? "required" : "optional",
+      type: field.type,
+      parentId: field.parentId || null
+    }));
+
+    console.log("Fields Metadata JSON:", JSON.stringify(fieldsMetadata, null, 2));
+
     const currentStepFields = config.isMultiStep
       ? config.steps[currentStep]?.fields.filter(fieldId => isFieldVisible(fieldId)) || []
       : config.fields.filter(field => isFieldVisible(field.id)).map(f => f.id);
@@ -151,12 +164,12 @@ export const FormPreview = ({ config }) => {
   };
 
   const getCurrentStepFields = () => {
-    if (!config.isMultiStep) return config.fields.filter(field => isFieldVisible(field.id) && !field.parentId);
-    const currentStepFieldIds = config.steps[currentStep]?.fields || [];
-    return config.fields.filter(field => currentStepFieldIds.includes(field.id) && isFieldVisible(field.id) && !field.parentId);
+    if (!config?.isMultiStep) return config?.fields?.filter(field => isFieldVisible(field.id) && !field.parentId);
+    const currentStepFieldIds = config?.steps[currentStep]?.fields || [];
+    return config?.fields?.filter(field => currentStepFieldIds.includes(field?.id) && isFieldVisible(field?.id) && !field?.parentId);
   };
 
-  if (config.fields.length === 0) {
+  if (config?.fields?.length === 0) {
     return (
       <div className="FP-form-preview-empty">
         <div className="FP-form-preview-empty-icon">
@@ -169,15 +182,15 @@ export const FormPreview = ({ config }) => {
   }
 
   const currentStepFields = getCurrentStepFields();
-  const currentStepInfo = config.steps[currentStep];
+  const currentStepInfo = config?.steps[currentStep];
 
   return (
     <div className="FP-form-preview-container">
       <div className="FP-form-preview-card">
         <div className="FP-form-preview-header">
-          <h2 className="FP-form-preview-title">{config.title}</h2>
-          {config.description && <p className="FP-form-preview-description">{config.description}</p>}
-          {config.isMultiStep && (
+          <h2 className="FP-form-preview-title">{config?.title}</h2>
+          {config?.description && <p className="FP-form-preview-description">{config?.description}</p>}
+          {config?.isMultiStep && (
             <div className="FP-form-preview-progress">
               <div className="FP-form-preview-progress-info">
                 <span className="FP-form-preview-progress-step">Step {currentStep + 1} of {config.steps.length}</span>
@@ -191,8 +204,8 @@ export const FormPreview = ({ config }) => {
               </div>
               {currentStepInfo && (
                 <div className="FP-form-preview-step-info">
-                  <h3 className="FP-form-preview-step-title">{currentStepInfo.title}</h3>
-                  {currentStepInfo.description && <p className="FP-form-preview-step-description">{currentStepInfo.description}</p>}
+                  <h3 className="FP-form-preview-step-title">{currentStepInfo?.title}</h3>
+                  {currentStepInfo?.description && <p className="FP-form-preview-step-description">{currentStepInfo?.description}</p>}
                 </div>
               )}
             </div>
@@ -201,7 +214,7 @@ export const FormPreview = ({ config }) => {
 
         <form key={formKey} onSubmit={handleSubmit} className="FP-form-preview-form">
           <div className="FP-form-preview-fields">
-            {currentStepFields.map((field) => (
+            {currentStepFields?.map((field) => (
               <div key={field.id} className="FP-form-preview-field">
                 {/* <Label htmlFor={field.id} className="FP-form-preview-label">
                   {field.label}
@@ -212,13 +225,13 @@ export const FormPreview = ({ config }) => {
             ))}
           </div>
           <div className="FP-form-preview-actions">
-            {config.isMultiStep && currentStep > 0 ? (
+            {config?.isMultiStep && currentStep > 0 ? (
               <Button type="button" variant="outline" onClick={goToPreviousStep} className="FP-form-preview-btn-previous">
                 Previous
               </Button>
             ) : <div />}
             <Button type="submit" className="FP-form-preview-btn-submit">
-              {config.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
+              {config?.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
             </Button>
           </div>
         </form>

@@ -1174,3 +1174,16 @@
 }
 
 
+.formpreview-bydata{
+  padding: 5px;
+  border-radius: 10px;
+  background-color: #268de1;
+  color: white;
+  cursor: pointer;
+}
+.Form-Data-flex{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}

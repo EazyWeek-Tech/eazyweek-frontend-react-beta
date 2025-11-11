@@ -67,6 +67,8 @@ import LaserSessionForm from "./pages/CustomForms/LaserSession/LaserSessionForm"
 import ConsultationAssessmentForm from "./pages/CustomForms/InjectableTreatment/ConsultationAssessmentForm";
 import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/HyaluronidaseTreatmentForm";
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
+import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesConsentForm";
+import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -295,6 +297,11 @@ function App() {
                     path="/consent-form/hyaluronidase-consent"
                     element={<HyaluronidaseCF />}
                   />
+                  <Route 
+                  path="/consent-form/antiaging-consent"
+                  element={<InjectablesConsentForm />}
+                  />
+
                  <Route 
                  path="/custom-forms/laser-session"
                   element={<LaserSessionForm/>}
@@ -306,6 +313,7 @@ function App() {
 
 <Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
 <Route path="/custom-forms/form-builder" element={<AdvancedFormBuilder />} />
+<Route path="/custom-forms/form-builder/preview" element={<GetFormByDetails />} />
 
                   <Route 
                   path="/custom-forms/hyaluronidase-treatment"
@@ -315,6 +323,8 @@ function App() {
                   path="/custom-forms/general-form"
                   element={<GeneralForm/>}
                   />
+
+                  
 
                 </Routes>
               </div>
