@@ -319,7 +319,7 @@ const LaserSessionForm = () => {
           </tbody>
         </table>
 
-        <button type="button" onClick={addTreatmentSession} style={{ marginBottom: '20px', padding: '10px 20px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+        <button type="button" onClick={addTreatmentSession} style={{ marginBottom: '20px', padding: '10px 20px', background: '#334b71', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
           Add Treatment Session
         </button>
 

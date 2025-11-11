@@ -100,6 +100,8 @@
 .AAICF-services-table td {
   border: 1px solid #ddd;
   padding: 12px;
+  font-size: 12px;
+  line-height: 20px;
   text-align: left;
   vertical-align: top;
 }
@@ -153,7 +155,7 @@
 }
 
 .AAICF-submit-btn {
-  background-color: #007bff;
+  background-color: #334b71;
   color: white;
 }
 

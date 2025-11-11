@@ -9,7 +9,7 @@
 }
 
 .LHRTF-forms {
-  max-width: 100%;
+  max-width: 70%;
   background-color: white;
   color: black;
   border: 1px solid #ddd;
@@ -161,7 +161,7 @@
 }
 
 .LHRTF-browse {
-  color: #007bff;
+  color: #334b71;
   text-decoration: underline;
   cursor: pointer;
   position: relative;
@@ -225,7 +225,7 @@
 }
 
 .LHRTF-submit-btn {
-  background-color: #007bff;
+  background-color: #334b71;
   color: white;
 }
 

@@ -700,9 +700,9 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         .breadcrumb-separator{margin:0 8px;}
         .helper-note{margin:8px 0 24px;background:#eef5ff;border:1px solid #d9e7ff;color:#264a86;padding:10px 12px;border-radius:6px;font-size:13px;}
         .form-container{background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);overflow:hidden;}
-        .tabs-container{background:#f8f9fa;border-bottom:1px solid #dee2e6;padding:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+        .tabs-container{background:#fff;border-bottom:1px solid #dee2e6;padding:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
         .tabs{display:flex;margin:0;padding:0;flex-wrap:wrap}
-        .tab{position:relative;padding:12px 16px;background:none;border:none;cursor:pointer;font-size:14px;font-weight:500;color:#6c757d;border-bottom:3px solid transparent;transition:all .3s;display:flex;align-items:center;gap:6px}
+        .tab{position:relative;padding:0;background:none;border:none;cursor:pointer;font-size:14px;font-weight:500;color:#6c757d;border-bottom:3px solid transparent;transition:all .3s;display:flex;align-items:center;gap:6px}
         .tab:hover{background:#e9ecef;color:#495057;}
         .tab.active{color:#334B71;border-bottom-color:#334B71;background:#fff;}
         .dot{font-size:12px;line-height:12px}
@@ -714,6 +714,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         .status-label{font-weight:500;color:#495057;font-size:14px;}
         .status-input{padding:8px 12px;border:1px solid #ced4da;border-radius:4px;font-size:14px;background:#fff;min-width:120px;}
         .form-content{padding:28px;}
+        .tab span.dot{display:none;}
         .form-row{display:flex;margin-bottom:20px;align-items:flex-start;}
         .form-label{font-weight:500;color:#495057;font-size:14px;min-width:200px;padding-top:10px;text-align:left;}
         .form-input-container{flex:1;max-width:400px;}

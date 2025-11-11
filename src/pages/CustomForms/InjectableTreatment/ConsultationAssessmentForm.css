@@ -19,6 +19,15 @@
   padding: 20px;
   margin: 20px auto;
 }
+.CAF-section-label{    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;}
+.CAF-form-section, .CAF-signature-section{margin: 0 0 20px; font-size: 14px; line-height: 20px;}
+
+.CAF-radio-row{display: flex; gap: 10px;}
+
+.CAF-forms h1{text-align: center;margin: 0 0 20px; font-size: 20px;}
+
 .CAF-photo-upload-container {
   font-family: Arial, sans-serif;
   margin: 20px;
@@ -64,7 +73,7 @@
 }
 
 .CAF-browse {
-  color: #007bff;
+  color: #334b71;
   text-decoration: underline;
   cursor: pointer;
   position: relative;
@@ -220,7 +229,7 @@
 }
 
 .CAF-submit-btn {
-  background-color: #007bff;
+  background-color: #334b71;
   color: white;
 }
 

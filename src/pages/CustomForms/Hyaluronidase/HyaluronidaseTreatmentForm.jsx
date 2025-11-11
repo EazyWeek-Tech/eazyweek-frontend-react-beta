@@ -233,7 +233,7 @@ const HyaluronidaseTreatmentForm = () => {
   return (
     <div className="HTF-form-container-1">
       <div ref={formRef} className="HTF-forms">
-          <h1>HYALURONIDASE TREATMENT FORM</h1>
+          <h1>FACIAL TREATMENT FORM</h1>
          <div className="HTF-form-row">
   <div className="HTF-form-group">
     <label>Patient Name:</label>
