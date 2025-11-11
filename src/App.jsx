@@ -69,6 +69,7 @@ import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/Hyalur
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
 //import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
+import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -122,7 +123,12 @@ function App() {
       <Route path="/discounts" element={<DiscountManagement />} />
       <Route path="/discounts/configure/*" element={<DiscountConfig />} />
       <Route path="/discounts/manage" element={<DiscountList />} />
-
+       <Route path="/consentform/injectible" element={<InjectableTreatment />} />
+       <Route path="/consentform/facial" element={<HyaluronidaseCF />} />
+       <Route path="/assesmentform/consultation" element={< ConsultationAssessmentForm/>} />
+       <Route path="/consentform/laser" element={<LaserConsentForm />} />
+       <Route path="/treatmentform/laser" element={<LaserSessionForm />} />
+       <Route path="/treatmentform/facial" element={<HyaluronidaseTreatmentForm />} />
       {/*Add Routes WITH Sidebar + Header */}
       <Route
         path="/*"

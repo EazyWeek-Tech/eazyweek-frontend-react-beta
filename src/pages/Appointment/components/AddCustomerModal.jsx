@@ -384,8 +384,8 @@ const AddCustomerModal = ({ onClose }) => {
                   value={formData.mobile}
                   onChange={handleChange}
                   onBlur={handleBlur}
-                  maxLength={10}
-                  placeholder="10-digit mobile"
+                  maxLength={9}
+                  placeholder="9-digit mobile"
                   style={{ flex: 1 }}
                 />
               </div>
