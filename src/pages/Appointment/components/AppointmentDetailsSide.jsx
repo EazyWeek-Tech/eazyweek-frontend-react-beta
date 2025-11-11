@@ -261,15 +261,22 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           <div className="hdflx">
             <h2 className="dethead">Appointment Execution</h2>
           </div>
-
-          <div className="apptcdet">
-            <button onClick={goToMedicalHistoryPage} className="cstlnk">
+                <button onClick={goToMedicalHistoryPage} className="cstlnk" style={{
+            width:'100%'
+          }}>
               <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
               Medical History
             </button>
+          <div className="apptcdet">
+           
             <button onClick={goToConsultationConsentPage} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
-              Consent and Treatment Forms
+              Consent  Form
+            </button>
+
+             <button onClick={goToConsultationConsentPage} className="cstlnk">
+              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Treatment Forms" />
+               Treatment Form
             </button>
           </div>
 
