@@ -16,6 +16,7 @@ import {
   Settings,
   Layers,
   Workflow,
+  ChevronDown,
 } from "lucide-react";
 import { FormFieldSelector } from "./FormFieldSelector";
 import { FormPreview } from "./FormPreview";
@@ -33,12 +34,12 @@ export const AdvancedFormBuilder = () => {
     fields: [],
     isMultiStep: false,
   });
-  
   const [selectedField, setSelectedField] = useState(null);
   const [currentView, setCurrentView] = useState("builder");
+  const [selectedChildFieldTypes, setSelectedChildFieldTypes] = useState([]);
   // const { toast } = useToast();
 
-  const addField = (type) => {
+  const addField = (type, parentId = null) => {
     const newField = {
       id: `field-${Date.now()}`,
       type,
@@ -47,7 +48,7 @@ export const AdvancedFormBuilder = () => {
       required: false,
       conditionalRules: [],
       validationRules: [],
-      step: 0,
+      parentId,
     };
 
     // Add type-specific properties
@@ -80,21 +81,28 @@ export const AdvancedFormBuilder = () => {
     if (type === "tabs") {
       newField.options = ["Tab 1", "Tab 2"];
     }
+    if (type === "panel") {
+      newField.layout = "vertical"; // default layout
+    }
 
     const updatedFields = [...config.fields, newField];
     const updatedSteps = [...config.steps];
-    updatedSteps[0].fields.push(newField.id);
+    if (!parentId) {
+      updatedSteps[0].fields.push(newField.id);
+    }
 
     setConfig({ ...config, fields: updatedFields, steps: updatedSteps });
     setSelectedField(newField);
   };
 
   const updateField = (id, updates) => {
-    const updatedFields = config.fields.map(field => 
-      field.id === id ? { ...field, ...updates } : field
-    );
+    const updatedFields = config.fields.map(field => {
+      if (field.id === id) {
+        return { ...field, ...updates };
+      }
+      return field;
+    });
     setConfig({ ...config, fields: updatedFields });
-    
     if (selectedField?.id === id) {
       setSelectedField({ ...selectedField, ...updates });
     }
@@ -106,9 +114,7 @@ export const AdvancedFormBuilder = () => {
       ...step,
       fields: step.fields.filter(fieldId => fieldId !== id)
     }));
-    
     setConfig({ ...config, fields: updatedFields, steps: updatedSteps });
-    
     if (selectedField?.id === id) {
       setSelectedField(null);
     }
@@ -117,20 +123,12 @@ export const AdvancedFormBuilder = () => {
   const handleDragEnd = (result) => {
     if (!result.destination) return;
 
-    if (result.source.droppableId === "form-fields" && result.destination.droppableId === "form-fields") {
-      // Reorder existing fields
-      const items = Array.from(config.fields);
-      const [reorderedItem] = items.splice(result.source.index, 1);
-      items.splice(result.destination.index, 0, reorderedItem);
-
-      // Update the steps array to reflect the new field order
-      const updatedSteps = [...config.steps];
-      updatedSteps[0].fields = items.map(field => field.id);
-
-      setConfig({ ...config, fields: items, steps: updatedSteps });
-    } else if (result.source.droppableId === "field-selector" && result.destination.droppableId === "form-fields") {
-      // Add new field from selector
-      const type = result.draggableId.split('-')[1];
+    const sourceId = result.source.droppableId;
+    const destId = result.destination.droppableId;
+    const draggableId = result.draggableId;
+    if (sourceId === "field-selector" && destId === "form-fields") {
+      // Add new field from selector to main form
+      const type = draggableId.split('-')[1];
       const newField = {
         id: `field-${Date.now()}`,
         type,
@@ -139,7 +137,6 @@ export const AdvancedFormBuilder = () => {
         required: false,
         conditionalRules: [],
         validationRules: [],
-        step: 0,
       };
 
       // Add type-specific properties
@@ -179,9 +176,141 @@ export const AdvancedFormBuilder = () => {
       updatedSteps[0].fields.splice(result.destination.index, 0, newField.id);
 
       setConfig({ ...config, fields: updatedFields, steps: updatedSteps });
-    } else if (result.source.droppableId === "form-fields" && result.destination.droppableId === "field-selector") {
-      // Remove field by dragging back to selector
-      const fieldId = result.draggableId;
+    } else if (sourceId === "field-selector" && destId.startsWith("panel-")) {
+      // Add new field from selector directly to panel
+      const panelId = destId.replace("panel-", "");
+      const type = draggableId.split('-')[1];
+      const newField = {
+        id: `field-${Date.now()}`,
+        type,
+        label: `${type.charAt(0).toUpperCase() + type.slice(1)} Field`,
+        placeholder: type === "textarea" ? "Enter your message..." : `Enter your ${type}...`,
+        required: false,
+        conditionalRules: [],
+        validationRules: [],
+        parentId: panelId,
+      };
+
+      // Add type-specific properties
+      if (type === "select" || type === "radio" || type === "selectboxes") {
+        newField.options = ["Option 1", "Option 2"];
+      }
+      if (type === "number") {
+        newField.min = "";
+        newField.max = "";
+        newField.step = 1;
+      }
+      if (type === "date" || type === "datetime" || type === "time") {
+        newField.min = "";
+        newField.max = "";
+      }
+      if (type === "textarea") {
+        newField.rows = 4;
+      }
+      if (type === "file" || type === "image") {
+        newField.accept = type === "image" ? "image/*" : "";
+      }
+      if (type === "table") {
+        newField.rows = 1;
+        newField.columns = 2;
+      }
+      if (type === "signature" || type === "annotation") {
+        newField.width = type === "signature" ? 300 : 400;
+        newField.height = type === "signature" ? 100 : 200;
+      }
+      if (type === "tabs") {
+        newField.options = ["Tab 1", "Tab 2"];
+      }
+
+      const updatedFields = [...config.fields, newField];
+      setConfig({ ...config, fields: updatedFields });
+    } else if (sourceId === "form-fields" && destId === "form-fields") {
+      // Reorder top-level fields
+      const topLevelFields = config.fields.filter(f => !f.parentId);
+      const [reorderedItem] = topLevelFields.splice(result.source.index, 1);
+      topLevelFields.splice(result.destination.index, 0, reorderedItem);
+
+      // Rebuild fields array with new order
+      const updatedFields = [];
+      topLevelFields.forEach(field => {
+        updatedFields.push(field);
+        if (field.type === 'panel') {
+          updatedFields.push(...config.fields.filter(f => f.parentId === field.id));
+        }
+      });
+
+      const updatedSteps = [...config.steps];
+      updatedSteps[0].fields = topLevelFields.map(field => field.id);
+
+      setConfig({ ...config, fields: updatedFields, steps: updatedSteps });
+    } else if (sourceId.startsWith("panel-") && destId === "form-fields") {
+      // Move field out of panel to top level
+      const fieldId = draggableId;
+      const updatedFields = config.fields.map(f => f.id === fieldId ? { ...f, parentId: null } : f);
+      setConfig({ ...config, fields: updatedFields });
+    } else if (sourceId === "form-fields" && destId.startsWith("panel-")) {
+      // Move field into panel
+      const panelId = destId.replace("panel-", "");
+      const fieldId = draggableId;
+      const updatedFields = config.fields.map(f => f.id === fieldId ? { ...f, parentId: panelId } : f);
+
+      // Insert at the correct position within the panel
+      const panelChildren = updatedFields.filter(f => f.parentId === panelId);
+      const fieldIndex = panelChildren.findIndex(f => f.id === fieldId);
+      if (fieldIndex !== -1) {
+        const [movedField] = panelChildren.splice(fieldIndex, 1);
+        panelChildren.splice(result.destination.index, 0, movedField);
+      }
+
+      // Rebuild fields array
+      const otherFields = updatedFields.filter(f => f.parentId !== panelId);
+      const topLevel = otherFields.filter(f => !f.parentId);
+      const panelIndex = topLevel.findIndex(f => f.id === panelId);
+      const beforePanel = topLevel.slice(0, panelIndex + 1);
+      const afterPanel = topLevel.slice(panelIndex + 1);
+      const newFields = [...beforePanel, ...panelChildren, ...afterPanel];
+
+      // Update steps to remove the field from top-level
+      const updatedSteps = [...config.steps];
+      updatedSteps[0].fields = updatedSteps[0].fields.filter(id => id !== fieldId);
+
+      setConfig({ ...config, fields: newFields, steps: updatedSteps });
+    } else if (sourceId.startsWith("panel-") && destId.startsWith("panel-")) {
+      // Reorder within or between panels
+      const destPanelId = destId.replace("panel-", "");
+      const fieldId = draggableId;
+
+      const updatedFields = config.fields.map(f => {
+        if (f.id === fieldId) {
+          return { ...f, parentId: destPanelId };
+        }
+        return f;
+      });
+
+      // Reorder within the destination panel
+      const panelChildren = updatedFields.filter(f => f.parentId === destPanelId);
+      const fieldIndex = panelChildren.findIndex(f => f.id === fieldId);
+      if (fieldIndex !== -1) {
+        const [movedField] = panelChildren.splice(fieldIndex, 1);
+        panelChildren.splice(result.destination.index, 0, movedField);
+      }
+
+      // Rebuild fields array
+      const otherFields = updatedFields.filter(f => f.parentId !== destPanelId);
+      const topLevel = otherFields.filter(f => !f.parentId);
+      const panelIndex = topLevel.findIndex(f => f.id === destPanelId);
+      const beforePanel = topLevel.slice(0, panelIndex + 1);
+      const afterPanel = topLevel.slice(panelIndex + 1);
+      const newFields = [...beforePanel, ...panelChildren, ...afterPanel];
+
+      setConfig({ ...config, fields: newFields });
+    } else if (sourceId === "form-fields" && destId === "field-selector") {
+      // Remove field
+      const fieldId = draggableId;
+      deleteField(fieldId);
+    } else if (sourceId.startsWith("panel-") && destId === "field-selector") {
+      // Remove field from panel
+      const fieldId = draggableId;
       deleteField(fieldId);
     }
   };
@@ -192,7 +321,6 @@ export const AdvancedFormBuilder = () => {
   //     created: new Date().toISOString(),
   //     version: "2.0"
   //   };
-    
   //   const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
   //     type: "application/json" 
   //   });
@@ -202,7 +330,6 @@ export const AdvancedFormBuilder = () => {
   //   a.download = "advanced-form-config.json";
   //   a.click();
   //   URL.revokeObjectURL(url);
-    
   //   toast({
   //     title: "Form exported successfully!",
   //     description: "Your advanced form configuration has been downloaded.",
@@ -313,14 +440,13 @@ export const AdvancedFormBuilder = () => {
                             </p>
                           </div>
                         ) : (
-                          config.fields.map((field, index) => (
+                          config.fields.filter(field => !field.parentId).map((field, index) => (
                             <Draggable key={field.id} draggableId={field.id} index={index}>
                               {(provided, snapshot) => (
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   className={`AdvFormBuilder-field ${snapshot.isDragging ? "dragging" : ""} ${selectedField?.id === field.id ? "selected" : ""}`}
-                                  onClick={() => setSelectedField(field)}
                                   style={{
                                     borderColor: selectedField?.id === field.id ? 'var(--primary)' : 'var(--builder-border)',
                                     boxShadow: selectedField?.id === field.id ? '0 0 0 3px rgba(59, 130, 246, 0.1)' : 'var(--shadow-sm)',
@@ -334,7 +460,7 @@ export const AdvancedFormBuilder = () => {
                                     >
                                       <GripVertical className="w-4 h-4" />
                                     </div>
-                                    <div className="AdvFormBuilder-field-info">
+                                    <div className="AdvFormBuilder-field-info" onClick={() => setSelectedField(field)}>
                                       <div className="AdvFormBuilder-field-label">
                                         <Label className="font-medium">{field.label}</Label>
                                         {field.required && (
@@ -367,6 +493,83 @@ export const AdvancedFormBuilder = () => {
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
                                   </div>
+
+                                  {field.type === 'panel' && (
+                                    <Droppable droppableId={`panel-${field.id}`}>
+                                      {(panelProvided) => (
+                                        <div
+                                          ref={panelProvided.innerRef}
+                                          {...panelProvided.droppableProps}
+                                          className="AdvFormBuilder-panel-children"
+                                          style={{
+                                            marginTop: '8px',
+                                            padding: '8px',
+                                            border: '1px dashed var(--builder-border)',
+                                            borderRadius: '4px',
+                                            minHeight: '40px',
+                                            backgroundColor: 'var(--card-bg)'
+                                          }}
+                                        >
+                                          {config.fields.filter(f => f.parentId === field.id).length === 0 ? (
+                                            <div className="text-xs text-muted-foreground text-center py-2">
+                                              Drop fields here to add to panel
+                                            </div>
+                                          ) : (
+                                            config.fields.filter(f => f.parentId === field.id).map((childField, childIndex) => (
+                                              <Draggable key={childField.id} draggableId={childField.id} index={childIndex}>
+                                                {(childProvided, childSnapshot) => (
+                                                  <div
+                                                    ref={childProvided.innerRef}
+                                                    {...childProvided.draggableProps}
+                                                    className={`AdvFormBuilder-field AdvFormBuilder-panel-child ${childSnapshot.isDragging ? "dragging" : ""} ${selectedField?.id === childField.id ? "selected" : ""}`}
+                                                    onClick={() => setSelectedField(childField)}
+                                                    style={{
+                                                      borderColor: selectedField?.id === childField.id ? 'var(--primary)' : 'var(--builder-border)',
+                                                      boxShadow: selectedField?.id === childField.id ? '0 0 0 3px rgba(59, 130, 246, 0.1)' : 'var(--shadow-sm)',
+                                                      backgroundColor: selectedField?.id === childField.id ? 'var(--primary-light)' : 'var(--card-bg)',
+                                                      marginBottom: '4px'
+                                                    }}
+                                                  >
+                                                    <div className="AdvFormBuilder-field-content">
+                                                      <div
+                                                        {...childProvided.dragHandleProps}
+                                                        className="AdvFormBuilder-field-drag-handle"
+                                                      >
+                                                        <GripVertical className="w-4 h-4" />
+                                                      </div>
+                                                      <div className="AdvFormBuilder-field-info">
+                                                        <div className="AdvFormBuilder-field-label">
+                                                          <Label className="font-medium text-sm">{childField.label}</Label>
+                                                          {childField.required && (
+                                                            <span className="AdvFormBuilder-field-required">*</span>
+                                                          )}
+                                                        </div>
+                                                        <div className="AdvFormBuilder-field-type text-xs">
+                                                          {childField.type} field
+                                                        </div>
+                                                      </div>
+                                                      <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          deleteField(childField.id);
+                                                        }}
+                                                        className="AdvFormBuilder-field-delete"
+                                                      >
+                                                        <Trash2 className="w-3 h-3" />
+                                                      </Button>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </Draggable>
+                                            ))
+                                          )}
+                                          {panelProvided.placeholder}
+                                        </div>
+                                      )}
+                                    </Droppable>
+                                  )}
                                 </div>
                               )}
                             </Draggable>
@@ -622,6 +825,134 @@ export const AdvancedFormBuilder = () => {
                               </Button>
                             </div>
                           </div>
+                        )}
+
+                        {selectedField.type === "panel" && (
+                          <>
+                            <div className="AdvFormBuilder-field-setting">
+                              <Label className="AdvFormBuilder-label">Layout Type</Label>
+                              <select
+                                value={selectedField.layout || "vertical"}
+                                onChange={(e) => updateField(selectedField.id, { layout: e.target.value })}
+                                className="mt-1 AdvFormBuilder-input"
+                              >
+                                <option value="vertical">Vertical</option>
+                                <option value="horizontal">Horizontal</option>
+                              </select>
+                            </div>
+                            <div className="AdvFormBuilder-field-setting">
+                              <Label className="AdvFormBuilder-label">Add Child Field</Label>
+                              <div className="relative">
+                                <select
+                                  multiple
+                                  className="mt-1 AdvFormBuilder-input w-full"
+                                  style={{ height: '120px' }}
+                                  value={selectedChildFieldTypes}
+                                  onChange={(e) => {
+                                    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+                                    setSelectedChildFieldTypes(selectedOptions);
+                                  }}
+                                >
+                                  <option value="text">Text Input</option>
+                                  <option value="email">Email</option>
+                                  <option value="textarea">Text Area</option>
+                                  <option value="number">Number</option>
+                                  <option value="date">Date Picker</option>
+                                  <option value="datetime">Date/Time</option>
+                                  <option value="time">Time</option>
+                                  <option value="select">Dropdown</option>
+                                  <option value="radio">Radio Button</option>
+                                  <option value="checkbox">Checkbox</option>
+                                  <option value="selectboxes">Select Boxes</option>
+                                  <option value="file">File Upload</option>
+                                  <option value="image">Image</option>
+                                  <option value="signature">Signature</option>
+                                  <option value="annotation">Annotation Pad</option>
+                                  <option value="table">Table</option>
+                                  <option value="tabs">Tabs</option>
+                                  <option value="content">Content</option>
+                                  <option value="phone">Phone Number</option>
+                                  <option value="currency">Currency</option>
+                                  <option value="city">City</option>
+                                  <option value="address1">Address Line 1</option>
+                                  <option value="address2">Address Line 2</option>
+                                  <option value="pincode">Pincode</option>
+                                  <option value="country">Country</option>
+                                  <option value="state">State</option>
+                                  <option value="firstname">First Name</option>
+                                  <option value="lastname">Last Name</option>
+                                  <option value="mobilephone">Mobile Phone</option>
+                                  <option value="homephone">Home Phone</option>
+                                  <option value="birthday">Birthday</option>
+                                  <option value="gender">Gender</option>
+                                </select>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const newFields = selectedChildFieldTypes.map(type => {
+                                      const newField = {
+                                        id: `field-${Date.now()}-${Math.random()}`,
+                                        type,
+                                        label: `${type.charAt(0).toUpperCase() + type.slice(1)} Field`,
+                                        placeholder: type === "textarea" ? "Enter your message..." : `Enter your ${type}...`,
+                                        required: false,
+                                        conditionalRules: [],
+                                        validationRules: [],
+                                        parentId: selectedField.id,
+                                      };
+
+                                      // Add type-specific properties
+                                      if (type === "select" || type === "radio" || type === "selectboxes") {
+                                        newField.options = ["Option 1", "Option 2"];
+                                      }
+                                      if (type === "number") {
+                                        newField.min = "";
+                                        newField.max = "";
+                                        newField.step = 1;
+                                      }
+                                      if (type === "date" || type === "datetime" || type === "time") {
+                                        newField.min = "";
+                                        newField.max = "";
+                                      }
+                                      if (type === "textarea") {
+                                        newField.rows = 4;
+                                      }
+                                      if (type === "file" || type === "image") {
+                                        newField.accept = type === "image" ? "image/*" : "";
+                                      }
+                                      if (type === "table") {
+                                        newField.rows = 1;
+                                        newField.columns = 2;
+                                      }
+                                      if (type === "signature" || type === "annotation") {
+                                        newField.width = type === "signature" ? 300 : 400;
+                                        newField.height = type === "signature" ? 100 : 200;
+                                      }
+                                      if (type === "tabs") {
+                                        newField.options = ["Tab 1", "Tab 2"];
+                                      }
+                                      if (type === "panel") {
+                                        newField.layout = "vertical";
+                                      }
+
+                                      return newField;
+                                    });
+
+                                    const updatedFields = [...config.fields, ...newFields];
+                                    setConfig({ ...config, fields: updatedFields });
+                                    setSelectedField(newFields[newFields.length - 1]);
+                                    setSelectedChildFieldTypes([]);
+                                  }}
+                                  className="mt-2 AdvFormBuilder-add-option"
+                                  disabled={selectedChildFieldTypes.length === 0}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  Add Selected Fields ({selectedChildFieldTypes.length})
+                                </Button>
+                              </div>
+                            </div>
+                          </>
                         )}
                       </div>
                     </TabsContent>

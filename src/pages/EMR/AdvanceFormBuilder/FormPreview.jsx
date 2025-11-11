@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { useToast } from "./use-toast";
 import * as FieldComponents from "./FieldComponents";
 import "./FormPreview.css"; // Import the external CSS file
+import "./panel-styles.css"; // Import panel-specific styles
 
 export const FormPreview = ({ config }) => {
   const [formData, setFormData] = useState({});
@@ -111,6 +112,26 @@ export const FormPreview = ({ config }) => {
   const renderField = (field) => {
     if (!isFieldVisible(field.id)) return null;
 
+    if (field.type === 'panel') {
+      const childFields = config.fields.filter(f => f.parentId === field.id);
+      const layout = field.layout || 'vertical';
+
+      return (
+        <div className="FP-form-field-component FP-form-field-panel">
+          <div className="FP-card panel-container">
+            <div className="panel-label">{field.label}</div>
+            <div className={`panel-children ${layout === 'horizontal' ? 'panel-horizontal' : 'panel-vertical'}`}>
+              {childFields.map(child => (
+                <div key={child.id} className={`panel-child ${layout === 'horizontal' ? 'panel-child-horizontal' : 'panel-child-vertical'}`}>
+                  {renderField(child)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const ComponentName = field.type.charAt(0).toUpperCase() + field.type.slice(1) + 'Field';
     const Component = FieldComponents[ComponentName];
 
@@ -130,9 +151,9 @@ export const FormPreview = ({ config }) => {
   };
 
   const getCurrentStepFields = () => {
-    if (!config.isMultiStep) return config.fields.filter(field => isFieldVisible(field.id));
+    if (!config.isMultiStep) return config.fields.filter(field => isFieldVisible(field.id) && !field.parentId);
     const currentStepFieldIds = config.steps[currentStep]?.fields || [];
-    return config.fields.filter(field => currentStepFieldIds.includes(field.id) && isFieldVisible(field.id));
+    return config.fields.filter(field => currentStepFieldIds.includes(field.id) && isFieldVisible(field.id) && !field.parentId);
   };
 
   if (config.fields.length === 0) {

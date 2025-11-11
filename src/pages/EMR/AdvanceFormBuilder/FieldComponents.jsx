@@ -7,6 +7,7 @@ import { Label } from "../../../components/ui/label";
 import { Card } from "../../../components/ui/card";
 import { FileText, MapPin, Phone, Mail, Calendar, DollarSign, User, Hash, Globe, Home, Building } from "lucide-react";
 import FileUploader from "../Components/FileUploader";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 // Text Field Component
 export const TextField = ({ field, value, onChange, error }) => (
@@ -16,10 +17,12 @@ export const TextField = ({ field, value, onChange, error }) => (
       {field.required && <span className="form-field-required">*</span>}
     </Label>
     <Input
-      id={field.id} 
+      id={field.id}
       type="text"
       placeholder={field.placeholder}
       value={value || ""}
+      minLength={field.minLength}
+      maxLength={field.maxLength}
       onChange={(e) => onChange(field.id, e.target.value)}
       className={error ? "form-field-error" : ""}
     />
@@ -40,6 +43,9 @@ export const EmailField = ({ field, value, onChange, error }) => (
       type="email"
       placeholder={field.placeholder}
       value={value || ""}
+      minLength={field.minLength}
+      maxLength={field.maxLength}
+      pattern={field.pattern}
       onChange={(e) => onChange(field.id, e.target.value)}
       className={error ? "form-field-error" : ""}
     />
@@ -60,6 +66,9 @@ export const NumberField = ({ field, value, onChange, error }) => (
       type="number"
       placeholder={field.placeholder}
       value={value || ""}
+      min={field.min}
+      max={field.max}
+      step={field.step}
       onChange={(e) => onChange(field.id, e.target.value)}
       className={error ? "form-field-error" : ""}
     />
@@ -69,7 +78,7 @@ export const NumberField = ({ field, value, onChange, error }) => (
 
 // Date Field Component
 export const DateField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-date">
+  <div className="form-field-component FC-form-field-date">
     <Label htmlFor={field.id}>
       <Calendar className="w-4 h-4 mr-2" />
       {field.label}
@@ -79,6 +88,8 @@ export const DateField = ({ field, value, onChange, error }) => (
       id={field.id}
       type="date"
       value={value || ""}
+      min={field.min}
+      max={field.max}
       onChange={(e) => onChange(field.id, e.target.value)}
       className={error ? "form-field-error" : ""}
     />
@@ -88,7 +99,7 @@ export const DateField = ({ field, value, onChange, error }) => (
 
 // Time Field Component
 export const TimeField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-time">
+  <div className="form-field-component FC-form-field-time">
     <Label htmlFor={field.id}>
       <Calendar className="w-4 h-4 mr-2" />
       {field.label}
@@ -147,7 +158,7 @@ export const PhoneField = ({ field, value, onChange, error }) => (
 
 // Datetime Field Component
 export const DatetimeField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-datetime">
+  <div className="form-field-component FC-form-field-datetime">
     <Label htmlFor={field.id}>
       <Calendar className="w-4 h-4 mr-2" />
       {field.label}
@@ -357,7 +368,7 @@ export const HomephoneField = ({ field, value, onChange, error }) => (
 );
 
 export const BirthdayField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-birthday">
+  <div className="form-field-component FC-form-field-birthday">
     <Label htmlFor={field.id}>
       <Calendar className="w-4 h-4 mr-2" />
       {field.label}
@@ -387,7 +398,7 @@ export const TextareaField = ({ field, value, onChange, error }) => (
       placeholder={field.placeholder}
       value={value || ""}
       onChange={(e) => onChange(field.id, e.target.value)}
-      rows={4}
+      rows={field.rows || 4}
       className={error ? "form-field-error" : ""}
     />
     {error && <span className="form-field-error-message">{error}</span>}
@@ -407,7 +418,7 @@ export const ContentField = ({ field, value, onChange, error }) => (
       placeholder={field.placeholder}
       value={value || ""}
       onChange={(e) => onChange(field.id, e.target.value)}
-      rows={6}
+      rows={field.rows || 6}
       className={error ? "form-field-error" : ""}
     />
     {error && <span className="form-field-error-message">{error}</span>}
@@ -421,8 +432,8 @@ export const CheckboxField = ({ field, value, onChange, error }) => {
   };
 
   return (
-    <div className="form-field-component form-field-checkbox">
-      <div className="flex items-center space-x-2">
+    <div className="form-field-component FC-form-field-checkbox">
+      <div className="FC-Checkbox-flex items-center space-x-2">
         <input
           type="checkbox"
           id={field.id}
@@ -447,7 +458,7 @@ export const RadioField = ({ field, value, onChange, error }) => {
   };
 
   return (
-    <div className="form-field-component form-field-radio">
+    <div className="form-field-component FC-form-field-radio">
       <Label>
         {field.label}
         {field.required && <span className="form-field-required">*</span>}
@@ -540,7 +551,7 @@ export const GenderField = ({ field, value, onChange, error }) => (
 
 // Selectboxes Field Component
 export const SelectboxesField = ({ field, value, onChange, error }) => (
-  <div className="form-field-component form-field-selectboxes">
+  <div className="form-field-component FC-form-field-selectboxes">
     <Label>
       {field.label}
       {field.required && <span className="form-field-required">*</span>}
@@ -694,7 +705,7 @@ export const SignatureField = ({ field, value, onChange, error }) => {
   };
 
   return (
-    <div className="form-field-component form-field-signature">
+    <div className="form-field-component FC-form-field-signature">
       <Label htmlFor={field.id}>
         <FileText className="w-4 h-4 mr-2" />
         {field.label}
@@ -726,9 +737,9 @@ import { Button } from "../../../components/ui/button";
 
 // Table Field Component
 export const TableField = ({ field, value, onChange, error }) => {
-  const tableData = value || { rows: 1, columns: 2, data: {} };
-  const [rows, setRows] = useState(tableData.rows || 1);
-  const [columns, setColumns] = useState(tableData.columns || 2);
+  const tableData = value || { rows: field.rows || 1, columns: field.columns || 2, data: {} };
+  const [rows, setRows] = useState(tableData.rows);
+  const [columns, setColumns] = useState(tableData.columns);
 
   const addRow = () => {
     const newRows = rows + 1;
@@ -766,13 +777,13 @@ export const TableField = ({ field, value, onChange, error }) => {
   };
 
   return (
-    <div className="form-field-component form-field-table">
+    <div className="form-field-component FC-form-field-table">
       <Label>
         <FileText className="w-4 h-4 mr-2" />
         {field.label}
         {field.required && <span className="form-field-required">*</span>}
       </Label>
-      <div className="mb-2 flex gap-2">
+      <div className="FC-button">
         <Button type="button" onClick={addRow} size="sm" variant="outline">Add Row</Button>
         <Button type="button" onClick={addColumn} size="sm" variant="outline">Add Column</Button>
       </div>
@@ -791,6 +802,7 @@ export const TableField = ({ field, value, onChange, error }) => {
                 {Array.from({ length: columns }, (_, colIndex) => (
                   <td key={colIndex} className="border border-gray-300 p-2">
                     <Input
+                      type="text"
                       placeholder={`Row ${rowIndex + 1}, Col ${colIndex + 1}`}
                       value={tableData.data?.[`${rowIndex}-${colIndex}`] || ""}
                       onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
@@ -870,7 +882,7 @@ export const AnnotationField = ({ field, value, onChange, error }) => {
   };
 
   return (
-    <div className="form-field-component form-field-annotation">
+    <div className="form-field-component FC-form-field-annotation">
       <Label htmlFor={field.id}>
         <FileText className="w-4 h-4 mr-2" />
         {field.label}
@@ -928,33 +940,51 @@ export const ColumnsField = ({ field, onChange, error }) => (
 );
 
 // Panel Field Component
-export const PanelField = ({ field, onChange, error }) => (
+export const PanelField = ({ field, onChange, error, childFields = [], renderField }) => (
   <div className="form-field-component form-field-panel">
-    <Card className="border border-gray-200 p-4">
-      <h4 className="font-medium mb-2">{field.label}</h4>
-      <Textarea placeholder="Panel content" rows={3} onChange={(e) => onChange(field.id, e.target.value)} />
-    </Card>
+    <Droppable droppableId={`panel-${field.id}`}>
+      {(provided) => (
+        <Card className="border border-gray-200 p-4" ref={provided.innerRef} {...provided.droppableProps}>
+          <h4 className="font-medium mb-2">{field.label}</h4>
+          {childFields.map((childField, index) => (
+            <Draggable key={childField.id} draggableId={childField.id} index={index}>
+              {(provided) => (
+                <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                  {renderField(childField, true, index)}
+                </div>
+              )}
+            </Draggable>
+          ))}
+          <Textarea placeholder="Panel content" rows={field.rows || 3} onChange={(e) => onChange(field.id, e.target.value)} />
+          {provided.placeholder}
+        </Card>
+      )}
+    </Droppable>
     {error && <span className="form-field-error-message">{error}</span>}
   </div>
 );
 
 // Tabs Field Component
 export const TabsField = ({ field, value, onChange, error }) => {
-  const [activeTab, setActiveTab] = useState(0);
   const tabs = field.options || ['Tab 1', 'Tab 2'];
-  const tabValues = value || {};
+  const activeTabName = value?.activeTabName || tabs[0];
+  const tabValues = value?.tabValues || {};
+  const activeIndex = tabs.indexOf(activeTabName);
 
   const handleTabChange = (tabIndex) => {
-    setActiveTab(tabIndex);
+    const tabName = tabs[tabIndex];
+    const newValue = { activeTabName: tabName, tabValues };
+    onChange(field.id, newValue);
   };
 
   const handleContentChange = (content) => {
-    const newValues = { ...tabValues, [activeTab]: content };
-    onChange(field.id, newValues);
+    const newTabValues = { ...tabValues, [activeTabName]: content };
+    const newValue = { activeTabName, tabValues: newTabValues };
+    onChange(field.id, newValue);
   };
 
   return (
-    <div className="form-field-component form-field-tabs">
+    <div className="form-field-component FC-form-field-tabs">
       <Label>
         <FileText className="w-4 h-4 mr-2" />
         {field.label}
@@ -965,12 +995,16 @@ export const TabsField = ({ field, value, onChange, error }) => {
           {tabs.map((tabName, index) => (
             <button
               key={index}
+              type="button"
               className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                activeTab === index
+                activeIndex === index
                   ? 'bg-white text-blue-600 border-b-2 border-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
               }`}
-              onClick={() => handleTabChange(index)}
+              onClick={(e) => {
+                e.preventDefault();
+                handleTabChange(index);
+              }}
             >
               {tabName}
             </button>
@@ -978,9 +1012,9 @@ export const TabsField = ({ field, value, onChange, error }) => {
         </div>
         <div className="p-4 bg-white">
           <Textarea
-            placeholder={`Content for ${tabs[activeTab]}`}
-            rows={4}
-            value={tabValues[activeTab] || ''}
+            placeholder={`Content for ${activeTabName}`}
+            rows={field.rows || 4}
+            value={tabValues[activeTabName] || ''}
             onChange={(e) => handleContentChange(e.target.value)}
             className="w-full resize-none"
           />
