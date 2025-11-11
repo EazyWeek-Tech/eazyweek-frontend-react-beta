@@ -1,3 +1,4 @@
+// src/pages/Opportunity/OpportunitySummaryReport.jsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +10,7 @@ import { API_BASE_URL } from "../../config";
    =========================== */
 const norm = (s) => (s ?? "").toString().trim();
 
-// Normalize to YYYY-MM-DD from ISO or DD-MM-YYYY
+// Normalize to YYYY-MM-DD from ISO or DD/MM/YYYY or DD-MM-YYYY
 function toISODateOnly(s) {
   const t = norm(s);
   if (!t) return "";
@@ -33,7 +34,7 @@ const pick = (obj, keys, fallback = "") => {
 };
 
 /* ===========================
-   SearchableDropdown (multi/single)
+   SearchableDropdown (single/multi)
    =========================== */
 function SearchableDropdown({
   options, value, onChange,
@@ -61,7 +62,8 @@ function SearchableDropdown({
     return options.filter((o) => norm(o.label).toLowerCase().includes(q));
   }, [options, query]);
 
-  const isSelected = (val) => (multiple ? Array.isArray(value) && value.includes(val) : value === val);
+  const isSelected = (val) =>
+    multiple ? Array.isArray(value) && value.includes(val) : value === val;
 
   const displayText = useMemo(() => {
     if (multiple) {
@@ -194,8 +196,7 @@ function SearchableDropdown({
 /* ===========================
    Page: Opportunity Summary Report
    =========================== */
-const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/LoadOpportunitySummaryReport`; 
-// If your API is different, change this constant.
+const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/ OppSummaryReport`;
 
 export default function OpportunitySummaryReport() {
   const navigate = useNavigate();
@@ -205,43 +206,33 @@ export default function OpportunitySummaryReport() {
   const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || "");
   const [toDate, setToDate]     = useState(toISODateOnly(state?.toDate)   || "");
 
-  // MULTI-SELECT filters (as requested)
-  const [clinicCodes, setClinicCodes] = useState(
-    Array.isArray(state?.clinics) ? state.clinics.map(norm) :
-    state?.clinic ? [norm(state.clinic)] : []
-  );
-  const [campaignStatuses, setCampaignStatuses] = useState(
-    Array.isArray(state?.campaignStatus) ? state.campaignStatus.map(norm) : []
-  );
-  const [oppRuleCodes, setOppRuleCodes] = useState(
-    Array.isArray(state?.oppRules) ? state.oppRules.map(norm) : []
-  );
+  // filters (match detailed page’s value semantics)
+  const [campaignStatusCode, setCampaignStatusCode] = useState(""); // "1" | "2"
+  const [oppRuleCode, setOppRuleCode] = useState("");               // "R1".."R7"
+  const [clinicCode, setClinicCode] = useState(state?.clinic ? norm(state.clinic) : "");
   const [oppNames, setOppNames] = useState(
     Array.isArray(state?.oppNames) ? state.oppNames.map(norm) :
     state?.oppName ? [norm(state.oppName)] : []
   );
 
-  // masters/options
-  const [clinics, setClinics] = useState([]);              
-  const [campaignStatusOptions, setCampaignStatusOptions] = useState([
-    { value: "Draft", label: "Draft" },
-    { value: "Active", label: "Active" },
-    { value: "Paused", label: "Paused" },
-    { value: "Completed", label: "Completed" },
-    { value: "Expired", label: "Expired" },
-  ]);
-  const [oppRuleOptions] = useState([
-    { value: "paidForXButNotY", label: "Paid for X but not for Y" },
-    { value: "paidForXCategoryInYNoFutureZ", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
-    { value: "noShowXDays", label: "No show appointment for X days" },
-    { value: "cancelledXDays", label: "Cancelled appointment for X days" },
-    { value: "manualLead", label: "Manual Lead" },
-    { value: "customerSpecialDay", label: "Customer Special Day" },
-    { value: "customerType", label: "Customer Type" },
-  ]);
-  const [oppNameOptions, setOppNameOptions] = useState([]); 
+  // options
+  const campaignStatusOptions = [
+    { value: "1", label: "Active" },
+    { value: "2", label: "Expired" },
+  ];
+  const oppRuleOptions = [
+    { value: "R1", label: "Paid for X but not for Y" },
+    { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
+    { value: "R3", label: "No show appointment for X days" },
+    { value: "R4", label: "Cancelled appointment for X days" },
+    { value: "R5", label: "Manual Lead" },
+    { value: "R6", label: "Customer Special Day" },
+    { value: "R7", label: "Customer Type" },
+  ];
+  const [clinics, setClinics] = useState([]);           // [{value,label}]
+  const [oppNameOptions, setOppNameOptions] = useState([]); // [{value,label}]
 
-  // data/ui
+  // table
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -259,32 +250,21 @@ export default function OpportunitySummaryReport() {
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- Load masters ---- */
+  /* ---- Load clinic options only (no data fetch on mount) ---- */
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-
-        // Clinics
-        try {
-          const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
-          const d = await r.json();
-          const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
-            value: x.code ?? x.centerCode ?? norm(x.name),
-            label: x.name ?? x.centerName ?? (x.code ?? ""),
-          }));
-          setClinics(list);
-          if (clinicCodes?.length) {
-            const allowed = new Set(list.map(o => o.value));
-            setClinicCodes(clinicCodes.filter(v => allowed.has(v)));
-          }
-        } catch { setClinics([]); }
-
-        // If you expose real campaign status / rules masters via API, wire them here similarly.
-
-      } catch (e) {
-        console.error(e);
-        showToast("Failed to load filters");
+        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
+        const d = await r.json();
+        const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
+          value: x.code ?? x.centerCode ?? norm(x.name),
+          label: x.name ?? x.centerName ?? (x.code ?? ""),
+        }));
+        setClinics(list);
+        if (clinicCode && !list.some(o => o.value === clinicCode)) setClinicCode("");
+      } catch {
+        setClinics([]);
       } finally {
         setLoading(false);
       }
@@ -292,20 +272,22 @@ export default function OpportunitySummaryReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---- Load SUMMARY list ---- */
+  /* ---- Fetch summary (only on View) ---- */
   const loadSummary = async () => {
     setLoading(true);
     setPage(1);
     try {
+      // Per backend: send "0" in dateFlag when both dates are provided
+      const df = toISODateOnly(fromDate) && toISODateOnly(toDate) ? "0" : "";
+
       const body = {
         fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate: atEndOfDayZ(toISODateOnly(toDate)),
-
-        // MULTI-SELECTS → CSV
-        centerCode: (clinicCodes || []).join(","),
-        campaignStatus: (campaignStatuses || []).join(","),
-        oppRule: (oppRuleCodes || []).join(","),
-        oppName: (oppNames || []).join(","),
+        toDate:   atEndOfDayZ(toISODateOnly(toDate)),
+        oppStatus: campaignStatusCode || "",      // "1" | "2"
+        clinicCode: clinicCode || "",             // single
+        oppRule: oppRuleCode || "",               // "R1".."R7"
+        oppName: (oppNames || []).join(","),      // CSV
+        dateFlag: df,
       };
 
       const r = await fetch(OPP_SUMMARY_ENDPOINT, {
@@ -333,7 +315,6 @@ export default function OpportunitySummaryReport() {
         return s ? "YES" : "NO";
       };
 
-      // Normalize to SAME columns as your screenshot
       const normalized = arr.map((x, i) => ({
         key:       pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
         oppCode:   pick(x, ["oppCode", "opportunityCode", "code"]),
@@ -352,7 +333,7 @@ export default function OpportunitySummaryReport() {
 
       setRows(normalized);
 
-      // Build Opp Name options from results for multi-filtering
+      // Build Opp Name options from results
       const uniqOppNames = Array.from(
         new Map(
           normalized
@@ -361,11 +342,12 @@ export default function OpportunitySummaryReport() {
         ).values()
       ).sort((a,b) => a.label.localeCompare(b.label));
       setOppNameOptions(uniqOppNames);
+
+      // Keep only already-selected names that still exist
       if (oppNames?.length) {
         const allowed = new Set(uniqOppNames.map(o => o.value));
         setOppNames(oppNames.filter(v => allowed.has(v)));
       }
-
     } catch (e) {
       console.error(e);
       showToast("Failed to load opportunity summary");
@@ -375,9 +357,6 @@ export default function OpportunitySummaryReport() {
       setLoading(false);
     }
   };
-
-  // initial load
-  useEffect(() => { loadSummary(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   function onClickOpp(code) {
     if (!code) return;
@@ -426,7 +405,7 @@ export default function OpportunitySummaryReport() {
       <div className="breadcrumb">
         <span className="crumb-link" onClick={() => navigate("/")}>DashBoard</span>
         <span className="sep"> &gt; </span>
-        <span className="crumb-dim">Opportunity Summary</span>
+        <span className="crumb-dim">Opportunity Summary Report</span>
       </div>
 
       <div className="filters">
@@ -441,11 +420,11 @@ export default function OpportunitySummaryReport() {
           </div>
 
           <div className="frow">
-            <label>Clinic</label>
+            <label>Opp Name</label>
             <SearchableDropdown
-              options={clinics}
-              value={clinicCodes}
-              onChange={setClinicCodes}
+              options={oppNameOptions}
+              value={oppNames}
+              onChange={setOppNames}
               multiple
               placeholder="None selected"
             />
@@ -455,9 +434,9 @@ export default function OpportunitySummaryReport() {
             <label>Campaign Status</label>
             <SearchableDropdown
               options={campaignStatusOptions}
-              value={campaignStatuses}
-              onChange={setCampaignStatuses}
-              multiple
+              value={campaignStatusCode}
+              onChange={setCampaignStatusCode}
+              multiple={false}
               placeholder="None selected"
             />
           </div>
@@ -466,20 +445,20 @@ export default function OpportunitySummaryReport() {
             <label>Opp Rule</label>
             <SearchableDropdown
               options={oppRuleOptions}
-              value={oppRuleCodes}
-              onChange={setOppRuleCodes}
-              multiple
+              value={oppRuleCode}
+              onChange={setOppRuleCode}
+              multiple={false}
               placeholder="None selected"
             />
           </div>
 
           <div className="frow">
-            <label>Opp Name</label>
+            <label>Clinic</label>
             <SearchableDropdown
-              options={oppNameOptions}
-              value={oppNames}
-              onChange={setOppNames}
-              multiple
+              options={clinics}
+              value={clinicCode}
+              onChange={setClinicCode}
+              multiple={false}
               placeholder="None selected"
             />
           </div>
@@ -590,4 +569,3 @@ export default function OpportunitySummaryReport() {
     </div>
   );
 }
-  
