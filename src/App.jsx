@@ -148,7 +148,7 @@ function App() {
                   />
 <Route path="/opportunity/:oppCode/customers" element={<AddLeadCustomerList />} />
 <Route path="/opportunity/customers" element={<AddLeadCustomerList />} /> {/* optional fallback */}
-<Route path="/opportunity/:oppCode/add-lead/:custId" element={<ManualOppCustomerDetails />} />
+<Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
                     path="/cases/:caseNumber"
