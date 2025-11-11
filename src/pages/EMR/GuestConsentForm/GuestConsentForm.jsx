@@ -8,7 +8,7 @@ import './GuestConsentForm.css';
 const GuestConsentForm = () => {
         const navigate = useNavigate();
 
-        const handleBack = () => navigate(-2);
+        const handleBack = () => navigate(-1);
 
         // Signatures
         const [guestSignature, setGuestSignature] = useState('');

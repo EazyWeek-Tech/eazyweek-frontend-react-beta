@@ -537,14 +537,75 @@ const OpportunityDetails = () => {
                 </div>
               </div>
             ) : (
-              <div className="filters-grid slim">
-                {/* Non-manual: only time window (using same controls) */}
+               <div className="filters-grid">
+                {/* Status (default All) */}
+                <div className="fgroup">
+                  <label className="flabel">Status :</label>
+                  <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="">All</option>
+                    <option value="Open">Open</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+
+                {/* Sales Owner */}
+                <div className="fgroup">
+                  <label className="flabel">Sales Owner :</label>
+                  <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
+                    <option value="">- &lt; Select one &gt; -</option>
+                    {ownerOptions.map((o, i) => (
+                      <option key={i} value={o}>{o || "(Unassigned)"}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Follow Up Date mode */}
+                <div className="fgroup">
+                  <label className="flabel">Follow Up Date :</label>
+                  <select
+                    className="finput"
+                    value={followDateMode}
+                    onChange={(e) => setFollowDateMode(e.target.value)}
+                  >
+                    <option value="">All</option>
+                    <option value="0">Today</option>
+                    <option value="1">Tomorrow</option>
+                    <option value="2">Date Range</option>
+                  </select>
+                </div>
+
+                {/* Date range inputs */}
+                {followDateMode === "2" && (
+                  <>
+                    <div className="fgroup">
+                      <label className="flabel">From :</label>
+                      <input
+                        type="date"
+                        className="finput"
+                        value={rangeFrom}
+                        onChange={(e) => setRangeFrom(e.target.value)}
+                      />
+                    </div>
+                    <div className="fgroup">
+                      <label className="flabel">To :</label>
+                      <input
+                        type="date"
+                        className="finput"
+                        value={rangeTo}
+                        onChange={(e) => setRangeTo(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Follow Up time From */}
                 <div className="fgroup ftime">
                   <label className="flabel">Follow Up time (From) :</label>
                   <div className="ftime-row">
                     <select className="finput" value={timeFromSlot} onChange={(e) => setTimeFromSlot(e.target.value)}>
                       <option value="">—</option>
-                      {HALF_HOURS_1_TO_730.map((t) => <option key={`f2s-${t}`} value={t}>{t}</option>)}
+                      {HALF_HOURS_1_TO_730.map((t) => <option key={`fs-${t}`} value={t}>{t}</option>)}
                     </select>
                     <select className="finput" value={timeFromMer} onChange={(e) => setTimeFromMer(e.target.value)}>
                       <option>AM</option>
@@ -552,7 +613,7 @@ const OpportunityDetails = () => {
                     </select>
                   </div>
                 </div>
-                
+
               </div>
             )}
           </div>
