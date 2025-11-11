@@ -786,9 +786,9 @@ table {
 
                 .apptcdet {
                     display: flex;
-                    justify-content: space-between;
+                    gap:20px;
                     align-items: center;
-                    margin: 0 0 20px;
+                    margin:  20px 0;
                 }
 
                 .apptcdet.custdiv {
@@ -813,7 +813,7 @@ table {
                     border-radius: 5px;
                     color: #fff;
                     background: #394561;
-
+                    cursor: pointer;
                 }
 
                 .cstnm {
@@ -1498,9 +1498,9 @@ table {
 
                 .apptcdet {
                     display: flex;
-                    justify-content: space-between;
+                    gap:20px;
                     align-items: center;
-                    margin: 0 0 20px;
+                    margin:20px 0;
                 }
 
                 .apptcdet.custdiv {
@@ -1728,6 +1728,7 @@ table {
 
                 .apptactdiv .cstlnk {
                     padding: 5px 10px;
+                    width: 48%;
                 }
 
                 .dethead:before {
