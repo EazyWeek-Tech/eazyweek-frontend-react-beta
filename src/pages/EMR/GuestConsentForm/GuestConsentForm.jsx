@@ -8,7 +8,7 @@ import './GuestConsentForm.css';
 const GuestConsentForm = () => {
         const navigate = useNavigate();
 
-        const handleBack = () => navigate(-1);
+        const handleBack = () => navigate(-2);
 
         // Signatures
         const [guestSignature, setGuestSignature] = useState('');
@@ -339,8 +339,10 @@ const GuestConsentForm = () => {
        if (!res.ok) throw new Error(`Form submission failed: ${res.status}`);
 
        const data = await res.json();
-       setToast({ message: "Form submitted successfully!", type: "success" });
-       console.log("Server response:", data);
+ console.log("Server response:", data); 
+ // Optional: toast (will likely not be seen if we navigate immediately)
+ // setToast({ message: "Form submitted successfully!", type: "success" });
+ navigate(-1); //  go back to last page
 
      } catch (err) {
        console.error("Failed to submit form:", err);
@@ -366,7 +368,28 @@ const GuestConsentForm = () => {
         <>
         <div className="gcfform medical-form">
             {/* Header Section */}
+
+            
             <div className="form-header">
+               <button
+    type="button"
+    onClick={handleBack}
+    className="bckbtn"
+    style={{
+      position: 'absolute',
+      left: 16,
+      top: 16,
+      background: '#334B71',
+      color: '#fff',
+      border: 'none',
+      borderRadius: 6,
+      padding: '8px 12px',
+      fontWeight: 600,
+      cursor: 'pointer'
+    }}
+  >
+    ← Back
+  </button>
                 {/* <img src="/images/logonew.png" alt="Organization Logo" className="logo" /> */}
                 <h1 className="page-title">MEDICAL HISTORY FORM</h1>
                 <p className="subtitle">
