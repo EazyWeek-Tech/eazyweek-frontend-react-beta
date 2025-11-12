@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 /* ===========================
-   Utils (same as your Audit)
+   Utils
    =========================== */
 const norm = (s) => (s ?? "").toString().trim();
 
@@ -33,7 +33,7 @@ const pick = (obj, keys, fallback = "") => {
 };
 
 /* ===========================
-   SearchableDropdown (same as your Audit)
+   SearchableDropdown
    =========================== */
 function SearchableDropdown({
   options, value, onChange,
@@ -192,9 +192,9 @@ function SearchableDropdown({
 }
 
 /* ===========================
-   Page: Opportunity Detailed Report (multi-select fields)
+   Page: Opportunity Detailed Report
    =========================== */
-const OPP_LIST_ENDPOINT = `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList`; 
+const OPP_DETAIL_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReport`;
 
 export default function OpportunityDetailedReport() {
   const navigate = useNavigate();
@@ -204,53 +204,33 @@ export default function OpportunityDetailedReport() {
   const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || "");
   const [toDate, setToDate]     = useState(toISODateOnly(state?.toDate)   || "");
 
-  // MULTI-SELECT filters
-  const [clinicCodes, setClinicCodes] = useState(
-    Array.isArray(state?.clinics) ? state.clinics.map(norm) :
-    state?.clinic ? [norm(state.clinic)] : []
-  );
-  const [campaignStatuses, setCampaignStatuses] = useState(
-    Array.isArray(state?.campaignStatus) ? state.campaignStatus.map(norm) : []
-  );
-  const [oppRuleCodes, setOppRuleCodes] = useState(
-    Array.isArray(state?.oppRules) ? state.oppRules.map(norm) : []
-  );
+  // filters (as requested)
+  const [campaignStatusCode, setCampaignStatusCode] = useState(""); // "1" | "2"
+  const [oppRuleCode, setOppRuleCode] = useState("");               // "R1".."R7"
+  const [clinicCode, setClinicCode] = useState(state?.clinic ? norm(state.clinic) : "");
   const [oppNames, setOppNames] = useState(
     Array.isArray(state?.oppNames) ? state.oppNames.map(norm) :
     state?.oppName ? [norm(state.oppName)] : []
   );
 
-  // (single-selects you can keep/add later if needed)
-  const [owner, setOwner] = useState(norm(state?.owner) || "");
-  const [statusCodes, setStatusCodes] = useState([]); // keep if you still want overall opp status filter
-
   // options
-  const [clinics, setClinics] = useState([]);              // [{value,label}]
-  const [owners, setOwners] = useState([]);                // [{value,label}]
-  const [campaignStatusOptions, setCampaignStatusOptions] = useState([
-    // Replace with API when available
-    { value: "Draft", label: "Draft" },
-    { value: "Active", label: "Active" },
-    { value: "Paused", label: "Paused" },
-    { value: "Completed", label: "Completed" },
-    { value: "Expired", label: "Expired" },
-  ]);
-
-  // Opp Rule options (your screenshot list)
-  const [oppRuleOptions] = useState([
-    { value: "paidForXButNotY", label: "Paid for X but not for Y" },
-    { value: "paidForXCategoryInYNoFutureZ", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
-    { value: "noShowXDays", label: "No show appointment for X days" },
-    { value: "cancelledXDays", label: "Cancelled appointment for X days" },
-    { value: "manualLead", label: "Manual Lead" },
-    { value: "customerSpecialDay", label: "Customer Special Day" },
-    { value: "customerType", label: "Customer Type" },
-  ]);
-
-  // Opp Name options (derived from loaded rows)
+  const campaignStatusOptions = [
+    { value: "1", label: "Active" },
+    { value: "2", label: "Expired" },
+  ];
+  const oppRuleOptions = [
+    { value: "R1", label: "Paid for X but not for Y" },
+    { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
+    { value: "R3", label: "No show appointment for X days" },
+    { value: "R4", label: "Cancelled appointment for X days" },
+    { value: "R5", label: "Manual Lead" },
+    { value: "R6", label: "Customer Special Day" },
+    { value: "R7", label: "Customer Type" },
+  ];
+  const [clinics, setClinics] = useState([]);           // [{value,label}]
   const [oppNameOptions, setOppNameOptions] = useState([]); // [{value,label}]
 
-  // table data
+  // table
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -268,7 +248,7 @@ export default function OpportunityDetailedReport() {
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- Load masters ---- */
+  /* ---- Load masters only (NO data fetch on mount) ---- */
   useEffect(() => {
     (async () => {
       try {
@@ -283,25 +263,10 @@ export default function OpportunityDetailedReport() {
             label: x.name ?? x.centerName ?? (x.code ?? ""),
           }));
           setClinics(list);
-          if (clinicCodes?.length) {
-            const allowed = new Set(list.map(o => o.value));
-            setClinicCodes(clinicCodes.filter(v => allowed.has(v)));
+          if (clinicCode && !list.some(o => o.value === clinicCode)) {
+            setClinicCode("");
           }
         } catch { setClinics([]); }
-
-        // Owners (if you keep Owner as a filter)
-        try {
-          const r = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include" });
-          const d = await r.json();
-          const arr = Array.isArray(d) ? d : d ? [d] : [];
-          const mapped = arr.map((x) => ({
-            value: x.code ?? x.employeeCode ?? "",
-            label: x.name ?? x.employeeName ?? "",
-          })).filter(o => o.value || o.label);
-          mapped.sort((a,b) => a.label.localeCompare(b.label));
-          setOwners(mapped);
-          if (owner && !mapped.some(o => o.value === owner)) setOwner("");
-        } catch { setOwners([]); }
 
       } catch (e) {
         console.error(e);
@@ -313,27 +278,25 @@ export default function OpportunityDetailedReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---- Load detailed list ---- */
+  /* ---- Fetch report (only on View) ---- */
   const loadDetailed = async () => {
     setLoading(true);
     setPage(1);
     try {
+      // Use "0" when both dates provided (as per your swagger/cURL)
+      const df = toISODateOnly(fromDate) && toISODateOnly(toDate) ? "0" : "";
+
       const body = {
         fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate: atEndOfDayZ(toISODateOnly(toDate)),
-
-        // MULTI-SELECTS → CSV for API
-        centerCode: (clinicCodes || []).join(","),
-        campaignStatus: (campaignStatuses || []).join(","),
-        oppRule: (oppRuleCodes || []).join(","),
-        oppName: (oppNames || []).join(","),
-
-        // optional singles
-        owner: owner || "",
-        status: Array.isArray(statusCodes) ? statusCodes.join(",") : "",
+        toDate:   atEndOfDayZ(toISODateOnly(toDate)),
+        oppStatus: campaignStatusCode || "",      // "1" | "2"
+        clinicCode: clinicCode || "",
+        oppRule: oppRuleCode || "",               // "R1".."R7"
+        oppName: (oppNames || []).join(","),      // CSV
+        dateFlag: df,
       };
 
-      const r = await fetch(OPP_LIST_ENDPOINT, {
+      const r = await fetch(OPP_DETAIL_ENDPOINT, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -344,51 +307,55 @@ export default function OpportunityDetailedReport() {
       const arr = Array.isArray(d) ? d : d ? [d] : [];
 
       const normalized = arr.map((x, i) => {
-  const fmt = (s) => {
-    const iso = toISODateOnly(s);
-    if (!iso) return "";
-    const d = new Date(iso);
-    return isNaN(d)
-      ? ""
-      : new Intl.DateTimeFormat("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        }).format(d);
-  };
+        const fmt = (s) => {
+          const iso = toISODateOnly(s);
+          if (!iso) return "";
+          const d = new Date(iso);
+          return isNaN(d)
+            ? ""
+            : new Intl.DateTimeFormat("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(d);
+        };
 
-  const fromRaw = pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"]);
-  const toRaw   = pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"]);
+        const fromRaw    = pick(x, ["fromDate", "campaignFromDate"]);
+        const toRaw      = pick(x, ["toDate", "campaignToDate"]);
+        const createdRaw = pick(x, ["createdDate", "createdOn"]);
 
-  // converted / wip flags rendered as YES/NO
-  const yesNo = (v) => {
-    const s = String(v ?? "").toLowerCase();
-    if (["1", "true", "y", "yes"].includes(s)) return "YES";
-    if (["0", "false", "n", "no"].includes(s)) return "NO";
-    return s ? "YES" : "NO";
-  };
+        const yesNo = (v) => {
+          const s = String(v ?? "").toLowerCase();
+          if (["1", "true", "y", "yes"].includes(s)) return "YES";
+          if (["0", "false", "n", "no"].includes(s)) return "NO";
+          return s ? "YES" : "NO";
+        };
 
-  return {
-    key:           pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-    oppCode:       pick(x, ["oppCode", "opportunityCode", "code"]),
-    fromDate:      fmt(fromRaw),
-    toDate:        fmt(toRaw),
-    custName:      pick(x, ["customerName", "custName", "name"]),
-    oppName:       pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-    campaignStatus:pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-    converted:     yesNo(pick(x, ["converted", "isConverted"])),
-    oppStatus:     pick(x, ["statusName", "oppStatus", "status"]),
-    createdBy:     pick(x, ["createdByName", "createdBy", "ownerName"]),
-    closedBy:      pick(x, ["closedByName", "closedBy"]),
-    wip:           yesNo(pick(x, ["wip", "isWip"])),
-    clinic:        pick(x, ["centerName", "clinicName", "center"]),
-  };
-});
+        return {
+          key:           pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
+          oppCode:       pick(x, ["oppCode", "opportunityCode", "code"]),
+          fromDate:      fmt(fromRaw),
+          toDate:        fmt(toRaw),
+          createdDate:   fmt(createdRaw),
 
+          // Lead fields (best-effort mapping)
+          leadId:        pick(x, ["leadId", "leadID", "leadCode", "customerId", "custId", "id"]),
+          leadName:      pick(x, ["leadName", "customerName", "custName", "name"]),
+
+          oppName:       pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+          campaignStatus:pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
+          converted:     yesNo(pick(x, ["converted", "isConverted"])),
+          oppStatus:     pick(x, ["statusName", "oppStatus", "status"]),
+          createdBy:     pick(x, ["createdByName", "createdBy", "ownerName"]),
+          closedBy:      pick(x, ["closedByName", "closedBy"]),
+          wip:           yesNo(pick(x, ["wip", "isWip"])),
+          clinic:        pick(x, ["centerName", "clinicName", "center"]),
+        };
+      });
 
       setRows(normalized);
 
-      // Build Opp Name options from results (for the multi-select)
+      // Rebuild Opp Name options from results
       const uniqOppNames = Array.from(
         new Map(
           normalized
@@ -398,7 +365,7 @@ export default function OpportunityDetailedReport() {
       ).sort((a,b) => a.label.localeCompare(b.label));
       setOppNameOptions(uniqOppNames);
 
-      // Keep selections that still exist
+      // Keep only selected names that still exist
       if (oppNames?.length) {
         const allowed = new Set(uniqOppNames.map(o => o.value));
         setOppNames(oppNames.filter(v => allowed.has(v)));
@@ -414,50 +381,57 @@ export default function OpportunityDetailedReport() {
     }
   };
 
-  // initial load
-  useEffect(() => { loadDetailed(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
-
+  // Click to open a row
   function onClickOpp(code) {
     if (!code) return;
     navigate(`/opportunity/view/${encodeURIComponent(code)}`, { state: { from: "opp-detail" } });
   }
 
-  function quoteCSV(val) {
-    const s = String(val ?? "");
-    if (s.includes(",") || s.includes("\n") || s.includes("\"")) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  }
-
-  function exportCSV() {
+  /* ===========================
+     Export to Excel (.xlsx)
+     =========================== */
+  async function exportExcel() {
     if (!rows.length) return;
+
     const headers = [
-  "From Date","To Date","CustName","OppName","Campaign Status",
-  "Converted","OppStatus","Created By","Closed By","WIP","Clinic",
-];
+      "From Date","To Date","Created Date","Lead ID","Lead Name","OppName",
+      "Campaign Status","Converted","OppStatus","Created By","Closed By","WIP","Clinic",
+    ];
 
-const csv = [
-  headers.join(","),
-  ...rows.map(r =>
-    [
-      r.fromDate, r.toDate, quoteCSV(r.custName), quoteCSV(r.oppName),
-      quoteCSV(r.campaignStatus), r.converted, quoteCSV(r.oppStatus),
-      quoteCSV(r.createdBy), quoteCSV(r.closedBy), r.wip, quoteCSV(r.clinic),
-    ].map(v => v ?? "").join(",")
-  ),
-].join("\r\n");
+    const aoa = [headers, ...rows.map(r => [
+      r.fromDate, r.toDate, r.createdDate, r.leadId ?? "", r.leadName ?? "", r.oppName ?? "",
+      r.campaignStatus ?? "", r.converted ?? "", r.oppStatus ?? "",
+      r.createdBy ?? "", r.closedBy ?? "", r.wip ?? "", r.clinic ?? "",
+    ])];
 
+    const XLSX = (await import("xlsx")).default || (await import("xlsx"));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Opportunity_Detailed_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // autosize columns
+    const colWidths = headers.map((h, idx) => {
+      const maxLen = Math.max(
+        h.length,
+        ...rows.map(r => String([
+          r.fromDate, r.toDate, r.createdDate, r.leadId, r.leadName, r.oppName,
+          r.campaignStatus, r.converted, r.oppStatus, r.createdBy, r.closedBy, r.wip, r.clinic
+        ][idx] ?? "").length)
+      );
+      return { wch: Math.min(Math.max(12, maxLen + 2), 40) };
+    });
+    ws["!cols"] = colWidths;
+
+    // enable autofilter on header
+    ws["!autofilter"] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: aoa.length - 1, c: headers.length - 1 },
+      }),
+    };
+
+    XLSX.utils.book_append_sheet(wb, ws, "Opportunity Detail");
+    const fname = `Opportunity_Detailed_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
   }
 
   return (
@@ -475,41 +449,31 @@ const csv = [
             <label>From Date</label>
             <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
           </div>
+
+          <div className="frow">
+            <label>Campaign Status</label>
+            <SearchableDropdown
+              options={campaignStatusOptions}
+              value={campaignStatusCode}
+              onChange={setCampaignStatusCode}
+              placeholder="None selected"
+              multiple={false}
+            />
+          </div>
+
           <div className="frow">
             <label>To Date</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
           </div>
 
           <div className="frow">
-            <label>Clinic</label>
-            <SearchableDropdown
-              options={clinics}
-              value={clinicCodes}
-              onChange={setClinicCodes}
-              multiple
-              placeholder="None selected"
-            />
-          </div>
-
-          <div className="frow">
-            <label>Campaign Status</label>
-            <SearchableDropdown
-              options={campaignStatusOptions}
-              value={campaignStatuses}
-              onChange={setCampaignStatuses}
-              multiple
-              placeholder="None selected"
-            />
-          </div>
-
-          <div className="frow">
             <label>Opp Rule</label>
             <SearchableDropdown
               options={oppRuleOptions}
-              value={oppRuleCodes}
-              onChange={setOppRuleCodes}
-              multiple
+              value={oppRuleCode}
+              onChange={setOppRuleCode}
               placeholder="None selected"
+              multiple={false}
             />
           </div>
 
@@ -524,74 +488,76 @@ const csv = [
             />
           </div>
 
-          {/* Optional single-selects you may still want */}
-          {/* <div className="frow">
-            <label>Owner</label>
+          <div className="frow">
+            <label>Clinic</label>
             <SearchableDropdown
-              options={owners}
-              value={owner}
-              onChange={setOwner}
+              options={clinics}
+              value={clinicCode}
+              onChange={setClinicCode}
               placeholder="None selected"
+              multiple={false}
             />
-          </div> */}
+          </div>
         </div>
 
         <div className="actions">
           <button className="btn" onClick={loadDetailed} disabled={loading}>View</button>
-          <button className="btn" onClick={exportCSV} disabled={!rows.length}>Export</button>
+          <button className="btn" onClick={exportExcel} disabled={!rows.length}>Export</button>
         </div>
       </div>
 
       <div className="table-wrap">
         <table className="tbl">
           <thead>
-  <tr>
-    <th>From Date</th>
-    <th>To Date</th>
-    <th>CustName</th>
-    <th>OppName</th>
-    <th>Campaign Status</th>
-    <th>Converted</th>
-    <th>OppStatus</th>
-    <th>Created By</th>
-    <th>Closed By</th>
-    <th>WIP</th>
-    <th>Clinic</th>
-  </tr>
-</thead>
-<tbody>
-  {loading && (<tr><td colSpan={11} className="loading">Loading…</td></tr>)}
-  {!loading && !pageRows.length && (<tr><td colSpan={11} className="empty">No data</td></tr>)}
-  {!loading && pageRows.map((r, idx) => (
-    <tr key={`${r.key}-${idx}`}>
-      {/* Make From Date the clickable link (blue/underline) like your screenshot */}
-      <td>
-        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-          {r.fromDate}
-        </button>
-      </td>
-      <td>{r.toDate}</td>
-      <td>{r.custName}</td>
-      <td>
-        <a className="link" onClick={() => onClickOpp(r.oppCode)}>
-          {r.oppName}
-        </a>
-      </td>
-      <td>{r.campaignStatus}</td>
-      <td>{r.converted}</td>
-      <td>
-        <a className="link" onClick={() => onClickOpp(r.oppCode)}>
-          {r.oppStatus}
-        </a>
-      </td>
-      <td>{r.createdBy}</td>
-      <td>{r.closedBy}</td>
-      <td>{r.wip}</td>
-      <td>{r.clinic}</td>
-    </tr>
-  ))}
-</tbody>
-
+            <tr>
+              <th>From Date</th>
+              <th>To Date</th>
+              <th>Created Date</th>
+              <th>Lead ID</th>
+              <th>Lead Name</th>
+              <th>OppName</th>
+              <th>Campaign Status</th>
+              <th>Converted</th>
+              <th>OppStatus</th>
+              <th>Created By</th>
+              <th>Closed By</th>
+              <th>WIP</th>
+              <th>Clinic</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (<tr><td colSpan={13} className="loading">Loading…</td></tr>)}
+            {!loading && !pageRows.length && (<tr><td colSpan={13} className="empty">No data</td></tr>)}
+            {!loading && pageRows.map((r, idx) => (
+              <tr key={`${r.key}-${idx}`}>
+                <td>
+                  <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                    {r.fromDate}
+                  </button>
+                </td>
+                <td>{r.toDate}</td>
+                <td>{r.createdDate}</td>
+                <td>{r.leadId}</td>
+                <td>{r.leadName}</td>
+                <td>
+                  <a className="link" onClick={() => onClickOpp(r.oppCode)}>
+                    {r.oppName}
+                  </a>
+                </td>
+                <td>{r.campaignStatus}</td>
+                <td>{r.converted}</td>
+                <td>
+                  <a className="link" onClick={() => onClickOpp(r.oppCode)}>
+                    {r.oppStatus}
+                  </a>
+                </td>
+                <td>{r.createdBy}</td>
+                <td>{r.closedBy}</td>
+                <td>{r.wip}</td>
+                <td>{r.clinic}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
 
         <div className="pager">
@@ -624,9 +590,12 @@ const csv = [
 
         .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
-        .tbl thead th { text-align: left; font-size: 13px; color: #6c7688; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #eef1f6; }
-        .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; }
-        .link { background: none; border: none; color: #2e5aac; cursor: pointer; padding: 0; text-decoration: none; font-weight: 600; }
+        .tbl thead th {
+          text-align: left; font-size: 13px; color: #6c7688; font-weight: 700;
+          padding: 10px 14px; border-bottom: 1px solid #eef1f6; position: sticky; top: 0; background: #fff; z-index: 1;
+        }
+        .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: top; line-height: 1.35; }
+        .link { background: none; border: none;  cursor: pointer; padding: 0; text-decoration: none; }
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
         .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 14px; }

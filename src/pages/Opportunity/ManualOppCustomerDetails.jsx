@@ -3,25 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
-const langOptions = ["Arabic", "English", "Hindi"];
-const leadTypeOptions = ["Existing", "New"];
-// Fallback mediums (used only if API fails)
-const fallbackMediumOptions = [
-  { label: "< - Select one - >", value: "" },
-  { label: "Walkin", value: "Walkin" },
-  { label: "Phone", value: "Phone" },
-  { label: "Online", value: "Online" },
-  { label: "Social", value: "Social" },
-];
-const sourceOptions = ["Walkin", "Referral", "Campaign", "Website"];
-const interestedVerticalOptions = ["Anti Ageing", "Acne Treatment", "Volume filling", "Laser", "Skin"];
-const subSourceOptions = ["", "Instagram", "Facebook", "Google", "SMS", "Other"];
-
-const leadStatusOptions = ["WIP", "Converted", "Not Interested", "Follow-up"];
-const leadSubStatusOptions = ["WIP", "Hot", "Warm", "Cold", "Closed"];
-const apptVerticalOptions = ["Anti Ageing", "Acne Treatment", "Volume filling", "Laser", "Skin"];
-const doctorOptions = ["Dr. Ma", "Dr. Reham", "Agnes Inocencio", "Aaliya", "Dr. Hasna"];
-
 function toInputDate(value) {
   if (!value) return "";
   try {
@@ -41,26 +22,60 @@ function toInputDate(value) {
   return "";
 }
 
+// Initial option lists (can be extended dynamically from API names)
+const LANG_INIT = ["Arabic", "English", "Hindi"];
+const LEADTYPE_INIT = ["Existing", "New"];
+const SOURCE_INIT = ["Walkin", "Referral", "Campaign", "Website"];
+const INTERESTED_INIT = ["Anti Ageing", "Acne Treatment", "Volume filling", "Laser", "Skin"];
+const SUBSOURCE_INIT = ["", "Instagram", "Facebook", "Google", "SMS", "Other"];
+const LEADSTATUS_INIT = ["WIP", "Converted", "Not Interested", "Follow-up"];
+const LEADSUB_INIT = ["WIP", "Hot", "Warm", "Cold", "Closed"];
+const APPT_INIT = ["Anti Ageing", "Acne Treatment", "Volume filling", "Laser", "Skin"];
+const DOCTOR_INIT = ["Dr. Ma", "Dr. Reham", "Agnes Inocencio", "Aaliya", "Dr. Hasna"];
+
+const fallbackMediumOptions = [
+  { label: "< - Select one - >", value: "" },
+  { label: "Walkin", value: "Walkin" },
+  { label: "Phone", value: "Phone" },
+  { label: "Online", value: "Online" },
+  { label: "Social", value: "Social" },
+];
+
 const ManualOppCustomerDetails = () => {
   const { oppCode, custId } = useParams();
   const { state } = useLocation(); // { row, header }
   const navigate = useNavigate();
 
   const [row, setRow] = useState(() => state?.row || null);
-  const [header] = useState(() => state?.header || null);
   const [loading, setLoading] = useState(!state?.row);
   const [error, setError] = useState("");
 
-  // ---- Medium options from API
+  // page header (oppName, rule code) if provided from previous page
+  const header = state?.header || null;
+
+  // Mediums (from API)
   const [mediumOptions, setMediumOptions] = useState(fallbackMediumOptions);
   const [mediumLoading, setMediumLoading] = useState(false);
+
+  // Dynamic option lists (start with defaults, extend using API names if needed)
+  const [langOptions, setLangOptions] = useState(LANG_INIT);
+  const [leadTypeOptions, setLeadTypeOptions] = useState(LEADTYPE_INIT);
+  const [sourceOptions, setSourceOptions] = useState(SOURCE_INIT);
+  const [interestedVerticalOptions, setInterestedVerticalOptions] = useState(INTERESTED_INIT);
+  const [subSourceOptions, setSubSourceOptions] = useState(SUBSOURCE_INIT);
+  const [leadStatusOptions, setLeadStatusOptions] = useState(LEADSTATUS_INIT);
+  const [leadSubStatusOptions, setLeadSubStatusOptions] = useState(LEADSUB_INIT);
+  const [apptVerticalOptions, setApptVerticalOptions] = useState(APPT_INIT);
+  const [doctorOptions, setDoctorOptions] = useState(DOCTOR_INIT);
 
   const [form, setForm] = useState({
     preferredLanguage: "Arabic",
     followUpDate: "",
+    followUpTime: "",        // NEW: "HH:MM"
+    followUpTimeAmPM: "AM",  // NEW: "AM" | "PM"
     leadType: "Existing",
-    medium: "", // now stores the API code/value
-    source: "Walkin",
+    medium: "",                 // stores medium *code*
+    source: "Walkin",           // by *name*
     interestedVertical: "Anti Ageing",
     subSource: "",
     leadStatus: "WIP",
@@ -72,7 +87,24 @@ const ManualOppCustomerDetails = () => {
     email: "",
   });
 
-  // Load mediums
+  const safe = (v) => (v === null || v === undefined ? "" : v);
+
+  // Top (read-only labels on page)
+  const top = useMemo(() => {
+    return {
+      custID: safe(row?.custID),
+      custName: safe(row?.custName),
+      mobile: safe(row?.custMobileNo || row?.mobileNo),
+      clinicLocation: safe(row?.clinicLocation || row?.clinicName || "Lines Clinics"),
+      email: safe(row?.email || row?.emailID),
+      preferredLanguage: safe(row?.preferredLanguage || row?.preferedLanguage || "Arabic"),
+      followUpDate: toInputDate(row?.followUpDate || ""),
+      mediumCode: safe(row?.mediumCode || row?.medium),
+      salesOwner: safe(row?.salesOwner),
+    };
+  }, [row]);
+
+  // Load Medium options
   useEffect(() => {
     const loadMediums = async () => {
       setMediumLoading(true);
@@ -83,8 +115,7 @@ const ManualOppCustomerDetails = () => {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const arr = Array.isArray(data) ? data : (data ? [data] : []);
-        // Map generic shapes: prefer code as value; fallback to value/name
+        const arr = Array.isArray(data) ? data : data ? [data] : [];
         const mapped = arr
           .map((o) => ({
             label: o?.name ?? o?.Name ?? o?.text ?? o?.label ?? "",
@@ -101,97 +132,138 @@ const ManualOppCustomerDetails = () => {
       }
     };
     loadMediums();
-  }, [API_BASE_URL]);
+  }, []);
 
-  // If opened directly, pull the row so we can prefill top section
+  // Enrich from OppMleadDetails
   useEffect(() => {
-    const fetchIfNeeded = async () => {
-      if (row) return;
-      setLoading(true);
-      setError("");
+    const fetchMleadDetails = async () => {
+      if (!oppCode || !custId) return;
       try {
-        const now = new Date();
-        const from = new Date(now);
-        from.setMonth(now.getMonth() - 1);
-
-        const payload = {
-          oppCode,
-          fromDate: from.toISOString(),
-          toDate: now.toISOString(),
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+        const url = `${API_BASE_URL}/api/Opportunity/OppMleadDetails/${encodeURIComponent(oppCode)}/${encodeURIComponent(custId)}`;
+        const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(payload),
+          headers: { Accept: "application/json" },
+          body: "",
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const arr = Array.isArray(data) ? data : (data ? [data] : []);
-        const found = arr.find((o) => (o?.custID || "").toString() === (custId || "").toString());
-        setRow(found || null);
+        const d = await res.json();
+
+        setRow((prev) => {
+          const base = prev || {};
+          return {
+            ...base,
+            custID: d.custID || base.custID,
+            custName: d.custName || base.custName,
+            custMobileNo: d.mobileNo || base.custMobileNo,
+            clinicLocation: d.clinicName || base.clinicLocation,
+            email: d.emailID || base.email,
+            preferredLanguage: d.preferedLanguage || base.preferredLanguage,
+            followUpDate: d.followUpDate || base.followUpDate,
+            mediumCode: d.mediumCode || base.mediumCode,
+            salesOwner: d.salesOwner || base.salesOwner,
+          };
+        });
+
+        // Extend dropdowns so fetched names become selectable
+        if (d.preferedLanguage) setLangOptions((l) => (l.includes(d.preferedLanguage) ? l : [...l, d.preferedLanguage]));
+        if (d.leadType) setLeadTypeOptions((l) => (l.includes(d.leadType) ? l : [...l, d.leadType]));
+        if (d.sourceName) setSourceOptions((l) => (l.includes(d.sourceName) ? l : [...l, d.sourceName]));
+        if (d.interesetedVerticalName) setInterestedVerticalOptions((l) => (l.includes(d.interesetedVerticalName) ? l : [...l, d.interesetedVerticalName]));
+        if (d.subSourceName) setSubSourceOptions((l) => (l.includes(d.subSourceName) ? l : [...l, d.subSourceName]));
+        if (d.leadStatusName) setLeadStatusOptions((l) => (l.includes(d.leadStatusName) ? l : [...l, d.leadStatusName]));
+        if (d.leadSubStatusName) setLeadSubStatusOptions((l) => (l.includes(d.leadSubStatusName) ? l : [...l, d.leadSubStatusName]));
+        if (d.appointmentVeticalsName) setApptVerticalOptions((l) => (l.includes(d.appointmentVeticalsName) ? l : [...l, d.appointmentVeticalsName]));
+        if (d.doctorName) setDoctorOptions((l) => (l.includes(d.doctorName) ? l : [...l, d.doctorName]));
+
+        setForm((p) => ({
+          ...p,
+          clinicLocation: d.clinicName ?? p.clinicLocation,
+          email: d.emailID ?? p.email,
+          preferredLanguage: d.preferedLanguage || p.preferredLanguage,
+          followUpDate: toInputDate(d.followUpDate) || p.followUpDate,
+          // time will remain whatever user picks
+          leadType: d.leadType || p.leadType,
+          medium: d.mediumCode || p.medium, // code
+          source: d.sourceName || p.source,
+          interestedVertical: d.interesetedVerticalName || p.interestedVertical,
+          subSource: d.subSourceName ?? p.subSource,
+          leadStatus: d.leadStatusName || p.leadStatus,
+          leadSubStatus: d.leadSubStatusName || p.leadSubStatus,
+          apptVertical: d.appointmentVeticalsName || p.apptVertical,
+          doctor: d.doctorName || p.doctor,
+          remarks: d.remarks ?? p.remarks,
+        }));
       } catch (e) {
-        console.error(e);
-        setError("Failed to load manual lead details.");
+        console.error("OppMleadDetails failed:", e);
       } finally {
         setLoading(false);
       }
     };
-    fetchIfNeeded();
-  }, [oppCode, custId, row]);
 
-  const safe = (v) => (v === null || v === undefined ? "" : v);
+    fetchMleadDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oppCode, custId]);
 
-  const top = useMemo(() => {
-    return {
-      custID: safe(row?.custID),
-      custName: safe(row?.custName),
-      mobile: safe(row?.custMobileNo),
-      clinicLocation: safe(row?.clinicLocation || "Lines Clinics"),
-      email: safe(row?.email),
-      preferredLanguage: safe(row?.preferredLanguage || "Arabic"),
-      followUpDate: toInputDate(row?.followUpDate || ""),
-      mediumCode: safe(row?.mediumCode || row?.medium || ""), // prefill attempt if backend sends it
-    };
-  }, [row]);
-
-  // Prefill
+  // If we came with a minimal row, reflect it immediately
   useEffect(() => {
+    if (!state?.row) return;
     setForm((p) => ({
       ...p,
-      clinicLocation: top.clinicLocation,
-      email: top.email,
-      preferredLanguage: top.preferredLanguage || p.preferredLanguage,
-      followUpDate: top.followUpDate || p.followUpDate,
-      medium: top.mediumCode || p.medium,
+      clinicLocation: state.row.clinicLocation || p.clinicLocation,
+      email: state.row.email || p.email,
+      preferredLanguage: state.row.preferredLanguage || p.preferredLanguage,
+      followUpDate: toInputDate(state.row.followUpDate) || p.followUpDate,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [top.clinicLocation, top.email, top.preferredLanguage, top.followUpDate, top.mediumCode]);
+    setLoading(false);
+  }, [state?.row]);
 
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const payload = () => ({
-    oppCode,
-    custID: top.custID,
-    preferredLanguage: form.preferredLanguage,
-    followUpDate: form.followUpDate, // yyyy-MM-dd
-    leadType: form.leadType,
-    medium: form.medium, // send the code/value from the API
-    source: form.source,
-    interestedVertical: form.interestedVertical,
-    subSource: form.subSource,
-    leadStatus: form.leadStatus,
-    leadSubStatus: form.leadSubStatus,
-    appointmentVertical: form.apptVertical,
-    doctor: form.doctor,
-    remarks: form.remarks,
-    clinicLocation: form.clinicLocation,
-    email: form.email,
-  });
+  // Build payload for CreateMlead
+  const buildPayload = () => {
+    // isdraft logic: if Lead Status == "WIP" -> 0 else 2
+    const isdraft = form.leadStatus === "WIP" ? 0 : 2;
+
+    // fromDate: prefer followUpDate, otherwise now
+    const fromDateISO = (() => {
+      const d = form.followUpDate ? new Date(form.followUpDate + "T00:00:00") : new Date();
+      return d.toISOString();
+    })();
+
+    // pick oppName & rule code if we have header state
+    const oppName = header?.oppName || "";
+    const oRuleCode = header?.oRuleCode || header?.oRuleDetails || "";
+
+    return {
+      oppCode,
+      oppName,
+      oRuleCode,
+      custID: top.custID,
+      cname: top.custName,
+      mobilephone: top.mobile,
+      email: form.email,
+      preferedLang: form.preferredLanguage,
+      leadType: form.leadType,
+      interestedVertical: form.interestedVertical,
+      lMedium: form.medium,           // medium code
+      lSource: form.source,           // names for the rest
+      lSubSource: form.subSource,
+      lStatus: form.leadStatus,
+      lSubStatus: form.leadSubStatus,
+      lAppVerticals: form.apptVertical,
+      lDoctors: form.doctor,
+      fromDate: fromDateISO,
+      oppRemarks: form.remarks,
+      isdraft,
+      salesOwner: top.salesOwner || "",
+      followUpTime: form.followUpTime || "",
+      followUpTimeAmPM: form.followUpTimeAmPM || "",
+    };
+  };
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -199,11 +271,11 @@ const ManualOppCustomerDetails = () => {
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Opportunity/ManualLeadUpsert`, {
+      const res = await fetch(`${API_BASE_URL}/api/Opportunity/CreateMlead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload()),
+        body: JSON.stringify(buildPayload()),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       navigate(-1);
@@ -249,6 +321,14 @@ const ManualOppCustomerDetails = () => {
               <div className="row">
                 <span className="lab">Follow up Date :</span>
                 <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} />
+              </div>
+              <div className="row">
+                <span className="lab">Follow up Time :</span>
+                <input type="time" className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange} />
+                <select className="inp" style={{maxWidth:110}} name="followUpTimeAmPM" value={form.followUpTimeAmPM} onChange={onChange}>
+                  <option>AM</option>
+                  <option>PM</option>
+                </select>
               </div>
             </div>
           </div>

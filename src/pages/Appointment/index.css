@@ -284,7 +284,7 @@ table {
 
 .appthdr {
   padding: 10px 20px;
-  background: #2d3250;
+  background: #334b71;
   color: #fff;
   box-shadow: 3px 3px 3px rgba(0, 0, 0, 0.3);
   position: sticky;
@@ -361,8 +361,8 @@ table {
   font-size: 14px;
 }
 
-.suggestionssrc{position: absolute;left:0;    position: absolute;
-    left: 0;
+.suggestionssrc{position: absolute;top:30px;z-index:22;
+    left: -110px;
     width: 300px;
     background: #fff;
     padding: 5px;}
@@ -414,7 +414,7 @@ table {
             margin-bottom: 10px;
         }
 
-        .apptfrmflx .form-group input {
+        .apptfrm .apptfrmflx .form-group input {
             width: 100%;
             padding: 6px 10px;
             border: 1px solid #ccc;
@@ -786,9 +786,9 @@ table {
 
                 .apptcdet {
                     display: flex;
-                    justify-content: space-between;
+                    gap:20px;
                     align-items: center;
-                    margin: 0 0 20px;
+                    margin:  20px 0;
                 }
 
                 .apptcdet.custdiv {
@@ -813,7 +813,7 @@ table {
                     border-radius: 5px;
                     color: #fff;
                     background: #394561;
-
+                    cursor: pointer;
                 }
 
                 .cstnm {
@@ -939,7 +939,9 @@ table {
             border-radius: 2px;
             color: #fff;
         }
-
+#addcust .popin{width: 650px;}
+#addcust .frmdiv{justify-content: flex-start;}
+#addcust .inptdiv{display: flex; gap: 10px; align-items: center;}
 
  .frmdiv {
             display: flex;
@@ -1496,9 +1498,9 @@ table {
 
                 .apptcdet {
                     display: flex;
-                    justify-content: space-between;
+                    gap:20px;
                     align-items: center;
-                    margin: 0 0 20px;
+                    margin:20px 0;
                 }
 
                 .apptcdet.custdiv {
@@ -1726,6 +1728,7 @@ table {
 
                 .apptactdiv .cstlnk {
                     padding: 5px 10px;
+                    width: 48%;
                 }
 
                 .dethead:before {
@@ -1963,6 +1966,19 @@ table {
                                     font-weight: 600;
                                 }
 
+                                .paidst{
+    display:inline-block;
+    margin: 4px;
+    padding:2px 6px;
+    font-size:12px;
+    font-weight:600;
+    color:#065f46;
+    background:#d1fae5;
+    border:1px solid #a7f3d0;
+    border-radius:6px;
+    width:max-content;
+  }
+
                                 .aptst {
                                     border: 1px solid #011c59;
                                     background: #90b1fe;
@@ -2037,10 +2053,12 @@ table {
                                 .apptype {
                                     font-size: 11px;
                                     line-height: 18px;
-                                    margin: 7px 0;
+                                    margin: 4px 0;
                                     padding: 0 5px;
                                 }
 
+                                .appflx{display: flex; justify-content: space-between; align-items: center;}
+                                .pytmd{display: flex;gap:10px;align-items: center;}
                                 .pymt {
                                     font-size: 11px;
                                     line-height: 18px;

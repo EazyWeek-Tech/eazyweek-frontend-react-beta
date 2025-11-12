@@ -1,156 +1,149 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom"; // If using URL param
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../../config";
 
 const CustomerFormHistory = () => {
-  // You can also pass `customerName` as a prop
-  const { customerName = "John Doe" } = useParams(); // fallback to "John Doe"
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  // Sample data for ONE customer
-  const sampleForms = [
-    {
-      id: 1,
-      formType: "Consent",
-      filledDate: "2025-07-30T10:00:00",
-      status: "Submitted",
-    },
-    {
-      id: 2,
-      formType: "Feedback",
-      filledDate: "2025-07-29T14:30:00",
-      status: "Approved",
-    },
-    {
-      id: 3,
-      formType: "Insurance",
-      filledDate: "2025-07-27T09:20:00",
-      status: "Pending",
-    }
-  ];
-
+  const custId = searchParams.get("custid") || "";
+  const customerName = searchParams.get("fullname") || "Customer";
   const [forms, setForms] = useState([]);
-  const [filteredForms, setFilteredForms] = useState([]);
-  const [search, setSearch] = useState("");
-  const [formTypeFilter, setFormTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    setForms(sampleForms);
-    setFilteredForms(sampleForms);
-  }, []);
+    const fetchForms = async () => {
+      if (!custId) {
+        setErr("Missing custid in URL.");
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        setErr("");
 
-  useEffect(() => {
-    const filtered = forms.filter((form) => {
-      return (
-        form.formType.toLowerCase().includes(search.toLowerCase()) &&
-        (formTypeFilter ? form.formType === formTypeFilter : true) &&
-        (statusFilter ? form.status === statusFilter : true)
-      );
-    });
-    setFilteredForms(filtered);
-  }, [search, formTypeFilter, statusFilter, forms]);
+        // GET with custId in path (as specified). If your API needs a body, add it.
+       // inside useEffect -> fetchForms
+const res = await fetch(
+  `${API_BASE_URL}/api/consultation/get/${encodeURIComponent(custId)}`,
+  {
+    method: "GET",
+    credentials: "include",
+  }
+);
+
+if (!res.ok) throw new Error(`Failed to load forms (${res.status})`);
+const data = await res.json();
+const list = Array.isArray(data) ? data : (data ? [data] : []);
+setForms(list);
+
+      } catch (e) {
+        console.error(e);
+        setErr("Failed to load consultation forms.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchForms();
+  }, [custId]);
+
+  const viewForm = (form) => {
+    // Navigate to your consultation view/editor with params
+    const qp = new URLSearchParams();
+    qp.set("custid", form.custId || custId);
+    if (customerName) qp.set("custname", customerName);
+    if (form.appointmentId) qp.set("appointmentid", form.appointmentId);
+    navigate(`/consultation?${qp.toString()}`);
+  };
 
   return (
     <div className="frbformlistpg">
-      <h2>Forms Filled by {customerName}</h2>
+      <h2>Consultation</h2>
+      
 
-      <div className="frbformfilters">
-        <input
-          type="text"
-          placeholder="Search by form type"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select onChange={(e) => setFormTypeFilter(e.target.value)} value={formTypeFilter}>
-          <option value="">All Form Types</option>
-          <option value="Consent">Consent</option>
-          <option value="Feedback">Feedback</option>
-          <option value="Insurance">Insurance</option>
-        </select>
-        <select onChange={(e) => setStatusFilter(e.target.value)} value={statusFilter}>
-          <option value="">All Statuses</option>
-          <option value="Submitted">Submitted</option>
-          <option value="Pending">Pending</option>
-          <option value="Approved">Approved</option>
-        </select>
-      </div>
-
-      <table className="frbformtable">
-        <thead>
-          <tr>
-            <th>Form Type</th>
-            <th>Date Filled</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredForms.length === 0 ? (
+      {loading ? (
+        <div>Loading…</div>
+      ) : err ? (
+        <div style={{ color: "crimson" }}>{err}</div>
+      ) : (
+        <table className="frbformtable">
+          <thead>
             <tr>
-              <td colSpan="4" style={{ textAlign: "center" }}>No forms found.</td>
+              <th>Appointment Date</th>
+              <th>Form Filled Date</th>   
+              <th>Filled</th>    
+              <th>Filled by</th>       
+              <th>Action</th>
             </tr>
-          ) : (
-            filteredForms.map((form, i) => (
-              <tr key={i}>
-                <td>{form.formType}</td>
-                <td>{new Date(form.filledDate).toLocaleDateString()}</td>
-                <td>{form.status}</td>
-                <td>
-                  <button onClick={() => alert(`Viewing form ID: ${form.id}`)}>
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+    {forms.length === 0 ? (
+      <tr>
+        <td colSpan="5" style={{ textAlign: "center" }}>
+          No forms found.
+        </td>
+      </tr>
+    ) : (
+      forms.map((f) => {
+        const apptDate =
+          f.appointmentDate ? new Date(f.appointmentDate).toLocaleDateString() : "-";
+        const filledDate =
+          f.signatureDate ? new Date(f.signatureDate).toLocaleDateString() : "-";
+        const isFilled = Boolean(f.signatureDate);
+
+        return (
+          <tr key={f.id}>
+            <td>{apptDate}</td>
+            <td>{filledDate}</td>
+            <td>
+              {isFilled ? (
+                <span className="filledpill">
+                  <span className="check">✓</span> Filled
+                </span>
+              ) : (
+                <span className="unfilledpill">—</span>
+              )}
+            </td>
+            <td>
+              {f.providerName}
+            </td>
+            <td>
+              <button onClick={() => viewForm(f)}>View</button>
+            </td>
+          </tr>
+        );
+      })
+    )}
+  </tbody>
+        </table>
+      )}
 
       <style>{`
-        .frbformlistpg {
-          padding: 20px;
-          font-family: Arial, sans-serif;
-        }
-
-        .frbformfilters {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 15px;
-        }
-
-        .frbformfilters input,
-        .frbformfilters select {
-          padding: 8px;
-          font-size: 14px;
-        }
-
-        .frbformtable {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .frbformtable th,
-        .frbformtable td {
-          border: 1px solid #ccc;
-          padding: 10px;
-          text-align: left;
-        }
-
-        .frbformtable th {
-          background: #f0f0f0;
-        }
-
-        .frbformtable button {
-          background-color: #007bff;
-          color: #fff;
-          padding: 5px 12px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-
-        .frbformtable button:hover {
-          background-color: #0056b3;
-        }
+      .frbformlistpg h2{font-size: 20px; line-height: 28px; margin: 0 0 20px;   }
+        .frbformlistpg { padding: 20px; font-family: Arial, sans-serif; width: 80%; }
+        .frbformtable { width: 100%; border-collapse: collapse; margin-top: 10px;background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden; }
+        .frbformtable td {padding: 12px 18px;
+    font-size: 14px;
+    color: #0f172a;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+ }
+        .frbformtable th { background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: .2px; }
+        .frbformtable button { background-color: #334b71; color: #fff; padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; }
+        .frbformtable button:hover { background-color: #0056b3; }
       `}</style>
     </div>
   );

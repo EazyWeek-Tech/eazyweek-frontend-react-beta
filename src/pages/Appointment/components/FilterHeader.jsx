@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { API_BASE_URL } from "../../../config"; // make sure this path is correct
+import { API_BASE_URL } from "../../../config";
 
 const createDataHandler = async (url, payload = null) => {
   const options = payload
     ? {
         method: "POST",
-         credentials: "include",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }
@@ -15,20 +15,12 @@ const createDataHandler = async (url, payload = null) => {
   return await response.json();
 };
 
-const FilterHeader = () => {
+const FilterHeader = ({ countsOverride }) => {
   const [counts, setCounts] = useState({});
   const [selectedDate] = useState(() =>
     new Date().toISOString().split("T")[0]
   );
 
-  const {
-    Completed = 0,
-    PaymentPending = 0,
-    Active = 0,
-    CheckedIn = 0,
-    Confirmed = 0,
-    Booked = 0,
-  } = counts;
   useEffect(() => {
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
@@ -41,24 +33,32 @@ const FilterHeader = () => {
 
     createDataHandler(`${API_BASE_URL}/api/Appointment/AppDashBoardCount`, payload)
       .then((res) => {
-        console.log(res)
         if (res?.success) {
-  setCounts({
-    Completed: res.completed,
-    PaymentPending: res.paymentPending || 0,
-    Active: res.active,
-    CheckedIn: res.checkedIn,
-    Confirmed: res.confirm,
-    Booked: res.booked,
-    Cancelled: res.cancelled,
-    NoShow: res.noShow,
-  });
-}
-
+          setCounts({
+            Completed: res.completed || 0,
+            PaymentPending: res.paymentPending || 0,
+            Active: res.active || 0,
+            CheckedIn: res.checkedIn || 0,
+            Confirmed: res.confirm || 0,
+            Booked: res.booked || 0,
+            Cancelled: res.cancelled || 0,
+            NoShow: res.noShow || 0,
+          });
+        }
       })
       .catch(console.error);
   }, [selectedDate]);
 
+  // Prefer live overrides from the grid when provided
+  const val = (key, fallback) =>
+    typeof countsOverride?.[key] === 'number' ? countsOverride[key] : (counts[key] || fallback || 0);
+
+  const Completed   = val('Completed', 0);
+  const PaymentPend = val('PaymentPending', 0);
+  const Active      = val('Active', 0);
+  const CheckedIn   = val('CheckedIn', 0);
+  const Confirmed   = val('Confirmed', 0);
+  const Booked      = val('Booked', 0);
 
   return (
     <header className="fltrhdr">
@@ -89,7 +89,7 @@ const FilterHeader = () => {
                 />
                 Payment Pending
               </div>
-              <div className="statno">{PaymentPending}</div>
+              <div className="statno">{PaymentPend}</div>
             </div>
 
             <div className="ongngappt statcell">

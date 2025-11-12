@@ -69,6 +69,9 @@ import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/Hyalur
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
 import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesConsentForm";
 import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
+//import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
+import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
+import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -122,7 +125,12 @@ function App() {
       <Route path="/discounts" element={<DiscountManagement />} />
       <Route path="/discounts/configure/*" element={<DiscountConfig />} />
       <Route path="/discounts/manage" element={<DiscountList />} />
-
+       <Route path="/consentform/injectible" element={<InjectableTreatment />} />
+       <Route path="/consentform/facial" element={<HyaluronidaseCF />} />
+       <Route path="/assesmentform/consultation" element={< ConsultationAssessmentForm/>} />
+       <Route path="/consentform/laser" element={<LaserConsentForm />} />
+       <Route path="/treatmentform/laser" element={<LaserSessionForm />} />
+       <Route path="/treatmentform/facial" element={<HyaluronidaseTreatmentForm />} />
       {/*Add Routes WITH Sidebar + Header */}
       <Route
         path="/*"
@@ -140,6 +148,9 @@ function App() {
                     path="/segmentaddform/:employeeCode"
                     element={<SegmentAddForm />}
                   />
+<Route path="/opportunity/:oppCode/customers" element={<AddLeadCustomerList />} />
+<Route path="/opportunity/customers" element={<AddLeadCustomerList />} /> {/* optional fallback */}
+<Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
                     path="/cases/:caseNumber"
@@ -211,10 +222,7 @@ function App() {
                     path="/opportunity/:oppCode/customer/:custId"
                     element={<OppCustomerDetails />}
                   />
-                  <Route
-                    path="/opportunity/:oppCode/manual/:custId"
-                    element={<ManualOppCustomerDetails />}
-                  />
+
                   <Route
                     path="/create-category"
                     element={<ItemCategoryCreateTabs />}
@@ -323,6 +331,9 @@ function App() {
                   path="/custom-forms/general-form"
                   element={<GeneralForm/>}
                   />
+<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
+      {/* <Route path="/purchase-category/create" element={<CreatePurchaseCategory />} /> */}
+
 
                   
 

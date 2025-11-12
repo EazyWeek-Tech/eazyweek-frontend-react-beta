@@ -221,7 +221,7 @@
   justify-content: center;
   color: #b45309;
   font-size: 22px;
-  border: 1px solid rgba(180,83,9,0.12);
+  border: 1px solid rgba(180, 83, 9, 0.12);
 }
 
 .GF-modal-buttons {
@@ -245,7 +245,7 @@
   background: #0b64b2;
   color: #fff;
   border: none;
-  box-shadow: 0 6px 16px rgba(11,100,178,0.28);
+  box-shadow: 0 6px 16px rgba(11, 100, 178, 0.28);
 }
 
 .GF-agree-btn:hover {
@@ -273,6 +273,7 @@
   }
 }
 
+/* Responsive */
 @media (max-width: 600px) {
   .GF-form-container {
     padding: 1.5rem;

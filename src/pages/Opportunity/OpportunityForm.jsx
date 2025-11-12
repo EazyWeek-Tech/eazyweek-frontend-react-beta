@@ -1,4 +1,5 @@
 "use client"
+
 import { useNavigate } from "react-router-dom"
 import { useRef, useState, useMemo, useEffect } from "react"
 import { API_BASE_URL } from "../../config"
@@ -41,7 +42,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const [masterRules, setMasterRules] = useState([])
   const [rulesLoading, setRulesLoading] = useState(false)
 
-  // DB code -> internal ruleId used by your RuleForm switch()
+  // DB code -> internal ruleId used by RuleForm switch()
   const ruleCodeToId = {
     R1: "paidForXButNotY",
     R2: "paidForXCategoryInYDays",
@@ -64,7 +65,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     const loadRules = async (type, setter) => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadRules/${type}`, { credentials: "include" })
-        const data = await res.json() // [{name, code, value}]
+        const data = await res.json()
         const arr = Array.isArray(data) ? data.map(mapApiRule) : []
         if (alive) setter(arr)
       } catch (e) {
@@ -86,7 +87,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     return () => { alive = false }
   }, [])
 
-  // Manual rules remain hardcoded
+  // Manual rule
   const manualRules = [
     { id: "manualCreateLead", title: "Create Manual Lead", desc: "Create a lead without auto-segmentation." },
   ]
@@ -100,18 +101,17 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const [opportunityName, setOpportunityName] = useState("")
   const [selectedRule, setSelectedRule] = useState("")
   const [ruleValues, setRuleValues] = useState({
-    // Paid for X but not for Y
+    // R1
     paidForXButNotY: {
       categoryX: [],
       categoryY: [],
-      fetchType: "",        // "1" | "2" (required)
-      categoryWindow: "",   // "" | "CUSTOM" | "RANGE" | P1D | P1W | P1M | P3M
-      customDays: "",       // when categoryWindow === "CUSTOM"
-      fromDate: "",         // when RANGE or STATIC
-      toDate: ""            // when RANGE or STATIC
+      fetchType: "",        // "1" | "2"
+      categoryWindow: "",   // "", "1","7","30","90","0","9999" — hidden for static
+      customDays: "",
+      fromDate: "",
+      toDate: ""
     },
-
-    // Paid for X Category in Y Days and no future appt in Z days for Category P
+    // R2
     paidForXCategoryInYDays: {
       categoryX: [],
       fromDate1: "",
@@ -120,30 +120,29 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       fromDate2: "",
       toDate2: "",
       categoryP: [],
-      fetchType: ""         // "1" | "2" (required)
+      fetchType: ""
     },
-
-    // No-show
+    // R3
     noShowAppointment: {
-      fetchType: "",        // "1" | "2" (required)
-      windowType: "",       // "" | P1D | P1W | P1M | P3M | CUSTOM | RANGE
-      customDays: "",       // when CUSTOM
-      fromDate: "",         // when RANGE or STATIC
-      toDate: ""            // when RANGE or STATIC
-    },
-
-    // Cancelled
-    cancelledAppointment: {
       fetchType: "",
-      windowType: "",
+      windowType: "",   // hidden for static
       customDays: "",
       fromDate: "",
       toDate: ""
     },
-
-    // Masters / Manual
-    customerSpecialDay: { dayType: "", offsetDays: "", fetchType: "", fromDate: "", toDate: "" },
+    // R4
+    cancelledAppointment: {
+      fetchType: "",
+      windowType: "",   // hidden for static
+      customDays: "",
+      fromDate: "",
+      toDate: ""
+    },
+    // R5
+    customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" },
+    // R6
     customerType:       { type: "", fetchType: "" },
+    // Manual
     manualCreateLead:   { note: "", fetchType: "" },
   })
   const [errors, setErrors] = useState({ name: "", rule: "", fields: "" })
@@ -179,6 +178,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     if (errors.fields) setErrors(prev => ({ ...prev, fields: "" }))
   }
 
+  // Required fields baseline (dynamic filtering for static happens in isRuleValid)
   const requiredFields = useMemo(() => ({
     paidForXButNotY: ["categoryX", "categoryY", "categoryWindow"],
     paidForXCategoryInYDays: ["categoryX", "fromDate1", "toDate1", "zDays", "fromDate2", "toDate2", "categoryP"],
@@ -189,45 +189,83 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     manualCreateLead: [],
   }), [])
 
-  const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
+  const isCustom = (v) => String(v) === "0"
+  const isRange  = (v) => String(v) === "9999"
+  const numericDays = (v) => {
+    const s = (v ?? "").toString()
+    if (!s || isCustom(s) || isRange(s)) return ""
+    return s
+  }
+
+  const daysBetween = (start, end) => {
+    if (!start || !end) return ""
+    const s = new Date(start)
+    const e = new Date(end)
+    if (isNaN(s) || isNaN(e)) return ""
+    const ms = e.getTime() - s.getTime()
+    if (ms < 0) return ""
+    const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
+    return String(d)
+  }
+
+  const toDMY = (ymd) => {
+    if (!ymd) return ""
+    const [y, m, d] = (ymd || "").split("-")
+    if (!y || !m || !d) return ""
+    return `${d}/${m}/${y}`
+  }
+  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "")
+
+  // Compute the exact noShowDays value the API expects
+  const computeNoShowDays = (v) => {
+    if (String(v.fetchType) === "1") return "9999"        // STATIC sentinel
+    if (isCustom(v.windowType)) return String(v.customDays || "")
+    if (isRange(v.windowType))  return daysBetween(v.fromDate, v.toDate) || ""
+    return numericDays(v.windowType)                      // 1 / 7 / 30 / 90
+  }
 
   const isRuleValid = (ruleId) => {
     if (!ruleId) return false
     const vals = ruleValues[ruleId] || {}
+    const ft = String(vals.fetchType || "")
 
-    // fetchType must be "1" (Static) or "2" (Dynamic)
-    if (!["1", "2"].includes(String(vals.fetchType))) return false
+    if (!["1", "2"].includes(ft)) return false
 
-    // Rule-specific required fields
-    const baseReq = requiredFields[ruleId] || []
+    // dynamically filter required fields for static (hide dropdowns -> don't require them)
+    let baseReq = requiredFields[ruleId] || []
+    if (ft === "1") {
+      baseReq = baseReq.filter(k => !["categoryWindow", "windowType"].includes(k))
+    }
+    const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
     if (!baseReq.every(k => isFilled(vals[k]))) return false
 
+    // Rule-specific checks
     if (ruleId === "paidForXButNotY") {
-      if (vals.categoryWindow === "CUSTOM" && !isFilled(vals.customDays)) return false
-
-      // Dynamic + RANGE requires dates
-      if (String(vals.fetchType) === "2" && vals.categoryWindow === "RANGE") {
+      if (ft === "1") {
+        // static requires its own date range
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
-      }
-
-      // Static always requires dates
-      if (String(vals.fetchType) === "1") {
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+      } else {
+        if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false
+        if (isRange(vals.categoryWindow)) {
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        }
       }
     }
 
     if (ruleId === "noShowAppointment" || ruleId === "cancelledAppointment") {
-      if (vals.windowType === "CUSTOM" && !isFilled(vals.customDays)) return false
-
-      // Dynamic + RANGE requires dates
-      if (vals.windowType === "RANGE" && String(vals.fetchType) === "2") {
+      if (ft === "1") {
         if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+      } else {
+        if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false
+        if (isRange(vals.windowType)) {
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        }
       }
+    }
 
-      // Static always requires dates
-      if (String(vals.fetchType) === "1") {
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
-      }
+    if (ruleId === "noShowAppointment") {
+      const nd = computeNoShowDays(vals)
+      if (!nd) return false
     }
 
     return true
@@ -245,55 +283,35 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     manualBased: { createManualLead: selectedRule === MANUAL_ID },
   })
 
-  // helper to resolve ruleCode (R1..R6) and ruleType
   const getSelectedRuleMeta = () => {
     const match = ALL_RULES.find(r => r.id === selectedRule)
-    const ruleCode = match?.raw?.code || "" // e.g., R1
-    const ruleType =
-      TX_IDS.includes(selectedRule) ? "TRANSACTION" :
-      MS_IDS.includes(selectedRule) ? "MASTERS" : "MANUAL"
-    return { ruleCode, ruleType }
+    const ruleCode = match?.raw?.code || ""
+    return { ruleCode }
   }
 
-  // helpers for days & joins
-  const daysFromWindow = (w) => {
-    switch (w) {
-      case "P1D": return "1"
-      case "P1W": return "7"
-      case "P1M": return "30"
-      case "P3M": return "90"
-      default: return "" // CUSTOM/RANGE/"" -> leave blank
+  // helpers
+  const labelsFromValues = (vals = []) =>
+    (Array.isArray(vals) ? vals : []).map(v => catOptions.find(o => o.value === v)?.label || v)
+
+  const computeWindowDays = ({ fetchType, windowSelect, fromDate, toDate, customDays }) => {
+    const ft = String(fetchType || "")
+    const ws = String(windowSelect || "")
+    if (ft === "1") {
+      return daysBetween(fromDate, toDate) || ""
     }
-  }
-  const joinVals = (arr) => Array.isArray(arr) ? arr.join(",") : (arr ?? "")
-
-  const daysBetween = (start, end) => {
-    if (!start || !end) return ""
-    const s = new Date(start)
-    const e = new Date(end)
-    if (isNaN(s) || isNaN(e)) return ""
-    const ms = e.getTime() - s.getTime()
-    if (ms < 0) return ""
-    // round up to whole days
-    const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
-    return String(d)
+    if (isCustom(ws)) return ""
+    if (isRange(ws)) return daysBetween(fromDate, toDate) || ""
+    return numericDays(ws)
   }
 
-  // simple client-side oppCode generator so it’s never blank
-  const generateOppCode = () => {
-    const d = new Date()
-    const pad = (n) => String(n).padStart(2, "0")
-    return `OPP-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
-  }
-
-  // Build EXACT API payload (missing values -> "")
-  const buildApiPayload = (isDraftNum, campaignDates) => {
-    const { ruleCode, ruleType } = getSelectedRuleMeta()
+  // Build EXACT API payload
+  const buildApiPayload = (campaignDates) => {
+    const { ruleCode } = getSelectedRuleMeta()
     const v = ruleValues[selectedRule] || {}
 
-    // base skeleton
     const base = {
-      oppCode: generateOppCode(),
+      request: "save",
+      oppCode: "",
       oppName: opportunityName.trim(),
       ruleCode,
       xvalue: "",
@@ -303,19 +321,19 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       ruleDetails: JSON.stringify({ id: selectedRule, vals: v }),
       ruleZFromDate: "",
       ruleZToDate: "",
-      isDraft: Number(isDraftNum),  // <-- numeric 1/0
+      isDraft: "1",
       ruleDays: "",
-      ruleType,
+      ruleType: v.fetchType ? String(v.fetchType) : "",
       ruleYFromDate: "",
       ruleYToDate: "",
       staticFromDate: "",
       staticToDate: "",
-      ruleFetchType: v.fetchType ? String(v.fetchType) : "", // "1" | "2" or ""
+      ruleFetchType: v.fetchType ? String(v.fetchType) : "",
       ruleCustomDays: "",
       customFromDate: "",
       customToDate: "",
-      campStartDate: campaignDates?.startDate || "",
-      campEndDate: campaignDates?.endDate || "",
+      campStartDate: safeDMY(campaignDates?.startDate),
+      campEndDate:   safeDMY(campaignDates?.endDate),
       noShowDays: "",
       noShowCustomDays: "",
       cancelDays: "",
@@ -326,77 +344,119 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
 
     switch (selectedRule) {
       case "paidForXButNotY": { // R1
-        base.xvalue = joinVals(v.categoryX)
-        base.yvalue = joinVals(v.categoryY)
+        base.xvalue = labelsFromValues(v.categoryX).join(",")
+        base.yvalue = labelsFromValues(v.categoryY).join(",")
 
-        const d = daysFromWindow(v.categoryWindow)
-        if (d) base.ruleDays = d
-        if (v.categoryWindow === "CUSTOM") {
-          base.ruleCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.categoryWindow === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
+        base.ruleDays = computeWindowDays({
+          fetchType: v.fetchType,
+          windowSelect: v.categoryWindow,
+          fromDate: v.fromDate,
+          toDate: v.toDate,
+          customDays: v.customDays
+        })
+
+        if (isCustom(v.categoryWindow)) base.ruleCustomDays = String(v.customDays || "")
+        if (String(v.fetchType) === "2" && isRange(v.categoryWindow)) {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
         }
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
+          base.staticFromDate = safeDMY(v.fromDate)   // ← static uses its own inputs
+          base.staticToDate   = safeDMY(v.toDate)
         }
         break
       }
 
       case "paidForXCategoryInYDays": { // R2
-        base.xvalue = joinVals(v.categoryX)
-        // Y days — compute from fromDate1/toDate1 if provided
+        base.xvalue = labelsFromValues(v.categoryX).join(",")
+        base.pvalue = labelsFromValues(v.categoryP).join(",")
+
         const yDays = daysBetween(v.fromDate1, v.toDate1)
         base.ruleDays = yDays || ""
-        base.zValue = String(v.zDays || "")
-        base.pvalue = joinVals(v.categoryP)
-        base.ruleYFromDate = v.fromDate1 || ""
-        base.ruleYToDate   = v.toDate1 || ""
-        base.ruleZFromDate = v.fromDate2 || ""
-        base.ruleZToDate   = v.toDate2 || ""
+        base.zValue   = String(v.zDays || "")
+
+        base.ruleYFromDate = safeDMY(v.fromDate1)
+        base.ruleYToDate   = safeDMY(v.toDate1)
+        base.ruleZFromDate = safeDMY(v.fromDate2)
+        base.ruleZToDate   = safeDMY(v.toDate2)
+
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate1)
+          base.staticToDate   = safeDMY(v.toDate1)
+        } else {
+          base.customFromDate = safeDMY(v.fromDate1)
+          base.customToDate   = safeDMY(v.toDate1)
+        }
         break
       }
 
       case "noShowAppointment": { // R3
-        const d = daysFromWindow(v.windowType)
-        if (d) base.noShowDays = d
-        if (v.windowType === "CUSTOM") {
-          base.noShowCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.windowType === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
-        }
+        const nDays = computeNoShowDays(v)        // "9999" for static; else computed
+        base.noShowDays = nDays
+        base.noShowCustomDays = ""
+        // Set static/custom date range from inputs
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+        } else if (isRange(v.windowType)) {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
         }
+        base.ruleDetails = `No show for ${nDays} days`
         break
       }
 
       case "cancelledAppointment": { // R4
-        const d = daysFromWindow(v.windowType)
-        if (d) base.cancelDays = d
-        if (v.windowType === "CUSTOM") {
-          base.cancelCustomDays = String(v.customDays || "")
-        }
-        if (String(v.fetchType) === "2" && v.windowType === "RANGE") {
-          base.customFromDate = v.fromDate || ""
-          base.customToDate = v.toDate || ""
-        }
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = v.fromDate || ""
-          base.staticToDate = v.toDate || ""
+          // STATIC:
+          const computedDays = daysBetween(v.fromDate, v.toDate) || ""
+          // Per your requirement:
+          // - cancelDays => "9999" (sentinel)
+          // - cancelCustomDays => "9999"
+          // - customFromDate/customToDate are mandatory and come from the same static inputs
+          base.cancelDays = "9999"
+          base.cancelCustomDays = "9999"
+
+          // Dates from static inputs
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+
+          // Also fill custom range from same inputs (mandatory)
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+
+          base.ruleDetails = `Cancelled appointment for ${computedDays} days`
+        } else {
+          // DYNAMIC:
+          let cDays = ""
+          cDays =
+            (isCustom(v.windowType) ? String(v.customDays || "") : "") ||
+            numericDays(v.windowType) ||
+            (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : "")
+
+          base.cancelDays = cDays
+          base.cancelCustomDays = isCustom(v.windowType) ? String(v.customDays || "") : ""
+
+          if (isRange(v.windowType)) {
+            base.customFromDate = safeDMY(v.fromDate)
+            base.customToDate   = safeDMY(v.toDate)
+          }
+
+          base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
         }
         break
       }
 
       case "customerSpecialDay": { // R5
-        base.customerSpecialDays = v.dayType || ""
-        base.staticFromDate = v.fromDate || ""
-        base.staticToDate = v.toDate || ""
+        base.customerSpecialDays = String(v.dayType || "")
+        if (String(v.fetchType) === "1") {
+          base.staticFromDate = safeDMY(v.fromDate)
+          base.staticToDate   = safeDMY(v.toDate)
+        } else {
+          base.customFromDate = safeDMY(v.fromDate)
+          base.customToDate   = safeDMY(v.toDate)
+        }
+        base.ruleDetails = "Customer Special Day"
         break
       }
 
@@ -405,28 +465,20 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         break
       }
 
-      case "manualCreateLead": {
-        // nothing extra
-        break
-      }
-
+      case "manualCreateLead":
       default:
         break
     }
 
-    // ensure any undefined become ""
     Object.keys(base).forEach(k => {
       if (base[k] === undefined || base[k] === null) base[k] = ""
     })
 
-    // keep numeric isDraft as 0/1
-    base.isDraft = Number(isDraftNum)
-
     return base
   }
 
-  const postCreate = async (isDraftNum, campaignDates) => {
-    const body = buildApiPayload(isDraftNum, campaignDates)
+  const postCreate = async (campaignDates) => {
+    const body = buildApiPayload(campaignDates)
     console.log("CreateNewOpp payload:", body)
     const res = await fetch(`${API_BASE_URL}/api/Opportunity/CreateNewOpp`, {
       method: "POST",
@@ -446,51 +498,29 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       throw new Error(msg)
     }
     if (data && data.success === false) {
-      // surface backend message if present, otherwise generic error
       throw new Error(data.message || "CreateNewOpp returned success:false")
     }
     return data || {}
   }
 
-  const handleSave = async () => {
-    const nameMissing = !opportunityName.trim()
-    const ruleMissing = !selectedRule
-    const fieldsMissing = selectedRule && !isRuleValid(selectedRule)
-
-    if (nameMissing || ruleMissing || fieldsMissing) {
-      setErrors({
-        name: nameMissing ? "Please enter an opportunity name." : "",
-        rule: ruleMissing ? "Please choose one rule." : "",
-        fields: fieldsMissing ? "Please complete the required fields for the selected rule." : "",
-      })
-      if (nameMissing && nameRef.current) nameRef.current.focus()
-      else if (ruleMissing && rulesRef.current) rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
-      return
-    }
-
-    try {
-      await postCreate(1) // isDraft = 1 for Save (numeric)
-      alert("Saved as draft.")
-      onNext?.(buildPayload())
-    } catch (e) {
-      console.error(e)
-      alert(`Failed to save draft. ${e.message || ""}`)
-    }
-  }
-
-  // Open modal on Activate (only when form is valid)
+  // Only “Activate” flow in this screen (but posting as save/isDraft=1)
   const handleActivateClick = () => {
     setActivateErr("")
     if (!canSubmit) {
-      // trigger current validation messages
-      handleSave()
+      setErrors(prev => ({
+        ...prev,
+        name: !opportunityName.trim() ? "Please enter an opportunity name." : "",
+        rule: !selectedRule ? "Please choose one rule." : "",
+        fields: selectedRule && !isRuleValid(selectedRule) ? "Please complete the required fields for the selected rule." : "",
+      }))
+      if (!opportunityName.trim() && nameRef.current) nameRef.current.focus()
+      else if (!selectedRule && rulesRef.current) rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
       return
     }
     setActivateOpen(true)
   }
 
   const confirmActivate = async () => {
-    // validate campaign dates
     if (!campStart || !campEnd) {
       setActivateErr("Please select both campaign start and end dates.")
       return
@@ -501,190 +531,205 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     }
 
     try {
-      await postCreate(0, { startDate: campStart, endDate: campEnd }) // isDraft = 0 for Activate
+      await postCreate({ startDate: campStart, endDate: campEnd }) // posts as request:"save", isDraft:"1"
       setActivateOpen(false)
-      alert("Campaign activated.")
+      alert("Saved (activation-style) with request:'save' and isDraft:'1'.")
       onNext?.(buildPayload())
+      navigate("/opportunity")
     } catch (e) {
       console.error(e)
-      setActivateErr(e.message || "Failed to activate campaign. Please try again.")
+      setActivateErr(e.message || "Failed to save. Please try again.")
     }
   }
 
   // ---------- MULTISELECT ----------
-  const MultiSelect = ({
-    label,
-    values = [],
-    onChange,
-    placeholder = "None selected",
-    disabledValues = []
-  }) => {
-    const [open, setOpen] = useState(false)
-    const [q, setQ] = useState("")
-    const [local, setLocal] = useState(values) // edit buffer while open
+ const MultiSelect = ({
+  label,
+  values = [],
+  onChange,
+  placeholder = "None selected",
+  disabledValues = []
+}) => {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState("")
+  const [local, setLocal] = useState(values)
+  const containerRef = useRef(null)
+  const [openUpwards, setOpenUpwards] = useState(false)
 
-    // seed local from parent when opening
-    useEffect(() => { if (open) setLocal(values) }, [open, values])
+  useEffect(() => { if (open) setLocal(values) }, [open, values])
 
-    // Esc closes
-    useEffect(() => {
-      const onKey = (e) => { if (e.key === "Escape") setOpen(false) }
-      if (open) document.addEventListener("keydown", onKey)
-      return () => document.removeEventListener("keydown", onKey)
-    }, [open])
-
-    const filtered = useMemo(() => {
-      if (!q.trim()) return catOptions
-      const qq = q.toLowerCase()
-      return catOptions.filter(o => (o.label || "").toLowerCase().includes(qq))
-    }, [q, catOptions])
-
-    const selectableFiltered = filtered.filter(o => !disabledValues.includes(o.value))
-    const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(o => local.includes(o.value))
-
-    const toggleAll = () => {
-      if (allSelected) {
-        const toRemove = new Set(selectableFiltered.map(o => o.value))
-        setLocal(prev => prev.filter(v => !toRemove.has(v)))
-      } else {
-        const union = new Set(local)
-        selectableFiltered.forEach(o => union.add(o.value))
-        setLocal(Array.from(union))
+  // Detect click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false)
       }
     }
+    if (open) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
 
-    const toggleOne = (v) => {
-      if (disabledValues.includes(v)) return
-      setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  // Detect if dropdown should open upwards
+  useEffect(() => {
+    if (!open) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    if (rect) {
+      const spaceBelow = viewportHeight - rect.bottom
+      setOpenUpwards(spaceBelow < 260) // threshold (approx dropdown height)
     }
+  }, [open])
 
-    // Commit then close (ordered)
-    const closeWithCommit = (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      onChange(local)
-      setTimeout(() => setOpen(false), 0)
+  const filtered = useMemo(() => {
+    if (!q.trim()) return catOptions
+    const qq = q.toLowerCase()
+    return catOptions.filter(o => (o.label || "").toLowerCase().includes(qq))
+  }, [q, catOptions])
+
+  const selectableFiltered = filtered.filter(o => !disabledValues.includes(o.value))
+  const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(o => local.includes(o.value))
+
+  const toggleAll = () => {
+    if (allSelected) {
+      const toRemove = new Set(selectableFiltered.map(o => o.value))
+      setLocal(prev => prev.filter(v => !toRemove.has(v)))
+    } else {
+      const union = new Set(local)
+      selectableFiltered.forEach(o => union.add(o.value))
+      setLocal(Array.from(union))
     }
-
-    // show local while open, parent when closed
-    const shown = open ? local : values
-    const buttonLabel =
-      shown.length === 0
-        ? placeholder
-        : shown.length === 1
-        ? (catOptions.find(o => o.value === shown[0])?.label ?? placeholder)
-        : `${shown.length} selected`
-
-    return (
-      <div className="msel" data-msel tabIndex={0}>
-        <span className="rf-label">{label}</span>
-        <button
-          className="msel-btn"
-          type="button"
-          onMouseDown={(e) => e.preventDefault()} // avoid blur/focus issues
-          onClick={() => setOpen(v => !v)}
-        >
-          {buttonLabel}<span className="msel-caret">▾</span>
-        </button>
-
-        {open && (
-          <div
-            className="msel-dd"
-            // keep events inside
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="msel-search">
-              <input
-                placeholder="Search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                className="msel-search-input"
-                onPointerDown={(e) => e.stopPropagation()}
-              />
-              <button className="msel-clear" type="button" onClick={() => setQ("")}>✕</button>
-            </div>
-
-            <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleAll}
-                onMouseDown={(e) => e.preventDefault()}
-              />
-              <span>Select all</span>
-            </div>
-
-            <div className="msel-list">
-              {catLoading ? (
-                <div className="msel-empty">Loading…</div>
-              ) : filtered.length === 0 ? (
-                <div className="msel-empty">No results</div>
-              ) : (
-                filtered.map(opt => {
-                  const isDisabled = disabledValues.includes(opt.value)
-                  const checked = local.includes(opt.value)
-                  return (
-                    <div
-                      key={opt.value}
-                      className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        className="msel-opt"
-                        data-val={opt.value}
-                        type="checkbox"
-                        checked={checked}
-                        disabled={isDisabled}
-                        onChange={() => toggleOne(opt.value)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span>{opt.label}</span>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            <div className="msel-footer">
-              <button
-                type="button"
-                className="msel-done"
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-                onClick={closeWithCommit} // commit → close
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    )
   }
+
+  const toggleOne = (v) => {
+    if (disabledValues.includes(v)) return
+    setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  }
+
+  const closeWithCommit = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onChange(local)
+    setTimeout(() => setOpen(false), 100)
+  }
+
+  const shown = open ? local : values
+  const buttonLabel =
+    shown.length === 0
+      ? placeholder
+      : shown.length === 1
+      ? (catOptions.find(o => o.value === shown[0])?.label ?? placeholder)
+      : `${shown.length} selected`
+
+  return (
+    <div className="msel" data-msel tabIndex={0} ref={containerRef}>
+      <span className="rf-label">{label}</span>
+      <button
+        className="msel-btn"
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen(v => !v)}
+      >
+        {buttonLabel}<span className="msel-caret">▾</span>
+      </button>
+
+      {open && (
+        <div
+          className={`msel-dd ${openUpwards ? "msel-up" : ""}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="msel-search">
+            <input
+              placeholder="Search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="msel-search-input"
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+            <button className="msel-clear" type="button" onClick={() => setQ("")}>✕</button>
+          </div>
+
+          <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              onMouseDown={(e) => e.preventDefault()}
+            />
+            <span>Select all</span>
+          </div>
+
+          <div className="msel-list">
+            {catLoading ? (
+              <div className="msel-empty">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="msel-empty">No results</div>
+            ) : (
+              filtered.map(opt => {
+                const isDisabled = disabledValues.includes(opt.value)
+                const checked = local.includes(opt.value)
+                return (
+                  <div
+                    key={opt.value}
+                    className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      className="msel-opt"
+                      data-val={opt.value}
+                      type="checkbox"
+                      checked={checked}
+                      disabled={isDisabled}
+                      onChange={() => toggleOne(opt.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span>{opt.label}</span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="msel-footer">
+            <button
+              type="button"
+              className="msel-done"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              onClick={closeWithCommit}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
   // ---------- Shared row: Rule Data Fetch Type ----------
   const FetchTypeRow = ({ ruleId, vals }) => (
-  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
-    <label className="rf-field">
-      <span className="rf-label">Segment</span>
-      <select
-        className="rf-input"
-        value={vals.fetchType || ""}
-        onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
-      >
-        <option value="">Select</option>
-        <option value="1">Static</option>
-        <option value="2">Dynamic</option>
-      </select>
-    </label>
-  </div>
-)
-
+    <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
+      <label className="rf-field">
+        <span className="rf-label">Segment</span>
+        <select
+          className="rf-input"
+          value={vals.fetchType || ""}
+          onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
+        >
+          <option value="">Select</option>
+          <option value="1">Static</option>
+          <option value="2">Dynamic</option>
+        </select>
+      </label>
+    </div>
+  )
 
   // ---------- RULE FORMS ----------
   const RuleForm = ({ ruleId }) => {
     if (!ruleId) return null
     const v = ruleValues[ruleId] || {}
+    const isStatic = String(v.fetchType) === "1"
 
     switch (ruleId) {
       case "paidForXButNotY":
@@ -703,49 +748,78 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 onChange={(arr) => setField(ruleId, "categoryY", arr)}
                 disabledValues={v.categoryX}
               />
-              <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
-                <label className="rf-field">
-                  <span className="rf-label">Category for</span>
-                  <select
-                    className="rf-input"
-                    value={v.categoryWindow}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setField(ruleId, "categoryWindow", val)
-                      if (val !== "CUSTOM") setField(ruleId, "customDays", "")
-                      if (val !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                    }}
-                    disabled={String(v.fetchType) === "1"} // Disable when STATIC
-                  >
-                    <option value="">Select</option>
-                    <option value="1">Past 1 day</option>
-                    <option value="7">Past 1 Week</option>
-                    <option value="30">Past 1 Month</option>
-                    <option value="90">Past 3 Month</option>
-                    <option value="0">Custom</option>
-                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
-                  </select>
-                  <span className="rf-label">days</span>
-                </label>
 
-                {v.categoryWindow === "CUSTOM" && (
+              {/* Hide the days dropdown entirely for STATIC */}
+              {!isStatic && (
+                <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
                   <label className="rf-field">
-                    <span className="rf-label">days</span>
-                    <input
+                    <span className="rf-label">Category for</span>
+                    <select
                       className="rf-input"
-                      type="number"
-                      min="1"
-                      placeholder="e.g., 7"
-                      value={v.customDays}
-                      onChange={(e) => setField(ruleId, "customDays", e.target.value)}
+                      value={v.categoryWindow}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setField(ruleId, "categoryWindow", val)
+                        if (!isCustom(val)) setField(ruleId, "customDays", "")
+                        if (!isRange(val)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                      }}
+                    >
+                      <option value="">Select</option>
+                      <option value="1">Past 1 day</option>
+                      <option value="7">Past 1 Week</option>
+                      <option value="30">Past 1 Month</option>
+                      <option value="90">Past 3 Month</option>
+                      <option value="0">Custom</option>
+                      {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                    </select>
+                    <span className="rf-label">days</span>
+                  </label>
+
+                  {isCustom(v.categoryWindow) && (
+                    <label className="rf-field">
+                      <span className="rf-label">days</span>
+                      <input
+                        className="rf-input"
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 7"
+                        value={v.customDays}
+                        onChange={(e) => setField(ruleId, "customDays", e.target.value)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Date inputs */}
+              {isStatic ? (
+                // STATIC -> always show date range inputs (these feed staticFromDate/staticToDate)
+                <div className="rf-grid" style={{ alignItems: "center" }}>
+                  <label className="rf-field">
+                    <span className="rf-label">From</span>
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.fromDate}
+                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
                     />
                   </label>
-                )}
-
-                {v.categoryWindow === "RANGE" && String(v.fetchType) !== "1" && (
-                  <>
+                  <label className="rf-field">
+                    <span className="rf-label">To</span>
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.toDate}
+                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : (
+                // DYNAMIC: Show date range only when "Date Range" selected
+                isRange(v.categoryWindow) && (
+                  <div className="rf-grid" style={{ alignItems: "center" }}>
                     <label className="rf-field">
-                      <span className="rf-label">From Date</span>
+                      <span className="rf-label">From</span>
                       <input
                         type="date"
                         className="rf-input"
@@ -754,7 +828,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                       />
                     </label>
                     <label className="rf-field">
-                      <span className="rf-label">To Date</span>
+                      <span className="rf-label">To</span>
                       <input
                         type="date"
                         className="rf-input"
@@ -762,32 +836,9 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                         onChange={(e) => setField(ruleId, "toDate", e.target.value)}
                       />
                     </label>
-                  </>
-                )}
-
-                {String(v.fetchType) === "1" && (
-                  <>
-                    <label className="rf-field">
-                      <span className="rf-label">From Date</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.fromDate}
-                        onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                      />
-                    </label>
-                    <label className="rf-field">
-                      <span className="rf-label">To Date</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.toDate}
-                        onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
+                  </div>
+                )
+              )}
             </div>
           </>
         )
@@ -847,30 +898,32 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              <label className="rf-field">
-                <span className="rf-label">No show appointment for</span>
-                <select
-                  className="rf-input"
-                  value={v.windowType}
-                  onChange={(e) => {
-                    const t = e.target.value
-                    setField(ruleId, "windowType", t)
-                    if (t !== "CUSTOM") setField(ruleId, "customDays", "")
-                    if (t !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                  }}
-                  disabled={String(v.fetchType) === "1"} // Disable when STATIC
-                >
-                  <option value="">Select</option>
-                  <option value="1">Past 1 day</option>
-                  <option value="7">Past 1 Week</option>
-                  <option value="30">Past 1 Month</option>
-                  <option value="90">Past 3 Month</option>
-                  <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
-                </select>
-              </label>
+              {/* Hide dropdown for STATIC */}
+              {String(v.fetchType) !== "1" && (
+                <label className="rf-field">
+                  <span className="rf-label">No show appointment for</span>
+                  <select
+                    className="rf-input"
+                    value={v.windowType}
+                    onChange={(e) => {
+                      const t = e.target.value
+                      setField(ruleId, "windowType", t)
+                      if (!isCustom(t)) setField(ruleId, "customDays", "")
+                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    }}
+                  >
+                    <option value="">Select</option>
+                    <option value="1">Past 1 day</option>
+                    <option value="7">Past 1 Week</option>
+                    <option value="30">Past 1 Month</option>
+                    <option value="90">Past 3 Month</option>
+                    <option value="0">Custom</option>
+                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                  </select>
+                </label>
+              )}
 
-              {v.windowType === "CUSTOM" && (
+              {isCustom(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -884,7 +937,8 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 </>
               )}
 
-              {v.windowType === "RANGE" && String(v.fetchType) !== "1" && (
+              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
+              {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -897,29 +951,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
-
-              {String(v.fetchType) === "1" && (
-                <>
-                  <label className="rf-field">
-                    <span className="rf-label">From Date</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
-                  </label>
-                  <label className="rf-field">
-                    <span className="rf-label">To Date</span>
                     <input
                       type="date"
                       className="rf-input"
@@ -938,30 +969,32 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              <label className="rf-field">
-                <span className="rf-label">Cancelled appointment for</span>
-                <select
-                  className="rf-input"
-                  value={v.windowType}
-                  onChange={(e) => {
-                    const t = e.target.value
-                    setField(ruleId, "windowType", t)
-                    if (t !== "CUSTOM") setField(ruleId, "customDays", "")
-                    if (t !== "RANGE") { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
-                  }}
-                  disabled={String(v.fetchType) === "1"} // Disable when STATIC
-                >
-                  <option value="">Select</option>
-                  <option value="1">Past 1 day</option>
-                  <option value="7">Past 1 Week</option>
-                  <option value="30">Past 1 Month</option>
-                  <option value="90">Past 3 Month</option>
-                  <option value="0">Custom</option>
-                  {String(v.fetchType) === "2" && <option value="9999">Date Range</option>} {/* Show RANGE only for DYNAMIC */}
-                </select>
-              </label>
+              {/* Hide dropdown for STATIC */}
+              {String(v.fetchType) !== "1" && (
+                <label className="rf-field">
+                  <span className="rf-label">Cancelled appointment for</span>
+                  <select
+                    className="rf-input"
+                    value={v.windowType}
+                    onChange={(e) => {
+                      const t = e.target.value
+                      setField(ruleId, "windowType", t)
+                      if (!isCustom(t)) setField(ruleId, "customDays", "")
+                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                    }}
+                  >
+                    <option value="">Select</option>
+                    <option value="1">Past 1 day</option>
+                    <option value="7">Past 1 Week</option>
+                    <option value="30">Past 1 Month</option>
+                    <option value="90">Past 3 Month</option>
+                    <option value="0">Custom</option>
+                    {String(v.fetchType) === "2" && <option value="9999">Date Range</option>}
+                  </select>
+                </label>
+              )}
 
-              {v.windowType === "CUSTOM" && (
+              {isCustom(v.windowType) && String(v.fetchType) !== "1" && (
                 <>
                   <span className="rf-label">days</span>
                   <input
@@ -975,7 +1008,8 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 </>
               )}
 
-              {v.windowType === "RANGE" && String(v.fetchType) !== "1" && (
+              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
+              {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
@@ -988,29 +1022,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
-
-              {String(v.fetchType) === "1" && (
-                <>
-                  <label className="rf-field">
-                    <span className="rf-label">From Date</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
-                  </label>
-                  <label className="rf-field">
-                    <span className="rf-label">To Date</span>
                     <input
                       type="date"
                       className="rf-input"
@@ -1030,12 +1041,15 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid">
               <label className="rf-field">
-                <span className="rf-label">Day type</span>
-                <select className="rf-input" value={v.dayType} onChange={(e) => setField(ruleId, "dayType", e.target.value)}>
-                  <option value="">Select</option>
-                  <option value="birthday">Birthday</option>
-                  <option value="anniversary">Anniversary</option>
-                </select>
+                <span className="rf-label">Days</span>
+                <input
+                  type="number"
+                  min="1"
+                  className="rf-input"
+                  value={v.dayType}
+                  onChange={(e) => setField(ruleId, "dayType", e.target.value)}
+                  placeholder="e.g., 30"
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
@@ -1114,9 +1128,8 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .cdesc { font-size:12px; color:#4b5563; margin-top:2px; }
         .help { margin-left:6px; font-size:12px; border:1px solid #d1d5db; border-radius:50%; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; cursor:help; }
 
-        /* rule form */
         .rf { font-size: 16px; margin-top: 14px; border:1px dashed #d1d5db; border-radius:10px; padding:14px; background:#fcfcff; }
-        .rf-title { font-weight:700;  color:#111827; margin-bottom:15px; }
+        .rf-title { font-weight:700; color:#111827; margin-bottom:15px; }
         .rf-grid { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .rf-field { display:flex; align-items: center; gap:6px; }
         .rf-label { font-size:12px; color:#374151; }
@@ -1148,6 +1161,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .msel-footer { border-top:1px solid #eee; padding:8px; display:flex; justify-content:flex-end; }
         .msel-done { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
         .msel-done:focus { outline:none; border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.15); }
+        .msel-up {
+          bottom: 100%;
+          top: auto;
+          margin-top: 0;
+          margin-bottom: 6px;
+        }
 
         /* Activate Modal */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 99999; }
@@ -1289,13 +1308,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           {/* Actions */}
           <div className="actions">
             <button className="btn back" type="button" onClick={onBack}>Back</button>
-            <button className="btn save" type="button" onClick={handleSave} disabled={!canSubmit}>Save</button>
             <button className="btn save" type="button" onClick={handleActivateClick} disabled={!canSubmit}>Activate</button>
           </div>
         </div>
       </div>
 
-      {/* Activate Modal */}
+      {/* Activate Modal (posts as save/isDraft=1) */}
       {activateOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal">
@@ -1323,7 +1341,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             {activateErr ? <div className="modal-err">{activateErr}</div> : null}
             <div className="modal-actions">
               <button className="btn back" type="button" onClick={() => setActivateOpen(false)}>Cancel</button>
-              <button className="btn save" type="button" onClick={confirmActivate}>Activate</button>
+              <button className="btn save" type="button" onClick={confirmActivate}>Save</button>
             </div>
           </div>
         </div>

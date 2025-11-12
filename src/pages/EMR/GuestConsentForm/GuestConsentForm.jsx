@@ -339,8 +339,10 @@ const GuestConsentForm = () => {
        if (!res.ok) throw new Error(`Form submission failed: ${res.status}`);
 
        const data = await res.json();
-       setToast({ message: "Form submitted successfully!", type: "success" });
-       console.log("Server response:", data);
+ console.log("Server response:", data); 
+ // Optional: toast (will likely not be seen if we navigate immediately)
+ // setToast({ message: "Form submitted successfully!", type: "success" });
+ navigate(-1); //  go back to last page
 
      } catch (err) {
        console.error("Failed to submit form:", err);
@@ -364,10 +366,31 @@ const GuestConsentForm = () => {
 
     return (
         <>
-        <div className="medical-form">
+        <div className="gcfform medical-form">
             {/* Header Section */}
-            <div className="form-header sticky-header">
-                <img src="/images/logonew.png" alt="Organization Logo" className="logo" />
+
+            
+            <div className="form-header">
+               <button
+    type="button"
+    onClick={handleBack}
+    className="bckbtn"
+    style={{
+      position: 'absolute',
+      left: 16,
+      top: 16,
+      background: '#334B71',
+      color: '#fff',
+      border: 'none',
+      borderRadius: 6,
+      padding: '8px 12px',
+      fontWeight: 600,
+      cursor: 'pointer'
+    }}
+  >
+    ← Back
+  </button>
+                {/* <img src="/images/logonew.png" alt="Organization Logo" className="logo" /> */}
                 <h1 className="page-title">MEDICAL HISTORY FORM</h1>
                 <p className="subtitle">
                     CLIENT INFORMATION AND MEDICAL HISTORY<br />
@@ -2150,7 +2173,7 @@ const GuestConsentForm = () => {
                   </div>
                 </section>
 
-                <button type="submit">Submit</button>
+                <button type="submit" className='gcfsbmit'>Submit</button>
                 </form>
             </div>
           
@@ -2164,6 +2187,416 @@ const GuestConsentForm = () => {
               />
             )}
         </div>
+
+        <style>
+          {`
+            .gcfform.medical-form {
+  margin: 0 auto;
+  padding: 0;
+  font-family: 'Arial', sans-serif;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.gcfform .form-header {
+  flex-shrink: 0;
+  background: #fff;
+  padding: 1rem 0;
+  
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  justify-content: space-between;
+  position: relative;
+  z-index: 10;
+}
+
+.gcfform fieldset{margin: 0 0 20px;}
+
+.gcfform fieldset textarea, .gcfform fieldset input[type='text'], .gcfform fieldset input[type='date'], .gcfform fieldset  select{padding: 6px 10px; border-radius: 7px;border: 1px solid #ccc;}
+
+.checkbox-group{display: flex; flex-direction: column; gap: 10px; font-size: 14px;}
+
+.gcfform fieldset label{display: flex; gap: 5px; align-items: center;}
+
+.gcfform .logo {
+  max-width: 120px;
+  margin: 0 auto;
+}
+
+.gcfform .page-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #2b4c7e;
+  margin: 0 !important;
+}
+
+.gcfform .subtitle {
+  font-size: 0.95rem;
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+  padding: 0 1rem;
+}
+
+.gcfform .form-content {
+  flex: 1;
+  padding: 0 30px 30px 30px;
+  position: relative;
+  z-index: 1;
+}
+
+.gcfform .form h2,
+.gcfform .form h3,
+.gcfform .form legend {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: #2b4c7e;
+  padding: 0 0 20px;
+}
+
+.gcfform .fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: #f9f9f9;
+}
+
+.gcfform .label {
+  display: block;
+  margin: 0.5rem 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.gcfform .checkbox-group label input {
+  margin: 0;
+}
+
+.gcfform .form h2, 
+.gcfform .form h3, 
+.gcfform .form legend {
+  position: relative; 
+  top: 9px; 
+  font-size: 20px; 
+  line-height: 24px;
+}
+
+.gcfform .input[type="text"],
+.gcfform .input[type="date"],
+.gcfform .input[type="number"],
+.gcfform .select,
+.gcfform .textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.gcfform .textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.gcfform .input[type="radio"],
+.gcfform .input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+.gcfform .tandc {
+  margin: 10px 0;
+  line-height: 180%;
+}
+
+.gcfform .signature-box {
+  width: 100%;
+  height: 150px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  position: relative;
+}
+
+.gcfform .signature-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.gcfform .signature-actions button {
+  padding: 0.3rem 0.8rem;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gcfform .signature-actions button:hover {
+  background-color: #c0392b;
+}
+
+.gcfform .button[type="submit"] {
+  margin: 0 auto;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  background-color: #2b4c7e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.gcfform .button[type="submit"]:hover {
+  background-color: #1f375e;
+}
+
+@media (max-width: 600px) {
+  .gcfform .medical-form {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .gcfform .form-header {
+    padding: 0.5rem 15px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+
+  .gcfform .form-content {
+    padding: 0 15px 15px 15px;
+    max-height: calc(100vh - 150px);
+  }
+
+  .gcfform .page-title {
+    font-size: 1.4rem;
+    margin: 0.5rem 0;
+  }
+
+  .gcfform .subtitle {
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+  }
+
+  .gcfform .logo {
+    max-width: 100px;
+  }
+}
+
+.gcfform .form-section {
+  margin-bottom: 2rem;
+}
+
+.gcfform .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.gcfform .gform-group {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+}
+
+.gcfform .gform-group.full-width {
+  flex: 1 1 100%;
+}
+
+.gcfform .gform-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  display: inline;
+}
+
+.gcfform .gform-group input,
+.gcfform .gform-group textarea {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  display: inline;
+  width: auto;
+}
+
+.gcfform .radio-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.gcfform .gst-form-grid {
+  max-width: 70%;
+  width: 100%;
+  margin: 0 auto;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.gcfform .section {
+  margin-bottom: 2rem;
+}
+
+.gcfform .h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #1f3c88;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.25rem;
+}
+
+.gcfform .form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.gcfform .form-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+}
+
+.gcfform .form-row input,
+.gcfform .form-row textarea,
+.gcfform .form-row select {
+  padding: 0.5rem;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gcfform .signature-container {
+  border: 1px solid #ccc;
+  width: 100%;
+  height: 120px;
+  margin-top: 0.5rem;
+}
+
+.gcfform .signature-pad {
+  width: 100%;
+  height: 100px;
+}
+
+.gcfform .button {
+  padding: 0.5rem 1rem;
+  margin-top: 1rem;
+  background-color: #1f3c88;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gcfform .button:hover {
+  background-color: #3952a3;
+}
+
+.gcfform .confrmwrp {
+  max-width: 800px; 
+  margin: 0 auto;
+  padding: 30px;
+}
+
+.gcfform .cnfrmcellwrp {
+  margin: 0 0 20px;
+  font-size: 14px; 
+}
+
+.gcfform .cnfrmcellwrp label {
+  margin: 0 0 10px;
+  display: block;
+  font-weight: bold;
+}
+
+.gcfform .cnfrmcellwrp input[type='checkbox'] {
+  display: inline-block;
+  margin: 0 7px 0 0;
+}
+
+@media (max-width: 600px) {
+  .gcfform .medical-form {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  
+  .gcfform .form-header {
+    padding: 0.5rem 15px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  
+  .gcfform .form-content {
+    padding: 0 15px 15px 15px;
+    max-height: calc(100vh - 150px);
+  }
+  
+  .gcfform .page-title {
+    font-size: 1.4rem;
+    margin: 0.5rem 0;
+  }
+  
+  .gcfform .subtitle {
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+  }
+  
+  .gcfform .logo {
+    max-width: 100px;
+  }
+}
+
+.gcfform .section-title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #d0d0d0;
+}
+
+.gcfsbmit{ background: #334B71;
+  padding: 10px 14px;
+  font-family: Inter;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 20px;
+  letter-spacing: 0%;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 100px;
+  margin: 0 auto;
+  }
+
+
+          `}
+        </style>
         </>
     );
 };

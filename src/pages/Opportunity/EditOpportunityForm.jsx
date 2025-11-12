@@ -65,7 +65,7 @@ const EditOpportunityForm = ({ opportunityData, onBack, onSave }) => {
         }
 
         .breadcrumb-link {
-          color: #007bff;
+          color: #334b71;
           text-decoration: none;
           cursor: pointer;
         }
@@ -117,7 +117,7 @@ const EditOpportunityForm = ({ opportunityData, onBack, onSave }) => {
 
         .form-input:focus {
           outline: none;
-          border-color: #007bff;
+          border-color: #334b71;
           box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 

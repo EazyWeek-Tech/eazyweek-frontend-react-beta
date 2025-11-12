@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
+// ⬇️ Put your provided JSON into this path
+import countriesDial from "../../../data/countriesDial.json";
 
 const AddCustomerModal = ({ onClose }) => {
   const [formData, setFormData] = useState({
-    countryCode: "+966",         // NEW: default KSA
+    countryCode: "+966",         // default KSA
     mobile: "",
     firstName: "",
     lastName: "",
     email: "",
     gender: "",
-    nationalityCountry: "10",    // Default to Saudi
+    nationalityCountry: "10",    // Default to Saudi (keep your existing default)
     nationality: "",
     nationalityLabel: "",
     nationalityStatus: "",
@@ -30,22 +32,34 @@ const AddCustomerModal = ({ onClose }) => {
   const [dupDialog, setDupDialog] = useState({
     open: false,
     reason: "", // "mobile" | "email" | "both"
-    matches: [], // Array of matched customer summaries
+    matches: [],
     pendingPayload: null
   });
 
-  // --- Helpers ---
-  const isValidCountryCode = (cc) => /^\+\d{1,3}$/.test(cc);
+  // ---------- Dial code helpers ----------
+  // Build a stable list of options "🇸🇦 Saudi Arabia (+966)"
+  const dialOptions = useMemo(() => {
+    // Some countries share dial codes (e.g., +1). Keep all; label shows country.
+    return (countriesDial || [])
+      .filter(c => c?.dial_code)
+      .map(c => ({
+        value: c.dial_code.trim(),
+        label: `${c.dial_code}`,
+        code: c.code
+      }));
+  }, []);
+
+  // Set of valid dial codes for validation
+  const validDialCodes = useMemo(
+    () => new Set(dialOptions.map(o => o.value)),
+    [dialOptions]
+  );
+
+  const isValidCountryCode = (cc) => validDialCodes.has(cc);
   const isValidMobile = (m) => /^\d{10}$/.test(m);
   const isValidEmail = (e) => /\S+@\S+\.\S+/.test(e);
 
-  const sanitizeCountryCode = (raw) => {
-    // keep + and digits only, max + + 3 digits
-    const cleaned = ("+" + raw.replace(/[^\d]/g, "")).slice(0, 4);
-    return cleaned === "+" ? "" : cleaned;
-  };
-
-  // --- Load Countries ---
+  // --- Load Countries (for nationalityCountry dropdown) ---
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -60,12 +74,13 @@ const AddCustomerModal = ({ onClose }) => {
       }
     };
     fetchCountries();
-  }, []);
+  }, [API_BASE_URL]);
 
-  // --- Load Nationalities by Country ---
+  // --- Load Nationalities based on nationalityCountry ---
   useEffect(() => {
     const fetchNationalities = async () => {
       try {
+        if (!formData.nationalityCountry) return;
         const res = await fetch(`${API_BASE_URL}/api/Master/Nationality/${formData.nationalityCountry}`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
@@ -84,12 +99,10 @@ const AddCustomerModal = ({ onClose }) => {
       }
     };
 
-    if (formData.nationalityCountry) {
-      fetchNationalities();
-    }
-  }, [formData.nationalityCountry]);
+    fetchNationalities();
+  }, [formData.nationalityCountry, API_BASE_URL]);
 
-  // --- Auto nationality status (84 => Citizen else Expat) ---
+  // --- Auto nationality status (84 => Citizen; else Expat) ---
   useEffect(() => {
     const status = formData.nationality === "84" ? "Citizen" : "Expat";
     setFormData((prev) => ({ ...prev, nationalityStatus: status }));
@@ -100,10 +113,10 @@ const AddCustomerModal = ({ onClose }) => {
     let error = "";
     switch (fieldId) {
       case "countryCode":
-        if (!value || !isValidCountryCode(value)) error = "Country code like +966 (max 3 digits).";
+        if (!value || !isValidCountryCode(value)) error = "Select a valid country code.";
         break;
       case "mobile":
-        if (!value || !isValidMobile(value)) error = "Mobile number must be 10 digits.";
+        if (!value || !isValidMobile(value)) error = "Mobile number must be 9 digits.";
         break;
       case "firstName":
         if (!value) error = "First name is required.";
@@ -131,7 +144,7 @@ const AddCustomerModal = ({ onClose }) => {
     let isValid = true;
 
     if (!formData.countryCode || !isValidCountryCode(formData.countryCode)) {
-      formErrors.countryCode = "Country code like +966 (max 3 digits).";
+      formErrors.countryCode = "Select a valid country code.";
       isValid = false;
     }
     if (!formData.mobile || !isValidMobile(formData.mobile)) {
@@ -168,15 +181,14 @@ const AddCustomerModal = ({ onClose }) => {
     const { id, value } = e.target;
 
     if (id === "countryCode") {
-      const v = sanitizeCountryCode(value.startsWith("+") ? value.slice(1) : value);
-      setFormData((prev) => ({ ...prev, countryCode: v }));
-      if (errors.countryCode) validateField("countryCode", v);
+      setFormData((prev) => ({ ...prev, countryCode: value }));
+      if (errors.countryCode) validateField("countryCode", value);
       return;
     }
 
     if (id === "mobile") {
       // Keep only digits, cap at 10
-      const v = value.replace(/\D/g, "").slice(0, 10);
+      const v = value.replace(/\D/g, "").slice(0, 9);
       setFormData((prev) => ({ ...prev, mobile: v }));
       if (errors.mobile) validateField("mobile", v);
       return;
@@ -213,7 +225,6 @@ const AddCustomerModal = ({ onClose }) => {
 
       if (!Array.isArray(list)) return { matches: [], reason: "" };
 
-      // normalize helper
       const last10 = (s) => (s || "").replace(/\D/g, "").slice(-10);
 
       const byMobile = list.filter((c) => last10(c.mobile) === mobile10);
@@ -264,21 +275,28 @@ const AddCustomerModal = ({ onClose }) => {
     const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
-    const payload = {
-      id: "",
-      mobile: formData.mobile, // NOTE: backend expects mobile without country code
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      gender: formData.gender,
-      nationalityId: Number(formData.nationality),
-      nationalityStatus: formData.nationalityStatus,
-      centerCode: centerCode,
-      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-      custId: ""
-    };
+   const payload = {
+  id: "",
+  mobile: formData.mobile, // backend expects mobile without country code
+  phoneCode: formData.countryCode, // ✅ NEW FIELD
+  firstName: formData.firstName,
+  lastName: formData.lastName,
+  email: formData.email,
+  gender: formData.gender,
+  nationalityId: Number(formData.nationality),
+  nationalityStatus: formData.nationalityStatus,
+  centerCode: centerCode,
+  fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+  custId: "",
+  employeeCode: "",
+  topClinicCode: "",
+  lastVisit: "",
+  membership: "",
+  centerName: ""
+};
 
-    // Duplicate check (mobile/email)
+
+    // Duplicate check
     const { matches, reason } = await findDuplicates(formData.mobile, formData.email);
 
     if (matches.length > 0) {
@@ -339,16 +357,26 @@ const AddCustomerModal = ({ onClose }) => {
                 Mobile: <span className="rd">*</span>
               </label>
               <div className="inptdiv" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input
-                  type="text"
-                  id="countryCode"
-                  value={formData.countryCode}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  maxLength={4} // '+' + up to 3 digits
-                  placeholder="+966"
-                  style={{ width: "72px" }}
-                />
+                {/* Country Code from JSON */}
+                <select
+  id="countryCode"
+  value={formData.countryCode}
+  onChange={handleChange}
+  onBlur={handleBlur}
+  style={{ width: 80 }}
+>
+  {!isValidCountryCode(formData.countryCode) && formData.countryCode && (
+    <option value={formData.countryCode}>{formData.countryCode}</option>
+  )}
+  {dialOptions.map(opt => (
+    <option key={`${opt.code}-${opt.value}`} value={opt.value}>
+      {opt.label}
+    </option>
+  ))}
+</select>
+
+
+                {/* 10-digit mobile without country code */}
                 <input
                   type="text"
                   id="mobile"
@@ -356,8 +384,8 @@ const AddCustomerModal = ({ onClose }) => {
                   value={formData.mobile}
                   onChange={handleChange}
                   onBlur={handleBlur}
-                  maxLength={10}
-                  placeholder="10-digit mobile"
+                  maxLength={9}
+                  placeholder="9-digit mobile"
                   style={{ flex: 1 }}
                 />
               </div>
@@ -365,7 +393,7 @@ const AddCustomerModal = ({ onClose }) => {
               {errors.mobile && <div className="error">{errors.mobile}</div>}
             </div>
 
-            {/* First/Last/Email */}
+            {/* First/Last */}
             {["firstName", "lastName"].map((field) => (
               <div className="frmdiv" key={field}>
                 <label htmlFor={field}>
@@ -384,6 +412,7 @@ const AddCustomerModal = ({ onClose }) => {
               </div>
             ))}
 
+            {/* Email */}
             <div className="frmdiv">
               <label htmlFor="email">
                 Email: <span className="rd">*</span>
@@ -419,7 +448,7 @@ const AddCustomerModal = ({ onClose }) => {
               </div>
             </div>
 
-            {/* Country (for nationality list) */}
+            {/* Country (drives nationality list) */}
             <div className="frmdiv">
               <label htmlFor="nationalityCountry">Country:</label>
               <div className="inptdiv">
