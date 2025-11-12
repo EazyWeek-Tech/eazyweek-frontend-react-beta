@@ -381,7 +381,7 @@ export const AdvancedFormBuilder = () => {
                       headers: headersFor("POST"),
                       body: JSON.stringify({
                         schemaJson: JSON.stringify(formConfig), // Convert object to string
-                        name: "Name",
+                        name: formConfig?.title,
                       }),
                       credentials: "include",
                     });
@@ -425,7 +425,7 @@ export const AdvancedFormBuilder = () => {
                       />
                     </div>
 
-                    {/* <div className="form-builder-toggle">
+                                        {/* <div className="form-builder-toggle">
                       <ToggleSwitch
                         leftLabel="Single Step"
                         rightLabel="Multi-Step"
@@ -437,12 +437,14 @@ export const AdvancedFormBuilder = () => {
                 </Card>
 
                 <Droppable droppableId="field-selector">
-                  {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps}>
-                      <FormFieldSelector onAddField={addField} />
-                      {provided.placeholder}
-                    </div>
-                  )}
+                  {function (provided) {
+                    return (
+                      <div ref={provided.innerRef} {...provided.droppableProps}>
+                        <FormFieldSelector onAddField={addField} />
+                        {provided.placeholder}
+                      </div>
+                    );
+                  }}
                 </Droppable>
 
                 {config.isMultiStep && (
@@ -475,184 +477,229 @@ export const AdvancedFormBuilder = () => {
                   </div>
 
                   <Droppable droppableId="form-fields">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="AdvFormBuilder-fields-list">
-                        {config.fields.length === 0 ? (
-                          <div className="AdvFormBuilder-empty-state">
-                            <div className="AdvFormBuilder-empty-icon">
-                              <Plus className="w-8 h-8 text-primary" />
+                    {function (provided) {
+                      return (
+                        <div {...provided.droppableProps} ref={provided.innerRef} className="AdvFormBuilder-fields-list">
+                          {config.fields.length === 0 ? (
+                            <div className="AdvFormBuilder-empty-state">
+                              <div className="AdvFormBuilder-empty-icon">
+                                <Plus className="w-8 h-8 text-primary" />
+                              </div>
+                              <h3 className="AdvFormBuilder-empty-title">No fields yet</h3>
+                              <p className="AdvFormBuilder-empty-text">
+                                Start building your{" "}
+                                {config.isMultiStep ? "multi-step " : ""}
+                                form by adding fields from the sidebar
+                              </p>
                             </div>
-                            <h3 className="AdvFormBuilder-empty-title">No fields yet</h3>
-                            <p className="AdvFormBuilder-empty-text">
-                              Start building your{" "} {config.isMultiStep ? "multi-step " : ""}form by adding fields from the sidebar
-                            </p>
-                          </div>
-                        ) : (
-                          config.fields.filter((field) => !field.parentId).map((field, index) => (                            <Draggable key={field.id} draggableId={field.id} index={index}>                              {(provided, snapshot) => (                                <div                                  ref={provided.innerRef}                                  {...provided.draggableProps}                                  className={`AdvFormBuilder-field ${snapshot.isDragging ? "dragging" : ""} ${selectedField?.id === field.id ? "selected" : ""}`}                                  style={{                                    borderColor: selectedField?.id === field.id ? "var(--primary)" : "var(--builder-border)",                                    boxShadow: selectedField?.id === field.id ? "0 0 0 3px rgba(59, 130, 246, 0.1)" : "var(--shadow-sm)",                                    backgroundColor: selectedField?.id === field.id ? "var(--primary-light)" : "var(--card-bg)",                                  }}                                >                                  <div className="AdvFormBuilder-field-content">                                    <div                                      {...provided.dragHandleProps}                                      className="AdvFormBuilder-field-drag-handle"                                    >                                      <GripVertical className="w-4 h-4" />                                    </div>                                    <div className="AdvFormBuilder-field-info" onClick={() => setSelectedField(field)}>                                      <div className="AdvFormBuilder-field-label">                                        <Label className="font-medium">{field.label}</Label>                                        {field.required && (                                          <span className="AdvFormBuilder-field-required">  *</span>                                        )}                                        {field.conditionalRules && field.conditionalRules.length > 0 && (                                          <Badge variant="outline" className="text-xs">                                            Conditional                                          </Badge>                                        )}                                      </div>                                      <div className="AdvFormBuilder-field-type">                                        {field.type} field                                        {config.isMultiStep && (
-                                            <Badge
-                                              variant="secondary"
-                                              className="text-xs"
-                                            >
-                                              Step{" "} {(config.steps.findIndex((step) => step.fields.includes(field.id)) || 0) + 1}
-                                            </Badge>
-                                          )}
+                          ) : (
+                            config.fields.filter((field) => !field.parentId).map((field, index) => (
+                              <Draggable key={field.id} draggableId={field.id} index={index}>
+                                {function (provided, snapshot) {
+                                  return (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className={`AdvFormBuilder-field ${snapshot.isDragging ? "dragging" : ""} ${selectedField?.id === field.id ? "selected" : ""}`}
+                                      style={{
+                                        borderColor: selectedField?.id === field.id ? "var(--primary)" : "var(--builder-border)",
+                                        boxShadow: selectedField?.id === field.id ? "0 0 0 3px rgba(59, 130, 246, 0.1)" : "var(--shadow-sm)",
+                                        backgroundColor: selectedField?.id === field.id ? "var(--primary-light)" : "var(--card-bg)",
+                                      }}
+                                    >
+                                      <div className="AdvFormBuilder-field-content">
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          className="AdvFormBuilder-field-drag-handle"
+                                        >
+                                          <GripVertical className="w-4 h-4" />
                                         </div>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          deleteField(field.id);
-                                        }}
-                                        className="AdvFormBuilder-field-delete"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-
-                                    {field.type === "panel" && (
-                                      <Droppable
-                                        droppableId={`panel-${field.id}`}
-                                      >
-                                        {(panelProvided) => (
-                                          <div
-                                            ref={panelProvided.innerRef}
-                                            {...panelProvided.droppableProps}
-                                            className="AdvFormBuilder-panel-children"
-                                            style={{
-                                              marginTop: "8px",
-                                              padding: "8px",
-                                              border:
-                                                "1px dashed var(--builder-border)",
-                                              borderRadius: "4px",
-                                              minHeight: "40px",
-                                              backgroundColor: "var(--card-bg)",
-                                            }}
-                                          >
-                                            {config.fields.filter(
-                                              (f) => f.parentId === field.id
-                                            ).length === 0 ? (
-                                              <div className="text-xs text-muted-foreground text-center py-2">
-                                                Drop fields here to add to panel
-                                              </div>
-                                            ) : (
-                                              config.fields
-                                                .filter(
-                                                  (f) => f.parentId === field.id
-                                                )
-                                                .map(
-                                                  (childField, childIndex) => (
-                                                    <Draggable
-                                                      key={childField.id}
-                                                      draggableId={
-                                                        childField.id
-                                                      }
-                                                      index={childIndex}
-                                                    >
-                                                      {(
-                                                        childProvided,
-                                                        childSnapshot
-                                                      ) => (
-                                                        <div
-                                                          ref={
-                                                            childProvided.innerRef
-                                                          }
-                                                          {...childProvided.draggableProps}
-                                                          className={`AdvFormBuilder-field AdvFormBuilder-panel-child ${
-                                                            childSnapshot.isDragging
-                                                              ? "dragging"
-                                                              : ""
-                                                          } ${
-                                                            selectedField?.id ===
-                                                            childField.id
-                                                              ? "selected"
-                                                              : ""
-                                                          }`}
-                                                          onClick={() =>
-                                                            setSelectedField(
-                                                              childField
-                                                            )
-                                                          }
-                                                          style={{
-                                                            borderColor:
-                                                              selectedField?.id ===
-                                                              childField.id
-                                                                ? "var(--primary)"
-                                                                : "var(--builder-border)",
-                                                            boxShadow:
-                                                              selectedField?.id ===
-                                                              childField.id
-                                                                ? "0 0 0 3px rgba(59, 130, 246, 0.1)"
-                                                                : "var(--shadow-sm)",
-                                                            backgroundColor:
-                                                              selectedField?.id ===
-                                                              childField.id
-                                                                ? "var(--primary-light)"
-                                                                : "var(--card-bg)",
-                                                            marginBottom: "4px",
-                                                          }}
-                                                        >
-                                                          <div className="AdvFormBuilder-field-content">
-                                                            <div
-                                                              {...childProvided.dragHandleProps}
-                                                              className="AdvFormBuilder-field-drag-handle"
-                                                            >
-                                                              <GripVertical className="w-4 h-4" />
-                                                            </div>
-                                                            <div className="AdvFormBuilder-field-info">
-                                                              <div className="AdvFormBuilder-field-label">
-                                                                <Label className="font-medium text-sm">
-                                                                  {
-                                                                    childField.label
-                                                                  }
-                                                                </Label>
-                                                                {childField.required && (
-                                                                  <span className="AdvFormBuilder-field-required">
-                                                                    *
-                                                                  </span>
-                                                                )}
-                                                              </div>
-                                                              <div className="AdvFormBuilder-field-type text-xs">
-                                                                {
-                                                                  childField.type
-                                                                }{" "}
-                                                                field
-                                                              </div>
-                                                            </div>
-                                                            <Button
-                                                              size="sm"
-                                                              variant="ghost"
-                                                              onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                deleteField(
-                                                                  childField.id
-                                                                );
-                                                              }}
-                                                              className="AdvFormBuilder-field-delete"
-                                                            >
-                                                              <Trash2 className="w-3 h-3" />
-                                                            </Button>
-                                                          </div>
-                                                        </div>
-                                                      )}
-                                                    </Draggable>
-                                                  )
-                                                )
+                                        <div className="AdvFormBuilder-field-info" onClick={() => setSelectedField(field)}>
+                                          <div className="AdvFormBuilder-field-label">
+                                            <Label className="font-medium">{field.label}</Label>
+                                            {field.required && (
+                                              <span className="AdvFormBuilder-field-required">  *</span>
                                             )}
-                                            {panelProvided.placeholder}
+                                            {field.conditionalRules && field.conditionalRules.length > 0 && (
+                                              <Badge variant="outline" className="text-xs">
+                                                Conditional
+                                              </Badge>
+                                            )}
                                           </div>
-                                        )}
-                                      </Droppable>
-                                    )}
-                                  </div>
-                                )}
+                                          <div className="AdvFormBuilder-field-type">
+                                            {field.type} field
+                                            {config.isMultiStep && (
+                                              <Badge
+                                                variant="secondary"
+                                                className="text-xs"
+                                              >
+                                                Step{" "}
+                                                {(config.steps.findIndex((step) => step.fields.includes(field.id)) || 0) + 1}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteField(field.id);
+                                          }}
+                                          className="AdvFormBuilder-field-delete"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+
+                                      {field.type === "panel" && (
+                                        <Droppable
+                                          droppableId={`panel-${field.id}`}
+                                        >
+                                          {function (panelProvided) {
+                                            return (
+                                              <div
+                                                ref={panelProvided.innerRef}
+                                                {...panelProvided.droppableProps}
+                                                className="AdvFormBuilder-panel-children"
+                                                style={{
+                                                  marginTop: "8px",
+                                                  padding: "8px",
+                                                  border:
+                                                    "1px dashed var(--builder-border)",
+                                                  borderRadius: "4px",
+                                                  minHeight: "40px",
+                                                  backgroundColor: "var(--card-bg)",
+                                                }}
+                                              >
+                                                {config.fields.filter(
+                                                  (f) => f.parentId === field.id
+                                                ).length === 0 ? (
+                                                  <div className="text-xs text-muted-foreground text-center py-2">
+                                                    Drop fields here to add to panel
+                                                  </div>
+                                                ) : (
+                                                  config.fields
+                                                    .filter(
+                                                      (f) => f.parentId === field.id
+                                                    )
+                                                    .map(
+                                                      (childField, childIndex) => (
+                                                        <Draggable
+                                                          key={childField.id}
+                                                          draggableId={
+                                                            childField.id
+                                                          }
+                                                          index={childIndex}
+                                                        >
+                                                          {function (
+                                                            childProvided,
+                                                            childSnapshot
+                                                          ) {
+                                                            return (
+                                                              <div
+                                                                ref={
+                                                                  childProvided.innerRef
+                                                                }
+                                                                {...childProvided.draggableProps}
+                                                                className={`AdvFormBuilder-field AdvFormBuilder-panel-child ${
+                                                                  childSnapshot.isDragging
+                                                                    ? "dragging"
+                                                                    : ""
+                                                                } ${
+                                                                  selectedField?.id ===
+                                                                  childField.id
+                                                                    ? "selected"
+                                                                    : ""
+                                                                }`}
+                                                                onClick={() =>
+                                                                  setSelectedField(
+                                                                    childField
+                                                                  )
+                                                                }
+                                                                style={{
+                                                                  borderColor:
+                                                                    selectedField?.id ===
+                                                                    childField.id
+                                                                      ? "var(--primary)"
+                                                                      : "var(--builder-border)",
+                                                                  boxShadow:
+                                                                    selectedField?.id ===
+                                                                    childField.id
+                                                                      ? "0 0 0 3px rgba(59, 130, 246, 0.1)"
+                                                                      : "var(--shadow-sm)",
+                                                                  backgroundColor:
+                                                                    selectedField?.id ===
+                                                                    childField.id
+                                                                      ? "var(--primary-light)"
+                                                                      : "var(--card-bg)",
+                                                                  marginBottom: "4px",
+                                                                }}
+                                                              >
+                                                                <div className="AdvFormBuilder-field-content">
+                                                                  <div
+                                                                    {...childProvided.dragHandleProps}
+                                                                    className="AdvFormBuilder-field-drag-handle"
+                                                                  >
+                                                                    <GripVertical className="w-4 h-4" />
+                                                                  </div>
+                                                                  <div className="AdvFormBuilder-field-info">
+                                                                    <div className="AdvFormBuilder-field-label">
+                                                                      <Label className="font-medium text-sm">
+                                                                        {
+                                                                          childField.label
+                                                                        }
+                                                                      </Label>
+                                                                      {childField.required && (
+                                                                        <span className="AdvFormBuilder-field-required">
+                                                                          *
+                                                                        </span>
+                                                                      )}
+                                                                    </div>
+                                                                    <div className="AdvFormBuilder-field-type text-xs">
+                                                                      {
+                                                                        childField.type
+                                                                      }{" "}
+                                                                      field
+                                                                    </div>
+                                                                  </div>
+                                                                  <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      deleteField(
+                                                                        childField.id
+                                                                      );
+                                                                    }}
+                                                                    className="AdvFormBuilder-field-delete"
+                                                                  >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                  </Button>
+                                                                </div>
+                                                              </div>
+                                                            );
+                                                          }}
+                                                        </Draggable>
+                                                      )
+                                                    )
+                                                )}
+                                                {panelProvided.placeholder}
+                                              </div>
+                                            );
+                                          }}
+                                        </Droppable>
+                                      )}
+                                    </div>
+                                  );
+                                }}
                               </Draggable>
                             ))
-                        )}
-                        {provided.placeholder}
-                      </div>
-                    )}
+                          )}
+                          {provided.placeholder}
+                        </div>
+                      );
+                    }}
                   </Droppable>
                 </Card>
               </div>
@@ -1023,7 +1070,8 @@ export const AdvancedFormBuilder = () => {
                                   className="mt-1 AdvFormBuilder-input"
                                 />
                               </div>
-                            </>
+
+                                                          </>
                           )}
 
                           {selectedField.type === "tabs" && (

@@ -11,6 +11,7 @@ const URLS = {
   bom: `${API_BASE_URL}/api/Master/InsertServiceBOM`,
   practitioner: `${API_BASE_URL}/api/Master/InsertServicePractioner`, // spelling per backend
   forms: `${API_BASE_URL}/api/Master/InsertServiceForms`,
+  formsNamesAPI: `${API_BASE_URL}/api/form/names`,
 };
 
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
@@ -234,6 +235,27 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [rightErr, setRightErr] = useState("");
   const [docFilter, setDocFilter] = useState("");
   const [nurseFilter, setNurseFilter] = useState("");
+  const [formnames,setFormnames] = useState([])
+
+  useEffect(() => {
+    const fetchData=async()=>{
+      try {
+        const response = await fetch(URLS?.formsNamesAPI, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch services");
+
+        const data = await response.json();
+        setFormnames(data);
+      } catch (error) {
+          console.error("Error fetching services:", error);        
+      }
+    }
+    fetchData()
+  }, []);
 
   // Load clinics on mount
   useEffect(() => {
@@ -648,7 +670,40 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   };
   const onSubmitForms = async () => {
     try {
-      await postJSON(URLS.forms, buildFormsPayload(0)); // submit
+      // First, fetch form definition by name
+      const formName = formsData.form;
+      if (!formName) {
+        setToast({ type: "error", message: "Please select a form before submitting." });
+        return;
+      }
+      const defUrl = `${API_BASE_URL}/api/form/definition-by-name?name=${encodeURIComponent(formName)}`;
+      const defRes = await fetch(defUrl, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!defRes.ok) {
+        throw new Error(`Failed to fetch form definition: ${defRes.status}`);
+      }
+      const defData = await defRes.json();
+      const formId = defData.id;
+      if (!formId) {
+        throw new Error("Form definition does not contain an id.");
+      }
+
+      // Now, call /api/serviceForm/save
+      const savePayload = {
+        id: 0,
+        serviceId: formData.serviceCode,
+        formId: formId,
+        version: 0,
+        createdDate: new Date().toISOString(),
+        isActive: true,
+      };
+      // console.log("savePayload",savePayload)
+      const saveUrl = `${API_BASE_URL}/api/serviceForm/save`;
+      await postJSON(saveUrl, savePayload);
+
       // Submitting forms also carries misc fields; mark both tabs saved
       markSaved("Forms", "saved");
       markSaved("Miscellaneous", "saved");
@@ -1209,10 +1264,9 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   <div className="form-input-container">
                     <select className="form-select" value={formsData.form} onChange={(e) => handleFormsDataChange("form", e.target.value)}>
                       <option value="">Select Form</option>
-                      <option value="consent-form">Consent Form</option>
-                      <option value="medical-history">Medical History Form</option>
-                      <option value="treatment-plan">Treatment Plan Form</option>
-                      <option value="post-treatment">Post Treatment Form</option>
+                      {formnames.map((formname) => (
+                        <option key={formname} value={formname}>{formname}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

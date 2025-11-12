@@ -1187,3 +1187,42 @@
   align-items: center;
   justify-content: space-between;
 }
+
+.GP-form-dropdown-container {
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.GP-form-label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #333;
+}
+
+.GP-form-dropdown {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  min-width: 250px;
+}
+
+.GP-loading-text {
+  color: #666;
+  margin-top: 1rem;
+}
+
+.GP-error-text {
+  color: red;
+  margin-top: 1rem;
+}
+
+.GP-form-preview-wrapper {
+  margin-top: 2rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background-color: #fafafa;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.05);
+}
