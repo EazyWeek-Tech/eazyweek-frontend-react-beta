@@ -98,7 +98,7 @@ const Sidebar = ({ collapsed }) => {
       submenu: [{ name: "Laser Session Consent", path: "/consent-form/laser-session-consent" }
 ,{ name: "Injectable Consent", path: "/consent-form/injectable-treatment-consent" },
 { name: "Hyaluronidase Consent", path: "/consent-form/hyaluronidase-consent" },
-{ name: "Antiaging Consent", path: "/consent-form/antiaging-consent" }
+{ name: "Antiaging Consent", path: "/consent-form/antiaging-consent" },
 
 { name:"Laser Session", path:"/custom-forms/laser-session"}
 ,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
