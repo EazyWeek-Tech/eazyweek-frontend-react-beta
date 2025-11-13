@@ -542,7 +542,7 @@ useEffect(() => {
       try {
         const list = await fetchJSON(url);
         let opts = (Array.isArray(list) ? list : []).map((it) => {
-          const code = it.subSubSubCategoryCode ?? it.code ?? it.id ?? it.subSubSubCategoryName ?? it.name;
+          const code = it.subSubCategoryCode ?? it.code ?? it.id ?? it.subSubSubCategoryName ?? it.name;
           const name = it.subSubSubCategoryName ?? it.name ?? String(code);
           mergeMapEntry("SubSubSubCategory", code, name);
           return { code, name };
