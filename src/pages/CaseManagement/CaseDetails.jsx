@@ -338,6 +338,10 @@ const CaseDetailsPage = () => {
   const journeyRef = useRef();
   const slaRef = useRef();
 
+  // NEW: tab loader state + timer ref
+  const [tabLoading, setTabLoading] = useState(false);
+  const tabTimerRef = useRef(null);
+
   // NEW: hierarchy state at page-level
   const [hierarchy, setHierarchy] = useState(null);
   const [hierLoading, setHierLoading] = useState(false);
@@ -347,6 +351,15 @@ const CaseDetailsPage = () => {
   const [l2DialogOpen, setL2DialogOpen] = useState(false);
   const [l2ReassignCode, setL2ReassignCode] = useState("");
   const [l2DialogError, setL2DialogError] = useState("");
+
+  // cleanup loader timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tabTimerRef.current) {
+        clearTimeout(tabTimerRef.current);
+      }
+    };
+  }, []);
 
   // --- Fetch case details ---
   useEffect(() => {
@@ -690,58 +703,57 @@ const CaseDetailsPage = () => {
   // --------------------------------------------
   // L2 detection (page-level; uses hierarchy + case)
   // --------------------------------------------
- // --------------------------------------------
-// L1/L2 detection (page-level; uses hierarchy + case)
-// --------------------------------------------
-const ownerDisplay = firstNonEmpty(
-  ownerFromUrl,
-  selectedCaseData?.ownerName,
-  selectedCaseData?.ownerCode,
-  "-"
-);
-const assignedDisplay = firstNonEmpty(
-  assignedFromUrl,
-  selectedCaseData?.assignName,
-  selectedCaseData?.assignToCode,
-  "-"
-);
+  // --------------------------------------------
+  // L1/L2 detection (page-level; uses hierarchy + case)
+  // --------------------------------------------
+  const ownerDisplay = firstNonEmpty(
+    ownerFromUrl,
+    selectedCaseData?.ownerName,
+    selectedCaseData?.ownerCode,
+    "-"
+  );
+  const assignedDisplay = firstNonEmpty(
+    assignedFromUrl,
+    selectedCaseData?.assignName,
+    selectedCaseData?.assignToCode,
+    "-"
+  );
 
-// Current assignee (code/name)
-const curCode = normCodeId(selectedCaseData?.assignToCode);
-const curName = normNameBase(assignedDisplay || "");
+  // Current assignee (code/name)
+  const curCode = normCodeId(selectedCaseData?.assignToCode);
+  const curName = normNameBase(assignedDisplay || "");
 
-// ---------- Level 1 signals (compute first) ----------
-const l1Code = normCodeId(stage1Code || "");
-const l1Name = normNameBase(
-  firstNonEmpty(hierarchy?.firstAssignement, selectedCaseData?.firstSlaName, "")
-);
-const isAtLevel1Now =
-  (!!l1Code && !!curCode && l1Code === curCode) ||
-  (!!l1Name && !!curName && l1Name === curName);
+  // ---------- Level 1 signals (compute first) ----------
+  const l1Code = normCodeId(stage1Code || "");
+  const l1Name = normNameBase(
+    firstNonEmpty(hierarchy?.firstAssignement, selectedCaseData?.firstSlaName, "")
+  );
+  const isAtLevel1Now =
+    (!!l1Code && !!curCode && l1Code === curCode) ||
+    (!!l1Name && !!curName && l1Name === curName);
 
-// ---------- Level 2 signals (can safely reference isAtLevel1Now now) ----------
-const l2Code = normCodeId(
-  firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
-);
-const l2Name = normNameBase(
-  firstNonEmpty(hierarchy?.secondAssignement, selectedCaseData?.secondSlaName, "")
-);
-const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
-const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
+  // ---------- Level 2 signals (can safely reference isAtLevel1Now now) ----------
+  const l2Code = normCodeId(
+    firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
+  );
+  const l2Name = normNameBase(
+    firstNonEmpty(hierarchy?.secondAssignement, selectedCaseData?.secondSlaName, "")
+  );
+  const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
+  const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
 
-// Must match Level 2 AND NOT Level 1
-const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
+  // Must match Level 2 AND NOT Level 1
+  const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
 
-// Banner only when L2 and the visible "Assigned To" equals L2 (code or name)
-const showL2Banner = (() => {
-  if (!isAtLevel2Now) return false;
-  const disp = trim(assignedDisplay);
-  if (!disp || disp === "-") return false;
-  const dispAsCodeEq = !!l2Code && normCodeId(disp) === l2Code;
-  const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
-  return dispAsCodeEq || dispAsNameEq;
-})();
-
+  // Banner only when L2 and the visible "Assigned To" equals L2 (code or name)
+  const showL2Banner = (() => {
+    if (!isAtLevel2Now) return false;
+    const disp = trim(assignedDisplay);
+    if (!disp || disp === "-") return false;
+    const dispAsCodeEq = !!l2Code && normCodeId(disp) === l2Code;
+    const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
+    return dispAsCodeEq || dispAsNameEq;
+  })();
 
   // --------------------------------------------
   // Assignee resolver used when persisting a response
@@ -1173,6 +1185,21 @@ const showL2Banner = (() => {
     }
   };
 
+  // --------------------------------------------
+  // Tab click handler with loader (3 seconds)
+  // --------------------------------------------
+  const handleTabClick = (tabKey) => {
+    if (tabKey === activeTab) return;
+    if (tabTimerRef.current) {
+      clearTimeout(tabTimerRef.current);
+    }
+    setTabLoading(true);
+    setActiveTab(tabKey);
+    tabTimerRef.current = setTimeout(() => {
+      setTabLoading(false);
+    }, 3000); // 3 seconds
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "general":
@@ -1436,25 +1463,46 @@ const showL2Banner = (() => {
 
       <section className="tabsform">
         <div className="tab">
-          <span className={`tablinks ${activeTab === "general" ? "active" : ""}`} onClick={() => setActiveTab("general")}>
+          <span
+            className={`tablinks ${activeTab === "general" ? "active" : ""}`}
+            onClick={() => handleTabClick("general")}
+          >
             General
           </span>
-          <span className={`tablinks ${activeTab === "issues" ? "active" : ""}`} onClick={() => setActiveTab("issues")}>
+          <span
+            className={`tablinks ${activeTab === "issues" ? "active" : ""}`}
+            onClick={() => handleTabClick("issues")}
+          >
             Issues and Responses
           </span>
-          <span className={`tablinks ${activeTab === "sla" ? "active" : ""}`} onClick={() => setActiveTab("sla")}>
+          <span
+            className={`tablinks ${activeTab === "sla" ? "active" : ""}`}
+            onClick={() => handleTabClick("sla")}
+          >
             SLA Details
           </span>
-          <span className={`tablinks ${activeTab === "journey" ? "active" : ""}`} onClick={() => setActiveTab("journey")}>
+          <span
+            className={`tablinks ${activeTab === "journey" ? "active" : ""}`}
+            onClick={() => handleTabClick("journey")}
+          >
             Case Journey
           </span>
-          <span className={`tablinks ${activeTab === "expense" ? "active" : ""}`} onClick={() => setActiveTab("expense")}>
+          <span
+            className={`tablinks ${activeTab === "expense" ? "active" : ""}`}
+            onClick={() => handleTabClick("expense")}
+          >
             Expense
           </span>
         </div>
 
         <div className="tabcontent" style={{ display: "block" }}>
-          {renderTabContent()}
+          {tabLoading ? (
+            <div className="loader-wrapper">
+              <div className="loader"></div>
+            </div>
+          ) : (
+            renderTabContent()
+          )}
         </div>
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
@@ -1557,7 +1605,7 @@ const showL2Banner = (() => {
                   <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
                     Option B: Assign to another person (needs more info)
                   </div>
-                 
+                  {/* you can plug in your reassign UI here later */}
                 </div>
               </div>
             </div>

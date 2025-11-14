@@ -268,8 +268,8 @@ const OppCustomerDetails = () => {
               value={followUpAmPm}
               onChange={(e) => setFollowUpAmPm(e.target.value)}
             >
-              <option>AM</option>
-              <option>PM</option>
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
             </select>
           </div>
         </div>
