@@ -12,138 +12,158 @@ const DISPOSITION_OPTIONS = [
   { value: "LS012", label: "Appointment Booked" },
 ];
 
-// Numeric status expected by backend
-const OPP_STATUS = {
-  OPEN: '2',
-  CLOSED: '2',
-};
-
-/** Map disposition -> numeric oppStatus.
- * Closed for: LS008, LS009, LS010, LS011
- * Open for: "", LS012
- */
+// (kept consistent with your existing app)
+const OPP_STATUS = { OPEN: "2", CLOSED: "2" };
 const oppStatusFromDisposition = (code) => {
-  if (!code || code === "LS012") return OPP_STATUS.OPEN; // empty or Appointment Booked
+  if (!code || code === "LS012") return OPP_STATUS.OPEN;
   const closedSet = new Set(["LS008", "LS009", "LS010", "LS011"]);
   return closedSet.has(code) ? OPP_STATUS.CLOSED : OPP_STATUS.OPEN;
 };
 
-// Safely read various casings the API might return for RECID
 const getRecId = (row) => {
-  if (!row) return 0;
-  const id =
-    row.RECID ??
-    row.recID ??
-    row.recid ??
-    row.RecID ??
-    0;
+  const id = row?.RECID ?? row?.recID ?? row?.RecID ?? row?.recid ?? row?.id ?? 0;
   return Number(id) || 0;
+};
+
+const HALF_HOURS_1_TO_12_30 = [
+  "01:00","01:30","02:00","02:30","03:00","03:30",
+  "04:00","04:30","05:00","05:30","06:00","06:30",
+  "07:00","07:30","08:00","08:30","09:00","09:30",
+  "10:00","10:30","11:00","11:30","12:00","12:30",
+];
+
+const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 const OppCustomerDetails = () => {
   const { oppCode, custId } = useParams();
-  const { state } = useLocation(); // { row, header, isManual }
+  const { state } = useLocation(); // { recId, oppCode, row, header, isManual }
   const navigate = useNavigate();
 
-  const [row, setRow] = useState(() => state?.row || null);
-  const [header] = useState(() => state?.header || null);
-  const [loading, setLoading] = useState(!state?.row);
+  const [row] = useState(state?.row || null);
+  const [header] = useState(state?.header || null);
+
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({
-    disposition: "",
-    remarks: "",
-  });
+  const [details, setDetails] = useState(null);
+
+  // NEW: follow-up UI state
+  const [followUpDate, setFollowUpDate] = useState(todayISO()); // yyyy-MM-dd
+  const [followUpTime, setFollowUpTime] = useState("");         // e.g. "01:30"
+  const [followUpAmPm, setFollowUpAmPm] = useState("AM");       // "AM" | "PM"
+
+  const [form, setForm] = useState({ disposition: "", remarks: "" });
   const [saving, setSaving] = useState(false);
 
-  // Prefill disposition/remarks from incoming state row (if any)
+  // Fetch /OpportunityMoreDetails/{OppCode}/{RecId}
   useEffect(() => {
-    if (state?.row) {
-      setForm((p) => ({
-        ...p,
-        disposition: state.row.disposition ?? "",
-        remarks: state.row.remarks ?? "",
-      }));
-    }
-  }, [state?.row]);
-
-  // fetch if opened directly
-  useEffect(() => {
-    const fetchIfNeeded = async () => {
-      if (row) return;
+    const doFetch = async () => {
       setLoading(true);
       setError("");
+
       try {
-        const now = new Date();
-        const from = new Date(now);
-        from.setMonth(now.getMonth() - 1);
+        const recId = state?.recId || getRecId(state?.row) || 0;
+        if (!oppCode || !recId) throw new Error("Missing OppCode or RecId.");
 
-        const payload = {
-          oppCode,
-          fromDate: from.toISOString(),
-          toDate: now.toISOString(),
-        };
-
-        const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/api/Opportunity/OpportunityMoreDetails/${encodeURIComponent(oppCode)}/${recId}`,
+          { method: "POST", headers: { Accept: "*/*" }, credentials: "include", body: "" }
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const arr = Array.isArray(data) ? data : (data ? [data] : []);
-        const found = arr.find((o) => (o?.custID || "").toString() === (custId || "").toString());
-        setRow(found || null);
 
-        // prefill if found
-        if (found) {
+        setDetails(data || null);
+
+        // Prefill follow-up date/time/amPM
+        const apiFUDate = (data?.followUpDate || "").trim();
+        if (apiFUDate) {
+          const m = apiFUDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          setFollowUpDate(m ? `${m[3]}-${m[2]}-${m[1]}` : todayISO());
+        } else {
+          setFollowUpDate(todayISO());
+        }
+        setFollowUpTime((data?.followUpTime || "").trim());
+        setFollowUpAmPm((data?.followUpTimeAmPM || "AM").trim());
+
+        // Prefill disposition/remarks from list row (if present)
+        if (state?.row) {
           setForm((p) => ({
             ...p,
-            disposition: found.disposition ?? "",
-            remarks: found.remarks ?? "",
+            disposition: state.row.disposition ?? "",
+            remarks: state.row.remarks ?? "",
           }));
         }
       } catch (e) {
         console.error(e);
-        setError("Failed to load customer details.");
+        setError(e.message || "Failed to load details.");
       } finally {
         setLoading(false);
       }
     };
-    fetchIfNeeded();
-  }, [oppCode, custId, row]);
+
+    doFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oppCode, custId, state?.recId]);
 
   const safe = (v) => (v === null || v === undefined ? "" : v);
 
-  const top = useMemo(() => {
-    // prefer row fields; fall back to header for general opp context
-    return {
-      custID: safe(row?.custID),
-      custName: safe(row?.custName),
-      custMobileNo: safe(row?.custMobileNo),
-      category: safe(row?.category),
-      appointmentDate: safe(row?.appointmentdatetime),
-      therapist: safe(row?.therapistname),
-      oppName: safe(header?.oppName || row?.oppName),
-    };
-  }, [row, header]);
+  const top = useMemo(() => ({
+    custID: safe(details?.custID || row?.custID),
+    custName: safe(details?.custName || row?.custName),
+    custMobileNo: safe(details?.mobileNo || row?.custMobileNo),
+    category: safe(details?.category || row?.category),
+    appointmentDate: safe(details?.appointmentDate || row?.appointmentdatetime),
+    therapist: safe(details?.therapist || row?.therapistname),
+    oppName: safe(header?.oppName || row?.oppName),
+    appointmentHeading: safe(details?.appointmentHeading || ""),
+    dispCode: safe(details?.distpositionCode || ""),
+    dispName: safe(details?.distpositionName || ""),
+    remarks: safe(details?.remarts || ""),
+  }), [details, row, header]);
+
+  // bring API remarks in if list row didn't have one
+  useEffect(() => {
+    if (top.remarks && !form.remarks) {
+      setForm((p) => ({ ...p, remarks: top.remarks }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [top.remarks]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // Build payload for UpdateOppDetails
+  /** Convert yyyy-MM-dd to ISO string (Z) for backend */
+  const toISODateTimeZ = (yyyy_mm_dd) => {
+    if (!yyyy_mm_dd) return new Date().toISOString();
+    // send midnight UTC to satisfy the "…Z" example in Swagger
+    const d = new Date(`${yyyy_mm_dd}T00:00:00Z`);
+    return d.toISOString();
+  };
+
+  /** Build payload for /api/Opportunity/UpdateOppDetails
+   *  (now including followUpDate, followUpTime, followUpTimeAmPM)
+   */
   const buildUpdatePayload = () => {
-    const recID = getRecId(row);
-    const oppStatus = oppStatusFromDisposition(form.disposition); // numeric (1=open, 2=closed)
+    const recID = state?.recId || getRecId(state?.row);
+    const oppStatus = oppStatusFromDisposition(form.disposition);
+
     return {
-      recID,                          // number
-      disposition: form.disposition,  // string (e.g., "LS012")
-      remarks: form.remarks,          // string
-      oppCode,                        // string
-      oppStatus,                      // number
+      recID,
+      disposition: form.disposition,
+      remarks: form.remarks,
+      oppCode,
+      oppStatus,
+      followUpDate: toISODateTimeZ(followUpDate), // e.g. "2025-11-11T00:00:00.000Z"
+      followUpTime: followUpTime || "",           // "01:00" etc.
+      followUpTimeAmPM: followUpAmPm || "AM",     // "AM" | "PM"
     };
   };
 
@@ -155,18 +175,9 @@ const OppCustomerDetails = () => {
       body: JSON.stringify(buildUpdatePayload()),
     });
     let data = null;
-    try {
-      data = await res.json();
-    } catch {
-      // ignore parse error; we'll still treat non-OK as failure
-    }
-    if (!res.ok) {
-      const msg = data?.message || `HTTP ${res.status}`;
-      throw new Error(msg);
-    }
-    if (data && data.success === false) {
-      throw new Error(data.message || "UpdateOppDetails returned success:false");
-    }
+    try { data = await res.json(); } catch {}
+    if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+    if (data && data.success === false) throw new Error(data.message || "UpdateOppDetails returned success:false");
     return data || {};
   };
 
@@ -179,7 +190,6 @@ const OppCustomerDetails = () => {
     setError("");
     try {
       await callUpdate();
-      // stay on page for Save
     } catch (e) {
       console.error(e);
       setError(e.message || "Could not save. Please try again.");
@@ -206,15 +216,8 @@ const OppCustomerDetails = () => {
     }
   };
 
-  if (loading) {
-    return <div className="load">Loading…</div>;
-  }
-  if (error && !row) {
-    return <div className="load" style={{ color: "#c33" }}>{error}</div>;
-  }
-  if (!row) {
-    return <div className="load">No customer data found.</div>;
-  }
+  if (loading) return <div className="load">Loading…</div>;
+  if (error && !details) return <div className="load" style={{ color: "#c33" }}>{error}</div>;
 
   return (
     <>
@@ -230,6 +233,44 @@ const OppCustomerDetails = () => {
             <div className="pair"><span className="lab">Paid For Category :</span> <span className="val">{top.category}</span></div>
             <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
             <div className="pair"><span className="lab">App with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
+          </div>
+        </div>
+
+        {/* NEW follow-up inputs */}
+        <div className="formrow">
+          <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
+          <input
+            id="fuDate"
+            type="date"
+            className="inp"
+            value={followUpDate}
+            onChange={(e) => setFollowUpDate(e.target.value)}
+          />
+        </div>
+
+        <div className="formrow">
+          <label className="lab">Follow Up Time :</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <select
+              className="inp"
+              style={{ maxWidth: 180 }}
+              value={followUpTime}
+              onChange={(e) => setFollowUpTime(e.target.value)}
+            >
+              <option value="">—</option>
+              {HALF_HOURS_1_TO_12_30.map((t) => (
+                <option key={`fu-${t}`} value={t}>{t}</option>
+              ))}
+            </select>
+            <select
+              className="inp"
+              style={{ maxWidth: 120 }}
+              value={followUpAmPm}
+              onChange={(e) => setFollowUpAmPm(e.target.value)}
+            >
+              <option>AM</option>
+              <option>PM</option>
+            </select>
           </div>
         </div>
 
@@ -261,11 +302,7 @@ const OppCustomerDetails = () => {
           />
         </div>
 
-        {error && (
-          <div style={{ color: "#c33", margin: "8px 0" }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
 
         <div className="btnrow">
           <button className="btn" disabled={saving} onClick={handleSave}>Save</button>
@@ -279,7 +316,7 @@ const OppCustomerDetails = () => {
         .grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:18px; }
         .col { display:grid; gap:12px; }
         .pair { font-size:15px; color:#333; }
-        .lab { display:inline-block; min-width:180px; color:#555; font-weight:600; }
+        .lab { display:inline-block; min-width:200px; color:#555; font-weight:600; font-size:14px; }
         .val { color:#222; }
         .formrow { display:flex; align-items:flex-start; gap:12px; margin:12px 0; }
         .inp { flex:1; max-width:520px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
@@ -291,7 +328,7 @@ const OppCustomerDetails = () => {
         .load { padding:40px; text-align:center; color:#666; }
         @media (max-width: 900px) {
           .grid { grid-template-columns:1fr; }
-          .lab { min-width:140px; }
+          .lab { min-width:160px; }
         }
       `}</style>
     </>

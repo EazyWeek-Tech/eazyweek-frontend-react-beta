@@ -47,7 +47,7 @@ const getRowTimeHHmm = (row) => {
     if (mm) {
       const h = String(Number(mm[1])).padStart(2, "0");
       const m = mm[2];
-      return `${h}:${m}`; // assume 24h or treat as 24h for filtering
+      return `${h}:${m}`;
     }
     const d = new Date(s);
     if (!Number.isNaN(+d)) {
@@ -75,7 +75,7 @@ const getRowFollowUpDate = (row) => {
   return null;
 };
 
-/** Build half-hour slots from 01:00 -> 07:30 */
+/** Build half-hour slots from 01:00 -> 07:30 (used in UI filters) */
 const HALF_HOURS_1_TO_730 = [
   "01:00","01:30",
   "02:00","02:30",
@@ -90,8 +90,15 @@ const HALF_HOURS_1_TO_730 = [
 const to24h = (slot, meridiem) => {
   if (!slot || !meridiem) return "";
   const [hh, mm] = slot.split(":").map(Number);
-  const h = meridiem === "PM" ? hh + 12 : hh; // 1..7 PM -> 13..19
+  const base = hh % 12; // 12 -> 0
+  const h = meridiem === "PM" ? base + 12 : base;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+};
+
+// robust recId getter (API casing can vary)
+const getRecId = (row) => {
+  const id = row?.RECID ?? row?.recID ?? row?.RecID ?? row?.recid ?? row?.id ?? 0;
+  return Number(id) || 0;
 };
 
 const OpportunityDetails = () => {
@@ -105,7 +112,7 @@ const OpportunityDetails = () => {
   const [error, setError] = useState("");
 
   // --------- Filters & table UX ----------
-  const [statusFilter, setStatusFilter] = useState(""); // default: All
+  const [statusFilter, setStatusFilter] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -228,10 +235,8 @@ const OpportunityDetails = () => {
 
   // Search, filter, and sort rows
   const filteredRows = useMemo(() => {
-    // 1) start with copy
     let list = rows.slice();
 
-    // 2) search (custID, custName, mobile, status, owner)
     const s = searchTerm.trim().toLowerCase();
     if (s) {
       list = list.filter((r) =>
@@ -243,10 +248,9 @@ const OpportunityDetails = () => {
       );
     }
 
-    // 3) time window helper
     const inTimeWindow = (row) => {
       if (!filterTimeFrom && !filterTimeTo) return true;
-      const hhmm = getRowTimeHHmm(row); // "HH:mm" 24h
+      const hhmm = getRowTimeHHmm(row);
       if (!hhmm) return false;
 
       const toMin = (str) => {
@@ -259,7 +263,6 @@ const OpportunityDetails = () => {
       return true;
     };
 
-    // 4) manual/other specific filters
     if (isManualLead) {
       if (statusFilter) {
         list = list.filter((r) =>
@@ -284,7 +287,6 @@ const OpportunityDetails = () => {
       list = list.filter(inTimeWindow);
     }
 
-    // 5) sort if requested
     if (sortConfig.key) {
       const { key, direction } = sortConfig;
       list.sort((a, b) => {
@@ -309,12 +311,23 @@ const OpportunityDetails = () => {
     sortConfig,
   ]);
 
+  /** On click of CustID:
+   *  - Navigate to OppCustomerDetails route
+   *  - Pass oppCode + recId via state so OppCustomerDetails can call
+   *    /api/Opportunity/OpportunityMoreDetails/{OppCode}/{RecId}
+   */
   const openCustomer = (row) => {
+    const recId = getRecId(row);
     const isManual = isManualLead || row?.manualLead || row?.isManualLead;
-    const path = isManual
-      ? `/opportunity/${oppCode}/manual/${row.custID}`
-      : `/opportunity/${oppCode}/customer/${row.custID}`;
-    navigate(path, { state: { row, header: H, isManual } });
+    navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
+      state: {
+        recId,
+        oppCode,
+        row,          // optional: original list row (for any fallback)
+        header: H,
+        isManual,
+      },
+    });
   };
 
   const exportCSV = () => {
@@ -442,7 +455,7 @@ const OpportunityDetails = () => {
           <div className="filters-card">
             {isManualLead ? (
               <div className="filters-grid">
-                {/* Status (default All) */}
+                {/* Status */}
                 <div className="fgroup">
                   <label className="flabel">Status :</label>
                   <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -518,8 +531,7 @@ const OpportunityDetails = () => {
                   </div>
                 </div>
 
-
-                {/* Actions */}
+                {/* Actions — ONLY for manual lead */}
                 <div className="factions">
                   <button
                     className="btn btn-primary"
@@ -537,8 +549,8 @@ const OpportunityDetails = () => {
                 </div>
               </div>
             ) : (
-               <div className="filters-grid">
-                {/* Status (default All) */}
+              // Non-manual lead: no Add Lead button
+              <div className="filters-grid">
                 <div className="fgroup">
                   <label className="flabel">Status :</label>
                   <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -549,7 +561,6 @@ const OpportunityDetails = () => {
                   </select>
                 </div>
 
-                {/* Sales Owner */}
                 <div className="fgroup">
                   <label className="flabel">Sales Owner :</label>
                   <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
@@ -560,7 +571,6 @@ const OpportunityDetails = () => {
                   </select>
                 </div>
 
-                {/* Follow Up Date mode */}
                 <div className="fgroup">
                   <label className="flabel">Follow Up Date :</label>
                   <select
@@ -575,7 +585,6 @@ const OpportunityDetails = () => {
                   </select>
                 </div>
 
-                {/* Date range inputs */}
                 {followDateMode === "2" && (
                   <>
                     <div className="fgroup">
@@ -599,7 +608,6 @@ const OpportunityDetails = () => {
                   </>
                 )}
 
-                {/* Follow Up time From */}
                 <div className="fgroup ftime">
                   <label className="flabel">Follow Up time (From) :</label>
                   <div className="ftime-row">
@@ -613,7 +621,6 @@ const OpportunityDetails = () => {
                     </select>
                   </div>
                 </div>
-
               </div>
             )}
           </div>
@@ -708,7 +715,6 @@ const OpportunityDetails = () => {
 
         .filters-card { background:#f7f9fc; border:1px solid #e6eaf2; border-radius:10px; padding:16px; margin-top:10px; }
         .filters-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:12px 16px; align-items:end; }
-        .filters-grid.slim { grid-template-columns: repeat(12, 1fr); }
         .fgroup { grid-column: span 3; }
         .fgroup.ftime { grid-column: span 3; }
         .ftime-row { display:flex; gap:8px; }
@@ -727,16 +733,6 @@ const OpportunityDetails = () => {
         .sort { margin-left:6px; color:#6b7280; font-size:12px; }
         .empty-note { margin-top:12px; padding:14px; background:#f9fafc; border:1px dashed #e6eaf2; border-radius:8px; color:#5c6b7a; font-size:14px; }
         .loading-msg { padding:40px; text-align:center; font-size:18px; color:#666; }
-
-        @media (max-width: 980px) {
-          .fgroup { grid-column: span 6; }
-          .factions { grid-column: span 6; justify-content:flex-start; }
-        }
-        @media (max-width: 640px) {
-          .fgroup, .factions { grid-column: span 12; }
-          .details-header { flex-direction:column; align-items:stretch; }
-          .header-actions { justify-content:flex-end; }
-        }
       `}</style>
     </>
   );

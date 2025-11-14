@@ -227,10 +227,13 @@ const AppointmentDetailsSide = ({
 
     // Map by "contains" instead of strict prefix to be resilient
     if (code.includes("AA")) {
-      return { consentPath: "consentform/injectible", treatmentPath: "consultation" }; // null → fallback
+      return { consentPath: "consentform/injectible", treatmentPath: "assesmentform/consultation" }; // null → fallback
     }
     if (code.includes("CON")) {
       return { consentPath: "assesmentform/consultation", treatmentPath: "assesmentform/consultation" };
+    }
+     if (code.includes("LHR")) {
+      return { consentPath: "consentform/laser", treatmentPath: "treatmentform/laser" };
     }
     if (code.includes("BS")) {
       return { consentPath: "consentform/laser", treatmentPath: "treatmentform/laser" };
