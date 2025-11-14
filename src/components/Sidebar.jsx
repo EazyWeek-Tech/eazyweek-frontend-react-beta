@@ -103,7 +103,6 @@ const Sidebar = ({ collapsed }) => {
 { name:"Laser Session", path:"/custom-forms/laser-session"}
 ,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
 { name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
-{ name:"General Form", path:"/custom-forms/general-form"},
       ],
 
     },
@@ -111,8 +110,9 @@ const Sidebar = ({ collapsed }) => {
       label:"Custom Forms",
       icon:"bx-customize",
       submenu:[
-{ name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
-{ name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
+    { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
+    { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
+    { name:"General Form", path:"/custom-forms/general-form"},
       ]
     },
     {

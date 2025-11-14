@@ -23,22 +23,22 @@ import { FormPreview } from "./FormPreview";
 import { ConditionalRuleEditor } from "./ConditionalRuleEditor";
 import { ValidationRuleEditor } from "./ValidationRuleEditor";
 import { StepManager } from "./StepManager";
-// import { useToast } from "./use-toast";
 import "./AdvancedFormBuilder.css";
 import { API_BASE_URL } from "../../../config";
 
 export const AdvancedFormBuilder = () => {
-  const [config, setConfig] = useState({
+  const initialConfig = {
     title: "Custom Form",
     description: "",
     steps: [{ id: "step-1", title: "General Information", fields: [] }],
     fields: [],
     isMultiStep: false,
-  });
+  };
+  const [toast, setToast] = useState(null);
+  const [config, setConfig] = useState(initialConfig);
   const [selectedField, setSelectedField] = useState(null);
   const [currentView, setCurrentView] = useState("builder");
   const [selectedChildFieldTypes, setSelectedChildFieldTypes] = useState([]);
-  // const { toast } = useToast();
 
   const addField = (type, parentId = null) => {
     const newField = {
@@ -360,6 +360,10 @@ export const AdvancedFormBuilder = () => {
               <div className="AdvBuilder-button">
                 <Button
                 onClick={async () => {
+                  if (config.fields.length === 0) {
+                    setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
+                    return;
+                  }
                   const formConfig = {
                     ...config,
                     fields: config.fields.map((field) => ({
@@ -376,7 +380,8 @@ export const AdvancedFormBuilder = () => {
                       ...(field.step !== undefined && { step: field.step }),
                       ...(field.rows !== undefined && { rows: field.rows }),
                       ...(field.columns !== undefined && { columns: field.columns, }),                      ...(field.accept && { accept: field.accept }),                      ...(field.width !== undefined && { width: field.width, }),                      ...(field.height !== undefined && { height: field.height, }),                      ...(field.layout && { layout: field.layout }),                      conditionalRules: field.conditionalRules || [],                      validationRules: field.validationRules || [],                    })),                  };
-                    await fetch(`${API_BASE_URL}/api/form/save`, {
+                  try {
+                    const response = await fetch(`${API_BASE_URL}/api/form/save`, {
                       method: "POST",
                       headers: headersFor("POST"),
                       body: JSON.stringify({
@@ -385,9 +390,21 @@ export const AdvancedFormBuilder = () => {
                       }),
                       credentials: "include",
                     });
-                    console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
-                    alert("Form configuration saved! Check console for JSON.");
-                  }}
+                    if (response.ok) {
+                      console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
+                      setToast({ message: "Form configuration saved successfully!", type: "success" });
+                      // Clear form on success
+                      setConfig(initialConfig);
+                      setSelectedField(null);
+                      setSelectedChildFieldTypes([]);
+                    } else {
+                      setToast({ message: "Failed to save form. Please try again.", type: "error" });
+                    }
+                  } catch (error) {
+                    console.error("Error saving form:", error);
+                    setToast({ message: "An error occurred while saving the form.", type: "error" });
+                  }
+                }}
                   className="mr-2 destructive"
                 >
                   Save Form
@@ -409,10 +426,10 @@ export const AdvancedFormBuilder = () => {
               {/* Field Selector & Form Settings */}
               <div className="AdvFormBuilder-sidebar">
                 <Card className="AdvFormBuilder-card">
-                  <div className="AdvFormBuilder-card-header">
+                  {/* <div className="AdvFormBuilder-card-header">
                     <h2 className="AdvFormBuilder-card-title">Form Settings</h2>
                     <Settings className="w-4 h-4 text-muted-foreground" />
-                  </div>
+                  </div> */}
 
                   <div className="AdvFormBuilder-form-settings">
                     <div className="AdvFormBuilder-form-setting">
@@ -479,7 +496,7 @@ export const AdvancedFormBuilder = () => {
                   <Droppable droppableId="form-fields">
                     {function (provided) {
                       return (
-                        <div {...provided.droppableProps} ref={provided.innerRef} className="AdvFormBuilder-fields-list">
+                        <div {...provided.droppableProps} ref={provided.innerRef} className="AdvFormBuilder-fields-list" style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'hidden' }}>
                           {config.fields.length === 0 ? (
                             <div className="AdvFormBuilder-empty-state">
                               <div className="AdvFormBuilder-empty-icon">
@@ -1364,6 +1381,45 @@ export const AdvancedFormBuilder = () => {
           <FormPreview config={config} />
         )}
       </div>
+            <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
+    </div>
+  );
+};
+
+const Toast = ({ message, type, onClose }) => {
+  if (!message) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        backgroundColor: type === 'success' ? '#4caf50' : '#f44336',
+        color: 'white',
+        padding: '12px 20px',
+        borderRadius: '5px',
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+        fontSize: '16px',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px'
+      }}
+    >
+      <span>{message}</span>
+      <button
+        onClick={onClose}
+        style={{
+          background: 'transparent',
+          color: 'white',
+          border: 'none',
+          fontSize: '18px',
+          cursor: 'pointer',
+        }}
+      >
+        ✕
+      </button>
     </div>
   );
 };

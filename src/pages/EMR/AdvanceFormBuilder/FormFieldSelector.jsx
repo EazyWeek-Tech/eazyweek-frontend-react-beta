@@ -2,6 +2,7 @@
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Draggable, Droppable } from "@hello-pangea/dnd";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import {
   Type,
   Mail,
@@ -29,10 +30,13 @@ import {
   User,
   Smartphone,
   Users,
+  ChevronDown,
 } from "lucide-react";
+import { useState } from "react";
 import "./FormFieldSelector.css"; // Import the external CSS file
 
-const fieldTypes = [
+const fieldCategories = {
+  Basic: [
   {
     type: "text",
     label: "Text Input",
@@ -51,6 +55,62 @@ const fieldTypes = [
     icon: FileText,
     description: "Multi-line text",
   },
+    {
+      type: "number",
+      label: "Number",
+      icon: Hash,
+      description: "Numeric input",
+    },
+    {
+      type: "phone",
+      label: "Phone Number",
+      icon: Phone,
+      description: "Phone number input",
+    },
+    {
+      type: "date",
+      label: "Date Picker",
+      icon: Calendar,
+      description: "Date selection",
+    },
+    {
+      type: "datetime",
+      label: "Date/Time",
+      icon: Calendar,
+      description: "Date and time selection",
+    },
+    {
+      type: "time",
+      label: "Time",
+      icon: Clock,
+      description: "Time selection",
+    },
+    {
+      type: "select",
+      label: "Dropdown",
+      icon: List,
+      description: "Select options",
+    },
+    {
+      type: "radio",
+      label: "Radio Button",
+      icon: Circle,
+      description: "Single choice",
+    },
+    {
+      type: "checkbox",
+      label: "Checkbox",
+      icon: CheckSquare,
+      description: "True/false option",
+    },
+    {
+      type: "selectboxes",
+      label: "Select Boxes",
+      icon: CheckSquare,
+      description: "Multiple select options",
+    },
+  ],
+  Advanced: [
   {
     type: "table",
     label: "Table",
@@ -62,12 +122,6 @@ const fieldTypes = [
     label: "Day",
     icon: Sun,
     description: "Day selection",
-  },
-  {
-    type: "time",
-    label: "Time",
-    icon: Clock,
-    description: "Time selection",
   },
   {
     type: "currency",
@@ -118,95 +172,13 @@ const fieldTypes = [
     description: "Static content",
   },
   {
-    type: "select",
-    label: "Dropdown",
-    icon: List,
-    description: "Select options",
-  },
-  {
-    type: "checkbox",
-    label: "Checkbox",
-    icon: CheckSquare,
-    description: "True/false option",
-  },
-  {
-    type: "radio",
-    label: "Radio Button",
-    icon: Circle,
-    description: "Single choice",
-  },
-  {
-    type: "number",
-    label: "Number",
-    icon: Hash,
-    description: "Numeric input",
-  },
-  {
-    type: "phone",
-    label: "Phone Number",
-    icon: Phone,
-    description: "Phone number input",
-  },
-  {
-    type: "date",
-    label: "Date Picker",
-    icon: Calendar,
-    description: "Date selection",
-  },
-  {
-    type: "datetime",
-    label: "Date/Time",
-    icon: Calendar,
-    description: "Date and time selection",
-  },
-  {
-    type: "selectboxes",
-    label: "Select Boxes",
-    icon: CheckSquare,
-    description: "Multiple select options",
-  },
-  {
     type: "signature",
     label: "Signature",
     icon: Pen,
     description: "Digital signature",
   },
-  {
-    type: "city",
-    label: "City",
-    icon: MapPin,
-    description: "City input",
-  },
-  {
-    type: "address1",
-    label: "Address Line 1",
-    icon: Home,
-    description: "Primary address",
-  },
-  {
-    type: "address2",
-    label: "Address Line 2",
-    icon: Home,
-    description: "Secondary address",
-  },
-  {
-    type: "pincode",
-    label: "Pincode",
-    icon: MapPin,
-    description: "Postal code",
-  },
-  {
-    type: "country",
-    label: "Country",
-    icon: Globe,
-    description: "Country selection",
-  },
-  {
-    type: "state",
-    label: "State",
-    icon: Map,
-    description: "State/Province",
-  },
+  ],
+  Personal: [
   {
     type: "firstname",
     label: "First Name",
@@ -243,14 +215,58 @@ const fieldTypes = [
     icon: Users,
     description: "Gender selection",
   },
-];
+    {
+      type: "city",
+      label: "City",
+      icon: MapPin,
+      description: "City input",
+    },
+    {
+      type: "address1",
+      label: "Address Line 1",
+      icon: Home,
+      description: "Primary address",
+    },
+    {
+      type: "address2",
+      label: "Address Line 2",
+      icon: Home,
+      description: "Secondary address",
+    },
+    {
+      type: "pincode",
+      label: "Pincode",
+      icon: MapPin,
+      description: "Postal code",
+    },
+    {
+      type: "country",
+      label: "Country",
+      icon: Globe,
+      description: "Country selection",
+    },
+    {
+      type: "state",
+      label: "State",
+      icon: Map,
+      description: "State/Province",
+    },
+  ],
+};
 
 export const FormFieldSelector = ({ onAddField }) => {
-  if (!fieldTypes.length) {
-    return (
-      <div className="FFS-form-field-selector-error">No field types available.</div>
-    );
-  }
+  const [openCategories, setOpenCategories] = useState({
+    Basic: true,
+    Advanced: false,
+    Personal: false,
+  });
+
+  const toggleCategory = (category) => {
+    setOpenCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
 
   return (
     <Card className="FFS-form-field-selector-card p-6 FFP-AdvFormBuilder-border AdvFormBuilder-shadow-md sticky top-6">
@@ -262,33 +278,51 @@ export const FormFieldSelector = ({ onAddField }) => {
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="FFS-form-field-selector-list space-y-2"
+            className="FFS-form-field-selector-list space-y-2 "
           >
-            {fieldTypes.map(({ type, label, icon: Icon, description }, index) => (
-              <Draggable key={type} draggableId={`selector-${type}`} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    className={`FFS-field-button w-full justify-start h-auto p-3 hover:AdvFormBuilder-bg-hover transition-all duration-200 group FFS-selector-button ${snapshot.isDragging ? "dragging" : ""}`}
-                    onClick={() => onAddField(type)}
-                    aria-label={`Add ${label} field`}
-                  >
-                    <div className="FFS-field-button-content">
-                      <div className="FFS-field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                        <Icon className="FFS-field-icon w-4 h-4 text-primary" />
-                      </div>
-                      <div className="FFS-field-text text-left">
-                        <div className="FFS-field-label font-medium text-sm">{label}</div>
-                        <div className="FFS-field-description text-xs text-muted-foreground">
-                          {description}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Draggable>
+            {Object.entries(fieldCategories).map(([categoryName, fields], categoryIndex) => (
+              <Collapsible
+                className="FFS-field-Collapsible"
+                key={categoryName}
+                open={openCategories[categoryName]}
+                onOpenChange={() => toggleCategory(categoryName)}
+              >
+                <CollapsibleTrigger className=" FFS-field-CollapsibleTrigger">
+                  <span className="font-medium text-sm">{categoryName}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${openCategories[categoryName] ? 'rotate-180' : ''}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-1 mt-1">
+                  {fields.map(({ type, label, icon: Icon, description }, fieldIndex) => {
+                    const globalIndex = Object.values(fieldCategories).slice(0, categoryIndex).reduce((acc, cat) => acc + cat.length, 0) + fieldIndex;
+                    return (
+                      <Draggable key={type} draggableId={`selector-${type}`} index={globalIndex}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`FFS-field-button w-full justify-start h-auto p-3 hover:AdvFormBuilder-bg-hover transition-all duration-200 group FFS-selector-button ${snapshot.isDragging ? "dragging" : ""}`}
+                            onClick={() => onAddField(type)}
+                            aria-label={`Add ${label} field`}
+                          >
+                            <div className="FFS-field-button-content">
+                              <div className="FFS-field-icon-container w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                                <Icon className="FFS-field-icon w-4 h-4 text-primary" />
+                              </div>
+                              <div className="FFS-field-text text-left">
+                                <div className="FFS-field-label font-medium text-sm">{label}</div>
+                                <div className="FFS-field-description text-xs text-muted-foreground">
+                                  {description}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
             ))}
             {provided.placeholder}
           </div>

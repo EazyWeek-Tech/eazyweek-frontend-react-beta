@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import "./GeneralForm.css";
+import { useNavigate } from "react-router-dom";
 
 const GeneralForm = () => {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     formName: "",
     code: "",
@@ -102,6 +104,7 @@ const GeneralForm = () => {
     console.log("Packages Data:", packagesData);
     console.log("Loyalty Data:", loyaltyData);
     alert("Form saved successfully!");
+    navigate("/custom-forms/form-builder")
   };
 
   const handleCancel = () => {
@@ -727,7 +730,7 @@ const GeneralForm = () => {
         {/* Buttons */}
         <div className="GF-form-buttons">
           <button className="GF-save-btn" onClick={handleSave}>
-            Save
+            save and Proceed
           </button>
         </div>
       </div>
