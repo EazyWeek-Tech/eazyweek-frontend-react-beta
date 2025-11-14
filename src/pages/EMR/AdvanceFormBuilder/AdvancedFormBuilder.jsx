@@ -356,61 +356,6 @@ export const AdvancedFormBuilder = () => {
             </h1>
           </div>
           <div className="AdvFormBuilder-actions">
-            {currentView === 'builder' && (
-              <div className="AdvBuilder-button">
-                <Button
-                onClick={async () => {
-                  if (config.fields.length === 0) {
-                    setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
-                    return;
-                  }
-                  const formConfig = {
-                    ...config,
-                    fields: config.fields.map((field) => ({
-                      id: field.id,
-                      type: field.type,
-                      label: field.label,
-                      placeholder: field.placeholder || "",
-                      required: field.required ? "required" : "optional",
-                      parentId: field.parentId || null,
-                      // Include other field-specific properties
-                      ...(field.options && { options: field.options }),
-                      ...(field.min !== undefined && { min: field.min }),
-                      ...(field.max !== undefined && { max: field.max }),
-                      ...(field.step !== undefined && { step: field.step }),
-                      ...(field.rows !== undefined && { rows: field.rows }),
-                      ...(field.columns !== undefined && { columns: field.columns, }),                      ...(field.accept && { accept: field.accept }),                      ...(field.width !== undefined && { width: field.width, }),                      ...(field.height !== undefined && { height: field.height, }),                      ...(field.layout && { layout: field.layout }),                      conditionalRules: field.conditionalRules || [],                      validationRules: field.validationRules || [],                    })),                  };
-                  try {
-                    const response = await fetch(`${API_BASE_URL}/api/form/save`, {
-                      method: "POST",
-                      headers: headersFor("POST"),
-                      body: JSON.stringify({
-                        schemaJson: JSON.stringify(formConfig), // Convert object to string
-                        name: formConfig?.title,
-                      }),
-                      credentials: "include",
-                    });
-                    if (response.ok) {
-                      console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
-                      setToast({ message: "Form configuration saved successfully!", type: "success" });
-                      // Clear form on success
-                      setConfig(initialConfig);
-                      setSelectedField(null);
-                      setSelectedChildFieldTypes([]);
-                    } else {
-                      setToast({ message: "Failed to save form. Please try again.", type: "error" });
-                    }
-                  } catch (error) {
-                    console.error("Error saving form:", error);
-                    setToast({ message: "An error occurred while saving the form.", type: "error" });
-                  }
-                }}
-                  className="mr-2 destructive"
-                >
-                  Save Form
-                </Button>
-              </div>
-            )}
             <ToggleSwitch
               leftLabel="Builder"
               rightLabel="Preview"
@@ -425,11 +370,11 @@ export const AdvancedFormBuilder = () => {
             <div className="AdvFormBuilder-grid">
               {/* Field Selector & Form Settings */}
               <div className="AdvFormBuilder-sidebar">
-                <Card className="AdvFormBuilder-card">
-                  {/* <div className="AdvFormBuilder-card-header">
+                {/* <Card className="AdvFormBuilder-card">
+                  <div className="AdvFormBuilder-card-header">
                     <h2 className="AdvFormBuilder-card-title">Form Settings</h2>
                     <Settings className="w-4 h-4 text-muted-foreground" />
-                  </div> */}
+                  </div>
 
                   <div className="AdvFormBuilder-form-settings">
                     <div className="AdvFormBuilder-form-setting">
@@ -442,16 +387,16 @@ export const AdvancedFormBuilder = () => {
                       />
                     </div>
 
-                                        {/* <div className="form-builder-toggle">
+                    <div className="form-builder-toggle">
                       <ToggleSwitch
                         leftLabel="Single Step"
                         rightLabel="Multi-Step"
                         value={config.isMultiStep ? "Multi-Step" : "Single Step"}
                         onChange={(value) => setConfig({ ...config, isMultiStep: value === "Multi-Step" })}
                       />
-                    </div> */}
+                    </div>
                   </div>
-                </Card>
+                </Card> */}
 
                 <Droppable droppableId="field-selector">
                   {function (provided) {
@@ -1088,7 +1033,7 @@ export const AdvancedFormBuilder = () => {
                                 />
                               </div>
 
-                                                          </>
+                            </>
                           )}
 
                           {selectedField.type === "tabs" && (
@@ -1380,6 +1325,59 @@ export const AdvancedFormBuilder = () => {
         ) : (
           <FormPreview config={config} />
         )}
+        <div className="AdvBuilder-button">
+                <Button
+                onClick={async () => {
+                  if (config.fields.length === 0) {
+                    setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
+                    return;
+                  }
+                  const formConfig = {
+                    ...config,
+                    fields: config.fields.map((field) => ({
+                      id: field.id,
+                      type: field.type,
+                      label: field.label,
+                      placeholder: field.placeholder || "",
+                      required: field.required ? "required" : "optional",
+                      parentId: field.parentId || null,
+                      // Include other field-specific properties
+                      ...(field.options && { options: field.options }),
+                      ...(field.min !== undefined && { min: field.min }),
+                      ...(field.max !== undefined && { max: field.max }),
+                      ...(field.step !== undefined && { step: field.step }),
+                      ...(field.rows !== undefined && { rows: field.rows }),
+                      ...(field.columns !== undefined && { columns: field.columns, }),                      ...(field.accept && { accept: field.accept }),                      ...(field.width !== undefined && { width: field.width, }),                      ...(field.height !== undefined && { height: field.height, }),                      ...(field.layout && { layout: field.layout }),                      conditionalRules: field.conditionalRules || [],                      validationRules: field.validationRules || [],                    })),                  };
+                  try {
+                    const response = await fetch(`${API_BASE_URL}/api/form/save`, {
+                      method: "POST",
+                      headers: headersFor("POST"),
+                      body: JSON.stringify({
+                        schemaJson: JSON.stringify(formConfig), // Convert object to string
+                        name: formConfig?.title,
+                      }),
+                      credentials: "include",
+                    });
+                    if (response.ok) {
+                      console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
+                      setToast({ message: "Form configuration saved successfully!", type: "success" });
+                      // Clear form on success
+                      setConfig(initialConfig);
+                      setSelectedField(null);
+                      setSelectedChildFieldTypes([]);
+                    } else {
+                      setToast({ message: "Failed to save form. Please try again.", type: "error" });
+                    }
+                  } catch (error) {
+                    console.error("Error saving form:", error);
+                    setToast({ message: "An error occurred while saving the form.", type: "error" });
+                  }
+                }}
+                  className="mr-2 destructive"
+                >
+                  Save Form
+                </Button>
+              </div>
       </div>
             <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>

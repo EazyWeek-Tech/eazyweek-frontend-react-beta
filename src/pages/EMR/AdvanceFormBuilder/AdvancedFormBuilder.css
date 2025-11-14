@@ -1475,8 +1475,13 @@
     justify-content: center;
   }
 }
+.AdvBuilder-button{
+  display: flex;
+  justify-content: center;
+  margin: 10px;
+}
 .AdvBuilder-button button{
-  padding: 5px;
+  padding: 10px;
   border-radius: 10px;
   background-color: #268de1;
   color: white;
