@@ -1233,6 +1233,8 @@ const CaseDetailsPage = () => {
               type: "success",
               message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
             });
+                        navigate(-1);
+
           }
         } else if (actionType === "updateStatus") {
           setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
