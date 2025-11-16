@@ -118,9 +118,9 @@ export const FormPreview = ({ config }) => {
     setFormKey(prev => prev + 1);
   };
 
-  const goToPreviousStep = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  };
+  // const goToPreviousStep = () => {
+  //   if (currentStep > 0) setCurrentStep(currentStep - 1);
+  // };
 
   const renderField = (field) => {
     if (!isFieldVisible(field.id)) return null;
@@ -128,15 +128,16 @@ export const FormPreview = ({ config }) => {
     if (field.type === 'panel') {
       const childFields = config.fields.filter(f => f.parentId === field.id);
       const layout = field.layout || 'vertical';
-
       return (
         <div className="FP-form-field-component FP-form-field-panel">
           <div className="FP-card panel-container">
             <div className="panel-label">{field.label}</div>
             <div className={`panel-children ${layout === 'horizontal' ? 'panel-horizontal' : 'panel-vertical'}`}>
               {childFields.map(child => (
+                <div key={child.id} style={{ display:"flex", flexDirection:"row", flexWrap:"wrap", width: `${child.width }%` }}>
                 <div key={child.id} className={`panel-child ${layout === 'horizontal' ? 'panel-child-horizontal' : 'panel-child-vertical'}`}>
                   {renderField(child)}
+                </div>
                 </div>
               ))}
             </div>
@@ -160,7 +161,7 @@ export const FormPreview = ({ config }) => {
     }
 
     // Fallback for unknown field types
-    return <Input type="text" placeholder={field.placeholder} value={formData[field.id] || ""} onChange={(e) => updateFormData(field.id, e.target.value)} />;
+    return <Input type={field?.type || "text"} placeholder={field.placeholder} value={formData[field.id] || ""} onChange={(e) => updateFormData(field.id, e.target.value)} />;
   };
 
   const getCurrentStepFields = () => {
@@ -215,7 +216,7 @@ export const FormPreview = ({ config }) => {
         <form key={formKey} onSubmit={handleSubmit} className="FP-form-preview-form">
           <div className="FP-form-preview-fields">
             {currentStepFields?.map((field) => (
-              <div key={field.id} className="FP-form-preview-field">
+              <div key={field.id} className="FP-form-preview-field" style={{ width: `${field.width || 100}%` }}>
                 {/* <Label htmlFor={field.id} className="FP-form-preview-label">
                   {field.label}
                   {field.required && <span className="FP-form-preview-required">*</span>}
@@ -224,7 +225,7 @@ export const FormPreview = ({ config }) => {
               </div>
             ))}
           </div>
-          <div className="FP-form-preview-actions">
+          {/* <div className="FP-form-preview-actions">
             {config?.isMultiStep && currentStep > 0 ? (
               <Button type="button" variant="outline" onClick={goToPreviousStep} className="FP-form-preview-btn-previous">
                 Previous
@@ -233,7 +234,7 @@ export const FormPreview = ({ config }) => {
             <Button type="submit" className="FP-form-preview-btn-submit">
               {config?.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
             </Button>
-          </div>
+          </div> */}
         </form>
       </div>
     </div>

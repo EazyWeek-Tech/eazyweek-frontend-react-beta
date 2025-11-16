@@ -16,7 +16,8 @@
 
 .panel-children {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
@@ -26,6 +27,7 @@
 
 .panel-horizontal {
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 

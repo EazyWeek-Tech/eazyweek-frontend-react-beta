@@ -96,6 +96,11 @@ const GeneralForm = () => {
   };
 
   const handleSave = () => {
+    if (!formData.formName.trim() || !formData.code.trim() || !formData.formType) {
+      alert("Form Name, Code, and Form Type are required.");
+      return;
+    }
+
     console.log("Form Data:", formData);
     console.log("Service Data:", serviceData);
     console.log("Guest Data:", guestData);
@@ -103,8 +108,7 @@ const GeneralForm = () => {
     console.log("Membership Data:", membershipData);
     console.log("Packages Data:", packagesData);
     console.log("Loyalty Data:", loyaltyData);
-    alert("Form saved successfully!");
-    navigate("/custom-forms/form-builder")
+    navigate("/custom-forms/form-builder", { state: { formData } });
   };
 
   const handleCancel = () => {
@@ -119,14 +123,22 @@ const GeneralForm = () => {
 
   return (
     <div className="GF-general-form-container">
+        <div className="GF-breadcrumb">
+          <a href="/" className="GF-breadcrumb-link">Dashboard</a>
+          <span className="GF-breadcrumb-separator">›</span>
+          <a href="/custom-forms" className="GF-breadcrumb-link">Personalised Form Creator</a>
+          <span className="GF-breadcrumb-separator">›</span>
+          <span className="GF-breadcrumb-current">Create Form</span>
+        </div>
+     <div className="GF-form-wrapper">
       <div className="GF-form-container">
         <div className="GF-page-header">
-          <h1 className="GF-page-title">General Form</h1>
+          <h1 className="GF-page-title">Create Form</h1>
         </div>
         <div className="GF-form-content">
           {/* Base Fields */}
           <div className="GF-form-row">
-            <label className="GF-form-label">Form Name</label>
+            <label className="GF-form-label">Form Name *</label>
             <input
               type="text"
               name="formName"
@@ -149,7 +161,7 @@ const GeneralForm = () => {
             />
           </div>
 
-          <div className="GF-form-row">
+          {/* <div className="GF-form-row">
             <label className="GF-form-label">Description</label>
             <textarea
               className="GF-form-textarea"
@@ -158,7 +170,7 @@ const GeneralForm = () => {
               onChange={handleBaseChange}
               placeholder="Enter description"
             />
-          </div>
+          </div> */}
 
           <div className="GF-form-row">
             <label className="GF-form-label">Form Type</label>
@@ -171,14 +183,14 @@ const GeneralForm = () => {
               <option value="">Select Form Type</option>
               <option value="Service">Service</option>
               <option value="Guest">Guest</option>
-              <option value="Tag">Tag</option>
+              {/* <option value="Tag">Tag</option>
               <option value="Membership">Membership</option>
               <option value="Packages">Packages</option>
-              <option value="Loyalty">Loyalty</option>
+              <option value="Loyalty">Loyalty</option> */}
             </select>
           </div>
 
-          <div className="GF-form-row">
+          {/* <div className="GF-form-row">
             <label className="GF-form-label">Create form using</label>
             <select
               value={packagesData.createFormUsing}
@@ -190,7 +202,7 @@ const GeneralForm = () => {
               <option>Form builder</option>
               <option>HTML code</option>
             </select>
-          </div>
+          </div> */}
 
           {/* ================= Service ================= */}
           {formData.formType === "Service" && (
@@ -271,7 +283,7 @@ const GeneralForm = () => {
                 </div>
               )}
 
-              <h3 className="GF-section-subtitle">Additional settings</h3>
+              {/* <h3 className="GF-section-subtitle">Additional settings</h3>
               <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
@@ -302,9 +314,9 @@ const GeneralForm = () => {
                   />
                   Require review only once within validity period
                 </label>
-              )}
+              )} */}
 
-              <h3 className="GF-section-subtitle">Form behavior settings</h3>
+              {/* <h3 className="GF-section-subtitle">Form behavior settings</h3>
               <label className="GF-checkbox-label">
                 <input
                   type="checkbox"
@@ -364,12 +376,12 @@ const GeneralForm = () => {
                   }
                 />
                 Email copy of the form to guest on submission
-              </label>
+              </label> */}
             </div>
           )}
 
           {/* ================= Guest ================= */}
-          {formData.formType === "Guest" && (
+          {/* {formData.formType === "Guest" && (
             <div className="GF-form-section">
               <h3 className="GF-section-subtitle">Form behavior settings</h3>
 
@@ -426,7 +438,7 @@ const GeneralForm = () => {
                 Email copy of the form to guest on submission
               </label>
             </div>
-          )}
+          )} */}
 
           {/* ================= Tag ================= */}
           {formData.formType === "Tag" && (
@@ -730,7 +742,7 @@ const GeneralForm = () => {
         {/* Buttons */}
         <div className="GF-form-buttons">
           <button className="GF-save-btn" onClick={handleSave}>
-            save and Proceed
+            Save and Proceed
           </button>
         </div>
       </div>
@@ -780,6 +792,7 @@ const GeneralForm = () => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

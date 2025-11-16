@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
@@ -27,8 +28,11 @@ import "./AdvancedFormBuilder.css";
 import { API_BASE_URL } from "../../../config";
 
 export const AdvancedFormBuilder = () => {
+  const location = useLocation();
+  const formData = location.state?.formData;
+
   const initialConfig = {
-    title: "Custom Form",
+    title: formData?.formName || "Custom Form",
     description: "",
     steps: [{ id: "step-1", title: "General Information", fields: [] }],
     fields: [],
@@ -52,6 +56,8 @@ export const AdvancedFormBuilder = () => {
       parentId,
     };
 
+    newField.width = 100;
+
     // Add type-specific properties
     if (type === "select" || type === "radio" || type === "selectboxes") {
       newField.options = ["Option 1", "Option 2"];
@@ -74,6 +80,8 @@ export const AdvancedFormBuilder = () => {
     if (type === "table") {
       newField.rows = 1;
       newField.columns = 2;
+      newField.headers = ["Column 1", "Column 2"];
+      newField.columnTypes = ["text", "text"];
     }
     if (type === "signature" || type === "annotation") {
       newField.width = type === "signature" ? 300 : 400;
@@ -162,6 +170,8 @@ export const AdvancedFormBuilder = () => {
       if (type === "table") {
         newField.rows = 1;
         newField.columns = 2;
+        newField.headers = ["Column 1", "Column 2"];
+        newField.columnTypes = ["text", "text"];
       }
       if (type === "signature" || type === "annotation") {
         newField.width = type === "signature" ? 300 : 400;
@@ -214,6 +224,8 @@ export const AdvancedFormBuilder = () => {
       if (type === "table") {
         newField.rows = 1;
         newField.columns = 2;
+        newField.headers = ["Column 1", "Column 2"];
+        newField.columnTypes = ["text", "text"];
       }
       if (type === "signature" || type === "annotation") {
         newField.width = type === "signature" ? 300 : 400;
@@ -346,9 +358,133 @@ export const AdvancedFormBuilder = () => {
   //     description: "Your advanced form configuration has been downloaded.",
   //   });
   // };
+
+  const handleSave = async () => {
+    if (config.fields.length === 0) {
+      setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
+      return;
+    }
+    const formConfig = {
+      ...config,
+      fields: config.fields.map((field) => ({
+        id: field.id,
+        type: field.type,
+        label: field.label,
+        placeholder: field.placeholder || "",
+        required: field.required ? "required" : "optional",
+        parentId: field.parentId || null,
+        // Include other field-specific properties
+        ...(field.options && { options: field.options }),
+        ...(field.min !== undefined && { min: field.min }),
+        ...(field.max !== undefined && { max: field.max }),
+        ...(field.step !== undefined && { step: field.step }),
+        ...(field.rows !== undefined && { rows: field.rows }),
+        ...(field.columns !== undefined && { columns: field.columns }),
+        ...(field.accept && { accept: field.accept }),
+        ...(field.width !== undefined && { width: field.width }),
+        ...(field.height !== undefined && { height: field.height }),
+        ...(field.layout && { layout: field.layout }),
+        conditionalRules: field.conditionalRules || [],
+        validationRules: field.validationRules || [],
+      })),
+    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/form/save`, {
+        method: "POST",
+        headers: headersFor("POST"),
+        body: JSON.stringify({
+          schemaJson: JSON.stringify(formConfig), // Convert object to string
+          name: formConfig?.title,
+          status: "published",
+        }),
+        credentials: "include",
+      });
+      if (response.ok) {
+        console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
+        setToast({ message: "Form configuration saved successfully!", type: "success" });
+      } else {
+        setToast({ message: "Failed to save form. Please try again.", type: "error" });
+      }
+    } catch (error) {
+      console.error("Error saving form:", error);
+      setToast({ message: "An error occurred while saving the form.", type: "error" });
+    }
+  };
+
+  const handleSaveAndClose = async () => {
+    if (config.fields.length === 0) {
+      setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
+      return;
+    }
+    const formConfig = {
+      ...config,
+      fields: config.fields.map((field) => ({
+        id: field.id,
+        type: field.type,
+        label: field.label,
+        placeholder: field.placeholder || "",
+        required: field.required ? "required" : "optional",
+        parentId: field.parentId || null,
+        // Include other field-specific properties
+        ...(field.options && { options: field.options }),
+        ...(field.min !== undefined && { min: field.min }),
+        ...(field.max !== undefined && { max: field.max }),
+        ...(field.step !== undefined && { step: field.step }),
+        ...(field.rows !== undefined && { rows: field.rows }),
+        ...(field.columns !== undefined && { columns: field.columns }),
+        ...(field.accept && { accept: field.accept }),
+        ...(field.width !== undefined && { width: field.width }),
+        ...(field.height !== undefined && { height: field.height }),
+        ...(field.layout && { layout: field.layout }),
+        conditionalRules: field.conditionalRules || [],
+        validationRules: field.validationRules || [],
+      })),
+    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/form/save`, {
+        method: "POST",
+        headers: headersFor("POST"),
+        body: JSON.stringify({
+          schemaJson: JSON.stringify(formConfig), // Convert object to string
+          name: formConfig?.title,
+        }),
+        credentials: "include",
+      });
+      if (response.ok) {
+        console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
+        setToast({ message: "Form configuration saved successfully!", type: "success" });
+        // Clear form on success
+        setConfig(initialConfig);
+        setSelectedField(null);
+        setSelectedChildFieldTypes([]);
+      } else {
+        setToast({ message: "Failed to save form. Please try again.", type: "error" });
+      }
+    } catch (error) {
+      console.error("Error saving form:", error);
+      setToast({ message: "An error occurred while saving the form.", type: "error" });
+    }
+  };
+
+  const handleCloseWithoutSaving = () => {
+    setConfig(initialConfig);
+    setSelectedField(null);
+    setSelectedChildFieldTypes([]);
+    setToast({ message: "Form cleared without saving.", type: "info" });
+  };
+
   return (
     <div className="AdvFormBuilder-container">
       <div className="AdvFormBuilder-wrapper">
+            <div className="AdvFormBuilder-breadcrumb">
+              <a href="/" className="AdvFormBuilder-breadcrumb-link">Dashboard</a>
+              <span className="AdvFormBuilder-breadcrumb-separator">›</span>
+              <a href="/custom-forms" className="AdvFormBuilder-breadcrumb-link">Custom Forms</a>
+              <span className="AdvFormBuilder-breadcrumb-separator">›</span>
+              <span className="AdvFormBuilder-breadcrumb-current">Form Builder</span> 
+              <span className="AdvFormBuilder-breadcrumb-separator">›</span>
+              <span className="AdvFormBuilder-breadcrumb-current">{config.title}</span> 
+            </div>
         <div className="AdvFormBuilder-header">
           <div>
             <h1 className="AdvFormBuilder-title">
@@ -724,6 +860,28 @@ export const AdvancedFormBuilder = () => {
                             />
                           </div>
 
+                          <div className="AdvFormBuilder-field-setting">
+                            <Label
+                              htmlFor="field-width"
+                              className="AdvFormBuilder-label"
+                            >
+                              Width (%)
+                            </Label>
+                            <Input
+                              id="field-width"
+                              type="number"
+                              value={selectedField.width || 100}
+                              onChange={(e) =>
+                                updateField(selectedField.id, {
+                                  width: parseInt(e.target.value) || 100,
+                                })
+                              }
+                              className="mt-1 AdvFormBuilder-input"
+                              min="10"
+                              max="100"
+                            />
+                          </div>
+
                           <div className="AdvFormBuilder-toggle">
                             <ToggleSwitch
                               leftLabel="Optional"
@@ -970,13 +1128,73 @@ export const AdvancedFormBuilder = () => {
                                   id="field-columns"
                                   type="number"
                                   value={selectedField.columns || 2}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const newColumns = parseInt(e.target.value) || 2;
+                                    const currentHeaders = selectedField.headers || [];
+                                    const currentColumnTypes = selectedField.columnTypes || [];
+                                    const newHeaders = [...currentHeaders];
+                                    const newColumnTypes = [...currentColumnTypes];
+                                    if (newColumns > currentHeaders.length) {
+                                      for (let i = currentHeaders.length; i < newColumns; i++) {
+                                        newHeaders.push(`Column ${i + 1}`);
+                                        newColumnTypes.push("text");
+                                      }
+                                    } else if (newColumns < currentHeaders.length) {
+                                      newHeaders.splice(newColumns);
+                                      newColumnTypes.splice(newColumns);
+                                    }
                                     updateField(selectedField.id, {
-                                      columns: parseInt(e.target.value),
-                                    })
-                                  }
+                                      columns: newColumns,
+                                      headers: newHeaders,
+                                      columnTypes: newColumnTypes,
+                                    });
+                                  }}
                                   className="mt-1 AdvFormBuilder-input"
                                 />
+                              </div>
+                              <div className="AdvFormBuilder-field-setting">
+                                <Label className="AdvFormBuilder-label">
+                                  Column Configuration
+                                </Label>
+                                <div className="AdvFormBuilder-table-columns">
+                                  {(selectedField.headers || []).map((header, index) => (
+                                    <div key={index} className="AdvFormBuilder-column-config">
+                                      <Input
+                                        placeholder="Header Name"
+                                        value={header}
+                                        onChange={(e) => {
+                                          const newHeaders = [...(selectedField.headers || [])];
+                                          newHeaders[index] = e.target.value;
+                                          updateField(selectedField.id, {
+                                            headers: newHeaders,
+                                          });
+                                        }}
+                                        className="AdvFormBuilder-input AdvFormBuilder-column-header"
+                                      />
+                                      <select
+                                        value={(selectedField.columnTypes || [])[index] || "text"}
+                                        onChange={(e) => {
+                                          const newColumnTypes = [...(selectedField.columnTypes || [])];
+                                          newColumnTypes[index] = e.target.value;
+                                          updateField(selectedField.id, {
+                                            columnTypes: newColumnTypes,
+                                          });
+                                        }}
+                                        className="AdvFormBuilder-input AdvFormBuilder-column-type"
+                                      >
+                                        <option value="text">Text</option>
+                                        <option value="textarea">Text Area</option>
+                                        <option value="number">Number</option>
+                                        <option value="email">Email</option>
+                                        <option value="date">Date</option>
+                                        <option value="datetime">Date/Time</option>
+                                        <option value="time">Time</option>
+                                        <option value="phone">Phone</option>
+                                        <option value="currency">Currency</option>
+                                      </select>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </>
                           )}
@@ -1227,6 +1445,8 @@ export const AdvancedFormBuilder = () => {
                                           if (type === "table") {
                                             newField.rows = 1;
                                             newField.columns = 2;
+                                            newField.headers = ["Column 1", "Column 2"];
+                                            newField.columnTypes = ["text", "text"];
                                           }
                                           if (
                                             type === "signature" ||
@@ -1325,59 +1545,17 @@ export const AdvancedFormBuilder = () => {
         ) : (
           <FormPreview config={config} />
         )}
-        <div className="AdvBuilder-button">
-                <Button
-                onClick={async () => {
-                  if (config.fields.length === 0) {
-                    setToast({ message: "Please add at least one field before saving the form.", type: "warning" });
-                    return;
-                  }
-                  const formConfig = {
-                    ...config,
-                    fields: config.fields.map((field) => ({
-                      id: field.id,
-                      type: field.type,
-                      label: field.label,
-                      placeholder: field.placeholder || "",
-                      required: field.required ? "required" : "optional",
-                      parentId: field.parentId || null,
-                      // Include other field-specific properties
-                      ...(field.options && { options: field.options }),
-                      ...(field.min !== undefined && { min: field.min }),
-                      ...(field.max !== undefined && { max: field.max }),
-                      ...(field.step !== undefined && { step: field.step }),
-                      ...(field.rows !== undefined && { rows: field.rows }),
-                      ...(field.columns !== undefined && { columns: field.columns, }),                      ...(field.accept && { accept: field.accept }),                      ...(field.width !== undefined && { width: field.width, }),                      ...(field.height !== undefined && { height: field.height, }),                      ...(field.layout && { layout: field.layout }),                      conditionalRules: field.conditionalRules || [],                      validationRules: field.validationRules || [],                    })),                  };
-                  try {
-                    const response = await fetch(`${API_BASE_URL}/api/form/save`, {
-                      method: "POST",
-                      headers: headersFor("POST"),
-                      body: JSON.stringify({
-                        schemaJson: JSON.stringify(formConfig), // Convert object to string
-                        name: formConfig?.title,
-                      }),
-                      credentials: "include",
-                    });
-                    if (response.ok) {
-                      console.log("Form Configuration JSON:", JSON.stringify(formConfig, null, 2));
-                      setToast({ message: "Form configuration saved successfully!", type: "success" });
-                      // Clear form on success
-                      setConfig(initialConfig);
-                      setSelectedField(null);
-                      setSelectedChildFieldTypes([]);
-                    } else {
-                      setToast({ message: "Failed to save form. Please try again.", type: "error" });
-                    }
-                  } catch (error) {
-                    console.error("Error saving form:", error);
-                    setToast({ message: "An error occurred while saving the form.", type: "error" });
-                  }
-                }}
-                  className="mr-2 destructive"
-                >
-                  Save Form
-                </Button>
-              </div>
+        {currentView === 'builder' && <div className="AdvBuilder-button">
+          <Button onClick={handleSave} className="mr-2">
+            Save
+          </Button>
+          <Button onClick={handleSaveAndClose} className="mr-2">
+            Save And Close
+          </Button>
+          <Button onClick={handleCloseWithoutSaving} className="mr-2" variant="outline">
+            Close Without Saving
+          </Button>
+        </div>}
       </div>
             <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>

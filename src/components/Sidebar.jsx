@@ -93,25 +93,27 @@ const Sidebar = ({ collapsed }) => {
     },
     
     {
-      label: "Consent & Treatment Forms",
+      label: "Mapped Forms",
       icon: "bx-file-blank",
-      submenu: [{ name: "Laser Session Consent", path: "/consent-form/laser-session-consent" }
-,{ name: "Injectable Consent", path: "/consent-form/injectable-treatment-consent" },
-{ name: "Hyaluronidase Consent", path: "/consent-form/hyaluronidase-consent" },
-{ name: "Antiaging Consent", path: "/consent-form/antiaging-consent" },
-
-{ name:"Laser Session", path:"/custom-forms/laser-session"}
-,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
-{ name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
-      ],
-
+      submenu: [{ name: "List Forms", path: "/mapped-forms/list-forms" }],
     },
+    
+// ,{ name: "Injectable Consent", path: "/consent-form/injectable-treatment-consent" },
+// { name: "Hyaluronidase Consent", path: "/consent-form/hyaluronidase-consent" },
+// { name: "Antiaging Consent", path: "/consent-form/antiaging-consent" },
+
+// { name:"Laser Session", path:"/custom-forms/laser-session"}
+// ,{ name:"Consultation Assessment", path:"/custom-forms/consultation-assessment"},
+// { name:"Hyaluronidase Treatment", path:"/custom-forms/hyaluronidase-treatment"},
+    //   ],
+
+    // },
     {
-      label:"Custom Forms",
+      label:"Personalised Form Creator",
       icon:"bx-customize",
       submenu:[
-    { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
-    { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
+    // { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
+    // { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
     { name:"General Form", path:"/custom-forms/general-form"},
       ]
     },

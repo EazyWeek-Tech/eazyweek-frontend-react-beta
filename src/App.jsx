@@ -72,6 +72,7 @@ import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 //import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
+import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -293,6 +294,10 @@ function App() {
                   />
 
                   {/* // New Route for Laser Session Consent Form */}
+                  <Route
+                    path="/mapped-forms/list-forms"
+                    element={<FormList />}
+                  />
                   <Route
                     path="/consent-form/laser-session-consent"
                     element={<LaserSessionCF />}

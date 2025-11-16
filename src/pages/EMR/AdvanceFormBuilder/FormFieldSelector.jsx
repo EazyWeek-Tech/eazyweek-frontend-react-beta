@@ -177,6 +177,12 @@ const fieldCategories = {
     icon: Pen,
     description: "Digital signature",
   },
+  {
+    type: "facecard",
+    label: "Face Card",
+    icon: Pen,
+    description: "Pace Card for skin care",
+  },
   ],
   Personal: [
   {

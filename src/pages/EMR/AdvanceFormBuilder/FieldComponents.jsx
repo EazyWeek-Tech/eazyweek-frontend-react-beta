@@ -7,6 +7,7 @@ import { Label } from "../../../components/ui/label";
 import { Card } from "../../../components/ui/card";
 import { FileText, MapPin, Phone, Mail, Calendar, DollarSign, User, Hash, Globe, Home, Building } from "lucide-react";
 import FileUploader from "../Components/FileUploader";
+import FaceMapper from "../Components/FaceMapper";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 // Text Field Component
@@ -739,7 +740,7 @@ import { Button } from "../../../components/ui/button";
 export const TableField = ({ field, value, onChange, error }) => {
   const tableData = value || { rows: field.rows || 1, columns: field.columns || 2, data: {} };
   const [rows, setRows] = useState(tableData.rows);
-  const [columns, setColumns] = useState(tableData.columns);
+  const [columns, _setColumns] = useState(tableData.columns);
 
   const addRow = () => {
     const newRows = rows + 1;
@@ -752,16 +753,16 @@ export const TableField = ({ field, value, onChange, error }) => {
     onChange(field.id, updatedData);
   };
 
-  const addColumn = () => {
-    const newColumns = columns + 1;
-    setColumns(newColumns);
-    const updatedData = {
-      ...tableData,
-      columns: newColumns,
-      data: tableData.data || {}
-    };
-    onChange(field.id, updatedData);
-  };
+  // const addColumn = () => {
+  //   const newColumns = columns + 1;
+  //   setColumns(newColumns);
+  //   const updatedData = {
+  //     ...tableData,
+  //     columns: newColumns,
+  //     data: tableData.data || {}
+  //   };
+  //   onChange(field.id, updatedData);
+  // };
 
   const handleCellChange = (rowIndex, colIndex, cellValue) => {
     const updatedData = {
@@ -776,6 +777,28 @@ export const TableField = ({ field, value, onChange, error }) => {
     onChange(field.id, updatedData);
   };
 
+  const getInputType = (colIndex) => {
+    const columnTypes = field.columnTypes || [];
+    const type = columnTypes[colIndex] || 'text';
+    switch (type) {
+      case 'textarea':return 'textarea'
+      case 'number': return 'number';
+      case 'email': return 'email';
+      case 'date': return 'date';
+      case 'datetime': return 'datetime-local';
+      case 'time': return 'time';
+      case 'phone': return 'tel';
+      case 'currency': return 'number';
+      default: return 'text';
+    }
+  };
+
+  const getPlaceholder = (colIndex) => {
+    const headers = field.headers || [];
+    const header = headers[colIndex] || `Column ${colIndex + 1}`;
+    return `Enter ${header}`;
+  };
+
   return (
     <div className="form-field-component FC-form-field-table">
       <Label>
@@ -785,14 +808,16 @@ export const TableField = ({ field, value, onChange, error }) => {
       </Label>
       <div className="FC-button">
         <Button type="button" onClick={addRow} size="sm" variant="outline">Add Row</Button>
-        <Button type="button" onClick={addColumn} size="sm" variant="outline">Add Column</Button>
+        {/* <Button type="button" onClick={addColumn} size="sm" variant="outline">Add Column</Button> */}
       </div>
       <div className="border border-gray-200 p-2">
         <table className="w-full border-collapse border border-gray-300">
           <thead>
             <tr>
-              {Array.from({ length: columns }, (_, i) => (
-                <th key={i} className="border border-gray-300 p-2">Column {i + 1}</th>
+              {(field.headers || []).map((header, i) => (
+                <th key={i} className="border border-gray-300 p-2 font-medium bg-gray-50">
+                  {header || `Column ${i + 1}`}
+                </th>
               ))}
             </tr>
           </thead>
@@ -801,12 +826,23 @@ export const TableField = ({ field, value, onChange, error }) => {
               <tr key={rowIndex}>
                 {Array.from({ length: columns }, (_, colIndex) => (
                   <td key={colIndex} className="border border-gray-300 p-2">
-                    <Input
-                      type="text"
-                      placeholder={`Row ${rowIndex + 1}, Col ${colIndex + 1}`}
+                    {getInputType(colIndex) === 'textarea' ? 
+                    <Textarea
+                      type={getInputType(colIndex)}
+                      placeholder={getPlaceholder(colIndex)}
                       value={tableData.data?.[`${rowIndex}-${colIndex}`] || ""}
                       onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
+                      step={(field.columnTypes || [])[colIndex] === 'currency' ? '0.01' : undefined}
                     />
+                    :
+                    <Input
+                      type={getInputType(colIndex)}
+                      placeholder={getPlaceholder(colIndex)}
+                      value={tableData.data?.[`${rowIndex}-${colIndex}`] || ""}
+                      onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
+                      step={(field.columnTypes || [])[colIndex] === 'currency' ? '0.01' : undefined}
+                    />
+                    }
                   </td>
                 ))}
               </tr>
@@ -1019,6 +1055,26 @@ export const TabsField = ({ field, value, onChange, error }) => {
             className="w-full resize-none"
           />
         </div>
+      </div>
+      {error && <span className="form-field-error-message">{error}</span>}
+    </div>
+  );
+};
+
+// Face Card Field Component
+export const FacecardField = ({ field, onChange, error }) => {
+  const handleDrawingComplete = (data) => {
+    onChange(field.id, data);
+  };
+
+  return (
+    <div className="form-field-component FC-form-field-facecard">
+      <div className="border-2 border-dashed border-gray-300 p-4 text-center">
+        <FaceMapper
+          onDrawingComplete={handleDrawingComplete}
+          width={field.width || 400}
+          height={field.height || 400}
+        />
       </div>
       {error && <span className="form-field-error-message">{error}</span>}
     </div>
