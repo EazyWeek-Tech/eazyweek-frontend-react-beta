@@ -167,9 +167,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchTherapists = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`, {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
         setTherapists(data.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
@@ -625,6 +625,23 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         if (activeTab === "sign-in") {
           console.log("[CREATE CASE] switching tab to 'register'");
           setTimeout(() => setActiveTab("register"), 0);
+        } else if (activeTab === "register") {
+          // 🔥 Save from Issues tab → auto-close popup & refresh case table
+          const payloadWithCaseNo = {
+            ...payload,
+            caseno: finalCaseNo || casenoForSave || "",
+          };
+
+          if (onSubmit) {
+            onSubmit(payloadWithCaseNo); // parent will refresh CaseTable
+          }
+
+          resetForm();
+          setActiveTab("sign-in");
+
+          if (typeof onClose === "function") {
+            onClose();
+          }
         }
       } else {
         showToast(
@@ -795,7 +812,6 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 <a
                   href="#"
                   id="register"
-                  // FIXED: removed "disabled" class so CSS doesn't hide it
                   className={`register ${activeTab === "register" ? "active" : ""}`}
                   onClick={handleRegisterClick}
                 >
@@ -1461,18 +1477,6 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 <div className="error"></div>
               </div>
 
-              {/* Add Response (optional) */}
-             {/*  <div className="form-group">
-                <label htmlFor="response">Add Response</label>
-                <textarea
-                  id="response"
-                  rows="5"
-                  value={formValues.response}
-                  onChange={(e) => handleChange("response", e.target.value)}
-                ></textarea>
-                <div className="error"></div>
-              </div> */}
-
               {/* Employee Mobile (required) */}
               <div className="form-group">
                 <label htmlFor="employeno">
@@ -1554,11 +1558,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 )}
               </div>
 
-              {/* CC (required) */}
+              {/* CC (optional) */}
               <div className="form-group">
-                <label htmlFor="cc">
-                  CC
-                </label>
+                <label htmlFor="cc">CC</label>
                 <select
                   id="cc"
                   value={formValues.cc}
@@ -1583,8 +1585,6 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 ></textarea>
                 <div className="error"></div>
               </div>
-
-             
 
               {/* Remarks (optional) */}
               <div className="form-group">
