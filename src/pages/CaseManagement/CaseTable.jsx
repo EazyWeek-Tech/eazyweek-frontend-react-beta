@@ -23,7 +23,7 @@ const CaseTable = ({ records = [] }) => {
       const dateB = new Date(b.createddate || "1970-01-01");
       return dateB - dateA;
     });
-
+    console.log(sortedRecords)
     setTimeout(() => {
       $table.DataTable({
         data: sortedRecords,
@@ -58,6 +58,16 @@ const CaseTable = ({ records = [] }) => {
                 (row?.status ?? "").toString().trim().toLowerCase() === "closed";
               return isClosed ? "-" : (data ?? "-");
             },
+          },
+          {
+            data: "customerName",
+            title: "Customer Name",
+            render: (data) => data ?? "-",
+          },
+          {
+            data: "customerPhoneNo",
+            title: "Customer Number",
+            render: (data) => data ?? "-",
           },
           { data: "createdby", title: "Owner" },
           {
