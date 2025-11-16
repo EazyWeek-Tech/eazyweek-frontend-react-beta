@@ -347,6 +347,9 @@ const CaseDetailsPage = () => {
   const [hierLoading, setHierLoading] = useState(false);
   const [hierErr, setHierErr] = useState("");
 
+  // NEW: employees cache for debug & stage mapping
+  const [employees, setEmployees] = useState([]);
+
   // L2 dialog state
   const [l2DialogOpen, setL2DialogOpen] = useState(false);
   const [l2ReassignCode, setL2ReassignCode] = useState("");
@@ -360,6 +363,26 @@ const CaseDetailsPage = () => {
       }
     };
   }, []);
+
+  const formatCreatedDate = (raw) => {
+    if (!raw || raw === "0001-01-01T00:00:00") return "-";
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
+    if (m) {
+      const [, dd, MM, yyyy] = m;
+      return `${dd}/${MM}/${yyyy}`;
+    }
+    const d = new Date(raw);
+    return isNaN(d)
+      ? "-"
+      : d.toLocaleString("en-IN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+  };
 
   // --- Fetch case details ---
   useEffect(() => {
@@ -437,7 +460,7 @@ const CaseDetailsPage = () => {
           moreCc: trim(data.moreCC),
           remarks: trim(data.remarks),
 
-          categorySpecificResolution: trim(data.categorySpecificResolution),
+          categorySpecificResolution: trim(data.specificResolutionName || data.categorySpecificResolution),
 
           materialCost: data.materialCost ?? 0,
           labourCost: data.labourCOst ?? 0,
@@ -605,26 +628,7 @@ const CaseDetailsPage = () => {
     selectedCaseData?.assignToCode,
   ]);
 
-  const formatCreatedDate = (raw) => {
-    if (!raw || raw === "0001-01-01T00:00:00") return "-";
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
-    if (m) {
-      const [, dd, MM, yyyy] = m;
-      return `${dd}/${MM}/${yyyy}`;
-    }
-    const d = new Date(raw);
-    return isNaN(d)
-      ? "-"
-      : d.toLocaleString("en-IN", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-  };
-
+  // --- Resolve Stage 1 (and cache Employees for debug) ---
   useEffect(() => {
     const targetName = (selectedCaseData?.firstSlaName || "").trim();
     if (!targetName) {
@@ -638,8 +642,11 @@ const CaseDetailsPage = () => {
           headers: { Accept: "application/json" },
         });
         const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        setEmployees(arr); // cache for debug + other lookups
+
         const want = normNameBase(targetName);
-        const match = (Array.isArray(list) ? list : []).find((e) => {
+        const match = arr.find((e) => {
           const nm = normNameBase(e?.employeeName);
           return nm === want;
         });
@@ -701,9 +708,6 @@ const CaseDetailsPage = () => {
   };
 
   // --------------------------------------------
-  // L2 detection (page-level; uses hierarchy + case)
-  // --------------------------------------------
-  // --------------------------------------------
   // L1/L2 detection (page-level; uses hierarchy + case)
   // --------------------------------------------
   const ownerDisplay = firstNonEmpty(
@@ -732,7 +736,7 @@ const CaseDetailsPage = () => {
     (!!l1Code && !!curCode && l1Code === curCode) ||
     (!!l1Name && !!curName && l1Name === curName);
 
-  // ---------- Level 2 signals (can safely reference isAtLevel1Now now) ----------
+  // ---------- Level 2 signals ----------
   const l2Code = normCodeId(
     firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
   );
@@ -741,11 +745,8 @@ const CaseDetailsPage = () => {
   );
   const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
   const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
-
-  // Must match Level 2 AND NOT Level 1
   const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
 
-  // Banner only when L2 and the visible "Assigned To" equals L2 (code or name)
   const showL2Banner = (() => {
     if (!isAtLevel2Now) return false;
     const disp = trim(assignedDisplay);
@@ -754,6 +755,53 @@ const CaseDetailsPage = () => {
     const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
     return dispAsCodeEq || dispAsNameEq;
   })();
+
+  // --------------------------------------------
+  // NEW: Debug logging — current vs next assignee with employee codes
+  // --------------------------------------------
+  useEffect(() => {
+    if (!selectedCaseData) return;
+
+    const urlNameRaw = trim(assignedFromUrl);
+    const urlNameNorm = normNameBase(urlNameRaw);
+    let currentEmp = null;
+
+    if (urlNameNorm && Array.isArray(employees) && employees.length) {
+      currentEmp = employees.find(
+        (e) => normNameBase(e?.employeeName) === urlNameNorm
+      );
+    }
+
+    const currentInfo = {
+      source: "URL param (?assignedTo=) / grid",
+      nameFromUrl: urlNameRaw || "(not provided)",
+      resolvedEmployeeName: currentEmp?.employeeName || urlNameRaw || "(not resolved)",
+      employeeCode: (currentEmp?.employeeCode || "").toString().trim() || "(not found in Employees)",
+    };
+
+    const nextInfo = {
+      source: "CaseDetails GET API",
+      name: trim(
+        selectedCaseData.assignName ||
+        selectedCaseData.secondSlaName ||
+        selectedCaseData.firstSlaEName ||
+        ""
+      ) || "(empty)",
+      employeeCode: trim(
+        selectedCaseData.assignToCode ||
+        selectedCaseData.secondSlaCode ||
+        selectedCaseData.nextLevelID ||
+        ""
+      ) || "(empty)",
+    };
+
+    console.groupCollapsed("DEBUG: Case assignee mapping (current vs next)");
+    console.log("Case No:", selectedCaseData.caseNo);
+    console.log("Current assignee (from URL / grid):", currentInfo);
+    console.log("Next assignee (from CaseDetails API):", nextInfo);
+    console.log("Note: Backend bug suspicion — API is returning next assignee in assignToCode/assignName.");
+    console.groupEnd();
+  }, [assignedFromUrl, selectedCaseData, employees]);
 
   // --------------------------------------------
   // Assignee resolver used when persisting a response
@@ -800,7 +848,7 @@ const CaseDetailsPage = () => {
   // -----------------------------
   // Actions
   // -----------------------------
-  const handleAction = async (actionType, overrides = {}) => {
+    const handleAction = async (actionType, overrides = {}) => {
     const generalData =
       overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
     const effectiveStatus = trim(overrides.status ?? status);
@@ -892,7 +940,7 @@ const CaseDetailsPage = () => {
       await postCaseOperation(preSubmitPayload, "submit (preflight persist response)");
     }
 
-    // Closing via submit
+    // Closing via submit (UNCHANGED)
     if (closingViaSubmit) {
       try {
         if (!trim(effectiveSelected?.response)) {
@@ -1043,7 +1091,7 @@ const CaseDetailsPage = () => {
       return;
     }
 
-    // ---- Normal paths unchanged below ----
+    // ---- Build base payload for other flows ----
     const operationForBackend = actionType;
     const payload = buildFullPayload({
       general: generalData,
@@ -1052,6 +1100,50 @@ const CaseDetailsPage = () => {
       disposition: effectiveDisposition,
       operation: operationForBackend,
     });
+
+    // 🔹 SPECIAL CASE: SAVE → force current assignee into payload
+    if (actionType === "save") {
+      const urlNameRaw = trim(assignedFromUrl);
+      const urlNameNorm = normNameBase(urlNameRaw);
+
+      let currentEmp = null;
+      if (urlNameNorm && Array.isArray(employees) && employees.length) {
+        currentEmp = employees.find(
+          (e) => normNameBase(e?.employeeName) === urlNameNorm
+        );
+      }
+
+      const resolvedCode = trim(
+        currentEmp?.employeeCode ||
+        selectedCaseData?.assignToCode ||
+        selectedCaseData?.assignedTo ||
+        ""
+      );
+      const resolvedMobile = trim(
+        currentEmp?.mobileNo ||
+        selectedCaseData?.employeeMobile ||
+        ""
+      );
+      const resolvedEmail = trim(
+        currentEmp?.emailID ||
+        selectedCaseData?.email ||
+        ""
+      );
+
+      payload.assignedto      = resolvedCode || payload.assignedto || "";
+      payload.caseWith        = resolvedCode || payload.caseWith   || "";
+      payload.employeno       = resolvedMobile || payload.employeno || "";
+      payload.assignedemailid = resolvedEmail  || payload.assignedemailid || "";
+
+      console.groupCollapsed("DEBUG: SAVE payload current assignee mapping");
+      console.log("URL ?assignedTo=", urlNameRaw);
+      console.log("Resolved current assignee for SAVE →", {
+        employeeCode: resolvedCode,
+        mobileNo: resolvedMobile,
+        emailID: resolvedEmail,
+      });
+      console.groupEnd();
+    }
 
     if (actionType !== "submit") {
       payload.response = "";
@@ -1185,6 +1277,7 @@ const CaseDetailsPage = () => {
     }
   };
 
+
   // --------------------------------------------
   // Tab click handler with loader (3 seconds)
   // --------------------------------------------
@@ -1262,7 +1355,7 @@ const CaseDetailsPage = () => {
         background: "#f6f8fa",
         color: "#57606a",
         verticalAlign: "middle",
-        display: "none",
+        display: "none", // keep hidden for QA switch if needed
       }}
       title="Debug: which stage of handoff this case is in"
     >
