@@ -29,7 +29,7 @@ const FormList = () => {
 
   const handleNameClick = async (formId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/form/definition-by-name?name=${formId}`);
+      const response = await fetch(`${API_BASE_URL}/api/form/by-name?name=${formId}`);
       if (!response.ok) throw new Error('Failed to fetch form config');
       const config = await response.json();
       setSelectedFormConfig(config);

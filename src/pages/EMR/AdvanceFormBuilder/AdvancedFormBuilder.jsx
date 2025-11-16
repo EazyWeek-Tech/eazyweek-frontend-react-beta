@@ -393,9 +393,9 @@ export const AdvancedFormBuilder = () => {
         method: "POST",
         headers: headersFor("POST"),
         body: JSON.stringify({
-          schemaJson: JSON.stringify(formConfig), // Convert object to string
           name: formConfig?.title,
-          status: "published",
+          code: formData?.code,
+          schemaJson: JSON.stringify(formConfig) // Convert object to string
         }),
         credentials: "include",
       });
@@ -447,6 +447,7 @@ export const AdvancedFormBuilder = () => {
         body: JSON.stringify({
           schemaJson: JSON.stringify(formConfig), // Convert object to string
           name: formConfig?.title,
+          code: formData?.code
         }),
         credentials: "include",
       });
@@ -479,9 +480,9 @@ export const AdvancedFormBuilder = () => {
             <div className="AdvFormBuilder-breadcrumb">
               <a href="/" className="AdvFormBuilder-breadcrumb-link">Dashboard</a>
               <span className="AdvFormBuilder-breadcrumb-separator">›</span>
-              <a href="/custom-forms" className="AdvFormBuilder-breadcrumb-link">Custom Forms</a>
+              <a href="/custom-forms" className="AdvFormBuilder-breadcrumb-link">Personalised Form Creator</a>
               <span className="AdvFormBuilder-breadcrumb-separator">›</span>
-              <span className="AdvFormBuilder-breadcrumb-current">Form Builder</span> 
+              <a href="/custom-forms/general-form" className="AdvFormBuilder-breadcrumb-current">Create Form</a>
               <span className="AdvFormBuilder-breadcrumb-separator">›</span>
               <span className="AdvFormBuilder-breadcrumb-current">{config.title}</span> 
             </div>

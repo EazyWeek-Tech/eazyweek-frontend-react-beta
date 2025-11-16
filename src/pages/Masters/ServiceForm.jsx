@@ -476,7 +476,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const handleFormSelection = (id) => { markDirty("Forms"); setFormsData((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f)); };
 
   const getFormId = async (formName) => {
-    const defUrl = `${API_BASE_URL}/api/form/definition-by-name?name=${encodeURIComponent(formName)}`;
+    const defUrl = `${API_BASE_URL}/api/form/by-name?name=${encodeURIComponent(formName)}`;
     const defRes = await fetch(defUrl, {
       method: "GET",
       credentials: "include",
@@ -728,7 +728,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   };
   const onSubmitForms = async () => {
     try {
-      // Collect all forms with formIds
+      // Collect forms with formIds
       const formsToSave = [];
       for (const f of formsData) {
         if (!f.form) continue;
@@ -737,18 +737,22 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
           formId = await getFormId(f.form);
         }
         formsToSave.push({
-          id: 0,
           serviceId: formData.serviceCode,
           formId: formId,
-          version: 0,
+          version: 1,
           createdDate: new Date().toISOString(),
           isActive: true,
+          formStageForCompletion: f.stageForFormCompletion,
+          formBlockIfNotFilled: f.blockFromProceeding,
+          isDraft: 0
         });
       }
 
-      // Submit all forms in a list
+      // Submit forms in a list
       if (formsToSave.length > 0) {
         await postJSON(`${API_BASE_URL}/api/serviceForm/save`, formsToSave);
+      } else {
+        setToast({ type: "warning", message: "No forms to submit, submitting misc only." });
       }
 
       // Submit misc fields via the old endpoint

@@ -38,7 +38,7 @@ const GetFormByDetails = () => {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch(`${API_BASE_URL}/api/form/definition-by-name?name=${id}`);
+      const res = await fetch(`${API_BASE_URL}/api/form/by-name?name=${id}`);
       if (!res.ok) throw new Error("Failed to load form details");
       const data = await res.json();
       setConfigData(data);

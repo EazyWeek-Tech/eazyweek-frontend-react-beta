@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./GeneralForm.css";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../../config";
 
 const GeneralForm = () => {
   const navigate = useNavigate()
@@ -9,6 +10,7 @@ const GeneralForm = () => {
     code: "",
     description: "",
     formType: "",
+    status:"Active"
   });
 
   const [serviceData, setServiceData] = useState({
@@ -65,6 +67,16 @@ const GeneralForm = () => {
   });
 
   const [showModal, setShowModal] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [toast, setToast] = useState(null);
+
+  // Clear toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const handleBaseChange = (e) => {
     const { name, value } = e.target;
@@ -95,11 +107,41 @@ const GeneralForm = () => {
     handleChange(type, field, value);
   };
 
-  const handleSave = () => {
+  const checkDuplicate = async (name, code) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/form/check-duplicate?name=${encodeURIComponent(name)}&code=${encodeURIComponent(code)}`);
+      if (!response.ok) {
+        throw new Error('Failed to check duplicates');
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      return { nameExists: false, codeExists: false }; // Default to false on error
+    }
+  };
+
+  const handleSave = async () => {
     if (!formData.formName.trim() || !formData.code.trim() || !formData.formType) {
-      alert("Form Name, Code, and Form Type are required.");
+      setToast({ message: "Form Name, Code, and Form Type are required.", type: "error" });
       return;
     }
+
+    const duplicateCheck = await checkDuplicate(formData.formName.trim(), formData.code.trim());
+    if (duplicateCheck.nameExists || duplicateCheck.codeExists) {
+      const newErrors = {};
+      if (duplicateCheck.nameExists) {
+        newErrors.formName = "Form name already exists.";
+      }
+      if (duplicateCheck.codeExists) {
+        newErrors.code = "Code already exists.";
+      }
+      setErrors(newErrors);
+      return;
+    }
+
+    // Clear errors
+    setErrors({});
 
     console.log("Form Data:", formData);
     console.log("Service Data:", serviceData);
@@ -130,6 +172,11 @@ const GeneralForm = () => {
           <span className="GF-breadcrumb-separator">›</span>
           <span className="GF-breadcrumb-current">Create Form</span>
         </div>
+      {toast && (
+        <div className={`GF-toast ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
      <div className="GF-form-wrapper">
       <div className="GF-form-container">
         <div className="GF-page-header">
@@ -147,10 +194,11 @@ const GeneralForm = () => {
               className="GF-form-input"
               placeholder="Enter form name"
             />
+            {errors.formName && <span className="error">{errors.formName}</span>}
           </div>
 
           <div className="GF-form-row">
-            <label className="GF-form-label">Code</label>
+            <label className="GF-form-label">Code *</label>
             <input
               type="text"
               name="code"
@@ -159,6 +207,7 @@ const GeneralForm = () => {
               className="GF-form-input"
               placeholder="Enter code"
             />
+            {errors.code && <span className="error">{errors.code}</span>}
           </div>
 
           {/* <div className="GF-form-row">
@@ -173,7 +222,7 @@ const GeneralForm = () => {
           </div> */}
 
           <div className="GF-form-row">
-            <label className="GF-form-label">Form Type</label>
+            <label className="GF-form-label">Form Type *</label>
             <select
               name="formType"
               value={formData.formType}

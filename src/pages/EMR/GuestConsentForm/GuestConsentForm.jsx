@@ -228,7 +228,7 @@ const GuestConsentForm = () => {
       const fetchFormId = async () => {
         try {
           const res = await fetch(
-            `${API_BASE_URL}/api/form/definition-by-name?name=GuestConsentForm`,
+            `${API_BASE_URL}/api/form/by-name?name=GuestConsentForm`,
             {
               method: 'GET',
               credentials: 'include',
