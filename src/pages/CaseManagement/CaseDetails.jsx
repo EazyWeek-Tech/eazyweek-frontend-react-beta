@@ -836,14 +836,35 @@ const CaseDetailsPage = () => {
   };
 
   // --- open dialog when submit is clicked at Level 2 ---
-  const onSubmitClick = async () => {
-    if (isAtLevel2Now) {
+ const onSubmitClick = async () => {
+    // read the current Next Assignee selection from IssuesTab
+    const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
+    const nextCode = trim(issuesData.assignToCode || "");
+    const nextName = trim(issuesData.assignedTo || "");
+
+    // consider these as "no real next assignee selected"
+    const isPlaceholderNext =
+      (!nextCode && !nextName) ||
+      nextName === "-" ||
+      /^assign\s*to$/i.test(nextName);
+
+    const caseClosed = trim(status) === "Closed";
+
+    // ✅ Show popup ONLY when:
+    // - case is at Level 2
+    // - case is not closed
+    // - and no proper next assignee is selected (i.e. user is not reassigning)
+    if (isAtLevel2Now && !caseClosed && isPlaceholderNext) {
       setL2DialogOpen(true);
       setL2DialogError("");
       return;
     }
+
+    // ✅ If L2 user has chosen a valid next assignee (reassign), or case is closed,
+    //    go straight to normal submit (no popup)
     handleAction("submit");
   };
+
 
   // -----------------------------
   // Actions
