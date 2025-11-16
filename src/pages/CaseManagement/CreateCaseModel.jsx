@@ -24,6 +24,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
+  // holds the real case no once server generates it
+  const [caseNo, setCaseNo] = useState("");
+
   const toastRef = useRef(null);
 
   // App-level toast (fixed position)
@@ -106,6 +109,15 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     return full || u.userName || u.email || u.userId || "";
   };
+
+  // reset local state when dialog is opened/closed
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTab("sign-in");
+      setCaseNo("");
+      localStorage.removeItem("lastSavedCaseNo");
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (toastRef.current) toastRef.current.style.display = "none";
@@ -252,7 +264,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
             headers: { "Content-Type": "application/json" },
           });
           const data = await response.json();
-          console.log(data);
+          console.log("[CASE OP CONFIG]", data);
 
           if (data.priority) handleChange("priority", data.priority || "");
           if (data.mobilephone) handleChange("employeno", data.mobilephone.trim());
@@ -366,6 +378,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     setSpecificResolutions([]);
     setCustomerSearchText("");
     setCustomerOptions([]);
+    setCaseNo("");
+    localStorage.removeItem("lastSavedCaseNo");
   };
 
   // Helpers for email + center names
@@ -408,11 +422,11 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     return uniq.join(",");
   };
 
-  const sendCaseAssignmentEmail = async (caseNo) => {
+  const sendCaseAssignmentEmail = async (caseNoParam) => {
     const mailBody = {
       emailTo: (formValues.email || "").trim().replace(/[\r\n"]/g, ""),
       centerName: getCenterName(),
-      caseNo: caseNo || "",
+      caseNo: caseNoParam || "",
       categoryName: getCategoryName(formValues.category),
       subCategoryName: getSubCategoryName(formValues.subcategory),
       issueDescription: formValues.issuedesciption || "",
@@ -474,8 +488,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     if (!formValues.employeno?.trim()) errs.employeno = "Employee Mobile is required.";
     if (!formValues.employeeCode) errs.employeeCode = "Assigned To is required.";
     if (!formValues.email?.trim()) errs.email = "Email is required.";
-    if (!formValues.cc?.trim()) errs.cc = "CC is required.";
-
+    // CC made optional in UI, so do NOT block on it:
+    // if (!formValues.cc?.trim()) errs.cc = "CC is required.";
     return errs;
   };
   // ==============================
@@ -485,7 +499,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     setActiveTab("sign-in");
   };
 
-  // FIXED: validate General tab before allowing switch to Issues
+  // validate General tab before allowing switch to Issues
   const handleRegisterClick = (e) => {
     e.preventDefault();
     const generalErrs = validateGeneralTab();
@@ -507,108 +521,124 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const sanitizeAscii = (s) => s.replace(/[^\x20-\x7E]/g, "");
 
   const handleSave = async () => {
-  const generalErrs = validateGeneralTab();
-  const issueErrs = activeTab === "register" ? validateIssueTab() : {};
-  const allErrs = { ...generalErrs, ...issueErrs };
+    const generalErrs = validateGeneralTab();
+    const issueErrs = activeTab === "register" ? validateIssueTab() : {};
+    const allErrs = { ...generalErrs, ...issueErrs };
 
-  if (Object.keys(allErrs).length > 0) {
-    console.log("[CREATE CASE] Save blocked by validation", {
-      generalErrs,
-      issueErrs,
-    });
-    setValidationErrors((prev) => ({ ...prev, ...allErrs }));
-    if (Object.keys(generalErrs).length > 0) setActiveTab("sign-in");
-    else if (Object.keys(issueErrs).length > 0) setActiveTab("register");
-    return;
-  }
-
-  const user = currentUser;
-  if (isSaving) return;
-  setIsSaving(true);
-
-  const savedCaseNo = localStorage.getItem("lastSavedCaseNo") || "";
-
-  const payload = {
-    casetitle: formValues.title,
-    caseno: "",
-    category: formValues.category,
-    subCategory: formValues.subcategory,
-    subSubCategory: formValues.subSubcategory,
-    subSubSubCategory: formValues.subSubSubcategory,
-    casemedium: formValues.caseMedium,
-    casesource: formValues.caseSource,
-    priority: formValues.priority,
-    custID: formValues.customerCode,
-    productCode: formValues.product,
-    servicecode: formValues.service,
-    serviceccode: formValues.serviceCategory,
-    createdby: user?.userId,
-    createddate: new Date().toISOString(),
-    issuedesciption: formValues.issuedesciption,
-    clientThreat: formValues.clientThreat,
-    doctorCode: formValues.doctorCode,
-    firsttimeresolution: formValues.firsttimeresolution,
-    response: formValues.response,
-    assignedto: "",
-    employeno: formValues.employeno,
-    assignedemailid: formValues.email,
-    cc: formValues.cc,
-    moreCC: formValues.moreCC,
-    categorySpecificResolution: formValues.specificResolution,
-    remarks: formValues.remarks,
-    casedisposition: "",
-    caseWith: user?.userId,
-    status: "Open",
-    operation: "Save",
-    materialCost: 0,
-    labourCost: 0,
-    otherCharges: 0,
-    totalCharges: 0,
-    isdraft: 1,
-    centercode: user?.centerCode,
-    departmentcode: "",
-    custcliniccode: "",
-  };
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-    console.log("[CREATE CASE] Save result", result);
-
-    // be defensive: result.code might be number or string
-    const resultCode = result?.code != null ? String(result.code) : "";
-
-    if (resultCode === "200") {
-      const finalCaseNo = result.name || savedCaseNo || "";
-
-      if (finalCaseNo) {
-        localStorage.setItem("lastSavedCaseNo", finalCaseNo);
-      }
-
-      showToast(`Case saved successfully (Case No: ${finalCaseNo})`, "success");
-
-      // ALWAYS go to Issues on successful Save
-      setActiveTab("register");
-    } else {
-      showToast(
-        `Failed to save case: ${result.name || result.message || "Unknown error"}`,
-        "error"
-      );
+    if (Object.keys(allErrs).length > 0) {
+      console.log("[CREATE CASE] Save blocked by validation", {
+        generalErrs,
+        issueErrs,
+      });
+      setValidationErrors((prev) => ({ ...prev, ...allErrs }));
+      if (Object.keys(generalErrs).length > 0) setActiveTab("sign-in");
+      else if (Object.keys(issueErrs).length > 0) setActiveTab("register");
+      return;
     }
-  } catch (error) {
-    console.error("Error during case save:", error);
-    showToast("Network or server error while saving the case.", "error");
-  } finally {
-    setIsSaving(false);
-  }
-};
 
+    const user = currentUser;
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const savedCaseNoFromStorage = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
+
+    // When saving from General: create new → empty caseno
+    // When saving from Issues: update existing → use saved case no
+    const casenoForSave = activeTab === "register" ? savedCaseNoEffective : "";
+
+    const payload = {
+      casetitle: formValues.title,
+      caseno: casenoForSave,
+      category: formValues.category,
+      subCategory: formValues.subcategory,
+      subSubCategory: formValues.subSubcategory,
+      subSubSubCategory: formValues.subSubSubcategory,
+      casemedium: formValues.caseMedium,
+      casesource: formValues.caseSource,
+      priority: formValues.priority,
+      custID: formValues.customerCode,
+      productCode: formValues.product,
+      servicecode: formValues.service,
+      serviceccode: formValues.serviceCategory,
+      createdby: user?.userId,
+      createddate: new Date().toISOString(),
+      issuedesciption: formValues.issuedesciption,
+      clientThreat: formValues.clientThreat,
+      doctorCode: formValues.doctorCode,
+      firsttimeresolution: formValues.firsttimeresolution,
+      response: formValues.response,
+      assignedto: "",
+      employeno: formValues.employeno,
+      assignedemailid: formValues.email,
+      cc: formValues.cc,
+      moreCC: formValues.moreCC,
+      categorySpecificResolution: formValues.specificResolution,
+      remarks: formValues.remarks,
+      casedisposition: "",
+      caseWith: user?.userId,
+      status: "Open",
+      operation: "Save",
+      materialCost: 0,
+      labourCost: 0,
+      otherCharges: 0,
+      totalCharges: 0,
+      isdraft: 1,
+      centercode: user?.centerCode,
+      departmentcode: "",
+      custcliniccode: "",
+    };
+
+    try {
+      console.log("[CREATE CASE] Save payload", payload);
+      const response = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      console.log("[CREATE CASE] Save result", result);
+
+      const resultCode = result?.code != null ? String(result.code) : "";
+
+      if (resultCode === "200") {
+        let finalCaseNo = (result?.name || "").toString().trim();
+
+        // if backend accidentally returns literal "casenoForSave", ignore it
+        if (!finalCaseNo || finalCaseNo.toLowerCase() === "casenoforsave") {
+          finalCaseNo = savedCaseNoEffective;
+        }
+
+        if (finalCaseNo) {
+          setCaseNo(finalCaseNo);
+          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+        }
+
+        showToast(
+          `Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
+          "success"
+        );
+
+        // ALWAYS go to Issues on successful Save from General
+        if (activeTab === "sign-in") {
+          console.log("[CREATE CASE] switching tab to 'register'");
+          setTimeout(() => setActiveTab("register"), 0);
+        }
+      } else {
+        showToast(
+          `Failed to save case: ${result.name || result.message || "Unknown error"}`,
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Error during case save:", error);
+      showToast("Network or server error while saving the case.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSubmit = async () => {
     const generalErrs = validateGeneralTab();
@@ -622,12 +652,13 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     }
 
     setValidationErrors({});
-    const savedCaseNo = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoFromStorage = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
     const user = currentUser;
 
     const payload = {
       casetitle: formValues.title,
-      caseno: savedCaseNo,
+      caseno: savedCaseNoEffective,
       category: formValues.category,
       subCategory: formValues.subcategory,
       subSubCategory: formValues.subSubcategory,
@@ -668,6 +699,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     };
 
     try {
+      console.log("[CREATE CASE] Submit payload", payload);
       const response = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
         method: "POST",
         credentials: "include",
@@ -675,12 +707,25 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         body: JSON.stringify(payload),
       });
       const result = await response.json();
+      console.log("[CREATE CASE] Submit result", result);
 
-      if (result.code === "200") {
-        const finalCaseNo = result?.name || savedCaseNo || "";
+      if (String(result.code) === "200") {
+        let finalCaseNo = (result?.name || "").toString().trim();
+        if (!finalCaseNo || finalCaseNo.toLowerCase() === "casenoforsave") {
+          finalCaseNo = savedCaseNoEffective;
+        }
+
+        if (finalCaseNo) {
+          setCaseNo(finalCaseNo);
+          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+        }
+
         await sendCaseAssignmentEmail(finalCaseNo);
 
-        showToast(`Case submitted successfully (Case No: ${finalCaseNo})`, "success");
+        showToast(
+          `Case submitted successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
+          "success"
+        );
 
         const payloadWithCaseNo = { ...payload, caseno: finalCaseNo };
         onSubmit && onSubmit(payloadWithCaseNo);
@@ -1144,7 +1189,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                 >
                   <option value="">Select Priority</option>
                   <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
+                  <option value="Normal">Normal</option>
                   <option value="High">High</option>
                 </select>
                 {validationErrors.priority && (
@@ -1366,6 +1411,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                   <option value="Verbal">Verbal</option>
                   <option value="Written">Written</option>
                   <option value="Physical">Physical</option>
+                  <option value="NA">NA</option>
                 </select>
                 {validationErrors.clientThreat && (
                   <div className="error-text">{validationErrors.clientThreat}</div>
