@@ -67,6 +67,8 @@ const CaseManagement = () => {
         subSubSubCategory: item.subSubSubCategory,
         assignedto: item.assignTo?.trim() || "-",
         createdby: item.owner || "-",
+        customerName: item.customerName,
+        customerPhoneNo: item.customerPhoneNo,
         createddate:
           item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
             ? new Date(item.createdDate).toLocaleString("en-US", {

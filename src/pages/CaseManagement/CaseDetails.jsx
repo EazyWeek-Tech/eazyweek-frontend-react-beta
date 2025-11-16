@@ -338,15 +338,51 @@ const CaseDetailsPage = () => {
   const journeyRef = useRef();
   const slaRef = useRef();
 
+  // NEW: tab loader state + timer ref
+  const [tabLoading, setTabLoading] = useState(false);
+  const tabTimerRef = useRef(null);
+
   // NEW: hierarchy state at page-level
   const [hierarchy, setHierarchy] = useState(null);
   const [hierLoading, setHierLoading] = useState(false);
   const [hierErr, setHierErr] = useState("");
 
+  // NEW: employees cache for debug & stage mapping
+  const [employees, setEmployees] = useState([]);
+
   // L2 dialog state
   const [l2DialogOpen, setL2DialogOpen] = useState(false);
   const [l2ReassignCode, setL2ReassignCode] = useState("");
   const [l2DialogError, setL2DialogError] = useState("");
+
+  // cleanup loader timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tabTimerRef.current) {
+        clearTimeout(tabTimerRef.current);
+      }
+    };
+  }, []);
+
+  const formatCreatedDate = (raw) => {
+    if (!raw || raw === "0001-01-01T00:00:00") return "-";
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
+    if (m) {
+      const [, dd, MM, yyyy] = m;
+      return `${dd}/${MM}/${yyyy}`;
+    }
+    const d = new Date(raw);
+    return isNaN(d)
+      ? "-"
+      : d.toLocaleString("en-IN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+  };
 
   // --- Fetch case details ---
   useEffect(() => {
@@ -424,7 +460,7 @@ const CaseDetailsPage = () => {
           moreCc: trim(data.moreCC),
           remarks: trim(data.remarks),
 
-          categorySpecificResolution: trim(data.categorySpecificResolution),
+          categorySpecificResolution: trim(data.specificResolutionName || data.categorySpecificResolution),
 
           materialCost: data.materialCost ?? 0,
           labourCost: data.labourCOst ?? 0,
@@ -592,26 +628,7 @@ const CaseDetailsPage = () => {
     selectedCaseData?.assignToCode,
   ]);
 
-  const formatCreatedDate = (raw) => {
-    if (!raw || raw === "0001-01-01T00:00:00") return "-";
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})(.*)?$/.exec(raw);
-    if (m) {
-      const [, dd, MM, yyyy] = m;
-      return `${dd}/${MM}/${yyyy}`;
-    }
-    const d = new Date(raw);
-    return isNaN(d)
-      ? "-"
-      : d.toLocaleString("en-IN", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-  };
-
+  // --- Resolve Stage 1 (and cache Employees for debug) ---
   useEffect(() => {
     const targetName = (selectedCaseData?.firstSlaName || "").trim();
     if (!targetName) {
@@ -625,8 +642,11 @@ const CaseDetailsPage = () => {
           headers: { Accept: "application/json" },
         });
         const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        setEmployees(arr); // cache for debug + other lookups
+
         const want = normNameBase(targetName);
-        const match = (Array.isArray(list) ? list : []).find((e) => {
+        const match = arr.find((e) => {
           const nm = normNameBase(e?.employeeName);
           return nm === want;
         });
@@ -688,60 +708,100 @@ const CaseDetailsPage = () => {
   };
 
   // --------------------------------------------
-  // L2 detection (page-level; uses hierarchy + case)
+  // L1/L2 detection (page-level; uses hierarchy + case)
   // --------------------------------------------
- // --------------------------------------------
-// L1/L2 detection (page-level; uses hierarchy + case)
-// --------------------------------------------
-const ownerDisplay = firstNonEmpty(
-  ownerFromUrl,
-  selectedCaseData?.ownerName,
-  selectedCaseData?.ownerCode,
-  "-"
-);
-const assignedDisplay = firstNonEmpty(
-  assignedFromUrl,
-  selectedCaseData?.assignName,
-  selectedCaseData?.assignToCode,
-  "-"
-);
+  const ownerDisplay = firstNonEmpty(
+    ownerFromUrl,
+    selectedCaseData?.ownerName,
+    selectedCaseData?.ownerCode,
+    "-"
+  );
+  const assignedDisplay = firstNonEmpty(
+    assignedFromUrl,
+    selectedCaseData?.assignName,
+    selectedCaseData?.assignToCode,
+    "-"
+  );
 
-// Current assignee (code/name)
-const curCode = normCodeId(selectedCaseData?.assignToCode);
-const curName = normNameBase(assignedDisplay || "");
+  // Current assignee (code/name)
+  const curCode = normCodeId(selectedCaseData?.assignToCode);
+  const curName = normNameBase(assignedDisplay || "");
 
-// ---------- Level 1 signals (compute first) ----------
-const l1Code = normCodeId(stage1Code || "");
-const l1Name = normNameBase(
-  firstNonEmpty(hierarchy?.firstAssignement, selectedCaseData?.firstSlaName, "")
-);
-const isAtLevel1Now =
-  (!!l1Code && !!curCode && l1Code === curCode) ||
-  (!!l1Name && !!curName && l1Name === curName);
+  // ---------- Level 1 signals (compute first) ----------
+  const l1Code = normCodeId(stage1Code || "");
+  const l1Name = normNameBase(
+    firstNonEmpty(hierarchy?.firstAssignement, selectedCaseData?.firstSlaName, "")
+  );
+  const isAtLevel1Now =
+    (!!l1Code && !!curCode && l1Code === curCode) ||
+    (!!l1Name && !!curName && l1Name === curName);
 
-// ---------- Level 2 signals (can safely reference isAtLevel1Now now) ----------
-const l2Code = normCodeId(
-  firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
-);
-const l2Name = normNameBase(
-  firstNonEmpty(hierarchy?.secondAssignement, selectedCaseData?.secondSlaName, "")
-);
-const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
-const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
+  // ---------- Level 2 signals ----------
+  const l2Code = normCodeId(
+    firstNonEmpty(selectedCaseData?.secondSlaCode, selectedCaseData?.nextLevelID, "")
+  );
+  const l2Name = normNameBase(
+    firstNonEmpty(hierarchy?.secondAssignement, selectedCaseData?.secondSlaName, "")
+  );
+  const isAtLevel2ByCode = !!l2Code && !!curCode && l2Code === curCode;
+  const isAtLevel2ByName = !!l2Name && !!curName && l2Name === curName;
+  const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
 
-// Must match Level 2 AND NOT Level 1
-const isAtLevel2Now = (isAtLevel2ByCode || isAtLevel2ByName) && !isAtLevel1Now;
+  const showL2Banner = (() => {
+    if (!isAtLevel2Now) return false;
+    const disp = trim(assignedDisplay);
+    if (!disp || disp === "-") return false;
+    const dispAsCodeEq = !!l2Code && normCodeId(disp) === l2Code;
+    const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
+    return dispAsCodeEq || dispAsNameEq;
+  })();
 
-// Banner only when L2 and the visible "Assigned To" equals L2 (code or name)
-const showL2Banner = (() => {
-  if (!isAtLevel2Now) return false;
-  const disp = trim(assignedDisplay);
-  if (!disp || disp === "-") return false;
-  const dispAsCodeEq = !!l2Code && normCodeId(disp) === l2Code;
-  const dispAsNameEq = !!l2Name && normNameBase(disp) === l2Name;
-  return dispAsCodeEq || dispAsNameEq;
-})();
+  // --------------------------------------------
+  // NEW: Debug logging — current vs next assignee with employee codes
+  // --------------------------------------------
+  useEffect(() => {
+    if (!selectedCaseData) return;
 
+    const urlNameRaw = trim(assignedFromUrl);
+    const urlNameNorm = normNameBase(urlNameRaw);
+    let currentEmp = null;
+
+    if (urlNameNorm && Array.isArray(employees) && employees.length) {
+      currentEmp = employees.find(
+        (e) => normNameBase(e?.employeeName) === urlNameNorm
+      );
+    }
+
+    const currentInfo = {
+      source: "URL param (?assignedTo=) / grid",
+      nameFromUrl: urlNameRaw || "(not provided)",
+      resolvedEmployeeName: currentEmp?.employeeName || urlNameRaw || "(not resolved)",
+      employeeCode: (currentEmp?.employeeCode || "").toString().trim() || "(not found in Employees)",
+    };
+
+    const nextInfo = {
+      source: "CaseDetails GET API",
+      name: trim(
+        selectedCaseData.assignName ||
+        selectedCaseData.secondSlaName ||
+        selectedCaseData.firstSlaEName ||
+        ""
+      ) || "(empty)",
+      employeeCode: trim(
+        selectedCaseData.assignToCode ||
+        selectedCaseData.secondSlaCode ||
+        selectedCaseData.nextLevelID ||
+        ""
+      ) || "(empty)",
+    };
+
+    console.groupCollapsed("DEBUG: Case assignee mapping (current vs next)");
+    console.log("Case No:", selectedCaseData.caseNo);
+    console.log("Current assignee (from URL / grid):", currentInfo);
+    console.log("Next assignee (from CaseDetails API):", nextInfo);
+    console.log("Note: Backend bug suspicion — API is returning next assignee in assignToCode/assignName.");
+    console.groupEnd();
+  }, [assignedFromUrl, selectedCaseData, employees]);
 
   // --------------------------------------------
   // Assignee resolver used when persisting a response
@@ -776,19 +836,40 @@ const showL2Banner = (() => {
   };
 
   // --- open dialog when submit is clicked at Level 2 ---
-  const onSubmitClick = async () => {
-    if (isAtLevel2Now) {
+ const onSubmitClick = async () => {
+    // read the current Next Assignee selection from IssuesTab
+    const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
+    const nextCode = trim(issuesData.assignToCode || "");
+    const nextName = trim(issuesData.assignedTo || "");
+
+    // consider these as "no real next assignee selected"
+    const isPlaceholderNext =
+      (!nextCode && !nextName) ||
+      nextName === "-" ||
+      /^assign\s*to$/i.test(nextName);
+
+    const caseClosed = trim(status) === "Closed";
+
+    // ✅ Show popup ONLY when:
+    // - case is at Level 2
+    // - case is not closed
+    // - and no proper next assignee is selected (i.e. user is not reassigning)
+    if (isAtLevel2Now && !caseClosed && isPlaceholderNext) {
       setL2DialogOpen(true);
       setL2DialogError("");
       return;
     }
+
+    // ✅ If L2 user has chosen a valid next assignee (reassign), or case is closed,
+    //    go straight to normal submit (no popup)
     handleAction("submit");
   };
+
 
   // -----------------------------
   // Actions
   // -----------------------------
-  const handleAction = async (actionType, overrides = {}) => {
+    const handleAction = async (actionType, overrides = {}) => {
     const generalData =
       overrides.generalData ?? generalRef.current?.getGeneralData?.() ?? {};
     const effectiveStatus = trim(overrides.status ?? status);
@@ -880,7 +961,7 @@ const showL2Banner = (() => {
       await postCaseOperation(preSubmitPayload, "submit (preflight persist response)");
     }
 
-    // Closing via submit
+    // Closing via submit (UNCHANGED)
     if (closingViaSubmit) {
       try {
         if (!trim(effectiveSelected?.response)) {
@@ -1031,7 +1112,7 @@ const showL2Banner = (() => {
       return;
     }
 
-    // ---- Normal paths unchanged below ----
+    // ---- Build base payload for other flows ----
     const operationForBackend = actionType;
     const payload = buildFullPayload({
       general: generalData,
@@ -1040,6 +1121,50 @@ const showL2Banner = (() => {
       disposition: effectiveDisposition,
       operation: operationForBackend,
     });
+
+    // 🔹 SPECIAL CASE: SAVE → force current assignee into payload
+    if (actionType === "save") {
+      const urlNameRaw = trim(assignedFromUrl);
+      const urlNameNorm = normNameBase(urlNameRaw);
+
+      let currentEmp = null;
+      if (urlNameNorm && Array.isArray(employees) && employees.length) {
+        currentEmp = employees.find(
+          (e) => normNameBase(e?.employeeName) === urlNameNorm
+        );
+      }
+
+      const resolvedCode = trim(
+        currentEmp?.employeeCode ||
+        selectedCaseData?.assignToCode ||
+        selectedCaseData?.assignedTo ||
+        ""
+      );
+      const resolvedMobile = trim(
+        currentEmp?.mobileNo ||
+        selectedCaseData?.employeeMobile ||
+        ""
+      );
+      const resolvedEmail = trim(
+        currentEmp?.emailID ||
+        selectedCaseData?.email ||
+        ""
+      );
+
+      payload.assignedto      = resolvedCode || payload.assignedto || "";
+      payload.caseWith        = resolvedCode || payload.caseWith   || "";
+      payload.employeno       = resolvedMobile || payload.employeno || "";
+      payload.assignedemailid = resolvedEmail  || payload.assignedemailid || "";
+
+      console.groupCollapsed("DEBUG: SAVE payload current assignee mapping");
+      console.log("URL ?assignedTo=", urlNameRaw);
+      console.log("Resolved current assignee for SAVE →", {
+        employeeCode: resolvedCode,
+        mobileNo: resolvedMobile,
+        emailID: resolvedEmail,
+      });
+      console.groupEnd();
+    }
 
     if (actionType !== "submit") {
       payload.response = "";
@@ -1129,6 +1254,8 @@ const showL2Banner = (() => {
               type: "success",
               message: `Case saved successfully. Case No: ${result.name || effectiveSelected?.caseNo}`,
             });
+                        navigate(-1);
+
           }
         } else if (actionType === "updateStatus") {
           setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
@@ -1171,6 +1298,22 @@ const showL2Banner = (() => {
     } finally {
       setSaving(false);
     }
+  };
+
+
+  // --------------------------------------------
+  // Tab click handler with loader (3 seconds)
+  // --------------------------------------------
+  const handleTabClick = (tabKey) => {
+    if (tabKey === activeTab) return;
+    if (tabTimerRef.current) {
+      clearTimeout(tabTimerRef.current);
+    }
+    setTabLoading(true);
+    setActiveTab(tabKey);
+    tabTimerRef.current = setTimeout(() => {
+      setTabLoading(false);
+    }, 3000); // 3 seconds
   };
 
   const renderTabContent = () => {
@@ -1235,7 +1378,7 @@ const showL2Banner = (() => {
         background: "#f6f8fa",
         color: "#57606a",
         verticalAlign: "middle",
-        display: "none",
+        display: "none", // keep hidden for QA switch if needed
       }}
       title="Debug: which stage of handoff this case is in"
     >
@@ -1436,25 +1579,46 @@ const showL2Banner = (() => {
 
       <section className="tabsform">
         <div className="tab">
-          <span className={`tablinks ${activeTab === "general" ? "active" : ""}`} onClick={() => setActiveTab("general")}>
+          <span
+            className={`tablinks ${activeTab === "general" ? "active" : ""}`}
+            onClick={() => handleTabClick("general")}
+          >
             General
           </span>
-          <span className={`tablinks ${activeTab === "issues" ? "active" : ""}`} onClick={() => setActiveTab("issues")}>
+          <span
+            className={`tablinks ${activeTab === "issues" ? "active" : ""}`}
+            onClick={() => handleTabClick("issues")}
+          >
             Issues and Responses
           </span>
-          <span className={`tablinks ${activeTab === "sla" ? "active" : ""}`} onClick={() => setActiveTab("sla")}>
+          <span
+            className={`tablinks ${activeTab === "sla" ? "active" : ""}`}
+            onClick={() => handleTabClick("sla")}
+          >
             SLA Details
           </span>
-          <span className={`tablinks ${activeTab === "journey" ? "active" : ""}`} onClick={() => setActiveTab("journey")}>
+          <span
+            className={`tablinks ${activeTab === "journey" ? "active" : ""}`}
+            onClick={() => handleTabClick("journey")}
+          >
             Case Journey
           </span>
-          <span className={`tablinks ${activeTab === "expense" ? "active" : ""}`} onClick={() => setActiveTab("expense")}>
+          <span
+            className={`tablinks ${activeTab === "expense" ? "active" : ""}`}
+            onClick={() => handleTabClick("expense")}
+          >
             Expense
           </span>
         </div>
 
         <div className="tabcontent" style={{ display: "block" }}>
-          {renderTabContent()}
+          {tabLoading ? (
+            <div className="loader-wrapper">
+              <div className="loader"></div>
+            </div>
+          ) : (
+            renderTabContent()
+          )}
         </div>
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
@@ -1557,7 +1721,7 @@ const showL2Banner = (() => {
                   <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
                     Option B: Assign to another person (needs more info)
                   </div>
-                 
+                  {/* you can plug in your reassign UI here later */}
                 </div>
               </div>
             </div>

@@ -24,6 +24,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
+  // holds the real case no once server generates it
+  const [caseNo, setCaseNo] = useState("");
+
   const toastRef = useRef(null);
 
   // App-level toast (fixed position)
@@ -107,6 +110,15 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     return full || u.userName || u.email || u.userId || "";
   };
 
+  // reset local state when dialog is opened/closed
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTab("sign-in");
+      setCaseNo("");
+      localStorage.removeItem("lastSavedCaseNo");
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (toastRef.current) toastRef.current.style.display = "none";
 
@@ -155,9 +167,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchTherapists = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`, {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
         setTherapists(data.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
@@ -252,7 +264,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
             headers: { "Content-Type": "application/json" },
           });
           const data = await response.json();
-          console.log(data)
+          console.log("[CASE OP CONFIG]", data);
 
           if (data.priority) handleChange("priority", data.priority || "");
           if (data.mobilephone) handleChange("employeno", data.mobilephone.trim());
@@ -366,6 +378,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     setSpecificResolutions([]);
     setCustomerSearchText("");
     setCustomerOptions([]);
+    setCaseNo("");
+    localStorage.removeItem("lastSavedCaseNo");
   };
 
   // Helpers for email + center names
@@ -387,40 +401,39 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       ""
     );
   };
-  // Normalize a list of email addresses:
-// - split on comma/semicolon/newline
-// - trim, drop empties
-// - strip quotes/CR/LF
-// - dedupe case-insensitively
-// - join with semicolons (avoids ',' in header)
-const normalizeEmailList = (raw) => {
-  if (!raw) return "";
-  const parts = String(raw)
-    .split(/[,;\n]+/g)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/[\r\n"]/g, ""));
-  const seen = new Set();
-  const uniq = [];
-  for (const p of parts) {
-    const k = p.toLowerCase();
-    if (!seen.has(k)) { seen.add(k); uniq.push(p); }
-  }
-  return uniq.join(",");
-};
 
-  const sendCaseAssignmentEmail = async (caseNo) => {
+  // Normalize a list of email addresses
+  const normalizeEmailList = (raw) => {
+    if (!raw) return "";
+    const parts = String(raw)
+      .split(/[,;\n]+/g)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => s.replace(/[\r\n"]/g, ""));
+    const seen = new Set();
+    const uniq = [];
+    for (const p of parts) {
+      const k = p.toLowerCase();
+      if (!seen.has(k)) {
+        seen.add(k);
+        uniq.push(p);
+      }
+    }
+    return uniq.join(",");
+  };
+
+  const sendCaseAssignmentEmail = async (caseNoParam) => {
     const mailBody = {
       emailTo: (formValues.email || "").trim().replace(/[\r\n"]/g, ""),
       centerName: getCenterName(),
-      caseNo: caseNo || "",
+      caseNo: caseNoParam || "",
       categoryName: getCategoryName(formValues.category),
       subCategoryName: getSubCategoryName(formValues.subcategory),
       issueDescription: formValues.issuedesciption || "",
       newResponse: formValues.response || "",
       firstTimeResolution: formValues.firsttimeresolution || "",
       emailCC: normalizeEmailList(formValues.cc),
-moreCC: normalizeEmailList(formValues.moreCC),
+      moreCC: normalizeEmailList(formValues.moreCC),
     };
     if (!mailBody.emailTo) {
       console.warn("CaseMail skipped: no emailTo set.");
@@ -440,11 +453,6 @@ moreCC: normalizeEmailList(formValues.moreCC),
   };
 
   // ========= Validation =========
-  const isComplaintCategory = () => {
-    const cat = caseCategories.find((c) => c.categoryCode === formValues.category);
-    return !!cat && /complaint/i.test(cat.categoryName || "");
-  };
-
   const validateGeneralTab = () => {
     const errs = {};
     if (!formValues.title?.trim()) errs.title = "Case Title is required.";
@@ -480,8 +488,8 @@ moreCC: normalizeEmailList(formValues.moreCC),
     if (!formValues.employeno?.trim()) errs.employeno = "Employee Mobile is required.";
     if (!formValues.employeeCode) errs.employeeCode = "Assigned To is required.";
     if (!formValues.email?.trim()) errs.email = "Email is required.";
-    if (!formValues.cc?.trim()) errs.cc = "CC is required.";
-    
+    // CC made optional in UI, so do NOT block on it:
+    // if (!formValues.cc?.trim()) errs.cc = "CC is required.";
     return errs;
   };
   // ==============================
@@ -491,9 +499,13 @@ moreCC: normalizeEmailList(formValues.moreCC),
     setActiveTab("sign-in");
   };
 
+  // validate General tab before allowing switch to Issues
   const handleRegisterClick = (e) => {
     e.preventDefault();
-    if (activeTab !== "sign-in") {
+    const generalErrs = validateGeneralTab();
+    if (Object.keys(generalErrs).length > 0) {
+      setValidationErrors((prev) => ({ ...prev, ...generalErrs }));
+      setActiveTab("sign-in");
       if (toastRef.current) {
         toastRef.current.style.display = "block";
         setTimeout(() => {
@@ -514,6 +526,10 @@ moreCC: normalizeEmailList(formValues.moreCC),
     const allErrs = { ...generalErrs, ...issueErrs };
 
     if (Object.keys(allErrs).length > 0) {
+      console.log("[CREATE CASE] Save blocked by validation", {
+        generalErrs,
+        issueErrs,
+      });
       setValidationErrors((prev) => ({ ...prev, ...allErrs }));
       if (Object.keys(generalErrs).length > 0) setActiveTab("sign-in");
       else if (Object.keys(issueErrs).length > 0) setActiveTab("register");
@@ -524,9 +540,16 @@ moreCC: normalizeEmailList(formValues.moreCC),
     if (isSaving) return;
     setIsSaving(true);
 
+    const savedCaseNoFromStorage = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
+
+    // When saving from General: create new → empty caseno
+    // When saving from Issues: update existing → use saved case no
+    const casenoForSave = activeTab === "register" ? savedCaseNoEffective : "";
+
     const payload = {
       casetitle: formValues.title,
-      caseno: "",
+      caseno: casenoForSave,
       category: formValues.category,
       subCategory: formValues.subcategory,
       subSubCategory: formValues.subSubcategory,
@@ -567,20 +590,64 @@ moreCC: normalizeEmailList(formValues.moreCC),
     };
 
     try {
+      console.log("[CREATE CASE] Save payload", payload);
       const response = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
 
-      if (result.code === "200") {
-        localStorage.setItem("lastSavedCaseNo", result.name);
-        showToast(`Case saved successfully (Case No: ${result.name})`, "success");
-        setActiveTab("register");
+      const result = await response.json();
+      console.log("[CREATE CASE] Save result", result);
+
+      const resultCode = result?.code != null ? String(result.code) : "";
+
+      if (resultCode === "200") {
+        let finalCaseNo = (result?.name || "").toString().trim();
+
+        // if backend accidentally returns literal "casenoForSave", ignore it
+        if (!finalCaseNo || finalCaseNo.toLowerCase() === "casenoforsave") {
+          finalCaseNo = savedCaseNoEffective;
+        }
+
+        if (finalCaseNo) {
+          setCaseNo(finalCaseNo);
+          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+        }
+
+        showToast(
+          `Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
+          "success"
+        );
+
+        // ALWAYS go to Issues on successful Save from General
+        if (activeTab === "sign-in") {
+          console.log("[CREATE CASE] switching tab to 'register'");
+          setTimeout(() => setActiveTab("register"), 0);
+        } else if (activeTab === "register") {
+          // 🔥 Save from Issues tab → auto-close popup & refresh case table
+          const payloadWithCaseNo = {
+            ...payload,
+            caseno: finalCaseNo || casenoForSave || "",
+          };
+
+          if (onSubmit) {
+            onSubmit(payloadWithCaseNo); // parent will refresh CaseTable
+          }
+
+          resetForm();
+          setActiveTab("sign-in");
+
+          if (typeof onClose === "function") {
+            onClose();
+          }
+        }
       } else {
-        showToast(`Failed to save case: ${result.name || "Unknown error"}`, "error");
+        showToast(
+          `Failed to save case: ${result.name || result.message || "Unknown error"}`,
+          "error"
+        );
       }
     } catch (error) {
       console.error("Error during case save:", error);
@@ -602,12 +669,13 @@ moreCC: normalizeEmailList(formValues.moreCC),
     }
 
     setValidationErrors({});
-    const savedCaseNo = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoFromStorage = localStorage.getItem("lastSavedCaseNo") || "";
+    const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
     const user = currentUser;
 
     const payload = {
       casetitle: formValues.title,
-      caseno: savedCaseNo,
+      caseno: savedCaseNoEffective,
       category: formValues.category,
       subCategory: formValues.subcategory,
       subSubCategory: formValues.subSubcategory,
@@ -648,6 +716,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
     };
 
     try {
+      console.log("[CREATE CASE] Submit payload", payload);
       const response = await fetch(`${API_BASE_URL}/api/CaseOperation`, {
         method: "POST",
         credentials: "include",
@@ -655,39 +724,44 @@ moreCC: normalizeEmailList(formValues.moreCC),
         body: JSON.stringify(payload),
       });
       const result = await response.json();
+      console.log("[CREATE CASE] Submit result", result);
 
-      if (result.code === "200") {
-  const finalCaseNo = result?.name || savedCaseNo || "";
-  await sendCaseAssignmentEmail(finalCaseNo);
+      if (String(result.code) === "200") {
+        let finalCaseNo = (result?.name || "").toString().trim();
+        if (!finalCaseNo || finalCaseNo.toLowerCase() === "casenoforsave") {
+          finalCaseNo = savedCaseNoEffective;
+        }
 
-  // show toast
-  showToast(`Case submitted successfully (Case No: ${finalCaseNo})`, "success");
+        if (finalCaseNo) {
+          setCaseNo(finalCaseNo);
+          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+        }
 
-  // include the final case no in the payload we bubble up
-  const payloadWithCaseNo = { ...payload, caseno: finalCaseNo };
-  onSubmit && onSubmit(payloadWithCaseNo);
+        await sendCaseAssignmentEmail(finalCaseNo);
 
-  // reset and close
-  resetForm();
-  setActiveTab("sign-in");
+        showToast(
+          `Case submitted successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
+          "success"
+        );
 
-  // Close the popup
-  if (typeof onClose === "function") {
-    onClose();
-    // If you want to let the toast be visible BEFORE close, delay it:
-    // setTimeout(() => onClose(), 1200);
-  }
-} else {
-  showToast(`Failed to save case: ${result.name || "Unknown error"}`, "error");
-}
+        const payloadWithCaseNo = { ...payload, caseno: finalCaseNo };
+        onSubmit && onSubmit(payloadWithCaseNo);
 
+        resetForm();
+        setActiveTab("sign-in");
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+      } else {
+        showToast(`Failed to save case: ${result.name || "Unknown error"}`, "error");
+      }
     } catch (error) {
       console.error("Error during case save:", error);
       showToast("Network or server error while saving the case.", "error");
     }
   };
 
-  // RENDER: toast ALWAYS; modal conditionally
   return (
     <>
       {/* Fixed-position toast (always rendered) */}
@@ -738,9 +812,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 <a
                   href="#"
                   id="register"
-                  className={`register ${activeTab === "register" ? "active" : ""} ${
-                    activeTab === "sign-in" ? "" : "disabled"
-                  }`}
+                  className={`register ${activeTab === "register" ? "active" : ""}`}
                   onClick={handleRegisterClick}
                 >
                   Issues and Responses
@@ -1133,7 +1205,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 >
                   <option value="">Select Priority</option>
                   <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
+                  <option value="Normal">Normal</option>
                   <option value="High">High</option>
                 </select>
                 {validationErrors.priority && (
@@ -1355,6 +1427,7 @@ moreCC: normalizeEmailList(formValues.moreCC),
                   <option value="Verbal">Verbal</option>
                   <option value="Written">Written</option>
                   <option value="Physical">Physical</option>
+                  <option value="NA">NA</option>
                 </select>
                 {validationErrors.clientThreat && (
                   <div className="error-text">{validationErrors.clientThreat}</div>
@@ -1403,18 +1476,6 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 ></textarea>
                 <div className="error"></div>
               </div>
-
-              {/* Add Response (optional) */}
-             {/*  <div className="form-group">
-                <label htmlFor="response">Add Response</label>
-                <textarea
-                  id="response"
-                  rows="5"
-                  value={formValues.response}
-                  onChange={(e) => handleChange("response", e.target.value)}
-                ></textarea>
-                <div className="error"></div>
-              </div> */}
 
               {/* Employee Mobile (required) */}
               <div className="form-group">
@@ -1497,11 +1558,9 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 )}
               </div>
 
-              {/* CC (required) */}
+              {/* CC (optional) */}
               <div className="form-group">
-                <label htmlFor="cc">
-                  CC
-                </label>
+                <label htmlFor="cc">CC</label>
                 <select
                   id="cc"
                   value={formValues.cc}
@@ -1526,8 +1585,6 @@ moreCC: normalizeEmailList(formValues.moreCC),
                 ></textarea>
                 <div className="error"></div>
               </div>
-
-             
 
               {/* Remarks (optional) */}
               <div className="form-group">
