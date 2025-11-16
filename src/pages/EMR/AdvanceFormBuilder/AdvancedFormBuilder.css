@@ -377,6 +377,36 @@
   border: 1px solid var(--builder-border);
 }
 
+.AdvFormBuilder-breadcrumb {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.AdvFormBuilder-breadcrumb-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.AdvFormBuilder-breadcrumb-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.AdvFormBuilder-breadcrumb-separator {
+  margin: 0 0.5rem;
+  color: var(--text-muted);
+}
+
+.AdvFormBuilder-breadcrumb-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .AdvFormBuilder-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -1474,4 +1504,17 @@
   .AdvFormBuilder-actions {
     justify-content: center;
   }
+}
+.AdvBuilder-button{
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px;
+}
+.AdvBuilder-button button{
+  padding: 10px;
+  border-radius: 10px;
+  background-color: #1f3c88;
+  color: white;
+  cursor: pointer;
 }

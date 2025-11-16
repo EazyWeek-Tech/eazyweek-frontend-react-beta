@@ -2,7 +2,7 @@ import React, { useImperativeHandle, forwardRef, useRef, useState } from 'react'
 import { Stage, Layer, Line, Circle, Text, Image as KonvaImage } from 'react-konva';
 import useImage from 'use-image';
 
-const FaceMapper = forwardRef(({ onDrawingComplete }, ref) => {
+const FaceMapper = forwardRef(({ onDrawingComplete, width = 400, height = 400 }, ref) => {
   const [tool, setTool] = useState('pen');
   const [lines, setLines] = useState([]);
   const [points, setPoints] = useState([]);
@@ -19,10 +19,10 @@ const FaceMapper = forwardRef(({ onDrawingComplete }, ref) => {
 
   const inputRef = useRef(null);
 
-  const imageWidth = 400;
-  const imageHeight = 400;
-  const stageWidth = 400;
-  const stageHeight = 400;
+  const imageWidth = width;
+  const imageHeight = height;
+  const stageWidth = width;
+  const stageHeight = height;
 
   const imageX = (stageWidth - imageWidth) / 2;
   const imageY = (stageHeight - imageHeight) / 2;
@@ -179,6 +179,7 @@ const FaceMapper = forwardRef(({ onDrawingComplete }, ref) => {
             top: labelPos.y + 60 + 'px',
             left: labelPos.x + 10 + 'px',
             zIndex: 10,
+            width: '20%',
             padding: '4px',
             fontSize: '14px'
           }}

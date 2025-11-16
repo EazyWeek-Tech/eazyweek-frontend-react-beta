@@ -193,12 +193,10 @@ const ConsultationAssessmentForm = () => {
     }
   };
 
- 
-
   return (
     <div className="CAF-form-container-1">
       <div ref={formRef} className="CAF-forms">
-        <h1>Consultation Assessment Form</h1>
+        <h1 className='CFA-SuperTitle'>Consultation Assessment Form</h1>
 
         <div className="CAF-form-group">
           <label>Date of appointment:</label>
@@ -274,153 +272,168 @@ const ConsultationAssessmentForm = () => {
         <div className="CAF-form-group">
           <label>Chief Complaint:</label>
           <input
+            type="text"
             name="chiefComplaint"
             value={formData.chiefComplaint}
             onChange={handleInputChange}
-
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Diagnosis:</label>
           <input
+            type="text"
             name="diagnosis"
             value={formData.diagnosis}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Treatment Plan:</label>
           <input
+            type="text"
             name="treatmentPlan"
             value={formData.treatmentPlan}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Subjective Notes:</label>
           <input
+            type="text"
             name="subjectiveNotes"
             value={formData.subjectiveNotes}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Objective Notes:</label>
           <input
+            type="text"
             name="objectiveNotes"
             value={formData.objectiveNotes}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Assessment Notes:</label>
           <input
+            type="text"
             name="assessmentNotes"
             value={formData.assessmentNotes}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
         <div className="CAF-form-group">
           <label>Planning Notes:</label>
           <input
+            type="text"
             name="planningNotes"
             value={formData.planningNotes}
             onChange={handleInputChange}
-          ></input>
+          />
         </div>
 
-
         <div className="CAF-photo-upload-container">
-  <h2 className="CAF-title">PHOTOS UPLOADS</h2>
+          <h2 className="CAF-title">PHOTOS UPLOADS</h2>
 
-  {/* BEFORE Section */}
-  <div className="CAF-photo-upload-section">
-    <h3 className="CAF-label">BEFORE</h3>
+          {/* BEFORE Section */}
+          <div className="CAF-photo-upload-section">
+            <h3 className="CAF-label">BEFORE</h3>
 
-    <div className="CAF-upload-box">
-      <div className="CAF-upload-icon">☁️</div>
-      <p>
-        Drop files to attach, or{' '}
-        <span
-          className="CAF-browse"
-          onClick={() => document.getElementById('beforeUpload').click()}
-        >
-          browse
-        </span>
-      </p>
-      <input
-        id="beforeUpload"
-        type="file"
-        multiple
-        accept=".jpg,.png,.jpeg,.pdf"
-        onChange={(e) => handleFileChange(e, 'beforePhotos')}
-        className="CAF-file-input"
-      />
-    </div>
+            <div className="CAF-upload-box">
+              <div className="CAF-upload-icon">☁️</div>
+              <p>
+                Drop files to attach, or{' '}
+                <span
+                  className="CAF-browse"
+                  onClick={() => document.getElementById('beforeUpload').click()}
+                >
+                  browse
+                </span>
+              </p>
+              <input
+                id="beforeUpload"
+                type="file"
+                multiple
+                accept=".jpg,.png,.jpeg,.pdf"
+                onChange={(e) => handleFileChange(e, 'beforePhotos')}
+                className="CAF-file-input"
+              />
+            </div>
 
-    <p className="CAF-info-text">
-      Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
-      the form has more than a total of 20 files, the form may be slow to load.
-    </p>
+            <p className="CAF-info-text">
+              Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
+              the form has more than a total of 20 files, the form may be slow to load.
+            </p>
 
-    {formData.beforePhotos.length > 0 && (
-      <div className="CAF-file-list">
-        <ul>
-          {formData.beforePhotos.map((file, index) => (
-            <li key={index}>{file.name}</li>
-          ))}
-        </ul>
-      </div>
-    )}
-  </div>
+            {formData.beforePhotos.length > 0 && (
+              <div className="CAF-file-list">
+                <ul>
+                  {formData.beforePhotos.map((file, index) => (
+                    <li key={index}>
+                      {file.name}
+                      {file.type.startsWith('image/') && (
+                        <img src={URL.createObjectURL(file)} alt={file.name} className="CAF-uploaded-image" />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
-  {/* AFTER Section */}
-  <div className="CAF-photo-upload-section">
-    <h3 className="CAF-label">AFTER</h3>
+          {/* AFTER Section */}
+          <div className="CAF-photo-upload-section">
+            <h3 className="CAF-label">AFTER</h3>
 
-    <div className="CAF-upload-box">
-      <div className="CAF-upload-icon">☁️</div>
-      <p>
-        Drop files to attach, or{' '}
-        <span
-          className="CAF-browse"
-          onClick={() => document.getElementById('afterUpload').click()}
-        >
-          browse
-        </span>
-      </p>
-      <input
-        id="afterUpload"
-        type="file"
-        multiple
-        accept=".jpg,.png,.jpeg,.pdf"
-        onChange={(e) => handleFileChange(e, 'afterPhotos')}
-        className="CAF-file-input"
-      />
-    </div>
+            <div className="CAF-upload-box">
+              <div className="CAF-upload-icon">☁️</div>
+              <p>
+                Drop files to attach, or{' '}
+                <span
+                  className="CAF-browse"
+                  onClick={() => document.getElementById('afterUpload').click()}
+                >
+                  browse
+                </span>
+              </p>
+              <input
+                id="afterUpload"
+                type="file"
+                multiple
+                accept=".jpg,.png,.jpeg,.pdf"
+                onChange={(e) => handleFileChange(e, 'afterPhotos')}
+                className="CAF-file-input"
+              />
+            </div>
 
-    <p className="CAF-info-text">
-      Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
-      the form has more than a total of 20 files, the form may be slow to load.
-    </p>
+            <p className="CAF-info-text">
+              Upload a maximum of 10 files at a time. Each file cannot exceed 10MB. If
+              the form has more than a total of 20 files, the form may be slow to load.
+            </p>
 
-    {formData.afterPhotos.length > 0 && (
-      <div className="CAF-file-list">
-        <ul>
-          {formData.afterPhotos.map((file, index) => (
-            <li key={index}>{file.name}</li>
-          ))}
-        </ul>
-      </div>
-    )}
-  </div>
-</div>
+            {formData.afterPhotos.length > 0 && (
+              <div className="CAF-file-list">
+                <ul>
+                  {formData.afterPhotos.map((file, index) => (
+                    <li key={index}>
+                      {file.name}
+                      {file.type.startsWith('image/') && (
+                        <img src={URL.createObjectURL(file)} alt={file.name} className="CAF-uploaded-image" />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="CAF-face-mapper-section">
           <div className="CAF-face-mapper-container">
@@ -505,8 +518,7 @@ const ConsultationAssessmentForm = () => {
         </div>
 
         <div className="CAF-signature-section">
-          <h2>Signature:</h2>
-          <p>Sign above</p>
+          <h2 className='cfa-signature'>Signature:</h2>
           <div className="CAF-signature-pad">
             <SignatureCanvas
               ref={sigCanvas}
@@ -532,7 +544,6 @@ const ConsultationAssessmentForm = () => {
         </div>
 
         <div className="CAF-button-group">
-
           <button type="submit" className="CAF-submit-btn" onClick={handleSubmit}>
             Submit
           </button>
@@ -540,6 +551,6 @@ const ConsultationAssessmentForm = () => {
       </div>
     </div>
   );
-};
+}
 
 export default ConsultationAssessmentForm;

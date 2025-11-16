@@ -40,12 +40,28 @@
 .FFS-form-field-selector-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem; 
+  gap: 0.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
 }
 
 .FFS-field-button {
   border-radius: 8px;
+  margin-bottom: 10px;
   padding: 10px;
+  transition: all var(--FFS-transition-duration) ease, transform var(--FFS-transition-duration) ease;
+}
+
+.FFS-field-CollapsibleTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  width: 100%;
+  padding: 5px;
+  cursor: pointer;
   transition: all var(--FFS-transition-duration) ease, transform var(--FFS-transition-duration) ease;
 }
 

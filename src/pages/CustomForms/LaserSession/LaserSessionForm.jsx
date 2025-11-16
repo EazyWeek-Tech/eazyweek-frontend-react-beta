@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import './LaserHairReductionTreatmentForm.css';
+import { API_BASE_URL } from '../../../config';
 
 const LaserSessionForm = () => {
     const [formData, setFormData] = useState({
@@ -114,13 +115,50 @@ const LaserSessionForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      alert('Form submitted successfully');
-      console.log('Form submitted:', formData);
+  const commonHeaders = {
+  "Content-Type": "application/json",
+};
+
+const headersFor = (method = "GET") => {
+  if (method.toUpperCase() === "GET") {
+    // Exclude Content-Type for GET requests
+    const { ["Content-Type"]: _, ...rest } = commonHeaders;
+    return rest;
+  }
+  return commonHeaders;
+};
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (validateForm()) {
+    alert("Form submitted successfully");
+    console.log("Form submitted:", formData);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/form/save`, {
+        method: "POST",
+        headers: headersFor("POST"),
+        body: JSON.stringify({
+              schemaJson: JSON.stringify(formData), // Convert object to string
+              name: "Name",
+          }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Server response:", result);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      alert("Failed to submit form. Please try again.");
     }
-  };
+  }
+};
+
 
   return (
     <div className="LHRTF-form-container-1">

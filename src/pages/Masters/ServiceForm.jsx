@@ -11,6 +11,7 @@ const URLS = {
   bom: `${API_BASE_URL}/api/Master/InsertServiceBOM`,
   practitioner: `${API_BASE_URL}/api/Master/InsertServicePractioner`, // spelling per backend
   forms: `${API_BASE_URL}/api/Master/InsertServiceForms`,
+  formsNamesAPI: `${API_BASE_URL}/api/form/names`,
 };
 
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
@@ -91,10 +92,27 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [nurseMappings, setNurseMappings] = useState(service?.nurseMappings || []);
   const [practitionerMapping, setPractitionerMapping] = useState({ leftClinic: "", doctor: "", rightClinic: "", nurses: "" });
 
-  const [formsData, setFormsData] = useState({
-    stageForFormCompletion: service?.formsData?.stageForFormCompletion || "form-not-required",
-    blockFromProceeding: service?.formsData?.blockFromProceeding || "Yes",
-    form: service?.formsData?.form || "",
+  const [formsData, setFormsData] = useState(
+    Array.isArray(service?.formsData)
+      ? service.formsData.map((f, idx) => ({ ...f, id: Date.now() + idx, selected: false, formId: f.formId || null }))
+      : service?.formsData
+      ? [{ ...service.formsData, id: Date.now(), selected: false, formId: service.formsData.formId || null }]
+      : [
+          {
+            stageForFormCompletion: "form-not-required",
+            blockFromProceeding: "Yes",
+            form: "",
+            formId: null,
+            id: Date.now(),
+            selected: false,
+          },
+        ]
+  );
+
+  const [newForm, setNewForm] = useState({
+    stageForFormCompletion: "form-not-required",
+    blockFromProceeding: "Yes",
+    form: "",
   });
 
   const [miscellaneousData, setMiscellaneousData] = useState({
@@ -234,6 +252,27 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [rightErr, setRightErr] = useState("");
   const [docFilter, setDocFilter] = useState("");
   const [nurseFilter, setNurseFilter] = useState("");
+  const [formnames,setFormnames] = useState([])
+
+  useEffect(() => {
+    const fetchData=async()=>{
+      try {
+        const response = await fetch(URLS?.formsNamesAPI, {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch services");
+
+        const data = await response.json();
+        setFormnames(data);
+      } catch (error) {
+          console.error("Error fetching services:", error);        
+      }
+    }
+    fetchData()
+  }, []);
 
   // Load clinics on mount
   useEffect(() => {
@@ -249,7 +288,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
           .map((x) => ({ code: x.code ?? "", name: x.name ?? "" }))
           .filter((c) => c.code && c.name);
         setClinics(rows);
-      } catch (e) {
+      } catch {
         setClinicError("Failed to load clinics");
       } finally {
         setClinicLoading(false);
@@ -432,7 +471,48 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     setBomItems((prev) => prev.map((it) => (it.id === id ? { ...it, selected: !it.selected } : it)));
   };
 
-  const handleFormsDataChange = (field, value) => { markDirty("Forms"); setFormsData((p) => ({ ...p, [field]: value })); };
+  const handleFormsDataChange = (index, field, value) => { markDirty("Forms"); setFormsData((prev) => prev.map((f, i) => i === index ? { ...f, [field]: value } : f)); };
+
+  const handleFormSelection = (id) => { markDirty("Forms"); setFormsData((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f)); };
+
+  const getFormId = async (formName) => {
+    const defUrl = `${API_BASE_URL}/api/form/by-name?name=${encodeURIComponent(formName)}`;
+    const defRes = await fetch(defUrl, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!defRes.ok) {
+      throw new Error(`Failed to fetch form definition for ${formName}: ${defRes.status}`);
+    }
+    const defData = await defRes.json();
+    const formId = defData.id;
+    if (!formId) {
+      throw new Error(`Form definition for ${formName} does not contain an id.`);
+    }
+    return formId;
+  };
+
+  const handleAddForm = async () => {
+    if (!newForm.form) {
+      setToast({ type: "error", message: "Please select a form to add." });
+      return;
+    }
+    try {
+      const formId = await getFormId(newForm.form);
+      markDirty("Forms");
+      setFormsData((prev) => [...prev, { ...newForm, id: Date.now(), selected: false, formId }]);
+      setNewForm({ stageForFormCompletion: "form-not-required", blockFromProceeding: "Yes", form: "" });
+      console.log("FormData: ",formsData)
+    } catch (error) {
+      setToast({ type: "error", message: error.message });
+    }
+  };
+
+  const handleRemoveForms = () => {
+    markDirty("Forms");
+    setFormsData((prev) => prev.filter((f) => !f.selected));
+  };
   const handleMiscellaneousDataChange = (field, value) => { markDirty("Miscellaneous"); setMiscellaneousData((p) => ({ ...p, [field]: value })); };
 
   // ----------------- VALIDATION -----------------
@@ -512,9 +592,9 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
 
   const buildFormsPayload = (isDraft = 0) => ({
     serviceCode: formData.serviceCode || "",
-    formStageForCompletion: formsData.stageForFormCompletion || "",
-    formBlockIfNotFilled: formsData.blockFromProceeding || "Yes",
-    form: formsData.form || "",
+    formStageForCompletion: formsData[0]?.stageForFormCompletion || "",
+    formBlockIfNotFilled: formsData[0]?.blockFromProceeding || "Yes",
+    form: formsData[0]?.form || "",
     // misc fields ride along with Forms save
     field1: miscellaneousData.optionalField1 || "",
     field2: miscellaneousData.optionalField2 || "",
@@ -553,7 +633,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: `General ${asDraft ? "saved as draft" : "submitted"} successfully.` });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to save/submit General. Check inputs and try again." });
+      setToast({ type: "error", message: `Failed to save/submit General: ${e.message}` });
     }
   };
 
@@ -565,7 +645,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: "Pricing saved as draft." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to save Pricing (draft)." });
+      setToast({ type: "error", message: `Failed to save Pricing (draft): ${e.message}` });
     }
   };
   const onSubmitPricing = async () => {
@@ -575,7 +655,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: "Pricing submitted successfully." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to submit Pricing." });
+      setToast({ type: "error", message: `Failed to submit Pricing: ${e.message}` });
     }
   };
 
@@ -590,7 +670,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: "BOM saved as draft." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to save BOM (draft)." });
+      setToast({ type: "error", message: `Failed to save BOM (draft): ${e.message}` });
     }
   };
   const onSubmitBOM = async () => {
@@ -618,7 +698,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: "Practitioner mapping saved as draft." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to save Practitioner Mapping." });
+      setToast({ type: "error", message: `Failed to save Practitioner Mapping: ${e.message}` });
     }
   };
   const onSubmitPractitioners = async () => {
@@ -631,7 +711,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       setToast({ type: "success", message: "Practitioner mapping submitted successfully." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to submit Practitioner Mapping." });
+      setToast({ type: "error", message: `Failed to submit Practitioner Mapping: ${e.message}` });
     }
   };
 
@@ -648,14 +728,43 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   };
   const onSubmitForms = async () => {
     try {
-      await postJSON(URLS.forms, buildFormsPayload(0)); // submit
-      // Submitting forms also carries misc fields; mark both tabs saved
+      // Collect forms with formIds
+      const formsToSave = [];
+      for (const f of formsData) {
+        if (!f.form) continue;
+        let formId = f.formId;
+        if (!formId) {
+          formId = await getFormId(f.form);
+        }
+        formsToSave.push({
+          serviceId: formData.serviceCode,
+          formId: formId,
+          version: 1,
+          createdDate: new Date().toISOString(),
+          isActive: true,
+          formStageForCompletion: f.stageForFormCompletion,
+          formBlockIfNotFilled: f.blockFromProceeding,
+          isDraft: 0
+        });
+      }
+
+      // Submit forms in a list
+      if (formsToSave.length > 0) {
+        await postJSON(`${API_BASE_URL}/api/serviceForm/save`, formsToSave);
+      } else {
+        setToast({ type: "warning", message: "No forms to submit, submitting misc only." });
+      }
+
+      // Submit misc fields via the old endpoint
+      await postJSON(URLS.forms, buildFormsPayload(0));
+
+      // Mark both tabs as saved
       markSaved("Forms", "saved");
       markSaved("Miscellaneous", "saved");
       setToast({ type: "success", message: "Forms (and Misc) submitted successfully." });
     } catch (e) {
       console.error(e);
-      setToast({ type: "error", message: "Failed to submit Forms." });
+      setToast({ type: "error", message: `Failed to submit Forms: ${e.message}` });
     }
   };
 
@@ -1182,10 +1291,15 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             {/* FORMS */}
             {activeTab === "Forms" && (
               <>
+                {/* Add New Form Section */}
                 <div className="form-row">
-                  <label className="form-label">Stage for form completion :</label>
+                  <label className="form-label">Add New Form:</label>
                   <div className="form-input-container">
-                    <select className="form-select" value={formsData.stageForFormCompletion} onChange={(e) => handleFormsDataChange("stageForFormCompletion", e.target.value)}>
+                    <select
+                      className="form-select"
+                      value={newForm.stageForFormCompletion}
+                      onChange={(e) => setNewForm((prev) => ({ ...prev, stageForFormCompletion: e.target.value }))}
+                    >
                       <option value="form-not-required">Form not required</option>
                       <option value="before-service">Before Service</option>
                       <option value="during-service">During Service</option>
@@ -1193,13 +1307,29 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                     </select>
                   </div>
                 </div>
-
-                <div className="form-row">
-                  <label className="form-label">Block from proceeding list if form not filled :</label>
-                  <div className="form-input-container">
-                    <div className="radio-group">
-                      <label><input type="radio" className="radio-input" name="blockFromProceeding" value="Yes" checked={formsData.blockFromProceeding === "Yes"} onChange={(e) => handleFormsDataChange("blockFromProceeding", e.target.value)} /> Yes</label>
-                      <label><input type="radio" className="radio-input" name="blockFromProceeding" value="No" checked={formsData.blockFromProceeding === "No"} onChange={(e) => handleFormsDataChange("blockFromProceeding", e.target.value)} /> No</label>
+                    <div className="form-row" >
+                      <label className="form-label">Block from proceeding list if form not filled :</label>
+                        <div className="form-input-container">
+                          <div className="radio-group">
+                        <label><input
+                          type="radio"
+                          className="radio-input"
+                          name="newBlock"
+                          value="Yes"
+                          checked={newForm.blockFromProceeding === "Yes"}
+                          onChange={(e) => setNewForm((prev) => ({ ...prev, blockFromProceeding: e.target.value }))}
+                        /> Yes
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          className="radio-input"
+                          name="newBlock"
+                          value="No"
+                          checked={newForm.blockFromProceeding === "No"}
+                          onChange={(e) => setNewForm((prev) => ({ ...prev, blockFromProceeding: e.target.value }))}
+                        /> No
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -1207,14 +1337,102 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                 <div className="form-row">
                   <label className="form-label">Form :</label>
                   <div className="form-input-container">
-                    <select className="form-select" value={formsData.form} onChange={(e) => handleFormsDataChange("form", e.target.value)}>
+                    <select
+                      className="form-select"
+                      value={newForm.form}
+                      onChange={(e) => setNewForm((prev) => ({ ...prev, form: e.target.value }))}
+                    >
                       <option value="">Select Form</option>
-                      <option value="consent-form">Consent Form</option>
-                      <option value="medical-history">Medical History Form</option>
-                      <option value="treatment-plan">Treatment Plan Form</option>
-                      <option value="post-treatment">Post Treatment Form</option>
+                      {formnames.map((formname) => (
+                        <option key={formname} value={formname}>{formname}</option>
+                      ))}
                     </select>
+                    </div>
+                    </div>
+                    <button type="button" className="btn btn-primary" onClick={handleAddForm}>Add Form</button>
+
+                {/* Forms Table */}
+                <div className="bom-table-container" style={{ marginTop: 20 }}>
+                  <table className="bom-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 50 }}></th>
+                        <th>Stage for Completion</th>
+                        <th>Block if Not Filled</th>
+                        <th>Form</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formsData.map((f, i) => (
+                        <tr key={f.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={f.selected}
+                              onChange={() => handleFormSelection(f.id)}
+                              style={{ width: 16, height: 16, accentColor: "#334B71" }}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="form-select"
+                              value={f.stageForFormCompletion}
+                              onChange={(e) => handleFormsDataChange(i, "stageForFormCompletion", e.target.value)}
+                            >
+                              <option value="form-not-required">Form not required</option>
+                              <option value="before-service">Before Service</option>
+                              <option value="during-service">During Service</option>
+                              <option value="after-service">After Service</option>
+                            </select>
+                          </td>
+                          <td>
+                            <div className="radio-group">
+                              <label>
+                                <input
+                                  type="radio"
+                                  className="radio-input"
+                                  name={`block-${f.id}`}
+                                  value="Yes"
+                                  checked={f.blockFromProceeding === "Yes"}
+                                  onChange={(e) => handleFormsDataChange(i, "blockFromProceeding", e.target.value)}
+                                /> Yes
+                              </label>
+                              <label>
+                                <input
+                                  type="radio"
+                                  className="radio-input"
+                                  name={`block-${f.id}`}
+                                  value="No"
+                                  checked={f.blockFromProceeding === "No"}
+                                  onChange={(e) => handleFormsDataChange(i, "blockFromProceeding", e.target.value)}
+                                /> No
+                              </label>
+                            </div>
+                          </td>
+                          <td>
+                            <select
+                              className="form-select"
+                              value={f.form}
+                              onChange={(e) => handleFormsDataChange(i, "form", e.target.value)}
+                            >
+                              <option value="">Select Form</option>
+                              {formnames.map((formname) => (
+                                <option key={formname} value={formname}>{formname}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {formsData.length === 0 && <div className="no-bom-items">No forms added yet.</div>}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                  <div>
+                    <span className="badge saved">{formsData.length} forms</span>
                   </div>
+                  <button className="btn btn-secondary" onClick={handleRemoveForms}>Remove Selected</button>
                 </div>
 
                 <div className="tab-actions">

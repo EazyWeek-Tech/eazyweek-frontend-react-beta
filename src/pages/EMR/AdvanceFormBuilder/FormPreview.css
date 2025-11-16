@@ -20,14 +20,14 @@
 
 .FP-form-preview-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
-  padding: 2rem;
+  padding: 0.5rem;
   background: var(--FP-background-color);
   border-radius: var(--FP-border-radius);
   box-shadow: var(--FP-shadow-soft);
   border: 1px solid var(--FP-border-color);
+  justify-content: center;
 }
 
 .FP-form-preview-title {
@@ -141,7 +141,8 @@
 
 .FP-form-preview-fields {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 1.5rem; 
   animation: FP-fade-in 0.5s ease-in-out;
 }
@@ -754,6 +755,74 @@
   padding: 0.25rem;
   background: transparent;
 }
+
+/* Table Field */
+.FP-form-field-component.FP-form-field-table {
+  margin-bottom: 1rem;
+}
+
+.FP-form-field-component.FP-form-field-table label {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.FP-form-field-component.FP-form-field-table table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+}
+
+.FP-form-field-component.FP-form-field-table th,
+.FP-form-field-component.FP-form-field-table td {
+  padding: 1rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.FP-form-field-component.FP-form-field-table th {
+  background: linear-gradient(135deg, #f9fafb 0%, #f1f5f9 100%);
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.FP-form-field-component.FP-form-field-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.FP-form-field-component.FP-form-field-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.FP-form-field-component.FP-form-field-table input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.FP-form-field-component.FP-form-field-table input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  background: #ffffff;
+}
+
 .FP-form-field-component canvas {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -778,6 +847,35 @@
   border-radius: 8px;
   padding: 1rem;
   background: #f9fafb;
+}
+
+.panel-children {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.panel-vertical {
+  flex-direction: column;
+}
+
+.panel-horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.panel-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-child-vertical {
+  width: 100%;
+}
+
+.panel-child-horizontal {
+  flex: 1;
+  min-width: 200px;
 }
 
 .FP-form-field-component.FP-form-field-tabs .FP-border {
@@ -1022,4 +1120,110 @@
   background-repeat: no-repeat;
   background-size: 1.25rem;
   padding-right: 3rem;
+}
+
+/* Selectboxes Field */
+.FP-form-field-component.FP-form-field-selectboxes {
+  margin-bottom: 1rem;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes label {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes .space-y-2 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes .flex.items-center.space-x-2 {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  width: 100%;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes .flex.items-center.space-x-2:hover {
+  background: #f8fafc;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes .flex.items-center.space-x-2 label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #374151;
+  flex: 1;
+}
+
+.FP-form-field-component.FP-form-field-selectboxes .flex.items-center.space-x-2 input[type="checkbox"] {
+  margin-right: 0.5rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
+}
+
+
+.formpreview-bydata{
+  padding: 5px;
+  border-radius: 10px;
+  background-color: #268de1;
+  color: white;
+  cursor: pointer;
+}
+.Form-Data-flex{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.GP-form-dropdown-container {
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.GP-form-label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #333;
+}
+
+.GP-form-dropdown {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  min-width: 250px;
+}
+
+.GP-loading-text {
+  color: #666;
+  margin-top: 1rem;
+}
+
+.GP-error-text {
+  color: red;
+  margin-top: 1rem;
+}
+
+.GP-form-preview-wrapper {
+  margin-top: 2rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background-color: #fafafa;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.05);
 }

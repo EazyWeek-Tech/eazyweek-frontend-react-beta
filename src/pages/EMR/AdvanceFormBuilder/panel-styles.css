@@ -1,0 +1,46 @@
+.panel-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f9fafb;
+  margin-bottom: 1rem;
+}
+
+.panel-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.panel-children {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.panel-vertical .panel-child {
+  width: 100%;
+}
+
+.panel-horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.panel-horizontal .panel-child {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .panel-horizontal {
+    flex-direction: column;
+  }
+
+  .panel-horizontal .panel-child {
+    width: 100%;
+  }
+}

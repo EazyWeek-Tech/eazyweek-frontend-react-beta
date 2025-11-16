@@ -161,7 +161,7 @@ const LaserConsentForm = () => {
           </div>
 
           <div className="LSCF-signature-section">
-            <label>Digital Signature *</label>
+            <label className='LSCF-Label'>Digital Signature *</label>
             <div className="LSCF-signature-pad">
               <SignatureCanvas
                 ref={sigCanvas}

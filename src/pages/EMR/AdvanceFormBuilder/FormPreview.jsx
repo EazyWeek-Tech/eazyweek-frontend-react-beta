@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { useToast } from "./use-toast";
 import * as FieldComponents from "./FieldComponents";
 import "./FormPreview.css"; // Import the external CSS file
+import "./panel-styles.css"; // Import panel-specific styles
 
 export const FormPreview = ({ config }) => {
   const [formData, setFormData] = useState({});
@@ -56,6 +57,19 @@ export const FormPreview = ({ config }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Generate JSON for all fields metadata
+    const fieldsMetadata = config.fields.map(field => ({
+      id: field.id,
+      label: field.label,
+      placeholder: field.placeholder || "",
+      required: field.required ? "required" : "optional",
+      type: field.type,
+      parentId: field.parentId || null
+    }));
+
+    console.log("Fields Metadata JSON:", JSON.stringify(fieldsMetadata, null, 2));
+
     const currentStepFields = config.isMultiStep
       ? config.steps[currentStep]?.fields.filter(fieldId => isFieldVisible(fieldId)) || []
       : config.fields.filter(field => isFieldVisible(field.id)).map(f => f.id);
@@ -104,12 +118,33 @@ export const FormPreview = ({ config }) => {
     setFormKey(prev => prev + 1);
   };
 
-  const goToPreviousStep = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  };
+  // const goToPreviousStep = () => {
+  //   if (currentStep > 0) setCurrentStep(currentStep - 1);
+  // };
 
   const renderField = (field) => {
     if (!isFieldVisible(field.id)) return null;
+
+    if (field.type === 'panel') {
+      const childFields = config.fields.filter(f => f.parentId === field.id);
+      const layout = field.layout || 'vertical';
+      return (
+        <div className="FP-form-field-component FP-form-field-panel">
+          <div className="FP-card panel-container">
+            <div className="panel-label">{field.label}</div>
+            <div className={`panel-children ${layout === 'horizontal' ? 'panel-horizontal' : 'panel-vertical'}`}>
+              {childFields.map(child => (
+                <div key={child.id} style={{ display:"flex", flexDirection:"row", flexWrap:"wrap", width: `${child.width }%` }}>
+                <div key={child.id} className={`panel-child ${layout === 'horizontal' ? 'panel-child-horizontal' : 'panel-child-vertical'}`}>
+                  {renderField(child)}
+                </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     const ComponentName = field.type.charAt(0).toUpperCase() + field.type.slice(1) + 'Field';
     const Component = FieldComponents[ComponentName];
@@ -126,16 +161,16 @@ export const FormPreview = ({ config }) => {
     }
 
     // Fallback for unknown field types
-    return <Input type="text" placeholder={field.placeholder} value={formData[field.id] || ""} onChange={(e) => updateFormData(field.id, e.target.value)} />;
+    return <Input type={field?.type || "text"} placeholder={field.placeholder} value={formData[field.id] || ""} onChange={(e) => updateFormData(field.id, e.target.value)} />;
   };
 
   const getCurrentStepFields = () => {
-    if (!config.isMultiStep) return config.fields.filter(field => isFieldVisible(field.id));
-    const currentStepFieldIds = config.steps[currentStep]?.fields || [];
-    return config.fields.filter(field => currentStepFieldIds.includes(field.id) && isFieldVisible(field.id));
+    if (!config?.isMultiStep) return config?.fields?.filter(field => isFieldVisible(field.id) && !field.parentId);
+    const currentStepFieldIds = config?.steps[currentStep]?.fields || [];
+    return config?.fields?.filter(field => currentStepFieldIds.includes(field?.id) && isFieldVisible(field?.id) && !field?.parentId);
   };
 
-  if (config.fields.length === 0) {
+  if (config?.fields?.length === 0) {
     return (
       <div className="FP-form-preview-empty">
         <div className="FP-form-preview-empty-icon">
@@ -148,15 +183,15 @@ export const FormPreview = ({ config }) => {
   }
 
   const currentStepFields = getCurrentStepFields();
-  const currentStepInfo = config.steps[currentStep];
+  const currentStepInfo = config?.steps[currentStep];
 
   return (
     <div className="FP-form-preview-container">
       <div className="FP-form-preview-card">
         <div className="FP-form-preview-header">
-          <h2 className="FP-form-preview-title">{config.title}</h2>
-          {config.description && <p className="FP-form-preview-description">{config.description}</p>}
-          {config.isMultiStep && (
+          <h2 className="FP-form-preview-title">{config?.title}</h2>
+          {config?.description && <p className="FP-form-preview-description">{config?.description}</p>}
+          {config?.isMultiStep && (
             <div className="FP-form-preview-progress">
               <div className="FP-form-preview-progress-info">
                 <span className="FP-form-preview-progress-step">Step {currentStep + 1} of {config.steps.length}</span>
@@ -170,8 +205,8 @@ export const FormPreview = ({ config }) => {
               </div>
               {currentStepInfo && (
                 <div className="FP-form-preview-step-info">
-                  <h3 className="FP-form-preview-step-title">{currentStepInfo.title}</h3>
-                  {currentStepInfo.description && <p className="FP-form-preview-step-description">{currentStepInfo.description}</p>}
+                  <h3 className="FP-form-preview-step-title">{currentStepInfo?.title}</h3>
+                  {currentStepInfo?.description && <p className="FP-form-preview-step-description">{currentStepInfo?.description}</p>}
                 </div>
               )}
             </div>
@@ -180,8 +215,8 @@ export const FormPreview = ({ config }) => {
 
         <form key={formKey} onSubmit={handleSubmit} className="FP-form-preview-form">
           <div className="FP-form-preview-fields">
-            {currentStepFields.map((field) => (
-              <div key={field.id} className="FP-form-preview-field">
+            {currentStepFields?.map((field) => (
+              <div key={field.id} className="FP-form-preview-field" style={{ width: `${field.width || 100}%` }}>
                 {/* <Label htmlFor={field.id} className="FP-form-preview-label">
                   {field.label}
                   {field.required && <span className="FP-form-preview-required">*</span>}
@@ -190,16 +225,16 @@ export const FormPreview = ({ config }) => {
               </div>
             ))}
           </div>
-          <div className="FP-form-preview-actions">
-            {config.isMultiStep && currentStep > 0 ? (
+          {/* <div className="FP-form-preview-actions">
+            {config?.isMultiStep && currentStep > 0 ? (
               <Button type="button" variant="outline" onClick={goToPreviousStep} className="FP-form-preview-btn-previous">
                 Previous
               </Button>
             ) : <div />}
             <Button type="submit" className="FP-form-preview-btn-submit">
-              {config.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
+              {config?.isMultiStep && currentStep < config.steps.length - 1 ? "Next Step" : "Submit Form"}
             </Button>
-          </div>
+          </div> */}
         </form>
       </div>
     </div>

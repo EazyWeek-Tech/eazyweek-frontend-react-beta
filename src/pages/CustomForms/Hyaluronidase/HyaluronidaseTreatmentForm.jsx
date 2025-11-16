@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import './HyaluronidaseTreatmentForm.css';
+import FileUploader from '../../EMR/Components/FileUploader';
 
 const HyaluronidaseTreatmentForm = () => {
   const [formData, setFormData] = useState({
@@ -491,6 +492,7 @@ const HyaluronidaseTreatmentForm = () => {
         <div className="HTF-form-group">
           <label>Chief Complaint:</label>
           <input
+          type='text'
             name="chiefComplaint"
             value={formData.chiefComplaint}
             onChange={handleInputChange}
@@ -500,6 +502,7 @@ const HyaluronidaseTreatmentForm = () => {
         <div className="HTF-form-group">
           <label>Diagnosis:</label>
           <input
+          type='text'
             name="diagnosis"
             value={formData.diagnosis}
             onChange={handleInputChange}
@@ -706,7 +709,7 @@ const HyaluronidaseTreatmentForm = () => {
 
         <div className="HTF-signature-section">
           <h2>Provider Signature:</h2>
-          <p>Sign above</p>
+          {/* <p>Sign above</p> */}
           <div className="HTF-signature-pad">
             <SignatureCanvas
               ref={providerSigCanvas}
@@ -731,8 +734,8 @@ const HyaluronidaseTreatmentForm = () => {
         </div>
 
         <div className="HTF-signature-section">
-          <h2>Supervising Physician Signature:</h2>
-          <p>Sign above</p>
+          <h2 style={{fontWeight:"600", marginBottom:"3px"}}>Supervising Physician Signature:</h2>
+          {/* <p>Sign above</p> */}
           <div className="HTF-signature-pad">
             <SignatureCanvas
               ref={supervisingSigCanvas}
@@ -757,17 +760,13 @@ const HyaluronidaseTreatmentForm = () => {
         <div className="HTF-upload-box">
 
           <span>
-            Drop files to attach, or{' '}
-            <label className="HTF-browse">
-              browse
-              <input
+              <FileUploader
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'beforePhotos')}
                 className="HTF-file-input"
               />
-            </label>
           </span>
         </div>
 
@@ -793,17 +792,13 @@ const HyaluronidaseTreatmentForm = () => {
 
         <div className="HTF-upload-box">
           <span>
-            Drop files to attach, or{' '}
-            <label className="HTF-browse">
-              browse
-              <input
+              <FileUploader
                 type="file"
                 multiple
                 accept=".jpg,.png,.jpeg,.pdf"
                 onChange={(e) => handleFileChange(e, 'afterPhotos')}
                 className="HTF-file-input"
               />
-            </label>
           </span>
         </div>
 

@@ -67,9 +67,12 @@ import LaserSessionForm from "./pages/CustomForms/LaserSession/LaserSessionForm"
 import ConsultationAssessmentForm from "./pages/CustomForms/InjectableTreatment/ConsultationAssessmentForm";
 import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/HyaluronidaseTreatmentForm";
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
+import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesConsentForm";
+import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 //import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
+import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -292,6 +295,10 @@ function App() {
 
                   {/* // New Route for Laser Session Consent Form */}
                   <Route
+                    path="/mapped-forms/list-forms"
+                    element={<FormList />}
+                  />
+                  <Route
                     path="/consent-form/laser-session-consent"
                     element={<LaserSessionCF />}
                   />
@@ -303,6 +310,11 @@ function App() {
                     path="/consent-form/hyaluronidase-consent"
                     element={<HyaluronidaseCF />}
                   />
+                  <Route 
+                  path="/consent-form/antiaging-consent"
+                  element={<InjectablesConsentForm />}
+                  />
+
                  <Route 
                  path="/custom-forms/laser-session"
                   element={<LaserSessionForm/>}
@@ -314,6 +326,7 @@ function App() {
 
 <Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
 <Route path="/custom-forms/form-builder" element={<AdvancedFormBuilder />} />
+<Route path="/custom-forms/form-builder/preview" element={<GetFormByDetails />} />
 
                   <Route 
                   path="/custom-forms/hyaluronidase-treatment"
@@ -326,6 +339,8 @@ function App() {
 <Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
       {/* <Route path="/purchase-category/create" element={<CreatePurchaseCategory />} /> */}
 
+
+                  
 
                 </Routes>
               </div>
