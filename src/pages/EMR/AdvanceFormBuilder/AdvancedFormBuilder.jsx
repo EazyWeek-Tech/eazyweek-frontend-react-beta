@@ -30,7 +30,6 @@ import { API_BASE_URL } from "../../../config";
 export const AdvancedFormBuilder = () => {
   const location = useLocation();
   const formData = location.state?.formData;
-  const additionalData = location.state?.additionalData;
 
   const initialConfig = {
     title: formData?.formName || "Custom Form",
@@ -38,10 +37,6 @@ export const AdvancedFormBuilder = () => {
     steps: [{ id: "step-1", title: "General Information", fields: [] }],
     fields: [],
     isMultiStep: false,
-    formType: additionalData?.formType || "",
-    formValidity: additionalData?.formValidity || "",
-    expiryDate: additionalData?.expiryDate || null,
-    status: additionalData?.status || "Active",
   };
   const [toast, setToast] = useState(null);
   const [config, setConfig] = useState(initialConfig);
@@ -394,17 +389,13 @@ export const AdvancedFormBuilder = () => {
       })),
     };
     try {
-      const response = await fetch(`${API_BASE_URL}/api/form`, {
+      const response = await fetch(`${API_BASE_URL}/api/form/save`, {
         method: "POST",
         headers: headersFor("POST"),
         body: JSON.stringify({
           name: formConfig?.title,
           code: formData?.code,
-          schemaJson: JSON.stringify(formConfig), // Convert object to string
-          expiryDate: additionalData?.expiryDate || null,
-          formValidity: additionalData?.formValidity || "",
-          formType: additionalData?.formType || "",
-          status: additionalData?.status || "Active"
+          schemaJson: JSON.stringify(formConfig) // Convert object to string
         }),
         credentials: "include",
       });
@@ -450,17 +441,13 @@ export const AdvancedFormBuilder = () => {
       })),
     };
     try {
-      const response = await fetch(`${API_BASE_URL}/api/form`, {
+      const response = await fetch(`${API_BASE_URL}/api/form/save`, {
         method: "POST",
         headers: headersFor("POST"),
         body: JSON.stringify({
-          name: formConfig?.title,
-          code: formData?.code,
           schemaJson: JSON.stringify(formConfig), // Convert object to string
-          expiryDate: additionalData?.expiryDate || null,
-          formValidity: additionalData?.formValidity || "",
-          formType: additionalData?.formType || "",
-          status: additionalData?.status || "Active"
+          name: formConfig?.title,
+          code: formData?.code
         }),
         credentials: "include",
       });
