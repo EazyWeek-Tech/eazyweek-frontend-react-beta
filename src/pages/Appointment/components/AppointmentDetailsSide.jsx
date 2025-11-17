@@ -1,10 +1,143 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
+import { FormPreview } from "../../EMR/AdvanceFormBuilder/FormPreview";
+
+// Form Selection Modal Component
+const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, title }) => {
+  const [selectedFormIndex, setSelectedFormIndex] = useState(0);
+  const [selectedFormConfig, setSelectedFormConfig] = useState(null);
+  const [loadingFormConfig, setLoadingFormConfig] = useState(false);
+
+  useEffect(() => {
+    if (forms.length > 0 && selectedFormIndex < forms.length) {
+      const form = forms[selectedFormIndex];
+      setLoadingFormConfig(true);
+      fetch(`${API_BASE_URL}/api/form/by-name?name=${form.formName}`, {
+        method: "GET",
+        credentials: "include",
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setSelectedFormConfig(data);
+        })
+        .catch((error) => {
+          console.error("Error fetching form config:", error);
+          setSelectedFormConfig(null);
+        })
+        .finally(() => {
+          setLoadingFormConfig(false);
+        });
+    }
+  }, [forms, selectedFormIndex]);
+
+  if (!isOpen) return null;
+
+  const parsedSchema = selectedFormConfig?.schemaJson ? JSON.parse(selectedFormConfig.schemaJson) : null;
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+      }}
+    >
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          maxWidth: '800px',
+          width: '90%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+      >
+        <h3>{title}</h3>
+        {loading ? (
+          <p>Loading forms...</p>
+        ) : forms.length > 0 ? (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '20px' }}>
+              {forms.map((form, index) => (
+                <button
+                  key={form.id}
+                  onClick={() => setSelectedFormIndex(index)}
+                  style={{
+                    padding: '10px 15px',
+                    margin: '5px',
+                    backgroundColor: selectedFormIndex === index ? '#007bff' : '#f8f9fa',
+                    color: selectedFormIndex === index ? 'white' : 'black',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {form.formName}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              {loadingFormConfig ? (
+                <p>Loading form preview...</p>
+              ) : parsedSchema ? (
+                <FormPreview config={parsedSchema} />
+              ) : (
+                <p>No preview available.</p>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'end' }}>
+              {/* <button
+                onClick={() => onSelectForm(forms[selectedFormIndex])}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Select Form
+              </button> */}
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </>
+        ) : (
+          <p>No forms available for this service.</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ---------- helpers ----------
-const norm = (v) => String(v ?? "").trim().toLowerCase();
+// const norm = (v) => String(v ?? "").trim().toLowerCase();
 
 const AppointmentDetailsSide = ({
   appointment,
@@ -20,6 +153,13 @@ const AppointmentDetailsSide = ({
   const [status, setStatus] = useState(appointment?.status || "Booked");
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
+  const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
+
+  const [consentForms, setConsentForms] = useState([]);
+  const [loadingConsentForms, setLoadingConsentForms] = useState(false);
+  const [treatmentForms, setTreatmentForms] = useState([]);
+  const [loadingTreatmentForms, setLoadingTreatmentForms] = useState(false);
 
   // Service display should come from the appointment directly (no API)
   const serviceDisplay = appointment?.serviceName || "—";
@@ -201,14 +341,14 @@ const AppointmentDetailsSide = ({
     navigate(`/customer?${q.toString()}`);
   };
 
-  const goToConsultationConsentPage = () => {
-    const a = apptDetails || appointment || {};
-    const q = new URLSearchParams();
-    if (a.custId) q.append("custid", a.custId);
-    if (a.fullName) q.append("custname", a.fullName);
-    if (a.appointmentId) q.append("appointmentid", a.appointmentId);
-    navigate(`/consultation?${q.toString()}`);
-  };
+  // const goToConsultationConsentPage = () => {
+  //   const a = apptDetails || appointment || {};
+  //   const q = new URLSearchParams();
+  //   if (a.custId) q.append("custid", a.custId);
+  //   if (a.fullName) q.append("custname", a.fullName);
+  //   if (a.appointmentId) q.append("appointmentid", a.appointmentId);
+  //   navigate(`/consultation?${q.toString()}`);
+  // };
 
   const goToMedicalHistoryPage = () => {
     const a = apptDetails || appointment || {};
@@ -220,55 +360,88 @@ const AppointmentDetailsSide = ({
     navigate(`/history?${q.toString()}`);
   };
 
-  // ----- NEW: Code-based routing (fast, no API wait) -----
-  // Returns { consentPath, treatmentPath } or nulls to indicate fallback.
-  const routesFromServiceCode = (serviceCodeRaw) => {
-    const code = String(serviceCodeRaw || "").toUpperCase();
 
-    // Map by "contains" instead of strict prefix to be resilient
-    if (code.includes("AA")) {
-      return { consentPath: "consentform/injectible", treatmentPath: "assesmentform/consultation" }; // null → fallback
-    }
-    if (code.includes("CON")) {
-      return { consentPath: "assesmentform/consultation", treatmentPath: "assesmentform/consultation" };
-    }
-     if (code.includes("LHR")) {
-      return { consentPath: "consentform/laser", treatmentPath: "treatmentform/laser" };
-    }
-    if (code.includes("BS")) {
-      return { consentPath: "consentform/laser", treatmentPath: "treatmentform/laser" };
-    }
-    if (code.includes("FAC")) {
-      return { consentPath: "consentform/laser", treatmentPath: "treatmentform/facial" };
-    }
-    return { consentPath: null, treatmentPath: null };
-  };
+
+
 
   const goToConsent = () => {
-    const a = apptDetails || appointment || {};
-    const query = buildQuery(a);
-    const { consentPath } = routesFromServiceCode(a?.serviceCode);
-
-    if (consentPath) {
-      navigate(`/${consentPath}?${query}`);
-      return;
-    }
-    // default fallback
-    goToConsultationConsentPage();
+    setConsentModalOpen(true);
   };
+
 
   const goToTreatment = () => {
+    setTreatmentModalOpen(true);
+  };
+
+  // Fetch consent forms when modal opens (only first form)
+  useEffect(() => {
+    if (consentModalOpen) {
+      const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
+      if (serviceId) {
+        setLoadingConsentForms(true);
+        fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
+          method: "GET",
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setConsentForms((data || []).slice(0, 1));
+          })
+          .catch((error) => {
+            console.error("Error fetching consent forms:", error);
+            setConsentForms([]);
+          })
+          .finally(() => {
+            setLoadingConsentForms(false);
+          });
+      } else {
+        setConsentForms([]);
+        setLoadingConsentForms(false);
+      }
+    }
+  }, [consentModalOpen, apptDetails?.serviceCode, appointment?.serviceCode]);
+
+  // Fetch treatment forms when modal opens (excluding first form)
+  useEffect(() => {
+    if (treatmentModalOpen) {
+      const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
+      if (serviceId) {
+        setLoadingTreatmentForms(true);
+        fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
+          method: "GET",
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setTreatmentForms((data || []).slice(1));
+          })
+          .catch((error) => {
+            console.error("Error fetching treatment forms:", error);
+            setTreatmentForms([]);
+          })
+          .finally(() => {
+            setLoadingTreatmentForms(false);
+          });
+      } else {
+        setTreatmentForms([]);
+        setLoadingTreatmentForms(false);
+      }
+    }
+  }, [treatmentModalOpen, apptDetails?.serviceCode, appointment?.serviceCode]);
+
+  const handleSelectConsentForm = (form) => {
     const a = apptDetails || appointment || {};
     const query = buildQuery(a);
-    const { treatmentPath } = routesFromServiceCode(a?.serviceCode);
-
-    if (treatmentPath) {
-      navigate(`/${treatmentPath}?${query}`);
-      return;
-    }
-    // fallback as requested for AA/others with no explicit rule
-    goToConsultationConsentPage();
+    navigate(`/generalform?formId=${form.formId}&${query}`);
+    setConsentModalOpen(false);
   };
+
+  // const handleSelectTreatmentForm = (form) => {
+  //   const a = apptDetails || appointment || {};
+  //   const query = buildQuery(a);
+  //   navigate(`/generalform?formId=${form.formId}&${query}`);
+  //   setTreatmentModalOpen(false);
+  // };
 
   const handleDeleteAppointment = () => {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
@@ -457,6 +630,24 @@ const AppointmentDetailsSide = ({
           </button>
         </div>
       </div>
+
+      <FormSelectionModal
+        isOpen={consentModalOpen}
+        onClose={() => setConsentModalOpen(false)}
+        forms={consentForms}
+        loading={loadingConsentForms}
+        onSelectForm={handleSelectConsentForm}
+        title="Select Consent Form"
+      />
+
+      <FormSelectionModal
+        isOpen={treatmentModalOpen}
+        onClose={() => setTreatmentModalOpen(false)}
+        forms={treatmentForms}
+        loading={loadingTreatmentForms}
+        // onSelectForm={handleSelectTreatmentForm}
+        title="Select Treatment Form"
+      />
 
       {toast && (
         <Toast
