@@ -737,6 +737,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
           formId = await getFormId(f.form);
         }
         formsToSave.push({
+          id: 0,
           serviceId: formData.serviceCode,
           formId: formId,
           version: 1,
@@ -748,9 +749,25 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         });
       }
 
-      // Submit forms in a list
+      // Build payload with form and forms
+      const payload = {
+        form: formsToSave.length > 0 ? formsToSave[0] : {
+          id: 0,
+          serviceId: formData.serviceCode,
+          formId: 0,
+          version: 1,
+          createdDate: new Date().toISOString(),
+          isActive: true,
+          formStageForCompletion: "form-not-required",
+          formBlockIfNotFilled: "Yes",
+          isDraft: 0
+        },
+        forms: formsToSave
+      };
+
+      // Submit forms in the new structure
       if (formsToSave.length > 0) {
-        await postJSON(`${API_BASE_URL}/api/serviceForm/save`, formsToSave);
+        await postJSON(`${API_BASE_URL}/api/serviceForm`, payload);
       } else {
         setToast({ type: "warning", message: "No forms to submit, submitting misc only." });
       }
