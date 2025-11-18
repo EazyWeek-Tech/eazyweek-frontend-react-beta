@@ -471,8 +471,6 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     setBomItems((prev) => prev.map((it) => (it.id === id ? { ...it, selected: !it.selected } : it)));
   };
 
-  const handleFormsDataChange = (index, field, value) => { markDirty("Forms"); setFormsData((prev) => prev.map((f, i) => i === index ? { ...f, [field]: value } : f)); };
-
   const handleFormSelection = (id) => { markDirty("Forms"); setFormsData((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f)); };
 
   const getFormId = async (formName) => {
@@ -718,7 +716,53 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   // FORMS (+ carries Misc fields)
   const onSaveForms = async () => {
     try {
-      await postJSON(URLS.forms, buildFormsPayload(1)); // draft
+      // Collect forms with formIds
+      const formsToSave = [];
+      for (const f of formsData) {
+        if (!f.form) continue;
+        let formId = f.formId;
+        if (!formId) {
+          formId = await getFormId(f.form);
+        }
+        formsToSave.push({
+          id: 0,
+          serviceId: formData.serviceCode,
+          formId: formId,
+          version: 1,
+          createdDate: new Date().toISOString(),
+          isActive: true,
+          formStageForCompletion: f.stageForFormCompletion,
+          formBlockIfNotFilled: f.blockFromProceeding,
+          isDraft: 1
+        });
+      }
+
+      // Build payload with form, forms, and misc
+      const payload = {
+        form: formsToSave.length > 0 ? formsToSave[0] : {
+          id: 0,
+          serviceId: formData.serviceCode,
+          formId: 0,
+          version: 1,
+          createdDate: new Date().toISOString(),
+          isActive: true,
+          formStageForCompletion: "form-not-required",
+          formBlockIfNotFilled: "Yes",
+          isDraft: 1
+        },
+        forms: formsToSave,
+        misc: {
+          optionalField1: miscellaneousData.optionalField1 || "",
+          optionalField2: miscellaneousData.optionalField2 || "",
+          optionalField3: miscellaneousData.optionalField3 || "",
+          optionalField4: miscellaneousData.optionalField4 || "",
+          optionalField5: miscellaneousData.optionalField5 || "",
+        }
+      };
+
+      // Submit to the new API for draft
+      await postJSON(`${API_BASE_URL}/api/serviceForm`, payload);
+
       markSaved("Forms", "draft");
       setToast({ type: "success", message: "Forms settings saved as draft." });
     } catch (e) {
@@ -737,6 +781,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
           formId = await getFormId(f.form);
         }
         formsToSave.push({
+          id: 0,
           serviceId: formData.serviceCode,
           formId: formId,
           version: 1,
@@ -748,9 +793,25 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         });
       }
 
-      // Submit forms in a list
+      // Build payload with form and forms
+      const payload = {
+        form: formsToSave.length > 0 ? formsToSave[0] : {
+          id: 0,
+          serviceId: formData.serviceCode,
+          formId: 0,
+          version: 1,
+          createdDate: new Date().toISOString(),
+          isActive: true,
+          formStageForCompletion: "form-not-required",
+          formBlockIfNotFilled: "Yes",
+          isDraft: 0
+        },
+        forms: formsToSave
+      };
+
+      // Submit forms in the new structure
       if (formsToSave.length > 0) {
-        await postJSON(`${API_BASE_URL}/api/serviceForm/save`, formsToSave);
+        await postJSON(`${API_BASE_URL}/api/serviceForm`, payload);
       } else {
         setToast({ type: "warning", message: "No forms to submit, submitting misc only." });
       }
@@ -1363,7 +1424,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {formsData.map((f, i) => (
+                      {formsData.filter(f => f.form).map((f) => (
                         <tr key={f.id}>
                           <td>
                             <input
@@ -1373,64 +1434,23 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                               style={{ width: 16, height: 16, accentColor: "#334B71" }}
                             />
                           </td>
+                          <td>{f.stageForFormCompletion}</td>
                           <td>
-                            <select
-                              className="form-select"
-                              value={f.stageForFormCompletion}
-                              onChange={(e) => handleFormsDataChange(i, "stageForFormCompletion", e.target.value)}
-                            >
-                              <option value="form-not-required">Form not required</option>
-                              <option value="before-service">Before Service</option>
-                              <option value="during-service">During Service</option>
-                              <option value="after-service">After Service</option>
-                            </select>
+                            {f.blockFromProceeding === "Yes" ? "Yes" : "No"}
                           </td>
                           <td>
-                            <div className="radio-group">
-                              <label>
-                                <input
-                                  type="radio"
-                                  className="radio-input"
-                                  name={`block-${f.id}`}
-                                  value="Yes"
-                                  checked={f.blockFromProceeding === "Yes"}
-                                  onChange={(e) => handleFormsDataChange(i, "blockFromProceeding", e.target.value)}
-                                /> Yes
-                              </label>
-                              <label>
-                                <input
-                                  type="radio"
-                                  className="radio-input"
-                                  name={`block-${f.id}`}
-                                  value="No"
-                                  checked={f.blockFromProceeding === "No"}
-                                  onChange={(e) => handleFormsDataChange(i, "blockFromProceeding", e.target.value)}
-                                /> No
-                              </label>
-                            </div>
-                          </td>
-                          <td>
-                            <select
-                              className="form-select"
-                              value={f.form}
-                              onChange={(e) => handleFormsDataChange(i, "form", e.target.value)}
-                            >
-                              <option value="">Select Form</option>
-                              {formnames.map((formname) => (
-                                <option key={formname} value={formname}>{formname}</option>
-                              ))}
-                            </select>
+                            {f.form}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {formsData.length === 0 && <div className="no-bom-items">No forms added yet.</div>}
+                  {formsData.filter(f => f.form).length === 0 && <div className="no-bom-items">No forms added yet.</div>}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
                   <div>
-                    <span className="badge saved">{formsData.length} forms</span>
+                    <span className="badge saved">{formsData.filter(f => f.form).length} forms</span>
                   </div>
                   <button className="btn btn-secondary" onClick={handleRemoveForms}>Remove Selected</button>
                 </div>

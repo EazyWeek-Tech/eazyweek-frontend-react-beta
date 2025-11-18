@@ -1057,7 +1057,7 @@ const GuestConsentForm = () => {
 
                 </fieldset>
 
-                <fieldset>
+                <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                   <h3 className="section-title">Exercise</h3>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
@@ -1249,7 +1249,8 @@ const GuestConsentForm = () => {
                 </fieldset>
 
 
-               <fieldset>
+                               <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
+
   <h3 className="section-title">
     Male Hormone Review
   </h3>
@@ -1348,7 +1349,8 @@ const GuestConsentForm = () => {
 </fieldset>
 
 
-            <fieldset>
+  <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
+
   <h3 className="section-title">
     Female Hormone Review
   </h3>
@@ -1930,7 +1932,7 @@ const GuestConsentForm = () => {
                   </div>
 
                   {/* Tattoos */}
-                  <fieldset>
+               <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                   <h3 className="section-title">Tattoos, Permanent Makeup</h3>
                     <label>Please describe location, type, or any relevant notes:</label>
                     <textarea
@@ -1943,7 +1945,7 @@ const GuestConsentForm = () => {
                   </fieldset>
 
                   {/* Other Medical Issues */}
-                  <fieldset>
+                 <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                     <h3 className="section-title">List Medical Issues Not Listed Above</h3>
                     <label>Please describe any additional medical issues:</label>
                     <textarea
@@ -1956,7 +1958,7 @@ const GuestConsentForm = () => {
                   </fieldset>
 
                   {/* Concerns */}
-                  <fieldset>
+                <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                     <h3 className="section-title">Concerns</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {[
@@ -1985,7 +1987,7 @@ const GuestConsentForm = () => {
                   </p>
 
                   {/* Gender Identity */}
-                  <fieldset>
+                <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                   <h3 className="section-title">Gender Identity</h3>
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                       {['Woman', 'Man', 'Trans woman', 'Trans man', 'Non-binary'].map((item, idx) => (
@@ -2003,7 +2005,7 @@ const GuestConsentForm = () => {
                   </fieldset>
 
                   {/* Gender Pronoun */}
-                  <fieldset>
+                <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                   <h3 className="section-title">Gender Pronoun</h3>
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                       {['She', 'He', 'They'].map((item, idx) => (
@@ -2021,7 +2023,7 @@ const GuestConsentForm = () => {
                   </fieldset>
 
                   {/* File Uploads */}
-                  <fieldset>
+                <fieldset style={{ border: '1px solid var(--hgh-color)', borderRadius: '6px', padding: '1rem', marginTop: '1rem', background: 'var(--pribg-color)' }}>
                     <h3 className="section-title">Before File Upload</h3>
                     <FileUploader
                       onFilesSelected={async (files) => {
@@ -2161,10 +2163,6 @@ const GuestConsentForm = () => {
                     <label>
                       Provider Signature: </label>
                       <div className="cnfrmcellwrp" onClick={(e) => e.stopPropagation()}>
-                          <SignaturePad
-                              ref={providerSignatureRef}
-                              onSave={handleProviderSignatureSave}
-                          />
                           <SignaturePad
                               ref={providerSignatureRef}
                               onSave={handleProviderSignatureSave}
