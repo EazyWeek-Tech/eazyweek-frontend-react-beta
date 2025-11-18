@@ -150,25 +150,7 @@ const GeneralForm = () => {
     console.log("Membership Data:", membershipData);
     console.log("Packages Data:", packagesData);
     console.log("Loyalty Data:", loyaltyData);
-
-    let additionalData = {};
-    if (formData.formType === "Service") {
-      additionalData = {
-        formType: formData.formType,
-        formValidity: serviceData.formValidity || "",
-        expiryDate: serviceData.expiryDate || null,
-        status: serviceData.status,
-      };
-    } else if (formData.formType === "Guest") {
-      additionalData = {
-        formType: formData.formType,
-        formValidity: "",
-        expiryDate: null,
-        status: "Active", // Assuming default for Guest
-      };
-    }
-
-    navigate("/custom-forms/form-builder", { state: { formData, additionalData } });
+    navigate("/custom-forms/form-builder", { state: { formData } });
   };
 
   const handleCancel = () => {
