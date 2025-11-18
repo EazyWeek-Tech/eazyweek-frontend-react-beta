@@ -268,11 +268,51 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         const data = await response.json();
         setFormnames(data);
       } catch (error) {
-          console.error("Error fetching services:", error);        
+          console.error("Error fetching services:", error);
       }
     }
     fetchData()
   }, []);
+
+  // Fetch existing forms and misc data for edit mode
+  useEffect(() => {
+    if (mode === "edit" && formData.serviceCode) {
+      const fetchFormsData = async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/serviceForm/all/${formData.serviceCode}`, {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.forms && Array.isArray(data.forms)) {
+              setFormsData(data.forms.map((f, idx) => ({
+                id: Date.now() + idx,
+                selected: false,
+                form: f.formName,
+                stageForFormCompletion: f.formStageForCompletion,
+                blockFromProceeding: f.formBlockIfNotFilled,
+                formId: f.formId,
+              })));
+            }
+            if (data.misc) {
+              setMiscellaneousData({
+                optionalField1: data.misc.optionalField1 || "",
+                optionalField2: data.misc.optionalField2 || "",
+                optionalField3: data.misc.optionalField3 || "",
+                optionalField4: data.misc.optionalField4 || "",
+                optionalField5: data.misc.optionalField5 || "",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching forms data:", error);
+        }
+      };
+      fetchFormsData();
+    }
+  }, [mode, formData.serviceCode]);
 
   // Load clinics on mount
   useEffect(() => {
