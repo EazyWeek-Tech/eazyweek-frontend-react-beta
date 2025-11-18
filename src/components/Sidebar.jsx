@@ -114,7 +114,7 @@ const Sidebar = ({ collapsed }) => {
       submenu:[
     // { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
     // { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
-    { name:"General Form", path:"/custom-forms/general-form"},
+    { name:"Create Form", path:"/custom-forms/general-form"},
       ]
     },
     {

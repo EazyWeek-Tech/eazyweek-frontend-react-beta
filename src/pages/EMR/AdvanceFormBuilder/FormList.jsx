@@ -113,8 +113,8 @@ const FormList = () => {
                   >
                     {form.name}
                   </td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{form.expiry}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{form.type}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{form.expiryDate}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{form.formType}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{form.status}</td>
                 </tr>
               ))}
