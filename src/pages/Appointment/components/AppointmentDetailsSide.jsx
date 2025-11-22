@@ -71,24 +71,30 @@ const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, tit
           <p>Loading forms...</p>
         ) : forms.length > 0 ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '20px' }}>
-              {forms.map((form, index) => (
-                <button
-                  key={form.id}
-                  onClick={() => setSelectedFormIndex(index)}
-                  style={{
-                    padding: '10px 15px',
-                    margin: '5px',
-                    backgroundColor: selectedFormIndex === index ? '#007bff' : '#f8f9fa',
-                    color: selectedFormIndex === index ? 'white' : 'black',
-                    border: '1px solid #dee2e6',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {form.formName}
-                </button>
-              ))}
+            <div style={{ marginBottom: '20px' }}>
+              <nav role="tablist" style={{ display: 'flex', borderBottom: '1px solid #dee2e6', overflowX: 'auto' }}>
+                {forms.map((form, index) => (
+                  <button
+                    key={form.id}
+                    role="tab"
+                    aria-selected={selectedFormIndex === index}
+                    onClick={() => setSelectedFormIndex(index)}
+                    style={{
+                      padding: '10px 15px',
+                      backgroundColor: selectedFormIndex === index ? '#007bff' : 'transparent',
+                      color: selectedFormIndex === index ? 'white' : '#007bff',
+                      border: 'none',
+                      borderBottom: selectedFormIndex === index ? '2px solid #007bff' : 'none',
+                      cursor: 'pointer',
+                      fontWeight: selectedFormIndex === index ? 'bold' : 'normal',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {form.formName}
+                  </button>
+                ))}
+              </nav>
             </div>
             <div style={{ marginBottom: '20px' }}>
               {loadingFormConfig ? (
@@ -373,7 +379,7 @@ const AppointmentDetailsSide = ({
     setTreatmentModalOpen(true);
   };
 
-  // Fetch consent forms when modal opens (only first form)
+  // Fetch consent forms when modal opens (filter by name including 'consent')
   useEffect(() => {
     if (consentModalOpen) {
       const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
@@ -385,7 +391,9 @@ const AppointmentDetailsSide = ({
         })
           .then((res) => res.json())
           .then((data) => {
-            setConsentForms((data || []).slice(0, 1));
+            const filtered = (data || []).filter(form => form.formName && form.formName.toLowerCase().includes('consent'));
+            console.log("Filtered consent forms:", filtered);
+            setConsentForms(filtered);
           })
           .catch((error) => {
             console.error("Error fetching consent forms:", error);
@@ -401,7 +409,7 @@ const AppointmentDetailsSide = ({
     }
   }, [consentModalOpen, apptDetails?.serviceCode, appointment?.serviceCode]);
 
-  // Fetch treatment forms when modal opens (excluding first form)
+  // Fetch treatment forms when modal opens (filter by name including 'treatment')
   useEffect(() => {
     if (treatmentModalOpen) {
       const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
@@ -413,7 +421,8 @@ const AppointmentDetailsSide = ({
         })
           .then((res) => res.json())
           .then((data) => {
-            setTreatmentForms((data || []).slice(1));
+            const filtered = (data || []).filter(form => form.formName && form.formName.toLowerCase().includes('treatment'));
+            setTreatmentForms(filtered);
           })
           .catch((error) => {
             console.error("Error fetching treatment forms:", error);
@@ -637,7 +646,7 @@ const AppointmentDetailsSide = ({
         forms={consentForms}
         loading={loadingConsentForms}
         onSelectForm={handleSelectConsentForm}
-        title="Select Consent Form"
+        title=""
       />
 
       <FormSelectionModal
@@ -646,7 +655,7 @@ const AppointmentDetailsSide = ({
         forms={treatmentForms}
         loading={loadingTreatmentForms}
         // onSelectForm={handleSelectTreatmentForm}
-        title="Select Treatment Form"
+        title=""
       />
 
       {toast && (

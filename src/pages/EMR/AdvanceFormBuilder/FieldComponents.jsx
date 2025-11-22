@@ -10,6 +10,18 @@ import FileUploader from "../Components/FileUploader";
 import FaceMapper from "../Components/FaceMapper";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
+// Label Field Component (for displaying static text)
+export const LabelField = ({ field }) => (
+  <div className="form-field-component form-field-label">
+    <Label className="text-base font-medium">
+      {field.label}
+    </Label>
+    {field.description && (
+      <p className="text-sm text-gray-600 mt-1">{field.description}</p>
+    )}
+  </div>
+);
+
 // Text Field Component
 export const TextField = ({ field, value, onChange, error }) => (
   <div className="form-field-component form-field-text">
@@ -1063,18 +1075,205 @@ export const TabsField = ({ field, value, onChange, error }) => {
 
 // Face Card Field Component
 export const FacecardField = ({ field, onChange, error }) => {
-  const handleDrawingComplete = (data) => {
-    onChange(field.id, data);
+  const faceCanvas = useRef(null);
+  const [rectangles, setRectangles] = useState([]);
+  const [tool, setTool] = useState('pencil');
+  const [color, setColor] = useState('#000000');
+  const [brushSize, setBrushSize] = useState(5);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState({x: 0, y: 0});
+  const [lastPos, setLastPos] = useState({x: 0, y: 0});
+
+  const startDrawing = (e) => {
+    const canvas = faceCanvas.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setIsDrawing(true);
+    setStartPos({ x, y });
+    setLastPos({ x, y });
+    if (tool === 'rectangle') {
+      setRectangles(prev => [...prev, { id: Date.now(), x, y, width: 0, height: 0, text: '' }]);
+    }
+    else if (tool === 'text') {
+      // Add an editable text box at the clicked position
+      const id = Date.now();
+      const defaultWidth = 140;
+      const defaultHeight = 30;
+      const newRect = { id, x, y, width: defaultWidth, height: defaultHeight, text: '' };
+      setRectangles(prev => {
+        const newRects = [...prev, newRect];
+        // Persist change
+        try {
+          const dataURL = canvas ? canvas.toDataURL() : null;
+          onChange(field.id, { canvasData: dataURL, rectangles: newRects });
+        } catch {
+          // ignore
+        }
+        return newRects;
+      });
+      // focus the newly created textarea once mounted
+      setTimeout(() => {
+        const ta = document.getElementById(`textarea-${id}`);
+        if (ta) ta.focus();
+      }, 50);
+      // don't keep drawing mode active for text
+      setIsDrawing(false);
+    }
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const canvas = faceCanvas.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (tool === 'pencil' || tool === 'eraser' || tool === 'line') {
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      if (tool === 'pencil') {
+        ctx.beginPath();
+        ctx.moveTo(lastPos.x, lastPos.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else if (tool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      } else if (tool === 'line') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.moveTo(startPos.x, startPos.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+    } else if (tool === 'rectangle') {
+      // Update rectangle dimensions in real-time and redraw
+      const newRectangles = rectangles.map((r, index) =>
+        index === rectangles.length - 1 ? { ...r, width: x - r.x, height: y - r.y } : r
+      );
+      setRectangles(newRectangles);
+      // Redraw canvas with updated rectangles
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      newRectangles.forEach(r => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(r.x, r.y, r.width, r.height);
+      });
+    }
+    setLastPos({ x, y });
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const updateRectangleText = (id, text) => {
+    setRectangles(prev => {
+      const newRects = prev.map(rect => rect.id === id ? { ...rect, text } : rect);
+      // Persist the updated rectangles
+      try {
+        const canvas = faceCanvas.current;
+        const dataURL = canvas ? canvas.toDataURL() : null;
+        onChange(field.id, { canvasData: dataURL, rectangles: newRects });
+      } catch {
+        // ignore
+      }
+      return newRects;
+    });
+  };
+
+  const clearFaceMapper = () => {
+    const canvas = faceCanvas.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setRectangles([]);
+    const dataURL = canvas.toDataURL();
+    onChange(field.id, { canvasData: dataURL, rectangles: [] });
   };
 
   return (
     <div className="form-field-component FC-form-field-facecard">
-      <div className="border-2 border-dashed border-gray-300 p-4 text-center">
-        <FaceMapper
-          onDrawingComplete={handleDrawingComplete}
-          width={field.width || 400}
-          height={field.height || 400}
-        />
+      <Label htmlFor={field.id}>
+        <FileText className="w-4 h-4 mr-2" />
+        {field.label}
+        {field.required && <span className="form-field-required">*</span>}
+      </Label>
+      <div className="HTF-face-mapper-section">
+        <div className="HTF-face-mapper-container">
+          <img src="/images/facediagram.jpg" alt="Face Diagram" className="HTF-face-diagram" />
+          <canvas
+            ref={faceCanvas}
+            width={700}
+            height={700}
+            className="HTF-face-canvas"
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+          />
+          {rectangles.map(rect => (
+            <textarea
+              key={rect.id}
+              id={`textarea-${rect.id}`}
+              value={rect.text}
+              onChange={(e) => updateRectangleText(rect.id, e.target.value)}
+              style={{
+                position: 'absolute',
+                left: `${rect.x}px`,
+                top: `${rect.y}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+                border: 'none',
+                background: 'transparent',
+                fontSize: '12px',
+                padding: '2px',
+                boxSizing: 'border-box',
+                resize: 'none',
+                overflow: 'hidden',
+              }}
+              placeholder="Enter text"
+            />
+          ))}
+        </div>
+        <div className="HTF-face-mapper-tools">
+          <label>
+            Tool:
+            <select value={tool} onChange={(e) => setTool(e.target.value)}>
+              <option value="pencil">Pencil</option>
+              <option value="eraser">Eraser</option>
+              <option value="line">Line</option>
+              {/* <option value="rectangle">Rectangle</option> */}
+              <option value="text">Text</option>
+            </select>
+          </label>
+          <label>
+            Color:
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <label>
+            Brush Size:
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={brushSize}
+              onChange={(e) => setBrushSize(e.target.value)}
+            />
+          </label>
+          <button type="button" className="HTF-clear-face-mapper-btn" onClick={clearFaceMapper}>
+            Clear Drawing
+          </button>
+        </div>
       </div>
       {error && <span className="form-field-error-message">{error}</span>}
     </div>
