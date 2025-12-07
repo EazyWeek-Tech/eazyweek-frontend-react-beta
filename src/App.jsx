@@ -69,22 +69,59 @@ import HyaluronidaseTreatmentForm from "./pages/CustomForms/Hyaluronidase/Hyalur
 import GeneralForm from "./pages/CustomForms/GenralForm/GeneralForm";
 import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesConsentForm";
 import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
-//import CreatePurchaseCategory from "./pages/Masters/CreatePurchaseCatergory";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 
+// 🔹 NEW: helper to bootstrap user from storage OR from ?token=
+const getInitialUser = () => {
+  try {
+    const stored =
+      sessionStorage.getItem("user") || localStorage.getItem("user");
+    if (stored) {
+      return JSON.parse(stored);
+    }
+
+    // Check for SSO token in query string (coming from Insight)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+
+    if (token) {
+      const ssoUser = {
+        isSso: true,
+        token,
+      };
+
+      // Save token & user in sessionStorage (you can also choose localStorage)
+      sessionStorage.setItem("ssoToken", token);
+      sessionStorage.setItem("user", JSON.stringify(ssoUser));
+
+      // Clean the URL (remove ?token=...)
+      const url = new URL(window.location.href);
+      url.searchParams.delete("token");
+      window.history.replaceState({}, "", url.toString());
+
+      return ssoUser;
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Error initializing user from storage / token", e);
+    return null;
+  }
+};
+
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [user, setUser] = useState(
-    JSON.parse(sessionStorage.getItem("user") || localStorage.getItem("user"))
-  );
+
+  // 🔹 UPDATED: use helper to initialize user (handles ?token=)
+  const [user, setUser] = useState(getInitialUser);
 
   const navigate = useNavigate();
 
   const handleLoginSuccess = (user) => {
     setUser(user);
-    navigate("/dashboard", { replace: true }); // ✅ redirect to /cases
+    navigate("/dashboard", { replace: true }); // redirect after normal login
   };
 
   const toggleSidebar = () => {
@@ -98,6 +135,7 @@ function App() {
     navigate("/login", { replace: true });
   };
 
+  // If still no user after storage / token check → show login routes
   if (!user) {
     return (
       <Routes>
@@ -126,12 +164,19 @@ function App() {
       <Route path="/discounts" element={<DiscountManagement />} />
       <Route path="/discounts/configure/*" element={<DiscountConfig />} />
       <Route path="/discounts/manage" element={<DiscountList />} />
-       <Route path="/consentform/injectible" element={<InjectableTreatment />} />
-       <Route path="/consentform/facial" element={<HyaluronidaseCF />} />
-       <Route path="/assesmentform/consultation" element={< ConsultationAssessmentForm/>} />
-       <Route path="/consentform/laser" element={<LaserConsentForm />} />
-       <Route path="/treatmentform/laser" element={<LaserSessionForm />} />
-       <Route path="/treatmentform/facial" element={<HyaluronidaseTreatmentForm />} />
+      <Route path="/consentform/injectible" element={<InjectableTreatment />} />
+      <Route path="/consentform/facial" element={<HyaluronidaseCF />} />
+      <Route
+        path="/assesmentform/consultation"
+        element={<ConsultationAssessmentForm />}
+      />
+      <Route path="/consentform/laser" element={<LaserConsentForm />} />
+      <Route path="/treatmentform/laser" element={<LaserSessionForm />} />
+      <Route
+        path="/treatmentform/facial"
+        element={<HyaluronidaseTreatmentForm />}
+      />
+
       {/*Add Routes WITH Sidebar + Header */}
       <Route
         path="/*"
@@ -149,9 +194,18 @@ function App() {
                     path="/segmentaddform/:employeeCode"
                     element={<SegmentAddForm />}
                   />
-<Route path="/opportunity/:oppCode/customers" element={<AddLeadCustomerList />} />
-<Route path="/opportunity/customers" element={<AddLeadCustomerList />} /> {/* optional fallback */}
-<Route path="/opportunity/:oppCode/manual/:custId" element={<ManualOppCustomerDetails />} />
+                  <Route
+                    path="/opportunity/:oppCode/customers"
+                    element={<AddLeadCustomerList />}
+                  />
+                  <Route
+                    path="/opportunity/customers"
+                    element={<AddLeadCustomerList />}
+                  />
+                  <Route
+                    path="/opportunity/:oppCode/manual/:custId"
+                    element={<ManualOppCustomerDetails />}
+                  />
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
                     path="/cases/:caseNumber"
@@ -286,14 +340,13 @@ function App() {
                     path="/audit/:auditNo"
                     element={<AuditDraftDetails />}
                   />
-                  <Route index element={<Navigate to="/dashboard" replace />} />{" "}
-                  {/* ← This handles "/" */}
+                  <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route
                     path="*"
                     element={<Navigate to="/dashboard" replace />}
                   />
 
-                  {/* // New Route for Laser Session Consent Form */}
+                  {/* Mapped Forms / Custom Forms */}
                   <Route
                     path="/mapped-forms/list-forms"
                     element={<FormList />}
@@ -310,38 +363,39 @@ function App() {
                     path="/consent-form/hyaluronidase-consent"
                     element={<HyaluronidaseCF />}
                   />
-                  <Route 
-                  path="/consent-form/antiaging-consent"
-                  element={<InjectablesConsentForm />}
+                  <Route
+                    path="/consent-form/antiaging-consent"
+                    element={<InjectablesConsentForm />}
                   />
-
-                 <Route 
-                 path="/custom-forms/laser-session"
-                  element={<LaserSessionForm/>}
+                  <Route
+                    path="/custom-forms/laser-session"
+                    element={<LaserSessionForm />}
                   />
-                <Route 
-                  path="/custom-forms/consultation-assessment"
-                  element={<ConsultationAssessmentForm/>}
+                  <Route
+                    path="/custom-forms/consultation-assessment"
+                    element={<ConsultationAssessmentForm />}
                   />
-
-<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
-<Route path="/custom-forms/form-builder" element={<AdvancedFormBuilder />} />
-<Route path="/custom-forms/form-builder/preview" element={<GetFormByDetails />} />
-
-                  <Route 
-                  path="/custom-forms/hyaluronidase-treatment"
-                  element={<HyaluronidaseTreatmentForm/>}
+                  <Route
+                    path="/audit/:auditNo"
+                    element={<AuditDraftDetails />}
                   />
-                  <Route 
-                  path="/custom-forms/general-form"
-                  element={<GeneralForm/>}
+                  <Route
+                    path="/custom-forms/form-builder"
+                    element={<AdvancedFormBuilder />}
                   />
-<Route path="/audit/:auditNo" element={<AuditDraftDetails />} />
-      {/* <Route path="/purchase-category/create" element={<CreatePurchaseCategory />} /> */}
-
-
-                  
-
+                  <Route
+                    path="/custom-forms/form-builder/preview"
+                    element={<GetFormByDetails />}
+                  />
+                  <Route
+                    path="/custom-forms/hyaluronidase-treatment"
+                    element={<HyaluronidaseTreatmentForm />}
+                  />
+                  <Route
+                    path="/custom-forms/general-form"
+                    element={<GeneralForm />}
+                  />
+                  {/* <Route path="/purchase-category/create" element={<CreatePurchaseCategory />} /> */}
                 </Routes>
               </div>
             </section>
