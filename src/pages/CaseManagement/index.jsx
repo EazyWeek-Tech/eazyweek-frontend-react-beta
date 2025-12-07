@@ -1,5 +1,6 @@
-import React, {useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
+
 
 import FilterBar from "./FilterBar";
 import CaseTable from "./CaseTable";
@@ -10,52 +11,55 @@ import { API_BASE_URL } from "../../config";
 
 const CaseManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-    const [caseRecords, setCaseRecords] = useState([]);
-    const [employees, setEmployees] = useState([]);
-    const [filters, setFilters] = useState({
-      owner: "",
-      priority: "",
-      assignTo: "",
-      status: "",
+  const [caseRecords, setCaseRecords] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [filters, setFilters] = useState({
+    owner: "",
+    priority: "",
+    assignTo: "",
+    status: "",
+  });
+  const [toastMessage, setToastMessage] = useState(null);
+  const [highlightCaseNo, setHighlightCaseNo] = useState(null);
+  const [user, setUser] = useState(
+    JSON.parse(
+      sessionStorage.getItem("user") || localStorage.getItem("user")
+    )
+  );
+
+  useEffect(() => {
+    if (user) {
+      fetchCases({ owner: "", priority: "", assignTo: "", status: "" });
+      fetchEmployees();
+    }
+  }, [user]);
+
+  const applyClientFilters = (records, filters) => {
+    return records.filter((rec) => {
+      return (
+        (!filters.owner || rec.createdby === filters.owner) &&
+        (!filters.priority || rec.priority === filters.priority) &&
+        (!filters.assignTo || rec.assignedto === filters.assignTo) &&
+        (!filters.status || rec.status === filters.status)
+      );
     });
-    const [toastMessage, setToastMessage] = useState(null);
-    const [highlightCaseNo, setHighlightCaseNo] = useState(null);
-    const [user, setUser] = useState(
-        JSON.parse(sessionStorage.getItem("user") || localStorage.getItem("user"))
-      );
+  };
 
-    useEffect(() => {
-        if (user) {
-          fetchCases({ owner: "", priority: "", assignTo: "", status: "" });
-          fetchEmployees();
-        }
-      }, [user]);
-    
-      const applyClientFilters = (records, filters) => {
-        return records.filter((rec) => {
-          return (
-            (!filters.owner || rec.createdby === filters.owner) &&
-            (!filters.priority || rec.priority === filters.priority) &&
-            (!filters.assignTo || rec.assignedto === filters.assignTo) &&
-            (!filters.status || rec.status === filters.status)
-          );
-        });
-      };
-
-      const fetchCases = async (filters) => {
+  const fetchCases = async (filters) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/CaseOperation/CaseDB`,
-        {
-          method: "POST",
-           credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(filters),
-        }
-      );
+      const token = sessionStorage.getItem("ssoToken"); // 🔹 NEW
+      const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseDB`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}), // 🔹 NEW
+        },
+        body: JSON.stringify(filters),
+      });
       const data = await res.json();
-      console.log('case data')
-      console.log(data)
+      console.log("case data");
+      console.log(data);
       const mapped = data.map((item) => ({
         caseno: item.caseNO,
         casetitle: item.caseTitle ?? "-",
@@ -81,21 +85,23 @@ const CaseManagement = () => {
               })
             : "-",
       }));
-      mapped.sort(
-        (a, b) => new Date(b.createddate) - new Date(a.createddate)
-      );
+      mapped.sort((a, b) => new Date(b.createddate) - new Date(a.createddate));
       setCaseRecords(mapped);
     } catch (err) {
       console.error("Failed to fetch cases:", err);
     }
   };
 
-   const fetchEmployees = async () => {
+  const fetchEmployees = async () => {
     try {
+      const token = sessionStorage.getItem("ssoToken"); // 🔹 NEW
       const res = await fetch(`${API_BASE_URL}/api/Employees`, {
         method: "GET",
-         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}), // 🔹 NEW
+        },
       });
       const data = await res.json();
       const filtered = data.filter(
@@ -121,30 +127,30 @@ const CaseManagement = () => {
 
   return (
     <>
-    
-    <div className="">
-      <div className="pg-head">
-        <h2 className="pg-ttl">Cases</h2>
+      <div className="">
+        <div className="pg-head">
+          <h2 className="pg-ttl">Cases</h2>
+        </div>
+        <DashboardOverview />
+        <FilterBar
+          onCreateCase={() => setIsModalOpen(true)}
+          onFilter={setFilters}
+          employeeList={employees}
+        />
+        <CaseTable
+          records={applyClientFilters(caseRecords, filters)}
+          highlightCaseNo={highlightCaseNo}
+        />
       </div>
-      <DashboardOverview />
-      <FilterBar onCreateCase={() => setIsModalOpen(true)}
-                      onFilter={setFilters}
-                      employeeList={employees}/>
-      <CaseTable records={applyClientFilters(caseRecords, filters)}
-                    highlightCaseNo={highlightCaseNo}/>
-    </div>
-    
-    {isModalOpen && (
-  <CreateCaseModel
-    isOpen={isModalOpen}
-    onClose={() => setIsModalOpen(false)}
-    onSubmit={handleCreateCase}
-  />
-)}
-</>
-    
 
-    
+      {isModalOpen && (
+        <CreateCaseModel
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateCase}
+        />
+      )}
+    </>
   );
 };
 
