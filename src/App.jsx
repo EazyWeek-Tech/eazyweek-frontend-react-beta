@@ -203,9 +203,9 @@ function App() {
                     element={<AddLeadCustomerList />}
                   />
                   <Route
-                    path="/opportunity/:oppCode/manual/:custId"
-                    element={<ManualOppCustomerDetails />}
-                  />
+  path="/manuallead/:oppCode"
+  element={<ManualOppCustomerDetails />}
+/>
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
                     path="/cases/:caseNumber"
