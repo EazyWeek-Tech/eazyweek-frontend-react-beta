@@ -201,13 +201,13 @@ const dateToStamp = (d) => {
 
 /** Build half-hour slots from 01:00 -> 07:30 (used in UI filters) */
 const HALF_HOURS_1_TO_730 = [
-  "01:00","01:30",
-  "02:00","02:30",
-  "03:00","03:30",
-  "04:00","04:30",
-  "05:00","05:30",
-  "06:00","06:30",
-  "07:00","07:30",
+  "01:00", "01:30",
+  "02:00", "02:30",
+  "03:00", "03:30",
+  "04:00", "04:30",
+  "05:00", "05:30",
+  "06:00", "06:30",
+  "07:00", "07:30",
 ];
 
 /** Convert '01:30' + 'PM' -> '13:30' (12h -> 24h) */
@@ -353,7 +353,7 @@ const ManualAllocationModal = ({
         const cData = cRes.ok ? await cRes.json() : [];
         const arr = Array.isArray(cData) ? cData : [];
         setClinics([{ code: "All", name: "All" }, ...arr.map(x => ({ code: x.code, name: x.name }))]);
-      } catch {}
+      } catch { }
 
       try {
         const eRes = await fetch(`${API_BASE_URL}/api/Employees`, {
@@ -379,7 +379,7 @@ const ManualAllocationModal = ({
         });
 
         setEmployees(Array.from(map.values()));
-      } catch {}
+      } catch { }
     };
     load();
   }, []);
@@ -836,8 +836,7 @@ const AutoDistributionModal = ({
           </select>
         </div>
       </div>
-
-      {/* ...rest unchanged... */}
+      <div className="ew-auto-top" style={{ marginTop: 10, alignItems: "center" }}> <label className="ew-check"> <input type="checkbox" checked={assignMode === "date"} onChange={(e) => (e.target.checked ? setModeDate() : setModeRecord())} /> <span>Assign by date</span> </label> <label className="ew-check"> <input type="checkbox" checked={assignMode === "record"} onChange={(e) => (e.target.checked ? setModeRecord() : setModeDate())} /> <span>Assign By Record</span> </label> <div style={{ flex: 1 }} /> {assignMode === "date" ? (<div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}> <div className="ew-field" style={{ minWidth: 200 }}> <div className="ew-lbl">From :</div> <input className="finput" type="date" value={fromDate} max={todayISO} onChange={(e) => setFromDate(e.target.value)} /> </div> <div className="ew-field" style={{ minWidth: 200 }}> <div className="ew-lbl">To :</div> <input className="finput" type="date" value={toDate} max={todayISO} onChange={(e) => setToDate(e.target.value)} /> </div> </div>) : (<div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}> <div className="ew-field" style={{ maxWidth: 220 }}> <div className="ew-lbl">No. of Record :</div> <input className="finput" type="number" min={1} value={noOfRecords} onChange={(e) => setNoOfRecords(Number(e.target.value || 0))} /> </div> <div className="ew-field" style={{ maxWidth: 240 }}> <div className="ew-lbl">Sequence of record :</div> <select className="finput" value={recSeq} onChange={(e) => setRecSeq(e.target.value)}> <option value="Oldest">Oldest</option> <option value="Recent">Recent</option> </select> </div> </div>)} </div> {(loadErr || loadingEmployees) ? (<div className="empty-note" style={{ marginTop: 10 }}> {loadErr ? loadErr : "Loading employees..."} </div>) : null} <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}> <input className="finput" style={{ width: 320 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee name..." /> </div> <div className="ew-agent-box"> <div className="ew-agent-head"> <div className="ew-col ew-col-check"> <input type="checkbox" checked={allChecked} onChange={toggleAll} disabled={!filteredEmployees.length} /> </div> <div className="ew-col ew-col-name">Employee Name</div> <div className="ew-col ew-col-shift">Shift</div> </div> <div className="ew-agent-body"> {filteredEmployees.map((e) => (<div className="ew-agent-row" key={e.id}> <div className="ew-col ew-col-check"> <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggle(e.id)} /> </div> <div className="ew-col ew-col-name">{e.employeeName || "—"}</div> <div className="ew-col ew-col-shift">{e.__shift}</div> </div>))} {!loadingEmployees && !filteredEmployees.length ? (<div className="empty-note" style={{ margin: 12 }}> No employees found. </div>) : null} </div> </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
         <button className="btn-back" onClick={onClose}>Cancel</button>
         <button className="btn-primary" onClick={start}>Start Assignment</button>
@@ -1023,7 +1022,7 @@ const OpportunityDetails = () => {
     }
 
     if (!lead?.leadId) {
-      try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch {}
+      try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch { }
       return;
     }
 
@@ -1051,7 +1050,7 @@ const OpportunityDetails = () => {
     consumedLocalLeadIdsRef.current.add(lead.leadId);
 
     // consume once
-    try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch {}
+    try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oppCode, isManualLead]);
 
@@ -1214,12 +1213,12 @@ const OpportunityDetails = () => {
 
   const exportCSV = () => {
     const colsManual = [
-      "CustID","CustName","CustMobileNo","OppStatus","FollowUpDate",
-      "Disposition","Remarks","CustomerMessage","SalesOwner","CreatedDate",
+      "CustID", "CustName", "CustMobileNo", "OppStatus", "FollowUpDate",
+      "Disposition", "Remarks", "CustomerMessage", "SalesOwner", "CreatedDate",
     ];
     const colsOther = [
-      "CustID","CustName","CustMobileNo","OppStatus","AppointmentDate",
-      "Disposition","Remarks","SalesOwner","CreatedDate",
+      "CustID", "CustName", "CustMobileNo", "OppStatus", "AppointmentDate",
+      "Disposition", "Remarks", "SalesOwner", "CreatedDate",
     ];
     const headers = isManualLead ? colsManual : colsOther;
 
@@ -1235,28 +1234,28 @@ const OpportunityDetails = () => {
     filteredRows.forEach((r) => {
       const rowArr = isManualLead
         ? [
-            r.custID,
-            r.custName,
-            r.custMobileNo,
-            r.oppStatus,
-            r.followUpDate || r.followupdate || r.appointmentdatetime || "",
-            r.disposition,
-            r.remarks,
-            r.customerMessage || r.customer_message || "",
-            r.salesOwner,
-            r.createddate,
-          ]
+          r.custID,
+          r.custName,
+          r.custMobileNo,
+          r.oppStatus,
+          r.followUpDate || r.followupdate || r.appointmentdatetime || "",
+          r.disposition,
+          r.remarks,
+          r.customerMessage || r.customer_message || "",
+          r.salesOwner,
+          r.createddate,
+        ]
         : [
-            r.custID,
-            r.custName,
-            r.custMobileNo,
-            r.oppStatus,
-            r.appointmentdatetime,
-            r.disposition,
-            r.remarks,
-            r.salesOwner,
-            r.createddate,
-          ];
+          r.custID,
+          r.custName,
+          r.custMobileNo,
+          r.oppStatus,
+          r.appointmentdatetime,
+          r.disposition,
+          r.remarks,
+          r.salesOwner,
+          r.createddate,
+        ];
       lines.push(rowArr.map(escape).join(","));
     });
 
@@ -1926,7 +1925,7 @@ const OpportunityDetails = () => {
         }
 
         .ew-agent-body {
-          max-height: 320px;
+          max-height: 220px;
           overflow: auto;
           background: #fff;
         }
