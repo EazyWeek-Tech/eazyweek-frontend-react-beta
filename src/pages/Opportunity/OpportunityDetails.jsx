@@ -2049,13 +2049,22 @@ useEffect(() => {
                 return !Number.isNaN(stamp) && stamp >= from && stamp <= to;
               });
             } else {
-              oppList.sort((a, b) => {
-                const da = getOppDateStamp(a, isManualLead);
-                const db = getOppDateStamp(b, isManualLead);
-                const va = Number.isNaN(da) ? 0 : da;
-                const vb = Number.isNaN(db) ? 0 : db;
-                return payload.recSeq === "Recent" ? vb - va : va - vb;
-              });
+              const getCreatedStamp = (row) => {
+  const d = toDate(row?.createddate);
+  return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
+};
+
+oppList.sort((a, b) => {
+  const da = getCreatedStamp(a);
+  const db = getCreatedStamp(b);
+
+  const va = Number.isNaN(da) ? 0 : da;
+  const vb = Number.isNaN(db) ? 0 : db;
+
+  // Recent = newest createddate first
+  return payload.recSeq === "Recent" ? vb - va : va - vb;
+});
+
               oppList = oppList.slice(0, Number(payload.noOfRecords || 0));
             }
 
