@@ -21,15 +21,29 @@ const toISODateOnly = (d) => {
   return Number.isNaN(+dt) ? "" : toISODateOnly(dt);
 };
 
+const formatDDMMYYYY = (v) => {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(+d)) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+
 /** 'dd/MM/yyyy' | ISO | Date -> JS Date (midnight) */
 const toDate = (v) => {
   if (!v) return null;
-  if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  if (v instanceof Date)
+    return new Date(v.getFullYear(), v.getMonth(), v.getDate());
   const s = String(v).trim();
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
   const d = new Date(s);
-  return Number.isNaN(+d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Number.isNaN(+d)
+    ? null
+    : new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
 /** Extract "HH:mm" from row. Tries followUpTime, appointmentdatetime, or createddate (24h) */
@@ -86,7 +100,7 @@ const ROLES = [
 const ASSIGN_STORE_KEY = (oppCode) => `EW_OPP_ASSIGN_${oppCode}`;
 const LS_MANUAL_ASSIGN = (oppCode) => `EW_OPP_MANUAL_ASSIGN_${oppCode}`;
 
-// ✅ NEW: one-time prepend key (set by ManualOppCustomerDetails on submit)
+// ✅ one-time prepend key (set by ManualOppCustomerDetails on submit)
 const LS_NEW_LEAD_KEY = (oppCode) => `EW_OPP_NEW_LEAD_${oppCode}`;
 
 const readManualAssignments = (oppCode) => {
@@ -130,6 +144,103 @@ const loadAssignStore = (oppCode) => {
 const saveAssignStore = (oppCode, data) => {
   localStorage.setItem(ASSIGN_STORE_KEY(oppCode), JSON.stringify(data));
 };
+// ---- Local Leads (stored list) ----
+const LS_LEADS_LOCAL = "ew_leads_local";
+
+/** Read list from localStorage */
+const readLocalLeadsList = () => {
+  try {
+    const raw = localStorage.getItem(LS_LEADS_LOCAL);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+};
+
+/** Try best unique id for a local lead */
+const getLocalLeadUniqueId = (lead) =>
+  String(lead?.leadId || lead?.custId || lead?.id || "").trim();
+
+const mapEwLeadsLocalToOppRow = (lead, isManualLead) => {
+  const meta = lead?.customerMeta || {};
+
+  const leadId = String(lead?.leadId || "").trim();
+  const custId = String(lead?.custId || lead?.custID || meta?.custID || "").trim();
+
+  const custName =
+    String(meta?.custName || "").trim() ||
+    `${lead?.firstName || ""} ${lead?.lastName || ""}`.trim() ||
+    "—";
+
+  const custMobileNo =
+    String(meta?.mobileNo || "").trim() ||
+    String(lead?.mobile || "").trim() ||
+    "—";
+
+  // show something in CustID column even if custId is empty
+  const custID = custId || leadId || "—";
+
+  const createdISO = lead?.createdAt || new Date().toISOString();
+
+  // status in your table is `oppStatus`
+  // Option A (recommended): show Submitted/Draft/Open as-is
+  const oppStatus = String(lead?.status || "Open");
+
+  // Option B (if you prefer): show lead status name
+  // const oppStatus = String(lead?.leadStatusName || lead?.status || "Open");
+
+  const followUpDate = String(lead?.followUpDate || "").trim();
+  const followUpTime = String(lead?.followUpTime || "").trim(); // "HH:mm" expected
+  const remarks = String(lead?.remarks || "").trim();
+
+  const disposition =
+    String(lead?.leadSubStatusName || lead?.leadSubStatusCode || "").trim();
+
+  const row = {
+    recid: 0,
+    id: leadId,          // keep leadId here for stable identity
+    custID,              // shown in table
+    custName,
+    custMobileNo,
+    oppStatus,
+
+    // manual lead uses followUpDate; keep it
+    followUpDate,
+    followupdate: "",
+    appointmentdatetime: isManualLead ? "" : followUpDate,
+
+    disposition,
+    remarks,
+
+    customerMessage: "",
+    customer_message: "",
+
+    salesOwner: "",
+    salesOwnerCode: "",
+
+    createddate: createdISO,
+    followUpTime,
+
+    __localLeadId: leadId,
+  };
+
+  const d = isManualLead
+    ? (toDate(followUpDate) || toDate(createdISO))
+    : (toDate(createdISO));
+
+  const hhmm = getRowTimeHHmm(row);
+
+  return {
+    ...row,
+    __dateStamp: dateToStamp(d),
+    __timeMin: hhmmToMinutes(hhmm),
+    __q: [row.custID, row.custName, row.custMobileNo, row.oppStatus, row.salesOwner]
+      .map((x) => (x ?? "").toString().toLowerCase())
+      .join(" | "),
+  };
+};
+
 
 /** Extract follow-up DATE from row (prefers explicit followUpDate) */
 const getRowFollowUpDate = (row) => {
@@ -219,27 +330,28 @@ const to24h = (slot, meridiem) => {
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
 
-// ✅ NEW: map locally-saved lead payload into table row shape
+// ✅ map locally-saved lead payload into table row shape
 const mapLocalLeadToOppRow = (lead, isManualLead) => {
   const meta = lead?.customerMeta || {};
-  const custID = (meta?.custID || lead?.custId || lead?.leadId || "").toString().trim() || "—";
+  const custID =
+    (meta?.custID || lead?.custId || lead?.leadId || "").toString().trim() ||
+    "—";
   const custName =
-    (meta?.custName || `${lead?.firstName || ""} ${lead?.lastName || ""}`.trim()).toString().trim() || "—";
+    (meta?.custName ||
+      `${lead?.firstName || ""} ${lead?.lastName || ""}`.trim())
+      .toString()
+      .trim() || "—";
   const custMobileNo = (meta?.mobileNo || lead?.mobile || "").toString().trim() || "—";
 
   const createdISO = lead?.createdAt || new Date().toISOString();
 
-  // followUpDate is already yyyy-MM-dd in your form; keep as-is
   const followUpDate = lead?.followUpDate || "";
-  const followUpTime = lead?.followUpTime || ""; // "HH:mm" (your dropdown)
+  const followUpTime = lead?.followUpTime || "";
   const remarks = lead?.remarks || "";
 
-  const oppStatus =
-    lead?.status === "Draft" ? "Draft" : "Open";
+  const oppStatus = lead?.status === "Draft" ? "Draft" : "Open";
 
-  // These columns exist in your table, so keep names consistent
   const row = {
-    // Keep a stable key-ish field. recid numeric isn't available, so store leadId in an alt field.
     recid: 0,
     id: lead?.leadId || "",
     custID,
@@ -247,7 +359,6 @@ const mapLocalLeadToOppRow = (lead, isManualLead) => {
     custMobileNo,
     oppStatus,
 
-    // manual lead table uses followUpDate; external uses appointmentdatetime
     followUpDate,
     followupdate: "",
     appointmentdatetime: isManualLead ? "" : followUpDate,
@@ -262,27 +373,22 @@ const mapLocalLeadToOppRow = (lead, isManualLead) => {
     salesOwnerCode: "",
 
     createddate: createdISO,
-    followUpTime, // helps your time parsing
+    followUpTime,
   };
 
-  // compute helper fields used by filters/search
-  const d = isManualLead ? (toDate(followUpDate) || toDate(createdISO)) : (toDate(row.appointmentdatetime) || toDate(createdISO));
+  const d = isManualLead
+    ? toDate(followUpDate) || toDate(createdISO)
+    : toDate(row.appointmentdatetime) || toDate(createdISO);
   const hhmm = getRowTimeHHmm(row);
 
   return {
     ...row,
     __dateStamp: dateToStamp(d),
     __timeMin: hhmmToMinutes(hhmm),
-    __q: [
-      row?.custID,
-      row?.custName,
-      row?.custMobileNo,
-      row?.oppStatus,
-      row?.salesOwner,
-    ]
+    __q: [row?.custID, row?.custName, row?.custMobileNo, row?.oppStatus, row?.salesOwner]
       .map((x) => (x ?? "").toString().toLowerCase())
       .join(" | "),
-    __localLeadId: lead?.leadId || "", // for dedupe
+    __localLeadId: lead?.leadId || "",
   };
 };
 
@@ -295,14 +401,12 @@ const ModalShell = ({ title, onClose, children, width = 720 }) => {
 
   return (
     <div className="ew-modal-overlay" onMouseDown={onClose}>
-      <div
-        className="ew-modal"
-        style={{ width }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+      <div className="ew-modal" style={{ width }} onMouseDown={(e) => e.stopPropagation()}>
         <div className="ew-modal-head">
           <div className="ew-modal-title">{title}</div>
-          <button className="ew-modal-x" onClick={onClose} aria-label="Close">✕</button>
+          <button className="ew-modal-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
         </div>
         <div className="ew-modal-body">{children}</div>
       </div>
@@ -310,32 +414,46 @@ const ModalShell = ({ title, onClose, children, width = 720 }) => {
   );
 };
 
+// ✅ PATCH: Assign menu includes assign + reassign options
 const AssignChoiceModal = ({ onClose, onPick }) => {
   return (
     <ModalShell title="Assign Opportunity" onClose={onClose} width={520}>
-      <div style={{ display: "grid", gap: 12 }}>
-        <button className="ew-choice-btn" onClick={() => onPick("availability")}>
-          Based on availability
+      <div style={{ display: "grid", gap: 10 }}>
+        <div className="empty-note" style={{ marginTop: 0 }}>
+          Choose what you want to do.
+        </div>
+
+        <button className="ew-choice-btn" onClick={() => onPick({ type: "assign", mode: "availability" })}>
+          Assign (Based on availability)
         </button>
-        <button className="ew-choice-btn" onClick={() => onPick("auto")}>
-          Auto Distribution
+        <button className="ew-choice-btn" onClick={() => onPick({ type: "assign", mode: "auto" })}>
+          Assign (Auto Distribution)
         </button>
-        <button className="ew-choice-btn" onClick={() => onPick("manual")}>
-          Manual Allocation
+        <button className="ew-choice-btn" onClick={() => onPick({ type: "assign", mode: "manual" })}>
+          Assign (Manual Allocation)
+        </button>
+
+        <div style={{ height: 1, background: "#e6eaf2", margin: "4px 0" }} />
+
+        <button className="ew-choice-btn" onClick={() => onPick({ type: "reassign", mode: "auto" })}>
+          Reassign (Auto Redistribution)
+        </button>
+        <button className="ew-choice-btn" onClick={() => onPick({ type: "reassign", mode: "manual" })}>
+          Reassign (Manual)
         </button>
       </div>
     </ModalShell>
   );
 };
 
-const ManualAllocationModal = ({
-  onClose,
-  oppCode,
-  oppRows,
-  onCommitted,
-}) => {
+// ✅ PATCH: Manual Allocation supports Assign vs Reassign without removing existing logic
+const ManualAllocationModal = ({ onClose, oppCode, oppRows, onCommitted, actionType = "assign" }) => {
+  const [mode, setMode] = useState(actionType); // "assign" | "reassign"
   const [role, setRole] = useState(ROLES[0]);
   const [clinic, setClinic] = useState("All");
+
+  const [reason, setReason] = useState("Employee on leave");
+  const [reasonNote, setReasonNote] = useState("");
 
   const [clinics, setClinics] = useState([{ code: "All", name: "All" }]);
   const [employees, setEmployees] = useState([]);
@@ -352,13 +470,11 @@ const ManualAllocationModal = ({
         const cRes = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
         const cData = cRes.ok ? await cRes.json() : [];
         const arr = Array.isArray(cData) ? cData : [];
-        setClinics([{ code: "All", name: "All" }, ...arr.map(x => ({ code: x.code, name: x.name }))]);
-      } catch { }
+        setClinics([{ code: "All", name: "All" }, ...arr.map((x) => ({ code: x.code, name: x.name }))]);
+      } catch {}
 
       try {
-        const eRes = await fetch(`${API_BASE_URL}/api/Employees`, {
-          credentials: "include",
-        });
+        const eRes = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include" });
         const eData = eRes.ok ? await eRes.json() : [];
         const arr = Array.isArray(eData) ? eData : [];
 
@@ -379,14 +495,24 @@ const ManualAllocationModal = ({
         });
 
         setEmployees(Array.from(map.values()));
-      } catch { }
+      } catch {}
     };
     load();
   }, []);
 
+  // ✅ PATCH: Assign vs Reassign filtering + exclude Closed
   const oppList = useMemo(() => {
-    return (oppRows || []).filter(r => !String(r?.salesOwner || "").trim());
-  }, [oppRows]);
+    return (oppRows || []).filter((r) => {
+      const st = String(r?.oppStatus || "").trim().toLowerCase();
+      if (st === "closed") return false;
+
+      const owner = String(r?.salesOwner || "").trim();
+      const isAssigned = !!owner;
+
+      if (mode === "assign") return !isAssigned; // only unassigned
+      return isAssigned; // reassign => only assigned
+    });
+  }, [oppRows, mode]);
 
   const oppToggle = (recid) => {
     setOppSelected((prev) => {
@@ -399,11 +525,11 @@ const ManualAllocationModal = ({
 
   const oppToggleAll = () => {
     setOppSelected((prev) => {
-      const all = oppList.map(r => Number(r?.recid ?? 0)).filter(Boolean);
-      const allSelected = all.length > 0 && all.every(id => prev.has(id));
+      const all = oppList.map((r) => Number(r?.recid ?? 0)).filter(Boolean);
+      const allSelected = all.length > 0 && all.every((id) => prev.has(id));
       const n = new Set(prev);
-      if (allSelected) all.forEach(id => n.delete(id));
-      else all.forEach(id => n.add(id));
+      if (allSelected) all.forEach((id) => n.delete(id));
+      else all.forEach((id) => n.add(id));
       return n;
     });
   };
@@ -411,29 +537,39 @@ const ManualAllocationModal = ({
   const filteredEmployees = useMemo(() => {
     const s = empSearch.trim().toLowerCase();
     let list = employees.slice();
-    if (s) list = list.filter(e => e.employeeName.toLowerCase().includes(s));
+    if (s) list = list.filter((e) => e.employeeName.toLowerCase().includes(s));
     return list;
   }, [employees, empSearch]);
 
   const addToTemp = () => {
     if (!empSelected) return alert("Please select an employee.");
     if (!oppSelected.size) return alert("Please select at least one opportunity.");
+    if (mode === "reassign" && !reason) return alert("Please select a reason.");
 
-    const pickedOpps = oppList.filter(r => oppSelected.has(Number(r?.recid ?? 0)));
+    const pickedOpps = oppList.filter((r) => oppSelected.has(Number(r?.recid ?? 0)));
+
     setTemp((prev) => {
-      const exists = new Set(prev.map(x => Number(x.recid)));
+      const exists = new Set(prev.map((x) => Number(x.recid)));
       const next = [...prev];
+
       pickedOpps.forEach((r) => {
         const recid = Number(r?.recid ?? 0);
         if (!recid || exists.has(recid)) return;
+
         next.push({
           recid,
           custID: r.custID,
+          prevOwnerCode: r.salesOwnerCode || "",
+          prevOwnerName: r.salesOwner || "",
           salesOwnerCode: empSelected.employeeCode,
           salesOwnerName: empSelected.employeeName,
           shift: empSelected.shift,
+          reason: mode === "reassign" ? reason : "",
+          reasonNote: mode === "reassign" ? reasonNote : "",
+          mode, // assign / reassign
         });
       });
+
       return next;
     });
 
@@ -441,41 +577,58 @@ const ManualAllocationModal = ({
   };
 
   const removeTemp = (recid) => {
-    setTemp((prev) => prev.filter(x => Number(x.recid) !== Number(recid)));
+    setTemp((prev) => prev.filter((x) => Number(x.recid) !== Number(recid)));
   };
 
   const confirm = () => {
     if (!temp.length) return alert("No allocations added.");
 
     const saved = readManualAssignments(oppCode);
-    const map = new Map(saved.map(x => [Number(x.recid), x]));
+    const map = new Map(saved.map((x) => [Number(x.recid), x]));
 
     temp.forEach((t) => {
       map.set(Number(t.recid), {
         oppCode,
         recid: Number(t.recid),
         custID: t.custID,
+
         salesOwnerCode: t.salesOwnerCode,
         salesOwnerName: t.salesOwnerName,
+
+        prevOwnerCode: t.prevOwnerCode || "",
+        prevOwnerName: t.prevOwnerName || "",
+
         assignedAt: new Date().toISOString(),
-        mode: "manual",
+        mode: t.mode || "manual", // keep existing behavior but store reassign/assign info
+        reason: t.reason || "",
+        reasonNote: t.reasonNote || "",
       });
     });
 
     const finalList = Array.from(map.values());
     writeManualAssignments(oppCode, finalList);
 
-    onCommitted?.({ count: temp.length, modeText: "Manual Allocation" });
+    const modeText = mode === "reassign" ? "Manual Reassign" : "Manual Allocation";
+    onCommitted?.({ count: temp.length, modeText });
     onClose();
   };
+
+  const oppHeadCols =
+    mode === "reassign"
+      ? "52px 160px 1fr 180px 160px 160px"
+      : "52px 160px 1fr 160px 160px";
 
   return (
     <ModalShell title="Manual Allocation" onClose={onClose} width={1180}>
       <div className="ew-auto-top">
+       
+
         <div className="ew-field">
           <div className="ew-lbl">Role :</div>
           <select className="finput" value={role} onChange={(e) => setRole(e.target.value)}>
-            {ROLES.map((r) => <option key={r}>{r}</option>)}
+            {ROLES.map((r) => (
+              <option key={r}>{r}</option>
+            ))}
           </select>
         </div>
 
@@ -483,26 +636,65 @@ const ManualAllocationModal = ({
           <div className="ew-lbl">Clinic :</div>
           <select className="finput" value={clinic} onChange={(e) => setClinic(e.target.value)}>
             {clinics.map((c) => (
-              <option key={c.code} value={c.code}>{c.name}</option>
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
 
         <div style={{ flex: 1 }} />
       </div>
+            <br></br>
+       <label className="ew-check" style={{ marginRight: 10 }}>
+          <input type="checkbox" checked={mode === "assign"} onChange={() => setMode("assign")} />
+          <span>Assign New</span>
+        </label>
+
+        <label className="ew-check" style={{ marginRight: 14 }}>
+          <input type="checkbox" checked={mode === "reassign"} onChange={() => setMode("reassign")} />
+          <span>Reassign Existing</span>
+        </label>
+
+      {mode === "reassign" ? (
+        <div className="ew-auto-top" style={{ marginTop: 10 }}>
+          <div className="ew-field" style={{ minWidth: 280 }}>
+            <div className="ew-lbl">Reason :</div>
+            <select className="finput" value={reason} onChange={(e) => setReason(e.target.value)}>
+              <option>Employee on leave</option>
+              <option>Not available</option>
+              <option>Shift mismatch</option>
+              <option>Workload balancing</option>
+              <option>Wrong assignment</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div className="ew-field" style={{ minWidth: 420, flex: 1 }}>
+            <div className="ew-lbl">Note (optional) :</div>
+            <input
+              className="finput"
+              value={reasonNote}
+              onChange={(e) => setReasonNote(e.target.value)}
+              placeholder="Add short context for audit…"
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 14, marginTop: 14 }}>
         <div className="ew-agent-box">
-          <div className="ew-agent-head" style={{ gridTemplateColumns: "52px 160px 1fr 160px 160px" }}>
+          <div className="ew-agent-head" style={{ gridTemplateColumns: oppHeadCols }}>
             <div className="ew-col ew-col-check">
               <input
                 type="checkbox"
-                checked={oppList.length > 0 && oppList.every(r => oppSelected.has(Number(r?.recid ?? 0)))}
+                checked={oppList.length > 0 && oppList.every((r) => oppSelected.has(Number(r?.recid ?? 0)))}
                 onChange={oppToggleAll}
               />
             </div>
             <div className="ew-col">Opp ID</div>
             <div className="ew-col">Name</div>
+            {mode === "reassign" ? <div className="ew-col">Current Owner</div> : null}
             <div className="ew-col">Created Date</div>
             <div className="ew-col">Disposition</div>
           </div>
@@ -511,30 +703,30 @@ const ManualAllocationModal = ({
             {oppList.map((r) => {
               const id = Number(r?.recid ?? 0);
               return (
-                <div className="ew-agent-row" key={id} style={{ gridTemplateColumns: "52px 160px 1fr 160px 160px" }}>
+                <div className="ew-agent-row" key={id} style={{ gridTemplateColumns: oppHeadCols }}>
                   <div className="ew-col ew-col-check">
                     <input type="checkbox" checked={oppSelected.has(id)} onChange={() => oppToggle(id)} />
                   </div>
                   <div className="ew-col">{r.custID || id}</div>
                   <div className="ew-col">{r.custName || "-"}</div>
+                  {mode === "reassign" ? <div className="ew-col">{r.salesOwner || "—"}</div> : null}
                   <div className="ew-col">{r.createddate || "-"}</div>
                   <div className="ew-col">{r.disposition || "-"}</div>
                 </div>
               );
             })}
-            {!oppList.length ? <div className="empty-note" style={{ marginTop: 10 }}>No unassigned opportunities.</div> : null}
+            {!oppList.length ? (
+              <div className="empty-note" style={{ marginTop: 10 }}>
+                No opportunities available for {mode === "reassign" ? "reassignment" : "assignment"}.
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div>
           <div className="ew-field" style={{ minWidth: "unset" }}>
             <div className="ew-lbl">Search Employee :</div>
-            <input
-              className="finput"
-              value={empSearch}
-              onChange={(e) => setEmpSearch(e.target.value)}
-              placeholder="Type name..."
-            />
+            <input className="finput" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} placeholder="Type name..." />
           </div>
 
           <div className="ew-agent-box" style={{ marginTop: 10 }}>
@@ -562,26 +754,46 @@ const ManualAllocationModal = ({
                   </div>
                 );
               })}
-              {!filteredEmployees.length ? <div className="empty-note" style={{ marginTop: 10 }}>No employees found.</div> : null}
+              {!filteredEmployees.length ? (
+                <div className="empty-note" style={{ marginTop: 10 }}>
+                  No employees found.
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-            <button className="btn-primary" onClick={addToTemp}>Add</button>
+            <button className="btn-primary" onClick={addToTemp}>
+              Add
+            </button>
           </div>
         </div>
       </div>
 
       <div className="ew-agent-box" style={{ marginTop: 14 }}>
-        <div className="ew-agent-head" style={{ gridTemplateColumns: "1fr 180px 120px" }}>
-          <div className="ew-col">Sales Owner</div>
+        <div
+          className="ew-agent-head"
+          style={{
+            gridTemplateColumns: mode === "reassign" ? "1fr 1fr 180px 120px" : "1fr 180px 120px",
+          }}
+        >
+          {mode === "reassign" ? <div className="ew-col">From</div> : <div className="ew-col">Sales Owner</div>}
+          {mode === "reassign" ? <div className="ew-col">To</div> : null}
           <div className="ew-col">Opp ID</div>
           <div className="ew-col">Action</div>
         </div>
+
         <div className="ew-agent-body" style={{ maxHeight: 220 }}>
           {temp.map((t) => (
-            <div className="ew-agent-row" key={t.recid} style={{ gridTemplateColumns: "1fr 180px 120px" }}>
-              <div className="ew-col">{t.salesOwnerName}</div>
+            <div
+              className="ew-agent-row"
+              key={t.recid}
+              style={{
+                gridTemplateColumns: mode === "reassign" ? "1fr 1fr 180px 120px" : "1fr 180px 120px",
+              }}
+            >
+              {mode === "reassign" ? <div className="ew-col">{t.prevOwnerName || "—"}</div> : <div className="ew-col">{t.salesOwnerName}</div>}
+              {mode === "reassign" ? <div className="ew-col">{t.salesOwnerName}</div> : null}
               <div className="ew-col">{t.custID || t.recid}</div>
               <div className="ew-col">
                 <button className="btn-export" style={{ padding: "6px 10px" }} onClick={() => removeTemp(t.recid)}>
@@ -590,29 +802,32 @@ const ManualAllocationModal = ({
               </div>
             </div>
           ))}
-          {!temp.length ? <div className="empty-note" style={{ marginTop: 10 }}>No allocations added yet.</div> : null}
+          {!temp.length ? (
+            <div className="empty-note" style={{ marginTop: 10 }}>
+              No allocations added yet.
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-        <button className="btn-back" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" onClick={confirm}>Confirm</button>
+        <button className="btn-back" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="btn-primary" onClick={confirm}>
+          Confirm
+        </button>
       </div>
     </ModalShell>
   );
 };
 
-const AutoDistributionModal = ({
-  onClose,
-  oppCode,
-  onStartAssignment,
-}) => {
+// ✅ PATCH: AutoDistribution supports Assign vs Reassign mode without removing existing code
+const AutoDistributionModal = ({ onClose, oppCode, onStartAssignment, actionType = "assign", currentOwners = [] }) => {
   const ROLE_OPTIONS = ROLES;
-
   const SHIFT_OPTIONS = SHIFTS;
 
-  const pickRandomShift = () =>
-    SHIFT_OPTIONS[Math.floor(Math.random() * SHIFT_OPTIONS.length)];
+  const pickRandomShift = () => SHIFT_OPTIONS[Math.floor(Math.random() * SHIFT_OPTIONS.length)];
 
   const [role, setRole] = useState("Call Center Agent");
   const [clinic, setClinic] = useState("All");
@@ -635,6 +850,10 @@ const AutoDistributionModal = ({
   const [loadErr, setLoadErr] = useState("");
 
   const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // ✅ PATCH: autoMode + fromOwner (for reassignment)
+  const [autoMode, setAutoMode] = useState(actionType === "reassign" ? "reassign" : "assign"); // "assign" | "reassign"
+  const [fromOwnerName, setFromOwnerName] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -739,9 +958,7 @@ const AutoDistributionModal = ({
     return list.filter((e) => e.id);
   }, [employees, clinic, role, search]);
 
-  const allChecked =
-    filteredEmployees.length > 0 &&
-    filteredEmployees.every((e) => selectedIds.has(e.id));
+  const allChecked = filteredEmployees.length > 0 && filteredEmployees.every((e) => selectedIds.has(e.id));
 
   const toggleAll = () => {
     setSelectedIds((prev) => {
@@ -770,6 +987,12 @@ const AutoDistributionModal = ({
       return;
     }
 
+    // ✅ PATCH: reassign requires fromOwner
+    if (autoMode === "reassign" && !String(fromOwnerName || "").trim()) {
+      alert("Please select 'Reassign From' owner.");
+      return;
+    }
+
     if (assignMode === "date") {
       if (!fromDate || !toDate) {
         alert("Please select From and To date.");
@@ -791,6 +1014,10 @@ const AutoDistributionModal = ({
       role,
       clinic,
       assignMode,
+
+      autoMode, // "assign" | "reassign"
+      fromOwnerName: autoMode === "reassign" ? fromOwnerName : "",
+
       fromDate: assignMode === "date" ? fromDate : "",
       toDate: assignMode === "date" ? toDate : "",
       noOfRecords: assignMode === "record" ? Number(noOfRecords) : 0,
@@ -807,26 +1034,22 @@ const AutoDistributionModal = ({
   };
 
   return (
-    <ModalShell title="Auto Distribution" onClose={onClose} width={980}>
-      {/* ...UNCHANGED... */}
+    <ModalShell title={autoMode === "reassign" ? "Auto Redistribution" : "Auto Distribution"} onClose={onClose} width={980}>
       <div className="ew-auto-top">
         <div className="ew-field">
           <div className="ew-lbl">Role :</div>
           <select className="finput" value={role} onChange={(e) => setRole(e.target.value)}>
             {ROLE_OPTIONS.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </div>
 
         <div className="ew-field">
           <div className="ew-lbl">Clinic :</div>
-          <select
-            className="finput"
-            value={clinic}
-            onChange={(e) => setClinic(e.target.value)}
-            disabled={loadingCenters}
-          >
+          <select className="finput" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={loadingCenters}>
             <option value="All">All</option>
             {centers.map((c) => (
               <option key={c.code} value={c.code}>
@@ -836,10 +1059,118 @@ const AutoDistributionModal = ({
           </select>
         </div>
       </div>
-      <div className="ew-auto-top" style={{ marginTop: 10, alignItems: "center" }}> <label className="ew-check"> <input type="checkbox" checked={assignMode === "date"} onChange={(e) => (e.target.checked ? setModeDate() : setModeRecord())} /> <span>Assign by date</span> </label> <label className="ew-check"> <input type="checkbox" checked={assignMode === "record"} onChange={(e) => (e.target.checked ? setModeRecord() : setModeDate())} /> <span>Assign By Record</span> </label> <div style={{ flex: 1 }} /> {assignMode === "date" ? (<div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}> <div className="ew-field" style={{ minWidth: 200 }}> <div className="ew-lbl">From :</div> <input className="finput" type="date" value={fromDate} max={todayISO} onChange={(e) => setFromDate(e.target.value)} /> </div> <div className="ew-field" style={{ minWidth: 200 }}> <div className="ew-lbl">To :</div> <input className="finput" type="date" value={toDate} max={todayISO} onChange={(e) => setToDate(e.target.value)} /> </div> </div>) : (<div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}> <div className="ew-field" style={{ maxWidth: 220 }}> <div className="ew-lbl">No. of Record :</div> <input className="finput" type="number" min={1} value={noOfRecords} onChange={(e) => setNoOfRecords(Number(e.target.value || 0))} /> </div> <div className="ew-field" style={{ maxWidth: 240 }}> <div className="ew-lbl">Sequence of record :</div> <select className="finput" value={recSeq} onChange={(e) => setRecSeq(e.target.value)}> <option value="Oldest">Oldest</option> <option value="Recent">Recent</option> </select> </div> </div>)} </div> {(loadErr || loadingEmployees) ? (<div className="empty-note" style={{ marginTop: 10 }}> {loadErr ? loadErr : "Loading employees..."} </div>) : null} <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}> <input className="finput" style={{ width: 320 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee name..." /> </div> <div className="ew-agent-box"> <div className="ew-agent-head"> <div className="ew-col ew-col-check"> <input type="checkbox" checked={allChecked} onChange={toggleAll} disabled={!filteredEmployees.length} /> </div> <div className="ew-col ew-col-name">Employee Name</div> <div className="ew-col ew-col-shift">Shift</div> </div> <div className="ew-agent-body"> {filteredEmployees.map((e) => (<div className="ew-agent-row" key={e.id}> <div className="ew-col ew-col-check"> <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggle(e.id)} /> </div> <div className="ew-col ew-col-name">{e.employeeName || "—"}</div> <div className="ew-col ew-col-shift">{e.__shift}</div> </div>))} {!loadingEmployees && !filteredEmployees.length ? (<div className="empty-note" style={{ margin: 12 }}> No employees found. </div>) : null} </div> </div>
+
+      {/* ✅ PATCH: Assign vs Reassign toggle + From Owner */}
+      <div className="ew-auto-top" style={{ marginTop: 10, alignItems: "center" }}>
+        <label className="ew-check">
+          <input type="checkbox" checked={autoMode === "assign"} onChange={() => setAutoMode("assign")} />
+          <span>Assign New</span>
+        </label>
+        <label className="ew-check">
+          <input type="checkbox" checked={autoMode === "reassign"} onChange={() => setAutoMode("reassign")} />
+          <span>Reassign</span>
+        </label>
+
+        {autoMode === "reassign" ? (
+          <div className="ew-field" style={{ minWidth: 280 }}>
+            <div className="ew-lbl">Reassign From :</div>
+            <select className="finput" value={fromOwnerName} onChange={(e) => setFromOwnerName(e.target.value)}>
+              <option value="">— Select Owner —</option>
+              {(currentOwners || []).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
+        <div style={{ flex: 1 }} />
+      </div>
+
+      {/* ...UNCHANGED UI BELOW... */}
+      <div className="ew-auto-top" style={{ marginTop: 10, alignItems: "center" }}>
+        <label className="ew-check">
+          <input type="checkbox" checked={assignMode === "date"} onChange={(e) => (e.target.checked ? setModeDate() : setModeRecord())} />
+          <span>Assign by date</span>
+        </label>
+        <label className="ew-check">
+          <input type="checkbox" checked={assignMode === "record"} onChange={(e) => (e.target.checked ? setModeRecord() : setModeDate())} />
+          <span>Assign By Record</span>
+        </label>
+        <div style={{ flex: 1 }} />
+        {assignMode === "date" ? (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="ew-field" style={{ minWidth: 200 }}>
+              <div className="ew-lbl">From :</div>
+              <input className="finput" type="date" value={fromDate} max={todayISO} onChange={(e) => setFromDate(e.target.value)} />
+            </div>
+            <div className="ew-field" style={{ minWidth: 200 }}>
+              <div className="ew-lbl">To :</div>
+              <input className="finput" type="date" value={toDate} max={todayISO} onChange={(e) => setToDate(e.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="ew-field" style={{ maxWidth: 220 }}>
+              <div className="ew-lbl">No. of Record :</div>
+              <input className="finput" type="number" min={1} value={noOfRecords} onChange={(e) => setNoOfRecords(Number(e.target.value || 0))} />
+            </div>
+            <div className="ew-field" style={{ maxWidth: 240 }}>
+              <div className="ew-lbl">Sequence of record :</div>
+              <select className="finput" value={recSeq} onChange={(e) => setRecSeq(e.target.value)}>
+                <option value="Oldest">Oldest</option>
+                <option value="Recent">Recent</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {(loadErr || loadingEmployees) ? (
+        <div className="empty-note" style={{ marginTop: 10 }}>
+          {loadErr ? loadErr : "Loading employees..."}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+        <input className="finput" style={{ width: 320 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee name..." />
+      </div>
+
+      <div className="ew-agent-box">
+        <div className="ew-agent-head">
+          <div className="ew-col ew-col-check">
+            <input type="checkbox" checked={allChecked} onChange={toggleAll} disabled={!filteredEmployees.length} />
+          </div>
+          <div className="ew-col ew-col-name">Employee Name</div>
+          <div className="ew-col ew-col-shift">Shift</div>
+        </div>
+
+        <div className="ew-agent-body">
+          {filteredEmployees.map((e) => (
+            <div className="ew-agent-row" key={e.id}>
+              <div className="ew-col ew-col-check">
+                <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggle(e.id)} />
+              </div>
+              <div className="ew-col ew-col-name">{e.employeeName || "—"}</div>
+              <div className="ew-col ew-col-shift">{e.__shift}</div>
+            </div>
+          ))}
+          {!loadingEmployees && !filteredEmployees.length ? (
+            <div className="empty-note" style={{ margin: 12 }}>
+              No employees found.
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-        <button className="btn-back" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" onClick={start}>Start Assignment</button>
+        <button className="btn-back" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="btn-primary" onClick={start}>
+          {autoMode === "reassign" ? "Start Reassignment" : "Start Assignment"}
+        </button>
       </div>
     </ModalShell>
   );
@@ -872,11 +1203,16 @@ const OpportunityDetails = () => {
   const openAssignMenu = () => setAssignChoiceOpen(true);
   const closeAssignMenu = () => setAssignChoiceOpen(false);
 
+  // ✅ PATCH: store picked action: assign/reassign + mode
+  const [assignAction, setAssignAction] = useState({ type: "assign", mode: "auto" });
+
   const onPickAssignOption = (opt) => {
     closeAssignMenu();
-    if (opt === "auto") setAutoDistOpen(true);
-    if (opt === "manual") setManualAllocOpen(true);
-    if (opt === "availability") setAvailabilityOpen(true);
+    setAssignAction(opt);
+
+    if (opt?.mode === "auto") setAutoDistOpen(true);
+    if (opt?.mode === "manual") setManualAllocOpen(true);
+    if (opt?.mode === "availability") setAvailabilityOpen(true);
   };
 
   const [statusFilter, setStatusFilter] = useState("");
@@ -897,7 +1233,7 @@ const OpportunityDetails = () => {
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  // ✅ NEW: avoid double-prepend (in case component re-renders)
+  // avoid double-prepend
   const consumedLocalLeadIdsRef = useRef(new Set());
 
   useEffect(() => {
@@ -912,7 +1248,6 @@ const OpportunityDetails = () => {
 
       try {
         const now = new Date();
-
         const defaultFrom = new Date(now);
         defaultFrom.setDate(now.getDate() - 13);
 
@@ -931,7 +1266,7 @@ const OpportunityDetails = () => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        const arr = Array.isArray(data) ? data : (data ? [data] : []);
+        const arr = Array.isArray(data) ? data : data ? [data] : [];
         setHeader(arr[0] ?? null);
         setRows(arr);
 
@@ -942,13 +1277,7 @@ const OpportunityDetails = () => {
             ...r,
             __dateStamp: dateToStamp(d),
             __timeMin: hhmmToMinutes(hhmm),
-            __q: [
-              r?.custID,
-              r?.custName,
-              r?.custMobileNo,
-              r?.oppStatus,
-              r?.salesOwner,
-            ]
+            __q: [r?.custID, r?.custName, r?.custMobileNo, r?.oppStatus, r?.salesOwner]
               .map((x) => (x ?? "").toString().toLowerCase())
               .join(" | "),
           };
@@ -1002,7 +1331,72 @@ const OpportunityDetails = () => {
     return code === "manual lead";
   }, [H]);
 
-  // ✅ NEW: after load (or anytime), prepend just-submitted lead (if present) ON TOP
+  // ✅ Prepend leads from ew_leads_local for this oppCode
+const prependLocalLeadsFromList = () => {
+  if (!oppCode) return;
+
+  const all = readLocalLeadsList();
+
+  // keep only leads for this opportunity
+  const mine = all.filter((l) => String(l?.oppCode || "").trim() === String(oppCode).trim());
+  if (!mine.length) return;
+
+  // newest first (createdAt if present)
+  mine.sort((a, b) => {
+    const ta = +new Date(a?.createdAt || a?.createdDate || 0);
+    const tb = +new Date(b?.createdAt || b?.createdDate || 0);
+    return (tb || 0) - (ta || 0);
+  });
+
+  setNormRows((prev) => {
+    const prevArr = prev || [];
+
+    // build a fast set of existing ids so we don't duplicate
+    const existing = new Set(
+      prevArr.map((r) => String(r?.__localLeadId || r?.id || r?.custID || "").trim()).filter(Boolean)
+    );
+
+    const mappedToPrepend = [];
+    for (const lead of mine) {
+      const uid = getLocalLeadUniqueId(lead);
+      if (!uid) continue;
+      if (existing.has(uid)) continue;
+
+      mappedToPrepend.push(mapEwLeadsLocalToOppRow(lead, isManualLead));
+      existing.add(uid);
+    }
+
+    if (!mappedToPrepend.length) return prevArr;
+
+    // prepend on top
+    return [...mappedToPrepend, ...prevArr];
+  });
+};
+
+useEffect(() => {
+  // initial prepend when component loads
+  prependLocalLeadsFromList();
+
+  // if another tab/window updates localStorage
+  const onStorage = (e) => {
+    if (e.key === LS_LEADS_LOCAL) prependLocalLeadsFromList();
+  };
+  window.addEventListener("storage", onStorage);
+
+  // if your app updates localStorage in SAME tab (storage event won't fire),
+  // you can dispatch a custom event after submit (see section 4)
+  const onCustom = () => prependLocalLeadsFromList();
+  window.addEventListener("ew_lead_created", onCustom);
+
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("ew_lead_created", onCustom);
+  };
+// IMPORTANT: include isManualLead because mapping depends on it
+}, [oppCode, isManualLead]);
+
+
+  // prepend just-submitted lead (if present) ON TOP
   useEffect(() => {
     if (!oppCode) return;
 
@@ -1022,11 +1416,12 @@ const OpportunityDetails = () => {
     }
 
     if (!lead?.leadId) {
-      try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch { }
+      try {
+        localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode));
+      } catch {}
       return;
     }
 
-    // prevent duplicates
     if (consumedLocalLeadIdsRef.current.has(lead.leadId)) return;
 
     const mapped = mapLocalLeadToOppRow(lead, isManualLead);
@@ -1040,17 +1435,16 @@ const OpportunityDetails = () => {
     });
 
     setRows((prev) => {
-      const exists = (prev || []).some(
-        (x) => x?.id === lead.leadId || x?.custID === lead.leadId
-      );
+      const exists = (prev || []).some((x) => x?.id === lead.leadId || x?.custID === lead.leadId);
       if (exists) return prev;
       return [mapped, ...(prev || [])];
     });
 
     consumedLocalLeadIdsRef.current.add(lead.leadId);
 
-    // consume once
-    try { localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode)); } catch { }
+    try {
+      localStorage.removeItem(LS_NEW_LEAD_KEY(oppCode));
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oppCode, isManualLead]);
 
@@ -1060,6 +1454,16 @@ const OpportunityDetails = () => {
       if (r?.salesOwner) set.add(String(r.salesOwner));
     });
     return ["", ...Array.from(set)];
+  }, [normRows]);
+
+  // ✅ PATCH: current owners list for Auto Reassign dropdown
+  const currentOwners = useMemo(() => {
+    const set = new Set();
+    normRows.forEach((r) => {
+      const name = String(r?.salesOwner || "").trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set);
   }, [normRows]);
 
   const dateRange = useMemo(() => {
@@ -1109,9 +1513,7 @@ const OpportunityDetails = () => {
     let list = normRows.slice();
 
     const s = searchTerm.trim().toLowerCase();
-    if (s) {
-      list = list.filter((r) => (r.__q || "").includes(s));
-    }
+    if (s) list = list.filter((r) => (r.__q || "").includes(s));
 
     const fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
     const toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
@@ -1173,22 +1575,9 @@ const OpportunityDetails = () => {
     }
 
     return list;
-  }, [
-    normRows,
-    searchTerm,
-    isManualLead,
-    statusFilter,
-    ownerFilter,
-    dateRange,
-    filterTimeFrom,
-    filterTimeTo,
-    sortConfig,
-  ]);
+  }, [normRows, searchTerm, isManualLead, statusFilter, ownerFilter, dateRange, filterTimeFrom, filterTimeTo, sortConfig]);
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredRows.length / pageSize)),
-    [filteredRows.length]
-  );
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length]);
 
   const pagedRows = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -1199,26 +1588,34 @@ const OpportunityDetails = () => {
     const recId = getRecId(row);
     const isManual = isManualLead || row?.manualLead || row?.isManualLead;
 
-    // For locally added lead where custID might be leadId (string), still route works
     navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
-      state: {
-        recId,
-        oppCode,
-        row,
-        header: H,
-        isManual,
-      },
+      state: { recId, oppCode, row, header: H, isManual },
     });
   };
 
   const exportCSV = () => {
     const colsManual = [
-      "CustID", "CustName", "CustMobileNo", "OppStatus", "FollowUpDate",
-      "Disposition", "Remarks", "CustomerMessage", "SalesOwner", "CreatedDate",
+      "CustID",
+      "CustName",
+      "CustMobileNo",
+      "OppStatus",
+      "FollowUpDate",
+      "Disposition",
+      "Remarks",
+      "CustomerMessage",
+      "SalesOwner",
+      "CreatedDate",
     ];
     const colsOther = [
-      "CustID", "CustName", "CustMobileNo", "OppStatus", "AppointmentDate",
-      "Disposition", "Remarks", "SalesOwner", "CreatedDate",
+      "CustID",
+      "CustName",
+      "CustMobileNo",
+      "OppStatus",
+      "AppointmentDate",
+      "Disposition",
+      "Remarks",
+      "SalesOwner",
+      "CreatedDate",
     ];
     const headers = isManualLead ? colsManual : colsOther;
 
@@ -1234,28 +1631,28 @@ const OpportunityDetails = () => {
     filteredRows.forEach((r) => {
       const rowArr = isManualLead
         ? [
-          r.custID,
-          r.custName,
-          r.custMobileNo,
-          r.oppStatus,
-          r.followUpDate || r.followupdate || r.appointmentdatetime || "",
-          r.disposition,
-          r.remarks,
-          r.customerMessage || r.customer_message || "",
-          r.salesOwner,
-          r.createddate,
-        ]
+            r.custID,
+            r.custName,
+            r.custMobileNo,
+            r.oppStatus,
+            r.followUpDate || r.followupdate || r.appointmentdatetime || "",
+            r.disposition,
+            r.remarks,
+            r.customerMessage || r.customer_message || "",
+            r.salesOwner,
+            r.createddate,
+          ]
         : [
-          r.custID,
-          r.custName,
-          r.custMobileNo,
-          r.oppStatus,
-          r.appointmentdatetime,
-          r.disposition,
-          r.remarks,
-          r.salesOwner,
-          r.createddate,
-        ];
+            r.custID,
+            r.custName,
+            r.custMobileNo,
+            r.oppStatus,
+            r.appointmentdatetime,
+            r.disposition,
+            r.remarks,
+            r.salesOwner,
+            r.createddate,
+          ];
       lines.push(rowArr.map(escape).join(","));
     });
 
@@ -1282,8 +1679,7 @@ const OpportunityDetails = () => {
   if (loading) return <div className="loading-msg">Loading…</div>;
   if (error) return <div className="loading-msg" style={{ color: "#c33" }}>{error}</div>;
 
-  const sortArrow = (key) =>
-    sortConfig.key === key ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕";
+  const sortArrow = (key) => (sortConfig.key === key ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕");
 
   return (
     <>
@@ -1357,11 +1753,7 @@ const OpportunityDetails = () => {
 
                 <div className="fgroup">
                   <label className="flabel">Follow Up Date :</label>
-                  <select
-                    className="finput"
-                    value={followDateMode}
-                    onChange={(e) => setFollowDateMode(e.target.value)}
-                  >
+                  <select className="finput" value={followDateMode} onChange={(e) => setFollowDateMode(e.target.value)}>
                     <option value="">All</option>
                     <option value="0">Today</option>
                     <option value="1">Tomorrow</option>
@@ -1373,21 +1765,11 @@ const OpportunityDetails = () => {
                   <>
                     <div className="fgroup">
                       <label className="flabel">From :</label>
-                      <input
-                        type="date"
-                        className="finput"
-                        value={rangeFrom}
-                        onChange={(e) => setRangeFrom(e.target.value)}
-                      />
+                      <input type="date" className="finput" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
                     </div>
                     <div className="fgroup">
                       <label className="flabel">To :</label>
-                      <input
-                        type="date"
-                        className="finput"
-                        value={rangeTo}
-                        onChange={(e) => setRangeTo(e.target.value)}
-                      />
+                      <input type="date" className="finput" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
                     </div>
                   </>
                 )}
@@ -1420,7 +1802,6 @@ const OpportunityDetails = () => {
                   </div>
                 </div>
 
-                {/* ✅ Add Lead */}
                 <div className="factions">
                   <button
                     className="btn btn-primary"
@@ -1428,9 +1809,7 @@ const OpportunityDetails = () => {
                       const code = oppCode || (H?.oppCode ?? "");
                       if (!code) return;
 
-                      navigate(`/manuallead/${code}`, {
-                        state: { oppCode: code, header: H },
-                      });
+                      navigate(`/manuallead/${code}`, { state: { oppCode: code, header: H } });
                     }}
                   >
                     Add Lead
@@ -1462,11 +1841,7 @@ const OpportunityDetails = () => {
 
                 <div className="fgroup">
                   <label className="flabel">Follow Up Date :</label>
-                  <select
-                    className="finput"
-                    value={followDateMode}
-                    onChange={(e) => setFollowDateMode(e.target.value)}
-                  >
+                  <select className="finput" value={followDateMode} onChange={(e) => setFollowDateMode(e.target.value)}>
                     <option value="">All</option>
                     <option value="0">Today</option>
                     <option value="1">Tomorrow</option>
@@ -1478,21 +1853,11 @@ const OpportunityDetails = () => {
                   <>
                     <div className="fgroup">
                       <label className="flabel">From :</label>
-                      <input
-                        type="date"
-                        className="finput"
-                        value={rangeFrom}
-                        onChange={(e) => setRangeFrom(e.target.value)}
-                      />
+                      <input type="date" className="finput" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
                     </div>
                     <div className="fgroup">
                       <label className="flabel">To :</label>
-                      <input
-                        type="date"
-                        className="finput"
-                        value={rangeTo}
-                        onChange={(e) => setRangeTo(e.target.value)}
-                      />
+                      <input type="date" className="finput" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
                     </div>
                   </>
                 )}
@@ -1547,10 +1912,15 @@ const OpportunityDetails = () => {
                     <th onClick={() => handleSort("custName")}>CustName <span className="sort">{sortArrow("custName")}</span></th>
                     <th onClick={() => handleSort("custMobileNo")}>CustMobileNo <span className="sort">{sortArrow("custMobileNo")}</span></th>
                     <th onClick={() => handleSort("oppStatus")}>OppStatus <span className="sort">{sortArrow("oppStatus")}</span></th>
-                    <th onClick={() => handleSort(isManualLead ? "followUpDate" : "appointmentdatetime")}>
-                      {isManualLead ? "Follow Up Date" : "Appointment Date"}{" "}
-                      <span className="sort">{sortArrow(isManualLead ? "followUpDate" : "appointmentdatetime")}</span>
-                    </th>
+
+                    {/* ✅ PATCH: Remove Appointment Date column completely for non-manual.
+                        Manual Lead keeps Follow Up Date column. */}
+                    {isManualLead ? (
+                      <th onClick={() => handleSort("followUpDate")}>
+                        Follow Up Date <span className="sort">{sortArrow("followUpDate")}</span>
+                      </th>
+                    ) : null}
+
                     <th onClick={() => handleSort("disposition")}>Disposition <span className="sort">{sortArrow("disposition")}</span></th>
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     {isManualLead ? (
@@ -1562,6 +1932,7 @@ const OpportunityDetails = () => {
                     <th onClick={() => handleSort("createddate")}>Created Date <span className="sort">{sortArrow("createddate")}</span></th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {pagedRows.map((r, i) => (
                     <tr key={`${r.recid || r.custID || r.id || i}-${i}`}>
@@ -1573,16 +1944,17 @@ const OpportunityDetails = () => {
                       <td>{safe(r.custName, "—")}</td>
                       <td>{safe(r.custMobileNo, "—")}</td>
                       <td>{safe(r.oppStatus, "—")}</td>
+
+                      {/* ✅ PATCH: manual only */}
                       {isManualLead ? (
                         <td>{safe(r.followUpDate || r.followupdate || r.appointmentdatetime, "—")}</td>
-                      ) : (
-                        <td>{safe(r.appointmentdatetime, "—")}</td>
-                      )}
+                      ) : null}
+
                       <td>{safe(r.disposition, "—")}</td>
                       <td>{safe(r.remarks, "—")}</td>
                       {isManualLead ? <td>{safe(r.customerMessage || r.customer_message, "—")}</td> : null}
                       <td>{safe(r.salesOwner, "—")}</td>
-                      <td>{safe(r.createddate, "—")}</td>
+                      <td>{formatDDMMYYYY(r.createddate)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1592,48 +1964,26 @@ const OpportunityDetails = () => {
             <div className="empty-note">No data found for this opportunity.</div>
           )}
 
-          {/* pagination unchanged */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
             <div style={{ fontSize: 13, color: "#64748b" }}>
-              Showing <strong>{filteredRows.length ? (page - 1) * pageSize + 1 : 0}</strong>–
-              <strong>{Math.min(page * pageSize, filteredRows.length)}</strong> of{" "}
+              Showing <strong>{filteredRows.length ? (page - 1) * pageSize + 1 : 0}</strong>–<strong>{Math.min(page * pageSize, filteredRows.length)}</strong> of{" "}
               <strong>{filteredRows.length}</strong>
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                className="btn-export"
-                style={{ padding: "8px 12px" }}
-                onClick={() => setPage(1)}
-                disabled={page <= 1}
-              >
+              <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPage(1)} disabled={page <= 1}>
                 First
               </button>
-              <button
-                className="btn-export"
-                style={{ padding: "8px 12px" }}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
+              <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
                 Prev
               </button>
               <div style={{ fontSize: 13, color: "#334155" }}>
                 Page <strong>{page}</strong> / <strong>{totalPages}</strong>
               </div>
-              <button
-                className="btn-export"
-                style={{ padding: "8px 12px" }}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
+              <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
                 Next
               </button>
-              <button
-                className="btn-export"
-                style={{ padding: "8px 12px" }}
-                onClick={() => setPage(totalPages)}
-                disabled={page >= totalPages}
-              >
+              <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
                 Last
               </button>
             </div>
@@ -1642,10 +1992,7 @@ const OpportunityDetails = () => {
       </div>
 
       {assignChoiceOpen ? (
-        <AssignChoiceModal
-          onClose={() => setAssignChoiceOpen(false)}
-          onPick={onPickAssignOption}
-        />
+        <AssignChoiceModal onClose={() => setAssignChoiceOpen(false)} onPick={onPickAssignOption} />
       ) : null}
 
       {manualAllocOpen ? (
@@ -1653,9 +2000,10 @@ const OpportunityDetails = () => {
           onClose={() => setManualAllocOpen(false)}
           oppCode={oppCode}
           oppRows={normRows}
+          actionType={assignAction.type} // ✅ assign / reassign
           onCommitted={({ count, modeText }) => {
             setNormRows((prev) => applyManualAssignmentsToRows(oppCode, prev));
-            showToast(`${count} opp assigned (${modeText})`);
+            showToast(`${count} opp updated (${modeText})`);
           }}
         />
       ) : null}
@@ -1664,10 +2012,33 @@ const OpportunityDetails = () => {
         <AutoDistributionModal
           onClose={() => setAutoDistOpen(false)}
           oppCode={oppCode}
+          actionType={assignAction.type} // ✅ assign / reassign
+          currentOwners={currentOwners}  // ✅ reassign from dropdown
           onStartAssignment={async (payload) => {
             const store = loadAssignStore(oppCode);
             const assignedMap = store.assigned || {};
-            let oppList = normRows.slice();
+
+            // ✅ PATCH: base filter for assign vs reassign + Closed exclusion
+            let oppList = normRows
+              .slice()
+              .filter((r) => {
+                const st = String(r?.oppStatus || "").trim().toLowerCase();
+                if (st === "closed") return false;
+
+                const owner = String(r?.salesOwner || "").trim();
+
+                // assign => ONLY unassigned
+                if (payload.autoMode === "assign") return !owner;
+
+                // reassign => ONLY those assigned to selected fromOwnerName
+                if (payload.autoMode === "reassign") {
+                  const fromName = String(payload.fromOwnerName || "").trim().toLowerCase();
+                  if (!fromName) return false;
+                  return owner.toLowerCase() === fromName;
+                }
+
+                return false;
+              });
 
             if (payload.assignMode === "date") {
               const from = +new Date(payload.fromDate);
@@ -1695,6 +2066,10 @@ const OpportunityDetails = () => {
             const now = new Date().toISOString();
 
             oppList.forEach((oppRow, idx) => {
+              // defensive (Closed already filtered)
+              const st = String(oppRow?.oppStatus || "").trim().toLowerCase();
+              if (st === "closed") return;
+
               const emp = emps[idx % emps.length];
               const rid = getRecId(oppRow);
 
@@ -1704,6 +2079,8 @@ const OpportunityDetails = () => {
                 shift: emp.shift,
                 assignedAt: now,
                 mode: payload.assignMode,
+                autoMode: payload.autoMode || "assign",
+                fromOwnerName: payload.fromOwnerName || "",
                 fromDate: payload.fromDate || "",
                 toDate: payload.toDate || "",
                 noOfRecords: payload.noOfRecords || 0,
@@ -1733,7 +2110,8 @@ const OpportunityDetails = () => {
               .map(([name, count]) => `${count} opp assigned to ${name}`)
               .join(" • ");
 
-            showToast(`${summary} for ${modeLabel}`);
+            const actionLabel = payload.autoMode === "reassign" ? "Reassigned" : "Assigned";
+            showToast(`${actionLabel}: ${summary} for ${modeLabel}`);
           }}
         />
       ) : null}

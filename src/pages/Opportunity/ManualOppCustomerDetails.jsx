@@ -45,7 +45,7 @@ const nextLeadId = (kind /* "External" | "Manual" */) => {
   const next = current + 1;
   localStorage.setItem(counterKey, String(next));
 
-  const prefix = kind === "External" ? "LD-EX-" : "LD-MN-";
+  const prefix = kind === "External" ? "LD-" : "LD-";
   return `${prefix}${pad8(next)}`;
 };
 
@@ -440,11 +440,13 @@ const ManualOppCustomerDetails = () => {
 
     setSaving(true);
     try {
-      const saved = persistLead("Submitted");
+      const saved = persistLead("Open");
 
       // ✅ NEW: store one-time payload for OpportunityDetails to consume and prepend
       try {
         localStorage.setItem(LS_NEW_LEAD_KEY(oppCode), JSON.stringify(saved));
+        window.dispatchEvent(new Event("ew_lead_created"));
+
       } catch {}
 
       navigate(-1);
