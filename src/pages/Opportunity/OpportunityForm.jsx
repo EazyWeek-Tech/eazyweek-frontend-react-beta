@@ -8,6 +8,51 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const navigate = useNavigate()
   const formRef = useRef(null)
 
+  // ---------- EXTERNAL SOURCE (NEW) ----------
+const [externalSource, setExternalSource] = useState("")   // S1..S4
+const [externalSubSource, setExternalSubSource] = useState("") // SS1..SS3 (depends on source)
+
+const EXTERNAL_SOURCE_OPTIONS = [
+  { value: "",  label: "< - Select one - >" },
+  { value: "S1", label: "Social Media Campaign" },
+  { value: "S2", label: "Google Ads" },
+  { value: "S3", label: "Others" },
+  { value: "S4", label: "Website" },
+]
+
+const EXTERNAL_SUBSOURCE_MAP = {
+  S1: [
+    { value: "", label: "< - Select one - >" },
+    { value: "SS1", label: "Instagram" },
+    { value: "SS2", label: "Tiktok" },
+    { value: "SS3", label: "Facebook" },
+  ],
+  S2: [
+    { value: "", label: "< - Select one - >" },
+    { value: "SS1", label: "Google Ads" },
+  ],
+  S3: [
+    { value: "", label: "< - Select one - >" },
+    { value: "SS1", label: "Manual Upload" },
+  ],
+  S4: [
+    { value: "", label: "< - Select one - >" },
+    { value: "SS1", label: "Referral" },
+    { value: "SS2", label: "Enquiry" },
+    { value: "SS3", label: "Booking" },
+  ],
+}
+
+const subSourceOptions = useMemo(() => {
+  return EXTERNAL_SUBSOURCE_MAP[externalSource] || [{ value: "", label: "< - Select one - >" }]
+}, [externalSource])
+
+// Reset Sub-Source whenever Source changes
+useEffect(() => {
+  setExternalSubSource("")
+}, [externalSource])
+
+
   // ---------- CATEGORY OPTIONS ----------
   const [catLoading, setCatLoading] = useState(false)
   const [catOptions, setCatOptions] = useState([]) // [{label, value, raw}]
@@ -1124,7 +1169,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         .selected { border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.12); }
         .dot { position:absolute; left:12px; top:12px; width:18px; height:18px; border-radius:50%; border:2px solid #9ca3af; }
         .selected .dot { border-color:#334b71; box-shadow: inset 0 0 0 4px #334b71; }
-        .ctitle { font-weight:600; color:#111827; font-size:14px; }
+        .ctitle { font-weight:600; color:#111827; font-size:14px;white-space: nowrap; }
         .cdesc { font-size:12px; color:#4b5563; margin-top:2px; }
         .help { margin-left:6px; font-size:12px; border:1px solid #d1d5db; border-radius:50%; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; cursor:help; }
 
@@ -1264,6 +1309,50 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="s-head">+ External Source</div>
+              <div className="s-body">
+                {/* ---------- EXTERNAL SOURCE (NEW UI) ---------- */}
+<div className="row">
+  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 0 }}>
+    <label className="rf-field" style={{width: "300px"}}>
+      <span className=" ctitle" style={{whiteSpace: "nowrap"}}>Source :</span>
+      <select
+        className="rf-input"
+        style={{ width: "100%" }}
+        value={externalSource}
+        onChange={(e) => setExternalSource(e.target.value)}
+      >
+        {EXTERNAL_SOURCE_OPTIONS.map(o => (
+          <option key={o.value || "blank"} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+
+    <label className="rf-field" style={{width: "300px"}}>
+      <span className=" ctitle">Sub-Source :</span>
+      <select
+        className="rf-input"
+        style={{ width: "100%" }}
+        value={externalSubSource}
+        onChange={(e) => setExternalSubSource(e.target.value)}
+        disabled={!externalSource}
+      >
+        {subSourceOptions.map(o => (
+          <option key={o.value || "blank"} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+</div>
+
               </div>
             </div>
 

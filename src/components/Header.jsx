@@ -68,7 +68,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const handleLogout = (e) => {
     e.preventDefault();
     sessionStorage.clear();
-    localStorage.clear();
+   // localStorage.clear();
     onLogout();
     navigate("/login", { replace: true });
   };
