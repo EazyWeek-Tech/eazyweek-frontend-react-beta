@@ -74,20 +74,6 @@ const TIME_OPTIONS = (() => {
 /** ---------------- Defaults ---------------- */
 const LANG_INIT = ["Arabic", "English"];
 
-// IMPORTANT: Source / SubSource same as before (also for External opportunity)
-const SOURCE_INIT = ["Walkin", "Referral", "Campaign", "Website"];
-const SUBSOURCE_INIT = ["", "Instagram", "Facebook", "Google", "SMS", "Other"];
-
-const DOCTOR_INIT = ["Dr. Ma", "Dr. Reham", "Agnes Inocencio", "Aaliya", "Dr. Hasna"];
-
-const fallbackMediumOptions = [
-  { label: "< - Select one - >", value: "" },
-  { label: "Walkin", value: "Walkin" },
-  { label: "Phone", value: "Phone" },
-  { label: "Online", value: "Online" },
-  { label: "Social", value: "Social" },
-];
-
 // ✅ Your centers API
 const LOAD_CENTER_URL = `${API_BASE_URL}/api/Master/LoadCenters`;
 
@@ -114,13 +100,30 @@ const ManualOppCustomerDetails = () => {
 
   /** ---- Option lists (API + defaults) ---- */
   const [langOptions] = useState(LANG_INIT);
-  const [sourceOptions] = useState(SOURCE_INIT);
-  const [subSourceOptions] = useState(SUBSOURCE_INIT);
-  const [doctorOptions] = useState(DOCTOR_INIT);
 
-  // Medium (API)
-  const [mediumOptions, setMediumOptions] = useState(fallbackMediumOptions);
+  // Doctor / Therapist (API)
+  const [doctorOptions, setDoctorOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
+  const [doctorLoading, setDoctorLoading] = useState(false);
+
+  // Medium (API) /api/Opportunity/OppMedium
+  const [mediumOptions, setMediumOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
   const [mediumLoading, setMediumLoading] = useState(false);
+
+  // Source (API) /api/Opportunity/OppSource
+  const [sourceOptions, setSourceOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+
+  // Sub Source (API) /api/Opportunity/OppSubSource
+  const [subSourceOptions, setSubSourceOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
+  const [subSourceLoading, setSubSourceLoading] = useState(false);
 
   // Verticals (Interested In) (API)
   const [verticalOptions, setVerticalOptions] = useState([
@@ -159,10 +162,10 @@ const ManualOppCustomerDetails = () => {
     interestedVerticalCode: "", // mandatory
     interestedOther: "",
 
-    doctor: "", // mandatory
-    mediumCode: "", // mandatory
-    sourceName: "Walkin", // mandatory
-    subSourceName: "",
+    doctor: "", // mandatory (employeeCode)
+    mediumCode: "", // mandatory (M001...)
+    sourceName: "", // mandatory (S001...)  <-- now code
+    subSourceName: "", // optional (SS001...) <-- now code
 
     // Lead Disposition
     leadStatus: "LS004", // mandatory (default WIP)
@@ -192,7 +195,41 @@ const ManualOppCustomerDetails = () => {
 
   /** ---------------- API loads ---------------- */
 
-  // Medium options
+  // Doctor mapping
+  useEffect(() => {
+    const loadDoctors = async () => {
+      setDoctorLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Master/LoadDoctorMapping`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : data ? [data] : [];
+
+        const mapped = arr
+          .map((d) => {
+            const first = (d.firstName || "").trim();
+            const last = (d.lastName || "").trim();
+            const name = `${first} ${last}`.trim();
+            return { label: name || d.employeeCode || "", value: d.employeeCode || "" };
+          })
+          .filter((x) => x.label && x.value);
+
+        setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+      } catch (e) {
+        console.error("Failed to load doctors", e);
+        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+      } finally {
+        setDoctorLoading(false);
+      }
+    };
+    loadDoctors();
+  }, []);
+
+  // Medium options (API) /api/Opportunity/OppMedium
   useEffect(() => {
     const loadMediums = async () => {
       setMediumLoading(true);
@@ -202,25 +239,90 @@ const ManualOppCustomerDetails = () => {
           headers: { "Content-Type": "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const data = await res.json();
         const arr = Array.isArray(data) ? data : data ? [data] : [];
 
         const mapped = arr
           .map((o) => ({
-            label: (o?.name ?? o?.Name ?? o?.text ?? o?.label ?? "").toString().trim(),
-            value: (o?.code ?? o?.Code ?? o?.value ?? o?.Value ?? "").toString().trim(),
+            label: (o?.name ?? o?.Name ?? "").toString().trim(),
+            value: (o?.code ?? o?.Code ?? "").toString().trim(),
           }))
-          .filter((o) => o.label && o.value);
+          .filter((x) => x.label && x.value);
 
         setMediumOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
       } catch (e) {
         console.error("Failed to load mediums", e);
-        setMediumOptions(fallbackMediumOptions);
+        setMediumOptions([{ label: "< - Select one - >", value: "" }]);
       } finally {
         setMediumLoading(false);
       }
     };
     loadMediums();
+  }, []);
+
+  // Source options (API) /api/Opportunity/OppSource
+  useEffect(() => {
+    const loadSources = async () => {
+      setSourceLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppSource`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : data ? [data] : [];
+
+        const mapped = arr
+          .map((o) => ({
+            label: (o?.name ?? o?.Name ?? "").toString().trim(),
+            value: (o?.code ?? o?.Code ?? "").toString().trim(),
+          }))
+          .filter((x) => x.label && x.value);
+
+        setSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+      } catch (e) {
+        console.error("Failed to load sources", e);
+        setSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      } finally {
+        setSourceLoading(false);
+      }
+    };
+    loadSources();
+  }, []);
+
+  // Sub Source options (API) /api/Opportunity/OppSubSource
+  useEffect(() => {
+    const loadSubSources = async () => {
+      setSubSourceLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppSubSource`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : data ? [data] : [];
+
+        const mapped = arr
+          .map((o) => ({
+            label: (o?.name ?? o?.Name ?? "").toString().trim(),
+            value: (o?.code ?? o?.Code ?? "").toString().trim(),
+          }))
+          .filter((x) => x.label && x.value);
+
+        setSubSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+      } catch (e) {
+        console.error("Failed to load subsources", e);
+        setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      } finally {
+        setSubSourceLoading(false);
+      }
+    };
+    loadSubSources();
   }, []);
 
   // Verticals (Interested In) ✅ /api/Opportunity/OppAppointmentVertical
@@ -303,7 +405,6 @@ const ManualOppCustomerDetails = () => {
           headers: { "Content-Type": "application/json" },
         }
       );
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
@@ -442,11 +543,9 @@ const ManualOppCustomerDetails = () => {
     try {
       const saved = persistLead("Open");
 
-      // ✅ NEW: store one-time payload for OpportunityDetails to consume and prepend
       try {
         localStorage.setItem(LS_NEW_LEAD_KEY(oppCode), JSON.stringify(saved));
         window.dispatchEvent(new Event("ew_lead_created"));
-
       } catch {}
 
       navigate(-1);
@@ -458,7 +557,6 @@ const ManualOppCustomerDetails = () => {
   /** ---------------- UI ---------------- */
   return (
     <>
-      {/* ...UNCHANGED UI (your full JSX + styles) ... */}
       <div className="pageWrap">
         <div className="pageHeader">
           <div className="titleBlock">
@@ -474,12 +572,11 @@ const ManualOppCustomerDetails = () => {
           </div>
         </div>
 
-        {/* Fieldset 1: Lead Details */}
         <fieldset className="fs">
           <legend>Lead Details</legend>
 
           <div className="formGrid3">
-            {/* Left column */}
+            {/* Column 1 */}
             <div className="col">
               <div className="field">
                 <label>
@@ -509,68 +606,6 @@ const ManualOppCustomerDetails = () => {
                 {errors.lastName && <div className="errText">{errors.lastName}</div>}
               </div>
 
-              <div className="field">
-                <label>
-                  Centre <span className="req">*</span>
-                </label>
-                <select
-                  className={`inp ${errors.centerCode ? "err" : ""}`}
-                  name="centerCode"
-                  value={form.centerCode}
-                  onChange={onChange}
-                  disabled={centerLoading}
-                >
-                  {centerOptions.map((o) => (
-                    <option key={o.value || o.label} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
-              </div>
-
-              <div className="field">
-                <label>
-                  Doctor / Therapist <span className="req">*</span>
-                </label>
-                <select
-                  className={`inp ${errors.doctor ? "err" : ""}`}
-                  name="doctor"
-                  value={form.doctor}
-                  onChange={onChange}
-                >
-                  <option value="">{`< - Select one - >`}</option>
-                  {doctorOptions.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                {errors.doctor && <div className="errText">{errors.doctor}</div>}
-              </div>
-
-              <div className="field">
-                <label>
-                  Lead Source <span className="req">*</span>
-                </label>
-                <select
-                  className={`inp ${errors.sourceName ? "err" : ""}`}
-                  name="sourceName"
-                  value={form.sourceName}
-                  onChange={onChange}
-                >
-                  {sourceOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                {errors.sourceName && <div className="errText">{errors.sourceName}</div>}
-              </div>
-            </div>
-
-            {/* Middle column */}
-            <div className="col">
               <div className="field">
                 <label>Country Code</label>
                 <input
@@ -607,7 +642,10 @@ const ManualOppCustomerDetails = () => {
                 />
                 {errors.email && <div className="errText">{errors.email}</div>}
               </div>
+            </div>
 
+            {/* Column 2 */}
+            <div className="col">
               <div className="field">
                 <label>Preferred Language</label>
                 <select
@@ -625,47 +663,48 @@ const ManualOppCustomerDetails = () => {
               </div>
 
               <div className="field">
-                <label>Lead Sub-Source</label>
-                <select
-                  className="inp"
-                  name="subSourceName"
-                  value={form.subSourceName}
-                  onChange={onChange}
-                >
-                  {subSourceOptions.map((s) => (
-                    <option key={s || "blank"} value={s}>
-                      {s || "< - Select one - >"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Right column */}
-            <div className="col">
-              <div className="field">
                 <label>
-                  Lead Medium <span className="req">*</span>
+                  Centre <span className="req">*</span>
                 </label>
                 <select
-                  className={`inp ${errors.mediumCode ? "err" : ""}`}
-                  name="mediumCode"
-                  value={form.mediumCode}
+                  className={`inp ${errors.centerCode ? "err" : ""}`}
+                  name="centerCode"
+                  value={form.centerCode}
                   onChange={onChange}
-                  disabled={mediumLoading}
+                  disabled={centerLoading}
                 >
-                  {mediumOptions.map((opt) => (
-                    <option key={opt.value || opt.label} value={opt.value}>
-                      {opt.label}
+                  {centerOptions.map((o) => (
+                    <option key={o.value || o.label} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
-                {errors.mediumCode && <div className="errText">{errors.mediumCode}</div>}
+                {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
               </div>
 
               <div className="field">
                 <label>
-                  Interested in <span className="req">*</span>
+                  Doctor / Therapist <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.doctor ? "err" : ""}`}
+                  name="doctor"
+                  value={form.doctor}
+                  onChange={onChange}
+                  disabled={doctorLoading}
+                >
+                  {doctorOptions.map((d) => (
+                    <option key={d.value || d.label} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.doctor && <div className="errText">{errors.doctor}</div>}
+              </div>
+
+              <div className="field">
+                <label>
+                  Interested In <span className="req">*</span>
                 </label>
                 <select
                   className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
@@ -694,6 +733,66 @@ const ManualOppCustomerDetails = () => {
                   onChange={onChange}
                   placeholder="Other"
                 />
+              </div>
+
+              {/* ✅ Medium */}
+              <div className="field">
+                <label>
+                  Lead Medium <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.mediumCode ? "err" : ""}`}
+                  name="mediumCode"
+                  value={form.mediumCode}
+                  onChange={onChange}
+                  disabled={mediumLoading}
+                >
+                  {mediumOptions.map((opt) => (
+                    <option key={opt.value || opt.label} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.mediumCode && <div className="errText">{errors.mediumCode}</div>}
+              </div>
+
+              {/* ✅ Source */}
+              <div className="field">
+                <label>
+                  Lead Source <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.sourceName ? "err" : ""}`}
+                  name="sourceName"
+                  value={form.sourceName}
+                  onChange={onChange}
+                  disabled={sourceLoading}
+                >
+                  {sourceOptions.map((opt) => (
+                    <option key={opt.value || opt.label} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.sourceName && <div className="errText">{errors.sourceName}</div>}
+              </div>
+
+              {/* ✅ Sub Source */}
+              <div className="field">
+                <label>Lead Sub-Source</label>
+                <select
+                  className="inp"
+                  name="subSourceName"
+                  value={form.subSourceName}
+                  onChange={onChange}
+                  disabled={subSourceLoading}
+                >
+                  {subSourceOptions.map((opt) => (
+                    <option key={opt.value || opt.label} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -725,19 +824,6 @@ const ManualOppCustomerDetails = () => {
               </div>
 
               <div className="field">
-                <label>Follow Up Date</label>
-                <input
-                  type="date"
-                  className="inp"
-                  name="followUpDate"
-                  value={form.followUpDate}
-                  onChange={onChange}
-                />
-              </div>
-            </div>
-
-            <div className="col">
-              <div className="field">
                 <label>Lead Sub-Status</label>
                 <select
                   className="inp"
@@ -752,6 +838,19 @@ const ManualOppCustomerDetails = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div className="col">
+              <div className="field">
+                <label>Follow Up Date</label>
+                <input
+                  type="date"
+                  className="inp"
+                  name="followUpDate"
+                  value={form.followUpDate}
+                  onChange={onChange}
+                />
               </div>
 
               <div className="field">
@@ -820,9 +919,10 @@ const ManualOppCustomerDetails = () => {
         .pillVal { font-size: 13px; font-weight: 800; color: #111827; letter-spacing: 0.4px; }
         .fs { border: 1px solid #e6ebf2; border-radius: 10px; padding: 14px 14px 16px; margin-bottom: 14px; background: #fff; }
         .fs legend { padding: 0 8px; font-weight: 800; font-size: 16px; color: #1f2937; }
-        .formGrid3 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
-        .formGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
-        .col { display: grid; gap: 12px; }
+        .formGrid3 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
+        .formGrid2 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
+        .col { display: flex; flex-wrap: wrap; gap: 12px; }
+        .col .field { min-width: 40%; }
         .field label { display: inline-block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
         .req { color: #c62828; font-weight: 900; }
         .inp { width: 100%; height: 40px; border-radius: 8px; border: 1px solid #d7dee8; padding: 0 12px; background: #fff; outline: none; }
