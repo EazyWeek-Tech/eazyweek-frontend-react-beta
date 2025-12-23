@@ -1106,14 +1106,23 @@ const CaseDetailsPage = () => {
         );
 
         if (actionType === "save") {
-          setToast({
-            type: "success",
-            message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
-          });
-          navigate(-1);
-        } else if (actionType === "updateStatus") {
-          setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
-        }
+    setToast({
+      type: "success",
+      message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
+    });
+    navigate(-1);
+    return;
+  }
+
+  if (actionType === "submit") {
+    setToast({ type: "success", message: "Case submitted successfully." });
+    navigate(-1);
+    return;
+  }
+
+  if (actionType === "updateStatus") {
+    setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
+  }
       }
     } catch (err) {
       console.error(`${actionType} error:`, err);
