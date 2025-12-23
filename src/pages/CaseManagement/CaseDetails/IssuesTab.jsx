@@ -634,6 +634,16 @@ const IssuesTab = forwardRef(
           <input type="file" name="attachment" onChange={handleChange} />
         </div>
 
+         <div className="form-group">
+          <label>First Time Resolution</label>
+          <textarea
+            name="firstTimeResolution"
+            value={formValues.firstTimeResolution || ""}
+            onChange={handleChange}
+            rows="5"
+          />
+        </div>
+
         <div className="form-group">
           <label>Client Threat</label>
           <select
@@ -646,6 +656,7 @@ const IssuesTab = forwardRef(
             <option value="Verbal">Verbal</option>
             <option value="Written">Written</option>
             <option value="Physical">Physical</option>
+             <option value="NA">NA</option>
           </select>
         </div>
 
@@ -662,6 +673,8 @@ const IssuesTab = forwardRef(
             placeholder="Type your response to move the case forward…"
           />
         </div>
+
+        
 
         <div className="form-group">
           <label>Current Assignee</label>

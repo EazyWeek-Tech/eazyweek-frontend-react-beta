@@ -337,6 +337,59 @@ async function sendCaseMail(payload, setToast) {
   }
 }
 
+
+// --------------------------------------------
+// Mail trigger (call after successful save/submit)
+// --------------------------------------------
+async function triggerCaseMail({
+  selectedCaseData,
+  generalData,
+  issuesData,
+  assigneeCode,              // employee code to send "To" (preferred)
+  fallbackToEmail = "",      // if you already have an email string
+  setToast,
+}) {
+  try {
+    const emp = assigneeCode ? await lookupEmployeeByCode(assigneeCode) : null;
+
+    const selected = {
+      // base case info
+      ...(selectedCaseData || {}),
+      ...(generalData || {}),
+      ...(issuesData || {}),
+
+      // ensure email goes to resolved employee email (preferred)
+      email: trim(emp?.emailID || fallbackToEmail || selectedCaseData?.email || ""),
+
+      // optional: if API expects "centerName" / etc
+      centerName: trim(selectedCaseData?.centerName || "Bright Clinics"),
+
+      // keep cc/moreCc from latest state
+      cc: trim((issuesData?.cc ?? selectedCaseData?.cc) || ""),
+      moreCc: trim((issuesData?.moreCc ?? selectedCaseData?.moreCc) || ""),
+
+      // ensure response present in mail
+      response: trim(issuesData?.response ?? selectedCaseData?.response ?? ""),
+      firstTimeResolution: trim(
+        issuesData?.firstTimeResolution ?? selectedCaseData?.firstTimeResolution ?? ""
+      ),
+      issueDescription: trim(
+        issuesData?.issueDescription ?? selectedCaseData?.issueDescription ?? ""
+      ),
+    };
+
+    const mailPayload = buildCaseMailPayload({ selected, centerNameFallback: "Bright Clinics" });
+    await sendCaseMail(mailPayload, setToast);
+  } catch (e) {
+    // do NOT break save/submit for mail failures
+    setToast?.({
+      type: "error",
+      message: `Case saved/submitted, but email failed: ${e?.message || "Unknown error"}`,
+    });
+  }
+}
+
+
 // --------------------------------------------
 // Component
 // --------------------------------------------
@@ -914,6 +967,18 @@ const CaseDetailsPage = () => {
 
         await postCaseOperation(submitPayload, "submit (close flow — persist response)");
 
+        // ✅ send mail on SUBMIT (close flow) BEFORE updateStatus closes it
+const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
+await triggerCaseMail({
+  selectedCaseData,
+  generalData: generalData,
+  issuesData: issuesDataLatest,
+  assigneeCode: trim(submitPayload?.assignedto) || "",
+  fallbackToEmail: selectedCaseData?.email || "",
+  setToast,
+});
+
+
         const closePayload = buildFullPayload({
           general: generalData,
           current: { ...effectiveSelected, response: "" },
@@ -1106,19 +1171,58 @@ const CaseDetailsPage = () => {
         );
 
         if (actionType === "save") {
-    setToast({
-      type: "success",
-      message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
-    });
-    navigate(-1);
-    return;
-  }
+  // ✅ send mail on SAVE (to current assignee / caseWith)
+  const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
+  const generalLatest = generalRef.current?.getGeneralData?.() ?? {};
 
-  if (actionType === "submit") {
-    setToast({ type: "success", message: "Case submitted successfully." });
-    navigate(-1);
-    return;
-  }
+  const toCode =
+    trim(selectedCaseData?.caseWithCode) ||
+    trim(payload?.caseWith) ||
+    trim(payload?.assignedto) ||
+    "";
+
+  await triggerCaseMail({
+    selectedCaseData,
+    generalData: generalLatest,
+    issuesData: issuesDataLatest,
+    assigneeCode: toCode,
+    fallbackToEmail: selectedCaseData?.email || "",
+    setToast,
+  });
+
+  setToast({
+    type: "success",
+    message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
+  });
+  navigate(-1);
+  return;
+}
+if (actionType === "submit") {
+  // ✅ send mail on SUBMIT (to next/current assignee in payload)
+  const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
+  const generalLatest = generalRef.current?.getGeneralData?.() ?? {};
+
+  const toCode =
+    trim(payload?.assignedto) ||
+    trim(payload?.caseWith) ||
+    trim(selectedCaseData?.assignToCode) ||
+    trim(selectedCaseData?.caseWithCode) ||
+    "";
+
+  await triggerCaseMail({
+    selectedCaseData,
+    generalData: generalLatest,
+    issuesData: issuesDataLatest,
+    assigneeCode: toCode,
+    fallbackToEmail: selectedCaseData?.email || "",
+    setToast,
+  });
+
+  setToast({ type: "success", message: "Case submitted successfully." });
+  navigate(-1);
+  return;
+}
+
 
   if (actionType === "updateStatus") {
     setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });

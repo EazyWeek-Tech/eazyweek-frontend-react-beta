@@ -612,14 +612,18 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         }
 
         if (finalCaseNo) {
-          setCaseNo(finalCaseNo);
-          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
-        }
+  setCaseNo(finalCaseNo);
+  localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+}
 
-        showToast(
-          `Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
-          "success"
-        );
+// ✅ NEW: Send email on SAVE also
+await sendCaseAssignmentEmail(finalCaseNo || casenoForSave || savedCaseNoEffective || "");
+
+showToast(
+  `Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
+  "success"
+);
+
 
         // ALWAYS go to Issues on successful Save from General
         if (activeTab === "sign-in") {
