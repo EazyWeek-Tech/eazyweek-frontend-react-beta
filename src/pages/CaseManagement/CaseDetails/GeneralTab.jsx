@@ -105,14 +105,18 @@ const GeneralTab = forwardRef(({ data }, ref) => {
       )}&MediumCode=${encodeURIComponent(mediumCode || "")}`;
       const data = await fetchJSON(url);
       setCaseSources(
-        Array.isArray(data)
-          ? data.map((s) => ({
+      Array.isArray(data)
+        ? data.map((s) => {
+            const nm = trim(s.name);
+            return {
               ...s,
-              code: trim(s.code),
-              name: trim(s.name) || trim(s.code),
-            }))
-          : []
-      );
+              name: nm,           
+              code: trim(s.code), 
+              value: nm,          
+            };
+          })
+        : []
+    );
     } catch (error) {
       console.error("Error fetching sources:", error);
       setCaseSources([]);
@@ -139,16 +143,26 @@ const GeneralTab = forwardRef(({ data }, ref) => {
     }
   };
 
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    const updated = { ...formValues, [id]: value };
-    setFormValues(updated);
+ const handleChange = (e) => {
+  const { id, value } = e.target;
 
-    // If medium changes, refresh sources based on category code
-    if (id === "medium") {
-      fetchCaseSources(value, formValues.categoryCode);
-    }
-  };
+  // Special handling for source: value is the NAME (Facebook DM)
+  if (id === "source") {
+    setFormValues((prev) => ({
+      ...prev,
+      source: value,       // store name
+      sourceName: value,   // store name
+    }));
+    return;
+  }
+
+  const updated = { ...formValues, [id]: value };
+  setFormValues(updated);
+
+  if (id === "medium") {
+    fetchCaseSources(value, formValues.categoryCode);
+  }
+};
 
   return (
     <form className="genform tabform">
@@ -228,38 +242,35 @@ const GeneralTab = forwardRef(({ data }, ref) => {
       </div>
 
       <div className="form-group">
-        <label htmlFor="source">Case Source</label>
-        {(() => {
-          const currentSource = trim(formValues.source);
-          const hasSourceOption = caseSources.some((s) => trim(s.code) === currentSource);
-          return (
-            <select
-              id="source"
-              value={currentSource}
-              onChange={handleChange}
-            >
-              <option value="">Select Source</option>
-              {!hasSourceOption && currentSource && (
-                <option value={currentSource}>
-                  {formValues.sourceName || currentSource}
-                </option>
-              )}
-              {caseSources.map((s, i) => (
-                <option key={i} value={trim(s.code)}>
-                  {s.name || trim(s.code)}
-                </option>
-              ))}
-            </select>
-          );
-        })()}
-      </div>
+  <label htmlFor="source">Case Source</label>
+  {(() => {
+    const currentSource = trim(formValues.sourceName || formValues.source); // NAME
+    const hasSourceOption = caseSources.some((s) => trim(s.value) === currentSource);
+
+    return (
+      <select id="source" value={currentSource} onChange={handleChange}>
+        <option value="">Select Source</option>
+
+        {!hasSourceOption && currentSource && (
+          <option value={currentSource}>{currentSource}</option>
+        )}
+
+        {caseSources.map((s, i) => (
+          <option key={i} value={trim(s.value)}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    );
+  })()}
+</div>
 
       <div className="form-group">
         <label htmlFor="priority">Priority</label>
         <select id="priority" value={formValues.priority || ""} onChange={handleChange}>
           <option value="">Select Priority</option>
           <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
+          <option value="Normal">Normal</option>
           <option value="High">High</option>
         </select>
       </div>
