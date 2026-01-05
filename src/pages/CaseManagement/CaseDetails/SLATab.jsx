@@ -34,7 +34,20 @@ const getSecondValueFromRange = (range) => {
   useEffect(() => {
     const fetchSLA = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`);
+         const response = await fetch(
+    `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    }
+  );
+
+  if (response.status === 401) {
+    console.error("401 Unauthorized: Not logged in / cookie not sent");
+    return;
+  }
+
         const data = await response.json();
 
         setIdeal({
@@ -89,6 +102,20 @@ const getSecondValueFromRange = (range) => {
     fetchSLA();
     fetchActualSLA();
   }, [caseNumber]);
+
+  useEffect(() => {
+  if (!ideal || Object.keys(ideal).length === 0) return;
+
+  console.group("🟦 SLA Ideal Values");
+  console.log("Initial SLA Name:", ideal.initial);
+  console.log("Mid SLA Name:", ideal.mid);
+  console.log("Late SLA Name:", ideal.late);
+  console.log("Final SLA Name:", ideal.final);
+  console.log("First SLA Hours:", ideal.firstSlaHours);
+  console.log("Second SLA Hours:", ideal.secondSlaHours);
+  console.groupEnd();
+}, [ideal]);
+
 
   return (
     <div className="slaform tabform">
