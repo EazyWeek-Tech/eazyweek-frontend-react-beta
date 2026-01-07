@@ -1,0 +1,342 @@
+/* src/pages/Opportunity/DispositionMapping/dispositionMapping.css */
+
+.dmWrap {
+  background: #ffffff;
+}
+
+.dmTopBar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dmTitle {
+  font-size: 20px;
+  margin: 0 0 20px;
+  font-weight: 700;
+  color: #0b1224;
+  line-height: 1.15;
+}
+
+.dmBreadcrumb {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.dmCrumbSep {
+  margin: 0 8px;
+  color: #9ca3af;
+}
+
+.dmCrumbActive {
+  color: #9ca3af;
+}
+
+.dmCrumbLink {
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.dmBtnPrimary {
+  background: #334b71;
+  color: #fff;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dmBtnPrimary:active {
+  transform: translateY(1px);
+}
+
+.dmBtnGhost {
+  background: transparent;
+  color: #334b71;
+  border: 1px solid #e5e7eb;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dmControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 12px;
+}
+
+.dmLeftControls,
+.dmRightControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dmSelect {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  outline: none;
+  background: #fff;
+}
+
+.dmSearch {
+  height: 38px;
+  width: 260px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 0 12px;
+  outline: none;
+}
+
+.dmMuted {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dmTableCard {
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.dmTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.dmTable thead th {
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 14px;
+  color: #0b1224;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dmTh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dmSortIcons {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 10px;
+  font-size: 10px;
+  color: #cbd5e1;
+  user-select: none;
+}
+
+.dmTable tbody td {
+  padding:6px 12px;
+  border-bottom: 1px solid #eef2f7;
+  color: #111827;
+  font-size: 15px;
+}
+
+.dmEmpty {
+  padding: 22px 14px !important;
+  text-align: center;
+  color: #6b7280 !important;
+  font-size: 14px !important;
+}
+
+.dmActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dmIconBtn {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  justify-content: center;
+}
+
+.dmIconBtn:hover {
+  background: #f8fafc;
+}
+
+.dmIconBtn.dmDanger {
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 400;
+}
+
+.dmStatus {
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.dmPagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.dmPager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dmPageBtn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+}
+
+.dmPageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dmPagePills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dmPill {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: default;
+}
+
+.dmPill.isActive {
+  background: #334b71;
+  color: #fff;
+  border-color: #334b71;
+}
+
+.dmFormCard {
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  padding: 16px;
+  background: #fff;
+}
+
+.dmEmptyForm {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 22px;
+  color: #6b7280;
+}
+/* --- Form additions --- */
+.dmFormGrid {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 16px;
+}
+
+.dmField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dmLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0b1224;
+}
+
+.dmInput {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 0 12px;
+  outline: none;
+  background: #fff;
+}
+
+.dmInput:disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+.dmHint {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.dmFormActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.dmBtnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Create form layout with Add button --- */
+.dmFormGrid2 {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr 140px;
+  gap: 14px;
+  align-items: end;
+}
+
+.dmAddBtnWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.dmBtnAdd {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.dmLabelHidden {
+  visibility: hidden;
+}
+
+/* --- Added mappings sub-table card --- */
+.dmSubTableCard {
+  margin-top: 16px;
+  border: 1px solid #959698;
+  border-radius: 14px;
+  width:50%;
+  overflow: hidden;
+}
+
+.dmSubTableTitle {
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  background: #334b71;
+}
+
