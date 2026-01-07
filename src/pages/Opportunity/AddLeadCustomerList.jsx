@@ -80,19 +80,24 @@ const AddLeadCustomerList = () => {
       return;
     }
 
-    // Map Customer API -> ManualOppCustomerDetails expected shape (row)
-    const prefillRow = {
-      custID: row.custId,
-      custName: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
-      custMobileNo: row.mobile,
-      clinicLocation: row.centerName,
-      email: row.email,
-      preferredLanguage: "Arabic",
-    };
+    const H = {
+    custID: row.custId,
+    custName: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+    custMobileNo: row.mobile,
+    clinicLocation: row.centerName,
+    email: row.email,
+    preferredLanguage: "Arabic",
+  };
 
-    navigate(`/opportunity/${resolvedOppCode}/add-lead/${row.custId}`, {
-      state: { row: prefillRow, oppCode: resolvedOppCode },
-    });
+  // code = customer id (clicked)
+  const code = row.custId;
+  const oppcode = resolvedOppCode;
+
+
+  navigate(`/manuallead/${oppcode}/${code}`, {
+    state: { oppCode: resolvedOppCode, header: H },
+  });
+
   };
 
   return (

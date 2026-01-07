@@ -52,6 +52,7 @@ useEffect(() => {
   setExternalSubSource("")
 }, [externalSource])
 
+const today = new Date().toISOString().slice(0, 10);
 
   // ---------- CATEGORY OPTIONS ----------
   const [catLoading, setCatLoading] = useState(false)
@@ -188,7 +189,14 @@ useEffect(() => {
     // R6
     customerType:       { type: "", fetchType: "" },
     // Manual
-    manualCreateLead:   { note: "", fetchType: "" },
+    manualCreateLead: {
+  note: "",
+  fetchType: "1",            // fixed to Static for manual lead
+  manualFromDate: "",
+  manualToMode: "current",   // "current" | "custom"
+  manualToDate: "",
+},
+
   })
   const [errors, setErrors] = useState({ name: "", rule: "", fields: "" })
   const nameRef = useRef(null)
@@ -275,6 +283,18 @@ useEffect(() => {
     const ft = String(vals.fetchType || "")
 
     if (!["1", "2"].includes(ft)) return false
+
+    // ✅ Manual Create Lead: from/to date rules (no Segment dropdown)
+if (ruleId === "manualCreateLead") {
+  const from = (vals.manualFromDate || "").toString().trim()
+  const toMode = (vals.manualToMode || "current").toString()
+  const toDate = (vals.manualToDate || "").toString().trim()
+
+  if (!from) return false
+  if (toMode === "custom" && !toDate) return false
+  return true
+}
+
 
     // dynamically filter required fields for static (hide dropdowns -> don't require them)
     let baseReq = requiredFields[ruleId] || []
@@ -510,7 +530,26 @@ useEffect(() => {
         break
       }
 
-      case "manualCreateLead":
+      case "manualCreateLead": {
+  const todayYMD = new Date().toISOString().slice(0, 10)
+
+  const from = v.manualFromDate || ""
+  const to =
+    String(v.manualToMode || "current") === "custom"
+      ? (v.manualToDate || "")
+      : todayYMD
+
+  // force static for manual
+  base.ruleType = "1"
+  base.ruleFetchType = "1"
+  base.ruleDays = "9999" // date range style
+  base.staticFromDate = safeDMY(from)
+  base.staticToDate = safeDMY(to)
+
+  base.ruleDetails = "Create Manual Lead"
+  break
+}
+
       default:
         break
     }
@@ -1126,11 +1165,51 @@ useEffect(() => {
         )
 
       case "manualCreateLead":
-        return (
-          <>
-            <FetchTypeRow ruleId={ruleId} vals={v} />
-          </>
-        )
+  return (
+    <>
+      <div className="rf-grid" style={{ alignItems: "center" }}>
+        <label className="rf-field">
+          <span className="rf-label">From Date</span>
+          <input
+            type="date"
+            className="rf-input"
+            value={v.manualFromDate || ""}
+             max={today}
+            onChange={(e) => setField(ruleId, "manualFromDate", e.target.value)}
+          />
+        </label>
+
+        <label className="rf-field">
+          <span className="rf-label">To Date</span>
+          <select
+            className="rf-input"
+            value={v.manualToMode || "current"}
+            onChange={(e) => {
+              const mode = e.target.value
+              setField(ruleId, "manualToMode", mode)
+              if (mode !== "custom") setField(ruleId, "manualToDate", "")
+            }}
+          >
+            <option value="current">Current Date</option>
+            <option value="custom">Custom Date</option>
+          </select>
+        </label>
+
+        {String(v.manualToMode || "current") === "custom" && (
+          <label className="rf-field">
+            <span className="rf-label">To Date</span>
+            <input
+              type="date"
+              className="rf-input"
+              value={v.manualToDate || ""}
+              onChange={(e) => setField(ruleId, "manualToDate", e.target.value)}
+            />
+          </label>
+        )}
+      </div>
+    </>
+  )
+
 
       default:
         return null

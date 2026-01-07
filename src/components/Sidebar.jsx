@@ -18,6 +18,7 @@ const Sidebar = ({ collapsed }) => {
       icon: "bxl-graphql",
       submenu: [
         { name: "Opportunity", path: "/opportunity" },
+        { name: "Disposition Mapping", path: "/masters/disposition" },
         { name: "Detailed report", path: "/opportunity/detailed" },
         { name: "Summary report", path: "/opportunity/summary" },
         { name: "E-mail", path: "/opportunity/email" },

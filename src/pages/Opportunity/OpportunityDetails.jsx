@@ -1814,6 +1814,19 @@ useEffect(() => {
                   >
                     Add Lead
                   </button>
+
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const code = oppCode || (H?.oppCode ?? "");
+                      if (!code) return;
+
+                      navigate(`/opportunity/customers`, { state: { oppCode: code, header: H } });
+                    }}
+                  >
+                    Add Opportunity
+                  </button>
                 </div>
               </div>
             ) : (
@@ -2178,7 +2191,7 @@ oppList.sort((a, b) => {
         .flabel { display:block; font-size:13px; color:#475569; margin-bottom:6px; font-weight:600; }
         .finput { width:100%; height:36px; border:1px solid #d7ddea; border-radius:6px; padding:6px 10px; background:#fff; color:#222; }
         .factions { grid-column: span 2; display:flex; justify-content:flex-start; gap:8px; }
-        .btn-primary { background:#0f2445; color:#fff; border:0; border-radius:8px; padding:10px 16px; font-weight:700; cursor:pointer; }
+        .btn-primary {white-space:nowrap; background:#0f2445; color:#fff; border:0; border-radius:8px; padding:10px 16px; font-weight:700; cursor:pointer; }
         .btn-primary:hover { opacity:.95; }
 
         .table-wrap { margin-top:16px; overflow-x:auto; border-radius:10px; }
