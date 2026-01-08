@@ -233,7 +233,7 @@ const CreateCaseCategory = () => {
             <a onClick={() => navigate("/cases")} style={{ cursor: "pointer" }}>
               Case Management
             </a>{" "}
-            &nbsp;>&nbsp; Creation of Category Masters
+            &nbsp; &gt; &nbsp; Creation of Category Masters
           </div>
 
           {/* Header with primary actions (Submit & Save) */}
