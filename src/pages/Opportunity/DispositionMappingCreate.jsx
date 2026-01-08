@@ -1,31 +1,148 @@
 // src/pages/Opportunity/DispositionMapping/DispositionMappingCreate.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../config"; // ✅ adjust path if needed
 import "./dispositionMapping.css";
 
-const DISPOSITIONS = ["Pending", "WIP", "Converted", "Not Converted"];
 const trim = (v) => (v ?? "").toString().trim();
 
 export default function DispositionMappingCreate() {
   const navigate = useNavigate();
 
-  const [disposition, setDisposition] = useState("");
+  // ---------------------------
+  // API state (Disposition dropdown)
+  // ---------------------------
+  const [dispLoading, setDispLoading] = useState(false);
+  const [dispErr, setDispErr] = useState("");
+  const [dispOptions, setDispOptions] = useState([]); // [{ value: "1", label: "Pending" }]
+
+  // ---------------------------
+  // Form state
+  // ---------------------------
+  const [disposition, setDisposition] = useState(""); // value = dispositionID (string)
   const [subDisposition, setSubDisposition] = useState("");
 
-  // Table data: [{ disposition: "Pending", subDisposition: "..." }, ...]
+  // ✅ Grouped items: [{ dispositionID, dispositionName, subDispositions: [] }]
   const [items, setItems] = useState([]);
+
+  // Submit state
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  const fetchJson = async (url) => {
+    const res = await fetch(url, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    const text = await res.text();
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    if (!/application\/json/i.test(ct)) {
+      throw new Error("Expected JSON but got non-JSON response (session expired?)");
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Failed to parse JSON response.");
+    }
+  };
+
+  const postJson = async (url, body) => {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+
+    // try json, otherwise return text
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  };
+
+  // ---------------------------
+  // Load Dispositions (active only)
+  // API: /api/Disposition/List
+  // ---------------------------
+  useEffect(() => {
+    let alive = true;
+
+    const load = async () => {
+      setDispLoading(true);
+      setDispErr("");
+      try {
+        const data = await fetchJson(`${API_BASE_URL}/api/Disposition/List`);
+        const arr = Array.isArray(data) ? data : [];
+
+        // ✅ active only
+        const active = arr.filter((d) => d?.isActive === true);
+
+        const mapped = active
+          .map((d) => ({
+            value: String(d?.dispositionID ?? ""),
+            label: trim(d?.dispositionName) || String(d?.dispositionID ?? ""),
+          }))
+          .filter((x) => x.value);
+
+        // Optional: sort by name
+        mapped.sort((a, b) => a.label.localeCompare(b.label));
+
+        if (!alive) return;
+        setDispOptions(mapped);
+
+        // If currently selected disposition is no longer in list, clear it
+        if (disposition && !mapped.some((m) => m.value === disposition)) {
+          setDisposition("");
+        }
+      } catch (e) {
+        console.error(e);
+        if (!alive) return;
+        setDispErr(e?.message || "Failed to load dispositions.");
+        setDispOptions([]);
+      } finally {
+        if (alive) setDispLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dispositionNameById = useMemo(() => {
+    const m = new Map();
+    (dispOptions || []).forEach((o) => m.set(String(o.value), o.label));
+    return m;
+  }, [dispOptions]);
 
   const canAdd = useMemo(() => {
     return !!trim(disposition) && !!trim(subDisposition);
   }, [disposition, subDisposition]);
 
-  const canSave = useMemo(() => items.length > 0, [items]);
+  const canSave = useMemo(() => items.length > 0 && !saving, [items, saving]);
 
+  // ---------------------------
+  // Add subdisposition (multi per dispositionID)
+  // ---------------------------
   const handleAdd = () => {
-    const d = trim(disposition);
+    const dId = trim(disposition); // dispositionID
     const sd = trim(subDisposition);
 
-    if (!d) {
+    if (!dId) {
       alert("Please select a disposition.");
       return;
     }
@@ -34,46 +151,111 @@ export default function DispositionMappingCreate() {
       return;
     }
 
-    setItems((prev) => {
-      const idx = prev.findIndex((x) => x.disposition === d);
+    const dispName = dispositionNameById.get(String(dId)) || dId;
 
-      // If disposition already exists, update it (avoid duplicates)
+    setItems((prev) => {
+      const idx = prev.findIndex((x) => String(x.dispositionID) === String(dId));
+
+      // If disposition exists, append subdisp (avoid duplicates)
       if (idx >= 0) {
         const copy = [...prev];
-        copy[idx] = { disposition: d, subDisposition: sd };
+        const existing = copy[idx];
+
+        const alreadyExists = existing.subDispositions.some(
+          (x) => trim(x).toLowerCase() === sd.toLowerCase()
+        );
+        if (alreadyExists) return prev;
+
+        copy[idx] = {
+          ...existing,
+          subDispositions: [...existing.subDispositions, sd],
+        };
         return copy;
       }
 
-      return [...prev, { disposition: d, subDisposition: sd }];
+      // Else create new disposition group
+      return [
+        ...prev,
+        { dispositionID: dId, dispositionName: dispName, subDispositions: [sd] },
+      ];
     });
 
-    // Clear input after add
     setSubDisposition("");
   };
 
-  const handleDelete = (disp) => {
-    setItems((prev) => prev.filter((x) => x.disposition !== disp));
+  // ✅ Delete only one subdisposition under a dispositionID
+  const handleDeleteSub = (dispId, subDisp) => {
+    setItems((prev) =>
+      prev
+        .map((x) => {
+          if (String(x.dispositionID) !== String(dispId)) return x;
+          const nextSubs = x.subDispositions.filter((s) => s !== subDisp);
+          return { ...x, subDispositions: nextSubs };
+        })
+        .filter((x) => x.subDispositions.length > 0) // remove empty disposition groups
+    );
   };
 
-  const handleSave = (e) => {
+  // ✅ Flatten for table rows (one row per subdisp)
+  const tableRows = useMemo(() => {
+    const rows = [];
+    for (const it of items) {
+      for (const sd of it.subDispositions) {
+        rows.push({
+          dispositionID: it.dispositionID,
+          dispositionName: it.dispositionName,
+          subDisposition: sd,
+        });
+      }
+    }
+    return rows;
+  }, [items]);
+
+  // ---------------------------
+  // Save: POST /api/Disposition/SaveSubDisposition
+  // Example:
+  // { dispositionID: 1, subDispositionName: "NTestingValue", isActive: true }
+  // ---------------------------
+  const handleSave = async (e) => {
     e.preventDefault();
+    setSaveErr("");
 
     if (items.length === 0) {
       alert("Please add at least one mapping before saving.");
       return;
     }
 
-    // TODO: hook your API here later
-    // Example payload:
-    const payload = {
-      mappings: items, // [{ disposition, subDisposition }]
-    };
+    try {
+      setSaving(true);
 
-    console.log("SUBMIT PAYLOAD:", payload);
-    alert(`Submitted ${items.length} mapping(s).`);
+      // Build all POST calls: one per subDisposition
+      const requests = [];
+      for (const grp of items) {
+        for (const sd of grp.subDispositions) {
+          requests.push(
+            postJson(`${API_BASE_URL}/api/Disposition/SaveSubDisposition`, {
+              dispositionID: Number(grp.dispositionID), // API expects number
+              subDispositionName: sd,
+              isActive: true,
+            })
+          );
+        }
+      }
 
-    // Navigate back after submit
-    navigate("/opportunity/disposition-mapping");
+      // Run all
+      await Promise.all(requests);
+
+      alert(
+        `Submitted ${items.reduce((a, x) => a + x.subDispositions.length, 0)} subdisposition(s).`
+      );
+
+      navigate("/masters/disposition");
+    } catch (err) {
+      console.error(err);
+      setSaveErr(err?.message || "Failed to save subdispositions.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -85,7 +267,7 @@ export default function DispositionMappingCreate() {
             Opportunity <span className="dmCrumbSep">›</span>{" "}
             <span
               className="dmCrumbLink"
-              onClick={() => navigate("/opportunity/disposition-mapping")}
+              onClick={() => navigate("/masters/disposition")}
               role="button"
               tabIndex={0}
             >
@@ -110,14 +292,22 @@ export default function DispositionMappingCreate() {
                 className="dmInput"
                 value={disposition}
                 onChange={(e) => setDisposition(e.target.value)}
+                disabled={dispLoading}
               >
-                <option value="">Select</option>
-                {DISPOSITIONS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                <option value="">
+                  {dispLoading ? "Loading..." : "Select"}
+                </option>
+                {dispOptions.map((d) => (
+                  <option key={d.value} value={d.value}>
+                    {d.label}
                   </option>
                 ))}
               </select>
+              {dispErr ? (
+                <div className="dmMuted" style={{ color: "#b91c1c", marginTop: 6 }}>
+                  {dispErr}
+                </div>
+              ) : null}
             </div>
 
             <div className="dmField">
@@ -154,29 +344,29 @@ export default function DispositionMappingCreate() {
                 <tr>
                   <th>Disposition</th>
                   <th>Subdisposition</th>
-                  <th style={{ width: 120 }}>Actions</th>
+                  <th style={{ width: 220 }}>Actions</th>
                 </tr>
               </thead>
 
               <tbody>
-                {items.length === 0 ? (
+                {tableRows.length === 0 ? (
                   <tr>
                     <td className="dmEmpty" colSpan={3}>
                       No mappings added yet
                     </td>
                   </tr>
                 ) : (
-                  items.map((it) => (
-                    <tr key={it.disposition}>
-                      <td>{it.disposition}</td>
+                  tableRows.map((it) => (
+                    <tr key={`${it.dispositionID}__${it.subDisposition}`}>
+                      <td>{it.dispositionName}</td>
                       <td>{it.subDisposition}</td>
                       <td>
                         <div className="dmActions">
                           <button
                             type="button"
                             className="dmIconBtn dmDanger"
-                            title="Delete"
-                            onClick={() => handleDelete(it.disposition)}
+                            title="Delete subdisposition"
+                            onClick={() => handleDeleteSub(it.dispositionID, it.subDisposition)}
                           >
                             Delete
                           </button>
@@ -189,17 +379,24 @@ export default function DispositionMappingCreate() {
             </table>
           </div>
 
+          {saveErr ? (
+            <div className="dmMuted" style={{ color: "#b91c1c", marginTop: 10 }}>
+              {saveErr}
+            </div>
+          ) : null}
+
           <div className="dmFormActions">
             <button
               type="button"
               className="dmBtnGhost"
               onClick={() => navigate("/opportunity/disposition-mapping")}
+              disabled={saving}
             >
               Cancel
             </button>
 
             <button type="submit" className="dmBtnPrimary" disabled={!canSave}>
-               Submit
+              {saving ? "Saving..." : "Submit"}
             </button>
           </div>
         </form>
