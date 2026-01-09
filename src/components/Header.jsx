@@ -1,91 +1,211 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from '../config'; 
+import { API_BASE_URL } from "../config";
 
 const Header = ({ onToggleSidebar, onLogout }) => {
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const navigate = useNavigate();
+  const dropdownRef = useRef();
+
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState(null);
   const [imageSrc, setImageSrc] = useState("images/defaultuser.png");
+
   const [clinics, setClinics] = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef();
+
+  // ✅ Toast state
+  const [toast, setToast] = useState({ show: false, type: "success", text: "" });
+  const toastTimerRef = useRef(null);
+
+  /* -------------------- headers helper -------------------- */
+  const commonHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
+  const headersFor = (method = "GET") => {
+    if (method === "GET") {
+      const { ["Content-Type"]: _, ...rest } = commonHeaders;
+      return rest;
+    }
+    return commonHeaders;
+  };
+
+  const showToast = (text, type = "success") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ show: true, type, text });
+    toastTimerRef.current = setTimeout(() => {
+      setToast((p) => ({ ...p, show: false }));
+    }, 2500);
+  };
 
   useEffect(() => {
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
-  if (stored) {
-    const parsedUser = JSON.parse(stored);
-    setUser(parsedUser);
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
-    if (parsedUser?.empPicBinaryValue) {
-      // ✅ Use base64 image directly and skip API URL check
-      setImageSrc(`data:image/jpeg;base64,${parsedUser.empPicBinaryValue}`);
-    } else if (parsedUser?.empImageName) {
-      const isFullUrl = parsedUser.empImageName.startsWith("http");
-      const imagePath = isFullUrl
-        ? parsedUser.empImageName
-        : `${API_BASE_URL}/${parsedUser.empImageName}`;
-      setImageSrc(imagePath); // Use API path only if binary is not present
-    } else {
-      setImageSrc("images/defaultuser.png");
+  /* -------------------- load logged-in user -------------------- */
+  useEffect(() => {
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    if (!stored) return;
+
+    const parsed = JSON.parse(stored);
+    setUser(parsed);
+
+    if (parsed?.empPicBinaryValue) {
+      setImageSrc(`data:image/jpeg;base64,${parsed.empPicBinaryValue}`);
+    } else if (parsed?.empImageName) {
+      setImageSrc(
+        parsed.empImageName.startsWith("http")
+          ? parsed.empImageName
+          : `${API_BASE_URL}/${parsed.empImageName}`
+      );
     }
-  }
-}, []);
+  }, []);
 
+  const handleImageError = () => setImageSrc("images/defaultuser.png");
 
+  /* -------------------- read session center -------------------- */
+  const sessionCenterCode = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem("userSession");
+      if (!raw) return "";
+      const s = JSON.parse(raw);
+      return s?.LoginCode || s?.loginCode || s?.TopCode || s?.centerCode || "";
+    } catch {
+      return "";
+    }
+  }, []);
 
+  /* -------------------- session APIs -------------------- */
+  const setSessionToApi = async (centerCode) => {
+    if (!user?.userId) return;
+
+    const payload = {
+      LoginCode: centerCode,
+      TopCode: centerCode,
+      userID: user.userId,
+    };
+
+    const res = await fetch(`${API_BASE_URL}/api/session/set`, {
+      method: "POST",
+      credentials: "include",
+      headers: headersFor("POST"),
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`Session set failed (${res.status}): ${t.slice(0, 200)}`);
+    }
+  };
+
+  const getSessionFromApi = async () => {
+    const res = await fetch(`${API_BASE_URL}/api/session/get`, {
+      method: "GET",
+      credentials: "include",
+      headers: headersFor("GET"),
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`Session get failed (${res.status}): ${t.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    sessionStorage.setItem("userSession", JSON.stringify(data));
+    return data;
+  };
+
+  /* -------------------- fetch centers -------------------- */
   useEffect(() => {
     const fetchClinics = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
           method: "GET",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: headersFor("GET"),
         });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const data = await res.json();
-        setClinics(data);
-        if (data.length) {
-          setSelectedClinic(data[0]);
-        }
+        const mapped = (Array.isArray(data) ? data : []).map((c) => ({
+          code: (c.centerCode || c.code || "").toString().trim(),
+          name: (c.centerName || c.name || "").toString().trim(),
+        }));
+
+        // ✅ Add "No Zone" option at top
+        const noZoneOption = { code: "NOZONE", name: "No Zone" };
+        const finalList = [noZoneOption, ...mapped.filter((x) => x.code && x.name)];
+
+        setClinics(finalList);
+
+        // ✅ Select center from session (if matches), else pick No Zone, else first
+        const match = sessionCenterCode
+          ? finalList.find((c) => c.code === sessionCenterCode)
+          : null;
+
+        setSelectedClinic(match || finalList[0] || null);
       } catch (err) {
-        console.error("Failed to fetch clinics", err);
+        console.error("Failed to load clinics", err);
+        showToast("Failed to load clinics", "error");
       }
     };
-    fetchClinics();
-  }, []);
 
+    fetchClinics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCenterCode]);
+
+  /* -------------------- outside click -------------------- */
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  /* -------------------- clinic change -------------------- */
+  const handleClinicChange = async (clinic) => {
+    try {
+      if (!clinic?.code) return;
+
+      // avoid duplicate calls
+      if (clinic.code === selectedClinic?.code) {
+        setDropdownOpen(false);
+        return;
+      }
+
+      setSelectedClinic(clinic);
+      setDropdownOpen(false);
+
+      // 🔥 update session with new code
+      await setSessionToApi(clinic.code);
+      await getSessionFromApi();
+
+      showToast(`Clinic changed to ${clinic.name} (${clinic.code})`, "success");
+    } catch (e) {
+      console.error("Failed to update session on clinic change", e);
+      showToast("Failed to change clinic session", "error");
+    }
+  };
+
+  /* -------------------- logout -------------------- */
   const handleLogout = (e) => {
     e.preventDefault();
     sessionStorage.clear();
-   // localStorage.clear();
-    onLogout();
+    onLogout?.();
     navigate("/login", { replace: true });
   };
 
-  const handleImageError = () => {
-  if (user?.empPicBinaryValue) {
-    setImageSrc(`data:image/jpeg;base64,${user.empPicBinaryValue}`);
-  } else {
-    setImageSrc("images/defaultuser.png");
-  }
-};
+  const fullName = user
+    ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
+    : "User";
 
+  const userEmail = user?.userName ?? "";
 
-  const fullName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "User";
-  const centerName = user?.centerName ?? "Clinic";
-  const userEmail = user?.userName ?? "user@clinic.com";
-
+  /* ==================== UI ==================== */
   return (
     <header className="tphdr">
       <div className="hdrflex">
@@ -93,77 +213,67 @@ const Header = ({ onToggleSidebar, onLogout }) => {
           <div className="c-icon" onClick={onToggleSidebar}>
             <i className="bx bx-menu"></i>
           </div>
-          <span className="c-name">{centerName}</span>
+          <span className="c-name">{selectedClinic?.name || "Clinic"}</span>
         </div>
 
         <div className="hdr-rhs">
+          {/* -------- clinic dropdown -------- */}
           <div className="clinic-dropdown" ref={dropdownRef}>
             <div
               className="clinic-selected"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onClick={() => setDropdownOpen((p) => !p)}
             >
               {selectedClinic?.name || "Select Clinic"}
               <span className="arrow">▾</span>
             </div>
+
             {dropdownOpen && (
               <div className="clinic-options">
-                <div
-  className={`clinic-option ${selectedClinic?.name === "Centriq Clinics" ? "active" : ""}`}
-  onClick={() => {
-    setSelectedClinic({ name: "Centriq Clinics", code: "CENTRIQ" });
-    setDropdownOpen(false);
-  }}
->
-  Centriq Clinics
-</div>
-
-<div className="zone-group">
-  <div className="clinic-option zone-label">Zone ▸</div>
-  <div className="zone-submenu">
-    {clinics.map((clinic) => (
-      <div
-        key={clinic.code}
-        className={`clinic-option ${
-          clinic.code === selectedClinic?.code ? "active" : ""
-        }`}
-        onClick={() => {
-          setSelectedClinic(clinic);
-          setDropdownOpen(false);
-        }}
-      >
-        {clinic.name}
-      </div>
-    ))}
-  </div>
-</div>
-
+                {clinics.map((clinic) => (
+                  <div
+                    key={clinic.code}
+                    className={`clinic-option ${
+                      clinic.code === selectedClinic?.code ? "active" : ""
+                    }`}
+                    onClick={() => handleClinicChange(clinic)}
+                  >
+                    {clinic.name}
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="userdd" onClick={() => setShowProfileMenu((prev) => !prev)}>
+          {/* -------- user dropdown -------- */}
+          <div
+            className="userdd"
+            onClick={() => setShowProfileMenu((p) => !p)}
+          >
             <div className="user-top">
-              <img src={imageSrc} alt="User" onError={handleImageError} width={36} height={36} />
+              <img
+                src={imageSrc}
+                alt="User"
+                onError={handleImageError}
+                width={36}
+                height={36}
+              />
               <div className="usrdt">
                 <h3 className="usrnm">{fullName}</h3>
                 <div className="u-c-name">{userEmail}</div>
               </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M4 6L8 10L12 6"
-                  stroke="#121212"
-                  strokeWidth="1.33333"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
             </div>
 
             {showProfileMenu && (
               <div className="usrmenu active">
                 <ul>
-                  <li><a href="#">Profile</a></li>
-                  <li><a href="#" onClick={handleLogout}>Log Out</a></li>
+                  <li>
+                    <a href="#">Profile</a>
+                  </li>
+                  <li>
+                    <a href="#" onClick={handleLogout}>
+                      Log Out
+                    </a>
+                  </li>
                 </ul>
               </div>
             )}
@@ -171,29 +281,14 @@ const Header = ({ onToggleSidebar, onLogout }) => {
         </div>
       </div>
 
-      <style>{`
-      .zone-group {
-  position: relative;
-}
-.zone-submenu {
-  position: absolute;
-  left: 100%;
-  top: 0;
-  background: white;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  white-space: nowrap;
-  display: none;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  z-index: 1000;
-}
-.zone-group:hover .zone-submenu {
-  display: block;
-}
-.zone-label::after {
-  content: '';
-}
+      {/* ✅ Toast */}
+      {toast.show && (
+        <div className={`hdr-toast ${toast.type}`}>
+          {toast.text}
+        </div>
+      )}
 
+      <style>{`
         .clinic-dropdown {
           position: relative;
           font-family: Inter, sans-serif;
@@ -236,6 +331,35 @@ const Header = ({ onToggleSidebar, onLogout }) => {
         }
         .arrow {
           margin-left: 8px;
+        }
+
+        /* ✅ Toast styles */
+        .hdr-toast {
+          position: fixed;
+          top: 18px;
+          right: 18px;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-family: Inter, sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+          z-index: 99999;
+          animation: hdrToastIn 0.18s ease-out;
+        }
+        .hdr-toast.success {
+          background: #e9f8ee;
+          border: 1px solid #b8ebc6;
+          color: #166534;
+        }
+        .hdr-toast.error {
+          background: #fdecec;
+          border: 1px solid #f8b4b4;
+          color: #991b1b;
+        }
+        @keyframes hdrToastIn {
+          from { transform: translateY(-8px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </header>
