@@ -18,6 +18,20 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const [toast, setToast] = useState({ show: false, type: "success", text: "" });
   const toastTimerRef = useRef(null);
 
+  // ✅ track current session center code (so dropdown picks correctly)
+  const [sessionCenterCode, setSessionCenterCode] = useState("");
+
+  /* -------------------- No Zone mapping -------------------- */
+  const NOZONE_UI_CODE = "NOZONE";
+  const NOZONE_UI_NAME = "No Zone";
+  const NOZONE_SESSION_CODE = "Centriq Clinics"; // <-- Backend expects this for TopCode & LoginCode
+
+  const toSessionCenterCode = (uiCode) =>
+    uiCode === NOZONE_UI_CODE ? NOZONE_SESSION_CODE : uiCode;
+
+  const fromSessionCenterCode = (sessionCode) =>
+    sessionCode === NOZONE_SESSION_CODE ? NOZONE_UI_CODE : sessionCode;
+
   /* -------------------- headers helper -------------------- */
   const commonHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
   const headersFor = (method = "GET") => {
@@ -63,21 +77,27 @@ const Header = ({ onToggleSidebar, onLogout }) => {
 
   const handleImageError = () => setImageSrc("images/defaultuser.png");
 
-  /* -------------------- read session center -------------------- */
-  const sessionCenterCode = useMemo(() => {
+  /* -------------------- read session center from storage (initial) -------------------- */
+  useEffect(() => {
     try {
       const raw = sessionStorage.getItem("userSession");
-      if (!raw) return "";
+      if (!raw) return;
       const s = JSON.parse(raw);
-      return s?.LoginCode || s?.loginCode || s?.TopCode || s?.centerCode || "";
+
+      const code =
+        s?.LoginCode || s?.loginCode || s?.TopCode || s?.centerCode || "";
+
+      setSessionCenterCode(code || "");
     } catch {
-      return "";
+      setSessionCenterCode("");
     }
   }, []);
 
   /* -------------------- session APIs -------------------- */
-  const setSessionToApi = async (centerCode) => {
+  const setSessionToApi = async (uiCenterCode) => {
     if (!user?.userId) return;
+
+    const centerCode = toSessionCenterCode(uiCenterCode);
 
     const payload = {
       LoginCode: centerCode,
@@ -112,6 +132,11 @@ const Header = ({ onToggleSidebar, onLogout }) => {
 
     const data = await res.json();
     sessionStorage.setItem("userSession", JSON.stringify(data));
+
+    const code =
+      data?.LoginCode || data?.loginCode || data?.TopCode || data?.centerCode || "";
+
+    setSessionCenterCode(code || "");
     return data;
   };
 
@@ -128,20 +153,27 @@ const Header = ({ onToggleSidebar, onLogout }) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
+
         const mapped = (Array.isArray(data) ? data : []).map((c) => ({
           code: (c.centerCode || c.code || "").toString().trim(),
           name: (c.centerName || c.name || "").toString().trim(),
         }));
 
         // ✅ Add "No Zone" option at top
-        const noZoneOption = { code: "NOZONE", name: "No Zone" };
-        const finalList = [noZoneOption, ...mapped.filter((x) => x.code && x.name)];
+        const noZoneOption = { code: NOZONE_UI_CODE, name: NOZONE_UI_NAME };
+
+        const finalList = [
+          noZoneOption,
+          ...mapped.filter((x) => x.code && x.name),
+        ];
 
         setClinics(finalList);
 
-        // ✅ Select center from session (if matches), else pick No Zone, else first
-        const match = sessionCenterCode
-          ? finalList.find((c) => c.code === sessionCenterCode)
+        // ✅ Select center from session (map session -> UI)
+        const uiSessionCode = fromSessionCenterCode(sessionCenterCode);
+
+        const match = uiSessionCode
+          ? finalList.find((c) => c.code === uiSessionCode)
           : null;
 
         setSelectedClinic(match || finalList[0] || null);
@@ -167,6 +199,10 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   }, []);
 
   /* -------------------- clinic change -------------------- */
+  const hardReload = () => {
+    window.location.reload();
+  };
+
   const handleClinicChange = async (clinic) => {
     try {
       if (!clinic?.code) return;
@@ -180,11 +216,19 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       setSelectedClinic(clinic);
       setDropdownOpen(false);
 
-      // 🔥 update session with new code
+      // 🔥 set session with mapped code
       await setSessionToApi(clinic.code);
-      await getSessionFromApi();
 
-      showToast(`Clinic changed to ${clinic.name} (${clinic.code})`, "success");
+      // 🔥 refresh session from server
+      const newSession = await getSessionFromApi();
+
+      // ✅ reset session storage (keep user), then reload
+      const keepUser = sessionStorage.getItem("user") || localStorage.getItem("user");
+      sessionStorage.clear();
+      if (keepUser) sessionStorage.setItem("user", keepUser);
+      sessionStorage.setItem("userSession", JSON.stringify(newSession));
+
+      hardReload();
     } catch (e) {
       console.error("Failed to update session on clinic change", e);
       showToast("Failed to change clinic session", "error");
@@ -245,10 +289,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
           </div>
 
           {/* -------- user dropdown -------- */}
-          <div
-            className="userdd"
-            onClick={() => setShowProfileMenu((p) => !p)}
-          >
+          <div className="userdd" onClick={() => setShowProfileMenu((p) => !p)}>
             <div className="user-top">
               <img
                 src={imageSrc}
@@ -282,11 +323,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       </div>
 
       {/* ✅ Toast */}
-      {toast.show && (
-        <div className={`hdr-toast ${toast.type}`}>
-          {toast.text}
-        </div>
-      )}
+      {toast.show && <div className={`hdr-toast ${toast.type}`}>{toast.text}</div>}
 
       <style>{`
         .clinic-dropdown {
