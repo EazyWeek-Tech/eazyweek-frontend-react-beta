@@ -307,9 +307,9 @@ const Header = ({ onToggleSidebar, onLogout }) => {
             {showProfileMenu && (
               <div className="usrmenu active">
                 <ul>
-                  <li>
+                  {/* <li>
                     <a href="#">Profile</a>
-                  </li>
+                  </li> */}
                   <li>
                     <a href="#" onClick={handleLogout}>
                       Log Out
