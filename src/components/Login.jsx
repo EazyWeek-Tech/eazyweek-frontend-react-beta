@@ -220,7 +220,7 @@ const Login = ({ onLoginSuccess }) => {
                   </div>
 
                   <button type="submit" className="signup-btn" disabled={loading}>
-                    {loading ? "Signing In..." : "Sign In"}
+                    {loading ? "Signing In....." : "Sign In"}
                   </button>
                 </form>
               </div>
