@@ -166,7 +166,8 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 
   return (
     <form className="genform tabform">
-      <div className="form-group">
+      <fieldset disabled="disabled">
+         <div className="form-group">
         <label htmlFor="title">Case Title</label>
         <input
           type="text"
@@ -276,17 +277,6 @@ const GeneralTab = forwardRef(({ data }, ref) => {
       </div>
 
       <div className="form-group">
-        <label htmlFor="customerSearch">Search Customer</label>
-        <input
-          type="search"
-          id="customerSearch"
-          placeholder="Search Customer"
-          value={customerSearchText}
-          onChange={(e) => setCustomerSearchText(e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
         <label htmlFor="customer">Customer</label>
         <select
           id="customer"
@@ -364,6 +354,7 @@ const GeneralTab = forwardRef(({ data }, ref) => {
         <label htmlFor="createdDate">Created Date</label>
         <input type="text" id="createdDate" value={formValues.createdDate || ""} disabled />
       </div>
+      </fieldset>
     </form>
   );
 });

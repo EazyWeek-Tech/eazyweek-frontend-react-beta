@@ -349,108 +349,7 @@ const IssuesTab = forwardRef(
       data?.subSubSubCategoryName,
     ]);
 
-    // Compute CC based on hierarchy (L1/L2 group), but don't touch assignee
-    const computedCc = (() => {
-      if (!hierarchy) return "";
-      const l1cc = normalizeEmailList(hierarchy.firstGroupAssignement || "");
-      const l2cc = normalizeEmailList(hierarchy.secondGroupAssignement || "");
-
-      // Simple rule: if second assignment exists, use L2 CC; otherwise L1 CC
-      if (hierarchy.secondAssignement) return l2cc;
-      return l1cc;
-    })();
-
-    // Apply CC to the form (auto-fill)
-    useEffect(() => {
-      const ccFromRule = computedCc;
-      if (trim(formValues.cc) !== ccFromRule) {
-        setFormValues((prev) => ({ ...prev, cc: ccFromRule }));
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [computedCc]);
-
-    const handleChange = (e) => {
-      const { name, value, type, files } = e.target;
-
-      if (name === "assignToCode") {
-        userTouchedAssignRef.current = true;
-        const vRaw = trim(value);
-        const selected = employees.find(
-          (emp) => emp.employeeCode === vRaw
-        );
-        setFormValues((prev) => ({
-          ...prev,
-          assignToCode: selected?.employeeCode || vRaw || "",
-          assignedTo:
-            selected?.employeeName ||
-            (vRaw ? prev.assignedTo : "Assign To"),
-          employeeMobile:
-            selected?.mobileNo || prev.employeeMobile || "",
-          email: selected?.emailID || prev.email || "",
-        }));
-        return;
-      }
-
-      if (name === "therapistCode") {
-        const v = normCode(value);
-        const selected = therapists.find((doc) => doc.code === v);
-        setFormValues((prev) => ({
-          ...prev,
-          therapistCode: selected?.code || v || "",
-          therapistName: selected?.name || prev.therapistName || "",
-        }));
-        return;
-      }
-
-      if (name === "cc") {
-        const cleaned = trim(
-          value.replace(/\s*,\s*/g, ",").replace(/,+$/g, "")
-        );
-        setFormValues((prev) => ({ ...prev, cc: cleaned }));
-        return;
-      }
-
-      if (name === "moreCc") {
-        const cleaned = trim(
-          value.replace(/\s*,\s*/g, ",").replace(/,+$/g, "")
-        );
-        setFormValues((prev) => ({ ...prev, moreCc: cleaned }));
-        return;
-      }
-
-      setFormValues((prev) => ({
-        ...prev,
-        [name]: type === "file" ? files[0] : value,
-      }));
-    };
-
-    const responseIsEmpty = trim(formValues.response) === "";
-
-    const hierTooltip = hierarchy
-      ? [
-          hierarchy.firstAssignement
-            ? `L1: ${hierarchy.firstAssignement}`
-            : "",
-          hierarchy.secondAssignement
-            ? `L2: ${hierarchy.secondAssignement}`
-            : "",
-          hierarchy.thirdAssignement
-            ? `L3: ${hierarchy.thirdAssignement}`
-            : "",
-          hierarchy.firstGroupAssignement
-            ? `L1 CC: ${hierarchy.firstGroupAssignement}`
-            : "",
-          hierarchy.secondGroupAssignement
-            ? `L2 CC: ${hierarchy.secondGroupAssignement}`
-            : "",
-          hierarchy.thirdGroupAssignement
-            ? `L3 CC: ${hierarchy.thirdGroupAssignement}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n")
-      : "";
-
+    
     // ------------------------------------------------------
     // LEVEL 1 / LEVEL 2 detection + Next Assignee auto rules
     // ------------------------------------------------------
@@ -545,7 +444,128 @@ const IssuesTab = forwardRef(
       return { l1Emp, l2Emp, level, curIsL1, curIsL2, hasL2Responder };
     }, [hierarchy, employees, currentAssigneeCode, currentAssigneeNameNorm, responses]);
 
+    
     const { l1Emp, l2Emp, level, curIsL1, curIsL2 } = levelMeta;
+
+    // Compute CC based on current level + next assignee selection
+const computedCc = useMemo(() => {
+  if (!hierarchy) return "";
+
+  const l1cc = normalizeEmailList(hierarchy.firstGroupAssignement || "");
+  const l2cc = normalizeEmailList(hierarchy.secondGroupAssignement || "");
+
+  const nextCode = normCode(formValues.assignToCode || "");
+  const l1Code = normCode(l1Emp?.employeeCode || "");
+  const l2Code = normCode(l2Emp?.employeeCode || "");
+
+  // If Level 2 → always L2 CC (if available), else fallback to L1 CC
+  if (level === 2) return l2cc || l1cc;
+
+  // Level 1:
+  // - default: L1 CC
+  // - exception: if next assignee is L2 assignee → L2 CC
+  if (level === 1) {
+    if (l2Code && nextCode && nextCode === l2Code) return l2cc || l1cc;
+    return l1cc || l2cc;
+  }
+
+  // Fallback (shouldn't really hit)
+  return l1cc || l2cc;
+}, [hierarchy, level, formValues.assignToCode, l1Emp, l2Emp]);
+
+
+    // Apply CC to the form (auto-fill)
+    useEffect(() => {
+      const ccFromRule = computedCc;
+      if (trim(formValues.cc) !== ccFromRule) {
+        setFormValues((prev) => ({ ...prev, cc: ccFromRule }));
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [computedCc]);
+
+    const handleChange = (e) => {
+      const { name, value, type, files } = e.target;
+
+      if (name === "assignToCode") {
+        userTouchedAssignRef.current = true;
+        const vRaw = trim(value);
+        const selected = employees.find(
+          (emp) => emp.employeeCode === vRaw
+        );
+        setFormValues((prev) => ({
+          ...prev,
+          assignToCode: selected?.employeeCode || vRaw || "",
+          assignedTo:
+            selected?.employeeName ||
+            (vRaw ? prev.assignedTo : "Assign To"),
+          employeeMobile:
+            selected?.mobileNo || prev.employeeMobile || "",
+          email: selected?.emailID || prev.email || "",
+        }));
+        return;
+      }
+
+      if (name === "therapistCode") {
+        const v = normCode(value);
+        const selected = therapists.find((doc) => doc.code === v);
+        setFormValues((prev) => ({
+          ...prev,
+          therapistCode: selected?.code || v || "",
+          therapistName: selected?.name || prev.therapistName || "",
+        }));
+        return;
+      }
+
+      if (name === "cc") {
+        const cleaned = trim(
+          value.replace(/\s*,\s*/g, ",").replace(/,+$/g, "")
+        );
+        setFormValues((prev) => ({ ...prev, cc: cleaned }));
+        return;
+      }
+
+      if (name === "moreCc") {
+        const cleaned = trim(
+          value.replace(/\s*,\s*/g, ",").replace(/,+$/g, "")
+        );
+        setFormValues((prev) => ({ ...prev, moreCc: cleaned }));
+        return;
+      }
+
+      setFormValues((prev) => ({
+        ...prev,
+        [name]: type === "file" ? files[0] : value,
+      }));
+    };
+
+    const responseIsEmpty = trim(formValues.response) === "";
+
+    const hierTooltip = hierarchy
+      ? [
+          hierarchy.firstAssignement
+            ? `L1: ${hierarchy.firstAssignement}`
+            : "",
+          hierarchy.secondAssignement
+            ? `L2: ${hierarchy.secondAssignement}`
+            : "",
+          hierarchy.thirdAssignement
+            ? `L3: ${hierarchy.thirdAssignement}`
+            : "",
+          hierarchy.firstGroupAssignement
+            ? `L1 CC: ${hierarchy.firstGroupAssignement}`
+            : "",
+          hierarchy.secondGroupAssignement
+            ? `L2 CC: ${hierarchy.secondGroupAssignement}`
+            : "",
+          hierarchy.thirdGroupAssignement
+            ? `L3 CC: ${hierarchy.thirdGroupAssignement}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
+
+
 
     // Human-readable stage label
     const stageLabel =
@@ -757,6 +777,7 @@ const IssuesTab = forwardRef(
               border: "1px solid #e5e7eb",
               borderRadius: 8,
               background: "#fafafa",
+              display:"block"
             }}
           >
             <div

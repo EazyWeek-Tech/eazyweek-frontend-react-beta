@@ -69,13 +69,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
               } catch {
                 data = text;
               }
-              console.log(
-                "[API RESPONSE]",
-                method,
-                url,
-                { status: response.status, ok: response.ok },
-                data
-              );
+              console.log("[API RESPONSE]", method, url, { status: response.status, ok: response.ok }, data);
             } catch {
               console.log("[API RESPONSE]", method, url, {
                 status: response.status,
@@ -108,6 +102,118 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     if (!u) return "";
     const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     return full || u.userName || u.email || u.userId || "";
+  };
+
+  // -----------------------------
+  // ✅ CenterCode helpers (YOUR REQUEST)
+  // centercode should be loginCode or topCode (e.g., "MXM")
+  // -----------------------------
+  const trim = (v) => (v ?? "").toString().trim();
+
+  const firstNonEmpty = (...vals) => {
+    for (const v of vals) {
+      const t = trim(v);
+      if (t) return t;
+    }
+    return "";
+  };
+
+  // Read nested JSON objects saved in storage (common keys)
+  const readFromStoredUserObjects = (field) => {
+    const objKeys = [
+      "session",          // some apps store session JSON in this key
+      "sessionInfo",
+      "sessionData",
+      "userSession",
+      "auth",
+      "user",
+      "userDetails",
+      "currentUser",
+      "authUser",
+      "sessionUser",
+    ];
+
+    for (const k of objKeys) {
+      const raw = sessionStorage.getItem(k) || localStorage.getItem(k);
+      if (!raw) continue;
+      try {
+        const obj = JSON.parse(raw);
+        const val =
+          obj?.[field] ??
+          obj?.[field?.toLowerCase?.()] ??
+          obj?.[field?.toUpperCase?.()];
+        if (trim(val)) return trim(val);
+      } catch {}
+    }
+    return "";
+  };
+
+  // ✅ centercode = loginCode or topCode (priority: loginCode -> topCode)
+  const readCenterFromSession = () => {
+    const ss = (k) => trim(sessionStorage.getItem(k));
+    const ls = (k) => trim(localStorage.getItem(k));
+
+    // 1) direct primitive keys (some apps store session fields as plain keys)
+    const direct = firstNonEmpty(
+      ss("loginCode"),
+      ss("LoginCode"),
+      ss("topCode"),
+      ss("TopCode"),
+
+      ls("loginCode"),
+      ls("LoginCode"),
+      ls("topCode"),
+      ls("TopCode")
+    );
+
+    // 2) stored JSON objects (your sample looks like a JSON session object)
+    const fromObj = firstNonEmpty(
+      readFromStoredUserObjects("loginCode"),
+      readFromStoredUserObjects("LoginCode"),
+      readFromStoredUserObjects("topCode"),
+      readFromStoredUserObjects("TopCode")
+    );
+
+    // 3) last-resort fallback (kept for safety if nothing found)
+    // (if you want, we can remove these completely)
+    const legacyFallback = firstNonEmpty(
+      ss("centerCode"),
+      ss("CenterCode"),
+      ss("centercode"),
+      ls("centerCode"),
+      ls("CenterCode"),
+      ls("centercode"),
+      readFromStoredUserObjects("centerCode"),
+      readFromStoredUserObjects("CenterCode"),
+      readFromStoredUserObjects("centercode")
+    );
+
+    return firstNonEmpty(direct, fromObj, legacyFallback);
+  };
+
+  // optional: centerName (kept as-is; not used for centercode)
+  const readCenterNameFromSession = () => {
+    const ss = (k) => trim(sessionStorage.getItem(k));
+    const ls = (k) => trim(localStorage.getItem(k));
+
+    const direct = firstNonEmpty(
+      ss("centerName"),
+      ss("CenterName"),
+      ss("centerDesc"),
+      ss("centerDescription"),
+      ls("centerName"),
+      ls("CenterName"),
+      ls("centerDesc"),
+      ls("centerDescription")
+    );
+
+    const fromObj = firstNonEmpty(
+      readFromStoredUserObjects("centerName"),
+      readFromStoredUserObjects("centerDesc"),
+      readFromStoredUserObjects("centerDescription")
+    );
+
+    return firstNonEmpty(direct, fromObj);
   };
 
   // reset local state when dialog is opened/closed
@@ -167,9 +273,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const fetchTherapists = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/CaseDropDown/Medium/Doctors`, {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
         setTherapists(data.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
@@ -200,9 +306,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        const validEmployees = data.filter(
-          (emp) => emp.employeeCode && emp.employeeName !== "Assign To"
-        );
+        const validEmployees = data.filter((emp) => emp.employeeCode && emp.employeeName !== "Assign To");
         setEmployees(validEmployees);
       } catch (err) {
         console.error("Error fetching employees:", err);
@@ -227,9 +331,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         }
         try {
           const res = await fetch(
-            `${API_BASE_URL}/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(
-              customerSearchText
-            )}`,
+            `${API_BASE_URL}/api/CaseDropDown/Customer?SearchText=${encodeURIComponent(customerSearchText)}`,
             {
               method: "GET",
               credentials: "include",
@@ -249,12 +351,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   }, [customerSearchText]);
 
   useEffect(() => {
-    if (
-      selectedCategoryCode &&
-      selectedSubCategoryCode &&
-      selectedSubSubCategoryCode &&
-      selectedSubSubSubCategoryCode
-    ) {
+    if (selectedCategoryCode && selectedSubCategoryCode && selectedSubSubCategoryCode && selectedSubSubSubCategoryCode) {
       const fetchCaseOperationDetails = async () => {
         const url = `${API_BASE_URL}/api/CaseOperation/${selectedCategoryCode}/${selectedSubCategoryCode}/${selectedSubSubCategoryCode}/${selectedSubSubSubCategoryCode}`;
         try {
@@ -283,12 +380,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       };
       fetchCaseOperationDetails();
     }
-  }, [
-    selectedCategoryCode,
-    selectedSubCategoryCode,
-    selectedSubSubCategoryCode,
-    selectedSubSubSubCategoryCode,
-  ]);
+  }, [selectedCategoryCode, selectedSubCategoryCode, selectedSubSubCategoryCode, selectedSubSubSubCategoryCode]);
 
   useEffect(() => {
     if (currentUser) {
@@ -391,14 +483,13 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const s = subCategories.find((x) => x.subCategoryCode === code);
     return s?.subCategoryName || "";
   };
+
+  // email uses centerName; centercode uses loginCode/topCode (separate concerns)
   const getCenterName = () => {
-    return (
-      currentUser?.centerName ||
-      currentUser?.center ||
-      currentUser?.centerDesc ||
-      currentUser?.centerDescription ||
-      currentUser?.centerCode ||
-      ""
+    return firstNonEmpty(
+      readCenterNameFromSession(),
+      // as a fallback, show the same code in the email if name isn't available
+      readCenterFromSession()
     );
   };
 
@@ -463,8 +554,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     if (!formValues.category) errs.category = "Case Category is required.";
     if (!formValues.subcategory) errs.subcategory = "Case Sub Category is required.";
     if (!formValues.subSubcategory) errs.subSubcategory = "Case Sub Sub Category is required.";
-    if (!formValues.subSubSubcategory)
-      errs.subSubSubcategory = "Case Sub Sub Sub Category is required.";
+    if (!formValues.subSubSubcategory) errs.subSubSubcategory = "Case Sub Sub Sub Category is required.";
     if (!formValues.caseMedium) errs.caseMedium = "Case Medium is required.";
     if (!formValues.caseSource) errs.caseSource = "Case Source is required.";
     if (!formValues.priority) errs.priority = "Priority is required.";
@@ -481,15 +571,12 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
   const validateIssueTab = () => {
     const errs = {};
-    if (!formValues.issuedesciption?.trim())
-      errs.issuedesciption = "Issue Description is required.";
+    if (!formValues.issuedesciption?.trim()) errs.issuedesciption = "Issue Description is required.";
     if (!formValues.clientThreat) errs.clientThreat = "Client Threat is required.";
     if (!formValues.doctorCode) errs.doctorCode = "Therapist is required.";
     if (!formValues.employeno?.trim()) errs.employeno = "Employee Mobile is required.";
     if (!formValues.employeeCode) errs.employeeCode = "Assigned To is required.";
     if (!formValues.email?.trim()) errs.email = "Email is required.";
-    // CC made optional in UI, so do NOT block on it:
-    // if (!formValues.cc?.trim()) errs.cc = "CC is required.";
     return errs;
   };
   // ==============================
@@ -526,10 +613,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     const allErrs = { ...generalErrs, ...issueErrs };
 
     if (Object.keys(allErrs).length > 0) {
-      console.log("[CREATE CASE] Save blocked by validation", {
-        generalErrs,
-        issueErrs,
-      });
+      console.log("[CREATE CASE] Save blocked by validation", { generalErrs, issueErrs });
       setValidationErrors((prev) => ({ ...prev, ...allErrs }));
       if (Object.keys(generalErrs).length > 0) setActiveTab("sign-in");
       else if (Object.keys(issueErrs).length > 0) setActiveTab("register");
@@ -584,7 +668,10 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       otherCharges: 0,
       totalCharges: 0,
       isdraft: 1,
-      centercode: user?.centerCode,
+
+      // ✅ centercode MUST be loginCode / topCode (e.g., "MXM")
+      centercode: readCenterFromSession() || "",
+
       departmentcode: "",
       custcliniccode: "",
     };
@@ -612,25 +699,21 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         }
 
         if (finalCaseNo) {
-  setCaseNo(finalCaseNo);
-  localStorage.setItem("lastSavedCaseNo", finalCaseNo);
-}
+          setCaseNo(finalCaseNo);
+          localStorage.setItem("lastSavedCaseNo", finalCaseNo);
+        }
 
-// ✅ NEW: Send email on SAVE also
-await sendCaseAssignmentEmail(finalCaseNo || casenoForSave || savedCaseNoEffective || "");
+        // ✅ Send email on SAVE also
+        await sendCaseAssignmentEmail(finalCaseNo || casenoForSave || savedCaseNoEffective || "");
 
-showToast(
-  `Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
-  "success"
-);
-
+        showToast(`Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`, "success");
 
         // ALWAYS go to Issues on successful Save from General
         if (activeTab === "sign-in") {
           console.log("[CREATE CASE] switching tab to 'register'");
           setTimeout(() => setActiveTab("register"), 0);
         } else if (activeTab === "register") {
-          // 🔥 Save from Issues tab → auto-close popup & refresh case table
+          // Save from Issues tab → auto-close popup & refresh case table
           const payloadWithCaseNo = {
             ...payload,
             caseno: finalCaseNo || casenoForSave || "",
@@ -648,10 +731,7 @@ showToast(
           }
         }
       } else {
-        showToast(
-          `Failed to save case: ${result.name || result.message || "Unknown error"}`,
-          "error"
-        );
+        showToast(`Failed to save case: ${result.name || result.message || "Unknown error"}`, "error");
       }
     } catch (error) {
       console.error("Error during case save:", error);
@@ -714,7 +794,10 @@ showToast(
       otherCharges: 0,
       totalCharges: 0,
       isdraft: 0,
-      centercode: user?.centerCode,
+
+      // ✅ centercode MUST be loginCode / topCode (e.g., "MXM")
+      centercode: readCenterFromSession() || "",
+
       departmentcode: "",
       custcliniccode: "",
     };
@@ -743,10 +826,7 @@ showToast(
 
         await sendCaseAssignmentEmail(finalCaseNo);
 
-        showToast(
-          `Case submitted successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`,
-          "success"
-        );
+        showToast(`Case submitted successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`, "success");
 
         const payloadWithCaseNo = { ...payload, caseno: finalCaseNo };
         onSubmit && onSubmit(payloadWithCaseNo);
@@ -828,7 +908,9 @@ showToast(
               </div>
             </ul>
 
-            {/* General Tab */}
+            {/* ---------------------------
+                General Tab
+                --------------------------- */}
             <div className={`formwrap sign-in ${activeTab === "sign-in" ? "active" : ""}`}>
               {/* Case Title */}
               <div className="form-group">
@@ -847,9 +929,7 @@ showToast(
                   }}
                   className={validationErrors.title ? "error-border" : ""}
                 />
-                {validationErrors.title && (
-                  <div className="error-text">{validationErrors.title}</div>
-                )}
+                {validationErrors.title && <div className="error-text">{validationErrors.title}</div>}
               </div>
 
               {/* Case Category */}
@@ -944,9 +1024,7 @@ showToast(
                     </option>
                   ))}
                 </select>
-                {validationErrors.category && (
-                  <div className="error-text">{validationErrors.category}</div>
-                )}
+                {validationErrors.category && <div className="error-text">{validationErrors.category}</div>}
               </div>
 
               {/* Sub Category */}
@@ -1004,9 +1082,7 @@ showToast(
                     </option>
                   ))}
                 </select>
-                {validationErrors.subcategory && (
-                  <div className="error-text">{validationErrors.subcategory}</div>
-                )}
+                {validationErrors.subcategory && <div className="error-text">{validationErrors.subcategory}</div>}
               </div>
 
               {/* Sub Sub Category */}
@@ -1062,9 +1138,7 @@ showToast(
                     </option>
                   ))}
                 </select>
-                {validationErrors.subSubcategory && (
-                  <div className="error-text">{validationErrors.subSubcategory}</div>
-                )}
+                {validationErrors.subSubcategory && <div className="error-text">{validationErrors.subSubcategory}</div>}
               </div>
 
               {/* Sub Sub Sub Category */}
@@ -1075,16 +1149,12 @@ showToast(
                 <select
                   id="caseSubSubSubCategory"
                   value={selectedSubSubSubCategoryCode}
-                  disabled={
-                    !selectedCategoryCode || !selectedSubCategoryCode || !selectedSubSubCategoryCode
-                  }
+                  disabled={!selectedCategoryCode || !selectedSubCategoryCode || !selectedSubSubCategoryCode}
                   onChange={(e) => {
                     const code = e.target.value;
                     setSelectedSubSubSubCategoryCode(code);
 
-                    const selected = subSubSubCategories.find(
-                      (item) => item.subSubCategoryCode === code
-                    );
+                    const selected = subSubSubCategories.find((item) => item.subSubCategoryCode === code);
                     handleChange("subSubSubcategory", selected?.subSubCategoryCode || "");
 
                     setValidationErrors((p) => ({
@@ -1153,9 +1223,7 @@ showToast(
                       </option>
                     ))}
                 </select>
-                {validationErrors.caseMedium && (
-                  <div className="error-text">{validationErrors.caseMedium}</div>
-                )}
+                {validationErrors.caseMedium && <div className="error-text">{validationErrors.caseMedium}</div>}
               </div>
 
               {/* Case Source */}
@@ -1166,9 +1234,7 @@ showToast(
                 <select
                   id="caseSource"
                   value={formValues.caseSource}
-                  disabled={
-                    !selectedCategoryCode || !formValues.caseMedium || caseSources.length === 0
-                  }
+                  disabled={!selectedCategoryCode || !formValues.caseMedium || caseSources.length === 0}
                   onChange={(e) => {
                     handleChange("caseSource", e.target.value);
                     setValidationErrors((p) => ({
@@ -1185,9 +1251,7 @@ showToast(
                     </option>
                   ))}
                 </select>
-                {validationErrors.caseSource && (
-                  <div className="error-text">{validationErrors.caseSource}</div>
-                )}
+                {validationErrors.caseSource && <div className="error-text">{validationErrors.caseSource}</div>}
               </div>
 
               {/* Priority */}
@@ -1212,9 +1276,7 @@ showToast(
                   <option value="Normal">Normal</option>
                   <option value="High">High</option>
                 </select>
-                {validationErrors.priority && (
-                  <div className="error-text">{validationErrors.priority}</div>
-                )}
+                {validationErrors.priority && <div className="error-text">{validationErrors.priority}</div>}
               </div>
 
               {/* Search Customer */}
@@ -1231,9 +1293,7 @@ showToast(
                     setCustomerSearchText(e.target.value);
                     setValidationErrors((p) => ({
                       ...p,
-                      customerSearchText: e.target.value?.trim()
-                        ? null
-                        : "Search Customer is required.",
+                      customerSearchText: e.target.value?.trim() ? null : "Search Customer is required.",
                     }));
                   }}
                   className={validationErrors.customerSearchText ? "error-border" : ""}
@@ -1271,9 +1331,7 @@ showToast(
                     </option>
                   ))}
                 </select>
-                {validationErrors.customerCode && (
-                  <div className="error-text">{validationErrors.customerCode}</div>
-                )}
+                {validationErrors.customerCode && <div className="error-text">{validationErrors.customerCode}</div>}
               </div>
 
               {/* Product (optional) */}
@@ -1299,11 +1357,7 @@ showToast(
               {/* Service (optional) */}
               <div className="form-group">
                 <label htmlFor="service">Service</label>
-                <select
-                  id="service"
-                  value={formValues.service}
-                  onChange={(e) => handleChange("service", e.target.value)}
-                >
+                <select id="service" value={formValues.service} onChange={(e) => handleChange("service", e.target.value)}>
                   <option value="">Select Service</option>
                   {services
                     .filter((s) => s.code !== "0")
@@ -1344,9 +1398,7 @@ showToast(
                   readOnly
                   className={validationErrors.createdBy ? "error-border" : ""}
                 />
-                {validationErrors.createdBy && (
-                  <div className="error-text">{validationErrors.createdBy}</div>
-                )}
+                {validationErrors.createdBy && <div className="error-text">{validationErrors.createdBy}</div>}
               </div>
 
               {/* Created Date */}
@@ -1361,9 +1413,7 @@ showToast(
                   value={new Date().toLocaleDateString()}
                   className={validationErrors.createdDate ? "error-border" : ""}
                 />
-                {validationErrors.createdDate && (
-                  <div className="error-text">{validationErrors.createdDate}</div>
-                )}
+                {validationErrors.createdDate && <div className="error-text">{validationErrors.createdDate}</div>}
               </div>
 
               <div className="buttongrp">
@@ -1379,7 +1429,9 @@ showToast(
               </div>
             </div>
 
-            {/* Issues and Responses Tab */}
+            {/* ---------------------------
+                Issues and Responses Tab
+                --------------------------- */}
             <div className={`formwrap register ${activeTab === "register" ? "active" : ""}`}>
               {/* Issue Description (required) */}
               <div className="form-group">
@@ -1404,11 +1456,7 @@ showToast(
               {/* Attachment (optional) */}
               <div className="form-group">
                 <label htmlFor="attachment">Attachment</label>
-                <input
-                  type="file"
-                  id="attachment"
-                  onChange={(e) => handleChange("attachment", e.target.files[0])}
-                />
+                <input type="file" id="attachment" onChange={(e) => handleChange("attachment", e.target.files[0])} />
                 <div className="error"></div>
               </div>
 
@@ -1520,10 +1568,7 @@ showToast(
                 >
                   <option value="">Select Employee</option>
                   {employees.map((emp, index) => (
-                    <option
-                      key={`${emp.employeeCode}-${emp.recId}-${index}`}
-                      value={emp.employeeCode}
-                    >
+                    <option key={`${emp.employeeCode}-${emp.recId}-${index}`} value={emp.employeeCode}>
                       {emp.employeeName}
                     </option>
                   ))}
@@ -1565,14 +1610,7 @@ showToast(
               {/* CC (optional) */}
               <div className="form-group">
                 <label htmlFor="cc">CC</label>
-                <select
-                  id="cc"
-                  value={formValues.cc}
-                  disabled={!formValues.cc}
-                  onChange={(e) => {
-                    handleChange("cc", e.target.value);
-                  }}
-                >
+                <select id="cc" value={formValues.cc} disabled={!formValues.cc} onChange={(e) => handleChange("cc", e.target.value)}>
                   <option value="">Select CC</option>
                   <option value={formValues.cc}>{formValues.cc}</option>
                 </select>
@@ -1581,24 +1619,14 @@ showToast(
               {/* More CC (optional) */}
               <div className="form-group">
                 <label htmlFor="moreCC">More CC</label>
-                <textarea
-                  id="moreCC"
-                  rows="5"
-                  value={formValues.moreCC}
-                  onChange={(e) => handleChange("moreCC", e.target.value)}
-                ></textarea>
+                <textarea id="moreCC" rows="5" value={formValues.moreCC} onChange={(e) => handleChange("moreCC", e.target.value)}></textarea>
                 <div className="error"></div>
               </div>
 
               {/* Remarks (optional) */}
               <div className="form-group">
                 <label htmlFor="remarks">Remarks</label>
-                <textarea
-                  id="remarks"
-                  rows="5"
-                  value={formValues.remarks}
-                  onChange={(e) => handleChange("remarks", e.target.value)}
-                ></textarea>
+                <textarea id="remarks" rows="5" value={formValues.remarks} onChange={(e) => handleChange("remarks", e.target.value)}></textarea>
                 <div className="error"></div>
               </div>
 
