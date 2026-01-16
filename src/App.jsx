@@ -74,6 +74,7 @@ import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 import DispositionMappingList from "./pages/Opportunity/DispositionMappingList";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
+import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -211,10 +212,12 @@ function App() {
 />
 
  <Route
-  path="/manuallead/:oppCode/:custid"
+  path="/manuallead/:oppCode/:custId"
   element={<ManualOppCustomerDetails />}
   
 />
+<Route path="/manuallead/edit/:leadOppId" element={<ManualLeadEdit />} />
+
 <Route path="/masters/disposition" element={<DispositionMappingList />} />
 <Route path="/opportunity/disposition-mapping/create" element={<DispositionMappingCreate />} />
                   <Route path="cases" element={<CaseManagement />} />

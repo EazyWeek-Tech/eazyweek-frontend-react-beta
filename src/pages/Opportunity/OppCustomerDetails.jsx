@@ -40,6 +40,69 @@ const todayISO = () => {
   return `${y}-${m}-${day}`;
 };
 
+// ---------- NEW: helpers to sanitize API follow-up dates ----------
+const isPlaceholderDate = (yyyyMmDd) => {
+  // Treat backend placeholder dates as invalid
+  // "1900-01-01", "0001-01-01" etc.
+  const s = String(yyyyMmDd || "").trim();
+  if (!s) return true;
+  return (
+    s.startsWith("1900-01-01") ||
+    s.startsWith("0001-01-01") ||
+    s === "1900-01-01" ||
+    s === "0001-01-01"
+  );
+};
+
+const isPastYMD = (yyyyMmDd) => {
+  if (!yyyyMmDd) return false;
+  return yyyyMmDd < todayISO(); // YYYY-MM-DD compares safely as string
+};
+
+const parseApiFollowUpDateToYMD = (apiValue) => {
+  // Accept: "dd/MM/yyyy" OR ISO strings; reject 1900/0001 defaults
+  const raw = String(apiValue || "").trim();
+  if (!raw) return "";
+
+  // If backend sometimes returns "01-01-1900" (dd-MM-yyyy), handle it too
+  let m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const ymd = `${m[3]}-${m[2]}-${m[1]}`;
+    return isPlaceholderDate(ymd) ? "" : ymd;
+  }
+
+  m = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (m) {
+    const ymd = `${m[3]}-${m[2]}-${m[1]}`;
+    return isPlaceholderDate(ymd) ? "" : ymd;
+  }
+
+  // ISO like "2026-01-15T00:00:00"
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const ymd = raw.slice(0, 10);
+    return isPlaceholderDate(ymd) ? "" : ymd;
+  }
+
+  // Last resort
+  const d = new Date(raw);
+  if (!isNaN(d)) {
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const ymd = `${y}-${mm}-${dd}`;
+    return isPlaceholderDate(ymd) ? "" : ymd;
+  }
+
+  return "";
+};
+
+// Convert yyyy-MM-dd to ISO string (Z) for backend
+const toISODateTimeZ = (yyyy_mm_dd) => {
+  if (!yyyy_mm_dd) return new Date().toISOString();
+  const d = new Date(`${yyyy_mm_dd}T00:00:00Z`);
+  return d.toISOString();
+};
+
 const OppCustomerDetails = () => {
   const { oppCode, custId } = useParams();
   const { state } = useLocation(); // { recId, oppCode, row, header, isManual }
@@ -53,9 +116,9 @@ const OppCustomerDetails = () => {
 
   const [details, setDetails] = useState(null);
 
-  // NEW: follow-up UI state
+  // follow-up UI state
   const [followUpDate, setFollowUpDate] = useState(todayISO()); // yyyy-MM-dd
-  const [followUpTime, setFollowUpTime] = useState("");         // e.g. "01:30"
+  const [followUpTime, setFollowUpTime] = useState("");         // "01:30"
   const [followUpAmPm, setFollowUpAmPm] = useState("AM");       // "AM" | "PM"
 
   const [form, setForm] = useState({ disposition: "", remarks: "" });
@@ -80,16 +143,16 @@ const OppCustomerDetails = () => {
 
         setDetails(data || null);
 
-        // Prefill follow-up date/time/amPM
-        const apiFUDate = (data?.followUpDate || "").trim();
-        if (apiFUDate) {
-          const m = apiFUDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-          setFollowUpDate(m ? `${m[3]}-${m[2]}-${m[1]}` : todayISO());
-        } else {
-          setFollowUpDate(todayISO());
-        }
-        setFollowUpTime((data?.followUpTime || "").trim());
-        setFollowUpAmPm((data?.followUpTimeAmPM || "AM").trim());
+        // ✅ Prefill follow-up date (sanitize default dates like 1900/0001, and block past)
+        const apiDateYMD = parseApiFollowUpDateToYMD(data?.followUpDate);
+        const safeDate =
+          !apiDateYMD || isPastYMD(apiDateYMD) ? todayISO() : apiDateYMD;
+
+        setFollowUpDate(safeDate);
+
+        // Prefill time/amPM
+        setFollowUpTime(String(data?.followUpTime || "").trim());
+        setFollowUpAmPm(String(data?.followUpTimeAmPM || "AM").trim() || "AM");
 
         // Prefill disposition/remarks from list row (if present)
         if (state?.row) {
@@ -140,17 +203,7 @@ const OppCustomerDetails = () => {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  /** Convert yyyy-MM-dd to ISO string (Z) for backend */
-  const toISODateTimeZ = (yyyy_mm_dd) => {
-    if (!yyyy_mm_dd) return new Date().toISOString();
-    // send midnight UTC to satisfy the "…Z" example in Swagger
-    const d = new Date(`${yyyy_mm_dd}T00:00:00Z`);
-    return d.toISOString();
-  };
-
-  /** Build payload for /api/Opportunity/UpdateOppDetails
-   *  (now including followUpDate, followUpTime, followUpTimeAmPM)
-   */
+  /** Build payload for /api/Opportunity/UpdateOppDetails */
   const buildUpdatePayload = () => {
     const recID = state?.recId || getRecId(state?.row);
     const oppStatus = oppStatusFromDisposition(form.disposition);
@@ -161,9 +214,9 @@ const OppCustomerDetails = () => {
       remarks: form.remarks,
       oppCode,
       oppStatus,
-      followUpDate: toISODateTimeZ(followUpDate), // e.g. "2025-11-11T00:00:00.000Z"
-      followUpTime: followUpTime || "",           // "01:00" etc.
-      followUpTimeAmPM: followUpAmPm || "AM",     // "AM" | "PM"
+      followUpDate: toISODateTimeZ(followUpDate),
+      followUpTime: followUpTime || "",
+      followUpTimeAmPM: followUpAmPm || "AM",
     };
   };
 
@@ -181,11 +234,26 @@ const OppCustomerDetails = () => {
     return data || {};
   };
 
+  const ensureValidFollowUpDate = () => {
+    if (!followUpDate) {
+      setFollowUpDate(todayISO());
+      return false;
+    }
+    if (isPastYMD(followUpDate)) {
+      setError("Follow Up Date cannot be before today.");
+      setFollowUpDate(todayISO());
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
     if (!form.disposition) {
       setError("Please select a Disposition before saving.");
       return;
     }
+    if (!ensureValidFollowUpDate()) return;
+
     setSaving(true);
     setError("");
     try {
@@ -203,6 +271,8 @@ const OppCustomerDetails = () => {
       setError("Please select a Disposition before submitting.");
       return;
     }
+    if (!ensureValidFollowUpDate()) return;
+
     setSaving(true);
     setError("");
     try {
@@ -236,7 +306,7 @@ const OppCustomerDetails = () => {
           </div>
         </div>
 
-        {/* NEW follow-up inputs */}
+        {/* Follow-up inputs */}
         <div className="formrow">
           <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
           <input
@@ -244,7 +314,17 @@ const OppCustomerDetails = () => {
             type="date"
             className="inp"
             value={followUpDate}
-            onChange={(e) => setFollowUpDate(e.target.value)}
+            min={todayISO()} // ✅ UI blocks previous dates
+            onChange={(e) => {
+              const v = e.target.value;
+              if (isPastYMD(v)) {
+                setError("Follow Up Date cannot be before today.");
+                setFollowUpDate(todayISO());
+                return;
+              }
+              setError("");
+              setFollowUpDate(v);
+            }}
           />
         </div>
 
