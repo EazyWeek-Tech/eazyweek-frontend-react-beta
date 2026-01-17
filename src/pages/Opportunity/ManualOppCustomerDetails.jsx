@@ -575,6 +575,24 @@ const ManualOppCustomerDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.leadStatus]);
 
+  // If Disposition selected is Converted / Not Converted => status must be "Closed"
+const isClosedDisposition = (dispId, dispOptions) => {
+  const id = String(dispId || "").trim();
+  if (!id) return false;
+
+  const opt = (dispOptions || []).find((o) => String(o.value) === id);
+  const label = (opt?.label || "").trim().toLowerCase();
+
+  // Match by label (safe even if IDs change)
+  return label === "converted" || label === "not converted";
+};
+
+// Resolve final status for API payload
+const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionOptions }) => {
+  return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
+};
+
+
   /** ---------------- ✅ EDIT MODE: GET Lead and Prefill ---------------- */
   useEffect(() => {
     if (!isEdit) return;
@@ -680,6 +698,13 @@ const ManualOppCustomerDetails = () => {
     const leadStatusName = LEAD_STATUS_OPTIONS.find((x) => x.value === form.leadStatus)?.label || "";
     const leadSubStatusName = leadSubStatusOptions.find((x) => x.value === form.leadSubStatus)?.label || "";
 
+    const finalStatus = resolvePayloadStatus({
+    baseStatus: status, // usually "Open"
+    dispositionId: form.dispositionId,
+    dispositionOptions,
+  });
+
+
     const payload = {
       leadOpp_ID: 0,
       firstName: form.firstName,
@@ -689,7 +714,7 @@ const ManualOppCustomerDetails = () => {
       email: form.email,
 
       type: isLead ? "Lead" : "Opportunity",
-      status,
+      status: finalStatus,
 
       prefLang: form.preferredLanguage,
 
@@ -737,6 +762,12 @@ const ManualOppCustomerDetails = () => {
   const updateLeadOpp = async () => {
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
 
+    const finalStatus = resolvePayloadStatus({
+    baseStatus: "Open",
+    dispositionId: form.dispositionId,
+    dispositionOptions,
+  });
+
     const payload = {
       leadOpp_ID: numericLeadOppId,
       firstName: form.firstName,
@@ -746,7 +777,7 @@ const ManualOppCustomerDetails = () => {
       email: form.email,
 
       type: isLead ? "Lead" : "Opportunity",
-      status: "Open",
+      status: finalStatus,
       prefLang: form.preferredLanguage,
 
       customer_FK: 0,
