@@ -1,92 +1,96 @@
-"use client"
+"use client";
 
-import { useNavigate } from "react-router-dom"
-import { useRef, useState, useMemo, useEffect } from "react"
-import { API_BASE_URL } from "../../config"
+import { useNavigate } from "react-router-dom";
+import { useRef, useState, useMemo, useEffect } from "react";
+import { API_BASE_URL } from "../../config";
 
 const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
-  const navigate = useNavigate()
-  const formRef = useRef(null)
+  const navigate = useNavigate();
+  const formRef = useRef(null);
 
   // ---------- EXTERNAL SOURCE (NEW) ----------
-const [externalSource, setExternalSource] = useState("")   // S1..S4
-const [externalSubSource, setExternalSubSource] = useState("") // SS1..SS3 (depends on source)
+  const [externalSource, setExternalSource] = useState(""); // S1..S4
+  const [externalSubSource, setExternalSubSource] = useState(""); // SS1..SS3 (depends on source)
 
-const EXTERNAL_SOURCE_OPTIONS = [
-  { value: "",  label: "< - Select one - >" },
-  { value: "S1", label: "Social Media Campaign" },
-  { value: "S2", label: "Google Ads" },
-  { value: "S3", label: "Others" },
-  { value: "S4", label: "Website" },
-]
-
-const EXTERNAL_SUBSOURCE_MAP = {
-  S1: [
+  const EXTERNAL_SOURCE_OPTIONS = [
     { value: "", label: "< - Select one - >" },
-    { value: "SS1", label: "Instagram" },
-    { value: "SS2", label: "Tiktok" },
-    { value: "SS3", label: "Facebook" },
-  ],
-  S2: [
-    { value: "", label: "< - Select one - >" },
-    { value: "SS1", label: "Google Ads" },
-  ],
-  S3: [
-    { value: "", label: "< - Select one - >" },
-    { value: "SS1", label: "Manual Upload" },
-  ],
-  S4: [
-    { value: "", label: "< - Select one - >" },
-    { value: "SS1", label: "Referral" },
-    { value: "SS2", label: "Enquiry" },
-    { value: "SS3", label: "Booking" },
-  ],
-}
+    { value: "S1", label: "Social Media Campaign" },
+    { value: "S2", label: "Google Ads" },
+    { value: "S3", label: "Others" },
+    { value: "S4", label: "Website" },
+  ];
 
-const subSourceOptions = useMemo(() => {
-  return EXTERNAL_SUBSOURCE_MAP[externalSource] || [{ value: "", label: "< - Select one - >" }]
-}, [externalSource])
+  const EXTERNAL_SUBSOURCE_MAP = {
+    S1: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS1", label: "Instagram" },
+      { value: "SS2", label: "Tiktok" },
+      { value: "SS3", label: "Facebook" },
+    ],
+    S2: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS1", label: "Google Ads" },
+    ],
+    S3: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS1", label: "Manual Upload" },
+    ],
+    S4: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS1", label: "Referral" },
+      { value: "SS2", label: "Enquiry" },
+      { value: "SS3", label: "Booking" },
+    ],
+  };
 
-// Reset Sub-Source whenever Source changes
-useEffect(() => {
-  setExternalSubSource("")
-}, [externalSource])
+  const subSourceOptions = useMemo(() => {
+    return EXTERNAL_SUBSOURCE_MAP[externalSource] || [{ value: "", label: "< - Select one - >" }];
+  }, [externalSource]);
 
-const today = new Date().toISOString().slice(0, 10);
+  // Reset Sub-Source whenever Source changes
+  useEffect(() => {
+    setExternalSubSource("");
+  }, [externalSource]);
+
+  const today = new Date().toISOString().slice(0, 10);
 
   // ---------- CATEGORY OPTIONS ----------
-  const [catLoading, setCatLoading] = useState(false)
-  const [catOptions, setCatOptions] = useState([]) // [{label, value, raw}]
+  const [catLoading, setCatLoading] = useState(false);
+  const [catOptions, setCatOptions] = useState([]); // [{label, value, raw}]
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
     const loadCats = async () => {
       try {
-        setCatLoading(true)
-        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadCategory`, { credentials: "include" })
-        const data = await res.json()
+        setCatLoading(true);
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadCategory`, {
+          credentials: "include",
+        });
+        const data = await res.json();
         const mapped = Array.isArray(data)
-          ? data.map(d => ({
+          ? data.map((d) => ({
               label: d.name ?? d.code ?? "",
               value: d.code ?? d.name ?? "",
               raw: d,
             }))
-          : []
-        if (isMounted) setCatOptions(mapped)
+          : [];
+        if (isMounted) setCatOptions(mapped);
       } catch (e) {
-        console.error("Failed to load categories", e)
-        if (isMounted) setCatOptions([])
+        console.error("Failed to load categories", e);
+        if (isMounted) setCatOptions([]);
       } finally {
-        if (isMounted) setCatLoading(false)
+        if (isMounted) setCatLoading(false);
       }
-    }
-    loadCats()
-    return () => { isMounted = false }
-  }, [])
+    };
+    loadCats();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ---------- DYNAMIC RULES (TRANSACTION / MASTERS) ----------
-  const [transactionRules, setTransactionRules] = useState([])
-  const [masterRules, setMasterRules] = useState([])
-  const [rulesLoading, setRulesLoading] = useState(false)
+  const [transactionRules, setTransactionRules] = useState([]);
+  const [masterRules, setMasterRules] = useState([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
 
   // DB code -> internal ruleId used by RuleForm switch()
   const ruleCodeToId = {
@@ -96,66 +100,69 @@ const today = new Date().toISOString().slice(0, 10);
     R4: "cancelledAppointment",
     R5: "customerSpecialDay",
     R6: "customerType",
-  }
+  };
 
   const mapApiRule = (r) => ({
     id: ruleCodeToId[r?.code] ?? (r?.code || ""),
     title: r?.name ?? r?.code ?? "",
     desc: r?.name ?? r?.code ?? "",
     raw: r,
-  })
+  });
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
 
     const loadRules = async (type, setter) => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadRules/${type}`, { credentials: "include" })
-        const data = await res.json()
-        const arr = Array.isArray(data) ? data.map(mapApiRule) : []
-        if (alive) setter(arr)
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/OppLoadRules/${type}`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data.map(mapApiRule) : [];
+        if (alive) setter(arr);
       } catch (e) {
-        console.error("Failed to load rules:", type, e)
-        if (alive) setter([])
+        console.error("Failed to load rules:", type, e);
+        if (alive) setter([]);
       }
-    }
+    };
 
     const run = async () => {
-      setRulesLoading(true)
-      await Promise.all([
-        loadRules("TRANSACTION", setTransactionRules),
-        loadRules("MASTERS", setMasterRules),
-      ])
-      setRulesLoading(false)
-    }
+      setRulesLoading(true);
+      await Promise.all([loadRules("TRANSACTION", setTransactionRules), loadRules("MASTERS", setMasterRules)]);
+      setRulesLoading(false);
+    };
 
-    run()
-    return () => { alive = false }
-  }, [])
+    run();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Manual rule
   const manualRules = [
     { id: "manualCreateLead", title: "Create Manual Lead", desc: "Create a lead without auto-segmentation." },
-  ]
+  ];
 
-  const ALL_RULES = [...transactionRules, ...masterRules, ...manualRules]
-  const TX_IDS = useMemo(() => transactionRules.map(r => r.id), [transactionRules])
-  const MS_IDS = useMemo(() => masterRules.map(r => r.id), [masterRules])
-  const MANUAL_ID = "manualCreateLead"
+  const ALL_RULES = [...transactionRules, ...masterRules, ...manualRules];
+  const TX_IDS = useMemo(() => transactionRules.map((r) => r.id), [transactionRules]);
+  const MS_IDS = useMemo(() => masterRules.map((r) => r.id), [masterRules]);
+  const MANUAL_ID = "manualCreateLead";
 
   // ---------- STATE ----------
-  const [opportunityName, setOpportunityName] = useState("")
-  const [selectedRule, setSelectedRule] = useState("")
+  const [opportunityName, setOpportunityName] = useState("");
+  const [selectedRule, setSelectedRule] = useState("");
+    const isManualLeadSelected = selectedRule === MANUAL_ID; // ✅ NEW (used for modal gating)
+
   const [ruleValues, setRuleValues] = useState({
     // R1
     paidForXButNotY: {
       categoryX: [],
       categoryY: [],
-      fetchType: "",        // "1" | "2"
-      categoryWindow: "",   // "", "1","7","30","90","0","9999" — hidden for static
+      fetchType: "", // "1" | "2"
+      categoryWindow: "", // "", "1","7","30","90","0","9999" — hidden for static
       customDays: "",
       fromDate: "",
-      toDate: ""
+      toDate: "",
     },
     // R2
     paidForXCategoryInYDays: {
@@ -166,177 +173,178 @@ const today = new Date().toISOString().slice(0, 10);
       fromDate2: "",
       toDate2: "",
       categoryP: [],
-      fetchType: ""
+      fetchType: "",
     },
     // R3
     noShowAppointment: {
       fetchType: "",
-      windowType: "",   // hidden for static
+      windowType: "", // hidden for static
       customDays: "",
       fromDate: "",
-      toDate: ""
+      toDate: "",
     },
     // R4
     cancelledAppointment: {
       fetchType: "",
-      windowType: "",   // hidden for static
+      windowType: "", // hidden for static
       customDays: "",
       fromDate: "",
-      toDate: ""
+      toDate: "",
     },
     // R5
     customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" },
     // R6
-    customerType:       { type: "", fetchType: "" },
+    customerType: { type: "", fetchType: "" },
     // Manual
     manualCreateLead: {
-  note: "",
-  fetchType: "1",            // fixed to Static for manual lead
-  manualFromDate: "",
-  manualToMode: "current",   // "current" | "custom"
-  manualToDate: "",
-},
+      note: "",
+      fetchType: "1", // fixed to Static for manual lead
+      manualFromDate: "",
+      manualToMode: "current", // "current" | "custom"
+      manualToDate: "",
+    },
+  });
 
-  })
-  const [errors, setErrors] = useState({ name: "", rule: "", fields: "" })
-  const nameRef = useRef(null)
-  const rulesRef = useRef(null)
+  const [errors, setErrors] = useState({ name: "", rule: "", fields: "" });
+  const nameRef = useRef(null);
+  const rulesRef = useRef(null);
 
   // ---------- Activate Modal State ----------
-  const [activateOpen, setActivateOpen] = useState(false)
-  const [campStart, setCampStart] = useState("")
-  const [campEnd, setCampEnd] = useState("")
-  const [activateErr, setActivateErr] = useState("")
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [campStart, setCampStart] = useState("");
+  const [campEnd, setCampEnd] = useState("");
+  const [activateErr, setActivateErr] = useState("");
 
   // ---------- SCROLL WHEN RULE SELECTED ----------
   useEffect(() => {
     if (selectedRule && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
-      const firstInput = formRef.current.querySelector("input, select, textarea, [data-msel]")
-      if (firstInput) firstInput.focus?.({ preventScroll: true })
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const firstInput = formRef.current.querySelector("input, select, textarea, [data-msel]");
+      if (firstInput) firstInput.focus?.({ preventScroll: true });
     }
-  }, [selectedRule])
+  }, [selectedRule]);
 
   // ---------- HELPERS ----------
   const selectRule = (id) => {
-    setSelectedRule(id)
-    if (errors.rule || errors.fields) setErrors(prev => ({ ...prev, rule: "", fields: "" }))
-  }
-  const clearSelection = () => setSelectedRule("")
+    setSelectedRule(id);
+    if (errors.rule || errors.fields) setErrors((prev) => ({ ...prev, rule: "", fields: "" }));
+  };
+  const clearSelection = () => setSelectedRule("");
   const setField = (ruleId, field, value) => {
-    setRuleValues(prev => ({
+    setRuleValues((prev) => ({
       ...prev,
       [ruleId]: { ...prev[ruleId], [field]: value },
-    }))
-    if (errors.fields) setErrors(prev => ({ ...prev, fields: "" }))
-  }
+    }));
+    if (errors.fields) setErrors((prev) => ({ ...prev, fields: "" }));
+  };
 
   // Required fields baseline (dynamic filtering for static happens in isRuleValid)
-  const requiredFields = useMemo(() => ({
-    paidForXButNotY: ["categoryX", "categoryY", "categoryWindow"],
-    paidForXCategoryInYDays: ["categoryX", "fromDate1", "toDate1", "zDays", "fromDate2", "toDate2", "categoryP"],
-    noShowAppointment: ["windowType"],
-    cancelledAppointment: ["windowType"],
-    customerSpecialDay: ["dayType"],
-    customerType: ["type"],
-    manualCreateLead: [],
-  }), [])
+  const requiredFields = useMemo(
+    () => ({
+      paidForXButNotY: ["categoryX", "categoryY", "categoryWindow"],
+      paidForXCategoryInYDays: ["categoryX", "fromDate1", "toDate1", "zDays", "fromDate2", "toDate2", "categoryP"],
+      noShowAppointment: ["windowType"],
+      cancelledAppointment: ["windowType"],
+      customerSpecialDay: ["dayType"],
+      customerType: ["type"],
+      manualCreateLead: [],
+    }),
+    []
+  );
 
-  const isCustom = (v) => String(v) === "0"
-  const isRange  = (v) => String(v) === "9999"
+  const isCustom = (v) => String(v) === "0";
+  const isRange = (v) => String(v) === "9999";
   const numericDays = (v) => {
-    const s = (v ?? "").toString()
-    if (!s || isCustom(s) || isRange(s)) return ""
-    return s
-  }
+    const s = (v ?? "").toString();
+    if (!s || isCustom(s) || isRange(s)) return "";
+    return s;
+  };
 
   const daysBetween = (start, end) => {
-    if (!start || !end) return ""
-    const s = new Date(start)
-    const e = new Date(end)
-    if (isNaN(s) || isNaN(e)) return ""
-    const ms = e.getTime() - s.getTime()
-    if (ms < 0) return ""
-    const d = Math.ceil(ms / (1000 * 60 * 60 * 24))
-    return String(d)
-  }
+    if (!start || !end) return "";
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s) || isNaN(e)) return "";
+    const ms = e.getTime() - s.getTime();
+    if (ms < 0) return "";
+    const d = Math.ceil(ms / (1000 * 60 * 60 * 24));
+    return String(d);
+  };
 
   const toDMY = (ymd) => {
-    if (!ymd) return ""
-    const [y, m, d] = (ymd || "").split("-")
-    if (!y || !m || !d) return ""
-    return `${d}/${m}/${y}`
-  }
-  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "")
+    if (!ymd) return "";
+    const [y, m, d] = (ymd || "").split("-");
+    if (!y || !m || !d) return "";
+    return `${d}/${m}/${y}`;
+  };
+  const safeDMY = (ymd) => (ymd ? toDMY(ymd) : "");
 
   // Compute the exact noShowDays value the API expects
   const computeNoShowDays = (v) => {
-    if (String(v.fetchType) === "1") return "9999"        // STATIC sentinel
-    if (isCustom(v.windowType)) return String(v.customDays || "")
-    if (isRange(v.windowType))  return daysBetween(v.fromDate, v.toDate) || ""
-    return numericDays(v.windowType)                      // 1 / 7 / 30 / 90
-  }
+    if (String(v.fetchType) === "1") return "9999"; // STATIC sentinel
+    if (isCustom(v.windowType)) return String(v.customDays || "");
+    if (isRange(v.windowType)) return daysBetween(v.fromDate, v.toDate) || "";
+    return numericDays(v.windowType); // 1 / 7 / 30 / 90
+  };
 
   const isRuleValid = (ruleId) => {
-    if (!ruleId) return false
-    const vals = ruleValues[ruleId] || {}
-    const ft = String(vals.fetchType || "")
+    if (!ruleId) return false;
+    const vals = ruleValues[ruleId] || {};
+    const ft = String(vals.fetchType || "");
 
-    if (!["1", "2"].includes(ft)) return false
+    if (!["1", "2"].includes(ft)) return false;
 
-    // ✅ Manual Create Lead: from/to date rules (no Segment dropdown)
-if (ruleId === "manualCreateLead") {
-  const from = (vals.manualFromDate || "").toString().trim()
-  const toMode = (vals.manualToMode || "current").toString()
-  const toDate = (vals.manualToDate || "").toString().trim()
+    // ✅ Manual Create Lead: from/to date rules
+    if (ruleId === "manualCreateLead") {
+      const from = (vals.manualFromDate || "").toString().trim();
+      const toMode = (vals.manualToMode || "current").toString();
+      const toDate = (vals.manualToDate || "").toString().trim();
 
-  if (!from) return false
-  if (toMode === "custom" && !toDate) return false
-  return true
-}
-
-
-    // dynamically filter required fields for static (hide dropdowns -> don't require them)
-    let baseReq = requiredFields[ruleId] || []
-    if (ft === "1") {
-      baseReq = baseReq.filter(k => !["categoryWindow", "windowType"].includes(k))
+      if (!from) return false;
+      if (toMode === "custom" && !toDate) return false;
+      return true;
     }
-    const isFilled = (v) => Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== ""
-    if (!baseReq.every(k => isFilled(vals[k]))) return false
+
+    // dynamically filter required fields for static
+    let baseReq = requiredFields[ruleId] || [];
+    if (ft === "1") {
+      baseReq = baseReq.filter((k) => !["categoryWindow", "windowType"].includes(k));
+    }
+    const isFilled = (v) => (Array.isArray(v) ? v.length > 0 : (v ?? "").toString().trim() !== "");
+    if (!baseReq.every((k) => isFilled(vals[k]))) return false;
 
     // Rule-specific checks
     if (ruleId === "paidForXButNotY") {
       if (ft === "1") {
-        // static requires its own date range
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false;
       } else {
-        if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false
+        if (isCustom(vals.categoryWindow) && !isFilled(vals.customDays)) return false;
         if (isRange(vals.categoryWindow)) {
-          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false;
         }
       }
     }
 
     if (ruleId === "noShowAppointment" || ruleId === "cancelledAppointment") {
       if (ft === "1") {
-        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+        if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false;
       } else {
-        if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false
+        if (isCustom(vals.windowType) && !isFilled(vals.customDays)) return false;
         if (isRange(vals.windowType)) {
-          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false
+          if (!isFilled(vals.fromDate) || !isFilled(vals.toDate)) return false;
         }
       }
     }
 
     if (ruleId === "noShowAppointment") {
-      const nd = computeNoShowDays(vals)
-      if (!nd) return false
+      const nd = computeNoShowDays(vals);
+      if (!nd) return false;
     }
 
-    return true
-  }
+    return true;
+  };
 
-  const canSubmit = opportunityName.trim() && selectedRule && isRuleValid(selectedRule)
+  const canSubmit = opportunityName.trim() && selectedRule && isRuleValid(selectedRule);
 
   // ---------- UI payload (for parent) ----------
   const buildPayload = () => ({
@@ -346,33 +354,31 @@ if (ruleId === "manualCreateLead") {
     segmentationTransaction: TX_IDS.includes(selectedRule) ? selectedRule : "",
     segmentationMasters: MS_IDS.includes(selectedRule) ? selectedRule : "",
     manualBased: { createManualLead: selectedRule === MANUAL_ID },
-  })
+  });
 
   const getSelectedRuleMeta = () => {
-    const match = ALL_RULES.find(r => r.id === selectedRule)
-    const ruleCode = match?.raw?.code || ""
-    return { ruleCode }
-  }
+    const match = ALL_RULES.find((r) => r.id === selectedRule);
+    const ruleCode = match?.raw?.code || "";
+    return { ruleCode };
+  };
 
   // helpers
   const labelsFromValues = (vals = []) =>
-    (Array.isArray(vals) ? vals : []).map(v => catOptions.find(o => o.value === v)?.label || v)
+    (Array.isArray(vals) ? vals : []).map((v) => catOptions.find((o) => o.value === v)?.label || v);
 
-  const computeWindowDays = ({ fetchType, windowSelect, fromDate, toDate, customDays }) => {
-    const ft = String(fetchType || "")
-    const ws = String(windowSelect || "")
-    if (ft === "1") {
-      return daysBetween(fromDate, toDate) || ""
-    }
-    if (isCustom(ws)) return ""
-    if (isRange(ws)) return daysBetween(fromDate, toDate) || ""
-    return numericDays(ws)
-  }
+  const computeWindowDays = ({ fetchType, windowSelect, fromDate, toDate }) => {
+    const ft = String(fetchType || "");
+    const ws = String(windowSelect || "");
+    if (ft === "1") return daysBetween(fromDate, toDate) || "";
+    if (isCustom(ws)) return "";
+    if (isRange(ws)) return daysBetween(fromDate, toDate) || "";
+    return numericDays(ws);
+  };
 
   // Build EXACT API payload
   const buildApiPayload = (campaignDates) => {
-    const { ruleCode } = getSelectedRuleMeta()
-    const v = ruleValues[selectedRule] || {}
+    const { ruleCode } = getSelectedRuleMeta();
+    const v = ruleValues[selectedRule] || {};
 
     const base = {
       request: "save",
@@ -398,422 +404,444 @@ if (ruleId === "manualCreateLead") {
       customFromDate: "",
       customToDate: "",
       campStartDate: safeDMY(campaignDates?.startDate),
-      campEndDate:   safeDMY(campaignDates?.endDate),
+      campEndDate: safeDMY(campaignDates?.endDate),
       noShowDays: "",
       noShowCustomDays: "",
       cancelDays: "",
       cancelCustomDays: "",
       customerSpecialDays: "",
-      customerType: ""
-    }
+      customerType: "",
+    };
 
     switch (selectedRule) {
-      case "paidForXButNotY": { // R1
-        base.xvalue = labelsFromValues(v.categoryX).join(",")
-        base.yvalue = labelsFromValues(v.categoryY).join(",")
+      case "paidForXButNotY": {
+        base.xvalue = labelsFromValues(v.categoryX).join(",");
+        base.yvalue = labelsFromValues(v.categoryY).join(",");
 
         base.ruleDays = computeWindowDays({
           fetchType: v.fetchType,
           windowSelect: v.categoryWindow,
           fromDate: v.fromDate,
           toDate: v.toDate,
-          customDays: v.customDays
-        })
+        });
 
-        if (isCustom(v.categoryWindow)) base.ruleCustomDays = String(v.customDays || "")
+        if (isCustom(v.categoryWindow)) base.ruleCustomDays = String(v.customDays || "");
         if (String(v.fetchType) === "2" && isRange(v.categoryWindow)) {
-          base.customFromDate = safeDMY(v.fromDate)
-          base.customToDate   = safeDMY(v.toDate)
+          base.customFromDate = safeDMY(v.fromDate);
+          base.customToDate = safeDMY(v.toDate);
         }
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate)   // ← static uses its own inputs
-          base.staticToDate   = safeDMY(v.toDate)
+          base.staticFromDate = safeDMY(v.fromDate);
+          base.staticToDate = safeDMY(v.toDate);
         }
-        break
+        break;
       }
 
-      case "paidForXCategoryInYDays": { // R2
-        base.xvalue = labelsFromValues(v.categoryX).join(",")
-        base.pvalue = labelsFromValues(v.categoryP).join(",")
+      case "paidForXCategoryInYDays": {
+        base.xvalue = labelsFromValues(v.categoryX).join(",");
+        base.pvalue = labelsFromValues(v.categoryP).join(",");
 
-        const yDays = daysBetween(v.fromDate1, v.toDate1)
-        base.ruleDays = yDays || ""
-        base.zValue   = String(v.zDays || "")
+        const yDays = daysBetween(v.fromDate1, v.toDate1);
+        base.ruleDays = yDays || "";
+        base.zValue = String(v.zDays || "");
 
-        base.ruleYFromDate = safeDMY(v.fromDate1)
-        base.ruleYToDate   = safeDMY(v.toDate1)
-        base.ruleZFromDate = safeDMY(v.fromDate2)
-        base.ruleZToDate   = safeDMY(v.toDate2)
+        base.ruleYFromDate = safeDMY(v.fromDate1);
+        base.ruleYToDate = safeDMY(v.toDate1);
+        base.ruleZFromDate = safeDMY(v.fromDate2);
+        base.ruleZToDate = safeDMY(v.toDate2);
 
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate1)
-          base.staticToDate   = safeDMY(v.toDate1)
+          base.staticFromDate = safeDMY(v.fromDate1);
+          base.staticToDate = safeDMY(v.toDate1);
         } else {
-          base.customFromDate = safeDMY(v.fromDate1)
-          base.customToDate   = safeDMY(v.toDate1)
+          base.customFromDate = safeDMY(v.fromDate1);
+          base.customToDate = safeDMY(v.toDate1);
         }
-        break
+        break;
       }
 
-      case "noShowAppointment": { // R3
-        const nDays = computeNoShowDays(v)        // "9999" for static; else computed
-        base.noShowDays = nDays
-        base.noShowCustomDays = ""
-        // Set static/custom date range from inputs
+      case "noShowAppointment": {
+        const nDays = computeNoShowDays(v);
+        base.noShowDays = nDays;
+        base.noShowCustomDays = "";
+
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate)
-          base.staticToDate   = safeDMY(v.toDate)
+          base.staticFromDate = safeDMY(v.fromDate);
+          base.staticToDate = safeDMY(v.toDate);
         } else if (isRange(v.windowType)) {
-          base.customFromDate = safeDMY(v.fromDate)
-          base.customToDate   = safeDMY(v.toDate)
+          base.customFromDate = safeDMY(v.fromDate);
+          base.customToDate = safeDMY(v.toDate);
         }
-        base.ruleDetails = `No show for ${nDays} days`
-        break
+
+        base.ruleDetails = `No show for ${nDays} days`;
+        break;
       }
 
-      case "cancelledAppointment": { // R4
+      case "cancelledAppointment": {
         if (String(v.fetchType) === "1") {
-          // STATIC:
-          const computedDays = daysBetween(v.fromDate, v.toDate) || ""
-          // Per your requirement:
-          // - cancelDays => "9999" (sentinel)
-          // - cancelCustomDays => "9999"
-          // - customFromDate/customToDate are mandatory and come from the same static inputs
-          base.cancelDays = "9999"
-          base.cancelCustomDays = "9999"
+          const computedDays = daysBetween(v.fromDate, v.toDate) || "";
+          base.cancelDays = "9999";
+          base.cancelCustomDays = "9999";
 
-          // Dates from static inputs
-          base.staticFromDate = safeDMY(v.fromDate)
-          base.staticToDate   = safeDMY(v.toDate)
+          base.staticFromDate = safeDMY(v.fromDate);
+          base.staticToDate = safeDMY(v.toDate);
 
-          // Also fill custom range from same inputs (mandatory)
-          base.customFromDate = safeDMY(v.fromDate)
-          base.customToDate   = safeDMY(v.toDate)
+          base.customFromDate = safeDMY(v.fromDate);
+          base.customToDate = safeDMY(v.toDate);
 
-          base.ruleDetails = `Cancelled appointment for ${computedDays} days`
+          base.ruleDetails = `Cancelled appointment for ${computedDays} days`;
         } else {
-          // DYNAMIC:
-          let cDays = ""
+          let cDays = "";
           cDays =
             (isCustom(v.windowType) ? String(v.customDays || "") : "") ||
             numericDays(v.windowType) ||
-            (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : "")
+            (isRange(v.windowType) ? daysBetween(v.fromDate, v.toDate) : "");
 
-          base.cancelDays = cDays
-          base.cancelCustomDays = isCustom(v.windowType) ? String(v.customDays || "") : ""
+          base.cancelDays = cDays;
+          base.cancelCustomDays = isCustom(v.windowType) ? String(v.customDays || "") : "";
 
           if (isRange(v.windowType)) {
-            base.customFromDate = safeDMY(v.fromDate)
-            base.customToDate   = safeDMY(v.toDate)
+            base.customFromDate = safeDMY(v.fromDate);
+            base.customToDate = safeDMY(v.toDate);
           }
 
-          base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`
+          base.ruleDetails = `Cancelled appointment for ${cDays || "X"} days`;
         }
-        break
+        break;
       }
 
-      case "customerSpecialDay": { // R5
-        base.customerSpecialDays = String(v.dayType || "")
+      case "customerSpecialDay": {
+        base.customerSpecialDays = String(v.dayType || "");
         if (String(v.fetchType) === "1") {
-          base.staticFromDate = safeDMY(v.fromDate)
-          base.staticToDate   = safeDMY(v.toDate)
+          base.staticFromDate = safeDMY(v.fromDate);
+          base.staticToDate = safeDMY(v.toDate);
         } else {
-          base.customFromDate = safeDMY(v.fromDate)
-          base.customToDate   = safeDMY(v.toDate)
+          base.customFromDate = safeDMY(v.fromDate);
+          base.customToDate = safeDMY(v.toDate);
         }
-        base.ruleDetails = "Customer Special Day"
-        break
+        base.ruleDetails = "Customer Special Day";
+        break;
       }
 
-      case "customerType": { // R6
-        base.customerType = v.type || ""
-        break
+      case "customerType": {
+        base.customerType = v.type || "";
+        break;
       }
 
       case "manualCreateLead": {
-  const todayYMD = new Date().toISOString().slice(0, 10)
+        const todayYMD = new Date().toISOString().slice(0, 10);
 
-  const from = v.manualFromDate || ""
-  const to =
-    String(v.manualToMode || "current") === "custom"
-      ? (v.manualToDate || "")
-      : todayYMD
+        const from = v.manualFromDate || "";
+        const to = String(v.manualToMode || "current") === "custom" ? v.manualToDate || "" : todayYMD;
 
-  // force static for manual
-  base.ruleType = "1"
-  base.ruleFetchType = "1"
-  base.ruleDays = "9999" // date range style
-  base.staticFromDate = safeDMY(from)
-  base.staticToDate = safeDMY(to)
+        base.ruleType = "1";
+        base.ruleFetchType = "1";
+        base.ruleDays = "9999";
+       // base.staticFromDate = safeDMY(from);
+       // base.staticToDate = safeDMY(to);
 
-  base.ruleDetails = "Create Manual Lead"
-  break
-}
+        base.ruleDetails = "Create Manual Lead";
+        break;
+      }
 
       default:
-        break
+        break;
     }
 
-    Object.keys(base).forEach(k => {
-      if (base[k] === undefined || base[k] === null) base[k] = ""
-    })
+    Object.keys(base).forEach((k) => {
+      if (base[k] === undefined || base[k] === null) base[k] = "";
+    });
 
-    return base
-  }
+    return base;
+  };
 
   const postCreate = async (campaignDates) => {
-    const body = buildApiPayload(campaignDates)
-    console.log("CreateNewOpp payload:", body)
+    const body = buildApiPayload(campaignDates);
+    console.log("CreateNewOpp payload:", body);
+
     const res = await fetch(`${API_BASE_URL}/api/Opportunity/CreateNewOpp`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       credentials: "include",
       body: JSON.stringify(body),
-    })
+    });
 
-    let data = null
-    let text = ""
-    try { data = await res.json() } catch (_) {
-      try { text = await res.text() } catch (_) {}
+    let data = null;
+    let text = "";
+    try {
+      data = await res.json();
+    } catch (_) {
+      try {
+        text = await res.text();
+      } catch (_) {}
     }
 
     if (!res.ok) {
-      const msg = (data && (data.message || data.error)) || text || `HTTP ${res.status}`
-      throw new Error(msg)
+      const msg = (data && (data.message || data.error)) || text || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
     if (data && data.success === false) {
-      throw new Error(data.message || "CreateNewOpp returned success:false")
+      throw new Error(data.message || "CreateNewOpp returned success:false");
     }
-    return data || {}
-  }
+    return data || {};
+  };
 
-  // Only “Activate” flow in this screen (but posting as save/isDraft=1)
-  const handleActivateClick = () => {
-    setActivateErr("")
+  // ✅ UPDATED: Manual Lead should NOT open Activate Modal
+  const handleActivateClick = async () => {
+    setActivateErr("");
+
     if (!canSubmit) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
         name: !opportunityName.trim() ? "Please enter an opportunity name." : "",
         rule: !selectedRule ? "Please choose one rule." : "",
-        fields: selectedRule && !isRuleValid(selectedRule) ? "Please complete the required fields for the selected rule." : "",
-      }))
-      if (!opportunityName.trim() && nameRef.current) nameRef.current.focus()
-      else if (!selectedRule && rulesRef.current) rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
-      return
+        fields:
+          selectedRule && !isRuleValid(selectedRule)
+            ? "Please complete the required fields for the selected rule."
+            : "",
+      }));
+      if (!opportunityName.trim() && nameRef.current) nameRef.current.focus();
+      else if (!selectedRule && rulesRef.current)
+        rulesRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
     }
-    setActivateOpen(true)
-  }
+
+    // ✅ Manual Create Lead: submit directly (no popup)
+    if (selectedRule === MANUAL_ID) {
+      const v = ruleValues[MANUAL_ID] || {};
+      const todayYMD = new Date().toISOString().slice(0, 10);
+
+      const from = (v.manualFromDate || "").toString().trim();
+      const to =
+        String(v.manualToMode || "current") === "custom"
+          ? (v.manualToDate || "").toString().trim()
+          : todayYMD;
+
+      // Guard rails (should already be covered by isRuleValid)
+      if (!from) {
+        setErrors((prev) => ({ ...prev, fields: "Please select From Date." }));
+        return;
+      }
+      if (String(v.manualToMode || "current") === "custom" && !to) {
+        setErrors((prev) => ({ ...prev, fields: "Please select To Date." }));
+        return;
+      }
+      if (new Date(from) > new Date(to)) {
+        setErrors((prev) => ({ ...prev, fields: "From Date cannot be after To Date." }));
+        return;
+      }
+
+      try {
+        // Send manual range as campaign dates too (or backend can ignore camp dates if it wants)
+        await postCreate({ startDate: from, endDate: to });
+        alert("Manual lead saved.");
+        onNext?.(buildPayload());
+        navigate("/opportunity");
+      } catch (e) {
+        console.error(e);
+        setErrors((prev) => ({ ...prev, fields: e.message || "Failed to save manual lead. Please try again." }));
+      }
+      return;
+    }
+
+    // ✅ For all other rules: open campaign dates modal
+    setActivateOpen(true);
+  };
 
   const confirmActivate = async () => {
     if (!campStart || !campEnd) {
-      setActivateErr("Please select both campaign start and end dates.")
-      return
+      setActivateErr("Please select both campaign start and end dates.");
+      return;
     }
     if (new Date(campStart) > new Date(campEnd)) {
-      setActivateErr("Start date cannot be after end date.")
-      return
+      setActivateErr("Start date cannot be after end date.");
+      return;
     }
 
     try {
-      await postCreate({ startDate: campStart, endDate: campEnd }) // posts as request:"save", isDraft:"1"
-      setActivateOpen(false)
-      alert("Saved (activation-style) with request:'save' and isDraft:'1'.")
-      onNext?.(buildPayload())
-      navigate("/opportunity")
+      await postCreate({ startDate: campStart, endDate: campEnd });
+      setActivateOpen(false);
+      alert("Saved (activation-style) with request:'save' and isDraft:'1'.");
+      onNext?.(buildPayload());
+      navigate("/opportunity");
     } catch (e) {
-      console.error(e)
-      setActivateErr(e.message || "Failed to save. Please try again.")
+      console.error(e);
+      setActivateErr(e.message || "Failed to save. Please try again.");
     }
-  }
+  };
 
   // ---------- MULTISELECT ----------
- const MultiSelect = ({
-  label,
-  values = [],
-  onChange,
-  placeholder = "None selected",
-  disabledValues = []
-}) => {
-  const [open, setOpen] = useState(false)
-  const [q, setQ] = useState("")
-  const [local, setLocal] = useState(values)
-  const containerRef = useRef(null)
-  const [openUpwards, setOpenUpwards] = useState(false)
+  const MultiSelect = ({ label, values = [], onChange, placeholder = "None selected", disabledValues = [] }) => {
+    const [open, setOpen] = useState(false);
+    const [q, setQ] = useState("");
+    const [local, setLocal] = useState(values);
+    const containerRef = useRef(null);
+    const [openUpwards, setOpenUpwards] = useState(false);
 
-  useEffect(() => { if (open) setLocal(values) }, [open, values])
+    useEffect(() => {
+      if (open) setLocal(values);
+    }, [open, values]);
 
-  // Detect click outside to close
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false)
+    // Detect click outside to close
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (containerRef.current && !containerRef.current.contains(e.target)) {
+          setOpen(false);
+        }
+      };
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    // Detect if dropdown should open upwards
+    useEffect(() => {
+      if (!open) return;
+      const rect = containerRef.current?.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      if (rect) {
+        const spaceBelow = viewportHeight - rect.bottom;
+        setOpenUpwards(spaceBelow < 260);
       }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
+    }, [open]);
 
-  // Detect if dropdown should open upwards
-  useEffect(() => {
-    if (!open) return
-    const rect = containerRef.current?.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    if (rect) {
-      const spaceBelow = viewportHeight - rect.bottom
-      setOpenUpwards(spaceBelow < 260) // threshold (approx dropdown height)
-    }
-  }, [open])
+    const filtered = useMemo(() => {
+      if (!q.trim()) return catOptions;
+      const qq = q.toLowerCase();
+      return catOptions.filter((o) => (o.label || "").toLowerCase().includes(qq));
+    }, [q, catOptions]);
 
-  const filtered = useMemo(() => {
-    if (!q.trim()) return catOptions
-    const qq = q.toLowerCase()
-    return catOptions.filter(o => (o.label || "").toLowerCase().includes(qq))
-  }, [q, catOptions])
+    const selectableFiltered = filtered.filter((o) => !disabledValues.includes(o.value));
+    const allSelected = selectableFiltered.length > 0 && selectableFiltered.every((o) => local.includes(o.value));
 
-  const selectableFiltered = filtered.filter(o => !disabledValues.includes(o.value))
-  const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(o => local.includes(o.value))
+    const toggleAll = () => {
+      if (allSelected) {
+        const toRemove = new Set(selectableFiltered.map((o) => o.value));
+        setLocal((prev) => prev.filter((v) => !toRemove.has(v)));
+      } else {
+        const union = new Set(local);
+        selectableFiltered.forEach((o) => union.add(o.value));
+        setLocal(Array.from(union));
+      }
+    };
 
-  const toggleAll = () => {
-    if (allSelected) {
-      const toRemove = new Set(selectableFiltered.map(o => o.value))
-      setLocal(prev => prev.filter(v => !toRemove.has(v)))
-    } else {
-      const union = new Set(local)
-      selectableFiltered.forEach(o => union.add(o.value))
-      setLocal(Array.from(union))
-    }
-  }
+    const toggleOne = (v) => {
+      if (disabledValues.includes(v)) return;
+      setLocal((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+    };
 
-  const toggleOne = (v) => {
-    if (disabledValues.includes(v)) return
-    setLocal(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  }
+    const closeWithCommit = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onChange(local);
+      setTimeout(() => setOpen(false), 100);
+    };
 
-  const closeWithCommit = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    onChange(local)
-    setTimeout(() => setOpen(false), 100)
-  }
+    const shown = open ? local : values;
+    const buttonLabel =
+      shown.length === 0
+        ? placeholder
+        : shown.length === 1
+        ? catOptions.find((o) => o.value === shown[0])?.label ?? placeholder
+        : `${shown.length} selected`;
 
-  const shown = open ? local : values
-  const buttonLabel =
-    shown.length === 0
-      ? placeholder
-      : shown.length === 1
-      ? (catOptions.find(o => o.value === shown[0])?.label ?? placeholder)
-      : `${shown.length} selected`
-
-  return (
-    <div className="msel" data-msel tabIndex={0} ref={containerRef}>
-      <span className="rf-label">{label}</span>
-      <button
-        className="msel-btn"
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setOpen(v => !v)}
-      >
-        {buttonLabel}<span className="msel-caret">▾</span>
-      </button>
-
-      {open && (
-        <div
-          className={`msel-dd ${openUpwards ? "msel-up" : ""}`}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
+    return (
+      <div className="msel" data-msel tabIndex={0} ref={containerRef}>
+        <span className="rf-label">{label}</span>
+        <button
+          className="msel-btn"
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((v) => !v)}
         >
-          <div className="msel-search">
-            <input
-              placeholder="Search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="msel-search-input"
-              onPointerDown={(e) => e.stopPropagation()}
-            />
-            <button className="msel-clear" type="button" onClick={() => setQ("")}>✕</button>
-          </div>
+          {buttonLabel}
+          <span className="msel-caret">▾</span>
+        </button>
 
-          <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-              onMouseDown={(e) => e.preventDefault()}
-            />
-            <span>Select all</span>
-          </div>
+        {open && (
+          <div className={`msel-dd ${openUpwards ? "msel-up" : ""}`} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <div className="msel-search">
+              <input
+                placeholder="Search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="msel-search-input"
+                onPointerDown={(e) => e.stopPropagation()}
+              />
+              <button className="msel-clear" type="button" onClick={() => setQ("")}>
+                ✕
+              </button>
+            </div>
 
-          <div className="msel-list">
-            {catLoading ? (
-              <div className="msel-empty">Loading…</div>
-            ) : filtered.length === 0 ? (
-              <div className="msel-empty">No results</div>
-            ) : (
-              filtered.map(opt => {
-                const isDisabled = disabledValues.includes(opt.value)
-                const checked = local.includes(opt.value)
-                return (
-                  <div
-                    key={opt.value}
-                    className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      className="msel-opt"
-                      data-val={opt.value}
-                      type="checkbox"
-                      checked={checked}
-                      disabled={isDisabled}
-                      onChange={() => toggleOne(opt.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <span>{opt.label}</span>
-                  </div>
-                )
-              })
-            )}
-          </div>
+            <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} onMouseDown={(e) => e.preventDefault()} />
+              <span>Select all</span>
+            </div>
 
-          <div className="msel-footer">
-            <button
-              type="button"
-              className="msel-done"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-              onClick={closeWithCommit}
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+            <div className="msel-list">
+              {catLoading ? (
+                <div className="msel-empty">Loading…</div>
+              ) : filtered.length === 0 ? (
+                <div className="msel-empty">No results</div>
+              ) : (
+                filtered.map((opt) => {
+                  const isDisabled = disabledValues.includes(opt.value);
+                  const checked = local.includes(opt.value);
+                  return (
+                    <div key={opt.value} className={`msel-row ${isDisabled ? "msel-disabled" : ""}`} onPointerDown={(e) => e.stopPropagation()}>
+                      <input
+                        className="msel-opt"
+                        data-val={opt.value}
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isDisabled}
+                        onChange={() => toggleOne(opt.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span>{opt.label}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
 
+            <div className="msel-footer">
+              <button
+                type="button"
+                className="msel-done"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={closeWithCommit}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ---------- Shared row: Rule Data Fetch Type ----------
   const FetchTypeRow = ({ ruleId, vals }) => (
     <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
       <label className="rf-field">
         <span className="rf-label">Segment</span>
-        <select
-          className="rf-input"
-          value={vals.fetchType || ""}
-          onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
-        >
+        <select className="rf-input" value={vals.fetchType || ""} onChange={(e) => setField(ruleId, "fetchType", e.target.value)}>
           <option value="">Select</option>
           <option value="1">Static</option>
           <option value="2">Dynamic</option>
         </select>
       </label>
     </div>
-  )
+  );
 
   // ---------- RULE FORMS ----------
   const RuleForm = ({ ruleId }) => {
-    if (!ruleId) return null
-    const v = ruleValues[ruleId] || {}
-    const isStatic = String(v.fetchType) === "1"
+    if (!ruleId) return null;
+    const v = ruleValues[ruleId] || {};
+    const isStatic = String(v.fetchType) === "1";
 
     switch (ruleId) {
       case "paidForXButNotY":
@@ -821,11 +849,7 @@ if (ruleId === "manualCreateLead") {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid">
-              <MultiSelect
-                label="Paid for"
-                values={v.categoryX}
-                onChange={(arr) => setField(ruleId, "categoryX", arr)}
-              />
+              <MultiSelect label="Paid for" values={v.categoryX} onChange={(arr) => setField(ruleId, "categoryX", arr)} />
               <MultiSelect
                 label="Category but not for"
                 values={v.categoryY}
@@ -842,10 +866,13 @@ if (ruleId === "manualCreateLead") {
                       className="rf-input"
                       value={v.categoryWindow}
                       onChange={(e) => {
-                        const val = e.target.value
-                        setField(ruleId, "categoryWindow", val)
-                        if (!isCustom(val)) setField(ruleId, "customDays", "")
-                        if (!isRange(val)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                        const val = e.target.value;
+                        setField(ruleId, "categoryWindow", val);
+                        if (!isCustom(val)) setField(ruleId, "customDays", "");
+                        if (!isRange(val)) {
+                          setField(ruleId, "fromDate", "");
+                          setField(ruleId, "toDate", "");
+                        }
                       }}
                     >
                       <option value="">Select</option>
@@ -877,66 +904,40 @@ if (ruleId === "manualCreateLead") {
 
               {/* Date inputs */}
               {isStatic ? (
-                // STATIC -> always show date range inputs (these feed staticFromDate/staticToDate)
                 <div className="rf-grid" style={{ alignItems: "center" }}>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
                   </label>
                 </div>
               ) : (
-                // DYNAMIC: Show date range only when "Date Range" selected
                 isRange(v.categoryWindow) && (
                   <div className="rf-grid" style={{ alignItems: "center" }}>
                     <label className="rf-field">
                       <span className="rf-label">From</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.fromDate}
-                        onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                      />
+                      <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
                     </label>
                     <label className="rf-field">
                       <span className="rf-label">To</span>
-                      <input
-                        type="date"
-                        className="rf-input"
-                        value={v.toDate}
-                        onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                      />
+                      <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
                     </label>
                   </div>
                 )
               )}
             </div>
           </>
-        )
+        );
 
       case "paidForXCategoryInYDays":
         return (
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
-            <div className="rf-grid" style={{marginBottom: 10}}>
-              <MultiSelect
-                label="Paid for Category (X)"
-                values={v.categoryX}
-                onChange={(arr) => setField(ruleId, "categoryX", arr)}
-              />
+            <div className="rf-grid" style={{ marginBottom: 10 }}>
+              <MultiSelect label="Paid for Category (X)" values={v.categoryX} onChange={(arr) => setField(ruleId, "categoryX", arr)} />
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
                 <input type="date" className="rf-input" value={v.fromDate1} onChange={(e) => setField(ruleId, "fromDate1", e.target.value)} />
@@ -968,21 +969,16 @@ if (ruleId === "manualCreateLead") {
                 <span className="rf-label">To Date</span>
                 <input type="date" className="rf-input" value={v.toDate2} onChange={(e) => setField(ruleId, "toDate2", e.target.value)} />
               </label>
-              <MultiSelect
-                label="Category (P)"
-                values={v.categoryP}
-                onChange={(arr) => setField(ruleId, "categoryP", arr)}
-              />
+              <MultiSelect label="Category (P)" values={v.categoryP} onChange={(arr) => setField(ruleId, "categoryP", arr)} />
             </div>
           </>
-        )
+        );
 
       case "noShowAppointment":
         return (
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              {/* Hide dropdown for STATIC */}
               {String(v.fetchType) !== "1" && (
                 <label className="rf-field">
                   <span className="rf-label">No show appointment for</span>
@@ -990,10 +986,13 @@ if (ruleId === "manualCreateLead") {
                     className="rf-input"
                     value={v.windowType}
                     onChange={(e) => {
-                      const t = e.target.value
-                      setField(ruleId, "windowType", t)
-                      if (!isCustom(t)) setField(ruleId, "customDays", "")
-                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                      const t = e.target.value;
+                      setField(ruleId, "windowType", t);
+                      if (!isCustom(t)) setField(ruleId, "customDays", "");
+                      if (!isRange(t)) {
+                        setField(ruleId, "fromDate", "");
+                        setField(ruleId, "toDate", "");
+                      }
                     }}
                   >
                     <option value="">Select</option>
@@ -1021,39 +1020,27 @@ if (ruleId === "manualCreateLead") {
                 </>
               )}
 
-              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
               {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
                   </label>
                 </>
               )}
             </div>
           </>
-        )
+        );
 
       case "cancelledAppointment":
         return (
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ alignItems: "center" }}>
-              {/* Hide dropdown for STATIC */}
               {String(v.fetchType) !== "1" && (
                 <label className="rf-field">
                   <span className="rf-label">Cancelled appointment for</span>
@@ -1061,10 +1048,13 @@ if (ruleId === "manualCreateLead") {
                     className="rf-input"
                     value={v.windowType}
                     onChange={(e) => {
-                      const t = e.target.value
-                      setField(ruleId, "windowType", t)
-                      if (!isCustom(t)) setField(ruleId, "customDays", "")
-                      if (!isRange(t)) { setField(ruleId, "fromDate", ""); setField(ruleId, "toDate", "") }
+                      const t = e.target.value;
+                      setField(ruleId, "windowType", t);
+                      if (!isCustom(t)) setField(ruleId, "customDays", "");
+                      if (!isRange(t)) {
+                        setField(ruleId, "fromDate", "");
+                        setField(ruleId, "toDate", "");
+                      }
                     }}
                   >
                     <option value="">Select</option>
@@ -1092,32 +1082,21 @@ if (ruleId === "manualCreateLead") {
                 </>
               )}
 
-              {/* Date inputs: always for STATIC; for DYNAMIC only when range selected */}
               {(String(v.fetchType) === "1" || isRange(v.windowType)) && (
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.fromDate}
-                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input
-                      type="date"
-                      className="rf-input"
-                      value={v.toDate}
-                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
-                    />
+                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
                   </label>
                 </>
               )}
             </div>
           </>
-        )
+        );
 
       case "customerSpecialDay":
         return (
@@ -1145,7 +1124,7 @@ if (ruleId === "manualCreateLead") {
               </label>
             </div>
           </>
-        )
+        );
 
       case "customerType":
         return (
@@ -1162,59 +1141,53 @@ if (ruleId === "manualCreateLead") {
               </label>
             </div>
           </>
-        )
+        );
 
       case "manualCreateLead":
-  return (
-    <>
-      <div className="rf-grid" style={{ alignItems: "center" }}>
-        <label className="rf-field">
-          <span className="rf-label">From Date</span>
-          <input
-            type="date"
-            className="rf-input"
-            value={v.manualFromDate || ""}
-             max={today}
-            onChange={(e) => setField(ruleId, "manualFromDate", e.target.value)}
-          />
-        </label>
+        return (
+          <>
+            <div className="rf-grid" style={{ alignItems: "center" }}>
+              <label className="rf-field">
+                <span className="rf-label">From Date</span>
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.manualFromDate || ""}
+                  max={today}
+                  onChange={(e) => setField(ruleId, "manualFromDate", e.target.value)}
+                />
+              </label>
 
-        <label className="rf-field">
-          <span className="rf-label">To Date</span>
-          <select
-            className="rf-input"
-            value={v.manualToMode || "current"}
-            onChange={(e) => {
-              const mode = e.target.value
-              setField(ruleId, "manualToMode", mode)
-              if (mode !== "custom") setField(ruleId, "manualToDate", "")
-            }}
-          >
-            <option value="current">Current Date</option>
-            <option value="custom">Custom Date</option>
-          </select>
-        </label>
+              <label className="rf-field">
+                <span className="rf-label">To Date</span>
+                <select
+                  className="rf-input"
+                  value={v.manualToMode || "current"}
+                  onChange={(e) => {
+                    const mode = e.target.value;
+                    setField(ruleId, "manualToMode", mode);
+                    if (mode !== "custom") setField(ruleId, "manualToDate", "");
+                  }}
+                >
+                  <option value="current">Current Date</option>
+                  <option value="custom">Custom Date</option>
+                </select>
+              </label>
 
-        {String(v.manualToMode || "current") === "custom" && (
-          <label className="rf-field">
-            <span className="rf-label">To Date</span>
-            <input
-              type="date"
-              className="rf-input"
-              value={v.manualToDate || ""}
-              onChange={(e) => setField(ruleId, "manualToDate", e.target.value)}
-            />
-          </label>
-        )}
-      </div>
-    </>
-  )
-
+              {String(v.manualToMode || "current") === "custom" && (
+                <label className="rf-field">
+                  <span className="rf-label">To Date</span>
+                  <input type="date" className="rf-input" value={v.manualToDate || ""} onChange={(e) => setField(ruleId, "manualToDate", e.target.value)} />
+                </label>
+              )}
+            </div>
+          </>
+        );
 
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   return (
     <>
@@ -1285,12 +1258,7 @@ if (ruleId === "manualCreateLead") {
         .msel-footer { border-top:1px solid #eee; padding:8px; display:flex; justify-content:flex-end; }
         .msel-done { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
         .msel-done:focus { outline:none; border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.15); }
-        .msel-up {
-          bottom: 100%;
-          top: auto;
-          margin-top: 0;
-          margin-bottom: 6px;
-        }
+        .msel-up { bottom: 100%; top: auto; margin-top: 0; margin-bottom: 6px; }
 
         /* Activate Modal */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 99999; }
@@ -1316,7 +1284,10 @@ if (ruleId === "manualCreateLead") {
               id="oppName"
               className="input"
               value={opportunityName}
-              onChange={(e) => { setOpportunityName(e.target.value); if (errors.name) setErrors(prev => ({ ...prev, name: "" })) }}
+              onChange={(e) => {
+                setOpportunityName(e.target.value);
+                if (errors.name) setErrors((prev) => ({ ...prev, name: "" }));
+              }}
               ref={nameRef}
               placeholder="Enter opportunity name"
             />
@@ -1338,24 +1309,37 @@ if (ruleId === "manualCreateLead") {
                   <div className="banner"><span className="i">i</span> Loading transaction rules…</div>
                 ) : (
                   <div className="cards" role="radiogroup" aria-label="Transaction rules">
-                    {transactionRules.map(r => {
-                      const sel = selectedRule === r.id
+                    {transactionRules.map((r) => {
+                      const sel = selectedRule === r.id;
                       return (
                         <label
                           key={r.id}
                           className={`card ${sel ? "selected" : ""}`}
                           htmlFor={`rule-${r.id}`}
                           tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectRule(r.id) } }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectRule(r.id);
+                            }
+                          }}
                         >
-                          <input id={`rule-${r.id}`} className="sr" type="radio" name="globalRule" checked={sel} onChange={() => selectRule(r.id)} style={{ position: "absolute", opacity: 0 }} />
+                          <input
+                            id={`rule-${r.id}`}
+                            className="sr"
+                            type="radio"
+                            name="globalRule"
+                            checked={sel}
+                            onChange={() => selectRule(r.id)}
+                            style={{ position: "absolute", opacity: 0 }}
+                          />
                           <span className="dot" aria-hidden="true" />
                           <div className="ctitle">
                             {r.title} {r.help ? <span className="help" title={r.help}>i</span> : null}
                           </div>
                           <div className="cdesc">{r.desc}</div>
                         </label>
-                      )
+                      );
                     })}
                   </div>
                 )}
@@ -1369,22 +1353,35 @@ if (ruleId === "manualCreateLead") {
                   <div className="banner"><span className="i">i</span> Loading master rules…</div>
                 ) : (
                   <div className="cards" role="radiogroup" aria-label="Master rules">
-                    {masterRules.map(r => {
-                      const sel = selectedRule === r.id
+                    {masterRules.map((r) => {
+                      const sel = selectedRule === r.id;
                       return (
                         <label
                           key={r.id}
                           className={`card ${sel ? "selected" : ""}`}
                           htmlFor={`rule-${r.id}`}
                           tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectRule(r.id) } }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectRule(r.id);
+                            }
+                          }}
                         >
-                          <input id={`rule-${r.id}`} className="sr" type="radio" name="globalRule" checked={sel} onChange={() => selectRule(r.id)} style={{ position: "absolute", opacity: 0 }} />
+                          <input
+                            id={`rule-${r.id}`}
+                            className="sr"
+                            type="radio"
+                            name="globalRule"
+                            checked={sel}
+                            onChange={() => selectRule(r.id)}
+                            style={{ position: "absolute", opacity: 0 }}
+                          />
                           <span className="dot" aria-hidden="true" />
                           <div className="ctitle">{r.title}</div>
                           <div className="cdesc">{r.desc}</div>
                         </label>
-                      )
+                      );
                     })}
                   </div>
                 )}
@@ -1394,44 +1391,42 @@ if (ruleId === "manualCreateLead") {
             <div className="section">
               <div className="s-head">+ External Source</div>
               <div className="s-body">
-                {/* ---------- EXTERNAL SOURCE (NEW UI) ---------- */}
-<div className="row">
-  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 0 }}>
-    <label className="rf-field" style={{width: "300px"}}>
-      <span className=" ctitle" style={{whiteSpace: "nowrap"}}>Source :</span>
-      <select
-        className="rf-input"
-        style={{ width: "100%" }}
-        value={externalSource}
-        onChange={(e) => setExternalSource(e.target.value)}
-      >
-        {EXTERNAL_SOURCE_OPTIONS.map(o => (
-          <option key={o.value || "blank"} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+                <div className="row">
+                  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 0 }}>
+                    <label className="rf-field" style={{ width: "300px" }}>
+                      <span className="ctitle" style={{ whiteSpace: "nowrap" }}>Source :</span>
+                      <select
+                        className="rf-input"
+                        style={{ width: "100%" }}
+                        value={externalSource}
+                        onChange={(e) => setExternalSource(e.target.value)}
+                      >
+                        {EXTERNAL_SOURCE_OPTIONS.map((o) => (
+                          <option key={o.value || "blank"} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-    <label className="rf-field" style={{width: "300px"}}>
-      <span className=" ctitle">Sub-Source :</span>
-      <select
-        className="rf-input"
-        style={{ width: "100%" }}
-        value={externalSubSource}
-        onChange={(e) => setExternalSubSource(e.target.value)}
-        disabled={!externalSource}
-      >
-        {subSourceOptions.map(o => (
-          <option key={o.value || "blank"} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  </div>
-</div>
-
+                    <label className="rf-field" style={{ width: "300px" }}>
+                      <span className="ctitle">Sub-Source :</span>
+                      <select
+                        className="rf-input"
+                        style={{ width: "100%" }}
+                        value={externalSubSource}
+                        onChange={(e) => setExternalSubSource(e.target.value)}
+                        disabled={!externalSource}
+                      >
+                        {subSourceOptions.map((o) => (
+                          <option key={o.value || "blank"} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1439,22 +1434,35 @@ if (ruleId === "manualCreateLead") {
               <div className="s-head">+ Manual Based:</div>
               <div className="s-body">
                 <div className="cards" role="radiogroup" aria-label="Manual rules">
-                  {manualRules.map(r => {
-                    const sel = selectedRule === r.id
+                  {manualRules.map((r) => {
+                    const sel = selectedRule === r.id;
                     return (
                       <label
                         key={r.id}
                         className={`card ${sel ? "selected" : ""}`}
                         htmlFor={`rule-${r.id}`}
                         tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectRule(r.id) } }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            selectRule(r.id);
+                          }
+                        }}
                       >
-                        <input id={`rule-${r.id}`} className="sr" type="radio" name="globalRule" checked={sel} onChange={() => selectRule(r.id)} style={{ position: "absolute", opacity: 0 }} />
+                        <input
+                          id={`rule-${r.id}`}
+                          className="sr"
+                          type="radio"
+                          name="globalRule"
+                          checked={sel}
+                          onChange={() => selectRule(r.id)}
+                          style={{ position: "absolute", opacity: 0 }}
+                        />
                         <span className="dot" aria-hidden="true" />
                         <div className="ctitle">{r.title}</div>
                         <div className="cdesc">{r.desc}</div>
                       </label>
-                    )
+                    );
                   })}
                 </div>
               </div>
@@ -1465,8 +1473,7 @@ if (ruleId === "manualCreateLead") {
           {selectedRule ? (
             <div className="rf" aria-live="polite" ref={formRef}>
               <div className="rf-title">
-                Selected Rule:&nbsp;
-                {ALL_RULES.find(r => r.id === selectedRule)?.title || selectedRule}
+                Selected Rule:&nbsp;{ALL_RULES.find((r) => r.id === selectedRule)?.title || selectedRule}
               </div>
               <RuleForm ruleId={selectedRule} />
               {errors.fields ? <div className="err">{errors.fields}</div> : null}
@@ -1481,28 +1488,34 @@ if (ruleId === "manualCreateLead") {
         </div>
       </div>
 
-      {/* Activate Modal (posts as save/isDraft=1) */}
-      {activateOpen && (
+      {/* ✅ UPDATED: Modal will never show for Manual Lead */}
+      {activateOpen && selectedRule !== MANUAL_ID && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal">
             <div className="modal-title">Set Campaign Dates</div>
             <div className="modal-row">
-              <label className="rf-field" style={{flex: 1}}>
+              <label className="rf-field" style={{ flex: 1 }}>
                 <span className="rf-label">Start Date</span>
                 <input
                   type="date"
                   className="rf-input"
                   value={campStart}
-                  onChange={(e) => { setCampStart(e.target.value); setActivateErr("") }}
+                  onChange={(e) => {
+                    setCampStart(e.target.value);
+                    setActivateErr("");
+                  }}
                 />
               </label>
-              <label className="rf-field" style={{flex: 1}}>
+              <label className="rf-field" style={{ flex: 1 }}>
                 <span className="rf-label">End Date</span>
                 <input
                   type="date"
                   className="rf-input"
                   value={campEnd}
-                  onChange={(e) => { setCampEnd(e.target.value); setActivateErr("") }}
+                  onChange={(e) => {
+                    setCampEnd(e.target.value);
+                    setActivateErr("");
+                  }}
                 />
               </label>
             </div>
@@ -1515,7 +1528,7 @@ if (ruleId === "manualCreateLead") {
         </div>
       )}
     </>
-  )
-}
+  );
+};
 
-export default OpportunityForm
+export default OpportunityForm;
