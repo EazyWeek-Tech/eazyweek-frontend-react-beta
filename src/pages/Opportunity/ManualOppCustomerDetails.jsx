@@ -1041,30 +1041,7 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
 
           <div className="formGrid2">
             <div className="col">
-              <div className="field">
-                <label>
-                  Lead Status <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.leadStatus ? "err" : ""}`} name="leadStatus" value={form.leadStatus} onChange={onChange}>
-                  {LEAD_STATUS_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.leadStatus && <div className="errText">{errors.leadStatus}</div>}
-              </div>
-
-              <div className="field">
-                <label>Lead Sub-Status</label>
-                <select className="inp" name="leadSubStatus" value={form.leadSubStatus} onChange={onChange} disabled={leadSubStatusLoading || !form.leadStatus}>
-                  {leadSubStatusOptions.map((s) => (
-                    <option key={s.value || s.label} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              
 
               <div className="field">
                 <label>Disposition</label>
