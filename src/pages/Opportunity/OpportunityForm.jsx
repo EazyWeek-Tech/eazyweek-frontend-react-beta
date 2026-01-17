@@ -1431,7 +1431,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             </div>
 
             <div className="section">
-              <div className="s-head">+ Manual Based:</div>
+              <div className="s-head">+ Create Manual Lead/Opportunity:</div>
               <div className="s-body">
                 <div className="cards" role="radiogroup" aria-label="Manual rules">
                   {manualRules.map((r) => {
@@ -1459,7 +1459,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                           style={{ position: "absolute", opacity: 0 }}
                         />
                         <span className="dot" aria-hidden="true" />
-                        <div className="ctitle">{r.title}</div>
+                        <div className="ctitle">Create Manual Lead/Opportunity</div>
                         <div className="cdesc">{r.desc}</div>
                       </label>
                     );
