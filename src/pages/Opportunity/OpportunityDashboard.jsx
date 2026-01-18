@@ -338,10 +338,32 @@ const OpportunityDashboard = () => {
       oRuleXvalue,
     } = row;
 
+    const getRuleType = (row) => {
+  const raw = (row?.oRuleCode || row?.oRuleDetails || row?.segmentType || "")
+    .toString()
+    .trim()
+    .toLowerCase();
+
+  // Manual Lead
+  if (raw === "manual lead" || raw === "manual") return "MANUAL_LEAD";
+
+  // R7 (add aliases based on your backend naming)
+  if (raw === "r7" || raw.includes("r7")) return "R7";
+
+  // fallback
+  return "DEFAULT";
+};
+
+
     // Fallback to a 14-day window if dates aren’t present on the row
     const now = new Date();
     const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
     const to   = toDate   ? toDate   : toISODateOnly(new Date());
+    const isManualLeadRow = (row) => {
+  const code = (row?.oRuleCode || row?.oRuleDetails || "").toString().trim().toLowerCase();
+  
+  return code === "manual lead"  || code === "r7";
+};
 
     navigate(`/opportunity/details/${oppCode}`, {
       state: {
@@ -350,6 +372,8 @@ const OpportunityDashboard = () => {
         oRuleXvalue: oRuleXvalue || undefined,
         fromDate: toISODateOnly(from),
         toDate: toISODateOnly(to),
+         manualLead: isManualLeadRow(row),        
+
       },
     });
   };

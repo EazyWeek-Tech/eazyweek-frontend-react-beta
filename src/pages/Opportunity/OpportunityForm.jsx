@@ -54,6 +54,18 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // ✅ Local "today" (avoids UTC shift from toISOString)
+const todayLocalYMD = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`; // yyyy-MM-dd
+};
+
+
+
+
   // ---------- CATEGORY OPTIONS ----------
   const [catLoading, setCatLoading] = useState(false);
   const [catOptions, setCatOptions] = useState([]); // [{label, value, raw}]
@@ -100,6 +112,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     R4: "cancelledAppointment",
     R5: "customerSpecialDay",
     R6: "customerType",
+    R7: "externalSourceRule",
   };
 
   const mapApiRule = (r) => ({
@@ -138,12 +151,26 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     };
   }, []);
 
-  // Manual rule
+  // ✅ Manual rule (UPDATED: includes raw.code = "Manual Lead")
   const manualRules = [
-    { id: "manualCreateLead", title: "Create Manual Lead", desc: "Create a lead without auto-segmentation." },
+    {
+      id: "manualCreateLead",
+      title: "Create Manual Lead",
+      desc: "Create a lead without auto-segmentation.",
+      raw: { code: "Manual Lead", name: "Manual Lead" }, // ✅ THIS IS THE KEY CHANGE
+    },
   ];
+  const externalRules = [
+  {
+    id: "externalSourceRule",
+    title: "Create External Source Lead/Opportunity",
+    desc: "Create a lead from external source + sub source within a date range.",
+    raw: { code: "R7", name: "External Source" },
+  },
+];
 
-  const ALL_RULES = [...transactionRules, ...masterRules, ...manualRules];
+
+  const ALL_RULES = [...transactionRules, ...masterRules, ...externalRules, ...manualRules];
   const TX_IDS = useMemo(() => transactionRules.map((r) => r.id), [transactionRules]);
   const MS_IDS = useMemo(() => masterRules.map((r) => r.id), [masterRules]);
   const MANUAL_ID = "manualCreateLead";
@@ -151,7 +178,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   // ---------- STATE ----------
   const [opportunityName, setOpportunityName] = useState("");
   const [selectedRule, setSelectedRule] = useState("");
-    const isManualLeadSelected = selectedRule === MANUAL_ID; // ✅ NEW (used for modal gating)
+  const isManualLeadSelected = selectedRule === MANUAL_ID; // ✅ NEW (used for modal gating)
 
   const [ruleValues, setRuleValues] = useState({
     // R1
@@ -195,6 +222,14 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     customerSpecialDay: { dayType: "", fetchType: "", fromDate: "", toDate: "" },
     // R6
     customerType: { type: "", fetchType: "" },
+    //R7
+    externalSourceRule: {
+       fetchType: "1",      
+  extFromDate: "",
+  extToMode: "current", // "current" | "custom"
+  extToDate: "",
+},
+
     // Manual
     manualCreateLead: {
       note: "",
@@ -248,6 +283,8 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       customerSpecialDay: ["dayType"],
       customerType: ["type"],
       manualCreateLead: [],
+      externalSourceRule: [],
+
     }),
     []
   );
@@ -290,6 +327,16 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
   const isRuleValid = (ruleId) => {
     if (!ruleId) return false;
     const vals = ruleValues[ruleId] || {};
+
+    // ✅ External rule does NOT use fetchType
+  if (ruleId === "externalSourceRule") {
+    if (!vals.extFromDate) return false;
+    if (vals.extToMode === "custom" && !vals.extToDate) return false;
+    if (!externalSource) return false;
+    if (!externalSubSource) return false;
+    return true;
+  }
+
     const ft = String(vals.fetchType || "");
 
     if (!["1", "2"].includes(ft)) return false;
@@ -341,6 +388,17 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       if (!nd) return false;
     }
 
+   if (ruleId === "externalSourceRule") {
+  if (!vals.extFromDate) return false;
+  if (vals.extToMode === "custom" && !vals.extToDate) return false;
+  if (!externalSource) return false;
+  if (!externalSubSource) return false;
+  return true;
+}
+
+//const isExternalSourceSelected = selectedRule === "externalSourceRule";
+
+
     return true;
   };
 
@@ -354,10 +412,14 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     segmentationTransaction: TX_IDS.includes(selectedRule) ? selectedRule : "",
     segmentationMasters: MS_IDS.includes(selectedRule) ? selectedRule : "",
     manualBased: { createManualLead: selectedRule === MANUAL_ID },
+    // (optional) include external source if you want to persist it:
+    // externalSource,
+    // externalSubSource,
   });
 
   const getSelectedRuleMeta = () => {
     const match = ALL_RULES.find((r) => r.id === selectedRule);
+    // ✅ This will now return "Manual Lead" for manualCreateLead because we added raw.code above
     const ruleCode = match?.raw?.code || "";
     return { ruleCode };
   };
@@ -384,7 +446,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       request: "save",
       oppCode: "",
       oppName: opportunityName.trim(),
-      ruleCode,
+      ruleCode, // ✅ "Manual Lead" for manualCreateLead
       xvalue: "",
       yvalue: "",
       zValue: "",
@@ -411,6 +473,9 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       cancelCustomDays: "",
       customerSpecialDays: "",
       customerType: "",
+      ExternalSource: "",
+ExternalSubSource: "",
+
     };
 
     switch (selectedRule) {
@@ -528,19 +593,59 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         break;
       }
 
+      case "externalSourceRule": {
+  const from = (v.extFromDate || "").toString().trim();
+  const to =
+    String(v.extToMode || "current") === "custom"
+      ? (v.extToDate || "").toString().trim()
+      : todayLocalYMD();
+
+  // ✅ Keep your backend-required shape (like your sample)
+  base.ruleCode = "R7";
+  base.ruleDetails = "External source";
+
+  base.ruleDays = "0";
+  base.ruleType = "0";
+  base.ruleFetchType = "0";
+
+  base.staticFromDate = "";
+  base.staticToDate = "";
+  base.customFromDate = "";
+  base.customToDate = "";
+
+  // ✅ Dates go in campaign dates exactly like manual flow
+  base.campStartDate = safeDMY(from);
+  base.campEndDate = safeDMY(to);
+
+  // ✅ add source fields exactly as your backend expects
+  base.ExternalSource = externalSource || "";
+  base.ExternalSubSource = externalSubSource || "";
+
+  break;
+}
+
+
       case "manualCreateLead": {
         const todayYMD = new Date().toISOString().slice(0, 10);
 
-        const from = v.manualFromDate || "";
-        const to = String(v.manualToMode || "current") === "custom" ? v.manualToDate || "" : todayYMD;
+        const from = (v.manualFromDate || "").toString().trim();
+        const to =
+          String(v.manualToMode || "current") === "custom"
+            ? (v.manualToDate || "").toString().trim()
+            : todayYMD;
 
+        // ✅ make it "static"
         base.ruleType = "1";
         base.ruleFetchType = "1";
         base.ruleDays = "9999";
-       // base.staticFromDate = safeDMY(from);
-       // base.staticToDate = safeDMY(to);
+
+        // ✅ IMPORTANT: send static dates as well (many backends validate these)
+        base.staticFromDate = safeDMY(from);
+        base.staticToDate = safeDMY(to);
 
         base.ruleDetails = "Create Manual Lead";
+
+        
         break;
       }
 
@@ -607,42 +712,38 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     }
 
     // ✅ Manual Create Lead: submit directly (no popup)
+    if (selectedRule === MANUAL_ID || selectedRule === "externalSourceRule") {
+  try {
     if (selectedRule === MANUAL_ID) {
       const v = ruleValues[MANUAL_ID] || {};
-      const todayYMD = new Date().toISOString().slice(0, 10);
-
       const from = (v.manualFromDate || "").toString().trim();
       const to =
         String(v.manualToMode || "current") === "custom"
           ? (v.manualToDate || "").toString().trim()
-          : todayYMD;
+          : todayLocalYMD();
 
-      // Guard rails (should already be covered by isRuleValid)
-      if (!from) {
-        setErrors((prev) => ({ ...prev, fields: "Please select From Date." }));
-        return;
-      }
-      if (String(v.manualToMode || "current") === "custom" && !to) {
-        setErrors((prev) => ({ ...prev, fields: "Please select To Date." }));
-        return;
-      }
-      if (new Date(from) > new Date(to)) {
-        setErrors((prev) => ({ ...prev, fields: "From Date cannot be after To Date." }));
-        return;
-      }
+      await postCreate({ startDate: from, endDate: to });
+    } else {
+      const v = ruleValues["externalSourceRule"] || {};
+      const from = (v.extFromDate || "").toString().trim();
+      const to =
+        String(v.extToMode || "current") === "custom"
+          ? (v.extToDate || "").toString().trim()
+          : todayLocalYMD();
 
-      try {
-        // Send manual range as campaign dates too (or backend can ignore camp dates if it wants)
-        await postCreate({ startDate: from, endDate: to });
-        alert("Manual lead saved.");
-        onNext?.(buildPayload());
-        navigate("/opportunity");
-      } catch (e) {
-        console.error(e);
-        setErrors((prev) => ({ ...prev, fields: e.message || "Failed to save manual lead. Please try again." }));
-      }
-      return;
+      await postCreate({ startDate: from, endDate: to });
     }
+
+    alert("Saved.");
+    onNext?.(buildPayload());
+    navigate("/opportunity");
+  } catch (e) {
+    console.error(e);
+    setErrors((prev) => ({ ...prev, fields: e.message || "Failed to save. Please try again." }));
+  }
+  return;
+}
+
 
     // ✅ For all other rules: open campaign dates modal
     setActivateOpen(true);
@@ -758,7 +859,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
         </button>
 
         {open && (
-          <div className={`msel-dd ${openUpwards ? "msel-up" : ""}`} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`msel-dd ${openUpwards ? "msel-up" : ""}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="msel-search">
               <input
                 placeholder="Search"
@@ -773,7 +878,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             </div>
 
             <div className="msel-row msel-selectall" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" checked={allSelected} onChange={toggleAll} onMouseDown={(e) => e.preventDefault()} />
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                onMouseDown={(e) => e.preventDefault()}
+              />
               <span>Select all</span>
             </div>
 
@@ -787,7 +897,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   const isDisabled = disabledValues.includes(opt.value);
                   const checked = local.includes(opt.value);
                   return (
-                    <div key={opt.value} className={`msel-row ${isDisabled ? "msel-disabled" : ""}`} onPointerDown={(e) => e.stopPropagation()}>
+                    <div
+                      key={opt.value}
+                      className={`msel-row ${isDisabled ? "msel-disabled" : ""}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
                       <input
                         className="msel-opt"
                         data-val={opt.value}
@@ -828,7 +942,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     <div className="rf-grid" style={{ alignItems: "center", marginBottom: 8 }}>
       <label className="rf-field">
         <span className="rf-label">Segment</span>
-        <select className="rf-input" value={vals.fetchType || ""} onChange={(e) => setField(ruleId, "fetchType", e.target.value)}>
+        <select
+          className="rf-input"
+          value={vals.fetchType || ""}
+          onChange={(e) => setField(ruleId, "fetchType", e.target.value)}
+        >
           <option value="">Select</option>
           <option value="1">Static</option>
           <option value="2">Dynamic</option>
@@ -849,7 +967,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid">
-              <MultiSelect label="Paid for" values={v.categoryX} onChange={(arr) => setField(ruleId, "categoryX", arr)} />
+              <MultiSelect
+                label="Paid for"
+                values={v.categoryX}
+                onChange={(arr) => setField(ruleId, "categoryX", arr)}
+              />
               <MultiSelect
                 label="Category but not for"
                 values={v.categoryY}
@@ -907,11 +1029,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 <div className="rf-grid" style={{ alignItems: "center" }}>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.fromDate}
+                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
+                    />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.toDate}
+                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                    />
                   </label>
                 </div>
               ) : (
@@ -919,11 +1051,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                   <div className="rf-grid" style={{ alignItems: "center" }}>
                     <label className="rf-field">
                       <span className="rf-label">From</span>
-                      <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
+                      <input
+                        type="date"
+                        className="rf-input"
+                        value={v.fromDate}
+                        onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
+                      />
                     </label>
                     <label className="rf-field">
                       <span className="rf-label">To</span>
-                      <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
+                      <input
+                        type="date"
+                        className="rf-input"
+                        value={v.toDate}
+                        onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                      />
                     </label>
                   </div>
                 )
@@ -937,14 +1079,28 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
           <>
             <FetchTypeRow ruleId={ruleId} vals={v} />
             <div className="rf-grid" style={{ marginBottom: 10 }}>
-              <MultiSelect label="Paid for Category (X)" values={v.categoryX} onChange={(arr) => setField(ruleId, "categoryX", arr)} />
+              <MultiSelect
+                label="Paid for Category (X)"
+                values={v.categoryX}
+                onChange={(arr) => setField(ruleId, "categoryX", arr)}
+              />
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
-                <input type="date" className="rf-input" value={v.fromDate1} onChange={(e) => setField(ruleId, "fromDate1", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.fromDate1}
+                  onChange={(e) => setField(ruleId, "fromDate1", e.target.value)}
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">To Date</span>
-                <input type="date" className="rf-input" value={v.toDate1} onChange={(e) => setField(ruleId, "toDate1", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.toDate1}
+                  onChange={(e) => setField(ruleId, "toDate1", e.target.value)}
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">Z Days</span>
@@ -963,13 +1119,27 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             <div className="rf-grid">
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
-                <input type="date" className="rf-input" value={v.fromDate2} onChange={(e) => setField(ruleId, "fromDate2", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.fromDate2}
+                  onChange={(e) => setField(ruleId, "fromDate2", e.target.value)}
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">To Date</span>
-                <input type="date" className="rf-input" value={v.toDate2} onChange={(e) => setField(ruleId, "toDate2", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.toDate2}
+                  onChange={(e) => setField(ruleId, "toDate2", e.target.value)}
+                />
               </label>
-              <MultiSelect label="Category (P)" values={v.categoryP} onChange={(arr) => setField(ruleId, "categoryP", arr)} />
+              <MultiSelect
+                label="Category (P)"
+                values={v.categoryP}
+                onChange={(arr) => setField(ruleId, "categoryP", arr)}
+              />
             </div>
           </>
         );
@@ -1024,11 +1194,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.fromDate}
+                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
+                    />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.toDate}
+                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                    />
                   </label>
                 </>
               )}
@@ -1086,11 +1266,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
                 <>
                   <label className="rf-field">
                     <span className="rf-label">From</span>
-                    <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.fromDate}
+                      onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
+                    />
                   </label>
                   <label className="rf-field">
                     <span className="rf-label">To</span>
-                    <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
+                    <input
+                      type="date"
+                      className="rf-input"
+                      value={v.toDate}
+                      onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                    />
                   </label>
                 </>
               )}
@@ -1116,11 +1306,21 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
               </label>
               <label className="rf-field">
                 <span className="rf-label">From Date</span>
-                <input type="date" className="rf-input" value={v.fromDate} onChange={(e) => setField(ruleId, "fromDate", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.fromDate}
+                  onChange={(e) => setField(ruleId, "fromDate", e.target.value)}
+                />
               </label>
               <label className="rf-field">
                 <span className="rf-label">To Date</span>
-                <input type="date" className="rf-input" value={v.toDate} onChange={(e) => setField(ruleId, "toDate", e.target.value)} />
+                <input
+                  type="date"
+                  className="rf-input"
+                  value={v.toDate}
+                  onChange={(e) => setField(ruleId, "toDate", e.target.value)}
+                />
               </label>
             </div>
           </>
@@ -1133,7 +1333,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             <div className="rf-grid">
               <label className="rf-field">
                 <span className="rf-label">Customer type</span>
-                <select className="rf-input" value={v.type} onChange={(e) => setField(ruleId, "type", e.target.value)}>
+                <select
+                  className="rf-input"
+                  value={v.type}
+                  onChange={(e) => setField(ruleId, "type", e.target.value)}
+                >
                   <option value="">Select</option>
                   <option value="New">New</option>
                   <option value="Existing">Existing</option>
@@ -1142,6 +1346,91 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             </div>
           </>
         );
+
+        case "externalSourceRule":
+  return (
+    <>
+      {/* ✅ Source/Sub Source row */}
+      <div className="rf-grid" style={{ alignItems: "center", marginBottom: 10 }}>
+        <label className="rf-field" style={{ width: "320px" }}>
+          <span className="rf-label">External Source</span>
+          <select
+            className="rf-input"
+            style={{ width: "100%" }}
+            value={externalSource}
+            onChange={(e) => setExternalSource(e.target.value)}
+          >
+            {EXTERNAL_SOURCE_OPTIONS.map((o) => (
+              <option key={o.value || "blank"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="rf-field" style={{ width: "320px" }}>
+          <span className="rf-label">External Sub Source</span>
+          <select
+            className="rf-input"
+            style={{ width: "100%" }}
+            value={externalSubSource}
+            onChange={(e) => setExternalSubSource(e.target.value)}
+            disabled={!externalSource}
+          >
+            {subSourceOptions.map((o) => (
+              <option key={o.value || "blank"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {/* ✅ Dates row (like manual) */}
+      <div className="rf-grid" style={{ alignItems: "center" }}>
+        <label className="rf-field">
+          <span className="rf-label">From Date</span>
+          <input
+            type="date"
+            className="rf-input"
+            value={v.extFromDate || ""}
+            max={today}
+            onChange={(e) => setField(ruleId, "extFromDate", e.target.value)}
+          />
+        </label>
+
+        <label className="rf-field">
+          <span className="rf-label">To Date</span>
+          <select
+            className="rf-input"
+            value={v.extToMode || "current"}
+            onChange={(e) => {
+              const mode = e.target.value;
+              setField(ruleId, "extToMode", mode);
+              if (mode !== "custom") setField(ruleId, "extToDate", "");
+            }}
+          >
+            <option value="current">Current Date</option>
+            <option value="custom">Custom Date</option>
+          </select>
+        </label>
+
+        {String(v.extToMode || "current") === "custom" && (
+          <label className="rf-field">
+            <span className="rf-label">To Date</span>
+            <input
+              type="date"
+              className="rf-input"
+              value={v.extToDate || ""}
+              onChange={(e) => setField(ruleId, "extToDate", e.target.value)}
+            />
+          </label>
+        )}
+      </div>
+    </>
+  );
+
+
 
       case "manualCreateLead":
         return (
@@ -1177,7 +1466,12 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
               {String(v.manualToMode || "current") === "custom" && (
                 <label className="rf-field">
                   <span className="rf-label">To Date</span>
-                  <input type="date" className="rf-input" value={v.manualToDate || ""} onChange={(e) => setField(ruleId, "manualToDate", e.target.value)} />
+                  <input
+                    type="date"
+                    className="rf-input"
+                    value={v.manualToDate || ""}
+                    onChange={(e) => setField(ruleId, "manualToDate", e.target.value)}
+                  />
                 </label>
               )}
             </div>
@@ -1389,46 +1683,44 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
             </div>
 
             <div className="section">
-              <div className="s-head">+ External Source</div>
-              <div className="s-body">
-                <div className="row">
-                  <div className="rf-grid" style={{ alignItems: "center", marginBottom: 0 }}>
-                    <label className="rf-field" style={{ width: "300px" }}>
-                      <span className="ctitle" style={{ whiteSpace: "nowrap" }}>Source :</span>
-                      <select
-                        className="rf-input"
-                        style={{ width: "100%" }}
-                        value={externalSource}
-                        onChange={(e) => setExternalSource(e.target.value)}
-                      >
-                        {EXTERNAL_SOURCE_OPTIONS.map((o) => (
-                          <option key={o.value || "blank"} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+  <div className="s-head">+ External Source</div>
+  <div className="s-body">
+    <div className="cards" role="radiogroup" aria-label="External source rules">
+  {externalRules.map((r) => {
+    const sel = selectedRule === r.id;
+    return (
+      <label
+        key={r.id}
+        className={`card ${sel ? "selected" : ""}`}
+        htmlFor={`rule-${r.id}`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            selectRule(r.id);
+          }
+        }}
+      >
+        <input
+          id={`rule-${r.id}`}
+          className="sr"
+          type="radio"
+          name="globalRule"
+          checked={sel}
+          onChange={() => selectRule(r.id)}
+          style={{ position: "absolute", opacity: 0 }}
+        />
+        <span className="dot" aria-hidden="true" />
+        <div className="ctitle">{r.title}</div>
+        <div className="cdesc">{r.desc}</div>
+      </label>
+    );
+  })}
+</div>
 
-                    <label className="rf-field" style={{ width: "300px" }}>
-                      <span className="ctitle">Sub-Source :</span>
-                      <select
-                        className="rf-input"
-                        style={{ width: "100%" }}
-                        value={externalSubSource}
-                        onChange={(e) => setExternalSubSource(e.target.value)}
-                        disabled={!externalSource}
-                      >
-                        {subSourceOptions.map((o) => (
-                          <option key={o.value || "blank"} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
+  </div>
+</div>
+
 
             <div className="section">
               <div className="s-head">+ Create Manual Lead/Opportunity:</div>
