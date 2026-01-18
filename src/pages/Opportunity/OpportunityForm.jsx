@@ -1394,7 +1394,6 @@ ExternalSubSource: "",
             type="date"
             className="rf-input"
             value={v.extFromDate || ""}
-            max={today}
             onChange={(e) => setField(ruleId, "extFromDate", e.target.value)}
           />
         </label>
@@ -1442,7 +1441,6 @@ ExternalSubSource: "",
                   type="date"
                   className="rf-input"
                   value={v.manualFromDate || ""}
-                  max={today}
                   onChange={(e) => setField(ruleId, "manualFromDate", e.target.value)}
                 />
               </label>
