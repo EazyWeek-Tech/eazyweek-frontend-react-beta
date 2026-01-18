@@ -82,11 +82,6 @@ const toTimeSpanOrNull = (hhmm, ampm) => {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
 };
 
-const looksLikeCustomerCode = (v) => {
-  const s = safe(v).trim();
-  if (!s) return false;
-  return /^[A-Za-z]{2,}[-_]*\d{1,}$/.test(s);
-};
 
 const getCustomerIdFromUrl = (custIdParam, location) => {
   const direct = safe(custIdParam).trim();
@@ -116,6 +111,12 @@ const stripProspectId = (v) => {
   const numeric = noPrefix.replace(/^0+/, "");
   const id = Number(numeric);
   return Number.isNaN(id) ? 0 : id;
+};
+const findOptionLabelByValue = (options, value) => {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+  const opt = (options || []).find((o) => String(o.value ?? "").trim() === v);
+  return safe(opt?.label).trim();
 };
 
 const parseTimeToForm = (timeStr) => {
@@ -247,8 +248,12 @@ const ManualOppCustomerDetails = () => {
   }, [leadOppIdParam, leadOppIdFromState]);
 
   const isEdit = !!numericLeadOppId;
+  const isR7 = String(header?.oRuleCode || state?.oRuleCode || "")
+  .trim()
+  .toUpperCase() === "R7";
 
-  const leadKind = state?.leadKind || (header?.oRuleCode ? "External" : "Manual");
+ const leadKind = state?.leadKind || "Manual";
+
   const [leadId] = useState(() => nextLeadId(leadKind));
   const [langOptions] = useState(LANG_INIT);
 
@@ -380,7 +385,6 @@ const ManualOppCustomerDetails = () => {
   /** ---------------- Customer Fetch ---------------- */
   useEffect(() => {
     const id = getCustomerIdFromUrl(custId, locationObj);
-    if (!looksLikeCustomerCode(id)) return;
 
     const loadCustomer = async () => {
       setCustomerLoading(true);
@@ -426,7 +430,12 @@ const ManualOppCustomerDetails = () => {
         const data = await fetchJSON(MASTER_LEAD_URL, { method: "GET" });
 
         const centersMapped = (Array.isArray(data?.centers) ? data.centers : [])
-          .map((c) => ({ label: safe(c?.name).trim(), value: safe(c?.code).trim() }))
+          .map((c) => ({
+  label: safe(c?.name).trim(),
+  value: String(c?.recid ?? c?.value ?? ""), // ✅ recid first
+  code: safe(c?.code).trim(),
+}))
+
           .filter((x) => x.label);
         setCenterOptions([{ label: "< - Select one - >", value: "" }, ...centersMapped]);
 
@@ -438,7 +447,12 @@ const ManualOppCustomerDetails = () => {
         const docsMapped = (Array.isArray(data?.doctorMappings) ? data.doctorMappings : [])
           .map((d) => {
             const name = `${safe(d?.firstName).trim()} ${safe(d?.lastName).trim()}`.trim();
-            return { label: name || safe(d?.employeeCode).trim(), value: safe(d?.employeeCode).trim() };
+            return {
+  label: name || safe(d?.employeeCode).trim(),
+  value: String(d?.recid ?? d?.value ?? ""),  // ✅ recid first
+  code: safe(d?.employeeCode).trim(),
+};
+
           })
           .filter((x) => x.label && x.value);
         setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...docsMapped]);
@@ -620,11 +634,9 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
           preferredLanguage: safe(data?.prefLang ?? p.preferredLanguage),
 
           // master-driven dropdown values
-          centerCode: safe(data?.clinicCentre_FK ? p.centerCode || "" : p.centerCode), // if you later bind center by FK, update this
-          // NOTE: your UI uses centerCode (code string). API returns clinicCentre_FK (number).
-          // If you have a mapping of FK->code, we can plug it in. For now we keep existing centerCode.
+          centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""), // ✅ FK -> select value
+doctor: String(data?.doctor_FK ?? p.doctor ?? ""),               // ✅ FK -> select value
 
-          doctor: safe(data?.doctor_FK ? p.doctor || "" : p.doctor), // same note as centerCode
 
           interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
           sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
@@ -687,16 +699,17 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
   };
 
   /** ---------------- Create / Update ---------------- */
-  const resolvedCustId = getCustomerIdFromUrl(custId, locationObj);
+const resolvedCustId = safe(custId).trim(); // ✅ ONLY from param
+const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
+const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
 
-  const hasCustomerInUrl =
-    !!safe(resolvedCustId).trim() && safe(resolvedCustId).trim() !== "0" && looksLikeCustomerCode(resolvedCustId);
 
-  const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
+console.log(isLead)
 
   const createLeadOpp = async (status) => {
     const leadStatusName = LEAD_STATUS_OPTIONS.find((x) => x.value === form.leadStatus)?.label || "";
     const leadSubStatusName = leadSubStatusOptions.find((x) => x.value === form.leadSubStatus)?.label || "";
+    const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
     const finalStatus = resolvePayloadStatus({
     baseStatus: status, // usually "Open"
@@ -720,8 +733,9 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
 
       customer_FK: 0,
 
-      clinicCentre_FK: 5,
-      doctor_FK: 26,
+      clinicCentre_FK: toNumberOr0(form.centerCode),  // ✅ recid
+doctor_FK: toNumberOr0(form.doctor),            // ✅ recid
+seervices: mediumName,
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
@@ -737,15 +751,8 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
       followUpTime: toTimeSpanOrNull(form.followUpTime, form.followUpTimeAmPm),
       remarks: form.remarks,
 
-      customerMsg: [
-        !isLead && looksLikeCustomerCode(resolvedCustId) ? `CustomerID:${resolvedCustId}` : "",
-        `LeadStatus:${leadStatusName}`,
-        leadSubStatusName ? `LeadSubStatus:${leadSubStatusName}` : "",
-      ]
-        .filter(Boolean)
-        .join(" | "),
+      customerMsg: '',
 
-      seervices: String(form.mediumCode || ""),
 
       modifiedBy: 0,
       modifiedDate: new Date().toISOString(),
@@ -761,12 +768,16 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
 
   const updateLeadOpp = async () => {
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
+    const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
+
 
     const finalStatus = resolvePayloadStatus({
     baseStatus: "Open",
     dispositionId: form.dispositionId,
     dispositionOptions,
   });
+
+  console.log(isLead)
 
     const payload = {
       leadOpp_ID: numericLeadOppId,
@@ -781,8 +792,10 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
       prefLang: form.preferredLanguage,
 
       customer_FK: 0,
-      clinicCentre_FK: 0,
-      doctor_FK: 0,
+     clinicCentre_FK: toNumberOr0(form.centerCode),
+doctor_FK: toNumberOr0(form.doctor),
+seervices: mediumName,
+
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
       leadSubSource_FK: toNumberOr0(form.subSourceName),
@@ -798,11 +811,10 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
-      seervices: String(form.mediumCode || ""),
 
       modifiedBy: 0,
       modifiedDate: new Date().toISOString(),
-      createdDate: new Date().toISOString(),
+      createdDate: form.createdDate,
     };
 
     return fetchJSON(UPDATE_LEAD_URL(numericLeadOppId), {
@@ -860,13 +872,13 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
             <div className="subTitle">
-              {leadKind} Lead • {oppCode ? `Opportunity: ${oppCode}` : "Opportunity"}
+              {/* {leadKind} Lead • {oppCode ? `Opportunity: ${oppCode}` : "Opportunity"}
               {customerLoading ? " • Loading customer..." : ""}
               {isLead ? " • Type: Lead" : " • Type: Opportunity"}
               {empLoading ? " • Loading employees..." : ""}
               {leadLoading ? " • Loading lead..." : ""}
               {salesOwnerRecId ? ` • SalesOwner: ${salesOwnerRecId}` : " • SalesOwner: 0"}
-              {isEdit ? ` • Edit ID: ${numericLeadOppId}` : " • New"}
+              {isEdit ? ` • Edit ID: ${numericLeadOppId}` : " • New"} */}
             </div>
           </div>
         </div>
