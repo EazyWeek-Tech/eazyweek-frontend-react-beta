@@ -71,12 +71,15 @@ const exportFileName = (oppCode) => {
 };
 
 const buildLeadListUrl = ({ baseUrl, campaignId, pageNumber, pageSize }) => {
+  if (!campaignId) throw new Error("campaignId is required for LeadOpp/List");
+
   const qs = new URLSearchParams();
-  if (campaignId) qs.set("campaignId", String(campaignId)); // ✅ required
+  qs.set("campaignId", String(campaignId));
   qs.set("pageNumber", String(pageNumber || 1));
   qs.set("pageSize", String(pageSize || 10));
   return `${baseUrl}/api/LeadOpp/List?${qs.toString()}`;
 };
+
 
 
 // -----------------------------
@@ -427,58 +430,73 @@ const navId = uiRecId || uiOppCode;
   }, []);
 
   // -----------------------------
-  // Fetch manual leads
-  // -----------------------------
-  useEffect(() => {
-    let alive = true;
+// Fetch manual leads
+// -----------------------------
+useEffect(() => {
+  let alive = true;
 
-    const run = async () => {
-      setLoading(true);
-      setErr("");
+  const run = async () => {
+    // ✅ HARD GUARD: never call list API without campaignId
+    if (!uiRecId) {
+      setRows([]);
+      setTotalPages(1);
+      setTotalRecords(0);
+      setErr(""); // or "Campaign not loaded yet"
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const url = buildLeadListUrl({
-  baseUrl: API_BASE_URL,
-  campaignId: uiRecId,      // ✅ send campaignId=1001
-  pageNumber,
-  pageSize,
-});
+    setLoading(true);
+    setErr("");
+
+    try {
+      const url = buildLeadListUrl({
+        baseUrl: API_BASE_URL,
+        campaignId: uiRecId,   // ✅ always present now
+        pageNumber,
+        pageSize,
+      });
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+
+      const data = JSON.parse(text);
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      if (!alive) return;
+
+      setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId)));
+      setTotalPages(Number(data?.totalPages) || 1);
+      setTotalRecords(Number(data?.totalRecords) || list.length);
+    } catch (e) {
+      console.error(e);
+      if (!alive) return;
+      setRows([]);
+      setTotalPages(1);
+      setTotalRecords(0);
+      setErr("Failed to load manual leads.");
+    } finally {
+      if (alive) setLoading(false);
+    }
+  };
+
+  run();
+  return () => {
+    alive = false;
+  };
+}, [uiRecId, pageNumber, pageSize, empLookup]); // ✅ include uiRecId
 
 
-        const res = await fetch(url, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          credentials: "include",
-        });
+useEffect(() => {
+  if (uiRecId) setPageNumber(1);
+}, [uiRecId]);
 
-        const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
-
-        const data = JSON.parse(text);
-        const list = Array.isArray(data?.data) ? data.data : [];
-
-        if (!alive) return;
-
-        setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId)));
-        setTotalPages(Number(data?.totalPages) || 1);
-        setTotalRecords(Number(data?.totalRecords) || list.length);
-      } catch (e) {
-        console.error(e);
-        if (!alive) return;
-        setRows([]);
-        setTotalPages(1);
-        setTotalRecords(0);
-        setErr("Failed to load manual leads.");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [pageNumber, pageSize, empLookup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // owner options from current page (still showing name)
   const ownerOptions = useMemo(() => {
