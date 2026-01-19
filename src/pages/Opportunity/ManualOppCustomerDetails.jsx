@@ -11,6 +11,21 @@ const pad2 = (n) => String(n).padStart(2, "0");
 /** ✅ Defaults for Follow-up */
 const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
 
+// ✅ Campaign
+const GET_CAMPAIGN_URL = (oppCode) =>
+  `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`;
+
+// ✅ robust oppCode resolver (works even if params not present)
+const getOppCodeFromUrl = (paramsOppCode, location) => {
+  const direct = safe(paramsOppCode).trim();
+  if (direct) return direct;
+
+  const parts = (location?.pathname || "").split("/").filter(Boolean);
+  // expecting: ["manuallead", "Bright-00522", "BRI197?"]
+  const idx = parts.findIndex((p) => norm(p) === "manuallead");
+  return idx >= 0 ? safe(parts[idx + 1]).trim() : "";
+};
+
 
 
 /** ✅ Local date/time formatter (NO UTC / NO 'Z') */
@@ -264,6 +279,15 @@ const ManualOppCustomerDetails = () => {
   const locationObj = useLocation();
   const { state } = locationObj;
   const navigate = useNavigate();
+
+  const resolvedOppCode = useMemo(
+  () => getOppCodeFromUrl(params.oppCode, locationObj),
+  [params.oppCode, locationObj.pathname]
+);
+
+const [campaignRecId, setCampaignRecId] = useState(0);
+const [campaignLoading, setCampaignLoading] = useState(false);
+
 
   const row = state?.row || null;
   const leadOppIdFromState = state?.leadOpp_ID ?? state?.leadOppId ?? state?.id ?? row?.leadOpp_ID ?? row?.leadOppId;
@@ -564,6 +588,38 @@ const ManualOppCustomerDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.dispositionId]);
 
+  useEffect(() => {
+  const code = safe(resolvedOppCode).trim();
+  if (!code) {
+    setCampaignRecId(0);
+    return;
+  }
+
+  let alive = true;
+
+  const run = async () => {
+    setCampaignLoading(true);
+    try {
+      const data = await fetchJSON(GET_CAMPAIGN_URL(code), { method: "GET" });
+      if (!alive) return;
+
+      const recid = toNumberOr0(data?.recid);
+      setCampaignRecId(recid);
+    } catch (e) {
+      console.error("❌ getCampaign failed:", e);
+      if (alive) setCampaignRecId(0);
+    } finally {
+      if (alive) setCampaignLoading(false);
+    }
+  };
+
+  run();
+  return () => {
+    alive = false;
+  };
+}, [resolvedOppCode]);
+
+
   /** ---------------- ✅ EDIT MODE: GET Lead and Prefill ---------------- */
   useEffect(() => {
     if (!isEdit) return;
@@ -741,6 +797,7 @@ const ManualOppCustomerDetails = () => {
       subDisposition_FK: toNumberOr0(form.subDispositionId),
 
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
+campaign_FK: toNumberOr0(campaignRecId),
 
       // ✅ NO UTC
       appointmentDate: nowLocal,
@@ -806,12 +863,14 @@ const ManualOppCustomerDetails = () => {
       subDisposition_FK: toNumberOr0(form.subDispositionId),
 
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
+      campaign_FK: toNumberOr0(campaignRecId),
 
       // ✅ NO UTC
       appointmentDate: nowLocal,
 
       // ✅ NO UTC + always tomorrow or later
-      followUpDate: toLocalFollowUpDateTime(finalDate),
+      followUpDate: toFollowUpDateOnly(finalDate),
+
       followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
 
       remarks: form.remarks,

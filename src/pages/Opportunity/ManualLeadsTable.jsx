@@ -1,6 +1,6 @@
 // src/pages/Opportunity/ManualLeadsTable.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 // ✅ Change this ONLY if your old "Add Opportunity" route is different
@@ -42,6 +42,43 @@ const formatDateTime = (dateVal, timeLabel) => {
   return t ? `${d} ${t}` : d;
 };
 
+// ✅ Excel export (dynamic import to avoid Vite bundle issues)
+const loadXLSX = async () => {
+  const mod = await import("xlsx");
+  return mod;
+};
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+// optional: nice file name
+const exportFileName = (oppCode) => {
+  const ts = new Date();
+  const y = ts.getFullYear();
+  const m = String(ts.getMonth() + 1).padStart(2, "0");
+  const d = String(ts.getDate()).padStart(2, "0");
+  const hh = String(ts.getHours()).padStart(2, "0");
+  const mm = String(ts.getMinutes()).padStart(2, "0");
+  return `ManualLeads_${oppCode || "All"}_${y}${m}${d}_${hh}${mm}.xlsx`;
+};
+
+const buildLeadListUrl = ({ baseUrl, campaignId, pageNumber, pageSize }) => {
+  const qs = new URLSearchParams();
+  if (campaignId) qs.set("campaignId", String(campaignId)); // ✅ required
+  qs.set("pageNumber", String(pageNumber || 1));
+  qs.set("pageSize", String(pageSize || 10));
+  return `${baseUrl}/api/LeadOpp/List?${qs.toString()}`;
+};
+
+
 // -----------------------------
 // Value helpers
 // -----------------------------
@@ -68,7 +105,6 @@ const toTimeLabel12h = (timeVal) => {
 
   // already in "hh:mm AM/PM"
   if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(s)) {
-    // normalize to 2-digit hour
     const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     const hh = String(m[1]).padStart(2, "0");
     return `${hh}:${m[2]} ${String(m[3]).toUpperCase()}`;
@@ -93,7 +129,6 @@ const toProspectType = (apiType, custID) => {
   const t = String(apiType ?? "").trim().toLowerCase();
   if (t === "lead") return "Lead";
   if (t === "opportunity") return "Opportunity";
-  // fallback (old behavior)
   return isEmpty(custID) ? "Lead" : "Opportunity";
 };
 
@@ -103,7 +138,6 @@ const toProspectType = (apiType, custID) => {
 const mapManualLeadRow = (x, resolveOwnerRecId) => {
   const id = Number(x?.leadOpp_ID) || 0;
 
-  // defensively read cust id
   const custID = x?.custID ?? x?.custId ?? null;
 
   const followUpDate = x?.followUpDate || x?.followUp || "";
@@ -116,7 +150,6 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 
   const followUpTimeLabel = toTimeLabel12h(followUpTimeRaw);
 
-  // owner fields can vary across APIs
   const saleOwner = (x?.saleOwner ?? x?.salesOwner ?? x?.createdByName ?? "").toString();
   const saleOwnerCode = (x?.saleOwnerCode ?? x?.salesOwnerCode ?? x?.createdByCode ?? "").toString();
   const saleOwnerEmail = (x?.saleOwnerEmail ?? x?.createdByEmail ?? "").toString();
@@ -127,14 +160,13 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
     email: saleOwnerEmail,
   });
 
-  const apiType = x?.type; // ✅ API provides this now
+  const apiType = x?.type;
 
   return {
     id,
     leadOpp_ID: id,
     prospectId: toProspectId(id),
 
-    // ✅ use API type
     prospectType: toProspectType(apiType, custID),
     apiType: (apiType ?? "").toString(),
 
@@ -145,12 +177,11 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 
     followUpDate,
     followUpTimeRaw: followUpTimeRaw.toString(),
-    followUpTimeLabel, // ✅ for display + filter
+    followUpTimeLabel,
 
     disposition: (x?.disposition ?? "").toString(),
     remark: (x?.remark ?? x?.remarks ?? "").toString(),
 
-    // ✅ Sales owner fields
     saleOwner,
     saleOwnerCode,
     saleOwnerEmail,
@@ -196,12 +227,27 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 export default function ManualLeadsTable({ oppCode, header, onToast }) {
   const navigate = useNavigate();
 
+  // ✅ read oppCode from URL:
+  // e.g. /opportunity/details/Bright-00522  => params.oppCode = "Bright-00522"
+  const params = useParams();
+  const oppCodeFromUrl = params?.oppCode || params?.OppCode || "";
+
+  // ✅ single source of truth for oppCode
+  const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "").toString().trim();
+
+  // ✅ campaign header (top section)
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignErr, setCampaignErr] = useState("");
+  const [campaignHeader, setCampaignHeader] = useState(null);
+
   // server paging
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(50);
 
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+
+  const [exporting, setExporting] = useState(false);
 
   // api data
   const [loading, setLoading] = useState(false);
@@ -210,7 +256,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
   // employees lookup
   const [empLoading, setEmpLoading] = useState(false);
-  const [employees, setEmployees] = useState([]); // raw list
+  const [employees, setEmployees] = useState([]);
 
   // client filters
   const [statusFilter, setStatusFilter] = useState("");
@@ -228,6 +274,67 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
     const t = setTimeout(() => setSearchTerm(searchDraft), 250);
     return () => clearTimeout(t);
   }, [searchDraft]);
+
+  // -----------------------------
+  // ✅ Fetch Campaign Header by OppCode (TOP SECTION)
+  // GET /api/LeadOpp/getCampaign/{OppCode}
+  // -----------------------------
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      const code = effectiveOppCode;
+      if (!code) return;
+
+      setCampaignLoading(true);
+      setCampaignErr("");
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(code)}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "include",
+        });
+
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+
+        const data = JSON.parse(text);
+
+        if (!alive) return;
+
+        // ✅ if API returns object directly like you showed
+        // {
+        //   oppCode, oppName, oRuleDetails, oRuleCode, ...
+        // }
+        setCampaignHeader(data || null);
+      } catch (e) {
+        console.error("Campaign header load failed", e);
+        if (!alive) return;
+        setCampaignHeader(null);
+        setCampaignErr("Failed to load campaign details.");
+      } finally {
+        if (alive) setCampaignLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [effectiveOppCode]);
+
+  // ✅ choose header for UI (priority: campaignHeader -> prop header)
+  const uiHeader = campaignHeader || header || {};
+  const uiOppCode = (uiHeader?.oppCode || effectiveOppCode || "").toString().trim();
+
+  // ✅ campaign recid (comes from /getCampaign/{OppCode})
+const uiRecId = Number(uiHeader?.recid ?? uiHeader?.recId) || 0;
+
+// ✅ this is what you will put in URL in place of oppCode
+// fallback to oppCode if recid not available (avoids broken navigation)
+const navId = uiRecId || uiOppCode;
+
 
   // -----------------------------
   // ✅ Fetch employees (recId mapping)
@@ -300,7 +407,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
     const nk = norm(name);
     if (nk && empLookup.byName.has(nk)) return empLookup.byName.get(nk);
 
-    return ""; // not found
+    return "";
   };
 
   // -----------------------------
@@ -330,7 +437,13 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
       setErr("");
 
       try {
-        const url = `${API_BASE_URL}/api/LeadOpp/List?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+        const url = buildLeadListUrl({
+  baseUrl: API_BASE_URL,
+  campaignId: uiRecId,      // ✅ send campaignId=1001
+  pageNumber,
+  pageSize,
+});
+
 
         const res = await fetch(url, {
           method: "GET",
@@ -413,7 +526,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
       }
     }
 
-    // ✅ Follow Up Time filter (NEW)
+    // ✅ Follow Up Time filter
     if (followTime) {
       const ft = norm(followTime);
       list = list.filter((r) => norm(r?.followUpTimeLabel) === ft);
@@ -427,8 +540,8 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
     navigate(`/manuallead/edit/${leadId}`, {
       state: {
-        oppCode,
-        header,
+        oppCode: uiOppCode,
+        header: uiHeader,
         leadOpp_ID: leadId,
         custID: row.custID,
         row,
@@ -438,6 +551,98 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
     });
   };
 
+  const fetchAllLeads = async (campaignId) => {
+  const exportPageSize = 200;
+  let page = 1;
+  let total = 1;
+  const all = [];
+
+  while (page <= total) {
+    const url = buildLeadListUrl({
+      baseUrl: API_BASE_URL,
+      campaignId,
+      pageNumber: page,
+      pageSize: exportPageSize,
+    });
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+
+    const data = JSON.parse(text);
+    const list = Array.isArray(data?.data) ? data.data : [];
+
+    total = Number(data?.totalPages) || 1;
+    all.push(...list);
+    page += 1;
+  }
+
+  return all;
+};
+
+
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+
+    try {
+      if (!uiRecId) {
+  alert("Campaign not loaded yet.");
+  return;
+}
+const raw = await fetchAllLeads(uiRecId);
+
+      const mapped = raw.map((x) => mapManualLeadRow(x, resolveOwnerRecId));
+
+      const exportRows = mapped;
+
+      const excelRows = exportRows.map((r) => ({
+        "Prospect ID": r.prospectId || "",
+        "Prospect Type": r.prospectType || "",
+        "LeadOpp ID": r.leadOpp_ID || "",
+        "CustID": r.custID || "",
+        "Customer Name": r.customerName || "",
+        "Mobile": r.mobileNumber || "",
+        "Status": r.status || "",
+        "Follow Up Date": formatDDMMYYYY(r.followUpDate) || "",
+        "Follow Up Time": r.followUpTimeLabel || "",
+        "Disposition": r.disposition || "",
+        "Remarks": r.remark || "",
+        "Sales Owner": r.saleOwner || "",
+        "Sales Owner Code": r.saleOwnerCode || "",
+        "Sales Owner Email": r.saleOwnerEmail || "",
+        "Sales Owner recId": r.saleOwnerRecId || "",
+        "Modified By": r.modifiedBy || "",
+        "Modified Date": formatDDMMYYYY(r.modifiedDate) || "",
+        "Created Date": formatDDMMYYYY(r.createdDate) || "",
+        "Customer Message": r.customerMsg || "",
+      }));
+
+      const XLSX = await loadXLSX();
+      const ws = XLSX.utils.json_to_sheet(excelRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Manual Leads");
+
+      const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([out], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      downloadBlob(blob, exportFileName(uiOppCode));
+      onToast?.(`Exported ${excelRows.length} rows`);
+    } catch (e) {
+      console.error("Export failed", e);
+      alert(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <>
       <div className="details-card">
@@ -445,24 +650,38 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
           <div className="title-col">
             <div className="pair">
               <span className="label">Opportunity Code :</span>
-              <span className="value pill">{safe(header?.oppCode || oppCode)}</span>
+              <span className="value pill">{safe(uiHeader?.oppCode || uiOppCode)}</span>
             </div>
             <div className="pair">
               <span className="label">Opportunity Name :</span>
-              <span className="value">{safe(header?.oppName)}</span>
+              <span className="value">{safe(uiHeader?.oppName)}</span>
             </div>
             <div className="pair">
               <span className="label">Rule Details :</span>
-              <span className="value">{safe(header?.oRuleDetails || header?.oRuleCode)}</span>
+              <span className="value">{safe(uiHeader?.oRuleDetails || uiHeader?.oRuleCode)}</span>
             </div>
+
+            {/* ✅ Optional: show campaign dates from API */}
+            {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
+              <div className="pair">
+                <span className="label">Campaign Period :</span>
+                <span className="value">
+                  {formatDDMMYYYY(uiHeader?.oppCampStartDate)} - {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
+                </span>
+              </div>
+            ) : null}
+
+            {campaignLoading ? <div style={{ fontSize: 12, color: "#64748b" }}>Loading campaign…</div> : null}
+            {campaignErr ? <div style={{ fontSize: 12, color: "#c33" }}>{campaignErr}</div> : null}
 
             {empLoading ? <div style={{ fontSize: 12, color: "#64748b" }}>Loading employees…</div> : null}
           </div>
 
           <div className="header-actions">
-            <button className="btn-export" onClick={() => onToast?.("Export for manual leads can be added next.")}>
-              Export
-            </button>
+           <button className="btn-export" onClick={handleExport} disabled={exporting || loading}>
+  {exporting ? "Exporting..." : "Export"}
+</button>
+
 
             <button className="btn-back" onClick={() => navigate(-1)}>
               Back
