@@ -6,11 +6,29 @@ import { API_BASE_URL } from "../../config";
 /** ---------------- Helpers ---------------- */
 const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const norm = (v) => safe(v).trim().toLowerCase();
+const pad2 = (n) => String(n).padStart(2, "0");
 
 /** ✅ Defaults for Follow-up */
 const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
+
+
+
+/** ✅ Local date/time formatter (NO UTC / NO 'Z') */
+const toLocalDateTimeString = (dateObj) => {
+  const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
+  if (Number.isNaN(+d)) return "";
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth() + 1);
+  const dd = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mi = pad2(d.getMinutes());
+  const ss = pad2(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`; // ✅ no Z
+};
+
 const getTomorrowInputDate = () => {
   const d = new Date();
+  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + 1);
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -83,15 +101,14 @@ const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
   return contains ? safe(contains.value) : "";
 };
 
-// ✅ followUpDate should NEVER default to "today".
-// If empty/invalid -> tomorrow (00:00 local, will serialize to ISO)
-const toIsoFollowUpDate = (yyyyMmDd) => {
-  const s = safe(yyyyMmDd).trim();
-  const dateStr = s || getTomorrowInputDate(); // fallback -> tomorrow
-  const d = new Date(`${dateStr}T00:00:00`);
-  // final safety fallback -> tomorrow
-  return isNaN(d) ? new Date(`${getTomorrowInputDate()}T00:00:00`).toISOString() : d.toISOString();
+// ✅ Send DATE ONLY (no timezone conversion possible)
+const toFollowUpDateOnly = (yyyyMmDd) => {
+  const minAllowed = getTomorrowInputDate();
+  let dateStr = safe(yyyyMmDd).trim() || minAllowed;
+  if (dateStr < minAllowed) dateStr = minAllowed;
+  return dateStr; // "YYYY-MM-DD"
 };
+
 
 // ✅ TimeSpan friendly converter from "hh:mm AM/PM" => "HH:mm:ss" or null
 const toTimeSpanOrNull = (timeLabel) => {
@@ -151,7 +168,6 @@ const findOptionLabelByValue = (options, value) => {
 };
 
 const parseTimeToForm = (timeStr) => {
-  // expects backend: "HH:mm:ss" or "HH:mm"
   const t = safe(timeStr).trim();
   if (!t) return "";
 
@@ -165,27 +181,14 @@ const parseTimeToForm = (timeStr) => {
   return `${String(hour12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
 };
 
-const LEAD_STATUS_OPTIONS = [
-  { label: "Duplicate", value: "LS001" },
-  { label: "Bad Lead", value: "LS002" },
-  { label: "Not Converted", value: "LS003" },
-  { label: "WIP", value: "LS004" },
-  { label: "Inquiry Feedback", value: "LS005" },
-  { label: "Appointment Set(for service)", value: "LS006" },
-  { label: "Converted", value: "LS007" },
-];
-
 // Time dropdown options: "12:00 AM" ... "11:30 PM"
 const TIME_OPTIONS = (() => {
   const out = [{ label: "--", value: "" }];
-  const pad2 = (n) => String(n).padStart(2, "0");
-
   for (let h24 = 0; h24 < 24; h24++) {
     for (const m of [0, 30]) {
       const ampm = h24 >= 12 ? "PM" : "AM";
       let h12 = h24 % 12;
       if (h12 === 0) h12 = 12;
-
       const label = `${pad2(h12)}:${pad2(m)} ${ampm}`;
       out.push({ label, value: label });
     }
@@ -256,7 +259,6 @@ const ManualOppCustomerDetails = () => {
   const params = useParams();
   const oppCode = params.oppCode;
   const custId = params.custId ?? params.custid ?? "";
-
   const leadOppIdParam = params.leadOppId || params.id || params.leadOpp_ID || "";
 
   const locationObj = useLocation();
@@ -264,8 +266,6 @@ const ManualOppCustomerDetails = () => {
   const navigate = useNavigate();
 
   const row = state?.row || null;
-  const header = state?.header || null;
-
   const leadOppIdFromState = state?.leadOpp_ID ?? state?.leadOppId ?? state?.id ?? row?.leadOpp_ID ?? row?.leadOppId;
 
   const numericLeadOppId = useMemo(() => {
@@ -278,13 +278,14 @@ const ManualOppCustomerDetails = () => {
   const isEdit = !!numericLeadOppId;
 
   const leadKind = state?.leadKind || "Manual";
-
   const [leadId] = useState(() => nextLeadId(leadKind));
   const [langOptions] = useState(LANG_INIT);
 
+  /** ✅ Minimum allowed date for picker (tomorrow only) */
+  const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
+
   /** ---- Employees ---- */
   const [employees, setEmployees] = useState([]);
-  const [empLoading, setEmpLoading] = useState(false);
   const [salesOwnerRecId, setSalesOwnerRecId] = useState(0);
 
   const empLookup = useMemo(() => {
@@ -317,7 +318,6 @@ const ManualOppCustomerDetails = () => {
   useEffect(() => {
     let alive = true;
     const run = async () => {
-      setEmpLoading(true);
       try {
         const data = await fetchJSON(EMPLOYEES_URL, { method: "GET" });
         const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
@@ -330,8 +330,6 @@ const ManualOppCustomerDetails = () => {
         setSalesOwnerRecId(toNumberOr0(recId));
       } catch (e) {
         console.error("❌ Employees load failed:", e);
-      } finally {
-        if (alive) setEmpLoading(false);
       }
     };
     run();
@@ -347,9 +345,7 @@ const ManualOppCustomerDetails = () => {
   const [sourceOptions, setSourceOptions] = useState([{ label: "< - Select one - >", value: "" }]);
   const [verticalOptions, setVerticalOptions] = useState([{ label: "< - Select one - >", value: "" }]);
   const [centerOptions, setCenterOptions] = useState([{ label: "< - Select one - >", value: "" }]);
-
   const [subSourceOptions, setSubSourceOptions] = useState([{ label: "< - Select one - >", value: "" }]);
-
   const [dispositionOptions, setDispositionOptions] = useState([{ label: "< - Select one - >", value: "" }]);
   const [subDispositionOptions, setSubDispositionOptions] = useState([{ label: "< - Select one - >", value: "" }]);
 
@@ -360,18 +356,8 @@ const ManualOppCustomerDetails = () => {
   const [subSourceLoading, setSubSourceLoading] = useState(false);
   const [verticalLoading, setVerticalLoading] = useState(false);
   const [centerLoading, setCenterLoading] = useState(false);
-
-  const [leadSubStatusOptions, setLeadSubStatusOptions] = useState([{ label: "< - Select one - >", value: "" }]);
-  const [leadSubStatusLoading, setLeadSubStatusLoading] = useState(false);
-
   const [dispLoading, setDispLoading] = useState(false);
   const [subDispLoading, setSubDispLoading] = useState(false);
-
-  /** ---- Customer details ---- */
-  const [customerDetails, setCustomerDetails] = useState(null);
-  const [customerLoading, setCustomerLoading] = useState(false);
-
-  /** ---- Lead details (edit fetch) ---- */
   const [leadLoading, setLeadLoading] = useState(false);
 
   /** ---- Form ---- */
@@ -397,9 +383,9 @@ const ManualOppCustomerDetails = () => {
     dispositionId: "",
     subDispositionId: "",
 
-    // ✅ NEW defaults (for NEW record only; edit will override from API)
-    followUpDate: toInputDate(row?.followUpDate) || getTomorrowInputDate(),
-    followUpTime: safe(row?.followUpTime).trim() || DEFAULT_FOLLOWUP_TIME_LABEL,
+    // ✅ always tomorrow
+    followUpDate: getTomorrowInputDate(),
+    followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
 
     remarks: "",
   });
@@ -412,15 +398,12 @@ const ManualOppCustomerDetails = () => {
     const id = getCustomerIdFromUrl(custId, locationObj);
 
     const loadCustomer = async () => {
-      setCustomerLoading(true);
       try {
         const data = await fetchJSON(FETCH_CUSTOMER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ custID: id }),
         });
-
-        setCustomerDetails(data || null);
 
         setForm((p) => ({
           ...p,
@@ -432,8 +415,6 @@ const ManualOppCustomerDetails = () => {
         }));
       } catch (e) {
         console.error("❌ FetchCustomerDetails failed:", e);
-      } finally {
-        setCustomerLoading(false);
       }
     };
 
@@ -534,7 +515,6 @@ const ManualOppCustomerDetails = () => {
         const data = await fetchJSON(DISPOSITION_URL, { method: "GET" });
         const arr = Array.isArray(data) ? data : [];
 
-        // ✅ remove "Pending" from disposition dropdown
         const mapped = arr
           .filter((d) => d?.isActive !== false)
           .map((d) => ({ label: safe(d?.dispositionName).trim(), value: String(d?.dispositionID ?? "") }))
@@ -584,49 +564,6 @@ const ManualOppCustomerDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.dispositionId]);
 
-  /** ---------------- Lead Sub-Status load ---------------- */
-  const loadLeadSubStatuses = async (leadStatusCode) => {
-    if (!leadStatusCode) {
-      setLeadSubStatusOptions([{ label: "< - Select one - >", value: "" }]);
-      return;
-    }
-
-    setLeadSubStatusLoading(true);
-    try {
-      const data = await fetchJSON(LEAD_SUBSTATUS_URL(leadStatusCode), { method: "GET" });
-      const arr = Array.isArray(data) ? data : data ? [data] : [];
-      const mapped = arr
-        .map((o) => ({ label: safe(o?.name ?? o?.Name).trim(), value: safe(o?.code ?? o?.Code).trim() }))
-        .filter((x) => x.label);
-      setLeadSubStatusOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
-    } catch (e) {
-      console.error("Failed to load lead sub status", e);
-      setLeadSubStatusOptions([{ label: "< - Select one - >", value: "" }]);
-    } finally {
-      setLeadSubStatusLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadLeadSubStatuses(form.leadStatus);
-    setForm((p) => ({ ...p, leadSubStatus: "" }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.leadStatus]);
-
-  // If Disposition selected is Converted / Not Converted => status must be "Closed"
-  const isClosedDisposition = (dispId, dispOptions) => {
-    const id = String(dispId || "").trim();
-    if (!id) return false;
-
-    const opt = (dispOptions || []).find((o) => String(o.value) === id);
-    const label = (opt?.label || "").trim().toLowerCase();
-    return label === "converted" || label === "not converted";
-  };
-
-  const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionOptions }) => {
-    return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
-  };
-
   /** ---------------- ✅ EDIT MODE: GET Lead and Prefill ---------------- */
   useEffect(() => {
     if (!isEdit) return;
@@ -642,33 +579,38 @@ const ManualOppCustomerDetails = () => {
         const parsedTime = parseTimeToForm(data?.followUpTime);
         const mediumValue = resolveMediumValueFromSeervices(mediumOptions, data?.seervices);
 
-        setForm((p) => ({
-          ...p,
-          firstName: safe(data?.firstName ?? p.firstName),
-          lastName: safe(data?.lastName ?? p.lastName),
-          countryCode: safe(data?.countryCode ?? p.countryCode),
-          mobile: safe(data?.mobile ?? p.mobile),
-          email: safe(data?.email ?? p.email),
-          preferredLanguage: safe(data?.prefLang ?? p.preferredLanguage),
+        setForm((p) => {
+          const apiDate = toInputDate(data?.followUpDate);
+          const min = getTomorrowInputDate();
+          const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : (p.followUpDate || min);
 
-          centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""),
-          doctor: String(data?.doctor_FK ?? p.doctor ?? ""),
+          return {
+            ...p,
+            firstName: safe(data?.firstName ?? p.firstName),
+            lastName: safe(data?.lastName ?? p.lastName),
+            countryCode: safe(data?.countryCode ?? p.countryCode),
+            mobile: safe(data?.mobile ?? p.mobile),
+            email: safe(data?.email ?? p.email),
+            preferredLanguage: safe(data?.prefLang ?? p.preferredLanguage),
 
-          interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
-          sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
-          subSourceName: String(data?.leadSubSource_FK ?? p.subSourceName ?? ""),
+            centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""),
+            doctor: String(data?.doctor_FK ?? p.doctor ?? ""),
 
-          dispositionId: String(data?.disposition_FK ?? p.dispositionId ?? ""),
-          subDispositionId: String(data?.subDisposition_FK ?? p.subDispositionId ?? ""),
+            interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
+            sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
+            subSourceName: String(data?.leadSubSource_FK ?? p.subSourceName ?? ""),
 
-          mediumCode: mediumValue || p.mediumCode,
+            dispositionId: String(data?.disposition_FK ?? p.dispositionId ?? ""),
+            subDispositionId: String(data?.subDisposition_FK ?? p.subDispositionId ?? ""),
 
-          // ✅ keep API value; if missing, keep existing; if still missing -> tomorrow/default time
-          followUpDate: toInputDate(data?.followUpDate) || p.followUpDate || getTomorrowInputDate(),
-          followUpTime: parsedTime || p.followUpTime || DEFAULT_FOLLOWUP_TIME_LABEL,
+            mediumCode: mediumValue || p.mediumCode,
 
-          remarks: safe(data?.remarks ?? p.remarks),
-        }));
+            followUpDate: fixedDate,
+            followUpTime: parsedTime || p.followUpTime || DEFAULT_FOLLOWUP_TIME_LABEL,
+
+            remarks: safe(data?.remarks ?? p.remarks),
+          };
+        });
       } catch (e) {
         console.error("❌ getLead failed:", e);
         alert(e?.message || "Failed to load lead details.");
@@ -690,9 +632,18 @@ const ManualOppCustomerDetails = () => {
     setForm((p) => {
       const next = { ...p, [name]: value };
 
-      // ✅ if user clears, restore defaults so UI doesn't stay blank
-      if (name === "followUpDate" && !safe(value).trim()) next.followUpDate = getTomorrowInputDate();
-      if (name === "followUpTime" && !safe(value).trim()) next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
+      // ✅ enforce tomorrow minimum on date change
+      if (name === "followUpDate") {
+        const v = safe(value).trim();
+        const min = getTomorrowInputDate();
+        if (!v) next.followUpDate = min;
+        else next.followUpDate = v < min ? min : v;
+      }
+
+      // ✅ default time if cleared
+      if (name === "followUpTime" && !safe(value).trim()) {
+        next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
+      }
 
       return next;
     });
@@ -702,17 +653,6 @@ const ManualOppCustomerDetails = () => {
       const { [name]: _, ...rest } = prev;
       return rest;
     });
-  };
-
-  /** resolve final follow-up values at submit time */
-  const resolveFollowUpForPayload = (currentForm) => {
-    const dateVal = safe(currentForm?.followUpDate).trim();
-    const timeVal = safe(currentForm?.followUpTime).trim();
-
-    const finalDate = dateVal || getTomorrowInputDate();
-    const finalTime = timeVal || DEFAULT_FOLLOWUP_TIME_LABEL;
-
-    return { finalDate, finalTime };
   };
 
   const validate = () => {
@@ -726,7 +666,6 @@ const ManualOppCustomerDetails = () => {
     if (!form.interestedVerticalCode) e.interestedVerticalCode = "Interested in is required.";
     if (!form.mediumCode) e.mediumCode = "Lead medium is required.";
     if (!form.sourceName) e.sourceName = "Lead source is required.";
-    if (!form.leadStatus) e.leadStatus = "Lead status is required.";
     if (!isValidEmail(form.email)) e.email = "Please enter a valid email.";
 
     if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
@@ -736,11 +675,34 @@ const ManualOppCustomerDetails = () => {
     return Object.keys(e).length === 0;
   };
 
-  /** ---------------- Create / Update ---------------- */
   const resolvedCustId = safe(custId).trim();
   const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
   const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
 
+  const isClosedDisposition = (dispId, dispOptions) => {
+    const id = String(dispId || "").trim();
+    if (!id) return false;
+    const opt = (dispOptions || []).find((o) => String(o.value) === id);
+    const label = (opt?.label || "").trim().toLowerCase();
+    return label === "converted" || label === "not converted";
+  };
+
+  const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionOptions }) => {
+    return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
+  };
+
+  const resolveFollowUpForPayload = (currentForm) => {
+    const min = getTomorrowInputDate();
+    const dateValRaw = safe(currentForm?.followUpDate).trim();
+    const timeVal = safe(currentForm?.followUpTime).trim();
+
+    const dateVal = !dateValRaw ? min : dateValRaw < min ? min : dateValRaw;
+    const finalTime = timeVal || DEFAULT_FOLLOWUP_TIME_LABEL;
+
+    return { finalDate: dateVal, finalTime };
+  };
+
+  /** ---------------- Create / Update ---------------- */
   const createLeadOpp = async (status) => {
     const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
@@ -751,6 +713,7 @@ const ManualOppCustomerDetails = () => {
     });
 
     const { finalDate, finalTime } = resolveFollowUpForPayload(form);
+    const nowLocal = toLocalDateTimeString(new Date());
 
     const payload = {
       leadOpp_ID: 0,
@@ -764,7 +727,6 @@ const ManualOppCustomerDetails = () => {
       status: finalStatus,
 
       prefLang: form.preferredLanguage,
-
       customer_FK: 0,
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
@@ -780,21 +742,24 @@ const ManualOppCustomerDetails = () => {
 
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
 
-      appointmentDate: new Date().toISOString(),
+      // ✅ NO UTC
+      appointmentDate: nowLocal,
 
-      // ✅ never today if empty
-      followUpDate: toIsoFollowUpDate(finalDate),
+      // ✅ NO UTC + always tomorrow or later
+      followUpDate: toFollowUpDateOnly(finalDate),
 
-      // ✅ default 01:30 PM if empty
       followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
 
       remarks: form.remarks,
       customerMsg: "",
 
+      // ✅ NO UTC
       modifiedBy: 0,
-      modifiedDate: new Date().toISOString(),
-      createdDate: new Date().toISOString(),
+      modifiedDate: nowLocal,
+      createdDate: nowLocal,
     };
+
+    console.log("[createLeadOpp] followUpDate:", payload.followUpDate);
 
     return fetchJSON(CREATE_OPP_URL, {
       method: "POST",
@@ -814,6 +779,7 @@ const ManualOppCustomerDetails = () => {
     });
 
     const { finalDate, finalTime } = resolveFollowUpForPayload(form);
+    const nowLocal = toLocalDateTimeString(new Date());
 
     const payload = {
       leadOpp_ID: numericLeadOppId,
@@ -841,21 +807,22 @@ const ManualOppCustomerDetails = () => {
 
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
 
-      appointmentDate: new Date().toISOString(),
+      // ✅ NO UTC
+      appointmentDate: nowLocal,
 
-      // ✅ never today if empty
-      followUpDate: toIsoFollowUpDate(finalDate),
-
-      // ✅ default 01:30 PM if empty
+      // ✅ NO UTC + always tomorrow or later
+      followUpDate: toLocalFollowUpDateTime(finalDate),
       followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
 
       modifiedBy: 0,
-      modifiedDate: new Date().toISOString(),
-      createdDate: form.createdDate,
+      modifiedDate: nowLocal,
+      createdDate: form.createdDate, // keep what UI had (if your API needs)
     };
+
+    console.log("[updateLeadOpp] followUpDate:", payload.followUpDate);
 
     return fetchJSON(UPDATE_LEAD_URL(numericLeadOppId), {
       method: "PUT",
@@ -889,7 +856,7 @@ const ManualOppCustomerDetails = () => {
           status: "Open",
           apiRes,
           salesOwnerRecId: toNumberOr0(salesOwnerRecId),
-          createdAt: new Date().toISOString(),
+          createdAt: toLocalDateTimeString(new Date()),
         };
         localStorage.setItem(LS_NEW_LEAD_KEY(oppCode), JSON.stringify(saved));
         window.dispatchEvent(new Event("ew_lead_created"));
@@ -1015,7 +982,6 @@ const ManualOppCustomerDetails = () => {
                 <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
               </div>
 
-
               <div className="field">
                 <label>
                   Lead Medium <span className="req">*</span>
@@ -1063,8 +1029,6 @@ const ManualOppCustomerDetails = () => {
 
           <div className="formGrid2">
             <div className="col">
-              
-
               <div className="field">
                 <label>Disposition</label>
                 <select className="inp" name="dispositionId" value={form.dispositionId} onChange={onChange} disabled={dispLoading}>
@@ -1091,22 +1055,25 @@ const ManualOppCustomerDetails = () => {
             <div className="col">
               <div className="field">
                 <label>Follow Up Date</label>
-                <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} />
+                <input
+                  type="date"
+                  className="inp"
+                  name="followUpDate"
+                  value={form.followUpDate}
+                  onChange={onChange}
+                  min={minFollowUpDate} // ✅ disables today + older
+                />
               </div>
 
               <div className="field">
                 <label>Follow Up Time</label>
-                <div className="timeRow">
- <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
-  {TIME_OPTIONS.map((t) => (
-    <option key={t.value || t.label} value={t.value}>
-      {t.label}
-    </option>
-  ))}
-</select>
-
-</div>
-
+                <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
+                  {TIME_OPTIONS.map((t) => (
+                    <option key={t.value || t.label} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -1144,8 +1111,6 @@ const ManualOppCustomerDetails = () => {
         .inp:focus { border-color: #94a3b8; }
         .txta { width: 100%; border-radius: 8px; border: 1px solid #d7dee8; padding: 10px 12px; background: #fff; outline: none; resize: vertical; }
         .errText { margin-top: 6px; font-size: 12px; color: #d32f2f; font-weight: 600; }
-        .timeRow { display: grid; grid-template-columns: 1fr 110px; gap: 10px; }
-        .ampm { max-width: 110px; }
         .mtWide { margin-top: 12px; }
         .btnRow { display: flex; gap: 16px; margin-top: 16px; }
         .btn { background: #0b1b37; color: #fff; border: 0; border-radius: 10px; padding: 11px 26px; font-weight: 700; cursor: pointer; }

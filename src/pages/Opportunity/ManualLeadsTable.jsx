@@ -34,13 +34,13 @@ const formatDDMMYYYY = (v) => {
   return `${d}/${m}/${y}`;
 };
 
-const formatDateTime = (dateVal, timeVal) => {
+// combine date + time (time should be already a friendly label)
+const formatDateTime = (dateVal, timeLabel) => {
   const d = formatDDMMYYYY(dateVal);
-  const t = (timeVal ?? "").toString().trim();
+  const t = (timeLabel ?? "").toString().trim();
   if (d === "—") return "—";
   return t ? `${d} ${t}` : d;
 };
-
 
 // -----------------------------
 // Value helpers
@@ -57,12 +57,45 @@ const toProspectId = (leadOppId) => {
   return `LD-${String(n).padStart(7, "0")}`;
 };
 
-// Prospect Type rule:
-// if custID is null/empty => Opportunity else => Lead
-const toProspectType = (custID) => (isEmpty(custID) ? "Lead" : "Opportunity");
-
 // normalize string for lookups
 const norm = (v) => String(v ?? "").trim().toLowerCase();
+
+// ✅ Convert "13:30:00" -> "01:30 PM"
+// also accepts already formatted label like "01:30 PM"
+const toTimeLabel12h = (timeVal) => {
+  const s = String(timeVal ?? "").trim();
+  if (!s) return "";
+
+  // already in "hh:mm AM/PM"
+  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(s)) {
+    // normalize to 2-digit hour
+    const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    const hh = String(m[1]).padStart(2, "0");
+    return `${hh}:${m[2]} ${String(m[3]).toUpperCase()}`;
+  }
+
+  // "HH:mm:ss" or "HH:mm"
+  const parts = s.split(":");
+  const hh24 = parseInt(parts[0] || "0", 10);
+  const mm = parseInt(parts[1] || "0", 10);
+  if (Number.isNaN(hh24) || Number.isNaN(mm)) return "";
+
+  const ampm = hh24 >= 12 ? "PM" : "AM";
+  let hh12 = hh24 % 12;
+  if (hh12 === 0) hh12 = 12;
+
+  return `${String(hh12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
+};
+
+// ✅ Prospect Type rule (UPDATED):
+// Prefer API `type` (Lead/Opportunity). If missing, fallback to old custID rule.
+const toProspectType = (apiType, custID) => {
+  const t = String(apiType ?? "").trim().toLowerCase();
+  if (t === "lead") return "Lead";
+  if (t === "opportunity") return "Opportunity";
+  // fallback (old behavior)
+  return isEmpty(custID) ? "Lead" : "Opportunity";
+};
 
 // -----------------------------
 // Row mapper (needs resolver for recId)
@@ -73,20 +106,20 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
   // defensively read cust id
   const custID = x?.custID ?? x?.custId ?? null;
 
-    const followUpDate = x?.followUpDate || x?.followUp || "";
-  const followUpTime =
-    (x?.followUpTime ?? x?.followUp_Time ?? x?.followUpT ?? x?.followTime ?? "").toString();
+  const followUpDate = x?.followUpDate || x?.followUp || "";
+  const followUpTimeRaw =
+    (x?.followUpTime ??
+      x?.followUp_Time ??
+      x?.followUpT ??
+      x?.followTime ??
+      "")?.toString?.() ?? "";
 
+  const followUpTimeLabel = toTimeLabel12h(followUpTimeRaw);
 
   // owner fields can vary across APIs
-  const saleOwner =
-    (x?.saleOwner ?? x?.salesOwner ?? x?.createdByName ?? "").toString();
-
-  const saleOwnerCode =
-    (x?.saleOwnerCode ?? x?.salesOwnerCode ?? x?.createdByCode ?? "").toString();
-
-  const saleOwnerEmail =
-    (x?.saleOwnerEmail ?? x?.createdByEmail ?? "").toString();
+  const saleOwner = (x?.saleOwner ?? x?.salesOwner ?? x?.createdByName ?? "").toString();
+  const saleOwnerCode = (x?.saleOwnerCode ?? x?.salesOwnerCode ?? x?.createdByCode ?? "").toString();
+  const saleOwnerEmail = (x?.saleOwnerEmail ?? x?.createdByEmail ?? "").toString();
 
   const saleOwnerRecId = resolveOwnerRecId({
     name: saleOwner,
@@ -94,30 +127,34 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
     email: saleOwnerEmail,
   });
 
+  const apiType = x?.type; // ✅ API provides this now
+
   return {
     id,
     leadOpp_ID: id,
     prospectId: toProspectId(id),
-    prospectType: toProspectType(custID),
+
+    // ✅ use API type
+    prospectType: toProspectType(apiType, custID),
+    apiType: (apiType ?? "").toString(),
 
     custID,
     customerName: (x?.customerName ?? x?.custName ?? "").toString(),
-
     mobileNumber: (x?.mobileNumber ?? x?.mobile ?? x?.phone ?? "").toString(),
-
     status: (x?.status ?? x?.oppStatus ?? "").toString(),
 
-    followUpDate: x?.followUpDate || x?.followUp || "",
+    followUpDate,
+    followUpTimeRaw: followUpTimeRaw.toString(),
+    followUpTimeLabel, // ✅ for display + filter
+
     disposition: (x?.disposition ?? "").toString(),
     remark: (x?.remark ?? x?.remarks ?? "").toString(),
-
-    followUpTime,
 
     // ✅ Sales owner fields
     saleOwner,
     saleOwnerCode,
     saleOwnerEmail,
-    saleOwnerRecId, // ✅ THIS is what you want to send
+    saleOwnerRecId,
 
     modifiedBy: (x?.modifiedBy ?? "").toString(),
     modifiedDate: x?.modifiedDate || "",
@@ -127,7 +164,8 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 
     __q: [
       toProspectId(id),
-      toProspectType(custID),
+      toProspectType(apiType, custID),
+      apiType,
       custID,
       x?.customerName,
       x?.custName,
@@ -136,7 +174,9 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
       x?.phone,
       x?.status,
       x?.oppStatus,
-      x?.followUpDate,
+      followUpDate,
+      followUpTimeRaw,
+      followUpTimeLabel,
       x?.disposition,
       x?.remark,
       x?.remarks,
@@ -177,8 +217,8 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
   const [ownerFilter, setOwnerFilter] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-    const [followTime, setFollowTime] = useState("");
 
+  const [followTime, setFollowTime] = useState("");
 
   const [followDateMode, setFollowDateMode] = useState("");
   const [rangeFrom, setRangeFrom] = useState("");
@@ -229,7 +269,6 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
   // Build lookup maps
   const empLookup = useMemo(() => {
-    // key -> recId
     const byName = new Map();
     const byCode = new Map();
     const byEmail = new Map();
@@ -263,21 +302,22 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
     return ""; // not found
   };
+
   // -----------------------------
-// Time helpers (12:00 AM -> 11:30 PM, 30-min steps)
-// -----------------------------
-const TIME_OPTIONS = (() => {
-  const out = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const hour12 = ((h + 11) % 12) + 1;
-      const ampm = h < 12 ? "AM" : "PM";
-      const mm = String(m).padStart(2, "0");
-      out.push(`${hour12}:${mm} ${ampm}`);
+  // Time helpers (12:00 AM -> 11:30 PM, 30-min steps)
+  // -----------------------------
+  const TIME_OPTIONS = useMemo(() => {
+    const out = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const hour12 = ((h + 11) % 12) + 1;
+        const ampm = h < 12 ? "AM" : "PM";
+        const mm = String(m).padStart(2, "0");
+        out.push(`${String(hour12).padStart(2, "0")}:${mm} ${ampm}`);
+      }
     }
-  }
-  return out; // includes 12:00 AM ... 11:30 PM
-})();
+    return out;
+  }, []);
 
   // -----------------------------
   // Fetch manual leads
@@ -306,7 +346,6 @@ const TIME_OPTIONS = (() => {
 
         if (!alive) return;
 
-        // ✅ map rows AFTER employee list is available (still works if empty)
         setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId)));
         setTotalPages(Number(data?.totalPages) || 1);
         setTotalRecords(Number(data?.totalRecords) || list.length);
@@ -326,7 +365,6 @@ const TIME_OPTIONS = (() => {
     return () => {
       alive = false;
     };
-    // IMPORTANT: include empLookup to re-map when employees arrive
   }, [pageNumber, pageSize, empLookup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // owner options from current page (still showing name)
@@ -355,6 +393,7 @@ const TIME_OPTIONS = (() => {
       list = list.filter((r) => String(r?.saleOwner || "").toLowerCase() === ow);
     }
 
+    // ✅ Follow Up Date filters
     if (followDateMode === "0") {
       const today = toISODateOnly(new Date());
       list = list.filter((r) => toISODateOnly(r?.followUpDate) === today);
@@ -374,31 +413,30 @@ const TIME_OPTIONS = (() => {
       }
     }
 
+    // ✅ Follow Up Time filter (NEW)
+    if (followTime) {
+      const ft = norm(followTime);
+      list = list.filter((r) => norm(r?.followUpTimeLabel) === ft);
+    }
+
     return list;
-  }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo]);
+  }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo, followTime]);
 
   const openManualLead = (row) => {
-  const leadId = row?.leadOpp_ID;
+    const leadId = row?.leadOpp_ID;
 
-  navigate(`/manuallead/edit/${leadId}`, {
-    state: {
-      oppCode,
-      header,
-
-      // ✅ the id you want
-      leadOpp_ID: leadId,
-
-      // optional extras
-      custID: row.custID,
-      row,
-      isManual: true,
-
-      // ✅ Sales owner recId (you already added this)
-      salesOwnerRecId: row.saleOwnerRecId,
-    },
-  });
-};
-
+    navigate(`/manuallead/edit/${leadId}`, {
+      state: {
+        oppCode,
+        header,
+        leadOpp_ID: leadId,
+        custID: row.custID,
+        row,
+        isManual: true,
+        salesOwnerRecId: row.saleOwnerRecId,
+      },
+    });
+  };
 
   return (
     <>
@@ -418,10 +456,7 @@ const TIME_OPTIONS = (() => {
               <span className="value">{safe(header?.oRuleDetails || header?.oRuleCode)}</span>
             </div>
 
-            {/* optional: show employee lookup status */}
-            {empLoading ? (
-              <div style={{ fontSize: 12, color: "#64748b" }}>Loading employees…</div>
-            ) : null}
+            {empLoading ? <div style={{ fontSize: 12, color: "#64748b" }}>Loading employees…</div> : null}
           </div>
 
           <div className="header-actions">
@@ -469,8 +504,6 @@ const TIME_OPTIONS = (() => {
               </select>
             </div>
 
-            
-
             {followDateMode === "2" && (
               <>
                 <div className="fgroup">
@@ -485,17 +518,16 @@ const TIME_OPTIONS = (() => {
             )}
 
             <div className="fgroup">
-  <label className="flabel">Follow Up Time :</label>
-  <select className="finput" value={followTime} onChange={(e) => setFollowTime(e.target.value)}>
-    <option value="">All</option>
-    {TIME_OPTIONS.map((t) => (
-      <option key={t} value={t}>
-        {t}
-      </option>
-    ))}
-  </select>
-</div>
-
+              <label className="flabel">Follow Up Time :</label>
+              <select className="finput" value={followTime} onChange={(e) => setFollowTime(e.target.value)}>
+                <option value="">All</option>
+                {TIME_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <button
               className="btn-primary"
@@ -568,16 +600,21 @@ const TIME_OPTIONS = (() => {
                         {safe(r.prospectId)}
                       </button>
                     </td>
+
+                    {/* ✅ Type now comes from API */}
                     <td>{safe(r.prospectType)}</td>
+
                     <td>{safe(r.custID)}</td>
                     <td>{safe(r.customerName)}</td>
                     <td>{safe(r.mobileNumber)}</td>
                     <td>{safe(r.status)}</td>
-                    <td>{formatDDMMYYYY(r.followUpDate)}</td>
+
+                    {/* ✅ date + time */}
+                    <td>{formatDateTime(r.followUpDate, r.followUpTimeLabel)}</td>
+
                     <td>{safe(r.disposition)}</td>
                     <td>{safe(r.remark)}</td>
 
-                    {/* UI shows name (like screenshot), but we carry + send recId */}
                     <td title={r.saleOwnerRecId ? `recId: ${r.saleOwnerRecId}` : "recId not found"}>
                       {safe(r.saleOwner)}
                     </td>
@@ -593,9 +630,7 @@ const TIME_OPTIONS = (() => {
           </div>
         ) : null}
 
-        {!loading && !err && !filtered.length ? (
-          <div className="empty-note">No manual leads found.</div>
-        ) : null}
+        {!loading && !err && !filtered.length ? <div className="empty-note">No manual leads found.</div> : null}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
           <div style={{ fontSize: 13, color: "#64748b" }}>
