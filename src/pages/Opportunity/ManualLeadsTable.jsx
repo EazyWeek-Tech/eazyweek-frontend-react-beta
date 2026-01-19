@@ -592,7 +592,7 @@ const navId = uiRecId || uiOppCode;
 
     try {
       if (!uiRecId) {
-  alert("Campaign not loaded yet.");
+  alert("Campaign not loaded yet..");
   return;
 }
 const raw = await fetchAllLeads(uiRecId);
