@@ -7,6 +7,17 @@ import { API_BASE_URL } from "../../config";
 const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const norm = (v) => safe(v).trim().toLowerCase();
 
+/** ✅ Defaults for Follow-up */
+const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
+const getTomorrowInputDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`; // yyyy-MM-dd
+};
+
 function toInputDate(value) {
   if (!value) return "";
   try {
@@ -58,30 +69,49 @@ const fetchJSON = async (url, options = {}) => {
   }
 };
 
-// Send ISO date safely
-const toIsoOrNow = (yyyyMmDd) => {
-  if (!yyyyMmDd) return new Date().toISOString();
-  const d = new Date(`${yyyyMmDd}T00:00:00`);
-  return isNaN(d) ? new Date().toISOString() : d.toISOString();
+const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
+  const s = safe(seervices).trim().toLowerCase();
+  if (!s) return "";
+
+  const exactLabel = (mediumOptions || []).find((o) => norm(o.label) === s);
+  if (exactLabel) return safe(exactLabel.value);
+
+  const exactCode = (mediumOptions || []).find((o) => norm(o.code) === s);
+  if (exactCode) return safe(exactCode.value);
+
+  const contains = (mediumOptions || []).find((o) => norm(o.label).includes(s) || s.includes(norm(o.label)));
+  return contains ? safe(contains.value) : "";
 };
 
-// ✅ TimeSpan friendly converter => "HH:mm:ss" or null
-const toTimeSpanOrNull = (hhmm, ampm) => {
-  if (!hhmm) return null;
+// ✅ followUpDate should NEVER default to "today".
+// If empty/invalid -> tomorrow (00:00 local, will serialize to ISO)
+const toIsoFollowUpDate = (yyyyMmDd) => {
+  const s = safe(yyyyMmDd).trim();
+  const dateStr = s || getTomorrowInputDate(); // fallback -> tomorrow
+  const d = new Date(`${dateStr}T00:00:00`);
+  // final safety fallback -> tomorrow
+  return isNaN(d) ? new Date(`${getTomorrowInputDate()}T00:00:00`).toISOString() : d.toISOString();
+};
 
-  const [hhStr, mmStr] = String(hhmm).split(":");
-  let hh = parseInt(hhStr, 10);
-  const mm = parseInt(mmStr, 10);
+// ✅ TimeSpan friendly converter from "hh:mm AM/PM" => "HH:mm:ss" or null
+const toTimeSpanOrNull = (timeLabel) => {
+  const s = safe(timeLabel).trim();
+  if (!s) return null;
+
+  const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null;
+
+  let hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  const ap = String(m[3]).toUpperCase();
 
   if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
 
-  const ap = String(ampm || "AM").toUpperCase();
   if (ap === "PM" && hh !== 12) hh += 12;
   if (ap === "AM" && hh === 12) hh = 0;
 
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
 };
-
 
 const getCustomerIdFromUrl = (custIdParam, location) => {
   const direct = safe(custIdParam).trim();
@@ -112,6 +142,7 @@ const stripProspectId = (v) => {
   const id = Number(numeric);
   return Number.isNaN(id) ? 0 : id;
 };
+
 const findOptionLabelByValue = (options, value) => {
   const v = String(value ?? "").trim();
   if (!v) return "";
@@ -120,28 +151,18 @@ const findOptionLabelByValue = (options, value) => {
 };
 
 const parseTimeToForm = (timeStr) => {
-  // expects "HH:mm:ss" or "HH:mm"
+  // expects backend: "HH:mm:ss" or "HH:mm"
   const t = safe(timeStr).trim();
-  if (!t) return { hhmm: "", ampm: "AM" };
+  if (!t) return "";
 
   const parts = t.split(":");
   let hh = parseInt(parts[0] || "0", 10);
   const mm = parseInt(parts[1] || "0", 10);
-  if (Number.isNaN(hh) || Number.isNaN(mm)) return { hhmm: "", ampm: "AM" };
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return "";
 
-  let ampm = "AM";
-  let displayH = hh;
-
-  if (hh >= 12) {
-    ampm = "PM";
-    displayH = hh === 12 ? 12 : hh - 12;
-  } else {
-    ampm = "AM";
-    displayH = hh === 0 ? 12 : hh;
-  }
-
-  const hhmm = `${String(displayH).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  return { hhmm, ampm };
+  const ampm = hh >= 12 ? "PM" : "AM";
+  const hour12 = ((hh + 11) % 12) + 1;
+  return `${String(hour12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
 };
 
 const LEAD_STATUS_OPTIONS = [
@@ -154,12 +175,20 @@ const LEAD_STATUS_OPTIONS = [
   { label: "Converted", value: "LS007" },
 ];
 
-// Time dropdown options
+// Time dropdown options: "12:00 AM" ... "11:30 PM"
 const TIME_OPTIONS = (() => {
   const out = [{ label: "--", value: "" }];
-  for (let h = 1; h <= 12; h++) {
-    out.push({ label: `${String(h).padStart(2, "0")}:00`, value: `${String(h).padStart(2, "0")}:00` });
-    out.push({ label: `${String(h).padStart(2, "0")}:30`, value: `${String(h).padStart(2, "0")}:30` });
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  for (let h24 = 0; h24 < 24; h24++) {
+    for (const m of [0, 30]) {
+      const ampm = h24 >= 12 ? "PM" : "AM";
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+
+      const label = `${pad2(h12)}:${pad2(m)} ${ampm}`;
+      out.push({ label, value: label });
+    }
   }
   return out;
 })();
@@ -183,8 +212,7 @@ const FETCH_CUSTOMER_URL = `${API_BASE_URL}/api/Customer/FetchCustomerDetails`;
 const SUBSOURCE_URL = `${API_BASE_URL}/api/Opportunity/OppSubSource`;
 const DISPOSITION_URL = `${API_BASE_URL}/api/Disposition/List`;
 const SUBDISPOSITION_URL = `${API_BASE_URL}/api/Disposition/SubDispositionList`;
-const LEAD_SUBSTATUS_URL = (statusCode) =>
-  `${API_BASE_URL}/api/Opportunity/OppLeadSubStatus/${encodeURIComponent(statusCode)}`;
+const LEAD_SUBSTATUS_URL = (statusCode) => `${API_BASE_URL}/api/Opportunity/OppLeadSubStatus/${encodeURIComponent(statusCode)}`;
 const CREATE_OPP_URL = `${API_BASE_URL}/api/LeadOpp/createOpp`;
 
 const GET_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/getLead/${id}`;
@@ -195,7 +223,7 @@ const EMPLOYEES_URL = `${API_BASE_URL}/api/Employees`;
 
 const LS_NEW_LEAD_KEY = (oppCode) => `EW_OPP_NEW_LEAD_${oppCode}`;
 
-// Logged-in user (adjust keys if needed)
+// Logged-in user
 const getLoggedInUser = () => {
   const raw = sessionStorage.getItem("user") || localStorage.getItem("user");
   if (!raw) return null;
@@ -205,6 +233,7 @@ const getLoggedInUser = () => {
     return null;
   }
 };
+
 const pickUserIdentity = (u) => {
   const employeeCode = u?.userId || u?.employeeCode || u?.empCode || u?.EmployeeCode || u?.EmpCode || "";
   const name =
@@ -228,7 +257,6 @@ const ManualOppCustomerDetails = () => {
   const oppCode = params.oppCode;
   const custId = params.custId ?? params.custid ?? "";
 
-  // edit route param: /manuallead/edit/:leadOppId
   const leadOppIdParam = params.leadOppId || params.id || params.leadOpp_ID || "";
 
   const locationObj = useLocation();
@@ -248,16 +276,13 @@ const ManualOppCustomerDetails = () => {
   }, [leadOppIdParam, leadOppIdFromState]);
 
   const isEdit = !!numericLeadOppId;
-  const isR7 = String(header?.oRuleCode || state?.oRuleCode || "")
-  .trim()
-  .toUpperCase() === "R7";
 
- const leadKind = state?.leadKind || "Manual";
+  const leadKind = state?.leadKind || "Manual";
 
   const [leadId] = useState(() => nextLeadId(leadKind));
   const [langOptions] = useState(LANG_INIT);
 
-  /** ---- Employees (sales owner) ---- */
+  /** ---- Employees ---- */
   const [employees, setEmployees] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
   const [salesOwnerRecId, setSalesOwnerRecId] = useState(0);
@@ -299,7 +324,6 @@ const ManualOppCustomerDetails = () => {
         if (!alive) return;
         setEmployees(list);
 
-        // ✅ resolve current user recId
         const u = getLoggedInUser();
         const ident = pickUserIdentity(u);
         const recId = resolveEmpRecId(ident);
@@ -373,9 +397,10 @@ const ManualOppCustomerDetails = () => {
     dispositionId: "",
     subDispositionId: "",
 
-    followUpDate: toInputDate(row?.followUpDate || ""),
-    followUpTime: "",
-    followUpTimeAmPm: "AM",
+    // ✅ NEW defaults (for NEW record only; edit will override from API)
+    followUpDate: toInputDate(row?.followUpDate) || getTomorrowInputDate(),
+    followUpTime: safe(row?.followUpTime).trim() || DEFAULT_FOLLOWUP_TIME_LABEL,
+
     remarks: "",
   });
 
@@ -397,7 +422,6 @@ const ManualOppCustomerDetails = () => {
 
         setCustomerDetails(data || null);
 
-        // only fill basics if still empty (do not override edit fetch later)
         setForm((p) => ({
           ...p,
           firstName: safe(p.firstName || data?.firstName),
@@ -431,11 +455,10 @@ const ManualOppCustomerDetails = () => {
 
         const centersMapped = (Array.isArray(data?.centers) ? data.centers : [])
           .map((c) => ({
-  label: safe(c?.name).trim(),
-  value: String(c?.recid ?? c?.value ?? ""), // ✅ recid first
-  code: safe(c?.code).trim(),
-}))
-
+            label: safe(c?.name).trim(),
+            value: String(c?.recid ?? c?.value ?? ""),
+            code: safe(c?.code).trim(),
+          }))
           .filter((x) => x.label);
         setCenterOptions([{ label: "< - Select one - >", value: "" }, ...centersMapped]);
 
@@ -448,11 +471,10 @@ const ManualOppCustomerDetails = () => {
           .map((d) => {
             const name = `${safe(d?.firstName).trim()} ${safe(d?.lastName).trim()}`.trim();
             return {
-  label: name || safe(d?.employeeCode).trim(),
-  value: String(d?.recid ?? d?.value ?? ""),  // ✅ recid first
-  code: safe(d?.employeeCode).trim(),
-};
-
+              label: name || safe(d?.employeeCode).trim(),
+              value: String(d?.recid ?? d?.value ?? ""),
+              code: safe(d?.employeeCode).trim(),
+            };
           })
           .filter((x) => x.label && x.value);
         setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...docsMapped]);
@@ -492,9 +514,7 @@ const ManualOppCustomerDetails = () => {
       try {
         const data = await fetchJSON(SUBSOURCE_URL, { method: "GET" });
         const arr = Array.isArray(data) ? data : [];
-        const mapped = arr
-          .map((s) => ({ label: safe(s?.name).trim(), value: safe(s?.code).trim() }))
-          .filter((x) => x.label);
+        const mapped = arr.map((s) => ({ label: safe(s?.name).trim(), value: safe(s?.code).trim() })).filter((x) => x.label);
         setSubSourceOptions(mapped.length ? mapped : [{ label: "< - Select one - >", value: "" }]);
       } catch (e) {
         console.error("Failed to load subsources", e);
@@ -513,10 +533,14 @@ const ManualOppCustomerDetails = () => {
       try {
         const data = await fetchJSON(DISPOSITION_URL, { method: "GET" });
         const arr = Array.isArray(data) ? data : [];
+
+        // ✅ remove "Pending" from disposition dropdown
         const mapped = arr
           .filter((d) => d?.isActive !== false)
           .map((d) => ({ label: safe(d?.dispositionName).trim(), value: String(d?.dispositionID ?? "") }))
-          .filter((x) => x.label && x.value);
+          .filter((x) => x.label && x.value)
+          .filter((x) => norm(x.label) !== "pending");
+
         setDispositionOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
       } catch (e) {
         console.error("Failed to load dispositions", e);
@@ -590,22 +614,18 @@ const ManualOppCustomerDetails = () => {
   }, [form.leadStatus]);
 
   // If Disposition selected is Converted / Not Converted => status must be "Closed"
-const isClosedDisposition = (dispId, dispOptions) => {
-  const id = String(dispId || "").trim();
-  if (!id) return false;
+  const isClosedDisposition = (dispId, dispOptions) => {
+    const id = String(dispId || "").trim();
+    if (!id) return false;
 
-  const opt = (dispOptions || []).find((o) => String(o.value) === id);
-  const label = (opt?.label || "").trim().toLowerCase();
+    const opt = (dispOptions || []).find((o) => String(o.value) === id);
+    const label = (opt?.label || "").trim().toLowerCase();
+    return label === "converted" || label === "not converted";
+  };
 
-  // Match by label (safe even if IDs change)
-  return label === "converted" || label === "not converted";
-};
-
-// Resolve final status for API payload
-const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionOptions }) => {
-  return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
-};
-
+  const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionOptions }) => {
+    return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
+  };
 
   /** ---------------- ✅ EDIT MODE: GET Lead and Prefill ---------------- */
   useEffect(() => {
@@ -617,15 +637,13 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
       setLeadLoading(true);
       try {
         const data = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
-
         if (!alive) return;
 
-        // followUpTime => convert to UI hh:mm + AM/PM
         const parsedTime = parseTimeToForm(data?.followUpTime);
+        const mediumValue = resolveMediumValueFromSeervices(mediumOptions, data?.seervices);
 
         setForm((p) => ({
           ...p,
-
           firstName: safe(data?.firstName ?? p.firstName),
           lastName: safe(data?.lastName ?? p.lastName),
           countryCode: safe(data?.countryCode ?? p.countryCode),
@@ -633,10 +651,8 @@ const resolvePayloadStatus = ({ baseStatus = "Open", dispositionId, dispositionO
           email: safe(data?.email ?? p.email),
           preferredLanguage: safe(data?.prefLang ?? p.preferredLanguage),
 
-          // master-driven dropdown values
-          centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""), // ✅ FK -> select value
-doctor: String(data?.doctor_FK ?? p.doctor ?? ""),               // ✅ FK -> select value
-
+          centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""),
+          doctor: String(data?.doctor_FK ?? p.doctor ?? ""),
 
           interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
           sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
@@ -645,13 +661,11 @@ doctor: String(data?.doctor_FK ?? p.doctor ?? ""),               // ✅ FK -> se
           dispositionId: String(data?.disposition_FK ?? p.dispositionId ?? ""),
           subDispositionId: String(data?.subDisposition_FK ?? p.subDispositionId ?? ""),
 
-          // lead status in your form is LS0xx - API gives status text ("Open") and type ("Opportunity")
-          // keep existing form.leadStatus unless you have a mapping.
-          // leadStatus: p.leadStatus,
+          mediumCode: mediumValue || p.mediumCode,
 
-          followUpDate: toInputDate(data?.followUpDate || p.followUpDate),
-          followUpTime: parsedTime.hhmm || p.followUpTime,
-          followUpTimeAmPm: parsedTime.ampm || p.followUpTimeAmPm,
+          // ✅ keep API value; if missing, keep existing; if still missing -> tomorrow/default time
+          followUpDate: toInputDate(data?.followUpDate) || p.followUpDate || getTomorrowInputDate(),
+          followUpTime: parsedTime || p.followUpTime || DEFAULT_FOLLOWUP_TIME_LABEL,
 
           remarks: safe(data?.remarks ?? p.remarks),
         }));
@@ -667,17 +681,38 @@ doctor: String(data?.doctor_FK ?? p.doctor ?? ""),               // ✅ FK -> se
     return () => {
       alive = false;
     };
-  }, [isEdit, numericLeadOppId]);
+  }, [isEdit, numericLeadOppId, mediumOptions]);
 
   /** ---------------- Events ---------------- */
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
+
+    setForm((p) => {
+      const next = { ...p, [name]: value };
+
+      // ✅ if user clears, restore defaults so UI doesn't stay blank
+      if (name === "followUpDate" && !safe(value).trim()) next.followUpDate = getTomorrowInputDate();
+      if (name === "followUpTime" && !safe(value).trim()) next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
+
+      return next;
+    });
+
     setErrors((prev) => {
       if (!prev[name]) return prev;
       const { [name]: _, ...rest } = prev;
       return rest;
     });
+  };
+
+  /** resolve final follow-up values at submit time */
+  const resolveFollowUpForPayload = (currentForm) => {
+    const dateVal = safe(currentForm?.followUpDate).trim();
+    const timeVal = safe(currentForm?.followUpTime).trim();
+
+    const finalDate = dateVal || getTomorrowInputDate();
+    const finalTime = timeVal || DEFAULT_FOLLOWUP_TIME_LABEL;
+
+    return { finalDate, finalTime };
   };
 
   const validate = () => {
@@ -694,29 +729,28 @@ doctor: String(data?.doctor_FK ?? p.doctor ?? ""),               // ✅ FK -> se
     if (!form.leadStatus) e.leadStatus = "Lead status is required.";
     if (!isValidEmail(form.email)) e.email = "Please enter a valid email.";
 
+    if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
+    if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   /** ---------------- Create / Update ---------------- */
-const resolvedCustId = safe(custId).trim(); // ✅ ONLY from param
-const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
-const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
-
-
-console.log(isLead)
+  const resolvedCustId = safe(custId).trim();
+  const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
+  const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
 
   const createLeadOpp = async (status) => {
-    const leadStatusName = LEAD_STATUS_OPTIONS.find((x) => x.value === form.leadStatus)?.label || "";
-    const leadSubStatusName = leadSubStatusOptions.find((x) => x.value === form.leadSubStatus)?.label || "";
     const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
     const finalStatus = resolvePayloadStatus({
-    baseStatus: status, // usually "Open"
-    dispositionId: form.dispositionId,
-    dispositionOptions,
-  });
+      baseStatus: status,
+      dispositionId: form.dispositionId,
+      dispositionOptions,
+    });
 
+    const { finalDate, finalTime } = resolveFollowUpForPayload(form);
 
     const payload = {
       leadOpp_ID: 0,
@@ -733,9 +767,9 @@ console.log(isLead)
 
       customer_FK: 0,
 
-      clinicCentre_FK: toNumberOr0(form.centerCode),  // ✅ recid
-doctor_FK: toNumberOr0(form.doctor),            // ✅ recid
-seervices: mediumName,
+      clinicCentre_FK: toNumberOr0(form.centerCode),
+      doctor_FK: toNumberOr0(form.doctor),
+      seervices: mediumName,
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
@@ -747,12 +781,15 @@ seervices: mediumName,
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
 
       appointmentDate: new Date().toISOString(),
-      followUpDate: toIsoOrNow(form.followUpDate),
-      followUpTime: toTimeSpanOrNull(form.followUpTime, form.followUpTimeAmPm),
+
+      // ✅ never today if empty
+      followUpDate: toIsoFollowUpDate(finalDate),
+
+      // ✅ default 01:30 PM if empty
+      followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
+
       remarks: form.remarks,
-
-      customerMsg: '',
-
+      customerMsg: "",
 
       modifiedBy: 0,
       modifiedDate: new Date().toISOString(),
@@ -770,14 +807,13 @@ seervices: mediumName,
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
     const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
-
     const finalStatus = resolvePayloadStatus({
-    baseStatus: "Open",
-    dispositionId: form.dispositionId,
-    dispositionOptions,
-  });
+      baseStatus: "Open",
+      dispositionId: form.dispositionId,
+      dispositionOptions,
+    });
 
-  console.log(isLead)
+    const { finalDate, finalTime } = resolveFollowUpForPayload(form);
 
     const payload = {
       leadOpp_ID: numericLeadOppId,
@@ -792,9 +828,9 @@ seervices: mediumName,
       prefLang: form.preferredLanguage,
 
       customer_FK: 0,
-     clinicCentre_FK: toNumberOr0(form.centerCode),
-doctor_FK: toNumberOr0(form.doctor),
-seervices: mediumName,
+      clinicCentre_FK: toNumberOr0(form.centerCode),
+      doctor_FK: toNumberOr0(form.doctor),
+      seervices: mediumName,
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
@@ -806,8 +842,12 @@ seervices: mediumName,
       salesOwner_FK: toNumberOr0(salesOwnerRecId),
 
       appointmentDate: new Date().toISOString(),
-      followUpDate: toIsoOrNow(form.followUpDate),
-      followUpTime: toTimeSpanOrNull(form.followUpTime, form.followUpTimeAmPm),
+
+      // ✅ never today if empty
+      followUpDate: toIsoFollowUpDate(finalDate),
+
+      // ✅ default 01:30 PM if empty
+      followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
@@ -818,7 +858,7 @@ seervices: mediumName,
     };
 
     return fetchJSON(UPDATE_LEAD_URL(numericLeadOppId), {
-      method: "PUT", // change to POST if backend expects POST
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -871,22 +911,9 @@ seervices: mediumName,
         <div className="pageHeader">
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
-            <div className="subTitle">
-              {/* {leadKind} Lead • {oppCode ? `Opportunity: ${oppCode}` : "Opportunity"}
-              {customerLoading ? " • Loading customer..." : ""}
-              {isLead ? " • Type: Lead" : " • Type: Opportunity"}
-              {empLoading ? " • Loading employees..." : ""}
-              {leadLoading ? " • Loading lead..." : ""}
-              {salesOwnerRecId ? ` • SalesOwner: ${salesOwnerRecId}` : " • SalesOwner: 0"}
-              {isEdit ? ` • Edit ID: ${numericLeadOppId}` : " • New"} */}
-            </div>
+            <div className="subTitle"></div>
           </div>
         </div>
-
-        {/* --- your existing UI below unchanged --- */}
-        {/* (I kept the UI structure same; only button text changed) */}
-
-        {/* ... KEEP YOUR EXISTING JSX FROM HERE ... */}
 
         <fieldset className="fs">
           <legend>Lead Details</legend>
@@ -897,13 +924,7 @@ seervices: mediumName,
                 <label>
                   First Name <span className="req">*</span>
                 </label>
-                <input
-                  className={`inp ${errors.firstName ? "err" : ""}`}
-                  name="firstName"
-                  value={form.firstName}
-                  onChange={onChange}
-                  placeholder="First Name"
-                />
+                <input className={`inp ${errors.firstName ? "err" : ""}`} name="firstName" value={form.firstName} onChange={onChange} placeholder="First Name" />
                 {errors.firstName && <div className="errText">{errors.firstName}</div>}
               </div>
 
@@ -911,13 +932,7 @@ seervices: mediumName,
                 <label>
                   Last Name <span className="req">*</span>
                 </label>
-                <input
-                  className={`inp ${errors.lastName ? "err" : ""}`}
-                  name="lastName"
-                  value={form.lastName}
-                  onChange={onChange}
-                  placeholder="Last Name"
-                />
+                <input className={`inp ${errors.lastName ? "err" : ""}`} name="lastName" value={form.lastName} onChange={onChange} placeholder="Last Name" />
                 {errors.lastName && <div className="errText">{errors.lastName}</div>}
               </div>
 
@@ -985,13 +1000,7 @@ seervices: mediumName,
                 <label>
                   Interested In <span className="req">*</span>
                 </label>
-                <select
-                  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
-                  name="interestedVerticalCode"
-                  value={form.interestedVerticalCode}
-                  onChange={onChange}
-                  disabled={verticalLoading}
-                >
+                <select className={`inp ${errors.interestedVerticalCode ? "err" : ""}`} name="interestedVerticalCode" value={form.interestedVerticalCode} onChange={onChange} disabled={verticalLoading}>
                   {verticalOptions.map((o) => (
                     <option key={o.value || o.label} value={o.value}>
                       {o.label}
@@ -1005,6 +1014,7 @@ seervices: mediumName,
                 <label>Other</label>
                 <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
               </div>
+
 
               <div className="field">
                 <label>
@@ -1087,19 +1097,16 @@ seervices: mediumName,
               <div className="field">
                 <label>Follow Up Time</label>
                 <div className="timeRow">
-                  <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
-                    {TIME_OPTIONS.map((t) => (
-                      <option key={t.value || t.label} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+ <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
+  {TIME_OPTIONS.map((t) => (
+    <option key={t.value || t.label} value={t.value}>
+      {t.label}
+    </option>
+  ))}
+</select>
 
-                  <select className="inp ampm" name="followUpTimeAmPm" value={form.followUpTimeAmPm} onChange={onChange}>
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
-                </div>
+</div>
+
               </div>
             </div>
           </div>

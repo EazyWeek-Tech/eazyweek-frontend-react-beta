@@ -34,6 +34,14 @@ const formatDDMMYYYY = (v) => {
   return `${d}/${m}/${y}`;
 };
 
+const formatDateTime = (dateVal, timeVal) => {
+  const d = formatDDMMYYYY(dateVal);
+  const t = (timeVal ?? "").toString().trim();
+  if (d === "—") return "—";
+  return t ? `${d} ${t}` : d;
+};
+
+
 // -----------------------------
 // Value helpers
 // -----------------------------
@@ -64,6 +72,11 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 
   // defensively read cust id
   const custID = x?.custID ?? x?.custId ?? null;
+
+    const followUpDate = x?.followUpDate || x?.followUp || "";
+  const followUpTime =
+    (x?.followUpTime ?? x?.followUp_Time ?? x?.followUpT ?? x?.followTime ?? "").toString();
+
 
   // owner fields can vary across APIs
   const saleOwner =
@@ -97,6 +110,8 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
     followUpDate: x?.followUpDate || x?.followUp || "",
     disposition: (x?.disposition ?? "").toString(),
     remark: (x?.remark ?? x?.remarks ?? "").toString(),
+
+    followUpTime,
 
     // ✅ Sales owner fields
     saleOwner,
@@ -162,6 +177,8 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
   const [ownerFilter, setOwnerFilter] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+    const [followTime, setFollowTime] = useState("");
+
 
   const [followDateMode, setFollowDateMode] = useState("");
   const [rangeFrom, setRangeFrom] = useState("");
@@ -246,6 +263,21 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
     return ""; // not found
   };
+  // -----------------------------
+// Time helpers (12:00 AM -> 11:30 PM, 30-min steps)
+// -----------------------------
+const TIME_OPTIONS = (() => {
+  const out = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hour12 = ((h + 11) % 12) + 1;
+      const ampm = h < 12 ? "AM" : "PM";
+      const mm = String(m).padStart(2, "0");
+      out.push(`${hour12}:${mm} ${ampm}`);
+    }
+  }
+  return out; // includes 12:00 AM ... 11:30 PM
+})();
 
   // -----------------------------
   // Fetch manual leads
@@ -437,6 +469,8 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
               </select>
             </div>
 
+            
+
             {followDateMode === "2" && (
               <>
                 <div className="fgroup">
@@ -449,6 +483,19 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
                 </div>
               </>
             )}
+
+            <div className="fgroup">
+  <label className="flabel">Follow Up Time :</label>
+  <select className="finput" value={followTime} onChange={(e) => setFollowTime(e.target.value)}>
+    <option value="">All</option>
+    {TIME_OPTIONS.map((t) => (
+      <option key={t} value={t}>
+        {t}
+      </option>
+    ))}
+  </select>
+</div>
+
 
             <button
               className="btn-primary"
