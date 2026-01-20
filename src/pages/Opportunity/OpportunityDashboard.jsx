@@ -302,7 +302,39 @@ await fetchOpportunities("1");
     setSelectedRows([]);
   };
 
-  const handleRefresh = () => setStatusFilter("1");
+  const handleRefresh = async () => {
+  const oppCode = 123; // ✅ as per your requirement
+
+  setLoading(true);
+  try {
+    // 1) Call GetLatestData first
+    const res1 = await fetch(
+      `${API_BASE_URL}/api/Opportunity/GetLatestData/${oppCode}`,
+      { credentials: "include" }
+    );
+
+    if (!res1.ok) {
+      const errText = await res1.text();
+      throw new Error(`GetLatestData failed: HTTP ${res1.status} - ${errText.slice(0, 180)}`);
+    }
+
+    // (optional) if API returns json and you want to read it
+    // const latestRes = await res1.json();
+
+    // 2) After GetLatestData completes, reload list with status = 1
+    setStatusFilter("1");          // keep UI in sync (Active)
+    setCurrentPage(1);
+    await fetchOpportunities("1"); // ✅ this calls /LoadOpprotunityList/1
+
+    showToast("Latest data loaded successfully!", "success");
+  } catch (e) {
+    console.error("Get Latest Data error:", e);
+    showToast(e?.message || "Failed to get latest data", "error");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   /**
    * Navigate to /opportunity/details/{oppCode}
@@ -344,7 +376,7 @@ await fetchOpportunities("1");
     const isManualLeadRow = (row) => {
   const code = (row?.oRuleCode || row?.oRuleDetails || "").toString().trim().toLowerCase();
   
-  return code === "manual lead"  || code === "r7";
+  return code === "manual lead" 
 };
 
     navigate(`/opportunity/details/${oppCode}`, {
@@ -467,8 +499,7 @@ await fetchOpportunities("1");
         .btn-primary:hover { background-color: #2a3f5f; transform: translateY(-1px); }
         .btn-secondary { background-color: #6c757d; color: white; }
         .btn-secondary:hover { background-color: #5a6268; transform: translateY(-1px); }
-        .btn-refresh { background-color: #28a745; color: white; padding: 8px 12px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-        .btn-refresh:hover { background-color: #218838; transform: rotate(180deg); }
+        .btn-refresh { background-color: #334b71; color: white; font-weight: 700; cursor: pointer; padding: 8px 12px; border: none; border-radius:4px; height: 40px; display: flex; align-items: center; justify-content: center;font-size: 14px; }
 
         .controls-section { background: white; border-radius: 0; padding: 20px 0; box-shadow: none; margin-bottom: 20px; }
         .controls-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
@@ -538,7 +569,7 @@ await fetchOpportunities("1");
               <button className="btn btn-secondary" onClick={handleExpireCampaign}>Expire Campaign</button>
               <button className="btn btn-primary" onClick={handleCreateNewCampaign}>Create New Campaign</button>
             </div>
-            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">↻</button>
+            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">Get Latest Data</button>
           </div>
         </div>
 
@@ -595,13 +626,13 @@ await fetchOpportunities("1");
                     />
                   </th>
                   <th onClick={() => handleSort("oppCode")}>
-                    Opp Code
+                    Campaign Code
                     <span className="sort-indicator">
                       {sortConfig.key === "oppCode" ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("oppName")}>
-                    Opp Name
+                    Campaign Name
                     <span className="sort-indicator">
                       {sortConfig.key === "oppName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕"}
                     </span>

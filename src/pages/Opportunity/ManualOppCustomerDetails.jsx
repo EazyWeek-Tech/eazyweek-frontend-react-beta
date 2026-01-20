@@ -260,6 +260,8 @@ const DISPOSITION_URL = `${API_BASE_URL}/api/Disposition/List`;
 const SUBDISPOSITION_URL = `${API_BASE_URL}/api/Disposition/SubDispositionList`;
 const LEAD_SUBSTATUS_URL = (statusCode) => `${API_BASE_URL}/api/Opportunity/OppLeadSubStatus/${encodeURIComponent(statusCode)}`;
 const CREATE_OPP_URL = `${API_BASE_URL}/api/LeadOpp/createOpp`;
+const LOAD_CUSTOMERS_URL = `${API_BASE_URL}/api/Customer/LoadCustomers`;
+
 
 const GET_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/getLead/${id}`;
 const UPDATE_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/lead/update/${id}`;
@@ -501,6 +503,8 @@ useEffect(() => {
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [customerRecId, setCustomerRecId] = useState(0);
+
 
   /** ---------------- Customer Fetch ---------------- */
   useEffect(() => {
@@ -829,6 +833,46 @@ if (closed) {
   const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
   const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
 
+  useEffect(() => {
+  // Opportunity only (customer is present in URL)
+  if (isLead) {
+    setCustomerRecId(0);
+    return;
+  }
+
+  const cid = safe(custId).trim();
+  if (!cid) {
+    setCustomerRecId(0);
+    return;
+  }
+
+  let alive = true;
+
+  const run = async () => {
+    try {
+      // assuming API is GET and returns array like your sample
+      const data = await fetchJSON(LOAD_CUSTOMERS_URL, { method: "GET" });
+      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+      const match = list.find((x) => safe(x?.custId).trim().toLowerCase() === cid.toLowerCase());
+      const rec = toNumberOr0(match?.recId);
+
+      if (alive) setCustomerRecId(rec);
+    } catch (e) {
+      console.error("❌ LoadCustomers failed:", e);
+      if (alive) setCustomerRecId(0);
+    }
+  };
+
+  run();
+
+  return () => {
+    alive = false;
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isLead, custId]);
+
+
   const isClosedDisposition = (dispId, dispOptions) => {
     const id = String(dispId || "").trim();
     if (!id) return false;
@@ -877,7 +921,8 @@ if (closed) {
       status: finalStatus,
 
       prefLang: form.preferredLanguage,
-      customer_FK: 0,
+     customer_FK: isLead ? 0 : toNumberOr0(customerRecId),
+
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
@@ -906,7 +951,7 @@ campaign_FK: toNumberOr0(campaignRecId),
 
       // ✅ NO UTC
       modifiedBy: 0,
-      modifiedDate: nowLocal,
+      modifiedDate: null,
       createdDate: nowLocal,
     };
 
@@ -944,7 +989,8 @@ campaign_FK: toNumberOr0(campaignRecId),
       status: finalStatus,
       prefLang: form.preferredLanguage,
 
-      customer_FK: 0,
+      customer_FK: isLead ? 0 : toNumberOr0(customerRecId),
+
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
       seervices: mediumName,
