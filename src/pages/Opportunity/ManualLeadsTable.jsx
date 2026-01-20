@@ -338,6 +338,11 @@ const uiRecId = Number(uiHeader?.recid ?? uiHeader?.recId) || 0;
 // fallback to oppCode if recid not available (avoids broken navigation)
 const navId = uiRecId || uiOppCode;
 
+const isR7 = String(uiHeader?.oRuleCode || "")
+  .trim()
+  .toUpperCase() === "R7";
+
+
 
   // -----------------------------
   // ✅ Fetch employees (recId mapping)
@@ -632,9 +637,6 @@ const raw = await fetchAllLeads(uiRecId);
         "Disposition": r.disposition || "",
         "Remarks": r.remark || "",
         "Sales Owner": r.saleOwner || "",
-        "Sales Owner Code": r.saleOwnerCode || "",
-        "Sales Owner Email": r.saleOwnerEmail || "",
-        "Sales Owner recId": r.saleOwnerRecId || "",
         "Modified By": r.modifiedBy || "",
         "Modified Date": formatDDMMYYYY(r.modifiedDate) || "",
         "Created Date": formatDDMMYYYY(r.createdDate) || "",
@@ -766,27 +768,32 @@ const raw = await fetchAllLeads(uiRecId);
               </select>
             </div>
 
-            <button
-              className="btn-primary"
-              onClick={() => {
-                const code = oppCode || (header?.oppCode ?? "");
-                if (!code) return;
-                navigate(`/manuallead/${code}`, { state: { oppCode: code, header } });
-              }}
-            >
-              Add Lead
-            </button>
+           {!isR7 && (
+  <>
+    <button
+      className="btn-primary"
+      onClick={() => {
+        const code = oppCode || (header?.oppCode ?? "");
+        if (!code) return;
+        navigate(`/manuallead/${code}`, { state: { oppCode: code, header } });
+      }}
+    >
+      Add Lead
+    </button>
 
-            <button
-              className="btn-primary"
-              onClick={() => {
-                const code = oppCode || (header?.oppCode ?? "");
-                if (!code) return;
-                navigate(`/opportunity/customers`, { state: { oppCode: code, header } });
-              }}
-            >
-              Add Opportunity
-            </button>
+    <button
+      className="btn-primary"
+      onClick={() => {
+        const code = oppCode || (header?.oppCode ?? "");
+        if (!code) return;
+        navigate(`/opportunity/customers`, { state: { oppCode: code, header } });
+      }}
+    >
+      Add Opportunity
+    </button>
+  </>
+)}
+
           </div>
         </div>
 

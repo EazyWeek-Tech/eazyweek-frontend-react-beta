@@ -384,6 +384,16 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   const [subDispLoading, setSubDispLoading] = useState(false);
   const [leadLoading, setLeadLoading] = useState(false);
 
+  const [isClosed, setIsClosed] = useState(false);
+const [toast, setToast] = useState({ show: false, msg: "" });
+
+
+/* Toast */
+const showToast = (msg) => {
+  setToast({ show: true, msg });
+  window.clearTimeout(showToast._t);
+  showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 3000);
+};
   /** ---- Form ---- */
   const [form, setForm] = useState({
     countryCode: "",
@@ -631,6 +641,15 @@ const [campaignLoading, setCampaignLoading] = useState(false);
       try {
         const data = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
         if (!alive) return;
+
+        const statusLower = safe(data?.status).trim().toLowerCase();
+const closed = statusLower === "closed";
+
+setIsClosed(closed);
+if (closed) {
+  showToast("A Closed Lead/Opportunity cannot be updated.");
+}
+
 
         const parsedTime = parseTimeToForm(data?.followUpTime);
         const mediumValue = resolveMediumValueFromSeervices(mediumOptions, data?.seervices);
@@ -891,6 +910,12 @@ campaign_FK: toNumberOr0(campaignRecId),
   };
 
   const handleSubmit = async () => {
+
+    if (isEdit && isClosed) {
+    showToast("A Closed Lead/Opportunity cannot be updated.");
+    return;
+  }
+
     if (!validate()) {
       alert("Submit blocked by validation. Check required fields.");
       return;
@@ -921,7 +946,8 @@ campaign_FK: toNumberOr0(campaignRecId),
         window.dispatchEvent(new Event("ew_lead_created"));
       } catch {}
 
-      navigate(-1);
+        navigate(isLead ? -1 : -2);
+
     } catch (e) {
       console.error("[Submit failed]", e);
       alert(e?.message || "Failed to submit.");
@@ -930,9 +956,19 @@ campaign_FK: toNumberOr0(campaignRecId),
     }
   };
 
+  const lockForm = isEdit && isClosed;
+
+
   /** ---------------- UI ---------------- */
   return (
     <>
+
+    {toast.show && (
+  <div className="toast">
+    {toast.msg}
+  </div>
+)}
+
       <div className="pageWrap">
         <div className="pageHeader">
           <div className="titleBlock">
@@ -1144,16 +1180,37 @@ campaign_FK: toNumberOr0(campaignRecId),
         </fieldset>
 
         <div className="btnRow">
-          <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading}>
-            {isEdit ? "Update" : "Submit"}
-          </button>
-          <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
-            Back
-          </button>
-        </div>
+  {!lockForm && (
+    <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading}>
+      {isEdit ? "Update" : "Submit"}
+    </button>
+  )}
+
+  <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+    Back
+  </button>
+</div>
+
       </div>
 
       <style jsx="true">{`
+      .toast{
+  position: fixed;
+  right: 18px;
+  top: 40%;
+  background: #C66752;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  z-index: 9999;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
+
         .pageWrap { padding: 18px 18px 28px; background: #fff; }
         .pageHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
         .pageTitle { font-size: 18px; font-weight: 700; color: #1d2a3b; }

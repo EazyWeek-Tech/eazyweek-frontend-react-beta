@@ -116,63 +116,43 @@ const OpportunityDashboard = () => {
     setTimeout(() => setToast(null), duration);
   };
 
+  const fetchOpportunities = async (status = "1") => {
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${status}`,
+      { credentials: "include" }
+    );
+    const data = await response.json();
+
+    const asArray = Array.isArray(data) ? data : (data ? [data] : []);
+
+    const normalize = (it) => ({
+      ...it,
+      clinic: it.clinic ?? it.centerName ?? "",
+      totalOpportunities: it.totalOpportunities ?? it.totalopportunities ?? 0,
+      noOfOpenOpportunities: it.noOfOpenOpportunities ?? it.noOfOpenopportunities ?? it.noOfOpen ?? 0,
+      noOfClosedOpportunities: it.noOfClosedOpportunities ?? it.noOfClosedopportunities ?? it.noOfClosed ?? 0,
+      noOfConvertedOutOfClosed:
+        it.noOfConvertedOutOfClosed ??
+        it.noOfConvertedoutofClosed ??
+        it.noOfConvertedOutofClosed ??
+        0,
+    });
+
+    setOpportunityData(asArray.map(normalize));
+  } catch (error) {
+    console.error("Failed to load opportunities:", error);
+    setOpportunityData([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
   useEffect(() => {
-    const fetchOpportunities = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${statusFilter}`,
-          { credentials: "include" }
-        );
-        const data = await response.json();
+      fetchOpportunities(statusFilter);
 
-        const asArray = Array.isArray(data) ? data : (data ? [data] : []);
-
-        // --- Normalize API payload into a consistent UI shape ---
-        const normalize = (it) => ({
-          ...it,
-
-          // Map clinic name (API returns centerName)
-          clinic:
-            it.clinic ??
-            it.centerName ??
-            "",
-
-          // Total counts (defensive against casing variants)
-          totalOpportunities:
-            it.totalOpportunities ??
-            it.totalopportunities ??
-            0,
-
-          noOfOpenOpportunities:
-            it.noOfOpenOpportunities ??
-            it.noOfOpenopportunities ??
-            it.noOfOpen ??
-            0,
-
-          noOfClosedOpportunities:
-            it.noOfClosedOpportunities ??
-            it.noOfClosedopportunities ??
-            it.noOfClosed ??
-            0,
-
-          // Converted out of Closed (API sends noOfConvertedoutofClosed)
-          noOfConvertedOutOfClosed:
-            it.noOfConvertedOutOfClosed ??
-            it.noOfConvertedoutofClosed ??
-            it.noOfConvertedOutofClosed ??
-            0,
-        });
-
-        setOpportunityData(asArray.map(normalize));
-      } catch (error) {
-        console.error("Failed to load opportunities:", error);
-        setOpportunityData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOpportunities();
   }, [statusFilter]);
 
   const data = currentView === "dashboard" ? opportunityData : [];
@@ -300,7 +280,9 @@ const OpportunityDashboard = () => {
 
       showToast("Selected opportunities expired successfully!", "success");
       setSelectedRows([]);
-      setStatusFilter("2");
+      setCurrentPage(1);
+      setStatusFilter("1");
+await fetchOpportunities("1");
     } catch (error) {
       console.error("Expire error:", error);
       showToast("Error expiring opportunities.", "error");
