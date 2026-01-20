@@ -102,6 +102,34 @@ const fetchJSON = async (url, options = {}) => {
   }
 };
 
+/** ---------------- Follow-up History helpers ---------------- */
+const FOLLOWUP_HISTORY_URL = (leadId) =>
+  `${API_BASE_URL}/api/LeadOpp/getLeadFollowUpList?leadId=${encodeURIComponent(leadId)}`;
+
+const formatFollowUpDateDDMMYY = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(+d)) return "";
+  const dd = pad2(d.getDate());
+  const mm = pad2(d.getMonth() + 1);
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+};
+
+const formatTimeSpanTo12Hr = (timeStr) => {
+  // "13:30:00" -> "1:30 PM"
+  const t = safe(timeStr).trim();
+  if (!t) return "";
+  const parts = t.split(":");
+  const hh = parseInt(parts[0] || "0", 10);
+  const mm = parseInt(parts[1] || "0", 10);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return "";
+
+  const ampm = hh >= 12 ? "PM" : "AM";
+  const hour12 = ((hh + 11) % 12) + 1;
+  return `${hour12}:${pad2(mm)} ${ampm}`;
+};
+
+
 const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
   const s = safe(seervices).trim().toLowerCase();
   if (!s) return "";
@@ -393,7 +421,54 @@ const showToast = (msg) => {
   setToast({ show: true, msg });
   window.clearTimeout(showToast._t);
   showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 3000);
+
+
 };
+
+
+  /** ---------------- Follow-up History modal ---------------- */
+const [fuOpen, setFuOpen] = useState(false);
+const [fuLoading, setFuLoading] = useState(false);
+const [fuRows, setFuRows] = useState([]);
+const [fuError, setFuError] = useState("");
+
+const closeFollowUpModal = () => {
+  setFuOpen(false);
+  setFuError("");
+};
+
+const openFollowUpModal = async () => {
+  if (!numericLeadOppId) {
+    showToast("Lead ID not found. Follow up history cannot be loaded.");
+    return;
+  }
+
+  setFuOpen(true);
+  setFuLoading(true);
+  setFuError("");
+  setFuRows([]);
+
+  try {
+    const data = await fetchJSON(FOLLOWUP_HISTORY_URL(numericLeadOppId), { method: "GET" });
+    const list = Array.isArray(data) ? data : [];
+    setFuRows(list);
+  } catch (e) {
+    console.error("❌ getLeadFollowUpList failed:", e);
+    setFuError(e?.message || "Failed to load follow up history.");
+  } finally {
+    setFuLoading(false);
+  }
+};
+
+// ESC to close
+useEffect(() => {
+  if (!fuOpen) return;
+  const onKey = (ev) => {
+    if (ev.key === "Escape") closeFollowUpModal();
+  };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [fuOpen]);
   /** ---- Form ---- */
   const [form, setForm] = useState({
     countryCode: "",
@@ -969,6 +1044,59 @@ campaign_FK: toNumberOr0(campaignRecId),
   </div>
 )}
 
+{fuOpen && (
+  <div className="modalOverlay" onMouseDown={closeFollowUpModal}>
+    <div className="modalCard" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modalHeader">
+        <div className="modalTitle">Follow Up History</div>
+        <button type="button" className="modalClose" onClick={closeFollowUpModal}>
+          ×
+        </button>
+      </div>
+
+      {fuLoading ? (
+        <div className="modalBody">Loading...</div>
+      ) : fuError ? (
+        <div className="modalBody errBox">{fuError}</div>
+      ) : (
+        <div className="modalBody">
+          <div className="tblWrap">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Follow Up Date</th>
+                  <th>Follow Up Time</th>
+                  <th>Sales Owner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fuRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", padding: "14px" }}>
+                      No follow up history found.
+                    </td>
+                  </tr>
+                ) : (
+                  fuRows.map((r, idx) => (
+                    <tr key={r?.followUpId ?? idx}>
+                      <td>{idx + 1}</td>
+                      <td>{formatFollowUpDateDDMMYY(r?.followUpDate)}</td>
+                      <td>{formatTimeSpanTo12Hr(r?.followUpTime)}</td>
+                      <td>{safe(r?.salesOwner)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+
       <div className="pageWrap">
         <div className="pageHeader">
           <div className="titleBlock">
@@ -1147,6 +1275,9 @@ campaign_FK: toNumberOr0(campaignRecId),
               </div>
             </div>
 
+           
+
+
             <div className="col">
               <div className="field">
                 <label>Follow Up Date</label>
@@ -1170,6 +1301,12 @@ campaign_FK: toNumberOr0(campaignRecId),
                   ))}
                 </select>
               </div>
+
+               <div className="fuLinkRow">
+  <button type="button" className="fuLink" onClick={openFollowUpModal}>
+    Click here to check follow up history
+  </button>
+</div>
             </div>
           </div>
 
@@ -1220,7 +1357,7 @@ campaign_FK: toNumberOr0(campaignRecId),
         .formGrid3 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
         .formGrid2 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
         .col { display: flex; flex-wrap: wrap; gap: 12px; }
-        .col .field { min-width: 40%; }
+        .col .field { min-width: 35%; }
         .field label { display: inline-block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
         .req { color: #c62828; font-weight: 900; }
         .inp { width: 100%; height: 40px; border-radius: 8px; border: 1px solid #d7dee8; padding: 0 12px; background: #fff; outline: none; }
@@ -1232,6 +1369,98 @@ campaign_FK: toNumberOr0(campaignRecId),
         .btn { background: #0b1b37; color: #fff; border: 0; border-radius: 10px; padding: 11px 26px; font-weight: 700; cursor: pointer; }
         .btn:disabled { opacity: 0.65; cursor: not-allowed; }
         .btn:hover:not(:disabled) { opacity: 0.95; }
+
+        .fuLinkRow{
+  margin: 8px 0 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.fuLink{
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #0b1b37;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.fuLink:hover{ opacity: .85; }
+
+.modalOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.modalCard{
+  width: min(860px, 96vw);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(0,0,0,.22);
+  overflow: hidden;
+}
+.modalHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e6ebf2;
+}
+.modalTitle{
+  font-size: 15px;
+  font-weight: 900;
+  color: #1d2a3b;
+}
+.modalClose{
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e6ebf2;
+  background: #fff;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 900;
+}
+.modalClose:hover{ background: #f6f8fb; }
+
+.modalBody{
+  padding: 14px 16px 18px;
+}
+.errBox{
+  color: #b42318;
+  font-weight: 800;
+  background: #fff2f2;
+  border: 1px solid #ffd2d2;
+  border-radius: 10px;
+}
+.tblWrap{ overflow: auto; }
+.tbl{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tbl th{
+  text-align: left;
+  background: #f6f8fb;
+  border: 1px solid #e6ebf2;
+  padding: 10px 10px;
+  font-weight: 900;
+  color: #1f2937;
+}
+.tbl td{
+  border: 1px solid #e6ebf2;
+  padding: 10px 10px;
+  color: #334155;
+  font-weight: 600;
+}
+
+
         @media (max-width: 1100px) {
           .formGrid3 { grid-template-columns: 1fr; }
           .formGrid2 { grid-template-columns: 1fr; }
