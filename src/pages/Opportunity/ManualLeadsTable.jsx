@@ -135,22 +135,18 @@ const toProspectType = (apiType, custID) => {
   return isEmpty(custID) ? "Lead" : "Opportunity";
 };
 
-// -----------------------------
-// Row mapper (needs resolver for recId)
-// -----------------------------
-const mapManualLeadRow = (x, resolveOwnerRecId) => {
+const mapManualLeadRow = (x, resolveOwnerRecId, resolveCustIdFromRecId) => {
   const id = Number(x?.leadOpp_ID) || 0;
 
-  const custID = x?.custID ?? x?.custId ?? null;
+  // ✅ From List API: custID is actually RECID
+  const custRecId = x?.custID ?? x?.custId ?? null;
+
+  // ✅ Actual customerId/custId we want to show/store
+  const realCustId = resolveCustIdFromRecId ? resolveCustIdFromRecId(custRecId) : "";
 
   const followUpDate = x?.followUpDate || x?.followUp || "";
   const followUpTimeRaw =
-    (x?.followUpTime ??
-      x?.followUp_Time ??
-      x?.followUpT ??
-      x?.followTime ??
-      "")?.toString?.() ?? "";
-
+    (x?.followUpTime ?? x?.followUp_Time ?? x?.followUpT ?? x?.followTime ?? "")?.toString?.() ?? "";
   const followUpTimeLabel = toTimeLabel12h(followUpTimeRaw);
 
   const saleOwner = (x?.saleOwner ?? x?.salesOwner ?? x?.createdByName ?? "").toString();
@@ -170,10 +166,14 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
     leadOpp_ID: id,
     prospectId: toProspectId(id),
 
-    prospectType: toProspectType(apiType, custID),
+    // ✅ Prospect Type should use REAL custId, not custRecId
+    prospectType: toProspectType(apiType, realCustId),
     apiType: (apiType ?? "").toString(),
 
-    custID,
+    // ✅ Keep both
+    custRecId,
+    custID: realCustId,
+
     customerName: (x?.customerName ?? x?.custName ?? "").toString(),
     mobileNumber: (x?.mobileNumber ?? x?.mobile ?? x?.phone ?? "").toString(),
     status: (x?.status ?? x?.oppStatus ?? "").toString(),
@@ -198,9 +198,10 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
 
     __q: [
       toProspectId(id),
-      toProspectType(apiType, custID),
+      toProspectType(apiType, realCustId),
       apiType,
-      custID,
+      realCustId,
+      custRecId,
       x?.customerName,
       x?.custName,
       x?.mobileNumber,
@@ -226,6 +227,7 @@ const mapManualLeadRow = (x, resolveOwnerRecId) => {
       .join(" | "),
   };
 };
+
 
 export default function ManualLeadsTable({ oppCode, header, onToast }) {
   const navigate = useNavigate();
@@ -418,6 +420,73 @@ const isR7 = String(uiHeader?.oRuleCode || "")
     return "";
   };
 
+  // customers lookup (recId -> custId)
+const [custLoading, setCustLoading] = useState(false);
+const [custErr, setCustErr] = useState("");
+const [customers, setCustomers] = useState([]);
+
+// ✅ Load customers (for mapping recId -> custId)
+useEffect(() => {
+  let alive = true;
+
+  const run = async () => {
+    setCustLoading(true);
+    setCustErr("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+
+      const data = JSON.parse(text);
+
+      // adjust if your API wraps in {data:[...]}
+      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+      if (!alive) return;
+      setCustomers(list);
+    } catch (e) {
+      console.error("Customers load failed", e);
+      if (!alive) return;
+      setCustomers([]);
+      setCustErr("Failed to load customers.");
+    } finally {
+      if (alive) setCustLoading(false);
+    }
+  };
+
+  run();
+  return () => {
+    alive = false;
+  };
+}, []);
+
+
+const custLookup = useMemo(() => {
+  const byRecId = new Map();
+  for (const c of customers) {
+    const recId = c?.recId ?? c?.RECID ?? c?.RecID;
+    const custId = c?.custId ?? c?.CUSTID ?? c?.customerID ?? c?.customerId;
+
+    if (recId !== null && recId !== undefined && recId !== "" && custId) {
+      byRecId.set(String(recId), String(custId));
+    }
+  }
+  return { byRecId };
+}, [customers]);
+
+const resolveCustomerIdFromRecId = (recIdLike) => {
+  const key = String(recIdLike ?? "").trim();
+  if (!key) return "";
+  return custLookup.byRecId.get(key) || "";
+};
+
+
   // -----------------------------
   // Time helpers (12:00 AM -> 11:30 PM, 30-min steps)
   // -----------------------------
@@ -476,7 +545,8 @@ useEffect(() => {
 
       if (!alive) return;
 
-      setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId)));
+      setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)));
+
       setTotalPages(Number(data?.totalPages) || 1);
       setTotalRecords(Number(data?.totalRecords) || list.length);
     } catch (e) {
@@ -495,7 +565,7 @@ useEffect(() => {
   return () => {
     alive = false;
   };
-}, [uiRecId, pageNumber, pageSize, empLookup]); // ✅ include uiRecId
+}, [uiRecId, pageNumber, pageSize, empLookup, custLookup]); // ✅ include uiRecId
 
 
 useEffect(() => {
@@ -633,14 +703,12 @@ const raw = await fetchAllLeads(uiRecId);
         "Mobile": r.mobileNumber || "",
         "Status": r.status || "",
         "Follow Up Date": formatDDMMYYYY(r.followUpDate) || "",
-        "Follow Up Time": r.followUpTimeLabel || "",
         "Disposition": r.disposition || "",
         "Remarks": r.remark || "",
         "Sales Owner": r.saleOwner || "",
         "Modified By": r.modifiedBy || "",
         "Modified Date": formatDDMMYYYY(r.modifiedDate) || "",
         "Created Date": formatDDMMYYYY(r.createdDate) || "",
-        "Customer Message": r.customerMsg || "",
       }));
 
       const XLSX = await loadXLSX();
@@ -821,10 +889,10 @@ const raw = await fetchAllLeads(uiRecId);
                 <tr>
                   <th>Prospect ID</th>
                   <th>Prospect Type</th>
-                  <th>CustID</th>
-                  <th>CustName</th>
+                  <th>Customer ID</th>
+                  <th>Customer Name</th>
                   <th>Mobile Number</th>
-                  <th>OppStatus</th>
+                  <th>Status</th>
                   <th>Follow Up Date</th>
                   <th>Disposition</th>
                   <th>Remarks</th>
@@ -832,7 +900,6 @@ const raw = await fetchAllLeads(uiRecId);
                   <th>Modified By</th>
                   <th>Modified Date</th>
                   <th>Created Date</th>
-                  <th>Customer Message</th>
                 </tr>
               </thead>
 
@@ -866,7 +933,6 @@ const raw = await fetchAllLeads(uiRecId);
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{formatDDMMYYYY(r.modifiedDate)}</td>
                     <td>{formatDDMMYYYY(r.createdDate)}</td>
-                    <td>{safe(r.customerMsg)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -874,7 +940,7 @@ const raw = await fetchAllLeads(uiRecId);
           </div>
         ) : null}
 
-        {!loading && !err && !filtered.length ? <div className="empty-note">No manual leads found.</div> : null}
+        {!loading && !err && !filtered.length ? <div className="empty-note">No  entries found.</div> : null}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
           <div style={{ fontSize: 13, color: "#64748b" }}>

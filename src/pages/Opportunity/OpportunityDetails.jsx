@@ -1061,7 +1061,7 @@ const OpportunityDetails = () => {
   const [timeToMer, setTimeToMer] = useState("AM");
 
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 10;
 
   // debounce search input
   useEffect(() => {
@@ -1549,10 +1549,10 @@ const OpportunityDetails = () => {
               <table className="opptable">
                 <thead>
                   <tr>
-                    <th onClick={() => handleSort("custID")}>CustID <span className="sort">{sortArrow("custID")}</span></th>
-                    <th onClick={() => handleSort("custName")}>CustName <span className="sort">{sortArrow("custName")}</span></th>
-                    <th onClick={() => handleSort("custMobileNo")}>CustMobileNo <span className="sort">{sortArrow("custMobileNo")}</span></th>
-                    <th onClick={() => handleSort("oppStatus")}>OppStatus <span className="sort">{sortArrow("oppStatus")}</span></th>
+                    <th onClick={() => handleSort("custID")}>Customer ID <span className="sort">{sortArrow("custID")}</span></th>
+                    <th onClick={() => handleSort("custName")}>Customer Name <span className="sort">{sortArrow("custName")}</span></th>
+                    <th onClick={() => handleSort("custMobileNo")}>MobileNo <span className="sort">{sortArrow("custMobileNo")}</span></th>
+                    <th onClick={() => handleSort("oppStatus")}>Status <span className="sort">{sortArrow("oppStatus")}</span></th>
                     <th onClick={() => handleSort("disposition")}>Disposition <span className="sort">{sortArrow("disposition")}</span></th>
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
