@@ -690,7 +690,10 @@ useEffect(() => {
 }
 const raw = await fetchAllLeads(uiRecId);
 
-      const mapped = raw.map((x) => mapManualLeadRow(x, resolveOwnerRecId));
+      const mapped = raw.map((x) =>
+  mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)
+);
+
 
       const exportRows = mapped;
 
@@ -699,10 +702,11 @@ const raw = await fetchAllLeads(uiRecId);
         "Prospect Type": r.prospectType || "",
         "LeadOpp ID": r.leadOpp_ID || "",
         "CustID": r.custID || "",
-        "Customer Name": r.customerName || "",
+        "Customer/Lead Name": r.customerName || "",
         "Mobile": r.mobileNumber || "",
         "Status": r.status || "",
         "Follow Up Date": formatDDMMYYYY(r.followUpDate) || "",
+        "Follow Up Time": r.followUpTimeLabel || "", 
         "Disposition": r.disposition || "",
         "Remarks": r.remark || "",
         "Sales Owner": r.saleOwner || "",
@@ -890,10 +894,11 @@ const raw = await fetchAllLeads(uiRecId);
                   <th>Prospect ID</th>
                   <th>Prospect Type</th>
                   <th>Customer ID</th>
-                  <th>Customer Name</th>
+                  <th>Customer/Lead Name</th>
                   <th>Mobile Number</th>
                   <th>Status</th>
                   <th>Follow Up Date</th>
+                  <th>Follow Up Time</th>
                   <th>Disposition</th>
                   <th>Remarks</th>
                   <th>Sales Owner</th>
@@ -921,7 +926,10 @@ const raw = await fetchAllLeads(uiRecId);
                     <td>{safe(r.status)}</td>
 
                     {/* ✅ date + time */}
-                    <td>{formatDateTime(r.followUpDate, r.followUpTimeLabel)}</td>
+                    <td>{formatDateTime(r.followUpDate)}</td>
+
+                    <td>{safe(r.followUpTimeLabel || "—")}</td> {/* ✅ 13:30:00 -> 01:30 PM */}
+
 
                     <td>{safe(r.disposition)}</td>
                     <td>{safe(r.remark)}</td>
