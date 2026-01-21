@@ -1,5 +1,5 @@
 // src/pages/Opportunity/OpportunityDashboard.jsx
-"use client"
+"use client";
 
 import { useState, useEffect, useMemo } from "react";
 import OpportunityForm from "./OpportunityForm";
@@ -19,7 +19,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  Cell
+  Cell,
 } from "recharts";
 
 /* ---- Color system ---- */
@@ -71,10 +71,10 @@ const STACKED_CUSTOMER_SPECIAL_DAY = [
 ];
 
 const STACKED_CANCELLED_APPT = [
-  { name: "Bright-00111", Total: 10,  Open: 4,  WIP: 2,  Closed: 2,  Converted: 2 },
-  { name: "Bright-00187", Total: 20,  Open: 8,  WIP: 4,  Closed: 4,  Converted: 4 },
-  { name: "Bright-00195", Total: 30,  Open: 10, WIP: 0,  Closed: 15, Converted: 5 },
-  { name: "Bright-00217", Total: 20,  Open: 8,  WIP: 4,  Closed: 4,  Converted: 4 },
+  { name: "Bright-00111", Total: 10, Open: 4, WIP: 2, Closed: 2, Converted: 2 },
+  { name: "Bright-00187", Total: 20, Open: 8, WIP: 4, Closed: 4, Converted: 4 },
+  { name: "Bright-00195", Total: 30, Open: 10, WIP: 0, Closed: 15, Converted: 5 },
+  { name: "Bright-00217", Total: 20, Open: 8, WIP: 4, Closed: 4, Converted: 4 },
 ];
 
 /** Convert Date | 'yyyy-MM-dd' | 'dd/MM/yyyy' -> 'yyyy-MM-dd' (date-only) */
@@ -94,6 +94,43 @@ const toISODateOnly = (d) => {
   const dt = new Date(s);
   return Number.isNaN(+dt) ? "" : toISODateOnly(dt);
 };
+
+/** ✅ detect manual lead row robustly */
+const isManualLeadRow = (row) => {
+  return (
+    String(row?.oRuleCode || "").trim().toLowerCase() === "manual lead"
+  );
+};
+
+
+/** ✅ Manual lead API helpers */
+const MANUAL_LEAD_API = `${API_BASE_URL}/api/LeadOpp/getCapaignListByManualLead`;
+
+// extract array safely from unknown API shapes
+const asArray = (data) => {
+  if (Array.isArray(data)) return data;
+  if (!data) return [];
+  // common wrappers
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.result)) return data.result;
+  if (Array.isArray(data?.results)) return data.results;
+  return [data];
+};
+
+const normalizeCounts = (it) => ({
+  oppCode: String(it?.oppCode || "").trim().toUpperCase(),
+
+  totalOpportunities: it?.totalOpportunities ?? 0,
+
+  noOfOpenOpportunities: it?.openOpportunities ?? 0,
+
+  noOfClosedOpportunities: it?.closedOpportunities ?? 0,
+
+  noOfConvertedOutOfClosed: it?.convertedOpportunities ?? 0,
+});
+
+
 
 const OpportunityDashboard = () => {
   const [currentView, setCurrentView] = useState("dashboard");
@@ -116,43 +153,93 @@ const OpportunityDashboard = () => {
     setTimeout(() => setToast(null), duration);
   };
 
+  /**
+   * ✅ On page load (and whenever status changes), call BOTH:
+   *  1) /api/Opportunity/LoadOpprotunityList/{Status}  -> base list
+   *  2) /api/LeadOpp/getCapaignListByManualLead?pageNumber=1&pageSize=10 (or larger)
+   *     -> ONLY patch counts for manual-lead rows present in base list
+   */
   const fetchOpportunities = async (status = "1") => {
-  setLoading(true);
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${status}`,
-      { credentials: "include" }
-    );
-    const data = await response.json();
+    setLoading(true);
 
-    const asArray = Array.isArray(data) ? data : (data ? [data] : []);
+    try {
+      // --- 1) base list fetch ---
+      const baseFetch = fetch(
+        `${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/${status}`,
+        { credentials: "include" }
+      ).then(async (r) => {
+        if (!r.ok) throw new Error(`LoadOpprotunityList failed: HTTP ${r.status}`);
+        return r.json();
+      });
 
-    const normalize = (it) => ({
-      ...it,
-      clinic: it.clinic ?? it.centerName ?? "",
-      totalOpportunities: it.totalOpportunities ?? it.totalopportunities ?? 0,
-      noOfOpenOpportunities: it.noOfOpenOpportunities ?? it.noOfOpenopportunities ?? it.noOfOpen ?? 0,
-      noOfClosedOpportunities: it.noOfClosedOpportunities ?? it.noOfClosedopportunities ?? it.noOfClosed ?? 0,
-      noOfConvertedOutOfClosed:
-        it.noOfConvertedOutOfClosed ??
-        it.noOfConvertedoutofClosed ??
-        it.noOfConvertedOutofClosed ??
-        0,
-    });
+      // --- 2) manual lead list fetch (patch-only) ---
+      // using bigger pageSize to cover most/manual rows, but still "pageNumber=1"
+      const manualFetch = fetch(`${MANUAL_LEAD_API}?pageNumber=1&pageSize=500`, {
+        credentials: "include",
+      })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`getCapaignListByManualLead failed: HTTP ${r.status}`);
+          return r.json();
+        })
+        .catch(() => null); // manual lead patch is optional; base list still renders
 
-    setOpportunityData(asArray.map(normalize));
-  } catch (error) {
-    console.error("Failed to load opportunities:", error);
-    setOpportunityData([]);
-  } finally {
-    setLoading(false);
+      const [baseJson, manualJson] = await Promise.all([baseFetch, manualFetch]);
+
+      const baseArr = asArray(baseJson);
+      const manualArr = asArray(manualJson);
+
+      // build a map: oppCode -> counts (from manual lead API)
+      const manualMap = new Map();
+      manualArr.forEach((it) => {
+        const n = normalizeCounts(it);
+        if (n.oppCode) manualMap.set(n.oppCode, n);
+      });
+
+      const normalizeBase = (it) => {
+        const normalized = {
+          ...it,
+          clinic: it.clinic ?? it.centerName ?? "",
+          totalOpportunities: it.totalOpportunities ?? it.totalopportunities ?? 0,
+          noOfOpenOpportunities:
+            it.noOfOpenOpportunities ?? it.noOfOpenopportunities ?? it.noOfOpen ?? 0,
+          noOfClosedOpportunities:
+            it.noOfClosedOpportunities ?? it.noOfClosedopportunities ?? it.noOfClosed ?? 0,
+          noOfConvertedOutOfClosed:
+            it.noOfConvertedOutOfClosed ??
+            it.noOfConvertedoutofClosed ??
+            it.noOfConvertedOutofClosed ??
+            0,
+        };
+
+        // ✅ PATCH ONLY manual lead campaigns
+        if (isManualLeadRow(normalized)) {
+  const code = String(normalized.oppCode || "").trim().toUpperCase();
+  const ml = manualMap.get(code);
+
+  if (ml) {
+    normalized.totalOpportunities = ml.totalOpportunities;
+    normalized.noOfOpenOpportunities = ml.noOfOpenOpportunities;
+    normalized.noOfClosedOpportunities = ml.noOfClosedOpportunities;
+    normalized.noOfConvertedOutOfClosed = ml.noOfConvertedOutOfClosed;
   }
-};
+}
 
+
+        return normalized;
+      };
+
+      setOpportunityData(baseArr.map(normalizeBase));
+    } catch (error) {
+      console.error("Failed to load opportunities:", error);
+      setOpportunityData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-      fetchOpportunities(statusFilter);
-
+    fetchOpportunities(statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   const data = currentView === "dashboard" ? opportunityData : [];
@@ -163,7 +250,7 @@ const OpportunityDashboard = () => {
       const payload = {
         oppCode,
         fromDate: toISODateOnly(fromDate),
-        toDate:   toISODateOnly(toDate),
+        toDate: toISODateOnly(toDate),
       };
       const response = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
         method: "POST",
@@ -187,7 +274,7 @@ const OpportunityDashboard = () => {
         (item.oppCode || "").toLowerCase().includes(s) ||
         (item.oppName || "").toLowerCase().includes(s) ||
         (item.centerName || "").toLowerCase().includes(s) || // legacy
-        (item.clinic || "").toLowerCase().includes(s) ||      // normalized
+        (item.clinic || "").toLowerCase().includes(s) || // normalized
         (item.segmentType || "").toLowerCase().includes(s)
       );
     });
@@ -227,18 +314,14 @@ const OpportunityDashboard = () => {
   };
 
   const handleSelectRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]
-    );
+    setSelectedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]));
   };
 
   const handleEditOppName = () => {
     if (selectedRows.length === 0) return alert("Please select at least one opportunity to edit");
     if (selectedRows.length > 1) return alert("Please select only one opportunity to edit");
 
-    const selectedOpp = opportunityData.find(
-      (item) => (item.recID || item.oppCode) === selectedRows[0]
-    );
+    const selectedOpp = opportunityData.find((item) => (item.recID || item.oppCode) === selectedRows[0]);
     if (selectedOpp) {
       setSelectedOpportunity(selectedOpp);
       setCurrentView("edit-opportunity");
@@ -254,7 +337,10 @@ const OpportunityDashboard = () => {
   const handleOpportunityNext = () => setCurrentView("create-rule");
   const handleRuleBack = () => setCurrentView("create-opportunity");
   const handleRuleSave = () => alert("Rule saved successfully!");
-  const handleRuleActivate = () => { alert("Rule activated successfully!"); setCurrentView("dashboard"); };
+  const handleRuleActivate = () => {
+    alert("Rule activated successfully!");
+    setCurrentView("dashboard");
+  };
 
   const handleExpireCampaign = async () => {
     if (selectedRows.length === 0) {
@@ -282,7 +368,7 @@ const OpportunityDashboard = () => {
       setSelectedRows([]);
       setCurrentPage(1);
       setStatusFilter("1");
-await fetchOpportunities("1");
+      await fetchOpportunities("1");
     } catch (error) {
       console.error("Expire error:", error);
       showToast("Error expiring opportunities.", "error");
@@ -303,38 +389,33 @@ await fetchOpportunities("1");
   };
 
   const handleRefresh = async () => {
-  const oppCode = 123; // ✅ as per your requirement
+    const oppCode = 123; // ✅ as per your requirement
 
-  setLoading(true);
-  try {
-    // 1) Call GetLatestData first
-    const res1 = await fetch(
-      `${API_BASE_URL}/api/Opportunity/GetLatestData/${oppCode}`,
-      { credentials: "include" }
-    );
+    setLoading(true);
+    try {
+      // 1) Call GetLatestData first
+      const res1 = await fetch(`${API_BASE_URL}/api/Opportunity/GetLatestData/${oppCode}`, {
+        credentials: "include",
+      });
 
-    if (!res1.ok) {
-      const errText = await res1.text();
-      throw new Error(`GetLatestData failed: HTTP ${res1.status} - ${errText.slice(0, 180)}`);
+      if (!res1.ok) {
+        const errText = await res1.text();
+        throw new Error(`GetLatestData failed: HTTP ${res1.status} - ${errText.slice(0, 180)}`);
+      }
+
+      // 2) After GetLatestData completes, reload list with status = 1
+      setStatusFilter("1"); // keep UI in sync (Active)
+      setCurrentPage(1);
+      await fetchOpportunities("1"); // ✅ now also patches Manual Lead counts
+
+      showToast("Latest data loaded successfully!", "success");
+    } catch (e) {
+      console.error("Get Latest Data error:", e);
+      showToast(e?.message || "Failed to get latest data", "error");
+    } finally {
+      setLoading(false);
     }
-
-    // (optional) if API returns json and you want to read it
-    // const latestRes = await res1.json();
-
-    // 2) After GetLatestData completes, reload list with status = 1
-    setStatusFilter("1");          // keep UI in sync (Active)
-    setCurrentPage(1);
-    await fetchOpportunities("1"); // ✅ this calls /LoadOpprotunityList/1
-
-    showToast("Latest data loaded successfully!", "success");
-  } catch (e) {
-    console.error("Get Latest Data error:", e);
-    showToast(e?.message || "Failed to get latest data", "error");
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   /**
    * Navigate to /opportunity/details/{oppCode}
@@ -343,41 +424,12 @@ await fetchOpportunities("1");
   const handleOpportunityClick = (row) => {
     if (!row) return;
 
-    const {
-      oppCode,
-      fromDate,
-      toDate,
-      oppName,
-      oRuleDetails,
-      oRuleXvalue,
-    } = row;
-
-    const getRuleType = (row) => {
-  const raw = (row?.oRuleCode || row?.oRuleDetails || row?.segmentType || "")
-    .toString()
-    .trim()
-    .toLowerCase();
-
-  // Manual Lead
-  if (raw === "manual lead" || raw === "manual") return "MANUAL_LEAD";
-
-  // R7 (add aliases based on your backend naming)
-  if (raw === "r7" || raw.includes("r7")) return "R7";
-
-  // fallback
-  return "DEFAULT";
-};
-
+    const { oppCode, fromDate, toDate, oppName, oRuleDetails, oRuleXvalue } = row;
 
     // Fallback to a 14-day window if dates aren’t present on the row
     const now = new Date();
     const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
-    const to   = toDate   ? toDate   : toISODateOnly(new Date());
-    const isManualLeadRow = (row) => {
-  const code = (row?.oRuleCode || row?.oRuleDetails || "").toString().trim().toLowerCase();
-  
-  return code === "manual lead" 
-};
+    const to = toDate ? toDate : toISODateOnly(new Date());
 
     navigate(`/opportunity/details/${oppCode}`, {
       state: {
@@ -386,8 +438,7 @@ await fetchOpportunities("1");
         oRuleXvalue: oRuleXvalue || undefined,
         fromDate: toISODateOnly(from),
         toDate: toISODateOnly(to),
-         manualLead: isManualLeadRow(row),        
-
+        manualLead: isManualLeadRow(row),
       },
     });
   };
@@ -455,11 +506,7 @@ await fetchOpportunities("1");
   }
   if (currentView === "edit-opportunity") {
     return (
-      <EditOpportunityForm
-        opportunityData={selectedOpportunity}
-        onBack={handleBackToDashboard}
-        onSave={handleEditSave}
-      />
+      <EditOpportunityForm opportunityData={selectedOpportunity} onBack={handleBackToDashboard} onSave={handleEditSave} />
     );
   }
 
@@ -557,7 +604,10 @@ await fetchOpportunities("1");
           <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={STATUS_DATA_PAID_X_NOT_Y} />
           <SimpleBarCard title="Rule: No show appointment for X days" dataset={STATUS_DATA_NO_SHOW} />
           <StackedByClinicCard title="Rule: Customer Special Day" dataset={STACKED_CUSTOMER_SPECIAL_DAY} />
-          <SimpleBarCard title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P" dataset={STATUS_DATA_PAID_X_CAT} />
+          <SimpleBarCard
+            title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P"
+            dataset={STATUS_DATA_PAID_X_CAT}
+          />
           <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={STACKED_CANCELLED_APPT} />
         </div>
 
@@ -565,11 +615,19 @@ await fetchOpportunities("1");
         <div className="action-section">
           <div className="action-buttons">
             <div className="button-group">
-              <button className="btn btn-secondary" onClick={handleEditOppName}>Edit Opp Name</button>
-              <button className="btn btn-secondary" onClick={handleExpireCampaign}>Expire Campaign</button>
-              <button className="btn btn-primary" onClick={handleCreateNewCampaign}>Create New Campaign</button>
+              <button className="btn btn-secondary" onClick={handleEditOppName}>
+                Edit Opp Name
+              </button>
+              <button className="btn btn-secondary" onClick={handleExpireCampaign}>
+                Expire Campaign
+              </button>
+              <button className="btn btn-primary" onClick={handleCreateNewCampaign}>
+                Create New Campaign
+              </button>
             </div>
-            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">Get Latest Data</button>
+            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">
+              Get Latest Data
+            </button>
           </div>
         </div>
 
@@ -589,7 +647,10 @@ await fetchOpportunities("1");
               <select
                 className="control-select"
                 value={entriesPerPage}
-                onChange={(e) => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                onChange={(e) => {
+                  setEntriesPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -658,27 +719,41 @@ await fetchOpportunities("1");
                   <th onClick={() => handleSort("totalOpportunities")}>
                     Total Opportunities
                     <span className="sort-indicator">
-                      {sortConfig.key === "totalOpportunities" ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕"}
+                      {sortConfig.key === "totalOpportunities"
+                        ? sortConfig.direction === "asc"
+                          ? "↑"
+                          : "↓"
+                        : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("noOfOpenOpportunities")}>
                     No.Of Open Opportunities
                     <span className="sort-indicator">
-                      {sortConfig.key === "noOfOpenOpportunities" ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕"}
+                      {sortConfig.key === "noOfOpenOpportunities"
+                        ? sortConfig.direction === "asc"
+                          ? "↑"
+                          : "↓"
+                        : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("noOfClosedOpportunities")}>
                     No.Of Closed Opportunities
                     <span className="sort-indicator">
                       {sortConfig.key === "noOfClosedOpportunities"
-                        ? sortConfig.direction === "asc" ? "↑" : "↓" : "↕"}
+                        ? sortConfig.direction === "asc"
+                          ? "↑"
+                          : "↓"
+                        : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("noOfConvertedOutOfClosed")}>
                     No.Of Converted out of Closed
                     <span className="sort-indicator">
                       {sortConfig.key === "noOfConvertedOutOfClosed"
-                        ? sortConfig.direction === "asc" ? "↑" : "↓" : "↕"}
+                        ? sortConfig.direction === "asc"
+                          ? "↑"
+                          : "↓"
+                        : "↕"}
                     </span>
                   </th>
                   <th onClick={() => handleSort("segmentType")}>
@@ -702,10 +777,7 @@ await fetchOpportunities("1");
                     </td>
                     <td>
                       {/* Navigate to details; pass entire row for fallback header */}
-                      <button
-                        onClick={() => handleOpportunityClick(item)}
-                        className="opp-code-link"
-                      >
+                      <button onClick={() => handleOpportunityClick(item)} className="opp-code-link">
                         {item.oppCode}
                       </button>
                     </td>
@@ -731,10 +803,15 @@ await fetchOpportunities("1");
           {/* Pagination */}
           <div className="pagination-section">
             <div className="pagination-info">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedData.length)} of {filteredAndSortedData.length} entries
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedData.length)} of{" "}
+              {filteredAndSortedData.length} entries
             </div>
             <div className="pagination-controls">
-              <button className="pagination-btn" onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
+              <button
+                className="pagination-btn"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
                 Previous
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -750,7 +827,11 @@ await fetchOpportunities("1");
                 );
               })}
               {totalPages > 5 && <span className="pagination-btn">...</span>}
-              <button className="pagination-btn" onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
+              <button
+                className="pagination-btn"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
                 Next
               </button>
             </div>
