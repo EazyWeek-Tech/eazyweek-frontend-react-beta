@@ -71,6 +71,56 @@ const todayLocalYMD = () => {
 };
 
 
+// yyyy-MM-dd -> Date (local-safe)
+const ymdToDate = (ymd) => {
+  if (!ymd) return null;
+  const [y, m, d] = String(ymd).split("-");
+  return new Date(Number(y), Number(m) - 1, Number(d));
+};
+
+// Date -> yyyy-MM-dd
+const dateToYMD = (dt) => {
+  if (!(dt instanceof Date) || isNaN(dt)) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// today - N days (returns yyyy-MM-dd)
+const minusDaysFromToday = (n) => {
+  const today = ymdToDate(todayLocalYMD());
+  if (!today || !n) return "";
+  const d = new Date(today);
+  d.setDate(d.getDate() - Number(n));
+  return dateToYMD(d);
+};
+
+const computeDynamicCampaignDates = (vals) => {
+  const endDate = todayLocalYMD();
+
+  // numeric window: 1/7/30/90
+  const numeric = numericDays(vals.windowType);
+  if (numeric) {
+    return { startDate: minusDaysFromToday(numeric), endDate };
+  }
+
+  // custom: windowType == 0, use customDays
+  if (isCustom(vals.windowType)) {
+    const cd = String(vals.customDays || "").trim();
+    if (!cd) return null;
+    return { startDate: minusDaysFromToday(cd), endDate };
+  }
+
+  // date range: windowType == 9999 -> use difference between 2 dates as X
+  if (isRange(vals.windowType)) {
+    const diff = daysBetween(vals.fromDate, vals.toDate); // your existing helper
+    if (!diff) return null;
+    return { startDate: minusDaysFromToday(diff), endDate };
+  }
+
+  return null;
+};
 
 
   // ---------- CATEGORY OPTIONS ----------
@@ -231,7 +281,6 @@ const todayLocalYMD = () => {
     customerType: { type: "", fetchType: "" },
     //R7
     externalSourceRule: {
-       fetchType: "1",      
   extFromDate: "",
   extToMode: "current", // "current" | "custom"
   extToDate: "",
@@ -472,8 +521,8 @@ const todayLocalYMD = () => {
       ruleCustomDays: "",
       customFromDate: "",
       customToDate: "",
-      campStartDate: safeDMY(campaignDates?.startDate),
-      campEndDate: safeDMY(campaignDates?.endDate),
+      campStartDate: "21/01/2026",
+      campEndDate:"21/12/2026",
       noShowDays: "",
       noShowCustomDays: "",
       cancelDays: "",
@@ -612,8 +661,8 @@ ExternalSubSource: "",
   base.ruleDetails = "External source";
 
   base.ruleDays = "0";
-  base.ruleType = "0";
-  base.ruleFetchType = "0";
+  base.ruleType = "2";
+  base.ruleFetchType = "2";
 
   base.staticFromDate = "";
   base.staticToDate = "";
@@ -719,8 +768,16 @@ ExternalSubSource: "",
     }
 
     // ✅ Manual Create Lead: submit directly (no popup)
-    if (selectedRule === MANUAL_ID || selectedRule === "externalSourceRule") {
+  // ✅ Submit directly (no popup) for:
+// Manual, External Source, No Show, Cancelled
+if (
+  selectedRule === MANUAL_ID ||
+  selectedRule === "externalSourceRule" ||
+  selectedRule === "noShowAppointment" ||
+  selectedRule === "cancelledAppointment"
+) {
   try {
+    // 1) Manual
     if (selectedRule === MANUAL_ID) {
       const v = ruleValues[MANUAL_ID] || {};
       const from = (v.manualFromDate || "").toString().trim();
@@ -730,7 +787,10 @@ ExternalSubSource: "",
           : todayLocalYMD();
 
       await postCreate({ startDate: from, endDate: to });
-    } else {
+    }
+
+    // 2) External Source
+    else if (selectedRule === "externalSourceRule") {
       const v = ruleValues["externalSourceRule"] || {};
       const from = (v.extFromDate || "").toString().trim();
       const to =
@@ -739,6 +799,29 @@ ExternalSubSource: "",
           : todayLocalYMD();
 
       await postCreate({ startDate: from, endDate: to });
+    }
+
+    // 3) No Show / Cancelled
+    else {
+      const v = ruleValues[selectedRule] || {};
+      const ft = String(v.fetchType || "");
+
+      // STATIC: campaign dates from date pickers
+      if (ft === "1") {
+        await postCreate({ startDate: v.fromDate, endDate: v.toDate });
+      }
+      // DYNAMIC: end=today, start=today-x
+      else {
+        const cd = computeDynamicCampaignDates(v);
+        if (!cd?.startDate || !cd?.endDate) {
+          setErrors((prev) => ({
+            ...prev,
+            fields: "Please complete the required fields for the selected rule.",
+          }));
+          return;
+        }
+        await postCreate(cd);
+      }
     }
 
     alert("Saved.");
@@ -750,7 +833,6 @@ ExternalSubSource: "",
   }
   return;
 }
-
 
     // ✅ For all other rules: open campaign dates modal
     setActivateOpen(true);
@@ -1786,7 +1868,9 @@ ExternalSubSource: "",
       </div>
 
       {/* ✅ UPDATED: Modal will never show for Manual Lead */}
-      {activateOpen && selectedRule !== MANUAL_ID && (
+      {activateOpen &&
+  ![MANUAL_ID, "externalSourceRule", "noShowAppointment", "cancelledAppointment"].includes(selectedRule) && (
+
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal">
             <div className="modal-title">Set Campaign Dates</div>
