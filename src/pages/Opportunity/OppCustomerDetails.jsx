@@ -10,16 +10,18 @@ const DISPOSITION_OPTIONS = [
   { value: "LS010", label: "No response" },
   { value: "LS011", label: "Not Converted" },
   { value: "LS012", label: "Appointment Booked" },
+  { value: "LS004", label: "WIP" },
+
 ];
 
 // (kept consistent with your existing app)
-const OPP_STATUS = { OPEN: "2", CLOSED: "2" };
-const oppStatusFromDisposition = (code) => {
-  if (!code || code === "LS012") return OPP_STATUS.OPEN;
-  const closedSet = new Set(["LS008", "LS009", "LS010", "LS011"]);
-  return closedSet.has(code) ? OPP_STATUS.CLOSED : OPP_STATUS.OPEN;
-};
+const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
 
+const oppStatusFromDisposition = (code) => {
+  const c = String(code || "").trim();
+  if (c === "LS008" || c === "LS011") return OPP_STATUS.CLOSED; // "2"
+  return OPP_STATUS.OPEN; // "1"
+};
 const getRecId = (row) => {
   const id = row?.RECID ?? row?.recID ?? row?.RecID ?? row?.recid ?? row?.id ?? 0;
   return Number(id) || 0;

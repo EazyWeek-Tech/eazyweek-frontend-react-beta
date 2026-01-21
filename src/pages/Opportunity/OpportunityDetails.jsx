@@ -24,13 +24,22 @@ const toISODateOnly = (d) => {
 
 const formatDDMMYYYY = (v) => {
   if (!v) return "—";
-  const d = new Date(v);
+
+  // If already dd/MM/yyyy, return as-is
+  const s = String(v).trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+
+  // Try ISO / normal Date parse
+  const d = new Date(s);
   if (Number.isNaN(+d)) return "—";
+
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 };
+
 
 /** 'dd/MM/yyyy' | ISO | Date -> JS Date (midnight) */
 const toDate = (v) => {
@@ -138,6 +147,13 @@ const loadAssignStore = (oppCode) => {
     return {};
   }
 };
+
+const displayOppStatus = (v) => {
+  const s = (v ?? "").toString().trim().toLowerCase();
+  if (s === "wip") return "Open";
+  return v ?? "—";
+};
+
 
 const saveAssignStore = (oppCode, data) => {
   localStorage.setItem(ASSIGN_STORE_KEY(oppCode), JSON.stringify(data));
@@ -1136,7 +1152,7 @@ const OpportunityDetails = () => {
             ...r,
             __dateStamp: dateToStamp(d),
             __timeMin: hhmmToMinutes(hhmm),
-            __q: [r?.custID, r?.custName, r?.custMobileNo, r?.oppStatus, r?.salesOwner]
+            __q: [r?.custID, r?.custName, r?.custMobileNo, displayOppStatus(r?.oppStatus), r?.salesOwner]
               .map((x) => (x ?? "").toString().toLowerCase())
               .join(" | "),
           };
@@ -1570,7 +1586,8 @@ const OpportunityDetails = () => {
                       </td>
                       <td>{safe(r.custName, "—")}</td>
                       <td>{safe(r.custMobileNo, "—")}</td>
-                      <td>{safe(r.oppStatus, "—")}</td>
+                      <td>{displayOppStatus(r.oppStatus)}</td>
+
                       <td>{safe(r.disposition, "—")}</td>
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
