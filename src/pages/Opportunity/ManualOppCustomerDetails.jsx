@@ -281,7 +281,6 @@ const getLoggedInUser = () => {
     return null;
   }
 };
-
 const pickUserIdentity = (u) => {
   const employeeCode = u?.userId || u?.employeeCode || u?.empCode || u?.EmployeeCode || u?.EmpCode || "";
   const name =
@@ -292,12 +291,17 @@ const pickUserIdentity = (u) => {
     "";
   const email = u?.emailID || u?.email || u?.EmailID || u?.Email || "";
 
+  // ✅ IMPORTANT: pick recId if present in stored user object
+  const recId = toNumberOr0(u?.recId || u?.RecId || u?.employeeRecId || u?.employee_FK);
+
   return {
     employeeCode: safe(employeeCode).trim(),
     email: safe(email).trim(),
     name: safe(name).trim(),
+    recId,
   };
 };
+
 
 /** ---------------- Component ---------------- */
 const ManualOppCustomerDetails = () => {
@@ -347,6 +351,38 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   const [createdDateFromApi, setCreatedDateFromApi] = useState("");
   const [appointmentDateFromApi, setAppointmentDateFromApi] = useState("");
 
+  const resolveEmpRecIdFromList = (list, ident) => {
+  const directRec = toNumberOr0(ident?.recId);
+  if (directRec) return directRec;
+
+  const codeKey = norm(ident?.employeeCode);
+  const emailKey = norm(ident?.email);
+  const nameKey = norm(ident?.name);
+
+  const arr = Array.isArray(list) ? list : [];
+
+  if (codeKey) {
+    const byCode = arr.find((e) => norm(e?.employeeCode) === codeKey);
+    const rid = toNumberOr0(byCode?.recId);
+    if (rid) return rid;
+  }
+
+  if (emailKey) {
+    const byEmail = arr.find((e) => norm(e?.emailID) === emailKey);
+    const rid = toNumberOr0(byEmail?.recId);
+    if (rid) return rid;
+  }
+
+  if (nameKey) {
+    const byName = arr.find((e) => norm(e?.employeeName) === nameKey);
+    const rid = toNumberOr0(byName?.recId);
+    if (rid) return rid;
+  }
+
+  return 0;
+};
+
+
 
   const empLookup = useMemo(() => {
     const byCode = new Map();
@@ -376,28 +412,42 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   };
 
   useEffect(() => {
-    let alive = true;
-    const run = async () => {
-      try {
-        const data = await fetchJSON(EMPLOYEES_URL, { method: "GET" });
-        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-        if (!alive) return;
-        setEmployees(list);
+  let alive = true;
 
-        const u = getLoggedInUser();
-        const ident = pickUserIdentity(u);
-        const recId = resolveEmpRecId(ident);
-        setSalesOwnerRecId(toNumberOr0(recId));
-      } catch (e) {
-        console.error("❌ Employees load failed:", e);
-      }
-    };
-    run();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const run = async () => {
+    try {
+      const data = await fetchJSON(EMPLOYEES_URL, { method: "GET" });
+      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+      if (!alive) return;
+
+      setEmployees(list);
+
+      // ✅ Resolve sales owner safely using:
+      // 1) logged-in user recId (fast + best)
+      // 2) match against employeeCode/email/name in employees list
+      const u = getLoggedInUser();
+      const ident = pickUserIdentity(u);
+      const recId = resolveEmpRecIdFromList(list, ident);
+
+      setSalesOwnerRecId(toNumberOr0(recId));
+    } catch (e) {
+      console.error("❌ Employees load failed:", e);
+
+      // ✅ last fallback: if user object had recId, still set it
+      const u = getLoggedInUser();
+      const ident = pickUserIdentity(u);
+      if (alive) setSalesOwnerRecId(toNumberOr0(ident?.recId));
+    }
+  };
+
+  run();
+
+  return () => {
+    alive = false;
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 
   /** ---- Option lists ---- */
   const [doctorOptions, setDoctorOptions] = useState([{ label: "< - Select one - >", value: "" }]);
@@ -840,6 +890,11 @@ if (closed) {
     if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
     if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
 
+    if (!toNumberOr0(salesOwnerRecId) && !toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId)) {
+  e.salesOwner = "Sales Owner not resolved. Please re-login or refresh.";
+}
+
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -950,7 +1005,8 @@ if (closed) {
       disposition_FK: toNumberOr0(form.dispositionId),
       subDisposition_FK: toNumberOr0(form.subDispositionId),
 
-      salesOwner_FK: toNumberOr0(salesOwnerRecId),
+      salesOwner_FK: toNumberOr0(salesOwnerRecId) || toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId) || 0,
+
 campaign_FK: toNumberOr0(campaignRecId),
 
       // ✅ NO UTC
@@ -1395,6 +1451,7 @@ campaign_FK: toNumberOr0(campaignRecId),
 </div>
 
       </div>
+{errors.salesOwner && <div className="errText">{errors.salesOwner}</div>}
 
       <style jsx="true">{`
       .toast{

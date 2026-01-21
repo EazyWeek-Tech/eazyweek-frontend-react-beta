@@ -1256,58 +1256,104 @@ const OpportunityDetails = () => {
     return null;
   }, [followDateMode, rangeFrom, rangeTo]);
 
-  const filteredRows = useMemo(() => {
-    let list = normRows.slice();
+ const filteredRows = useMemo(() => {
+  let list = normRows.slice();
 
-    const s = searchTerm.trim().toLowerCase();
-    if (s) list = list.filter((r) => (r.__q || "").includes(s));
+  // 1) Search
+  const s = searchTerm.trim().toLowerCase();
+  if (s) list = list.filter((r) => (r.__q || "").includes(s));
 
-    const fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
-    const toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+  // 2) Status filter (Open/Closed)
+  const sf = String(statusFilter || "").trim().toLowerCase();
+  if (sf) {
+    list = list.filter((r) => normStatus(r?.oppStatus) === sf);
+  }
 
-    const inTimeWindow = (r) => {
-      if (!filterTimeFrom && !filterTimeTo) return true;
-      if (Number.isNaN(r.__timeMin)) return false;
-      if (filterTimeFrom && r.__timeMin < fromMin) return false;
-      if (filterTimeTo && r.__timeMin > toMin) return false;
-      return true;
-    };
-
-    // Non-manual: keep your existing behavior, but you can still use status/owner/date filters if you want.
-    // For now: only apply time window for non-manual (same as your latest code).
-    list = list.filter(inTimeWindow);
-
-    if (sortConfig.key) {
-      const { key, direction } = sortConfig;
-      const dir = direction === "asc" ? 1 : -1;
-
-      const isDateKey =
-        key === "followUpDate" ||
-        key === "followupdate" ||
-        key === "appointmentdatetime" ||
-        key === "createddate";
-
-      list.sort((a, b) => {
-        if (isDateKey) {
-          const da = a.__dateStamp;
-          const db = b.__dateStamp;
-          const hasA = !Number.isNaN(da);
-          const hasB = !Number.isNaN(db);
-          if (hasA && hasB) return (da - db) * dir;
-          if (hasA && !hasB) return -1 * dir;
-          if (!hasA && hasB) return 1 * dir;
-        }
-
-        const va = (a?.[key] ?? "").toString().toLowerCase();
-        const vb = (b?.[key] ?? "").toString().toLowerCase();
-        if (va < vb) return -1 * dir;
-        if (va > vb) return 1 * dir;
-        return 0;
-      });
+  // 3) Owner filter (including "(Unassigned)")
+  if (ownerFilter) {
+    if (ownerFilter === "(Unassigned)") {
+      list = list.filter((r) => !String(r?.salesOwner || "").trim());
+    } else {
+      const of = String(ownerFilter).trim().toLowerCase();
+      list = list.filter((r) => String(r?.salesOwner || "").trim().toLowerCase() === of);
     }
+  }
 
-    return list;
-  }, [normRows, searchTerm, filterTimeFrom, filterTimeTo, sortConfig]);
+  // 4) Follow-up date filter (Today / Tomorrow / Range)
+  if (dateRange) {
+    const from = +new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate());
+    const to = +new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate());
+
+    list = list.filter((r) => {
+      const stamp = getRowDateStampForFilter(r);
+      return !Number.isNaN(stamp) && stamp >= from && stamp <= to;
+    });
+  }
+
+  // 5) Time window filter
+  const fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
+  const toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+
+  const inTimeWindow = (r) => {
+    if (!filterTimeFrom && !filterTimeTo) return true;
+    if (Number.isNaN(r.__timeMin)) return false;
+    if (filterTimeFrom && r.__timeMin < fromMin) return false;
+    if (filterTimeTo && r.__timeMin > toMin) return false;
+    return true;
+  };
+
+  list = list.filter(inTimeWindow);
+
+  // 6) Sorting (unchanged)
+  if (sortConfig.key) {
+    const { key, direction } = sortConfig;
+    const dir = direction === "asc" ? 1 : -1;
+
+    const isDateKey =
+      key === "followUpDate" ||
+      key === "followupdate" ||
+      key === "appointmentdatetime" ||
+      key === "createddate";
+
+    list.sort((a, b) => {
+      if (isDateKey) {
+        const da = a.__dateStamp;
+        const db = b.__dateStamp;
+        const hasA = !Number.isNaN(da);
+        const hasB = !Number.isNaN(db);
+        if (hasA && hasB) return (da - db) * dir;
+        if (hasA && !hasB) return -1 * dir;
+        if (!hasA && hasB) return 1 * dir;
+      }
+
+      const va = (a?.[key] ?? "").toString().toLowerCase();
+      const vb = (b?.[key] ?? "").toString().toLowerCase();
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }
+
+  return list;
+}, [
+  normRows,
+  searchTerm,
+  statusFilter,
+  ownerFilter,
+  dateRange,
+  filterTimeFrom,
+  filterTimeTo,
+  sortConfig,
+]);
+
+
+  const normStatus = (v) => displayOppStatus(v).toString().trim().toLowerCase();
+
+const getRowDateStampForFilter = (row) => {
+  // Use your existing "opp date" logic (followup/appointment/created)
+  return getOppDateStamp(row, false);
+};
+
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length]);
 
@@ -1480,11 +1526,11 @@ const OpportunityDetails = () => {
               <div className="fgroup">
                 <label className="flabel">Status :</label>
                 <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">All</option>
-                  <option value="Open">Open</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Closed">Closed</option>
-                </select>
+  <option value="">All</option>
+  <option value="Open">Open</option>
+  <option value="Closed">Closed</option>
+</select>
+
               </div>
 
               <div className="fgroup">
