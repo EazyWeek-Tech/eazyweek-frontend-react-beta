@@ -18,6 +18,7 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     { value: "S2", label: "Google Ads" },
     { value: "S3", label: "Others" },
     { value: "S4", label: "Website" },
+    { value: "S5", label: "WhatsApp" },
   ];
 
   const EXTERNAL_SUBSOURCE_MAP = {
@@ -41,7 +42,13 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       { value: "SS2", label: "Enquiry" },
       { value: "SS3", label: "Booking" },
     ],
+    S5: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS5", label: "Outbound/Inbound" },
+      { value: "SS4", label: "" },
+    ],
   };
+
 
   const subSourceOptions = useMemo(() => {
     return EXTERNAL_SUBSOURCE_MAP[externalSource] || [{ value: "", label: "< - Select one - >" }];
