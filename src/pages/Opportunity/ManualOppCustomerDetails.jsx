@@ -342,6 +342,12 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [salesOwnerRecId, setSalesOwnerRecId] = useState(0);
 
+    // ✅ Preserve ORIGINAL creator (SalesOwner = X) + original dates when editing
+  const [originalSalesOwnerRecId, setOriginalSalesOwnerRecId] = useState(0);
+  const [createdDateFromApi, setCreatedDateFromApi] = useState("");
+  const [appointmentDateFromApi, setAppointmentDateFromApi] = useState("");
+
+
   const empLookup = useMemo(() => {
     const byCode = new Map();
     const byEmail = new Map();
@@ -721,6 +727,15 @@ useEffect(() => {
         const data = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
         if (!alive) return;
 
+
+                // ✅ Store SalesOwner (creator = X) once from API (do NOT overwrite on updates)
+        setOriginalSalesOwnerRecId(toNumberOr0(data?.salesOwner_FK));
+
+        // ✅ Preserve original created/appointment dates from API (so update doesn't mutate them)
+        setCreatedDateFromApi(safe(data?.createdDate));
+        setAppointmentDateFromApi(safe(data?.appointmentDate));
+
+
         const statusLower = safe(data?.status).trim().toLowerCase();
 const closed = statusLower === "closed";
 
@@ -966,6 +981,9 @@ campaign_FK: toNumberOr0(campaignRecId),
 
   const updateLeadOpp = async () => {
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
+      if (!originalSalesOwnerRecId) {
+      console.warn("⚠️ originalSalesOwnerRecId is 0. SalesOwner may overwrite if backend updates it.");
+    }
     const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
     const finalStatus = resolvePayloadStatus({
@@ -1002,11 +1020,13 @@ campaign_FK: toNumberOr0(campaignRecId),
       disposition_FK: toNumberOr0(form.dispositionId),
       subDisposition_FK: toNumberOr0(form.subDispositionId),
 
-      salesOwner_FK: toNumberOr0(salesOwnerRecId),
+            salesOwner_FK: toNumberOr0(originalSalesOwnerRecId) || 0,
+
       campaign_FK: toNumberOr0(campaignRecId),
 
-      // ✅ NO UTC
-      appointmentDate: nowLocal,
+
+          appointmentDate: appointmentDateFromApi || null,
+
 
       // ✅ NO UTC + always tomorrow or later
       followUpDate: toFollowUpDateOnly(finalDate),
@@ -1015,10 +1035,10 @@ campaign_FK: toNumberOr0(campaignRecId),
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
-
-      modifiedBy: 0,
+ modifiedBy: toNumberOr0(salesOwnerRecId),
       modifiedDate: nowLocal,
-      createdDate: form.createdDate, // keep what UI had (if your API needs)
+           createdDate: createdDateFromApi || null,
+
     };
 
     console.log("[updateLeadOpp] followUpDate:", payload.followUpDate);
