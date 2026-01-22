@@ -75,6 +75,8 @@ import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 import DispositionMappingList from "./pages/Opportunity/DispositionMappingList";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
+import ExternalLeadsTable from "./pages/Opportunity/ExternalLeadsTable";
+import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -210,6 +212,8 @@ function App() {
   element={<ManualOppCustomerDetails />}
   
 />
+<Route path="/opportunity/external/:oppCode" element={<ExternalLeadsTable />} />
+
 
  <Route
   path="/manuallead/:oppCode/:custId"
@@ -217,6 +221,10 @@ function App() {
   
 />
 <Route path="/manuallead/edit/:leadOppId" element={<ManualLeadEdit />} />
+<Route
+  path="/opportunity/external/:oppCode/lead/:leadOppId"
+  element={<ExternalLeadForm />}
+/>
 
 <Route path="/masters/disposition" element={<DispositionMappingList />} />
 <Route path="/opportunity/disposition-mapping/create" element={<DispositionMappingCreate />} />
