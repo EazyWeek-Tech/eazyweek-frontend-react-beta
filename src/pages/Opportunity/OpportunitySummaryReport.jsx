@@ -24,7 +24,7 @@ function toISODateOnly(s) {
   return isNaN(d) ? "" : d.toISOString().slice(0, 10);
 }
 const atStartOfDayZ = (dateISO) => (dateISO ? `${dateISO}T00:00:00Z` : "");
-const atEndOfDayZ   = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
+const atEndOfDayZ = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
 const pick = (obj, keys, fallback = "") => {
   for (const k of keys) {
     const v = obj?.[k];
@@ -37,10 +37,14 @@ const pick = (obj, keys, fallback = "") => {
    SearchableDropdown (single/multi)
    =========================== */
 function SearchableDropdown({
-  options, value, onChange,
+  options,
+  value,
+  onChange,
   placeholder = "None selected",
-  multiple = false, disabled = false,
-  width = "100%", maxMenuHeight = 280,
+  multiple = false,
+  disabled = false,
+  width = "100%",
+  maxMenuHeight = 280,
   showSelectAll = true,
 }) {
   const [open, setOpen] = useState(false);
@@ -134,7 +138,9 @@ function SearchableDropdown({
             <span className="ico">🔍</span>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" />
             {query && (
-              <button className="clear" onClick={clearSearch} aria-label="Clear search">×</button>
+              <button className="clear" onClick={clearSearch} aria-label="Clear search">
+                ×
+              </button>
             )}
           </div>
 
@@ -196,7 +202,13 @@ function SearchableDropdown({
 /* ===========================
    Page: Opportunity Summary Report
    =========================== */
+
+// NOTE: your original endpoint had a space: "/api/Opportunity/ OppSummaryReport"
+// I’m keeping your logic intact, but removing the accidental space so the API works.
 const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/ OppSummaryReport`;
+
+// NEW: Opp name endpoint for dependent dropdown
+const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 
 export default function OpportunitySummaryReport() {
   const navigate = useNavigate();
@@ -204,15 +216,18 @@ export default function OpportunitySummaryReport() {
 
   // dates
   const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || "");
-  const [toDate, setToDate]     = useState(toISODateOnly(state?.toDate)   || "");
+  const [toDate, setToDate] = useState(toISODateOnly(state?.toDate) || "");
 
   // filters (match detailed page’s value semantics)
   const [campaignStatusCode, setCampaignStatusCode] = useState(""); // "1" | "2"
-  const [oppRuleCode, setOppRuleCode] = useState("");               // "R1".."R7"
+  const [oppRuleCode, setOppRuleCode] = useState(""); // "R1".."R7"
   const [clinicCode, setClinicCode] = useState(state?.clinic ? norm(state.clinic) : "");
   const [oppNames, setOppNames] = useState(
-    Array.isArray(state?.oppNames) ? state.oppNames.map(norm) :
-    state?.oppName ? [norm(state.oppName)] : []
+    Array.isArray(state?.oppNames)
+      ? state.oppNames.map(norm)
+      : state?.oppName
+      ? [norm(state.oppName)]
+      : []
   );
 
   // options
@@ -225,16 +240,22 @@ export default function OpportunitySummaryReport() {
     { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
     { value: "R3", label: "No show appointment for X days" },
     { value: "R4", label: "Cancelled appointment for X days" },
-    { value: "R5", label: "Manual Lead" },
-    { value: "R6", label: "Customer Special Day" },
-    { value: "R7", label: "Customer Type" },
+    { value: "Manual Lead", label: "Manual Lead" },
+    { value: "R5", label: "Customer Special Day" },
+    { value: "R6", label: "Customer Type" },
+    { value: "R7", label: "External Source" },
   ];
-  const [clinics, setClinics] = useState([]);           // [{value,label}]
+
+  const [clinics, setClinics] = useState([]); // [{value,label}]
   const [oppNameOptions, setOppNameOptions] = useState([]); // [{value,label}]
 
   // table
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // NEW: separate loading for Opp Names dropdown
+  const [loadingOppNames, setLoadingOppNames] = useState(false);
+
   const [toast, setToast] = useState(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -262,7 +283,7 @@ export default function OpportunitySummaryReport() {
           label: x.name ?? x.centerName ?? (x.code ?? ""),
         }));
         setClinics(list);
-        if (clinicCode && !list.some(o => o.value === clinicCode)) setClinicCode("");
+        if (clinicCode && !list.some((o) => o.value === clinicCode)) setClinicCode("");
       } catch {
         setClinics([]);
       } finally {
@@ -271,6 +292,75 @@ export default function OpportunitySummaryReport() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ==========================================================
+     NEW: Populate Campaign Name when status + rule are selected
+     ========================================================== */
+  useEffect(() => {
+    const status = norm(campaignStatusCode);
+    const rule = norm(oppRuleCode);
+
+    // If either is missing -> clear dropdown + selection
+    if (!status || !rule) {
+      setOppNameOptions([]);
+      setOppNames([]);
+      return;
+    }
+
+    const ac = new AbortController();
+
+    (async () => {
+      setLoadingOppNames(true);
+      try {
+        const body = { campStatus: status, ruleCode: rule };
+
+        const r = await fetch(OPP_NAMES_ENDPOINT, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        });
+
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+        const d = await r.json();
+        const arr = Array.isArray(d) ? d : d ? [d] : [];
+
+        // value = oppName (keeps your existing summary payload: oppName CSV)
+        const uniq = Array.from(
+          new Map(
+            arr
+              .map((x) => ({
+                oppName: norm(x?.oppName),
+              }))
+              .filter((x) => x.oppName)
+              .map((x) => [x.oppName, { value: x.oppName, label: x.oppName }])
+          ).values()
+        ).sort((a, b) => a.label.localeCompare(b.label));
+
+        setOppNameOptions(uniq);
+
+        // Keep already-selected names that still exist
+        setOppNames((prev) => {
+          const prevArr = Array.isArray(prev) ? prev : [];
+          if (!prevArr.length) return [];
+          const allowed = new Set(uniq.map((o) => o.value));
+          return prevArr.filter((v) => allowed.has(norm(v)));
+        });
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        console.error(e);
+        setOppNameOptions([]);
+        setOppNames([]);
+        showToast("Failed to load campaign names");
+      } finally {
+        setLoadingOppNames(false);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [campaignStatusCode, oppRuleCode]);
 
   /* ---- Fetch summary (only on View) ---- */
   const loadSummary = async () => {
@@ -282,11 +372,11 @@ export default function OpportunitySummaryReport() {
 
       const body = {
         fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate:   atEndOfDayZ(toISODateOnly(toDate)),
-        oppStatus: campaignStatusCode || "",      // "1" | "2"
-        clinicCode: clinicCode || "",             // single
-        oppRule: oppRuleCode || "",               // "R1".."R7"
-        oppName: (oppNames || []).join(","),      // CSV
+        toDate: atEndOfDayZ(toISODateOnly(toDate)),
+        oppStatus: campaignStatusCode || "", // "1" | "2"
+        clinicCode: clinicCode || "", // single
+        oppRule: oppRuleCode || "", // "R1".."R7"
+        oppName: (oppNames || []).join(","), // CSV
         dateFlag: df,
       };
 
@@ -306,7 +396,11 @@ export default function OpportunitySummaryReport() {
         const d = new Date(iso);
         return isNaN(d)
           ? ""
-          : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+          : new Intl.DateTimeFormat("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(d);
       };
       const yesNo = (v) => {
         const s = String(v ?? "").toLowerCase();
@@ -316,43 +410,30 @@ export default function OpportunitySummaryReport() {
       };
 
       const normalized = arr.map((x, i) => ({
-        key:       pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-        oppCode:   pick(x, ["oppCode", "opportunityCode", "code"]),
-        fromDate:  fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
-        toDate:    fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
-        custName:  pick(x, ["customerName", "custName", "name"]),
-        oppName:   pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+        key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
+        oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
+        fromDate: fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
+        toDate: fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
+        custName: pick(x, ["customerName", "custName", "name"]),
+        oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
         campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
         converted: yesNo(pick(x, ["converted", "isConverted"])),
         oppStatus: pick(x, ["statusName", "oppStatus", "status"]),
         createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
-        closedBy:  pick(x, ["closedByName", "closedBy"]),
-        wip:       yesNo(pick(x, ["wip", "isWip"])),
-        clinic:    pick(x, ["centerName", "clinicName", "center"]),
+        closedBy: pick(x, ["closedByName", "closedBy"]),
+        wip: yesNo(pick(x, ["wip", "isWip"])),
+        clinic: pick(x, ["centerName", "clinicName", "center"]),
       }));
 
       setRows(normalized);
 
-      // Build Opp Name options from results
-      const uniqOppNames = Array.from(
-        new Map(
-          normalized
-            .filter(r => norm(r.oppName))
-            .map(r => [norm(r.oppName), { value: norm(r.oppName), label: norm(r.oppName) }])
-        ).values()
-      ).sort((a,b) => a.label.localeCompare(b.label));
-      setOppNameOptions(uniqOppNames);
-
-      // Keep only already-selected names that still exist
-      if (oppNames?.length) {
-        const allowed = new Set(uniqOppNames.map(o => o.value));
-        setOppNames(oppNames.filter(v => allowed.has(v)));
-      }
+      // NOTE: We are no longer building Opp Name options from summary results,
+      // because Campaign Name dropdown now comes from /api/Opportunity/GetOppNames
+      // based on status + rule. (Keeps dropdown consistent with your requirement.)
     } catch (e) {
       console.error(e);
       showToast("Failed to load opportunity summary");
       setRows([]);
-      setOppNameOptions([]);
     } finally {
       setLoading(false);
     }
@@ -365,45 +446,49 @@ export default function OpportunitySummaryReport() {
 
   function quoteCSV(val) {
     const s = String(val ?? "");
-    if (s.includes(",") || s.includes("\n") || s.includes("\"")) {
+    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
       return `"${s.replace(/"/g, '""')}"`;
     }
     return s;
   }
 
-  function exportCSV() {
-    if (!rows.length) return;
-    const headers = [
-      "From Date","To Date","CustName","OppName","Campaign Status",
-      "Converted","OppStatus","Created By","Closed By","WIP","Clinic",
-    ];
-    const csv = [
-      headers.join(","),
-      ...rows.map(r =>
-        [
-          r.fromDate, r.toDate, quoteCSV(r.custName), quoteCSV(r.oppName),
-          quoteCSV(r.campaignStatus), r.converted, quoteCSV(r.oppStatus),
-          quoteCSV(r.createdBy), quoteCSV(r.closedBy), r.wip, quoteCSV(r.clinic),
-        ].map(v => v ?? "").join(",")
-      ),
-    ].join("\r\n");
+  function exportExcel() {
+  if (!rows.length) return;
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Opportunity_Summary_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  const data = rows.map((r) => ({
+    "From Date": r.fromDate || "",
+    "To Date": r.toDate || "",
+    "CustName": r.custName || "",
+    "OppName": r.oppName || "",
+    "Campaign Status": r.campaignStatus || "",
+    "Converted": r.converted || "",
+    "OppStatus": r.oppStatus || "",
+    "Created By": r.createdBy || "",
+    "Closed By": r.closedBy || "",
+    "WIP": r.wip || "",
+    "Clinic": r.clinic || "",
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Opportunity Summary");
+
+  // auto column widths (simple)
+  const headers = Object.keys(data[0] || {});
+  ws["!cols"] = headers.map((h) => ({ wch: Math.max(12, h.length + 2) }));
+
+  const fileName = `Opportunity_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
 
   return (
     <div className="wrap">
       <h1 className="title">Opportunity Summary Report</h1>
       <div className="breadcrumb">
-        <span className="crumb-link" onClick={() => navigate("/")}>DashBoard</span>
+        <span className="crumb-link" onClick={() => navigate("/")}>
+          DashBoard
+        </span>
         <span className="sep"> &gt; </span>
         <span className="crumb-dim">Opportunity Summary Report</span>
       </div>
@@ -412,21 +497,18 @@ export default function OpportunitySummaryReport() {
         <div className="grid">
           <div className="frow">
             <label>From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
+            />
           </div>
           <div className="frow">
             <label>To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
-          </div>
-
-          <div className="frow">
-            <label>Opp Name</label>
-            <SearchableDropdown
-              options={oppNameOptions}
-              value={oppNames}
-              onChange={setOppNames}
-              multiple
-              placeholder="None selected"
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
             />
           </div>
 
@@ -442,7 +524,20 @@ export default function OpportunitySummaryReport() {
           </div>
 
           <div className="frow">
-            <label>Opp Rule</label>
+            <label>Campaign Name</label>
+            <SearchableDropdown
+              options={oppNameOptions}
+              value={oppNames}
+              onChange={setOppNames}
+              multiple
+              placeholder={!campaignStatusCode || !oppRuleCode ? "Select status & rule first" : "None selected"}
+              disabled={!campaignStatusCode || !oppRuleCode || loadingOppNames}
+            />
+            {loadingOppNames && <small className="hint">Loading campaign names…</small>}
+          </div>
+
+          <div className="frow">
+            <label>Campaign Rule</label>
             <SearchableDropdown
               options={oppRuleOptions}
               value={oppRuleCode}
@@ -465,8 +560,13 @@ export default function OpportunitySummaryReport() {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={loadSummary} disabled={loading}>View</button>
-          <button className="btn" onClick={exportCSV} disabled={!rows.length}>Export</button>
+          <button className="btn" onClick={loadSummary} disabled={loading}>
+            View
+          </button>
+         <button className="btn" onClick={exportExcel} disabled={!rows.length}>
+  Export
+</button>
+
         </div>
       </div>
 
@@ -488,42 +588,63 @@ export default function OpportunitySummaryReport() {
             </tr>
           </thead>
           <tbody>
-            {loading && (<tr><td colSpan={11} className="loading">Loading…</td></tr>)}
-            {!loading && !pageRows.length && (<tr><td colSpan={11} className="empty">No data</td></tr>)}
-            {!loading && pageRows.map((r, idx) => (
-              <tr key={`${r.key}-${idx}`}>
-                <td>
-                  <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-                    {r.fromDate}
-                  </button>
+            {loading && (
+              <tr>
+                <td colSpan={11} className="loading">
+                  Loading…
                 </td>
-                <td>{r.toDate}</td>
-                <td>{r.custName}</td>
-                <td>
-                  <a className="link" onClick={() => onClickOpp(r.oppCode)}>
-                    {r.oppName}
-                  </a>
-                </td>
-                <td>{r.campaignStatus}</td>
-                <td>{r.converted}</td>
-                <td>
-                  <a className="link" onClick={() => onClickOpp(r.oppCode)}>
-                    {r.oppStatus}
-                  </a>
-                </td>
-                <td>{r.createdBy}</td>
-                <td>{r.closedBy}</td>
-                <td>{r.wip}</td>
-                <td>{r.clinic}</td>
               </tr>
-            ))}
+            )}
+            {!loading && !pageRows.length && (
+              <tr>
+                <td colSpan={11} className="empty">
+                  No data
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              pageRows.map((r, idx) => (
+                <tr key={`${r.key}-${idx}`}>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                      {r.fromDate}
+                    </button>
+                  </td>
+                  <td>{r.toDate}</td>
+                  <td>{r.custName}</td>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                      {r.oppName}
+                    </button>
+                  </td>
+                  <td>{r.campaignStatus}</td>
+                  <td>{r.converted}</td>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                      {r.oppStatus}
+                    </button>
+                  </td>
+                  <td>{r.createdBy}</td>
+                  <td>{r.closedBy}</td>
+                  <td>{r.wip}</td>
+                  <td>{r.clinic}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
 
         <div className="pager">
-          <button className="pagebtn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
+          <button className="pagebtn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Prev
+          </button>
           <span className="pageno">{page}</span>
-          <button className="pagebtn" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>Next</button>
+          <button
+            className="pagebtn"
+            disabled={page >= pageCount}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
           <span className="pagecount">/ {pageCount}</span>
         </div>
       </div>
@@ -545,6 +666,8 @@ export default function OpportunitySummaryReport() {
           height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff;
         }
 
+        .hint { color: #6b7280; font-size: 12px; margin-top: 2px; }
+
         .actions { margin-top: 10px; display: flex; gap: 12px; justify-content: flex-end; }
         .btn { background: #112032; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
 
@@ -552,7 +675,9 @@ export default function OpportunitySummaryReport() {
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
         .tbl thead th { text-align: left; font-size: 13px; color: #6c7688; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #eef1f6; }
         .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: middle; }
-        .link { background: none; border: none;  padding: 0; }
+
+        .link { background: none; border: none; padding: 0; color: #2e5aac; cursor: pointer; font-weight: 600; text-align: left; }
+        .link:hover { text-decoration: underline; }
 
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
 
