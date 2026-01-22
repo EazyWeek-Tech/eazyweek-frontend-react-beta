@@ -33,6 +33,98 @@ const pick = (obj, keys, fallback = "") => {
   return fallback;
 };
 
+// ✅ Defaults
+const DEFAULT_FROM_DATE_ISO = "2020-01-22";
+
+const todayISODate = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+// ✅ Try to read logged-in center from common places (state / localStorage / sessionStorage)
+const getLoggedInCenterCode = (state) => {
+  // 1) from navigation state (if you pass it)
+  const s1 =
+    state?.clinicCode ||
+    state?.centerCode ||
+    state?.clinic ||
+    state?.center ||
+    state?.centerId ||
+    "";
+  if (norm(s1)) return norm(s1);
+
+  // 2) from localStorage/sessionStorage (common keys)
+  const keys = [
+    "clinicCode",
+    "centerCode",
+    "center",
+    "clinic",
+    "selectedCenter",
+    "selectedCenterCode",
+    "CENTER_CODE",
+    "CLINIC_CODE",
+  ];
+
+  for (const k of keys) {
+    const v = localStorage.getItem(k) || sessionStorage.getItem(k) || "";
+    if (norm(v)) return norm(v);
+  }
+
+  // 3) from a stored user object (if your app stores it)
+  try {
+    const raw =
+      localStorage.getItem("user") ||
+      sessionStorage.getItem("user") ||
+      localStorage.getItem("authUser") ||
+      sessionStorage.getItem("authUser") ||
+      "";
+    if (raw) {
+      const u = JSON.parse(raw);
+      const v = u?.clinicCode || u?.centerCode || u?.center || u?.clinic || "";
+      if (norm(v)) return norm(v);
+    }
+  } catch {}
+
+  return "";
+};
+
+
+/* ===========================
+   ✅ Excel Export Helpers (like ManualLeadsTable)
+   =========================== */
+const loadXLSX = async () => {
+  const mod = await import("xlsx");
+  return mod;
+};
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const exportSummaryFileName = ({ fromDate, toDate, oppStatus, oppRule }) => {
+  const ts = new Date();
+  const y = ts.getFullYear();
+  const m = String(ts.getMonth() + 1).padStart(2, "0");
+  const d = String(ts.getDate()).padStart(2, "0");
+  const hh = String(ts.getHours()).padStart(2, "0");
+  const mm = String(ts.getMinutes()).padStart(2, "0");
+
+  const f = (fromDate || "").replaceAll("-", "");
+  const t = (toDate || "").replaceAll("-", "");
+
+  return `OppSummary_${oppRule || "AllRules"}_${oppStatus || "AllStatus"}_${f || "NA"}-${t || "NA"}_${y}${m}${d}_${hh}${mm}.xlsx`;
+};
+
 /* ===========================
    SearchableDropdown (single/multi)
    =========================== */
@@ -203,11 +295,10 @@ function SearchableDropdown({
    Page: Opportunity Summary Report
    =========================== */
 
-// NOTE: your original endpoint had a space: "/api/Opportunity/ OppSummaryReport"
-// I’m keeping your logic intact, but removing the accidental space so the API works.
+// ✅ FIX: remove accidental space so API works
 const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/ OppSummaryReport`;
 
-// NEW: Opp name endpoint for dependent dropdown
+// Opp name endpoint for dependent dropdown
 const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 
 export default function OpportunitySummaryReport() {
@@ -215,13 +306,22 @@ export default function OpportunitySummaryReport() {
   const { state } = useLocation() || {};
 
   // dates
-  const [fromDate, setFromDate] = useState(toISODateOnly(state?.fromDate) || "");
-  const [toDate, setToDate] = useState(toISODateOnly(state?.toDate) || "");
+ // dates (✅ default from 2020-01-22, to today; but allow state override)
+const [fromDate, setFromDate] = useState("");
+const [toDate, setToDate] = useState("");
 
-  // filters (match detailed page’s value semantics)
-  const [campaignStatusCode, setCampaignStatusCode] = useState(""); // "1" | "2"
-  const [oppRuleCode, setOppRuleCode] = useState(""); // "R1".."R7"
-  const [clinicCode, setClinicCode] = useState(state?.clinic ? norm(state.clinic) : "");
+// filters
+const [campaignStatusCode, setCampaignStatusCode] = useState("");
+const [oppRuleCode, setOppRuleCode] = useState("");
+
+// ✅ clinic default = logged-in center (but allow state override)
+const loggedInCenter = getLoggedInCenterCode(state);
+const [clinicCode, setClinicCode] = useState(
+  norm(state?.clinicCode || state?.clinic || "") || loggedInCenter
+);
+
+
+  // filters
   const [oppNames, setOppNames] = useState(
     Array.isArray(state?.oppNames)
       ? state.oppNames.map(norm)
@@ -246,8 +346,8 @@ export default function OpportunitySummaryReport() {
     { value: "R7", label: "External Source" },
   ];
 
-  const [clinics, setClinics] = useState([]); // [{value,label}]
-  const [oppNameOptions, setOppNameOptions] = useState([]); // [{value,label}]
+  const [clinics, setClinics] = useState([]);
+  const [oppNameOptions, setOppNameOptions] = useState([]);
 
   // table
   const [rows, setRows] = useState([]);
@@ -255,6 +355,9 @@ export default function OpportunitySummaryReport() {
 
   // NEW: separate loading for Opp Names dropdown
   const [loadingOppNames, setLoadingOppNames] = useState(false);
+
+  // ✅ NEW: exporting state (like ManualLeadsTable)
+  const [exporting, setExporting] = useState(false);
 
   const [toast, setToast] = useState(null);
   const [page, setPage] = useState(1);
@@ -271,7 +374,7 @@ export default function OpportunitySummaryReport() {
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- Load clinic options only (no data fetch on mount) ---- */
+  /* ---- Load clinic options only ---- */
   useEffect(() => {
     (async () => {
       try {
@@ -283,7 +386,17 @@ export default function OpportunitySummaryReport() {
           label: x.name ?? x.centerName ?? (x.code ?? ""),
         }));
         setClinics(list);
-        if (clinicCode && !list.some((o) => o.value === clinicCode)) setClinicCode("");
+        // ✅ If clinic is empty, set to logged-in center (only if it exists in options)
+setClinicCode((prev) => {
+  const cur = norm(prev);
+  if (cur) return cur;
+
+  const logged = norm(getLoggedInCenterCode(state));
+  if (!logged) return "";
+
+  return list.some((o) => norm(o.value) === logged) ? logged : "";
+});
+
       } catch {
         setClinics([]);
       } finally {
@@ -294,13 +407,12 @@ export default function OpportunitySummaryReport() {
   }, []);
 
   /* ==========================================================
-     NEW: Populate Campaign Name when status + rule are selected
+     Populate Campaign Name when status + rule are selected
      ========================================================== */
   useEffect(() => {
     const status = norm(campaignStatusCode);
     const rule = norm(oppRuleCode);
 
-    // If either is missing -> clear dropdown + selection
     if (!status || !rule) {
       setOppNameOptions([]);
       setOppNames([]);
@@ -327,13 +439,11 @@ export default function OpportunitySummaryReport() {
         const d = await r.json();
         const arr = Array.isArray(d) ? d : d ? [d] : [];
 
-        // value = oppName (keeps your existing summary payload: oppName CSV)
+        // value = oppName (keeps summary payload: oppName CSV)
         const uniq = Array.from(
           new Map(
             arr
-              .map((x) => ({
-                oppName: norm(x?.oppName),
-              }))
+              .map((x) => ({ oppName: norm(x?.oppName) }))
               .filter((x) => x.oppName)
               .map((x) => [x.oppName, { value: x.oppName, label: x.oppName }])
           ).values()
@@ -341,7 +451,6 @@ export default function OpportunitySummaryReport() {
 
         setOppNameOptions(uniq);
 
-        // Keep already-selected names that still exist
         setOppNames((prev) => {
           const prevArr = Array.isArray(prev) ? prev : [];
           if (!prevArr.length) return [];
@@ -364,28 +473,34 @@ export default function OpportunitySummaryReport() {
 
   /* ---- Fetch summary (only on View) ---- */
   const loadSummary = async () => {
-    setLoading(true);
-    setPage(1);
-    try {
-      // Per backend: send "0" in dateFlag when both dates are provided
-      const df = toISODateOnly(fromDate) && toISODateOnly(toDate) ? "0" : "";
+  setLoading(true);
+  setPage(1);
 
-      const body = {
-        fromDate: atStartOfDayZ(toISODateOnly(fromDate)),
-        toDate: atEndOfDayZ(toISODateOnly(toDate)),
-        oppStatus: campaignStatusCode || "", // "1" | "2"
-        clinicCode: clinicCode || "", // single
-        oppRule: oppRuleCode || "", // "R1".."R7"
-        oppName: (oppNames || []).join(","), // CSV
-        dateFlag: df,
-      };
+  try {
+    // ✅ If user didn't pick dates, still send defaults to backend
+    const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
+    const effectiveToISO = toISODateOnly(toDate) || todayISODate();
 
-      const r = await fetch(OPP_SUMMARY_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    // backend wants dateFlag="0" when BOTH dates exist (they will always exist now)
+    const df = "0";
+
+    const body = {
+      fromDate: atStartOfDayZ(effectiveFromISO),
+      toDate: atEndOfDayZ(effectiveToISO),
+      oppStatus: campaignStatusCode || "",
+      clinicCode: clinicCode || "",
+      oppRule: oppRuleCode || "",
+      oppName: (oppNames || []).join(","),
+      dateFlag: df,
+    };
+
+    const r = await fetch(OPP_SUMMARY_ENDPOINT, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       const arr = Array.isArray(d) ? d : d ? [d] : [];
@@ -396,12 +511,9 @@ export default function OpportunitySummaryReport() {
         const d = new Date(iso);
         return isNaN(d)
           ? ""
-          : new Intl.DateTimeFormat("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            }).format(d);
+          : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
       };
+
       const yesNo = (v) => {
         const s = String(v ?? "").toLowerCase();
         if (["1", "true", "y", "yes"].includes(s)) return "YES";
@@ -426,10 +538,6 @@ export default function OpportunitySummaryReport() {
       }));
 
       setRows(normalized);
-
-      // NOTE: We are no longer building Opp Name options from summary results,
-      // because Campaign Name dropdown now comes from /api/Opportunity/GetOppNames
-      // based on status + rule. (Keeps dropdown consistent with your requirement.)
     } catch (e) {
       console.error(e);
       showToast("Failed to load opportunity summary");
@@ -444,43 +552,58 @@ export default function OpportunitySummaryReport() {
     navigate(`/opportunity/view/${encodeURIComponent(code)}`, { state: { from: "opp-summary" } });
   }
 
-  function quoteCSV(val) {
-    const s = String(val ?? "");
-    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
-      return `"${s.replace(/"/g, '""')}"`;
+  /* ===========================
+     ✅ Excel Export (ManualLeadsTable style)
+     =========================== */
+  const exportExcel = async () => {
+    if (exporting) return;
+    if (!rows.length) return;
+
+    setExporting(true);
+    try {
+      const excelRows = rows.map((r) => ({
+        "From Date": r.fromDate || "",
+        "To Date": r.toDate || "",
+        "CustName": r.custName || "",
+        "OppName": r.oppName || "",
+        "Campaign Status": r.campaignStatus || "",
+        "Converted": r.converted || "",
+        "OppStatus": r.oppStatus || "",
+        "Created By": r.createdBy || "",
+        "Closed By": r.closedBy || "",
+        "WIP": r.wip || "",
+        "Clinic": r.clinic || "",
+        "Opp Code": r.oppCode || "",
+      }));
+
+      const XLSX = await loadXLSX();
+      const ws = XLSX.utils.json_to_sheet(excelRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Opportunity Summary");
+
+      const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([out], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      downloadBlob(
+        blob,
+        exportSummaryFileName({
+          fromDate: toISODateOnly(fromDate),
+          toDate: toISODateOnly(toDate),
+          oppStatus: campaignStatusCode,
+          oppRule: oppRuleCode,
+        })
+      );
+
+      showToast(`Exported ${excelRows.length} rows`, "success");
+    } catch (e) {
+      console.error("Export failed", e);
+      showToast(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
     }
-    return s;
-  }
-
-  function exportExcel() {
-  if (!rows.length) return;
-
-  const data = rows.map((r) => ({
-    "From Date": r.fromDate || "",
-    "To Date": r.toDate || "",
-    "CustName": r.custName || "",
-    "OppName": r.oppName || "",
-    "Campaign Status": r.campaignStatus || "",
-    "Converted": r.converted || "",
-    "OppStatus": r.oppStatus || "",
-    "Created By": r.createdBy || "",
-    "Closed By": r.closedBy || "",
-    "WIP": r.wip || "",
-    "Clinic": r.clinic || "",
-  }));
-
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Opportunity Summary");
-
-  // auto column widths (simple)
-  const headers = Object.keys(data[0] || {});
-  ws["!cols"] = headers.map((h) => ({ wch: Math.max(12, h.length + 2) }));
-
-  const fileName = `Opportunity_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-}
-
+  };
 
   return (
     <div className="wrap">
@@ -563,10 +686,10 @@ export default function OpportunitySummaryReport() {
           <button className="btn" onClick={loadSummary} disabled={loading}>
             View
           </button>
-         <button className="btn" onClick={exportExcel} disabled={!rows.length}>
-  Export
-</button>
 
+          <button className="btn" onClick={exportExcel} disabled={!rows.length || exporting}>
+            {exporting ? "Exporting..." : "Export"}
+          </button>
         </div>
       </div>
 
@@ -670,6 +793,7 @@ export default function OpportunitySummaryReport() {
 
         .actions { margin-top: 10px; display: flex; gap: 12px; justify-content: flex-end; }
         .btn { background: #112032; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+        .btn[disabled] { opacity: .55; cursor: not-allowed; }
 
         .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
