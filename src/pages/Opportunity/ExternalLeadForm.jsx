@@ -40,6 +40,46 @@ const TIME_OPTIONS = (() => {
   return out;
 })();
 
+const toOppStatusInt = (dispositionId) => {
+  const d = safe(dispositionId).trim();
+  return d === "LS004" ? 1 : 2; // WIP => 1 else 2
+};
+
+
+/** Keep only digits */
+const digitsOnly = (s) => safe(s).replace(/\D/g, "");
+
+/**
+ * Normalize mobile for API:
+ * - If mobile has >10 digits, send last 10 digits as mobileNo
+ * - Put remaining prefix into countryCode (if countryCode not provided)
+ * - countryCode returned as "+<digits>" or ""
+ */
+const normalizeMobileForApi = (countryCode, mobile) => {
+  const cc = digitsOnly(countryCode);
+  const m = digitsOnly(mobile);
+
+  if (!m) return { countryCode: cc ? `+${cc}` : "", mobileNo: "" };
+
+  // already a 10-digit local number
+  if (m.length === 10) {
+    return { countryCode: cc ? `+${cc}` : "", mobileNo: m };
+  }
+
+  // includes country code (e.g., 12-13 digits)
+  if (m.length > 10) {
+    const local = m.slice(-10);
+    const prefix = m.slice(0, m.length - 10);
+    const finalCC = cc || prefix;
+    return { countryCode: finalCC ? `+${finalCC}` : "", mobileNo: local };
+  }
+
+  // less than 10 digits
+  return { countryCode: cc ? `+${cc}` : "", mobileNo: m };
+};
+
+
+
 const fetchJson = async (url) => {
   const res = await fetch(url, {
     method: "GET",
@@ -55,6 +95,27 @@ const fetchJson = async (url) => {
   }
 };
 
+const postJson = async (url, body) => {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 240)}`);
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
 const readList = (data) => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.data)) return data.data;
@@ -62,6 +123,36 @@ const readList = (data) => {
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.table)) return data.table;
   return [];
+};
+
+/** Parse "01:30 PM" -> { hhmmss: "13:30:00", ampm: "PM" } */
+const toApiFollowUpTimeParts = (label) => {
+  const s = safe(label).trim();
+  // expecting "hh:mm AM/PM"
+  const m = s.match(/^(\d{2}):(\d{2})\s?(AM|PM)$/i);
+  if (!m) {
+    return { hhmmss: "", ampm: "" };
+  }
+  let hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  const ap = m[3].toUpperCase();
+
+  // 12h -> 24h
+  if (ap === "AM") {
+    if (hh === 12) hh = 0;
+  } else {
+    if (hh !== 12) hh = hh + 12;
+  }
+
+  return { hhmmss: `${pad2(hh)}:${pad2(mm)}:00`, ampm: ap };
+};
+
+/** Date input "yyyy-MM-dd" -> ISO string with time "T00:00:00.000Z" */
+const toApiFollowUpDateISO = (yyyyMMdd) => {
+  const s = safe(yyyyMMdd).trim();
+  if (!s) return "";
+  // force UTC midnight
+  return `${s}T00:00:00.000Z`;
 };
 
 /** ---------------- Hardcoded Disposition Masters ---------------- */
@@ -108,9 +199,9 @@ const buildSubDispositionOptions = (leadStatusCode) => {
   ];
 };
 
+
 /** ---------------- Logged-in Center Resolver ---------------- */
 const getLoggedInCenterCode = () => {
-  // adjust keys based on what your app stores in session/local storage
   const candidates = [
     sessionStorage.getItem("user"),
     localStorage.getItem("user"),
@@ -134,7 +225,6 @@ const getLoggedInCenterCode = () => {
     }
   }
 
-  // fallback: some apps store directly
   const direct =
     sessionStorage.getItem("centerCode") || localStorage.getItem("centerCode");
   return safe(direct).trim();
@@ -159,22 +249,36 @@ const ExternalLeadForm = () => {
   const leadOppIdFromParams = safe(params?.leadOppId).trim();
   const resolvedLeadOppId = leadOppIdFromState || leadOppIdFromParams;
 
+  // ✅ recID per your URL: /opportunity/external/:oppCode/lead/:leadOppId
+  const recID = Number(safe(params?.leadOppId || resolvedLeadOppId).trim() || 0) || 0;
+
   const [toast, setToast] = useState({ show: false, msg: "" });
   const showToast = (msg) => {
     setToast({ show: true, msg });
     window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 2500);
+    showToast._t = window.setTimeout(
+      () => setToast({ show: false, msg: "" }),
+      2500
+    );
   };
 
   /** ---------------- Options ---------------- */
   const [langOptions] = useState(["Arabic", "English"]);
 
-  const [centerOptions, setCenterOptions] = useState([{ label: "< - Select one - >", value: "" }]);
-  const [doctorOptions, setDoctorOptions] = useState([{ label: "< - Select one - >", value: "" }]);
-  const [verticalOptions, setVerticalOptions] = useState([{ label: "< - Select one - >", value: "" }]);
+  const [centerOptions, setCenterOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
+  const [doctorOptions, setDoctorOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
+  const [verticalOptions, setVerticalOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
 
   const [dispositionOptions] = useState(DISPOSITIONS);
-  const [subDispositionOptions, setSubDispositionOptions] = useState([{ label: "< - Select one - >", value: "" }]);
+  const [subDispositionOptions, setSubDispositionOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
 
   /** ---------------- Form ---------------- */
   const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
@@ -182,7 +286,9 @@ const ExternalLeadForm = () => {
   const [form, setForm] = useState(() => {
     const custName = safe(row?.custName);
     const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
-    const last = safe(row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : ""));
+    const last = safe(
+      row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : "")
+    );
 
     return {
       countryCode: "",
@@ -263,7 +369,9 @@ const ExternalLeadForm = () => {
 
       try {
         const data = await fetchJson(
-          `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
+          `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(
+            centerCode
+          )}`
         );
         const list = readList(data);
 
@@ -296,7 +404,9 @@ const ExternalLeadForm = () => {
 
     const run = async () => {
       try {
-        const data = await fetchJson(`${API_BASE_URL}/api/Opportunity/OppInterestedVertical`);
+        const data = await fetchJson(
+          `${API_BASE_URL}/api/Opportunity/OppInterestedVertical`
+        );
         const list = readList(data);
 
         const opts = [
@@ -381,25 +491,61 @@ const ExternalLeadForm = () => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async () => {
-    if (!validate()) {
-      alert("Submit blocked by validation. Check required fields.");
-      return;
-    }
+const handleSubmit = async () => {
+  if (!validate()) {
+    alert("Submit blocked by validation. Check required fields.");
+    return;
+  }
 
-    setSaving(true);
-    try {
-      const payloadPreview = {
-        oppCode: resolvedOppCode,
-        leadOppId: resolvedLeadOppId,
-        ...form,
-      };
-      console.log("[ExternalLeadForm] payload preview (NO API):", payloadPreview);
-      showToast("Saved locally (API integration pending).");
-    } finally {
-      setSaving(false);
-    }
-  };
+  setSaving(true);
+  try {
+    const { hhmmss, ampm } = toApiFollowUpTimeParts(form.followUpTime);
+
+    const nm = normalizeMobileForApi(form.countryCode, form.mobile);
+
+    const payload = {
+      recID,
+      disposition: safe(form.dispositionId).trim(),
+      remarks: safe(form.remarks),
+      oppCode: safe(resolvedOppCode).trim(),
+
+      // ✅ force string exactly like swagger
+      oppStatus: safe(form.dispositionId).trim() === "LS004" ? "1" : "2",
+
+      followUpDate: toApiFollowUpDateISO(form.followUpDate),
+      followUpTime: hhmmss,
+      followUpTimeAmPM: ampm,
+
+      firstName: safe(form.firstName),
+      lastName: safe(form.lastName),
+
+      countryCode: nm.countryCode,
+      mobileNo: nm.mobileNo,
+
+      email: safe(form.email),
+      preferedLang: safe(form.preferredLanguage),
+      subDisposition: safe(form.subDispositionId).trim(),
+      therapistCode: safe(form.doctor).trim(),
+      interesedIn: safe(form.interestedVerticalCode).trim(),
+      others: safe(form.interestedOther),
+    };
+
+    console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
+
+    await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
+
+    showToast("Saved successfully");
+    navigate(-1);
+  } catch (e) {
+    console.error("UpdateOppDetails failed", e);
+    alert(`Save failed: ${e?.message || e}`);
+  } finally {
+    setSaving(false);
+  }
+};
+
+
+
 
   return (
     <>
@@ -411,7 +557,8 @@ const ExternalLeadForm = () => {
             <div className="pageTitle">External Lead Details</div>
             <div className="subTitle">
               OppCode: <strong>{safe(resolvedOppCode) || "—"}</strong> &nbsp;|&nbsp; LeadOppId:{" "}
-              <strong>{safe(resolvedLeadOppId) || "—"}</strong>
+              <strong>{safe(resolvedLeadOppId) || "—"}</strong> &nbsp;|&nbsp; recID:{" "}
+              <strong>{recID || "—"}</strong>
             </div>
           </div>
         </div>
@@ -503,7 +650,12 @@ const ExternalLeadForm = () => {
                 <label>
                   Centre <span className="req">*</span>
                 </label>
-                <select className={`inp ${errors.centerCode ? "err" : ""}`} name="centerCode" value={form.centerCode} onChange={onChange}>
+                <select
+                  className={`inp ${errors.centerCode ? "err" : ""}`}
+                  name="centerCode"
+                  value={form.centerCode}
+                  onChange={onChange}
+                >
                   {centerOptions.map((o) => (
                     <option key={o.value || o.label} value={o.value}>
                       {o.label}
@@ -513,20 +665,7 @@ const ExternalLeadForm = () => {
                 {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
               </div>
 
-              <div className="field">
-                <label>
-                  Doctor / Therapist <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.doctor ? "err" : ""}`} name="doctor" value={form.doctor} onChange={onChange}>
-                  {doctorOptions.map((d) => (
-                    <option key={d.value || d.label} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.doctor && <div className="errText">{errors.doctor}</div>}
-              </div>
-
+              
               <div className="field">
                 <label>
                   Interested In <span className="req">*</span>
@@ -547,6 +686,26 @@ const ExternalLeadForm = () => {
               </div>
 
               <div className="field">
+                <label>
+                  Doctor / Therapist <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.doctor ? "err" : ""}`}
+                  name="doctor"
+                  value={form.doctor}
+                  onChange={onChange}
+                >
+                  {doctorOptions.map((d) => (
+                    <option key={d.value || d.label} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.doctor && <div className="errText">{errors.doctor}</div>}
+              </div>
+
+
+              <div className="field">
                 <label>Other</label>
                 <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
               </div>
@@ -563,7 +722,12 @@ const ExternalLeadForm = () => {
                 <label>
                   Disposition <span className="req">*</span>
                 </label>
-                <select className={`inp ${errors.dispositionId ? "err" : ""}`} name="dispositionId" value={form.dispositionId} onChange={onChange}>
+                <select
+                  className={`inp ${errors.dispositionId ? "err" : ""}`}
+                  name="dispositionId"
+                  value={form.dispositionId}
+                  onChange={onChange}
+                >
                   {dispositionOptions.map((d) => (
                     <option key={d.value || d.label} value={d.value}>
                       {d.label}
@@ -597,7 +761,14 @@ const ExternalLeadForm = () => {
             <div className="col">
               <div className="field">
                 <label>Follow Up Date</label>
-                <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} min={minFollowUpDate} />
+                <input
+                  type="date"
+                  className="inp"
+                  name="followUpDate"
+                  value={form.followUpDate}
+                  onChange={onChange}
+                  min={minFollowUpDate}
+                />
               </div>
 
               <div className="field">
@@ -621,7 +792,7 @@ const ExternalLeadForm = () => {
 
         <div className="btnRow">
           <button className="btn" onClick={handleSubmit} disabled={saving}>
-            Submit
+            {saving ? "Saving..." : "Submit"}
           </button>
 
           <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
@@ -666,7 +837,7 @@ const ExternalLeadForm = () => {
           color: #1d2a3b;
         }
         .subTitle {
-          margin-bottom:15px;
+          margin-bottom: 15px;
           font-size: 12px;
           color: #7b8798;
           font-weight: 700;
