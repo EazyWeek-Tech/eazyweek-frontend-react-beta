@@ -102,6 +102,24 @@ const isManualLeadRow = (row) => {
   );
 };
 
+  /** ✅ detect external lead row robustly (R7) */
+const isExternalLeadRow = (row) => {
+  // try multiple places where backend might send rule identity
+  const ruleCode = String(row?.ruleCode ?? row?.oRuleCode ?? row?.rule ?? "").trim().toUpperCase();
+  const ruleType = String(row?.ruleType ?? row?.oRuleType ?? row?.rule_Type ?? "").trim().toUpperCase();
+  const ruleName = String(row?.oRuleName ?? row?.ruleName ?? row?.oRuleDetails ?? "").trim().toLowerCase();
+
+  // helpful debug (remove later)
+  // console.log("External Detect:", { ruleCode, ruleType, ruleName, row });
+
+  // detect by code OR by name
+  return (
+    ruleCode === "R7" ||
+    ruleType === "R7" ||
+    ruleName.includes("external") // e.g. "External Lead", "External Leads"
+  );
+};
+
 
 /** ✅ Manual lead API helpers */
 const MANUAL_LEAD_API = `${API_BASE_URL}/api/LeadOpp/getCapaignListByManualLead`;
@@ -172,6 +190,8 @@ const OpportunityDashboard = () => {
         return r.json();
       });
 
+    
+
       // --- 2) manual lead list fetch (patch-only) ---
       // using bigger pageSize to cover most/manual rows, but still "pageNumber=1"
       const manualFetch = fetch(`${MANUAL_LEAD_API}?pageNumber=1&pageSize=500`, {
@@ -223,9 +243,7 @@ const OpportunityDashboard = () => {
     normalized.noOfConvertedOutOfClosed = ml.noOfConvertedOutOfClosed;
   }
 }
-
-
-        return normalized;
+       return normalized;
       };
 
       setOpportunityData(baseArr.map(normalizeBase));
@@ -422,26 +440,48 @@ const OpportunityDashboard = () => {
    * Pass along extra fields for the header fallback when details API is empty.
    */
   const handleOpportunityClick = (row) => {
-    if (!row) return;
+  if (!row) return;
 
-    const { oppCode, fromDate, toDate, oppName, oRuleDetails, oRuleXvalue } = row;
+   console.log("Clicked row:", row);
 
-    // Fallback to a 14-day window if dates aren’t present on the row
-    const now = new Date();
-    const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
-    const to = toDate ? toDate : toISODateOnly(new Date());
+  if (isExternalLeadRow(row)) {
+    console.log("✅ External detected");
+  } else {
+    console.log("❌ External NOT detected");
+  }
 
-    navigate(`/opportunity/details/${oppCode}`, {
+  const { oppCode, fromDate, toDate, oppName, oRuleDetails, oRuleXvalue } = row;
+
+  // ✅ External Leads route
+  if (isExternalLeadRow(row)) {
+    navigate(`/opportunity/external/${encodeURIComponent(oppCode)}`, {
       state: {
         oppName: oppName || undefined,
-        oRuleDetails: oRuleDetails || undefined,
-        oRuleXvalue: oRuleXvalue || undefined,
-        fromDate: toISODateOnly(from),
-        toDate: toISODateOnly(to),
-        manualLead: isManualLeadRow(row),
+        fromDate: toISODateOnly(fromDate),
+        toDate: toISODateOnly(toDate),
+        externalLead: true,
       },
     });
-  };
+    return;
+  }
+
+  // ✅ Manual Lead route (your existing one)
+  const now = new Date();
+  const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
+  const to = toDate ? toDate : toISODateOnly(new Date());
+
+  navigate(`/opportunity/details/${oppCode}`, {
+    state: {
+      oppName: oppName || undefined,
+      oRuleDetails: oRuleDetails || undefined,
+      oRuleXvalue: oRuleXvalue || undefined,
+      fromDate: toISODateOnly(from),
+      toDate: toISODateOnly(to),
+      manualLead: isManualLeadRow(row),
+    },
+  });
+};
+
 
   /* -------------------- CHART CARDS -------------------- */
   const SimpleBarCard = ({ title, dataset }) => (
