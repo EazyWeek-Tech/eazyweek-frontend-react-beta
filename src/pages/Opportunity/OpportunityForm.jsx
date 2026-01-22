@@ -48,6 +48,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
       { value: "SS5", label: "Outbound/Inbound" },
       { value: "SS4", label: "" },
     ],
+
+    S6: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS6", label: "" },
+    ],
   };
 
 
