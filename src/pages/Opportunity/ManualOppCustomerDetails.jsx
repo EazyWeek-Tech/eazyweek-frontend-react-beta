@@ -26,8 +26,6 @@ const getOppCodeFromUrl = (paramsOppCode, location) => {
   return idx >= 0 ? safe(parts[idx + 1]).trim() : "";
 };
 
-
-
 /** ✅ Local date/time formatter (NO UTC / NO 'Z') */
 const toLocalDateTimeString = (dateObj) => {
   const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
@@ -69,6 +67,15 @@ function toInputDate(value) {
   } catch {}
   return "";
 }
+
+const pickTypeFromApi = (obj) => {
+  const t =
+    safe(obj?.type).trim() ||
+    safe(obj?.Type).trim() ||
+    safe(obj?.leadType).trim() ||
+    safe(obj?.LeadType).trim();
+  return t;
+};
 
 // ---- Safe JSON helper (handles session-expired HTML / non-JSON) ----
 const fetchJSON = async (url, options = {}) => {
@@ -129,7 +136,6 @@ const formatTimeSpanTo12Hr = (timeStr) => {
   return `${hour12}:${pad2(mm)} ${ampm}`;
 };
 
-
 const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
   const s = safe(seervices).trim().toLowerCase();
   if (!s) return "";
@@ -151,7 +157,6 @@ const toFollowUpDateOnly = (yyyyMmDd) => {
   if (dateStr < minAllowed) dateStr = minAllowed;
   return dateStr; // "YYYY-MM-DD"
 };
-
 
 // ✅ TimeSpan friendly converter from "hh:mm AM/PM" => "HH:mm:ss" or null
 const toTimeSpanOrNull = (timeLabel) => {
@@ -258,10 +263,8 @@ const FETCH_CUSTOMER_URL = `${API_BASE_URL}/api/Customer/FetchCustomerDetails`;
 const SUBSOURCE_URL = `${API_BASE_URL}/api/Opportunity/OppSubSource`;
 const DISPOSITION_URL = `${API_BASE_URL}/api/Disposition/List`;
 const SUBDISPOSITION_URL = `${API_BASE_URL}/api/Disposition/SubDispositionList`;
-const LEAD_SUBSTATUS_URL = (statusCode) => `${API_BASE_URL}/api/Opportunity/OppLeadSubStatus/${encodeURIComponent(statusCode)}`;
 const CREATE_OPP_URL = `${API_BASE_URL}/api/LeadOpp/createOpp`;
 const LOAD_CUSTOMERS_URL = `${API_BASE_URL}/api/Customer/LoadCustomers`;
-
 
 const GET_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/getLead/${id}`;
 const UPDATE_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/lead/update/${id}`;
@@ -281,6 +284,7 @@ const getLoggedInUser = () => {
     return null;
   }
 };
+
 const pickUserIdentity = (u) => {
   const employeeCode = u?.userId || u?.employeeCode || u?.empCode || u?.EmployeeCode || u?.EmpCode || "";
   const name =
@@ -302,6 +306,26 @@ const pickUserIdentity = (u) => {
   };
 };
 
+/** ✅ Session (Bright/Lines/Maxime) resolver for centre preselect */
+const getSessionCentreKey = () => {
+  const raw =
+    sessionStorage.getItem("session") ||
+    sessionStorage.getItem("sessionInfo") ||
+    sessionStorage.getItem("loginSession") ||
+    localStorage.getItem("session") ||
+    localStorage.getItem("sessionInfo") ||
+    localStorage.getItem("loginSession");
+
+  if (!raw) return "";
+
+  try {
+    const s = JSON.parse(raw);
+    // sample: {"loginCode":"Bright","topCode":"Bright",...}
+    return safe(s?.loginCode || s?.topCode || s?.center || s?.centre || "").trim();
+  } catch {
+    return "";
+  }
+};
 
 /** ---------------- Component ---------------- */
 const ManualOppCustomerDetails = () => {
@@ -314,14 +338,11 @@ const ManualOppCustomerDetails = () => {
   const { state } = locationObj;
   const navigate = useNavigate();
 
-  const resolvedOppCode = useMemo(
-  () => getOppCodeFromUrl(params.oppCode, locationObj),
-  [params.oppCode, locationObj.pathname]
-);
+  const resolvedOppCode = useMemo(() => getOppCodeFromUrl(params.oppCode, locationObj), [params.oppCode, locationObj.pathname]);
 
-const [campaignRecId, setCampaignRecId] = useState(0);
-const [campaignLoading, setCampaignLoading] = useState(false);
-
+  const [campaignRecId, setCampaignRecId] = useState(0);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [leadApi, setLeadApi] = useState(null); // ✅ full GET /getLead/{id} response
 
   const row = state?.row || null;
   const leadOppIdFromState = state?.leadOpp_ID ?? state?.leadOppId ?? state?.id ?? row?.leadOpp_ID ?? row?.leadOppId;
@@ -346,43 +367,47 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [salesOwnerRecId, setSalesOwnerRecId] = useState(0);
 
-    // ✅ Preserve ORIGINAL creator (SalesOwner = X) + original dates when editing
+  // ✅ Preserve ORIGINAL creator (SalesOwner = X) + original dates when editing
   const [originalSalesOwnerRecId, setOriginalSalesOwnerRecId] = useState(0);
   const [createdDateFromApi, setCreatedDateFromApi] = useState("");
   const [appointmentDateFromApi, setAppointmentDateFromApi] = useState("");
 
+  // ✅ Preserve original customer_FK/type/campaign/subsource from API for update payload
+  const [originalCustomerRecIdFromApi, setOriginalCustomerRecIdFromApi] = useState(0);
+  const [originalTypeFromApi, setOriginalTypeFromApi] = useState("");
+  const [originalCampaignRecIdFromApi, setOriginalCampaignRecIdFromApi] = useState(0);
+  const [originalLeadSubSourceFkFromApi, setOriginalLeadSubSourceFkFromApi] = useState(0);
+
   const resolveEmpRecIdFromList = (list, ident) => {
-  const directRec = toNumberOr0(ident?.recId);
-  if (directRec) return directRec;
+    const directRec = toNumberOr0(ident?.recId);
+    if (directRec) return directRec;
 
-  const codeKey = norm(ident?.employeeCode);
-  const emailKey = norm(ident?.email);
-  const nameKey = norm(ident?.name);
+    const codeKey = norm(ident?.employeeCode);
+    const emailKey = norm(ident?.email);
+    const nameKey = norm(ident?.name);
 
-  const arr = Array.isArray(list) ? list : [];
+    const arr = Array.isArray(list) ? list : [];
 
-  if (codeKey) {
-    const byCode = arr.find((e) => norm(e?.employeeCode) === codeKey);
-    const rid = toNumberOr0(byCode?.recId);
-    if (rid) return rid;
-  }
+    if (codeKey) {
+      const byCode = arr.find((e) => norm(e?.employeeCode) === codeKey);
+      const rid = toNumberOr0(byCode?.recId);
+      if (rid) return rid;
+    }
 
-  if (emailKey) {
-    const byEmail = arr.find((e) => norm(e?.emailID) === emailKey);
-    const rid = toNumberOr0(byEmail?.recId);
-    if (rid) return rid;
-  }
+    if (emailKey) {
+      const byEmail = arr.find((e) => norm(e?.emailID) === emailKey);
+      const rid = toNumberOr0(byEmail?.recId);
+      if (rid) return rid;
+    }
 
-  if (nameKey) {
-    const byName = arr.find((e) => norm(e?.employeeName) === nameKey);
-    const rid = toNumberOr0(byName?.recId);
-    if (rid) return rid;
-  }
+    if (nameKey) {
+      const byName = arr.find((e) => norm(e?.employeeName) === nameKey);
+      const rid = toNumberOr0(byName?.recId);
+      if (rid) return rid;
+    }
 
-  return 0;
-};
-
-
+    return 0;
+  };
 
   const empLookup = useMemo(() => {
     const byCode = new Map();
@@ -412,42 +437,41 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   };
 
   useEffect(() => {
-  let alive = true;
+    let alive = true;
 
-  const run = async () => {
-    try {
-      const data = await fetchJSON(EMPLOYEES_URL, { method: "GET" });
-      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-      if (!alive) return;
+    const run = async () => {
+      try {
+        const data = await fetchJSON(EMPLOYEES_URL, { method: "GET" });
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        if (!alive) return;
 
-      setEmployees(list);
+        setEmployees(list);
 
-      // ✅ Resolve sales owner safely using:
-      // 1) logged-in user recId (fast + best)
-      // 2) match against employeeCode/email/name in employees list
-      const u = getLoggedInUser();
-      const ident = pickUserIdentity(u);
-      const recId = resolveEmpRecIdFromList(list, ident);
+        // ✅ Resolve sales owner safely using:
+        // 1) logged-in user recId (fast + best)
+        // 2) match against employeeCode/email/name in employees list
+        const u = getLoggedInUser();
+        const ident = pickUserIdentity(u);
+        const recId = resolveEmpRecIdFromList(list, ident);
 
-      setSalesOwnerRecId(toNumberOr0(recId));
-    } catch (e) {
-      console.error("❌ Employees load failed:", e);
+        setSalesOwnerRecId(toNumberOr0(recId));
+      } catch (e) {
+        console.error("❌ Employees load failed:", e);
 
-      // ✅ last fallback: if user object had recId, still set it
-      const u = getLoggedInUser();
-      const ident = pickUserIdentity(u);
-      if (alive) setSalesOwnerRecId(toNumberOr0(ident?.recId));
-    }
-  };
+        // ✅ last fallback: if user object had recId, still set it
+        const u = getLoggedInUser();
+        const ident = pickUserIdentity(u);
+        if (alive) setSalesOwnerRecId(toNumberOr0(ident?.recId));
+      }
+    };
 
-  run();
+    run();
 
-  return () => {
-    alive = false;
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** ---- Option lists ---- */
   const [doctorOptions, setDoctorOptions] = useState([{ label: "< - Select one - >", value: "" }]);
@@ -471,62 +495,59 @@ const [campaignLoading, setCampaignLoading] = useState(false);
   const [leadLoading, setLeadLoading] = useState(false);
 
   const [isClosed, setIsClosed] = useState(false);
-const [toast, setToast] = useState({ show: false, msg: "" });
+  const [toast, setToast] = useState({ show: false, msg: "" });
 
-
-/* Toast */
-const showToast = (msg) => {
-  setToast({ show: true, msg });
-  window.clearTimeout(showToast._t);
-  showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 3000);
-
-
-};
-
+  /* Toast */
+  const showToast = (msg) => {
+    setToast({ show: true, msg });
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 3000);
+  };
 
   /** ---------------- Follow-up History modal ---------------- */
-const [fuOpen, setFuOpen] = useState(false);
-const [fuLoading, setFuLoading] = useState(false);
-const [fuRows, setFuRows] = useState([]);
-const [fuError, setFuError] = useState("");
+  const [fuOpen, setFuOpen] = useState(false);
+  const [fuLoading, setFuLoading] = useState(false);
+  const [fuRows, setFuRows] = useState([]);
+  const [fuError, setFuError] = useState("");
 
-const closeFollowUpModal = () => {
-  setFuOpen(false);
-  setFuError("");
-};
-
-const openFollowUpModal = async () => {
-  if (!numericLeadOppId) {
-    showToast("Lead ID not found. Follow up history cannot be loaded.");
-    return;
-  }
-
-  setFuOpen(true);
-  setFuLoading(true);
-  setFuError("");
-  setFuRows([]);
-
-  try {
-    const data = await fetchJSON(FOLLOWUP_HISTORY_URL(numericLeadOppId), { method: "GET" });
-    const list = Array.isArray(data) ? data : [];
-    setFuRows(list);
-  } catch (e) {
-    console.error("❌ getLeadFollowUpList failed:", e);
-    setFuError(e?.message || "Failed to load follow up history.");
-  } finally {
-    setFuLoading(false);
-  }
-};
-
-// ESC to close
-useEffect(() => {
-  if (!fuOpen) return;
-  const onKey = (ev) => {
-    if (ev.key === "Escape") closeFollowUpModal();
+  const closeFollowUpModal = () => {
+    setFuOpen(false);
+    setFuError("");
   };
-  window.addEventListener("keydown", onKey);
-  return () => window.removeEventListener("keydown", onKey);
-}, [fuOpen]);
+
+  const openFollowUpModal = async () => {
+    if (!numericLeadOppId) {
+      showToast("Lead ID not found. Follow up history cannot be loaded.");
+      return;
+    }
+
+    setFuOpen(true);
+    setFuLoading(true);
+    setFuError("");
+    setFuRows([]);
+
+    try {
+      const data = await fetchJSON(FOLLOWUP_HISTORY_URL(numericLeadOppId), { method: "GET" });
+      const list = Array.isArray(data) ? data : [];
+      setFuRows(list);
+    } catch (e) {
+      console.error("❌ getLeadFollowUpList failed:", e);
+      setFuError(e?.message || "Failed to load follow up history.");
+    } finally {
+      setFuLoading(false);
+    }
+  };
+
+  // ESC to close
+  useEffect(() => {
+    if (!fuOpen) return;
+    const onKey = (ev) => {
+      if (ev.key === "Escape") closeFollowUpModal();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fuOpen]);
+
   /** ---- Form ---- */
   const [form, setForm] = useState({
     countryCode: "",
@@ -560,7 +581,6 @@ useEffect(() => {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [customerRecId, setCustomerRecId] = useState(0);
-
 
   /** ---------------- Customer Fetch ---------------- */
   useEffect(() => {
@@ -610,7 +630,23 @@ useEffect(() => {
             code: safe(c?.code).trim(),
           }))
           .filter((x) => x.label);
+
         setCenterOptions([{ label: "< - Select one - >", value: "" }, ...centersMapped]);
+
+        // ✅ CHANGE #1: Preselect centre from SESSION (creation only)
+        // - Only if NOT edit
+        // - Only if form.centerCode is empty
+        // - Match session loginCode/topCode (e.g., "Bright") with option label text ("Bright Clinics")
+        if (!isEdit) {
+          const key = norm(getSessionCentreKey()); // "bright"
+          if (key) {
+            setForm((p) => {
+              if (safe(p.centerCode).trim()) return p; // already chosen (customer prefill etc.)
+              const match = centersMapped.find((c) => norm(c.label).includes(key));
+              return match?.value ? { ...p, centerCode: String(match.value) } : p;
+            });
+          }
+        }
 
         const sourcesMapped = (Array.isArray(data?.sources) ? data.sources : [])
           .map((s) => ({ label: safe(s?.name).trim(), value: String(s?.value ?? ""), code: safe(s?.code).trim() }))
@@ -655,7 +691,7 @@ useEffect(() => {
     };
 
     loadMaster();
-  }, []);
+  }, [isEdit]);
 
   /** ---------------- SubSource load ---------------- */
   useEffect(() => {
@@ -734,36 +770,35 @@ useEffect(() => {
   }, [form.dispositionId]);
 
   useEffect(() => {
-  const code = safe(resolvedOppCode).trim();
-  if (!code) {
-    setCampaignRecId(0);
-    return;
-  }
-
-  let alive = true;
-
-  const run = async () => {
-    setCampaignLoading(true);
-    try {
-      const data = await fetchJSON(GET_CAMPAIGN_URL(code), { method: "GET" });
-      if (!alive) return;
-
-      const recid = toNumberOr0(data?.recid);
-      setCampaignRecId(recid);
-    } catch (e) {
-      console.error("❌ getCampaign failed:", e);
-      if (alive) setCampaignRecId(0);
-    } finally {
-      if (alive) setCampaignLoading(false);
+    const code = safe(resolvedOppCode).trim();
+    if (!code) {
+      setCampaignRecId(0);
+      return;
     }
-  };
 
-  run();
-  return () => {
-    alive = false;
-  };
-}, [resolvedOppCode]);
+    let alive = true;
 
+    const run = async () => {
+      setCampaignLoading(true);
+      try {
+        const data = await fetchJSON(GET_CAMPAIGN_URL(code), { method: "GET" });
+        if (!alive) return;
+
+        const recid = toNumberOr0(data?.recid);
+        setCampaignRecId(recid);
+      } catch (e) {
+        console.error("❌ getCampaign failed:", e);
+        if (alive) setCampaignRecId(0);
+      } finally {
+        if (alive) setCampaignLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [resolvedOppCode]);
 
   /** ---------------- ✅ EDIT MODE: GET Lead and Prefill ---------------- */
   useEffect(() => {
@@ -777,23 +812,30 @@ useEffect(() => {
         const data = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
         if (!alive) return;
 
+        setLeadApi(data);
 
-                // ✅ Store SalesOwner (creator = X) once from API (do NOT overwrite on updates)
+        // ✅ Store SalesOwner (creator = X) once from API (do NOT overwrite on updates)
         setOriginalSalesOwnerRecId(toNumberOr0(data?.salesOwner_FK));
 
         // ✅ Preserve original created/appointment dates from API (so update doesn't mutate them)
         setCreatedDateFromApi(safe(data?.createdDate));
         setAppointmentDateFromApi(safe(data?.appointmentDate));
 
+        // ✅ Preserve original type and customer FK from API
+        setOriginalTypeFromApi(pickTypeFromApi(data));
+        setOriginalCustomerRecIdFromApi(toNumberOr0(data?.customer_FK));
+
+        // ✅ Preserve original campaign + leadSubSource from API
+        setOriginalCampaignRecIdFromApi(toNumberOr0(data?.campaign_FK));
+        setOriginalLeadSubSourceFkFromApi(toNumberOr0(data?.leadSubSource_FK));
 
         const statusLower = safe(data?.status).trim().toLowerCase();
-const closed = statusLower === "closed";
+        const closed = statusLower === "closed";
 
-setIsClosed(closed);
-if (closed) {
-  showToast("A Closed Lead/Opportunity cannot be updated.");
-}
-
+        setIsClosed(closed);
+        if (closed) {
+          showToast("A Closed Lead/Opportunity cannot be updated.");
+        }
 
         const parsedTime = parseTimeToForm(data?.followUpTime);
         const mediumValue = resolveMediumValueFromSeervices(mediumOptions, data?.seervices);
@@ -801,7 +843,7 @@ if (closed) {
         setForm((p) => {
           const apiDate = toInputDate(data?.followUpDate);
           const min = getTomorrowInputDate();
-          const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : (p.followUpDate || min);
+          const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : p.followUpDate || min;
 
           return {
             ...p,
@@ -891,9 +933,8 @@ if (closed) {
     if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
 
     if (!toNumberOr0(salesOwnerRecId) && !toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId)) {
-  e.salesOwner = "Sales Owner not resolved. Please re-login or refresh.";
-}
-
+      e.salesOwner = "Sales Owner not resolved. Please re-login or refresh.";
+    }
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -901,47 +942,78 @@ if (closed) {
 
   const resolvedCustId = safe(custId).trim();
   const hasCustomerInUrl = !!resolvedCustId && resolvedCustId !== "0";
-  const isLead = state?.isLead === true ? true : !hasCustomerInUrl;
+
+  const effectiveTypeForUpdate = useMemo(() => {
+    if (!isEdit) return "";
+
+    const apiType = safe(leadApi?.type).trim(); // "Opportunity" from GET
+    if (apiType) return apiType;
+
+    // fallback (should rarely happen)
+    if (toNumberOr0(leadApi?.customer_FK) > 0) return "Opportunity";
+    return "Lead";
+  }, [isEdit, leadApi]);
+
+  const isLeadEffective = useMemo(() => {
+    if (!isEdit) return null;
+    return norm(effectiveTypeForUpdate) === "lead";
+  }, [isEdit, effectiveTypeForUpdate]);
+
+  // ✅ EDIT mode: derive Lead/Opportunity from API (more reliable than URL)
+  const isLead = useMemo(() => {
+    if (isEdit) {
+      const t = norm(originalTypeFromApi);
+      if (t === "lead") return true;
+      if (t === "opportunity") return false;
+
+      // fallback: if API has customer_FK > 0, it is Opportunity
+      if (toNumberOr0(originalCustomerRecIdFromApi) > 0) return false;
+
+      // final fallback
+      return true;
+    }
+
+    // CREATE mode: keep your existing behavior
+    return state?.isLead === true ? true : !hasCustomerInUrl;
+  }, [isEdit, originalTypeFromApi, originalCustomerRecIdFromApi, state?.isLead, hasCustomerInUrl]);
 
   useEffect(() => {
-  // Opportunity only (customer is present in URL)
-  if (isLead) {
-    setCustomerRecId(0);
-    return;
-  }
-
-  const cid = safe(custId).trim();
-  if (!cid) {
-    setCustomerRecId(0);
-    return;
-  }
-
-  let alive = true;
-
-  const run = async () => {
-    try {
-      // assuming API is GET and returns array like your sample
-      const data = await fetchJSON(LOAD_CUSTOMERS_URL, { method: "GET" });
-      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-
-      const match = list.find((x) => safe(x?.custId).trim().toLowerCase() === cid.toLowerCase());
-      const rec = toNumberOr0(match?.recId);
-
-      if (alive) setCustomerRecId(rec);
-    } catch (e) {
-      console.error("❌ LoadCustomers failed:", e);
-      if (alive) setCustomerRecId(0);
+    // Opportunity only (customer is present in URL)
+    if (isLead) {
+      setCustomerRecId(0);
+      return;
     }
-  };
 
-  run();
+    const cid = safe(custId).trim();
+    if (!cid) {
+      setCustomerRecId(0);
+      return;
+    }
 
-  return () => {
-    alive = false;
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [isLead, custId]);
+    let alive = true;
 
+    const run = async () => {
+      try {
+        const data = await fetchJSON(LOAD_CUSTOMERS_URL, { method: "GET" });
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+        const match = list.find((x) => safe(x?.custId).trim().toLowerCase() === cid.toLowerCase());
+        const rec = toNumberOr0(match?.recId);
+
+        if (alive) setCustomerRecId(rec);
+      } catch (e) {
+        console.error("❌ LoadCustomers failed:", e);
+        if (alive) setCustomerRecId(0);
+      }
+    };
+
+    run();
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLead, custId]);
 
   const isClosedDisposition = (dispId, dispOptions) => {
     const id = String(dispId || "").trim();
@@ -991,8 +1063,7 @@ if (closed) {
       status: finalStatus,
 
       prefLang: form.preferredLanguage,
-     customer_FK: isLead ? 0 : toNumberOr0(customerRecId),
-
+      customer_FK: isLead ? 0 : toNumberOr0(customerRecId),
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
@@ -1007,7 +1078,7 @@ if (closed) {
 
       salesOwner_FK: toNumberOr0(salesOwnerRecId) || toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId) || 0,
 
-campaign_FK: toNumberOr0(campaignRecId),
+      campaign_FK: toNumberOr0(campaignRecId),
 
       // ✅ NO UTC
       appointmentDate: nowLocal,
@@ -1037,9 +1108,10 @@ campaign_FK: toNumberOr0(campaignRecId),
 
   const updateLeadOpp = async () => {
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
-      if (!originalSalesOwnerRecId) {
+    if (!originalSalesOwnerRecId) {
       console.warn("⚠️ originalSalesOwnerRecId is 0. SalesOwner may overwrite if backend updates it.");
     }
+
     const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
     const finalStatus = resolvePayloadStatus({
@@ -1047,6 +1119,27 @@ campaign_FK: toNumberOr0(campaignRecId),
       dispositionId: form.dispositionId,
       dispositionOptions,
     });
+
+    // ✅ LOCK type to original API record (prevents Opportunity -> Lead regression)
+    const apiType = safe(originalTypeFromApi).trim() || safe(leadApi?.type).trim();
+    const typeForUpdate = apiType || "Lead";
+
+    // ✅ LOCK customer FK to original API record (prevents 10151 -> 0)
+    const customerFkForUpdate =
+      norm(typeForUpdate) === "lead"
+        ? 0
+        : (toNumberOr0(originalCustomerRecIdFromApi) || toNumberOr0(leadApi?.customer_FK) || 0);
+
+    // ✅ LOCK campaign FK to original API record (prevents 1108 -> 0)
+    const campaignFkForUpdate =
+      toNumberOr0(originalCampaignRecIdFromApi) ||
+      toNumberOr0(leadApi?.campaign_FK) ||
+      toNumberOr0(campaignRecId) ||
+      0;
+
+    // ✅ SubSource: prefer current selection, else keep original API value
+    const leadSubSourceFkForUpdate =
+      toNumberOr0(form.subSourceName) || toNumberOr0(originalLeadSubSourceFkFromApi) || 0;
 
     const { finalDate, finalTime } = resolveFollowUpForPayload(form);
     const nowLocal = toLocalDateTimeString(new Date());
@@ -1059,11 +1152,12 @@ campaign_FK: toNumberOr0(campaignRecId),
       mobile: form.mobile,
       email: form.email,
 
-      type: isLead ? "Lead" : "Opportunity",
+      type: typeForUpdate,
+
       status: finalStatus,
       prefLang: form.preferredLanguage,
 
-      customer_FK: isLead ? 0 : toNumberOr0(customerRecId),
+      customer_FK: customerFkForUpdate,
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
@@ -1071,18 +1165,19 @@ campaign_FK: toNumberOr0(campaignRecId),
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
-      leadSubSource_FK: toNumberOr0(form.subSourceName),
+      leadSubSource_FK: leadSubSourceFkForUpdate,
 
       disposition_FK: toNumberOr0(form.dispositionId),
       subDisposition_FK: toNumberOr0(form.subDispositionId),
 
-            salesOwner_FK: toNumberOr0(originalSalesOwnerRecId) || 0,
+      // ✅ Preserve original creator
+      salesOwner_FK: toNumberOr0(originalSalesOwnerRecId) || 0,
 
-      campaign_FK: toNumberOr0(campaignRecId),
+      // ✅ Preserve original campaign on edit
+      campaign_FK: campaignFkForUpdate,
 
-
-          appointmentDate: appointmentDateFromApi || null,
-
+      // ✅ Preserve original appointment date
+      appointmentDate: appointmentDateFromApi || null,
 
       // ✅ NO UTC + always tomorrow or later
       followUpDate: toFollowUpDateOnly(finalDate),
@@ -1091,13 +1186,16 @@ campaign_FK: toNumberOr0(campaignRecId),
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
- modifiedBy: toNumberOr0(salesOwnerRecId),
-      modifiedDate: nowLocal,
-           createdDate: createdDateFromApi || null,
 
+      modifiedBy: toNumberOr0(salesOwnerRecId),
+      modifiedDate: nowLocal,
+      createdDate: createdDateFromApi || null,
     };
 
-    console.log("[updateLeadOpp] followUpDate:", payload.followUpDate);
+    console.log("[updateLeadOpp] typeForUpdate:", typeForUpdate);
+    console.log("[updateLeadOpp] customerFkForUpdate:", customerFkForUpdate);
+    console.log("[updateLeadOpp] campaignFkForUpdate:", campaignFkForUpdate);
+    console.log("[updateLeadOpp] leadSubSourceFkForUpdate:", leadSubSourceFkForUpdate);
 
     return fetchJSON(UPDATE_LEAD_URL(numericLeadOppId), {
       method: "PUT",
@@ -1107,11 +1205,15 @@ campaign_FK: toNumberOr0(campaignRecId),
   };
 
   const handleSubmit = async () => {
-
     if (isEdit && isClosed) {
-    showToast("A Closed Lead/Opportunity cannot be updated.");
-    return;
-  }
+      showToast("A Closed Lead/Opportunity cannot be updated.");
+      return;
+    }
+
+    if (isEdit && !leadApi) {
+      showToast("Loading lead details. Please wait...");
+      return;
+    }
 
     if (!validate()) {
       alert("Submit blocked by validation. Check required fields.");
@@ -1143,8 +1245,7 @@ campaign_FK: toNumberOr0(campaignRecId),
         window.dispatchEvent(new Event("ew_lead_created"));
       } catch {}
 
-        navigate(isLead ? -1 : -2);
-
+      navigate(isLead ? -1 : -2);
     } catch (e) {
       console.error("[Submit failed]", e);
       alert(e?.message || "Failed to submit.");
@@ -1155,69 +1256,62 @@ campaign_FK: toNumberOr0(campaignRecId),
 
   const lockForm = isEdit && isClosed;
 
-
   /** ---------------- UI ---------------- */
   return (
     <>
+      {toast.show && <div className="toast">{toast.msg}</div>}
 
-    {toast.show && (
-  <div className="toast">
-    {toast.msg}
-  </div>
-)}
+      {fuOpen && (
+        <div className="modalOverlay" onMouseDown={closeFollowUpModal}>
+          <div className="modalCard" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitle">Follow Up History</div>
+              <button type="button" className="modalClose" onClick={closeFollowUpModal}>
+                ×
+              </button>
+            </div>
 
-{fuOpen && (
-  <div className="modalOverlay" onMouseDown={closeFollowUpModal}>
-    <div className="modalCard" onMouseDown={(e) => e.stopPropagation()}>
-      <div className="modalHeader">
-        <div className="modalTitle">Follow Up History</div>
-        <button type="button" className="modalClose" onClick={closeFollowUpModal}>
-          ×
-        </button>
-      </div>
-
-      {fuLoading ? (
-        <div className="modalBody">Loading...</div>
-      ) : fuError ? (
-        <div className="modalBody errBox">{fuError}</div>
-      ) : (
-        <div className="modalBody">
-          <div className="tblWrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Sr No</th>
-                  <th>Follow Up Date</th>
-                  <th>Follow Up Time</th>
-                  <th>Sales Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fuRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", padding: "14px" }}>
-                      No follow up history found.
-                    </td>
-                  </tr>
-                ) : (
-                  fuRows.map((r, idx) => (
-                    <tr key={r?.followUpId ?? idx}>
-                      <td>{idx + 1}</td>
-                      <td>{formatFollowUpDateDDMMYY(r?.followUpDate)}</td>
-                      <td>{formatTimeSpanTo12Hr(r?.followUpTime)}</td>
-                      <td>{safe(r?.salesOwner)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {fuLoading ? (
+              <div className="modalBody">Loading...</div>
+            ) : fuError ? (
+              <div className="modalBody errBox">{fuError}</div>
+            ) : (
+              <div className="modalBody">
+                <div className="tblWrap">
+                  <table className="tbl">
+                    <thead>
+                      <tr>
+                        <th>Sr No</th>
+                        <th>Follow Up Date</th>
+                        <th>Follow Up Time</th>
+                        <th>Sales Owner</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fuRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: "center", padding: "14px" }}>
+                            No follow up history found.
+                          </td>
+                        </tr>
+                      ) : (
+                        fuRows.map((r, idx) => (
+                          <tr key={r?.followUpId ?? idx}>
+                            <td>{idx + 1}</td>
+                            <td>{formatFollowUpDateDDMMYY(r?.followUpDate)}</td>
+                            <td>{formatTimeSpanTo12Hr(r?.followUpTime)}</td>
+                            <td>{safe(r?.salesOwner)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
-    </div>
-  </div>
-)}
-
 
       <div className="pageWrap">
         <div className="pageHeader">
@@ -1397,20 +1491,10 @@ campaign_FK: toNumberOr0(campaignRecId),
               </div>
             </div>
 
-           
-
-
             <div className="col">
               <div className="field">
                 <label>Follow Up Date</label>
-                <input
-                  type="date"
-                  className="inp"
-                  name="followUpDate"
-                  value={form.followUpDate}
-                  onChange={onChange}
-                  min={minFollowUpDate} // ✅ disables today + older
-                />
+                <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} min={minFollowUpDate} />
               </div>
 
               <div className="field">
@@ -1424,11 +1508,11 @@ campaign_FK: toNumberOr0(campaignRecId),
                 </select>
               </div>
 
-               <div className="fuLinkRow">
-  <button type="button" className="fuLink" onClick={openFollowUpModal}>
-    Click here to check follow up history
-  </button>
-</div>
+              <div className="fuLinkRow">
+                <button type="button" className="fuLink" onClick={openFollowUpModal}>
+                  Click here to check follow up history
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1439,154 +1523,258 @@ campaign_FK: toNumberOr0(campaignRecId),
         </fieldset>
 
         <div className="btnRow">
-  {!lockForm && (
-    <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading}>
-      {isEdit ? "Update" : "Submit"}
-    </button>
-  )}
+          {!lockForm && (
+            <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading || (isEdit && !leadApi)}>
+              {isEdit ? "Update" : "Submit"}
+            </button>
+          )}
 
-  <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
-    Back
-  </button>
-</div>
-
+          <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+            Back
+          </button>
+        </div>
       </div>
-{errors.salesOwner && <div className="errText">{errors.salesOwner}</div>}
+
+      {errors.salesOwner && <div className="errText">{errors.salesOwner}</div>}
 
       <style jsx="true">{`
-      .toast{
-  position: fixed;
-  right: 18px;
-  top: 40%;
-  background: #C66752;
-  color: #fff;
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(0,0,0,.18);
-  z-index: 9999;
-  text-align: center;
-  display: flex;
-  justify-content: center;
-}
+        .toast {
+          position: fixed;
+          right: 18px;
+          top: 40%;
+          background: #c66752;
+          color: #fff;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+          z-index: 9999;
+          text-align: center;
+          display: flex;
+          justify-content: center;
+        }
 
-        .pageWrap { padding: 18px 18px 28px; background: #fff; }
-        .pageHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
-        .pageTitle { font-size: 18px; font-weight: 700; color: #1d2a3b; }
-        .subTitle { margin-top: 2px; font-size: 12px; color: #7b8798; }
-        .fs { border: 1px solid #e6ebf2; border-radius: 10px; padding: 14px 14px 16px; margin-bottom: 14px; background: #fff; }
-        .fs legend { padding: 0 8px; font-weight: 800; font-size: 16px; color: #1f2937; }
-        .formGrid3 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
-        .formGrid2 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 8px; }
-        .col { display: flex; flex-wrap: wrap; gap: 12px; }
-        .col .field { min-width: 35%; }
-        .field label { display: inline-block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
-        .req { color: #c62828; font-weight: 900; }
-        .inp { width: 100%; height: 40px; border-radius: 8px; border: 1px solid #d7dee8; padding: 0 12px; background: #fff; outline: none; }
-        .inp:focus { border-color: #94a3b8; }
-        .txta { width: 100%; border-radius: 8px; border: 1px solid #d7dee8; padding: 10px 12px; background: #fff; outline: none; resize: vertical; }
-        .errText { margin-top: 6px; font-size: 12px; color: #d32f2f; font-weight: 600; }
-        .mtWide { margin-top: 12px; }
-        .btnRow { display: flex; gap: 16px; margin-top: 16px; }
-        .btn { background: #0b1b37; color: #fff; border: 0; border-radius: 10px; padding: 11px 26px; font-weight: 700; cursor: pointer; }
-        .btn:disabled { opacity: 0.65; cursor: not-allowed; }
-        .btn:hover:not(:disabled) { opacity: 0.95; }
+        .pageWrap {
+          padding: 18px 18px 28px;
+          background: #fff;
+        }
+        .pageHeader {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+        .pageTitle {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1d2a3b;
+        }
+        .subTitle {
+          margin-top: 2px;
+          font-size: 12px;
+          color: #7b8798;
+        }
+        .fs {
+          border: 1px solid #e6ebf2;
+          border-radius: 10px;
+          padding: 14px 14px 16px;
+          margin-bottom: 14px;
+          background: #fff;
+        }
+        .fs legend {
+          padding: 0 8px;
+          font-weight: 800;
+          font-size: 16px;
+          color: #1f2937;
+        }
+        .formGrid3 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 18px;
+          margin-top: 8px;
+        }
+        .formGrid2 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 18px;
+          margin-top: 8px;
+        }
+        .col {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .col .field {
+          min-width: 35%;
+        }
+        .field label {
+          display: inline-block;
+          font-size: 13px;
+          font-weight: 600;
+          color: #334155;
+          margin-bottom: 6px;
+        }
+        .req {
+          color: #c62828;
+          font-weight: 900;
+        }
+        .inp {
+          width: 100%;
+          height: 40px;
+          border-radius: 8px;
+          border: 1px solid #d7dee8;
+          padding: 0 12px;
+          background: #fff;
+          outline: none;
+        }
+        .inp:focus {
+          border-color: #94a3b8;
+        }
+        .txta {
+          width: 100%;
+          border-radius: 8px;
+          border: 1px solid #d7dee8;
+          padding: 10px 12px;
+          background: #fff;
+          outline: none;
+          resize: vertical;
+        }
+        .errText {
+          margin-top: 6px;
+          font-size: 12px;
+          color: #d32f2f;
+          font-weight: 600;
+        }
+        .mtWide {
+          margin-top: 12px;
+        }
+        .btnRow {
+          display: flex;
+          gap: 16px;
+          margin-top: 16px;
+        }
+        .btn {
+          background: #0b1b37;
+          color: #fff;
+          border: 0;
+          border-radius: 10px;
+          padding: 11px 26px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .btn:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+        .btn:hover:not(:disabled) {
+          opacity: 0.95;
+        }
 
-        .fuLinkRow{
-  margin: 8px 0 10px;
-  display: flex;
-  justify-content: flex-end;
-}
-.fuLink{
-  background: transparent;
-  border: 0;
-  padding: 0;
-  color: #0b1b37;
-  font-weight: 800;
-  font-size: 13px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.fuLink:hover{ opacity: .85; }
+        .fuLinkRow {
+          margin: 8px 0 10px;
+          display: flex;
+          justify-content: flex-end;
+        }
+        .fuLink {
+          background: transparent;
+          border: 0;
+          padding: 0;
+          color: #0b1b37;
+          font-weight: 800;
+          font-size: 13px;
+          cursor: pointer;
+          text-decoration: underline;
+        }
+        .fuLink:hover {
+          opacity: 0.85;
+        }
 
-.modalOverlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.35);
-  z-index: 9998;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-}
-.modalCard{
-  width: min(860px, 96vw);
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 18px 45px rgba(0,0,0,.22);
-  overflow: hidden;
-}
-.modalHeader{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #e6ebf2;
-}
-.modalTitle{
-  font-size: 15px;
-  font-weight: 900;
-  color: #1d2a3b;
-}
-.modalClose{
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid #e6ebf2;
-  background: #fff;
-  cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
-  font-weight: 900;
-}
-.modalClose:hover{ background: #f6f8fb; }
+        .modalOverlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.35);
+          z-index: 9998;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+        }
+        .modalCard {
+          width: min(860px, 96vw);
+          background: #fff;
+          border-radius: 14px;
+          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
+          overflow: hidden;
+        }
+        .modalHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 16px;
+          border-bottom: 1px solid #e6ebf2;
+        }
+        .modalTitle {
+          font-size: 15px;
+          font-weight: 900;
+          color: #1d2a3b;
+        }
+        .modalClose {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          border: 1px solid #e6ebf2;
+          background: #fff;
+          cursor: pointer;
+          font-size: 20px;
+          line-height: 1;
+          font-weight: 900;
+        }
+        .modalClose:hover {
+          background: #f6f8fb;
+        }
 
-.modalBody{
-  padding: 14px 16px 18px;
-}
-.errBox{
-  color: #b42318;
-  font-weight: 800;
-  background: #fff2f2;
-  border: 1px solid #ffd2d2;
-  border-radius: 10px;
-}
-.tblWrap{ overflow: auto; }
-.tbl{
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.tbl th{
-  text-align: left;
-  background: #f6f8fb;
-  border: 1px solid #e6ebf2;
-  padding: 10px 10px;
-  font-weight: 900;
-  color: #1f2937;
-}
-.tbl td{
-  border: 1px solid #e6ebf2;
-  padding: 10px 10px;
-  color: #334155;
-  font-weight: 600;
-}
-
+        .modalBody {
+          padding: 14px 16px 18px;
+        }
+        .errBox {
+          color: #b42318;
+          font-weight: 800;
+          background: #fff2f2;
+          border: 1px solid #ffd2d2;
+          border-radius: 10px;
+        }
+        .tblWrap {
+          overflow: auto;
+        }
+        .tbl {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .tbl th {
+          text-align: left;
+          background: #f6f8fb;
+          border: 1px solid #e6ebf2;
+          padding: 10px 10px;
+          font-weight: 900;
+          color: #1f2937;
+        }
+        .tbl td {
+          border: 1px solid #e6ebf2;
+          padding: 10px 10px;
+          color: #334155;
+          font-weight: 600;
+        }
 
         @media (max-width: 1100px) {
-          .formGrid3 { grid-template-columns: 1fr; }
-          .formGrid2 { grid-template-columns: 1fr; }
+          .formGrid3 {
+            grid-template-columns: 1fr;
+          }
+          .formGrid2 {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </>
