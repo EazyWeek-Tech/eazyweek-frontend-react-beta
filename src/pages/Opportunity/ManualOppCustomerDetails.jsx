@@ -1,5 +1,5 @@
 // src/pages/Opportunity/ManualOppCustomerDetails.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -305,26 +305,106 @@ const pickUserIdentity = (u) => {
     recId,
   };
 };
-
 /** ✅ Session (Bright/Lines/Maxime) resolver for centre preselect */
 const getSessionCentreKey = () => {
-  const raw =
-    sessionStorage.getItem("session") ||
-    sessionStorage.getItem("sessionInfo") ||
-    sessionStorage.getItem("loginSession") ||
-    localStorage.getItem("session") ||
-    localStorage.getItem("sessionInfo") ||
-    localStorage.getItem("loginSession");
+  const candidates = [
+    // common keys you already tried
+    "session",
+    "sessionInfo",
+    "loginSession",
 
-  if (!raw) return "";
+    // very common in apps
+    "userSession",
+    "auth",
+    "authSession",
+    "token",
+    "login",
+    "loginInfo",
 
-  try {
-    const s = JSON.parse(raw);
-    // sample: {"loginCode":"Bright","topCode":"Bright",...}
-    return safe(s?.loginCode || s?.topCode || s?.center || s?.centre || "").trim();
-  } catch {
-    return "";
+    // sometimes stored as plain text
+    "center",
+    "centre",
+    "centerCode",
+    "clinicCode",
+    "topCode",
+    "loginCode",
+  ];
+
+  const stores = [sessionStorage, localStorage];
+
+  const pickFromObject = (obj) => {
+    if (!obj || typeof obj !== "object") return "";
+
+    // try lots of possible fields + nested
+    const direct =
+      obj.loginCode ||
+      obj.topCode ||
+      obj.centerCode ||
+      obj.centreCode ||
+      obj.center ||
+      obj.centre ||
+      obj.clinicCode ||
+      obj.branchCode ||
+      obj.companyCode ||
+      obj?.data?.loginCode ||
+      obj?.data?.topCode ||
+      obj?.data?.centerCode ||
+      obj?.data?.clinicCode ||
+      obj?.result?.loginCode ||
+      obj?.result?.topCode ||
+      obj?.result?.centerCode ||
+      obj?.result?.clinicCode ||
+      "";
+
+    return safe(direct).trim();
+  };
+
+  // 1) try known candidate keys
+  for (const st of stores) {
+    for (const key of candidates) {
+      const raw = st.getItem(key);
+      if (!raw) continue;
+
+      // if it looks like JSON
+      if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
+        try {
+          const parsed = JSON.parse(raw);
+          const v = pickFromObject(parsed);
+          if (v) return v;
+        } catch {
+          // ignore JSON errors, fall through
+        }
+      }
+
+      // plain text fallback
+      const txt = raw.trim();
+      if (txt) return txt;
+    }
   }
+
+  // 2) scan ALL storage keys (sometimes session stored under random key)
+  for (const st of stores) {
+    for (let i = 0; i < st.length; i++) {
+      const k = st.key(i);
+      const raw = st.getItem(k);
+      if (!raw) continue;
+
+      // only inspect likely keys
+      const nk = norm(k);
+      if (!nk.includes("session") && !nk.includes("login") && !nk.includes("auth") && !nk.includes("center") && !nk.includes("clinic"))
+        continue;
+
+      if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
+        try {
+          const parsed = JSON.parse(raw);
+          const v = pickFromObject(parsed);
+          if (v) return v;
+        } catch {}
+      }
+    }
+  }
+
+  return "";
 };
 
 /** ---------------- Component ---------------- */
@@ -333,6 +413,9 @@ const ManualOppCustomerDetails = () => {
   const oppCode = params.oppCode;
   const custId = params.custId ?? params.custid ?? "";
   const leadOppIdParam = params.leadOppId || params.id || params.leadOpp_ID || "";
+
+  const centerTouchedRef = useRef(false);
+
 
   const locationObj = useLocation();
   const { state } = locationObj;
@@ -582,6 +665,23 @@ const ManualOppCustomerDetails = () => {
   const [saving, setSaving] = useState(false);
   const [customerRecId, setCustomerRecId] = useState(0);
 
+  useEffect(() => {
+  const key = getSessionCentreKey();
+  console.log("SESSION KEY:", key);
+
+  // log current center options once loaded
+
+  
+  if (centerOptions?.length > 1) {
+    console.table(
+      centerOptions
+        .filter((c) => c.value) // skip Select one
+        .map((c) => ({ code: c.code, name: c.label, recid: c.value }))
+    );
+  }
+}, [centerOptions]);
+
+
   /** ---------------- Customer Fetch ---------------- */
   useEffect(() => {
     const id = getCustomerIdFromUrl(custId, locationObj);
@@ -594,13 +694,18 @@ const ManualOppCustomerDetails = () => {
           body: JSON.stringify({ custID: id }),
         });
 
+centerCode: isEdit ? safe(p.centerCode || data?.centerCode) : safe(p.centerCode),
+
+
         setForm((p) => ({
           ...p,
           firstName: safe(p.firstName || data?.firstName),
           lastName: safe(p.lastName || data?.lastName),
           email: safe(p.email || data?.email),
           mobile: safe(p.mobile || data?.mobilePhone),
-          centerCode: safe(p.centerCode || data?.centerCode),
+          centerCode: !isEdit && getSessionCentreKey() ? safe(p.centerCode) : safe(p.centerCode || data?.centerCode),
+
+
         }));
       } catch (e) {
         console.error("❌ FetchCustomerDetails failed:", e);
@@ -609,7 +714,7 @@ const ManualOppCustomerDetails = () => {
 
     loadCustomer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [custId, locationObj.pathname]);
+  }, [custId, locationObj.pathname, isEdit]);
 
   /** ---------------- Master API load ---------------- */
   useEffect(() => {
@@ -633,20 +738,36 @@ const ManualOppCustomerDetails = () => {
 
         setCenterOptions([{ label: "< - Select one - >", value: "" }, ...centersMapped]);
 
+        console.log("SESSION KEY:", getSessionCentreKey());
+console.table(centersMapped.map(c => ({ code: c.code, name: c.label, recid: c.value })));
+
+
         // ✅ CHANGE #1: Preselect centre from SESSION (creation only)
         // - Only if NOT edit
         // - Only if form.centerCode is empty
         // - Match session loginCode/topCode (e.g., "Bright") with option label text ("Bright Clinics")
-        if (!isEdit) {
-          const key = norm(getSessionCentreKey()); // "bright"
-          if (key) {
-            setForm((p) => {
-              if (safe(p.centerCode).trim()) return p; // already chosen (customer prefill etc.)
-              const match = centersMapped.find((c) => norm(c.label).includes(key));
-              return match?.value ? { ...p, centerCode: String(match.value) } : p;
-            });
-          }
-        }
+       // ✅ CHANGE #1: Preselect centre from SESSION (creation only)
+if (!isEdit) {
+  const key = norm(getSessionCentreKey()); // e.g. "bright" or "lns"
+
+  if (key && !centerTouchedRef.current) {
+    setForm((p) => {
+      // don't override if already chosen / set
+      if (safe(p.centerCode).trim()) return p;
+
+      // ✅ BEST: match by code (Bright/LNS/MXM)
+      const byCode = centersMapped.find((c) => norm(c.code) === key);
+
+      // fallback: match by name (Bright Clinics / Lines Clinics / ...)
+      const byName = centersMapped.find((c) => norm(c.label).includes(key));
+
+      const match = byCode || byName;
+      return match?.value ? { ...p, centerCode: String(match.value) } : p;
+    });
+  }
+}
+
+
 
         const sourcesMapped = (Array.isArray(data?.sources) ? data.sources : [])
           .map((s) => ({ label: safe(s?.name).trim(), value: String(s?.value ?? ""), code: safe(s?.code).trim() }))
@@ -889,6 +1010,10 @@ const ManualOppCustomerDetails = () => {
   /** ---------------- Events ---------------- */
   const onChange = (e) => {
     const { name, value } = e.target;
+
+    
+  if (name === "centerCode") centerTouchedRef.current = true;
+
 
     setForm((p) => {
       const next = { ...p, [name]: value };
