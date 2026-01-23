@@ -693,20 +693,19 @@ const ManualOppCustomerDetails = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ custID: id }),
         });
+setForm((p) => ({
+  ...p,
+  firstName: safe(p.firstName || data?.firstName),
+  lastName: safe(p.lastName || data?.lastName),
+  email: safe(p.email || data?.email),
+  mobile: safe(p.mobile || data?.mobilePhone),
 
-centerCode: isEdit ? safe(p.centerCode || data?.centerCode) : safe(p.centerCode),
+  // ✅ center handling
+  centerCode: isEdit
+    ? safe(p.centerCode) // don’t override in edit
+    : safe(p.centerCode || data?.centerCode), // create: keep existing (session preselect) else API
+}));
 
-
-        setForm((p) => ({
-          ...p,
-          firstName: safe(p.firstName || data?.firstName),
-          lastName: safe(p.lastName || data?.lastName),
-          email: safe(p.email || data?.email),
-          mobile: safe(p.mobile || data?.mobilePhone),
-          centerCode: !isEdit && getSessionCentreKey() ? safe(p.centerCode) : safe(p.centerCode || data?.centerCode),
-
-
-        }));
       } catch (e) {
         console.error("❌ FetchCustomerDetails failed:", e);
       }
