@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - production
   workflow_dispatch:
 
 jobs:
@@ -68,3 +69,4 @@ jobs:
           app-name: "insight-web-uat"
           slot-name: "Production"
           package: dist
+
