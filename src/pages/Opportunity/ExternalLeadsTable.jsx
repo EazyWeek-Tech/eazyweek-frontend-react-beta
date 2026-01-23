@@ -595,9 +595,10 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     }}
     title="Open Lead"
   >
-    {safe(r.custID)}
+    {r.recid ? `LD-EX-${r.recid}` : "—"}
   </span>
 </td>
+
 
                       <td>{safe(r.custName)}</td>
                       <td>{safe(r.custMobileNo)}</td>
