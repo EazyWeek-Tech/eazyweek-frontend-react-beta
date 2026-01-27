@@ -350,7 +350,13 @@ const CancelledEntryDetails = () => {
   return (
     <>
       <div className="wrap">
-        <div className="grid">
+         <div className="titleBlock">
+            <div className="pageTitle"> Cancelled Appointment Details</div>
+           
+          </div>
+       <fieldset className="fs">
+         <legend> Details of Appointment</legend>
+         <div className="grid">
           <div className="col">
             <div className="pair">
               <span className="lab">Customer ID :</span>{" "}
@@ -381,8 +387,36 @@ const CancelledEntryDetails = () => {
             </div>
           </div>
         </div>
+       </fieldset>
 
+         <fieldset className="fs">
+        <legend>Lead Disposition</legend>
+
+        <div className="ldform">
+        
         <div className="formrow">
+          <label className="lab" htmlFor="disposition">
+            Disposition <span className="req">*</span>:
+          </label>
+          <select
+            id="disposition"
+            name="disposition"
+            value={form.disposition}
+            disabled={isLocked}
+            onChange={(e) => !isLocked && handleChange(e)}
+            className="inp"
+          >
+            {DISPOSITION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        </div>
+        <div className="ldform">
+
+             <div className="formrow">
           <label className="lab" htmlFor="fuDate">
             Follow Up Date :
           </label>
@@ -417,7 +451,7 @@ const CancelledEntryDetails = () => {
           <div style={{ display: "flex", gap: 8 }}>
             <select
               className="inp"
-              style={{ maxWidth: 180 }}
+              style={{ minWidth: 180 }}
               value={followUpTime}
               disabled={isLocked}
               onChange={(e) => !isLocked && setFollowUpTime(e.target.value)}
@@ -432,7 +466,7 @@ const CancelledEntryDetails = () => {
 
             <select
               className="inp"
-              style={{ maxWidth: 120 }}
+              style={{ minWidth: 120 }}
               value={followUpAmPm}
               disabled={isLocked}
               onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
@@ -442,27 +476,9 @@ const CancelledEntryDetails = () => {
             </select>
           </div>
         </div>
-
-        <div className="formrow">
-          <label className="lab" htmlFor="disposition">
-            Disposition <span className="req">*</span>:
-          </label>
-          <select
-            id="disposition"
-            name="disposition"
-            value={form.disposition}
-            disabled={isLocked}
-            onChange={(e) => !isLocked && handleChange(e)}
-            className="inp"
-          >
-            {DISPOSITION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
         </div>
 
+        
         <div className="formrow">
           <label className="lab" htmlFor="remarks">
             Remarks :
@@ -478,6 +494,11 @@ const CancelledEntryDetails = () => {
             placeholder=""
           />
         </div>
+        </fieldset>
+
+       
+
+
 
         {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
 
@@ -494,95 +515,45 @@ const CancelledEntryDetails = () => {
       </div>
 
       <style jsx="true">{`
-        .wrap {
-          background: #fff;
-          padding: 28px;
+      .pageTitle {
+          font-size: 18px;
+          font-weight: 700;
+          margin: 0 0 30px;
+          color: #1d2a3b;
+        }
+        .wrap { background:#fff; padding:28px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+        .grid { display:flex;  gap:24px; margin-bottom:18px; }
+        .req{color: #f00;}
+        .col { display:grid; gap:12px; min-width: 470px; }
+        .pair { font-size:15px; color:#333; margin: 0 0 20px; }
+        .lab { display:inline-block; min-width:140px; color:#555; font-weight:600; font-size:12px;margin: 0 0 10px; }
+        .val { color:#222; display: flex; align-items: center; padding: 6px 8px; height: 36px; max-width: 390px; border:1px solid #d8dee9; border-radius:6px; }
+        .formrow { display:flex; align-items:center; gap:12px; margin:12px 0;  }
+        .inp { flex:1; max-width:520px; min-width: 270px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
+        .txta { flex:1; max-width:520px; padding:8px; border:1px solid #d8dee9; border-radius:6px; resize:vertical; }
+        .btnrow { display:flex; gap:14px; margin-top:10px; }
+        .btn { background:#14233c; color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; }
+        .btn:disabled { opacity:.6; cursor:not-allowed; }
+        .btn:hover:not(:disabled) { opacity:.95; }
+        .load { padding:40px; text-align:center; color:#666; }
+        .ldform{display: flex; gap: 40px; align-items: center;}
+         .fs {
+          border: 1px solid #e6ebf2;
           border-radius: 10px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        }
-        .req {
-          color: #f00;
-        }
-        .grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-          margin-bottom: 18px;
-        }
-        .col {
-          display: grid;
-          gap: 12px;
-        }
-        .pair {
-          font-size: 15px;
-          color: #333;
-        }
-        .lab {
-          display: inline-block;
-          min-width: 200px;
-          color: #555;
-          font-weight: 600;
-          font-size: 14px;
-        }
-        .val {
-          color: #222;
-        }
-        .formrow {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          margin: 12px 0;
-        }
-        .inp {
-          flex: 1;
-          max-width: 520px;
-          height: 36px;
-          padding: 6px 8px;
-          border: 1px solid #d8dee9;
-          border-radius: 6px;
+          padding: 14px 14px 16px;
+          margin-bottom: 14px;
           background: #fff;
         }
-        .txta {
-          flex: 1;
-          max-width: 520px;
-          padding: 8px;
-          border: 1px solid #d8dee9;
-          border-radius: 6px;
-          resize: vertical;
+        .fs legend {
+          padding: 0 8px;
+          font-weight: 800;
+          font-size: 16px;
+          color: #1f2937;
         }
-        .btnrow {
-          display: flex;
-          gap: 14px;
-          margin-top: 10px;
-        }
-        .btn {
-          background: #14233c;
-          color: #fff;
-          border: 0;
-          border-radius: 8px;
-          padding: 10px 18px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .btn:hover:not(:disabled) {
-          opacity: 0.95;
-        }
-        .load {
-          padding: 40px;
-          text-align: center;
-          color: #666;
-        }
+
         @media (max-width: 900px) {
-          .grid {
-            grid-template-columns: 1fr;
-          }
-          .lab {
-            min-width: 160px;
-          }
+          .grid { grid-template-columns:1fr; }
+          .lab { min-width:160px; }
         }
       `}</style>
     </>

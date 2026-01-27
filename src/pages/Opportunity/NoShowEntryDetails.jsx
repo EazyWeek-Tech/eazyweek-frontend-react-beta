@@ -322,7 +322,10 @@ const NoShowEntryDetails = () => {
            
           </div>
 
-        <div className="grid">
+           <fieldset className="fs">
+            <legend> Details of Appointment</legend>
+
+            <div className="grid">
           <div className="col">
             <div className="pair"><span className="lab">Customer ID :</span> <span className="val">{top.custID}</span></div>
             <div className="pair"><span className="lab">Customer Name :</span> <span className="val">{top.custName}</span></div>
@@ -335,6 +338,9 @@ const NoShowEntryDetails = () => {
             <div className="pair"><span className="lab">Appointment with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
           </div>
         </div>
+           </fieldset>
+
+        
 
         <fieldset className="fs">
         <legend>Lead Disposition</legend>
@@ -471,11 +477,11 @@ const NoShowEntryDetails = () => {
           color: #1d2a3b;
         }
         .wrap { background:#fff; padding:28px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-        .grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:18px; }
+        .grid { display:flex;  gap:24px; margin-bottom:18px; }
         .req{color: #f00;}
-        .col { display:grid; gap:12px; }
+        .col { display:grid; gap:12px; min-width: 470px; }
         .pair { font-size:15px; color:#333; margin: 0 0 20px; }
-        .lab { display:inline-block; min-width:140px; color:#555; font-weight:600; font-size:14px;margin: 0 0 10px; }
+        .lab { display:inline-block; min-width:140px; color:#555; font-weight:600; font-size:12px;margin: 0 0 10px; }
         .val { color:#222; display: flex; align-items: center; padding: 6px 8px; height: 36px; max-width: 390px; border:1px solid #d8dee9; border-radius:6px; }
         .formrow { display:flex; align-items:center; gap:12px; margin:12px 0;  }
         .inp { flex:1; max-width:520px; min-width: 270px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
