@@ -35,7 +35,6 @@ const pick = (obj, keys, fallback = "") => {
 
 // ✅ Defaults
 const DEFAULT_FROM_DATE_ISO = "2020-01-22";
-
 const todayISODate = () => {
   const d = new Date();
   const y = d.getFullYear();
@@ -44,56 +43,64 @@ const todayISODate = () => {
   return `${y}-${m}-${day}`;
 };
 
-// ✅ Try to read logged-in center from common places (state / localStorage / sessionStorage)
-const getLoggedInCenterCode = (state) => {
-  // 1) from navigation state (if you pass it)
-  const s1 =
-    state?.clinicCode ||
-    state?.centerCode ||
-    state?.clinic ||
-    state?.center ||
-    state?.centerId ||
-    "";
-  if (norm(s1)) return norm(s1);
-
-  // 2) from localStorage/sessionStorage (common keys)
-  const keys = [
-    "clinicCode",
-    "centerCode",
-    "center",
-    "clinic",
-    "selectedCenter",
-    "selectedCenterCode",
-    "CENTER_CODE",
-    "CLINIC_CODE",
-  ];
-
-  for (const k of keys) {
-    const v = localStorage.getItem(k) || sessionStorage.getItem(k) || "";
-    if (norm(v)) return norm(v);
-  }
-
-  // 3) from a stored user object (if your app stores it)
+/** ✅ NEW: session context resolver (loginCode/topCode/userID) */
+const getSessionContext = () => {
   try {
-    const raw =
-      localStorage.getItem("user") ||
-      sessionStorage.getItem("user") ||
-      localStorage.getItem("authUser") ||
-      sessionStorage.getItem("authUser") ||
-      "";
-    if (raw) {
-      const u = JSON.parse(raw);
-      const v = u?.clinicCode || u?.centerCode || u?.center || u?.clinic || "";
-      if (norm(v)) return norm(v);
-    }
-  } catch {}
+    const tryParse = (v) => {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return null;
+      }
+    };
 
-  return "";
+    const candidates = [
+      sessionStorage.getItem("sessionValues"),
+      sessionStorage.getItem("session"),
+      sessionStorage.getItem("userSession"),
+      localStorage.getItem("sessionValues"),
+      localStorage.getItem("session"),
+      localStorage.getItem("userSession"),
+    ]
+      .map((x) => (x ? tryParse(x) : null))
+      .filter(Boolean);
+
+    const fallback = {
+      sessionId: sessionStorage.getItem("sessionId") || localStorage.getItem("sessionId") || "",
+      loginCode: sessionStorage.getItem("loginCode") || localStorage.getItem("loginCode") || "",
+      topCode: sessionStorage.getItem("topCode") || localStorage.getItem("topCode") || "",
+      userID: sessionStorage.getItem("userID") || localStorage.getItem("userID") || "",
+    };
+
+    const found = candidates[0] || fallback;
+    return {
+      sessionId: norm(found?.sessionId),
+      loginCode: norm(found?.loginCode),
+      topCode: norm(found?.topCode),
+      userID: norm(found?.userID),
+    };
+  } catch {
+    return { sessionId: "", loginCode: "", topCode: "", userID: "" };
+  }
 };
 
+/** ✅ NEW: match center against loginCode/topCode */
+const matchesLoginClinic = (centerLabel, centerValue, loginCode, topCode) => {
+  const l = norm(centerLabel).toLowerCase();
+  const v = norm(centerValue).toLowerCase();
+  const a = norm(loginCode).toLowerCase();
+  const b = norm(topCode).toLowerCase();
+
+  if (!a && !b) return false;
+
+  if (a && (l === a || v === a || l.includes(a) || v.includes(a))) return true;
+  if (b && (l === b || v === b || l.includes(b) || v.includes(b))) return true;
+
+  return false;
+};
 
 /* ===========================
-   ✅ Excel Export Helpers (like ManualLeadsTable)
+   ✅ Excel Export Helpers
    =========================== */
 const loadXLSX = async () => {
   const mod = await import("xlsx");
@@ -295,10 +302,8 @@ function SearchableDropdown({
    Page: Opportunity Summary Report
    =========================== */
 
-// ✅ FIX: remove accidental space so API works
+// ✅ FIXED: removed accidental space in endpoint
 const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/ OppSummaryReport`;
-
-// Opp name endpoint for dependent dropdown
 const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 
 export default function OpportunitySummaryReport() {
@@ -306,22 +311,22 @@ export default function OpportunitySummaryReport() {
   const { state } = useLocation() || {};
 
   // dates
- // dates (✅ default from 2020-01-22, to today; but allow state override)
-const [fromDate, setFromDate] = useState("");
-const [toDate, setToDate] = useState("");
-
-// filters
-const [campaignStatusCode, setCampaignStatusCode] = useState("");
-const [oppRuleCode, setOppRuleCode] = useState("");
-
-// ✅ clinic default = logged-in center (but allow state override)
-const loggedInCenter = getLoggedInCenterCode(state);
-const [clinicCode, setClinicCode] = useState(
-  norm(state?.clinicCode || state?.clinic || "") || loggedInCenter
-);
-
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   // filters
+  const [campaignStatusCode, setCampaignStatusCode] = useState("");
+
+  /** ✅ CHANGED: Campaign Rule MULTI */
+  const [oppRuleCodes, setOppRuleCodes] = useState([]);
+
+  /** ✅ session-based clinic behavior */
+  const sessionCtx = useMemo(() => getSessionContext(), []);
+  const isCentriq = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
+
+  const [clinicCode, setClinicCode] = useState("");   // single mode
+  const [clinicCodes, setClinicCodes] = useState([]); // Centriq multi mode
+
   const [oppNames, setOppNames] = useState(
     Array.isArray(state?.oppNames)
       ? state.oppNames.map(norm)
@@ -335,6 +340,7 @@ const [clinicCode, setClinicCode] = useState(
     { value: "1", label: "Active" },
     { value: "2", label: "Expired" },
   ];
+
   const oppRuleOptions = [
     { value: "R1", label: "Paid for X but not for Y" },
     { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
@@ -352,11 +358,9 @@ const [clinicCode, setClinicCode] = useState(
   // table
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // NEW: separate loading for Opp Names dropdown
   const [loadingOppNames, setLoadingOppNames] = useState(false);
 
-  // ✅ NEW: exporting state (like ManualLeadsTable)
+  // exporting
   const [exporting, setExporting] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -374,29 +378,40 @@ const [clinicCode, setClinicCode] = useState(
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- Load clinic options only ---- */
+  /* ---- Load clinics only ---- */
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
         const d = await r.json();
-        const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
-          value: x.code ?? x.centerCode ?? norm(x.name),
+
+        const listAll = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
+          value: norm(x.code ?? x.centerCode ?? x.name),
           label: x.name ?? x.centerName ?? (x.code ?? ""),
         }));
+
+        let list = listAll;
+
+        if (!isCentriq) {
+          const loginCode = sessionCtx?.loginCode;
+          const topCode = sessionCtx?.topCode;
+
+          const filtered = listAll.filter((c) =>
+            matchesLoginClinic(c.label, c.value, loginCode, topCode)
+          );
+
+          list = filtered;
+
+          const only = filtered[0]?.value || "";
+          setClinicCode(only);
+          setClinicCodes([]);
+        } else {
+          setClinicCode("");
+          setClinicCodes([]);
+        }
+
         setClinics(list);
-        // ✅ If clinic is empty, set to logged-in center (only if it exists in options)
-setClinicCode((prev) => {
-  const cur = norm(prev);
-  if (cur) return cur;
-
-  const logged = norm(getLoggedInCenterCode(state));
-  if (!logged) return "";
-
-  return list.some((o) => norm(o.value) === logged) ? logged : "";
-});
-
       } catch {
         setClinics([]);
       } finally {
@@ -407,13 +422,13 @@ setClinicCode((prev) => {
   }, []);
 
   /* ==========================================================
-     Populate Campaign Name when status + rule are selected
+     ✅ Campaign Names: when status + (multi) rules selected
      ========================================================== */
   useEffect(() => {
     const status = norm(campaignStatusCode);
-    const rule = norm(oppRuleCode);
+    const rules = Array.isArray(oppRuleCodes) ? oppRuleCodes.map(norm).filter(Boolean) : [];
 
-    if (!status || !rule) {
+    if (!status || !rules.length) {
       setOppNameOptions([]);
       setOppNames([]);
       return;
@@ -424,25 +439,27 @@ setClinicCode((prev) => {
     (async () => {
       setLoadingOppNames(true);
       try {
-        const body = { campStatus: status, ruleCode: rule };
+        const results = await Promise.all(
+          rules.map(async (rule) => {
+            const body = { campStatus: status, ruleCode: rule };
+            const r = await fetch(OPP_NAMES_ENDPOINT, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+              signal: ac.signal,
+            });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const d = await r.json();
+            return Array.isArray(d) ? d : d ? [d] : [];
+          })
+        );
 
-        const r = await fetch(OPP_NAMES_ENDPOINT, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          signal: ac.signal,
-        });
+        const flat = results.flat();
 
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-        const d = await r.json();
-        const arr = Array.isArray(d) ? d : d ? [d] : [];
-
-        // value = oppName (keeps summary payload: oppName CSV)
         const uniq = Array.from(
           new Map(
-            arr
+            flat
               .map((x) => ({ oppName: norm(x?.oppName) }))
               .filter((x) => x.oppName)
               .map((x) => [x.oppName, { value: x.oppName, label: x.oppName }])
@@ -469,49 +486,56 @@ setClinicCode((prev) => {
     })();
 
     return () => ac.abort();
-  }, [campaignStatusCode, oppRuleCode]);
+  }, [campaignStatusCode, oppRuleCodes]);
 
   /* ---- Fetch summary (only on View) ---- */
   const loadSummary = async () => {
-  setLoading(true);
-  setPage(1);
+    setLoading(true);
+    setPage(1);
 
-  try {
-    // ✅ If user didn't pick dates, still send defaults to backend
-    const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
-    const effectiveToISO = toISODateOnly(toDate) || todayISODate();
+    try {
+      const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
+      const effectiveToISO = toISODateOnly(toDate) || todayISODate();
+      const df = "0";
 
-    // backend wants dateFlag="0" when BOTH dates exist (they will always exist now)
-    const df = "0";
+      const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
+        .map(norm)
+        .filter(Boolean)
+        .join(",");
 
-    const body = {
-      fromDate: atStartOfDayZ(effectiveFromISO),
-      toDate: atEndOfDayZ(effectiveToISO),
-      oppStatus: campaignStatusCode || "",
-      clinicCode: clinicCode || "",
-      oppRule: oppRuleCode || "",
-      oppName: (oppNames || []).join(","),
-      dateFlag: df,
-    };
+      const clinicCSV = isCentriq
+        ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
+        : (clinicCode || "");
 
-    const r = await fetch(OPP_SUMMARY_ENDPOINT, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+      const body = {
+        fromDate: atStartOfDayZ(effectiveFromISO),
+        toDate: atEndOfDayZ(effectiveToISO),
+        oppStatus: campaignStatusCode || "",
+        clinicCode: clinicCSV || "",
+        oppRule: rulesCSV || "",
+        oppName: (oppNames || []).join(","),
+        dateFlag: df,
+      };
+
+      const r = await fetch(OPP_SUMMARY_ENDPOINT, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
       const d = await r.json();
       const arr = Array.isArray(d) ? d : d ? [d] : [];
 
       const fmt = (s) => {
         const iso = toISODateOnly(s);
         if (!iso) return "";
-        const d = new Date(iso);
-        return isNaN(d)
+        const dt = new Date(iso);
+        return isNaN(dt)
           ? ""
-          : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+          : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
       };
 
       const yesNo = (v) => {
@@ -522,20 +546,25 @@ setClinicCode((prev) => {
       };
 
       const normalized = arr.map((x, i) => ({
-        key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-        oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
-        fromDate: fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
-        toDate: fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
-        custName: pick(x, ["customerName", "custName", "name"]),
-        oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-        campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-        converted: yesNo(pick(x, ["converted", "isConverted"])),
-        oppStatus: pick(x, ["statusName", "oppStatus", "status"]),
-        createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
-        closedBy: pick(x, ["closedByName", "closedBy"]),
-        wip: yesNo(pick(x, ["wip", "isWip"])),
-        clinic: pick(x, ["centerName", "clinicName", "center"]),
-      }));
+  key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
+  oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
+
+  fromDate: fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
+  toDate: fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
+
+  // ✅ existing
+  oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+  campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
+  clinic: pick(x, ["centerName", "clinicName", "center"]),
+
+  // ✅ NEW: numbers from response
+  totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
+  closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
+  openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
+  wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
+  convertedCount: pick(x, ["noOfOppConverted", "convertedCount", "convertedOpportunities", "noOfConvertedoutofClosed"]),
+}));
+
 
       setRows(normalized);
     } catch (e) {
@@ -553,7 +582,7 @@ setClinicCode((prev) => {
   }
 
   /* ===========================
-     ✅ Excel Export (ManualLeadsTable style)
+     Excel Export
      =========================== */
   const exportExcel = async () => {
     if (exporting) return;
@@ -561,20 +590,20 @@ setClinicCode((prev) => {
 
     setExporting(true);
     try {
-      const excelRows = rows.map((r) => ({
-        "From Date": r.fromDate || "",
-        "To Date": r.toDate || "",
-        "CustName": r.custName || "",
-        "OppName": r.oppName || "",
-        "Campaign Status": r.campaignStatus || "",
-        "Converted": r.converted || "",
-        "OppStatus": r.oppStatus || "",
-        "Created By": r.createdBy || "",
-        "Closed By": r.closedBy || "",
-        "WIP": r.wip || "",
-        "Clinic": r.clinic || "",
-        "Opp Code": r.oppCode || "",
-      }));
+     const excelRows = rows.map((r) => ({
+  "From Date": r.fromDate || "",
+  "To Date": r.toDate || "",
+  "OppName": r.oppName || "",
+  "Campaign Status": r.campaignStatus || "",
+  "Total Opportunities(A+B+C)": r.totalOpportunities ?? "",
+  "Closed(A)": r.closedA ?? "",
+  "Open(B)": r.openB ?? "",
+  "WIP(C)": r.wipC ?? "",
+  "No.Of Opp Converted": r.convertedCount ?? "",
+  "Clinic": r.clinic || "",
+  "Opp Code": r.oppCode || "",
+}));
+
 
       const XLSX = await loadXLSX();
       const ws = XLSX.utils.json_to_sheet(excelRows);
@@ -586,13 +615,15 @@ setClinicCode((prev) => {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
+      const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : []).map(norm).filter(Boolean).join(",");
+
       downloadBlob(
         blob,
         exportSummaryFileName({
           fromDate: toISODateOnly(fromDate),
           toDate: toISODateOnly(toDate),
           oppStatus: campaignStatusCode,
-          oppRule: oppRuleCode,
+          oppRule: rulesCSV,
         })
       );
 
@@ -608,6 +639,7 @@ setClinicCode((prev) => {
   return (
     <div className="wrap">
       <h1 className="title">Opportunity Summary Report</h1>
+
       <div className="breadcrumb">
         <span className="crumb-link" onClick={() => navigate("/")}>
           DashBoard
@@ -620,19 +652,12 @@ setClinicCode((prev) => {
         <div className="grid">
           <div className="frow">
             <label>From Date</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
-            />
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
           </div>
+
           <div className="frow">
             <label>To Date</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
-            />
+            <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
           </div>
 
           <div className="frow">
@@ -647,38 +672,55 @@ setClinicCode((prev) => {
           </div>
 
           <div className="frow">
+            <label>Campaign Rule</label>
+            <SearchableDropdown
+              options={oppRuleOptions}
+              value={oppRuleCodes}
+              onChange={setOppRuleCodes}
+              multiple
+              showSelectAll
+              placeholder="None selected"
+            />
+          </div>
+
+          <div className="frow">
             <label>Campaign Name</label>
             <SearchableDropdown
               options={oppNameOptions}
               value={oppNames}
               onChange={setOppNames}
               multiple
-              placeholder={!campaignStatusCode || !oppRuleCode ? "Select status & rule first" : "None selected"}
-              disabled={!campaignStatusCode || !oppRuleCode || loadingOppNames}
+              placeholder={!campaignStatusCode || !(oppRuleCodes || []).length ? "Select status & rule first" : "None selected"}
+              disabled={!campaignStatusCode || !(oppRuleCodes || []).length || loadingOppNames}
             />
             {loadingOppNames && <small className="hint">Loading campaign names…</small>}
           </div>
 
           <div className="frow">
-            <label>Campaign Rule</label>
-            <SearchableDropdown
-              options={oppRuleOptions}
-              value={oppRuleCode}
-              onChange={setOppRuleCode}
-              multiple={false}
-              placeholder="None selected"
-            />
-          </div>
-
-          <div className="frow">
             <label>Clinic</label>
-            <SearchableDropdown
-              options={clinics}
-              value={clinicCode}
-              onChange={setClinicCode}
-              multiple={false}
-              placeholder="None selected"
-            />
+
+            {/* ✅ Centriq: multi + select all */}
+            {isCentriq ? (
+              <SearchableDropdown
+                options={clinics}
+                value={clinicCodes}
+                onChange={setClinicCodes}
+                multiple
+                showSelectAll
+                placeholder="None selected"
+              />
+            ) : (
+              // ✅ Non-centriq: locked to only clinic
+              <SearchableDropdown
+                options={clinics}
+                value={clinicCode}
+                onChange={setClinicCode}
+                multiple={false}
+                disabled={true}
+                showSelectAll={false}
+                placeholder="None selected"
+              />
+            )}
           </div>
         </div>
 
@@ -699,60 +741,60 @@ setClinicCode((prev) => {
             <tr>
               <th>From Date</th>
               <th>To Date</th>
-              <th>CustName</th>
               <th>OppName</th>
               <th>Campaign Status</th>
-              <th>Converted</th>
-              <th>OppStatus</th>
-              <th>Created By</th>
-              <th>Closed By</th>
-              <th>WIP</th>
+              <th>Total Opportunities(A+B+C)</th>
+              <th>Closed(A)</th>
+              <th>Open(B)</th>
+              <th>WIP(C)</th>
+              <th>No.Of Opp Converted</th>
               <th>Clinic</th>
             </tr>
           </thead>
+
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className="loading">
+                <td colSpan={10} className="loading">
                   Loading…
                 </td>
               </tr>
             )}
+
             {!loading && !pageRows.length && (
               <tr>
-                <td colSpan={11} className="empty">
+                <td colSpan={10} className="empty">
                   No data
                 </td>
               </tr>
             )}
+
             {!loading &&
-              pageRows.map((r, idx) => (
-                <tr key={`${r.key}-${idx}`}>
-                  <td>
-                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-                      {r.fromDate}
-                    </button>
-                  </td>
-                  <td>{r.toDate}</td>
-                  <td>{r.custName}</td>
-                  <td>
-                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-                      {r.oppName}
-                    </button>
-                  </td>
-                  <td>{r.campaignStatus}</td>
-                  <td>{r.converted}</td>
-                  <td>
-                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-                      {r.oppStatus}
-                    </button>
-                  </td>
-                  <td>{r.createdBy}</td>
-                  <td>{r.closedBy}</td>
-                  <td>{r.wip}</td>
-                  <td>{r.clinic}</td>
-                </tr>
-              ))}
+  pageRows.map((r, idx) => (
+    <tr key={`${r.key}-${idx}`}>
+      <td>
+        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+          {r.fromDate}
+        </button>
+      </td>
+      <td>{r.toDate}</td>
+
+      <td>
+        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+          {r.oppName}
+        </button>
+      </td>
+
+      <td>{r.campaignStatus}</td>
+      <td>{r.totalOpportunities}</td>
+      <td>{r.closedA}</td>
+      <td>{r.openB}</td>
+      <td>{r.wipC}</td>
+      <td>{r.convertedCount}</td>
+      <td>{r.clinic}</td>
+    </tr>
+  ))}
+
           </tbody>
         </table>
 
@@ -761,11 +803,7 @@ setClinicCode((prev) => {
             Prev
           </button>
           <span className="pageno">{page}</span>
-          <button
-            className="pagebtn"
-            disabled={page >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
+          <button className="pagebtn" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>
             Next
           </button>
           <span className="pagecount">/ {pageCount}</span>
@@ -785,9 +823,7 @@ setClinicCode((prev) => {
         .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 18px; }
         .frow { display: flex; flex-direction: column; gap: 6px; }
         label { font-size: 14px; font-weight: 700; color: #5a6270; }
-        input[type="date"] {
-          height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff;
-        }
+        input[type="date"] { height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff; }
 
         .hint { color: #6b7280; font-size: 12px; margin-top: 2px; }
 
