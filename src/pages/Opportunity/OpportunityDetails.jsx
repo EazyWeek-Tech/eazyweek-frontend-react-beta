@@ -150,7 +150,7 @@ const loadAssignStore = (oppCode) => {
 
 const displayOppStatus = (v) => {
   const s = (v ?? "").toString().trim().toLowerCase();
-  if (s === "wip") return "Open";
+  if (s === "wip") return "WIP";
   return v ?? "—";
 };
 
@@ -1363,11 +1363,34 @@ const getRowDateStampForFilter = (row) => {
   }, [filteredRows, page]);
 
   const openCustomer = (row) => {
-    const recId = getRecId(row);
-    navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
+  const recId = getRecId(row);
+
+  const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
+    .trim()
+    .toUpperCase();
+
+  // ✅ R3 => No Show
+  if (rule === "R3") {
+    navigate(`/opportunity/${oppCode}/noshow/${row.custID}`, {
       state: { recId, oppCode, row, header: H, isManual: false },
     });
-  };
+    return;
+  }
+
+  // ✅ R4 => Cancelled
+  if (rule === "R4") {
+    navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`, {
+      state: { recId, oppCode, row, header: H, isManual: false },
+    });
+    return;
+  }
+
+  // default
+  navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
+    state: { recId, oppCode, row, header: H, isManual: false },
+  });
+};
+
 
   const exportCSV = () => {
     const headers = [

@@ -77,6 +77,8 @@ import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCrea
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
 import ExternalLeadsTable from "./pages/Opportunity/ExternalLeadsTable";
 import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
+import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
+import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -225,6 +227,10 @@ function App() {
   path="/opportunity/external/:oppCode/lead/:leadOppId"
   element={<ExternalLeadForm />}
 />
+
+<Route path="/opportunity/:oppCode/noshow/:custId" element={<NoShowEntryDetails />} />
+<Route path="/opportunity/:oppCode/cancelled/:custId" element={<CancelledEntryDetails />} />
+
 
 <Route path="/masters/disposition" element={<DispositionMappingList />} />
 <Route path="/opportunity/disposition-mapping/create" element={<DispositionMappingCreate />} />
