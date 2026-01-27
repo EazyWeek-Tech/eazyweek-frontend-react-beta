@@ -150,7 +150,7 @@ const loadAssignStore = (oppCode) => {
 
 const displayOppStatus = (v) => {
   const s = (v ?? "").toString().trim().toLowerCase();
-  if (s === "wip") return "WIP";
+  if (s === "wip") return "Open";
   return v ?? "—";
 };
 
