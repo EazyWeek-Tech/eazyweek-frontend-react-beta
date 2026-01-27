@@ -45,26 +45,63 @@ const todayISODate = () => {
   return `${y}-${m}-${day}`;
 };
 
-// ✅ Best-effort "logged in center" resolver (adjust keys if your app uses different ones)
-const getLoggedInCenterCode = () => {
+/** ✅ NEW: session context resolver (loginCode/topCode/userID) */
+const getSessionContext = () => {
   try {
-    const ls = (k) => norm(localStorage.getItem(k));
-    const ss = (k) => norm(sessionStorage.getItem(k));
+    const tryParse = (v) => {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return null;
+      }
+    };
 
-    // common keys
-    return (
-      ls("centerCode") ||
-      ls("clinicCode") ||
-      ls("clinicCentre_FK") ||
-      ls("clinicCentre") ||
-      ls("center") ||
-      ss("centerCode") ||
-      ss("clinicCode") ||
-      ""
-    );
+    // Most common places apps store session json
+    const candidates = [
+      sessionStorage.getItem("sessionValues"),
+      sessionStorage.getItem("session"),
+      sessionStorage.getItem("userSession"),
+      localStorage.getItem("sessionValues"),
+      localStorage.getItem("session"),
+      localStorage.getItem("userSession"),
+    ]
+      .map((x) => (x ? tryParse(x) : null))
+      .filter(Boolean);
+
+    // If you store it as plain keys instead of JSON
+    const fallback = {
+      sessionId: sessionStorage.getItem("sessionId") || localStorage.getItem("sessionId") || "",
+      loginCode: sessionStorage.getItem("loginCode") || localStorage.getItem("loginCode") || "",
+      topCode: sessionStorage.getItem("topCode") || localStorage.getItem("topCode") || "",
+      userID: sessionStorage.getItem("userID") || localStorage.getItem("userID") || "",
+    };
+
+    const found = candidates[0] || fallback;
+    return {
+      sessionId: norm(found?.sessionId),
+      loginCode: norm(found?.loginCode),
+      topCode: norm(found?.topCode),
+      userID: norm(found?.userID),
+    };
   } catch {
-    return "";
+    return { sessionId: "", loginCode: "", topCode: "", userID: "" };
   }
+};
+
+/** ✅ NEW: match center against loginCode/topCode */
+const matchesLoginClinic = (centerLabel, centerValue, loginCode, topCode) => {
+  const l = norm(centerLabel).toLowerCase();
+  const v = norm(centerValue).toLowerCase();
+  const a = norm(loginCode).toLowerCase();
+  const b = norm(topCode).toLowerCase();
+
+  if (!a && !b) return false;
+
+  // try exact-ish or contains
+  if (a && (l === a || v === a || l.includes(a) || v.includes(a))) return true;
+  if (b && (l === b || v === b || l.includes(b) || v.includes(b))) return true;
+
+  return false;
 };
 
 /* ===========================
@@ -237,8 +274,6 @@ function SearchableDropdown({
    Page: Opportunity Detailed Report
    =========================== */
 const OPP_DETAIL_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReport`;
-
-// ✅ NEW: same as Summary page
 const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 
 export default function OpportunityDetailedReport() {
@@ -246,17 +281,21 @@ export default function OpportunityDetailedReport() {
   const { state } = useLocation() || {};
 
   // ✅ Dates: DO NOT show defaults on UI
-  const [fromDate, setFromDate] = useState(""); // keep blank on UI
-  const [toDate, setToDate] = useState("");     // keep blank on UI
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   // filters
-  const [campaignStatusCode, setCampaignStatusCode] = useState(""); // "1" | "2"
-  const [oppRuleCode, setOppRuleCode] = useState("");               // "R1".."R7" + "Manual Lead"
+  const [campaignStatusCode, setCampaignStatusCode] = useState("");
 
-  // ✅ default clinic = logged-in center (visible)
-  const initialClinic =
-    norm(state?.clinic) || getLoggedInCenterCode() || "";
-  const [clinicCode, setClinicCode] = useState(initialClinic);
+  /** ✅ CHANGED: Campaign Rule is MULTI */
+  const [oppRuleCodes, setOppRuleCodes] = useState([]);
+
+  /** ✅ CHANGED: clinic can be single or multi (Centriq) */
+  const sessionCtx = useMemo(() => getSessionContext(), []);
+  const isCentriq = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
+
+  const [clinicCode, setClinicCode] = useState(""); // string (single mode)
+  const [clinicCodes, setClinicCodes] = useState([]); // array (Centriq mode)
 
   const [oppNames, setOppNames] = useState(
     Array.isArray(state?.oppNames)
@@ -272,7 +311,6 @@ export default function OpportunityDetailedReport() {
     { value: "2", label: "Expired" },
   ];
 
-  // ✅ Use the same rule list as Summary (consistent with GetOppNames)
   const oppRuleOptions = [
     { value: "R1", label: "Paid for X but not for Y" },
     { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
@@ -290,8 +328,6 @@ export default function OpportunityDetailedReport() {
   // table
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // ✅ NEW: separate loading for Opp Names dropdown
   const [loadingOppNames, setLoadingOppNames] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -309,7 +345,7 @@ export default function OpportunityDetailedReport() {
     setTimeout(() => setToast(null), ms);
   };
 
-  /* ---- Load clinics only (NO data fetch on mount) ---- */
+  /* ---- Load clinics ---- */
   useEffect(() => {
     (async () => {
       try {
@@ -320,18 +356,35 @@ export default function OpportunityDetailedReport() {
         });
         const d = await r.json();
 
-        const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
-          value: x.code ?? x.centerCode ?? norm(x.name),
+        const listAll = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
+          value: norm(x.code ?? x.centerCode ?? x.name),
           label: x.name ?? x.centerName ?? (x.code ?? ""),
         }));
-        setClinics(list);
 
-        // ✅ Ensure clinic default exists in loaded list; otherwise clear it
-        setClinicCode((prev) => {
-          const p = norm(prev);
-          if (!p) return "";
-          return list.some((o) => norm(o.value) === p) ? p : "";
-        });
+        /** ✅ NEW: apply session-based restriction */
+        let list = listAll;
+
+        if (!isCentriq) {
+          const loginCode = sessionCtx?.loginCode;
+          const topCode = sessionCtx?.topCode;
+
+          const filtered = listAll.filter((c) =>
+            matchesLoginClinic(c.label, c.value, loginCode, topCode)
+          );
+
+          list = filtered;
+
+          // default & lock to only clinic (if found)
+          const only = filtered[0]?.value || "";
+          setClinicCode(only);
+          setClinicCodes([]); // not used in single mode
+        } else {
+          // Centriq: show all, allow multi (select all)
+          setClinicCode("");
+          setClinicCodes([]); // user selects
+        }
+
+        setClinics(list);
       } catch (e) {
         console.error(e);
         setClinics([]);
@@ -343,14 +396,13 @@ export default function OpportunityDetailedReport() {
   }, []);
 
   /* ==========================================================
-     ✅ NEW: Populate Campaign Name when status + rule are selected
-     (same behavior as Summary)
+     ✅ Campaign Name list when status + (multi) rule are selected
      ========================================================== */
   useEffect(() => {
     const status = norm(campaignStatusCode);
-    const rule = norm(oppRuleCode);
+    const rules = Array.isArray(oppRuleCodes) ? oppRuleCodes.map(norm).filter(Boolean) : [];
 
-    if (!status || !rule) {
+    if (!status || !rules.length) {
       setOppNameOptions([]);
       setOppNames([]);
       return;
@@ -361,24 +413,30 @@ export default function OpportunityDetailedReport() {
     (async () => {
       setLoadingOppNames(true);
       try {
-        const body = { campStatus: status, ruleCode: rule };
+        // Call API once per rule (safe if backend expects single ruleCode)
+        const results = await Promise.all(
+          rules.map(async (rule) => {
+            const body = { campStatus: status, ruleCode: rule };
 
-        const r = await fetch(OPP_NAMES_ENDPOINT, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          signal: ac.signal,
-        });
+            const r = await fetch(OPP_NAMES_ENDPOINT, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+              signal: ac.signal,
+            });
 
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const d = await r.json();
+            return Array.isArray(d) ? d : d ? [d] : [];
+          })
+        );
 
-        const d = await r.json();
-        const arr = Array.isArray(d) ? d : d ? [d] : [];
+        const flat = results.flat();
 
         const uniq = Array.from(
           new Map(
-            arr
+            flat
               .map((x) => ({ oppName: norm(x?.oppName) }))
               .filter((x) => x.oppName)
               .map((x) => [x.oppName, { value: x.oppName, label: x.oppName }])
@@ -406,26 +464,32 @@ export default function OpportunityDetailedReport() {
     })();
 
     return () => ac.abort();
-  }, [campaignStatusCode, oppRuleCode]);
+  }, [campaignStatusCode, oppRuleCodes]);
 
   /* ---- Fetch report (only on View) ---- */
   const loadDetailed = async () => {
     setLoading(true);
     setPage(1);
     try {
-      // ✅ Effective dates: send defaults if user did not pick
       const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
       const effectiveToISO = toISODateOnly(toDate) || todayISODate();
-
-      // Backend rule: "0" when both dates exist (they always will now)
       const df = "0";
+
+      const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
+        .map(norm)
+        .filter(Boolean)
+        .join(",");
+
+      const clinicCSV = isCentriq
+        ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
+        : (clinicCode || "");
 
       const body = {
         fromDate: atStartOfDayZ(effectiveFromISO),
         toDate: atEndOfDayZ(effectiveToISO),
         oppStatus: campaignStatusCode || "",
-        clinicCode: clinicCode || "",
-        oppRule: oppRuleCode || "",
+        clinicCode: clinicCSV || "",
+        oppRule: rulesCSV || "",
         oppName: (oppNames || []).join(","), // CSV
         dateFlag: df,
       };
@@ -552,7 +616,6 @@ export default function OpportunityDetailedReport() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // autosize columns
     ws["!cols"] = headers.map((h, idx) => {
       const maxLen = Math.max(
         h.length,
@@ -616,6 +679,15 @@ export default function OpportunityDetailedReport() {
           </div>
 
           <div className="frow">
+            <label>To Date</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
+            />
+          </div>
+
+          <div className="frow">
             <label>Campaign Status</label>
             <SearchableDropdown
               options={campaignStatusOptions}
@@ -627,51 +699,59 @@ export default function OpportunityDetailedReport() {
           </div>
 
           <div className="frow">
-            <label>To Date</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
-            />
-          </div>
-
-          <div className="frow">
-            <label>Opp Rule</label>
+            <label>Campaign Rule</label>
             <SearchableDropdown
               options={oppRuleOptions}
-              value={oppRuleCode}
-              onChange={setOppRuleCode}
+              value={oppRuleCodes}
+              onChange={setOppRuleCodes}
               placeholder="None selected"
-              multiple={false}
+              multiple
+              showSelectAll
             />
           </div>
 
           <div className="frow">
-            <label>Opp Name</label>
+            <label>Campaign Name</label>
             <SearchableDropdown
               options={oppNameOptions}
               value={oppNames}
               onChange={setOppNames}
               multiple
               placeholder={
-                !campaignStatusCode || !oppRuleCode
+                !campaignStatusCode || !(oppRuleCodes || []).length
                   ? "Select status & rule first"
                   : "None selected"
               }
-              disabled={!campaignStatusCode || !oppRuleCode || loadingOppNames}
+              disabled={!campaignStatusCode || !(oppRuleCodes || []).length || loadingOppNames}
             />
             {loadingOppNames && <small className="hint">Loading campaign names…</small>}
           </div>
 
           <div className="frow">
             <label>Clinic</label>
-            <SearchableDropdown
-              options={clinics}
-              value={clinicCode}
-              onChange={setClinicCode}
-              placeholder="None selected"
-              multiple={false}
-            />
+
+            {/* ✅ Centriq: multi + select all */}
+            {isCentriq ? (
+              <SearchableDropdown
+                options={clinics}
+                value={clinicCodes}
+                onChange={setClinicCodes}
+                placeholder="None selected"
+                multiple
+                showSelectAll
+              />
+            ) : (
+              // ✅ Non-centriq: locked single clinic
+              <SearchableDropdown
+                options={clinics}
+                value={clinicCode}
+                onChange={setClinicCode}
+                placeholder="None selected"
+                multiple={false}
+                disabled={true}
+                showSelectAll={false}
+              />
+            )}
           </div>
         </div>
 
@@ -694,10 +774,10 @@ export default function OpportunityDetailedReport() {
               <th>Created Date</th>
               <th>Lead ID</th>
               <th>Lead Name</th>
-              <th>OppName</th>
+              <th>Campaign Name</th>
               <th>Campaign Status</th>
               <th>Converted</th>
-              <th>OppStatus</th>
+              <th>Lead Status</th>
               <th>Created By</th>
               <th>Closed By</th>
               <th>WIP</th>
