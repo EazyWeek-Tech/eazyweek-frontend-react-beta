@@ -1,38 +1,54 @@
-// src/pages/Opportunity/NoShowEntryDetails.jsx
+// src/pages/Opportunity/CancelledEntryDetails.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
-/** ✅ same as your file (you can adjust label list later if needed) */
 const DISPOSITION_OPTIONS = [
   { value: "", label: "" },
   { value: "LS008", label: "Converted" },
-  { value: "LS009", label: "Bad Lead" },
-  { value: "LS010", label: "No response" },
   { value: "LS011", label: "Not Converted" },
-  { value: "LS012", label: "Appointment Booked" },
   { value: "LS004", label: "WIP" },
 ];
 
-// (kept consistent with your existing app)
 const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
 
 const oppStatusFromDisposition = (code) => {
   const c = String(code || "").trim();
-  if (c === "LS008" || c === "LS011") return OPP_STATUS.CLOSED; // "2"
-  return OPP_STATUS.OPEN; // "1"
+  if (c === "LS008" || c === "LS011") return OPP_STATUS.CLOSED;
+  return OPP_STATUS.OPEN;
 };
 
 const getRecId = (row) => {
-  const id = row?.RECID ?? row?.recID ?? row?.RecID ?? row?.recid ?? row?.id ?? 0;
+  const id =
+    row?.RECID ?? row?.recID ?? row?.RecID ?? row?.recid ?? row?.id ?? 0;
   return Number(id) || 0;
 };
 
 const HALF_HOURS_1_TO_12_30 = [
-  "01:00","01:30","02:00","02:30","03:00","03:30",
-  "04:00","04:30","05:00","05:30","06:00","06:30",
-  "07:00","07:30","08:00","08:30","09:00","09:30",
-  "10:00","10:30","11:00","11:30","12:00","12:30",
+  "01:00",
+  "01:30",
+  "02:00",
+  "02:30",
+  "03:00",
+  "03:30",
+  "04:00",
+  "04:30",
+  "05:00",
+  "05:30",
+  "06:00",
+  "06:30",
+  "07:00",
+  "07:30",
+  "08:00",
+  "08:30",
+  "09:00",
+  "09:30",
+  "10:00",
+  "10:30",
+  "11:00",
+  "11:30",
+  "12:00",
+  "12:30",
 ];
 
 const DEFAULT_TIME = "01:30";
@@ -56,6 +72,20 @@ const tomorrowISO = () => {
   return `${y}-${m}-${day}`;
 };
 
+// ✅ normalize disposition from API (code or label)
+const normalizeDispCode = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+
+  if (/^LS\d{3}$/i.test(s)) return s.toUpperCase();
+
+  const t = s.toLowerCase();
+  if (t === "converted") return "LS008";
+  if (t === "not converted") return "LS011";
+
+  return s;
+};
+
 // ---------- helpers to sanitize API follow-up dates ----------
 const isPlaceholderDate = (yyyyMmDd) => {
   const s = String(yyyyMmDd || "").trim();
@@ -70,7 +100,7 @@ const isPlaceholderDate = (yyyyMmDd) => {
 
 const isPastYMD = (yyyyMmDd) => {
   if (!yyyyMmDd) return false;
-  return yyyyMmDd < todayISO(); // YYYY-MM-DD compares safely as string
+  return yyyyMmDd < todayISO();
 };
 
 const parseApiFollowUpDateToYMD = (apiValue) => {
@@ -117,9 +147,9 @@ const normalizeAmPm = (v) => {
   return s === "PM" ? "PM" : "AM";
 };
 
-const NoShowEntryDetails = () => {
+const CancelledEntryDetails = () => {
   const { oppCode, custId } = useParams();
-  const { state } = useLocation(); // { recId, oppCode, row, header, isManual }
+  const { state } = useLocation();
   const navigate = useNavigate();
 
   const [row] = useState(state?.row || null);
@@ -127,15 +157,14 @@ const NoShowEntryDetails = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [details, setDetails] = useState(null);
 
-  // ✅ requirement defaults:
-  // - follow-up date default tomorrow
-  // - time default 01:30 PM
-  const [followUpDate, setFollowUpDate] = useState(tomorrowISO()); // yyyy-MM-dd
-  const [followUpTime, setFollowUpTime] = useState(DEFAULT_TIME);   // "01:30"
-  const [followUpAmPm, setFollowUpAmPm] = useState(DEFAULT_AMPM);   // "PM"
+  const [followUpDate, setFollowUpDate] = useState(tomorrowISO());
+  const [followUpTime, setFollowUpTime] = useState(DEFAULT_TIME);
+  const [followUpAmPm, setFollowUpAmPm] = useState(DEFAULT_AMPM);
+
+  // ✅ IMPORTANT: lock based ONLY on API disposition on load
+  const [initialDisp, setInitialDisp] = useState("");
 
   const [form, setForm] = useState({ disposition: "", remarks: "" });
   const [saving, setSaving] = useState(false);
@@ -150,37 +179,45 @@ const NoShowEntryDetails = () => {
         if (!oppCode || !recId) throw new Error("Missing OppCode or RecId.");
 
         const res = await fetch(
-          `${API_BASE_URL}/api/Opportunity/OpportunityMoreDetails/${encodeURIComponent(oppCode)}/${recId}`,
-          { method: "POST", headers: { Accept: "*/*" }, credentials: "include", body: "" }
+          `${API_BASE_URL}/api/Opportunity/OpportunityMoreDetails/${encodeURIComponent(
+            oppCode
+          )}/${recId}`,
+          {
+            method: "POST",
+            headers: { Accept: "*/*" },
+            credentials: "include",
+            body: "",
+          }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
         setDetails(data || null);
 
-        // ✅ Prefill follow-up date:
-        // If API date invalid/past/placeholder => tomorrow
         const apiDateYMD = parseApiFollowUpDateToYMD(data?.followUpDate);
         const safeDate =
           !apiDateYMD || isPastYMD(apiDateYMD) ? tomorrowISO() : apiDateYMD;
         setFollowUpDate(safeDate);
 
-        // ✅ Prefill time + AM/PM:
-        // If API empty => default 01:30 PM
         const apiTime = String(data?.followUpTime || "").trim();
         const apiAmPm = normalizeAmPm(data?.followUpTimeAmPM);
-
         setFollowUpTime(apiTime || DEFAULT_TIME);
         setFollowUpAmPm((apiTime ? apiAmPm : DEFAULT_AMPM) || DEFAULT_AMPM);
 
-        // Prefill disposition/remarks from list row (if present)
-        if (state?.row) {
-          setForm((p) => ({
-            ...p,
-            disposition: state.row.disposition ?? "",
-            remarks: state.row.remarks ?? "",
-          }));
-        }
+        // ✅ disposition from API (on load)
+        const apiDisp = normalizeDispCode(
+          data?.distpositionCode || data?.distpositionName
+        );
+        setInitialDisp(apiDisp);
+
+        const apiRemarks = String(data?.remarts || "").trim();
+
+        // ✅ Prefill from row OR API
+        setForm((p) => ({
+          ...p,
+          disposition: normalizeDispCode(state?.row?.disposition) || apiDisp || "",
+          remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
+        }));
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load details.");
@@ -195,19 +232,22 @@ const NoShowEntryDetails = () => {
 
   const safe = (v) => (v === null || v === undefined ? "" : v);
 
-  const top = useMemo(() => ({
-    custID: safe(details?.custID || row?.custID),
-    custName: safe(details?.custName || row?.custName),
-    custMobileNo: safe(details?.mobileNo || row?.custMobileNo),
-    category: safe(details?.category || row?.category),
-    appointmentDate: safe(details?.appointmentDate || row?.appointmentdatetime),
-    therapist: safe(details?.therapist || row?.therapistname),
-    oppName: safe(header?.oppName || row?.oppName),
-    appointmentHeading: safe(details?.appointmentHeading || ""),
-    dispCode: safe(details?.distpositionCode || ""),
-    dispName: safe(details?.distpositionName || ""),
-    remarks: safe(details?.remarts || ""),
-  }), [details, row, header]);
+  const top = useMemo(
+    () => ({
+      custID: safe(details?.custID || row?.custID),
+      custName: safe(details?.custName || row?.custName),
+      custMobileNo: safe(details?.mobileNo || row?.custMobileNo),
+      category: safe(details?.category || row?.category),
+      appointmentDate: safe(details?.appointmentDate || row?.appointmentdatetime),
+      therapist: safe(details?.therapist || row?.therapistname),
+      oppName: safe(header?.oppName || row?.oppName),
+      appointmentHeading: safe(details?.appointmentHeading || ""),
+      dispCode: safe(details?.distpositionCode || ""),
+      dispName: safe(details?.distpositionName || ""),
+      remarks: safe(details?.remarts || ""),
+    }),
+    [details, row, header]
+  );
 
   useEffect(() => {
     if (top.remarks && !form.remarks) {
@@ -232,8 +272,8 @@ const NoShowEntryDetails = () => {
       oppCode,
       oppStatus,
       followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
-      followUpTime: (followUpTime || DEFAULT_TIME),
-      followUpTimeAmPM: (followUpAmPm || DEFAULT_AMPM),
+      followUpTime: followUpTime || DEFAULT_TIME,
+      followUpTimeAmPM: followUpAmPm || DEFAULT_AMPM,
     };
   };
 
@@ -245,13 +285,15 @@ const NoShowEntryDetails = () => {
       body: JSON.stringify(buildUpdatePayload()),
     });
     let data = null;
-    try { data = await res.json(); } catch {}
+    try {
+      data = await res.json();
+    } catch {}
     if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
-    if (data && data.success === false) throw new Error(data.message || "UpdateOppDetails returned success:false");
+    if (data && data.success === false)
+      throw new Error(data.message || "UpdateOppDetails returned success:false");
     return data || {};
   };
 
-  // ✅ requirement: if follow-up date not added => tomorrow
   const ensureValidFollowUpDate = () => {
     if (!followUpDate) {
       setFollowUpDate(tomorrowISO());
@@ -265,31 +307,9 @@ const NoShowEntryDetails = () => {
     return true;
   };
 
-  // ✅ requirement: if time not selected => 01:30 PM
   const ensureDefaultTime = () => {
     if (!followUpTime) setFollowUpTime(DEFAULT_TIME);
     if (!followUpAmPm) setFollowUpAmPm(DEFAULT_AMPM);
-  };
-
-  const handleSave = async () => {
-    if (!form.disposition) {
-      setError("Please select a Disposition before saving.");
-      return;
-    }
-    if (!ensureValidFollowUpDate()) return;
-
-    ensureDefaultTime();
-
-    setSaving(true);
-    setError("");
-    try {
-      await callUpdate();
-    } catch (e) {
-      console.error(e);
-      setError(e.message || "Could not save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleSubmit = async () => {
@@ -315,37 +335,66 @@ const NoShowEntryDetails = () => {
   };
 
   if (loading) return <div className="load">Loading…</div>;
-  if (error && !details) return <div className="load" style={{ color: "#c33" }}>{error}</div>;
+  if (error && !details)
+    return (
+      <div className="load" style={{ color: "#c33" }}>
+        {error}
+      </div>
+    );
 
-  
+  // ✅ lock/hide ONLY based on API disposition on load
+  const wasClosedOnLoad = initialDisp === "LS008" || initialDisp === "LS011";
+  const isLocked = wasClosedOnLoad;
+  const hideSubmit = wasClosedOnLoad;
 
   return (
     <>
       <div className="wrap">
         <div className="grid">
           <div className="col">
-            <div className="pair"><span className="lab">Customer ID :</span> <span className="val">{top.custID}</span></div>
-            <div className="pair"><span className="lab">Customer Name :</span> <span className="val">{top.custName}</span></div>
-            <div className="pair"><span className="lab">Mobile No :</span> <span className="val">{top.custMobileNo}</span></div>
+            <div className="pair">
+              <span className="lab">Customer ID :</span>{" "}
+              <span className="val">{top.custID}</span>
+            </div>
+            <div className="pair">
+              <span className="lab">Customer Name :</span>{" "}
+              <span className="val">{top.custName}</span>
+            </div>
+            <div className="pair">
+              <span className="lab">Mobile No :</span>{" "}
+              <span className="val">{top.custMobileNo}</span>
+            </div>
           </div>
 
           <div className="col">
-            <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.category}</span></div>
-            <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
-            <div className="pair"><span className="lab">App with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
+            <div className="pair">
+              <span className="lab">Appointment Service:</span>{" "}
+              <span className="val">{top.category}</span>
+            </div>
+            <div className="pair">
+              <span className="lab">Recent Appointment Date :</span>{" "}
+              <span className="val">{top.appointmentDate}</span>
+            </div>
+            <div className="pair">
+              <span className="lab">App with Therapist/Doctors :</span>{" "}
+              <span className="val">{top.therapist}</span>
+            </div>
           </div>
         </div>
 
-        {/* Follow-up inputs */}
         <div className="formrow">
-          <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
+          <label className="lab" htmlFor="fuDate">
+            Follow Up Date :
+          </label>
           <input
             id="fuDate"
             type="date"
             className="inp"
             value={followUpDate}
             min={todayISO()}
+            disabled={isLocked}
             onChange={(e) => {
+              if (isLocked) return;
               const v = e.target.value;
               if (!v) {
                 setError("");
@@ -370,53 +419,62 @@ const NoShowEntryDetails = () => {
               className="inp"
               style={{ maxWidth: 180 }}
               value={followUpTime}
-              onChange={(e) => setFollowUpTime(e.target.value)}
+              disabled={isLocked}
+              onChange={(e) => !isLocked && setFollowUpTime(e.target.value)}
             >
               <option value="">—</option>
               {HALF_HOURS_1_TO_12_30.map((t) => (
-                <option key={`fu-${t}`} value={t}>{t}</option>
+                <option key={`fu-${t}`} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
+
             <select
               className="inp"
               style={{ maxWidth: 120 }}
               value={followUpAmPm}
-              onChange={(e) => setFollowUpAmPm(e.target.value)}
+              disabled={isLocked}
+              onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
             >
               <option value="AM">AM</option>
               <option value="PM">PM</option>
             </select>
           </div>
-          {/* optional hint */}
-          <div style={{ marginLeft: 212, fontSize: 12, color: "#777" }}>
-            Default: 01:30 PM
-          </div>
         </div>
 
         <div className="formrow">
-          <label className="lab" htmlFor="disposition">Disposition <span className="req">*</span>:</label>
+          <label className="lab" htmlFor="disposition">
+            Disposition <span className="req">*</span>:
+          </label>
           <select
             id="disposition"
             name="disposition"
             value={form.disposition}
-            onChange={handleChange}
+            disabled={isLocked}
+            onChange={(e) => !isLocked && handleChange(e)}
             className="inp"
           >
-            {DISPOSITION_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {DISPOSITION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
 
         <div className="formrow">
-          <label className="lab" htmlFor="remarks">Remarks :</label>
+          <label className="lab" htmlFor="remarks">
+            Remarks :
+          </label>
           <textarea
             id="remarks"
             name="remarks"
             className="txta"
             rows={6}
             value={form.remarks}
-            onChange={handleChange}
+            readOnly={isLocked}
+            onChange={(e) => !isLocked && handleChange(e)}
             placeholder=""
           />
         </div>
@@ -424,34 +482,111 @@ const NoShowEntryDetails = () => {
         {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
 
         <div className="btnrow">
-          <button className="btn" disabled={saving} onClick={handleSubmit}>Submit</button>
-          <button className="btn" onClick={() => navigate(-1)}>Back</button>
+          {!hideSubmit && (
+            <button className="btn" disabled={saving} onClick={handleSubmit}>
+              Submit
+            </button>
+          )}
+          <button className="btn" onClick={() => navigate(-1)}>
+            Back
+          </button>
         </div>
       </div>
 
       <style jsx="true">{`
-        .wrap { background:#fff; padding:28px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-        .grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:18px; }
-        .req{color: #f00;}
-        .col { display:grid; gap:12px; }
-        .pair { font-size:15px; color:#333; }
-        .lab { display:inline-block; min-width:200px; color:#555; font-weight:600; font-size:14px; }
-        .val { color:#222; }
-        .formrow { display:flex; align-items:flex-start; gap:12px; margin:12px 0; }
-        .inp { flex:1; max-width:520px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
-        .txta { flex:1; max-width:520px; padding:8px; border:1px solid #d8dee9; border-radius:6px; resize:vertical; }
-        .btnrow { display:flex; gap:14px; margin-top:10px; }
-        .btn { background:#14233c; color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; }
-        .btn:disabled { opacity:.6; cursor:not-allowed; }
-        .btn:hover:not(:disabled) { opacity:.95; }
-        .load { padding:40px; text-align:center; color:#666; }
+        .wrap {
+          background: #fff;
+          padding: 28px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .req {
+          color: #f00;
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 18px;
+        }
+        .col {
+          display: grid;
+          gap: 12px;
+        }
+        .pair {
+          font-size: 15px;
+          color: #333;
+        }
+        .lab {
+          display: inline-block;
+          min-width: 200px;
+          color: #555;
+          font-weight: 600;
+          font-size: 14px;
+        }
+        .val {
+          color: #222;
+        }
+        .formrow {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          margin: 12px 0;
+        }
+        .inp {
+          flex: 1;
+          max-width: 520px;
+          height: 36px;
+          padding: 6px 8px;
+          border: 1px solid #d8dee9;
+          border-radius: 6px;
+          background: #fff;
+        }
+        .txta {
+          flex: 1;
+          max-width: 520px;
+          padding: 8px;
+          border: 1px solid #d8dee9;
+          border-radius: 6px;
+          resize: vertical;
+        }
+        .btnrow {
+          display: flex;
+          gap: 14px;
+          margin-top: 10px;
+        }
+        .btn {
+          background: #14233c;
+          color: #fff;
+          border: 0;
+          border-radius: 8px;
+          padding: 10px 18px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .btn:hover:not(:disabled) {
+          opacity: 0.95;
+        }
+        .load {
+          padding: 40px;
+          text-align: center;
+          color: #666;
+        }
         @media (max-width: 900px) {
-          .grid { grid-template-columns:1fr; }
-          .lab { min-width:160px; }
+          .grid {
+            grid-template-columns: 1fr;
+          }
+          .lab {
+            min-width: 160px;
+          }
         }
       `}</style>
     </>
   );
 };
 
-export default NoShowEntryDetails;
+export default CancelledEntryDetails;

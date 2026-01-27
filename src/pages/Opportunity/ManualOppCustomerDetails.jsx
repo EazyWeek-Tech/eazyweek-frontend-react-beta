@@ -1475,7 +1475,7 @@ if (!isEdit) {
                 <label>
                   Mobile <span className="req">*</span>
                 </label>
-                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" value={form.mobile} onChange={onChange} placeholder="Mobile" />
+                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" value={form.mobile} disabled={!isLead}  onChange={onChange} placeholder="Mobile" />
                 {errors.mobile && <div className="errText">{errors.mobile}</div>}
               </div>
 
