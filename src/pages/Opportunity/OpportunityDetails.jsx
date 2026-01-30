@@ -1256,6 +1256,14 @@ const OpportunityDetails = () => {
     return null;
   }, [followDateMode, rangeFrom, rangeTo]);
 
+
+  const normStatus = (v) => displayOppStatus(v).toString().trim().toLowerCase();
+
+const getRowDateStampForFilter = (row) => {
+  // Use your existing "opp date" logic (followup/appointment/created)
+  return getOppDateStamp(row, false);
+};
+
  const filteredRows = useMemo(() => {
   let list = normRows.slice();
 
@@ -1345,14 +1353,6 @@ const OpportunityDetails = () => {
   filterTimeTo,
   sortConfig,
 ]);
-
-
-  const normStatus = (v) => displayOppStatus(v).toString().trim().toLowerCase();
-
-const getRowDateStampForFilter = (row) => {
-  // Use your existing "opp date" logic (followup/appointment/created)
-  return getOppDateStamp(row, false);
-};
 
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length]);
