@@ -11,6 +11,30 @@ const DISPOSITION_OPTIONS = [
   { value: "LS004", label: "WIP" },
 ];
 
+// ✅ Sub-Disposition options (dependent on Disposition)
+const SUB_DISPOSITION_BY_DISPOSITION = {
+  LS008: [
+    { value: "LS0021", label: "Converted" },
+  ],
+  LS004: [
+    { value: "LS0022", label: "WIP" },
+  ],
+  LS011: [
+    { value: "LS022", label: "Will Visit Personally" },
+    { value: "LS023", label: "Doctor not available" },
+    { value: "LS024", label: "Price" },
+    { value: "LS025", label: "Clinic too far" },
+    { value: "LS026", label: "Machine_Service Availibility- Not Converted" },
+    { value: "LS027", label: "Took Service Outside " },
+  ],
+};
+
+const getSubDispositionOptions = (disp) => {
+  const key = String(disp || "").trim();
+  return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
+};
+
+
 // (kept consistent with your existing app)
 const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
 
@@ -149,8 +173,70 @@ const NoShowEntryDetails = () => {
   const [followUpAmPm, setFollowUpAmPm] = useState(DEFAULT_AMPM);   // "PM"
 
   const [initialDisp, setInitialDisp] = useState(""); // ✅ API disposition on load (normalized)
-  const [form, setForm] = useState({ disposition: "", remarks: "" });
+
+  // ✅ Reasons dropdown options
+  const [reasonOptions, setReasonOptions] = useState([{ code: "", name: "" }]);
+  const [reasonsLoading, setReasonsLoading] = useState(false);
+
+  // ✅ include reasonCode in form
+  const [form, setForm] = useState({
+    disposition: "",
+    sbdisposition: "",
+    reasonCode: "", // ✅ NEW
+    remarks: "",
+  });
+
   const [saving, setSaving] = useState(false);
+
+  const subDispositionOptions = useMemo(() => {
+  return getSubDispositionOptions(form.disposition);
+}, [form.disposition]);
+
+useEffect(() => {
+  // ✅ If disposition changes, and current subdisp is not part of that group, clear it.
+  const allowed = subDispositionOptions.map((x) => x.value);
+  if (form.sbdisposition && !allowed.includes(form.sbdisposition)) {
+    setForm((p) => ({ ...p, sbdisposition: "" }));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [form.disposition]);
+
+
+  // ✅ Load reasons list
+  useEffect(() => {
+    const loadReasons = async () => {
+      setReasonsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOpprotunityReason`, {
+          method: "GET",
+          headers: { Accept: "application/json, */*" },
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`Reasons HTTP ${res.status}`);
+        const data = await res.json();
+
+        const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
+        const mapped = (Array.isArray(arr) ? arr : [])
+          .map((x) => ({
+            code: String(x?.code ?? "").trim(),
+            name: String(x?.name ?? "").trim(),
+            value: x?.value ?? null,
+          }))
+          .filter((x) => x.code || x.name);
+
+        setReasonOptions([{ code: "", name: "" }, ...mapped]);
+      } catch (e) {
+        console.error("LoadOpprotunityReason failed:", e);
+        // keep dropdown usable even if API fails
+        setReasonOptions([{ code: "", name: "" }]);
+      } finally {
+        setReasonsLoading(false);
+      }
+    };
+
+    loadReasons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const doFetch = async () => {
@@ -187,11 +273,18 @@ const NoShowEntryDetails = () => {
 
         const apiRemarks = String(data?.remarts || "").trim();
 
+        // ✅ if API returns a reason code, prefill it (safe)
+        const apiReasonCode = String(
+          data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
+        ).trim();
+
         // ✅ set form values once
         setForm((p) => ({
           ...p,
           disposition: normalizeDispCode(state?.row?.disposition) || apiDisp || "",
           remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
+          reasonCode: p.reasonCode || apiReasonCode || "",
+          // sbdisposition: keep as is (since your subdisp options not wired yet)
         }));
       } catch (e) {
         console.error(e);
@@ -229,9 +322,17 @@ const NoShowEntryDetails = () => {
   }, [top.remarks]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
-  };
+  const { name, value } = e.target;
+
+  setForm((p) => {
+    // ✅ when disposition changes, reset subdisp
+    if (name === "disposition") {
+      return { ...p, disposition: value, sbdisposition: "" };
+    }
+    return { ...p, [name]: value };
+  });
+};
+
 
   const buildUpdatePayload = () => {
     const recID = state?.recId || getRecId(state?.row);
@@ -246,6 +347,10 @@ const NoShowEntryDetails = () => {
       followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
       followUpTime: (followUpTime || DEFAULT_TIME),
       followUpTimeAmPM: (followUpAmPm || DEFAULT_AMPM),
+
+      // ✅ NEW: send reason code (rename key if backend expects different)
+      reasonCode: form.reasonCode || "",
+       subDisposition: form.sbdisposition || "",
     };
   };
 
@@ -318,150 +423,169 @@ const NoShowEntryDetails = () => {
       <div className="wrap">
 
         <div className="titleBlock">
-            <div className="pageTitle"> No Show Details</div>
-           
-          </div>
-
-           <fieldset className="fs">
-            <legend> Details of Appointment</legend>
-
-            <div className="grid">
-          <div className="col">
-            <div className="pair"><span className="lab">Customer ID :</span> <span className="val">{top.custID}</span></div>
-            <div className="pair"><span className="lab">Customer Name :</span> <span className="val">{top.custName}</span></div>
-            <div className="pair"><span className="lab">Mobile No :</span> <span className="val">{top.custMobileNo}</span></div>
-          </div>
-
-          <div className="col">
-            <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.category}</span></div>
-            <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
-            <div className="pair"><span className="lab">Appointment with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
-          </div>
+          <div className="pageTitle"> No Show Details</div>
         </div>
-           </fieldset>
-
-        
 
         <fieldset className="fs">
-        <legend>Lead Disposition</legend>
+          <legend> Details of Appointment</legend>
 
-        <div className="ldform">
-          <div className="formrow">
-          <label className="lab" htmlFor="disposition">Disposition <span className="req">*</span>:</label>
-          <select
-            id="disposition"
-            name="disposition"
-            value={form.disposition}
-            disabled={isLocked}
-            onChange={(e) => !isLocked && handleChange(e)}
-            className="inp"
-          >
-            {DISPOSITION_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+          <div className="grid">
+            <div className="col">
+              <div className="pair"><span className="lab">Customer ID :</span> <span className="val">{top.custID}</span></div>
+              <div className="pair"><span className="lab">Customer Name :</span> <span className="val">{top.custName}</span></div>
+              <div className="pair"><span className="lab">Mobile No :</span> <span className="val">{top.custMobileNo}</span></div>
+            </div>
 
-         <div className="formrow">
-          <label className="lab" htmlFor="disposition">Sub-Disposition <span className="req">*</span>:</label>
-          <select
-            id="sbdisposition"
-            name="sbdisposition"
-            value={form.sbdisposition}
-            disabled={isLocked}
-            onChange={(e) => !isLocked && handleChange(e)}
-            className="inp"
-          >
-          
-          </select>
-        </div>
-        </div>
+            <div className="col">
+              <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.category}</span></div>
+              <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
+              <div className="pair"><span className="lab">Appointment with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
+            </div>
+          </div>
+        </fieldset>
 
+        <fieldset className="fs">
+          <legend>Lead Disposition</legend>
 
-        <div className="ldform">
-           {/* Follow-up inputs */}
-        <div className="formrow">
-          <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
-          <input
-            id="fuDate"
-            type="date"
-            className="inp"
-            value={followUpDate}
-            min={todayISO()}
-            disabled={isLocked}
-            onChange={(e) => {
-              if (isLocked) return;
-              const v = e.target.value;
-              if (!v) {
-                setError("");
-                setFollowUpDate("");
-                return;
-              }
-              if (isPastYMD(v)) {
-                setError("Follow Up Date cannot be before today.");
-                setFollowUpDate(tomorrowISO());
-                return;
-              }
-              setError("");
-              setFollowUpDate(v);
-            }}
-          />
-        </div>
+          <div className="ldform">
+            <div className="formrow">
+              <label className="lab" htmlFor="disposition">Disposition <span className="req">*</span>:</label>
+              <select
+                id="disposition"
+                name="disposition"
+                value={form.disposition}
+                disabled={isLocked}
+                onChange={(e) => !isLocked && handleChange(e)}
+                className="inp"
+              >
+                {DISPOSITION_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="formrow">
-          <label className="lab">Follow Up Time :</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <select
-              className="inp"
-              style={{ minWidth: 180 }}
-              value={followUpTime}
-              disabled={isLocked}
-              onChange={(e) => !isLocked && setFollowUpTime(e.target.value)}
-            >
-              <option value="">—</option>
-              {HALF_HOURS_1_TO_12_30.map((t) => (
-                <option key={`fu-${t}`} value={t}>{t}</option>
-              ))}
-            </select>
+            <div className="formrow">
+              <label className="lab" htmlFor="sbdisposition">Sub-Disposition <span className="req">*</span>:</label>
+              <select
+  id="sbdisposition"
+  name="sbdisposition"
+  value={form.sbdisposition}
+  disabled={isLocked || !form.disposition}
+  onChange={(e) => !isLocked && handleChange(e)}
+  className="inp"
+>
+  <option value="">—</option>
+  {subDispositionOptions.map((opt) => (
+    <option key={opt.value} value={opt.value}>{opt.label}</option>
+  ))}
+</select>
 
-            <select
-              className="inp"
-              style={{ minWidth: 120 }}
-              value={followUpAmPm}
-              disabled={isLocked}
-              onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
-            >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
-            </select>
+            </div>
+
+            {/* ✅ NEW: Reasons dropdown (after subdisposition) */}
+            <div className="formrow">
+              <label className="lab" htmlFor="reasonCode">Reason :</label>
+              <select
+                id="reasonCode"
+                name="reasonCode"
+                value={form.reasonCode}
+                disabled={isLocked || reasonsLoading || !form.sbdisposition}
+                onChange={(e) => !isLocked && handleChange(e)}
+                className="inp"
+              >
+                {reasonOptions.map((r) => (
+                  <option key={`rs-${r.code || r.name}`} value={r.code}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-         
-        </div>
-        </div>
+          <div className="ldform">
+            {/* Follow-up inputs */}
+            <div className="formrow">
+              <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
+              <input
+                id="fuDate"
+                type="date"
+                className="inp"
+                value={followUpDate}
+                min={todayISO()}
+                disabled={isLocked}
+                onChange={(e) => {
+                  if (isLocked) return;
+                  const v = e.target.value;
+                  if (!v) {
+                    setError("");
+                    setFollowUpDate("");
+                    return;
+                  }
+                  if (isPastYMD(v)) {
+                    setError("Follow Up Date cannot be before today.");
+                    setFollowUpDate(tomorrowISO());
+                    return;
+                  }
+                  setError("");
+                  setFollowUpDate(v);
+                }}
+              />
+            </div>
 
-        <div className="formrow">
-          <label className="lab" htmlFor="remarks">Remarks :</label>
-          <textarea
-            id="remarks"
-            name="remarks"
-            className="txta"
-            rows={6}
-            value={form.remarks}
-            readOnly={isLocked}
-            onChange={(e) => !isLocked && handleChange(e)}
-            placeholder=""
-          />
-        </div>
+            <div className="formrow">
+              <label className="lab">Follow Up Time :</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  className="inp"
+                  style={{ minWidth: 180 }}
+                  value={followUpTime}
+                  disabled={isLocked}
+                  onChange={(e) => !isLocked && setFollowUpTime(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {HALF_HOURS_1_TO_12_30.map((t) => (
+                    <option key={`fu-${t}`} value={t}>{t}</option>
+                  ))}
+                </select>
 
-        {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
+                <select
+                  className="inp"
+                  style={{ minWidth: 120 }}
+                  value={followUpAmPm}
+                  disabled={isLocked}
+                  onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
+          <div className="formrow">
+            <label className="lab" htmlFor="remarks">Remarks :</label>
+            <textarea
+              id="remarks"
+              name="remarks"
+              className="txta"
+              rows={6}
+              value={form.remarks}
+              readOnly={isLocked}
+              onChange={(e) => !isLocked && handleChange(e)}
+              placeholder=""
+            />
+          </div>
+
+          {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
         </fieldset>
-        
 
         <div className="btnrow">
           {!hideSubmit && (
-            <button className="btn" disabled={saving} onClick={handleSubmit}>
+            <button
+  className="btn"
+  disabled={saving || !form.disposition || !form.sbdisposition || !form.reasonCode}
+  onClick={handleSubmit}
+> 
               Submit
             </button>
           )}
@@ -470,7 +594,7 @@ const NoShowEntryDetails = () => {
       </div>
 
       <style jsx="true">{`
-      .pageTitle {
+        .pageTitle {
           font-size: 18px;
           font-weight: 700;
           margin: 0 0 30px;
@@ -491,8 +615,8 @@ const NoShowEntryDetails = () => {
         .btn:disabled { opacity:.6; cursor:not-allowed; }
         .btn:hover:not(:disabled) { opacity:.95; }
         .load { padding:40px; text-align:center; color:#666; }
-        .ldform{display: flex; gap: 40px; align-items: center;}
-         .fs {
+        .ldform{display: flex; gap: 40px; align-items: center; flex-wrap: wrap;}
+        .fs {
           border: 1px solid #e6ebf2;
           border-radius: 10px;
           padding: 14px 14px 16px;
