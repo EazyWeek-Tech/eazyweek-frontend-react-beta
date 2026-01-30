@@ -294,6 +294,36 @@ export default function OpportunityDetailedReport() {
   const sessionCtx = useMemo(() => getSessionContext(), []);
   const isCentriq = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
 
+   const [userRoleName, setUserRoleName] = useState("");
+
+  useEffect(() => {
+    const raw =
+      localStorage.getItem("user") ||
+      localStorage.getItem("loggedInUser") ||
+      sessionStorage.getItem("user") ||
+      sessionStorage.getItem("loggedInUser");
+
+    if (raw) {
+      try {
+        const u = JSON.parse(raw);
+        setUserRoleName(String(u?.roleName || "").trim());
+      } catch {
+        setUserRoleName("");
+      }
+    }
+  }, []);
+
+  const role = (userRoleName || "").toLowerCase();
+
+  const canExport =
+    role !== "team member" &&
+    role !== "clinic manager" &&
+    role !== "finance reviwer";
+
+  const canView =
+    role !== "clinic manager" &&
+    role !== "finance reviwer";
+
   const [clinicCode, setClinicCode] = useState(""); // string (single mode)
   const [clinicCodes, setClinicCodes] = useState([]); // array (Centriq mode)
 
@@ -756,13 +786,18 @@ export default function OpportunityDetailedReport() {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={loadDetailed} disabled={loading}>
-            View
-          </button>
-          <button className="btn" onClick={exportExcel} disabled={!rows.length}>
-            Export
-          </button>
-        </div>
+  {canView && (
+    <button className="btn" onClick={loadDetailed} disabled={loading}>
+      View
+    </button>
+  )}
+
+  {canExport && (
+    <button className="btn" onClick={exportExcel} disabled={!rows.length}>
+      Export
+    </button>
+  )}
+</div>
       </div>
 
       <div className="table-wrap">

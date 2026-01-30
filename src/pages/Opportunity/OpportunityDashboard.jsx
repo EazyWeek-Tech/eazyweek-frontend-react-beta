@@ -163,8 +163,33 @@ const OpportunityDashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [userRoleName, setUserRoleName] = useState("");
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+  // Adjust this based on where you store login user details
+  // Example: localStorage key "user" or "loggedInUser"
+  const raw =
+    localStorage.getItem("user") ||
+    localStorage.getItem("loggedInUser") ||
+    sessionStorage.getItem("user") ||
+    sessionStorage.getItem("loggedInUser");
+
+  if (raw) {
+    try {
+      const u = JSON.parse(raw);
+      setUserRoleName(String(u?.roleName || "").trim());
+    } catch (e) {
+      setUserRoleName("");
+    }
+  } else {
+    // If you already have user object from props/context, set it here instead
+    setUserRoleName("");
+  }
+}, []);
+
+const canManageCampaigns = userRoleName.toLowerCase() === "admin";
 
   const showToast = (message, type = "success", duration = 3000) => {
     setToast({ message, type });
@@ -653,23 +678,30 @@ const OpportunityDashboard = () => {
 
         {/* Actions */}
         <div className="action-section">
-          <div className="action-buttons">
-            <div className="button-group">
-              <button className="btn btn-secondary" onClick={handleEditOppName}>
-                Edit Opp Name
-              </button>
-              <button className="btn btn-secondary" onClick={handleExpireCampaign}>
-                Expire Campaign
-              </button>
-              <button className="btn btn-primary" onClick={handleCreateNewCampaign}>
-                Create New Campaign
-              </button>
-            </div>
-            <button className="btn-refresh" onClick={handleRefresh} title="Refresh">
-              Get Latest Data
-            </button>
-          </div>
-        </div>
+  <div className="action-buttons">
+    <div className="button-group">
+      {canManageCampaigns && (
+        <>
+          <button className="btn btn-secondary" onClick={handleEditOppName}>
+            Edit Opp Name
+          </button>
+
+          <button className="btn btn-secondary" onClick={handleExpireCampaign}>
+            Expire Campaign
+          </button>
+
+          <button className="btn btn-primary" onClick={handleCreateNewCampaign}>
+            Create New Campaign
+          </button>
+        </>
+      )}
+    </div>
+
+    <button className="btn-refresh" onClick={handleRefresh} title="Refresh">
+      Get Latest Data
+    </button>
+  </div>
+</div>
 
         {/* Controls */}
         <div className="controls-section">
