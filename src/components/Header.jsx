@@ -23,7 +23,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
 
   /* -------------------- No Zone mapping -------------------- */
   const NOZONE_UI_CODE = "NOZONE";
-  const NOZONE_UI_NAME = "No Zone";
+  const NOZONE_UI_NAME = "Centriq Clinics";
   const NOZONE_SESSION_CODE = "Centriq Clinics"; // <-- Backend expects this for TopCode & LoginCode
 
   const toSessionCenterCode = (uiCode) =>
