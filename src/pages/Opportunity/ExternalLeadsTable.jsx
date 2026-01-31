@@ -100,13 +100,29 @@ const fetchOppDetails = async ({ oppCode, fromISO, toISO }) => {
 /** -----------------------------
  * Row mapper
  * ----------------------------- */
+const normalizeOppStatus = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+
+  // numeric codes
+  if (s === "1") return "Open";
+  if (s === "2") return "Closed";
+
+  // text variants
+  const t = s.toLowerCase();
+  if (t === "open") return "Open";
+  if (t === "closed" || t === "close") return "Closed";
+
+  // fallback (still try to keep it readable)
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
 const mapExternalRow = (x) => {
   return {
     recid: x?.recid ?? x?.recId ?? "",
     custID: (x?.custID ?? "").toString(),
     custName: (x?.custName ?? "").toString(),
     custMobileNo: (x?.custMobileNo ?? "").toString(),
-    oppStatus: (x?.oppStatus ?? "").toString(), // ✅ Status column
+    oppStatus: normalizeOppStatus(x?.oppStatus),
     disposition: (x?.disposition ?? "").toString(),
     remarks: (x?.remarks ?? "").toString(),
     salesOwner: (x?.salesOwner ?? "").toString(),
@@ -116,7 +132,7 @@ const mapExternalRow = (x) => {
       x?.custID,
       x?.custName,
       x?.custMobileNo,
-      x?.oppStatus,
+     normalizeOppStatus(x?.oppStatus),
       x?.disposition,
       x?.remarks,
       x?.salesOwner,

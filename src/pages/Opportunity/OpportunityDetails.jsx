@@ -1634,6 +1634,8 @@ const getRowDateStampForFilter = (row) => {
               <table className="opptable">
                 <thead>
                   <tr>
+                    <th>Prospect ID</th>
+                    <th>Prospect Type</th>
                     <th onClick={() => handleSort("custID")}>Customer ID <span className="sort">{sortArrow("custID")}</span></th>
                     <th onClick={() => handleSort("custName")}>Customer Name <span className="sort">{sortArrow("custName")}</span></th>
                     <th onClick={() => handleSort("custMobileNo")}>MobileNo <span className="sort">{sortArrow("custMobileNo")}</span></th>
@@ -1648,6 +1650,14 @@ const getRowDateStampForFilter = (row) => {
                 <tbody>
                   {pagedRows.map((r, i) => (
                     <tr key={`${r.recid || r.custID || r.id || i}-${i}`}>
+                      <td>
+                         <button className="linkish" onClick={() => openCustomer(r)}>
+                        LD-{safe(r.recid)}
+                        </button>
+                      </td>
+                      <td>
+                        Opportunity
+                      </td>
                       <td>
                         <button className="linkish" onClick={() => openCustomer(r)}>
                           {safe(r.custID, "—")}

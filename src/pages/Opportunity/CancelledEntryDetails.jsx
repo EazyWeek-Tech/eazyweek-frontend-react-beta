@@ -27,9 +27,8 @@ const SUB_DISPOSITION_BY_DISPOSITION = {
     { value: "LS027", label: "Took Service Outside " },
   ],
 };
-
 const getSubDispositionOptions = (disp) => {
-  const key = String(disp || "").trim();
+  const key = normalizeLSCode(disp);
   return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
 };
 
@@ -95,13 +94,11 @@ const tomorrowISO = () => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
-
-// ✅ normalize disposition from API (code or label)
 const normalizeDispCode = (v) => {
-  const s = String(v ?? "").trim();
+  const s = String(v ?? "").trim().toUpperCase();
   if (!s) return "";
 
-  if (/^LS\d{3}$/i.test(s)) return s.toUpperCase();
+  if (/^LS\d{2,6}$/.test(s)) return s;
 
   const t = s.toLowerCase();
   if (t === "converted") return "LS008";
@@ -120,6 +117,14 @@ const isPlaceholderDate = (yyyyMmDd) => {
     s === "1900-01-01" ||
     s === "0001-01-01"
   );
+};
+
+const normalizeLSCode = (v) => {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (!s) return "";
+  // accept LS + 2..6 digits (LS022, LS0021, LS0022 etc.)
+  if (/^LS\d{2,6}$/.test(s)) return s;
+  return s;
 };
 
 const isPastYMD = (yyyyMmDd) => {
@@ -194,6 +199,16 @@ const CancelledEntryDetails = () => {
   const [reasonOptions, setReasonOptions] = useState([{ code: "", name: "" }]);
   const [reasonsLoading, setReasonsLoading] = useState(false);
 
+  
+
+  // ✅ add reasonCode in form
+  const [form, setForm] = useState({
+    disposition: "",
+    sbdisposition: "",
+    reasonCode: "", // ✅ NEW
+    remarks: "",
+  });
+
   const subDispositionOptions = useMemo(() => {
   return getSubDispositionOptions(form.disposition);
 }, [form.disposition]);
@@ -207,14 +222,6 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [form.disposition]);
 
-
-  // ✅ add reasonCode in form
-  const [form, setForm] = useState({
-    disposition: "",
-    sbdisposition: "",
-    reasonCode: "", // ✅ NEW
-    remarks: "",
-  });
 
   const [saving, setSaving] = useState(false);
 
@@ -291,26 +298,37 @@ useEffect(() => {
         setFollowUpTime(apiTime || DEFAULT_TIME);
         setFollowUpAmPm((apiTime ? apiAmPm : DEFAULT_AMPM) || DEFAULT_AMPM);
 
-        // ✅ disposition from API (on load)
         const apiDisp = normalizeDispCode(
-          data?.distpositionCode || data?.distpositionName
-        );
-        setInitialDisp(apiDisp);
+  data?.distpositionCode || data?.distpositionName
+);
+setInitialDisp(apiDisp);
 
-        const apiRemarks = String(data?.remarts || "").trim();
+const apiSubDisp = normalizeLSCode(
+  data?.subDistpositionCode || data?.subDistpositionName
+);
 
-        // ✅ if API returns a reason code, prefill it (safe)
-        const apiReasonCode = String(
-          data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
-        ).trim();
+const apiReasonCode = String(
+  data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
+).trim();
 
-        // ✅ Prefill from row OR API
+const apiRemarks = String(data?.remarts || "").trim();
+
+// ✅ decide disposition shown in UI
+const resolvedDisp = normalizeDispCode(state?.row?.disposition) || apiDisp || "";
+
+// ✅ validate subdisp belongs to this disposition group
+const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) =>
+  normalizeLSCode(x.value)
+);
+const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
+
         setForm((p) => ({
-          ...p,
-          disposition: normalizeDispCode(state?.row?.disposition) || apiDisp || "",
-          remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
-          reasonCode: p.reasonCode || apiReasonCode || "",
-        }));
+  ...p,
+  disposition: resolvedDisp,
+  sbdisposition: p.sbdisposition || resolvedSubDisp || "",
+  remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
+  reasonCode: p.reasonCode || apiReasonCode || "",
+}));
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load details.");
@@ -334,7 +352,7 @@ useEffect(() => {
       appointmentDate: safe(details?.appointmentDate || row?.appointmentdatetime),
       therapist: safe(details?.therapist || row?.therapistname),
       oppName: safe(header?.oppName || row?.oppName),
-      appointmentHeading: safe(details?.appointmentHeading || ""),
+      serviceName: safe(details?.serviceName || ""),
       dispCode: safe(details?.distpositionCode || ""),
       dispName: safe(details?.distpositionName || ""),
       remarks: safe(details?.remarts || ""),
@@ -367,18 +385,18 @@ useEffect(() => {
     const oppStatus = oppStatusFromDisposition(form.disposition);
 
     return {
-      recID,
-      disposition: form.disposition,
-      remarks: form.remarks,
-      oppCode,
-      oppStatus,
-      followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
-      followUpTime: followUpTime || DEFAULT_TIME,
-      followUpTimeAmPM: followUpAmPm || DEFAULT_AMPM,
+  recID,
+  disposition: form.disposition,
+  remarks: form.remarks,
+  oppCode,
+  oppStatus,
+  followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
+  followUpTime: followUpTime || DEFAULT_TIME,
+  followUpTimeAmPM: followUpAmPm || DEFAULT_AMPM,
 
-      // ✅ NEW: send reason code (rename key if backend expects different)
-      reasonCode: form.reasonCode || "",
-    };
+  subDisposition: form.sbdisposition || "",   // ✅ ADD THIS
+  reasonCode: form.reasonCode || "",          // ✅ already there
+};
   };
 
   const callUpdate = async () => {
@@ -479,7 +497,7 @@ useEffect(() => {
             <div className="col">
               <div className="pair">
                 <span className="lab">Appointment Service:</span>{" "}
-                <span className="val">{top.category}</span>
+                <span className="val">{top.serviceName}</span>
               </div>
               <div className="pair">
                 <span className="lab">Recent Appointment Date :</span>{" "}
@@ -548,7 +566,7 @@ useEffect(() => {
                 id="reasonCode"
                 name="reasonCode"
                 value={form.reasonCode}
-                disabled={isLocked || reasonsLoading || !form.sbdisposition}
+                disabled={isLocked || reasonsLoading}
                 onChange={(e) => !isLocked && handleChange(e)}
                 className="inp"
               >

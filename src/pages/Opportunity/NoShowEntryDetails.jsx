@@ -30,10 +30,9 @@ const SUB_DISPOSITION_BY_DISPOSITION = {
 };
 
 const getSubDispositionOptions = (disp) => {
-  const key = String(disp || "").trim();
+  const key = normalizeLSCode(disp);
   return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
 };
-
 
 // (kept consistent with your existing app)
 const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
@@ -103,6 +102,14 @@ const isPlaceholderDate = (yyyyMmDd) => {
     s === "1900-01-01" ||
     s === "0001-01-01"
   );
+};
+
+const normalizeLSCode = (v) => {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (!s) return "";
+  // accept LS + 2..6 digits (covers LS022, LS0021, etc.)
+  if (/^LS\d{2,6}$/.test(s)) return s;
+  return s;
 };
 
 const isPastYMD = (yyyyMmDd) => {
@@ -191,15 +198,13 @@ const NoShowEntryDetails = () => {
   const subDispositionOptions = useMemo(() => {
   return getSubDispositionOptions(form.disposition);
 }, [form.disposition]);
-
 useEffect(() => {
-  // ✅ If disposition changes, and current subdisp is not part of that group, clear it.
   const allowed = subDispositionOptions.map((x) => x.value);
   if (form.sbdisposition && !allowed.includes(form.sbdisposition)) {
     setForm((p) => ({ ...p, sbdisposition: "" }));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [form.disposition]);
+}, [form.disposition, subDispositionOptions]);
 
 
   // ✅ Load reasons list
@@ -267,25 +272,34 @@ useEffect(() => {
         setFollowUpTime(apiTime || DEFAULT_TIME);
         setFollowUpAmPm((apiTime ? apiAmPm : DEFAULT_AMPM) || DEFAULT_AMPM);
 
-        // ✅ disposition from API (on load)
-        const apiDisp = normalizeDispCode(data?.distpositionCode || data?.distpositionName);
-        setInitialDisp(apiDisp);
+     const apiDisp = normalizeLSCode(data?.distpositionCode || data?.distpositionName);
+setInitialDisp(apiDisp);
 
-        const apiRemarks = String(data?.remarts || "").trim();
+const apiSubDispRaw = data?.subDistpositionCode || data?.subDistpositionName;
+const apiSubDisp = normalizeLSCode(apiSubDispRaw);
 
-        // ✅ if API returns a reason code, prefill it (safe)
-        const apiReasonCode = String(
-          data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
-        ).trim();
+const apiReasonCode = String(
+  data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
+).trim();
 
-        // ✅ set form values once
-        setForm((p) => ({
-          ...p,
-          disposition: normalizeDispCode(state?.row?.disposition) || apiDisp || "",
-          remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
-          reasonCode: p.reasonCode || apiReasonCode || "",
-          // sbdisposition: keep as is (since your subdisp options not wired yet)
-        }));
+const apiRemarks = String(data?.remarts || "").trim();
+
+// ✅ choose UI disposition
+const resolvedDisp = normalizeLSCode(state?.row?.disposition) || apiDisp || "";
+
+// ✅ allow-list check using normalized values
+const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) => normalizeLSCode(x.value));
+const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
+
+// ✅ set form
+setForm((p) => ({
+  ...p,
+  disposition: resolvedDisp,
+  sbdisposition: p.sbdisposition || resolvedSubDisp || "",
+  remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
+  reasonCode: p.reasonCode || apiReasonCode || "",
+}));
+
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load details.");
@@ -308,7 +322,7 @@ useEffect(() => {
     appointmentDate: safe(details?.appointmentDate || row?.appointmentdatetime),
     therapist: safe(details?.therapist || row?.therapistname),
     oppName: safe(header?.oppName || row?.oppName),
-    appointmentHeading: safe(details?.appointmentHeading || ""),
+    serviceName: safe(details?.serviceName || ""),
     dispCode: safe(details?.distpositionCode || ""),
     dispName: safe(details?.distpositionName || ""),
     remarks: safe(details?.remarts || ""),
@@ -325,7 +339,7 @@ useEffect(() => {
   const { name, value } = e.target;
 
   setForm((p) => {
-    // ✅ when disposition changes, reset subdisp
+    // ✅ when disposition changes, reset only subdisp
     if (name === "disposition") {
       return { ...p, disposition: value, sbdisposition: "" };
     }
@@ -333,25 +347,23 @@ useEffect(() => {
   });
 };
 
-
   const buildUpdatePayload = () => {
     const recID = state?.recId || getRecId(state?.row);
     const oppStatus = oppStatusFromDisposition(form.disposition);
 
     return {
-      recID,
-      disposition: form.disposition,
-      remarks: form.remarks,
-      oppCode,
-      oppStatus,
-      followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
-      followUpTime: (followUpTime || DEFAULT_TIME),
-      followUpTimeAmPM: (followUpAmPm || DEFAULT_AMPM),
+  recID,
+  disposition: form.disposition,
+  remarks: form.remarks,
+  oppCode,
+  oppStatus,
+  followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
+  followUpTime: (followUpTime || DEFAULT_TIME),
+  followUpTimeAmPM: (followUpAmPm || DEFAULT_AMPM),
 
-      // ✅ NEW: send reason code (rename key if backend expects different)
-      reasonCode: form.reasonCode || "",
-       subDisposition: form.sbdisposition || "",
-    };
+  subDisposition: form.sbdisposition || "",
+  reasonCode: form.reasonCode || "",
+};
   };
 
   const callUpdate = async () => {
@@ -437,7 +449,7 @@ useEffect(() => {
             </div>
 
             <div className="col">
-              <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.category}</span></div>
+              <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.serviceName}</span></div>
               <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
               <div className="pair"><span className="lab">Appointment with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
             </div>
@@ -489,7 +501,7 @@ useEffect(() => {
                 id="reasonCode"
                 name="reasonCode"
                 value={form.reasonCode}
-                disabled={isLocked || reasonsLoading || !form.sbdisposition}
+                disabled={isLocked || reasonsLoading }
                 onChange={(e) => !isLocked && handleChange(e)}
                 className="inp"
               >
@@ -606,7 +618,7 @@ useEffect(() => {
         .col { display:grid; gap:12px; min-width: 470px; }
         .pair { font-size:15px; color:#333; margin: 0 0 20px; }
         .lab { display:inline-block; min-width:140px; color:#555; font-weight:600; font-size:12px;margin: 0 0 10px; }
-        .val { color:#222; display: flex; align-items: center; padding: 6px 8px; height: 36px; max-width: 390px; border:1px solid #d8dee9; border-radius:6px; }
+        .val { color:#222; display: flex; align-items: center; padding: 6px 8px; height: 36px; max-width: 530px;  text-overflow: ellipsis; border:1px solid #d8dee9; border-radius:6px; }
         .formrow { display:flex; align-items:center; gap:12px; margin:12px 0;  }
         .inp { flex:1; max-width:520px; min-width: 270px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
         .txta { flex:1; max-width:520px; padding:8px; border:1px solid #d8dee9; border-radius:6px; resize:vertical; }
