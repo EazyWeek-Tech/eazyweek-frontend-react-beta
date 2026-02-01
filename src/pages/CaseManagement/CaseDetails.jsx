@@ -1378,8 +1378,22 @@ if (actionType === "submit") {
                 disabled={saving || closed}
               >
                 <option value="">Select</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Unresolved">Unresolved</option>
+
+<option value="Doctor meet up appointment given">Doctor meet up appointment given</option>
+<option value="Refund given">Refund given</option>
+<option value="Approval in process (refund /complimentary session)">
+  Approval in process (refund /complimentary session)
+</option>
+<option value="Client not reachable">Client not reachable</option>
+<option value="Client is fine and will continue with our services">
+  Client is fine and will continue with our services
+</option>
+<option value="Client might come back later">Client might come back later</option>
+<option value="Retained with complimentary session">Retained with complimentary session</option>
+<option value="Refund cancelled and retained">Refund cancelled and retained</option>
+<option value="Refunded into prepaid card to be used in different service">
+  Refunded into prepaid card to be used in different service
+</option>
               </select>
             </div>
           </div>
