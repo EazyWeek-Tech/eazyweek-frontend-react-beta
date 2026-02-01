@@ -543,31 +543,32 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
-  // ========= Validation =========
   const validateGeneralTab = () => {
-    const errs = {};
-    if (!formValues.title?.trim()) errs.title = "Case Title is required.";
-    // ASCII-only title
-    if (/[^\x20-\x7E]/.test(formValues.title)) {
-      errs.title = "Only English (ASCII) characters are allowed.";
-    }
-    if (!formValues.category) errs.category = "Case Category is required.";
-    if (!formValues.subcategory) errs.subcategory = "Case Sub Category is required.";
-    if (!formValues.subSubcategory) errs.subSubcategory = "Case Sub Sub Category is required.";
-    if (!formValues.subSubSubcategory) errs.subSubSubcategory = "Case Sub Sub Sub Category is required.";
-    if (!formValues.caseMedium) errs.caseMedium = "Case Medium is required.";
-    if (!formValues.caseSource) errs.caseSource = "Case Source is required.";
-    if (!formValues.priority) errs.priority = "Priority is required.";
-    if (!customerSearchText?.trim()) errs.customerSearchText = "Search Customer is required.";
-    if (!formValues.customerCode) errs.customerCode = "Customer is required.";
+  const errs = {};
+  if (!formValues.title?.trim()) errs.title = "Case Title is required.";
+  if (/[^\x20-\x7E]/.test(formValues.title)) {
+    errs.title = "Only English (ASCII) characters are allowed.";
+  }
+  if (!formValues.category) errs.category = "Case Category is required.";
+  if (!formValues.subcategory) errs.subcategory = "Case Sub Category is required.";
+  if (!formValues.subSubcategory) errs.subSubcategory = "Case Sub Sub Category is required.";
+  if (!formValues.subSubSubcategory) errs.subSubSubcategory = "Case Sub Sub Sub Category is required.";
+  if (!formValues.caseMedium) errs.caseMedium = "Case Medium is required.";
+  if (!formValues.caseSource) errs.caseSource = "Case Source is required.";
+  if (!formValues.priority) errs.priority = "Priority is required.";
 
-    const createdByDisplay = getUserDisplay(currentUser);
-    if (!createdByDisplay) errs.createdBy = "Created By is required.";
-    const createdDateDisplay = new Date().toLocaleDateString();
-    if (!createdDateDisplay) errs.createdDate = "Created Date is required.";
+  // ✅ Customer is OPTIONAL
+  if (customerSearchText?.trim() && !formValues.customerCode) {
+    errs.customerCode = "Please select a customer from the list (or clear search).";
+  }
 
-    return errs;
-  };
+  const createdByDisplay = getUserDisplay(currentUser);
+  if (!createdByDisplay) errs.createdBy = "Created By is required.";
+  const createdDateDisplay = new Date().toLocaleDateString();
+  if (!createdDateDisplay) errs.createdDate = "Created Date is required.";
+
+  return errs;
+};
 
   const validateIssueTab = () => {
     const errs = {};
@@ -641,7 +642,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       casemedium: formValues.caseMedium,
       casesource: formValues.caseSource,
       priority: formValues.priority,
-      custID: formValues.customerCode,
+      custID: formValues.customerCode || "0",
       productCode: formValues.product,
       servicecode: formValues.service,
       serviceccode: formValues.serviceCategory,
@@ -1282,7 +1283,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
               {/* Search Customer */}
               <div className="form-group">
                 <label htmlFor="customerSearch">
-                  Search Customer <span style={{ color: "red" }}>*</span>
+                  Search Customer 
                 </label>
                 <input
                   type="search"
@@ -1306,7 +1307,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
               {/* Customer */}
               <div className="form-group">
                 <label htmlFor="customer">
-                  Customer <span style={{ color: "red" }}>*</span>
+                  Customer 
                 </label>
                 <select
                   id="customer"
