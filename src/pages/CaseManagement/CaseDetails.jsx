@@ -793,9 +793,18 @@ const CaseDetailsPage = () => {
   if (loading) return <div>Loading case details...</div>;
   if (!selectedCaseData) return <div>Case not found</div>;
 
-  const isComplaintCase = /complaint/i.test(
-    trim(selectedCaseData?.caseCategory) || trim(selectedCaseData?.categoryName) || ""
-  );
+ const isComplaintCase = (() => {
+  const name = trim(selectedCaseData?.caseCategory || selectedCaseData?.categoryName || "").toLowerCase();
+  const code = trim(selectedCaseData?.categoryCode || "").toLowerCase();
+
+  // match common variations
+  if (name.includes("complaint")) return true;
+
+  // if your DB has complaint category codes, add them here:
+  // if (["cmp", "complaint", "cc001"].includes(code)) return true;
+
+  return false;
+})();
 
   const getLatestResponse = () => {
     const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
@@ -1356,8 +1365,60 @@ if (actionType === "submit") {
         <div className="casecell">
           <div className="form-group">
             <label>Case Disposition{closed ? " *" : ""}</label>
-            <select value={disposition} onChange={(e) => setDisposition(e.target.value)} disabled={saving || closed}>
-              <option value="">Select Case Disposition</option>
+          <select
+  value={disposition}
+ onChange={(e) => {
+  const val = e.target.value;
+  setDisposition(val);
+
+  // 🔁 If user clears disposition → restore original status
+  if (!val || val === "0") {
+    const originalStatus = initialStatusRef.current || status || "Open";
+    setPendingClose(false);
+    setUiStatus(originalStatus);
+    setStatus(originalStatus);
+
+    setToast({
+      type: "info",
+      message: `Case status restored to ${originalStatus}.`,
+    });
+    return;
+  }
+
+  // ✅ Disposition selected → move to Close intent
+  setUiStatus("Closed");
+  setPendingClose(true);
+
+  // ✅ Complaint category: CSR must be selected BEFORE anything else
+  const csr = getLatestCSR();
+  if (isComplaintCase && !csr) {
+    setToast({
+      type: "error",
+      message: "This is a Complaint case. Please select Category Specific Resolution to close the case.",
+    });
+    handleTabClick("general");
+    return;
+  }
+
+  // then require response
+  const resp = getLatestResponse();
+  if (!resp) {
+    setToast({
+      type: "info",
+      message: "Disposition selected. Please add a response and click Submit to close the case.",
+    });
+    handleTabClick("issues");
+    return;
+  }
+
+  setToast({
+    type: "success",
+    message: "All details are ready. Click Submit to close the case.",
+  });
+}}
+  disabled={saving || closed}
+>
+              <option value="0">Select Case Disposition</option>
               <option value="No Solution">No Solution</option>
               <option value="Resolved">Resolved</option>
               <option value="Unresolved">Unresolved</option>

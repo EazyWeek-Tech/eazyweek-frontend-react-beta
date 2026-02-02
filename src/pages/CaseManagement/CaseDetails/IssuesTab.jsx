@@ -789,7 +789,7 @@ const computedCc = useMemo(() => {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontWeight: 700 }}>
+              <div style={{ fontWeight: 700, display: 'none' }}>
                 QC Info{" "}
                 {stageLabel && (
                   <span
@@ -823,7 +823,7 @@ const computedCc = useMemo(() => {
             <div
               style={{
                 marginTop: 10,
-                display: "grid",
+                display: "none",
                 gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 gap: 10,
               }}
