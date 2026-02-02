@@ -705,7 +705,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         }
 
         // ✅ Send email on SAVE also
-        await sendCaseAssignmentEmail(finalCaseNo || casenoForSave || savedCaseNoEffective || "");
+     //   await sendCaseAssignmentEmail(finalCaseNo || casenoForSave || savedCaseNoEffective || "");
 
         showToast(`Case saved successfully${finalCaseNo ? ` (Case No: ${finalCaseNo})` : ""}`, "success");
 
@@ -1418,16 +1418,13 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
               </div>
 
               <div className="buttongrp">
-                <a className="pribtn" onClick={handleSave}>
-                  Save
-                </a>
-                <a className="secbtn" onClick={handleSubmit}>
-                  Submit
-                </a>
-                <a className="secbtn" onClick={onClose}>
-                  Cancel
-                </a>
-              </div>
+  <a className="pribtn" onClick={handleRegisterClick}>
+    Next
+  </a>
+  <a className="secbtn" onClick={onClose}>
+    Cancel
+  </a>
+</div>
             </div>
 
             {/* ---------------------------
