@@ -30,38 +30,72 @@ const toOptions = (items, valueKey, labelKey) =>
       __raw: x,
     }));
 
+// ---- Session helpers ----
+const tryParseJson = (s) => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
+
+// Adjust these keys based on what your app stores
+const getSessionObj = () => {
+  const keysToTry = ["session", "userSession", "sessionData", "loginSession"];
+  for (const k of keysToTry) {
+    const raw = sessionStorage.getItem(k) || localStorage.getItem(k);
+    if (!raw) continue;
+    const obj = tryParseJson(raw);
+    if (obj && typeof obj === "object") return obj;
+  }
+  return null;
+};
+
+const getLoggedInClinicCode = () => {
+  const s = getSessionObj();
+  return s?.clinicCode || s?.centerCode || s?.loginCode || s?.topCode || "";
+};
+
 const CaseDetailedReport = () => {
-  // ---------- Filters (arrays for multi-select) ----------
+  // ---------- Filters ----------
+  // Single-select: Category, SubCategory, SubSubCategory, SubSubSubCategory, Medium, Source, Status, Resolution
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
 
-    categoryCodes: [],          // [{value, label}]
-    subCategoryCodes: [],       // depends on categories
-    subSubCategoryCodes: [],    // depends on subcategories (+ categories)
+    categoryCode: null,
+    subCategoryCode: null,
+    subSubCategoryCode: null,
+    subSubSubCategoryCode: null,
 
-    caseStatuses: [],           // ["Open", ...]
-    caseMediums: [],            // text names from API
-    caseSources: [],            // codes from API (depends on category + medium)
-    caseDispositions: [],       // freeform; using Creatable
-    caseSpecificResolutions: [],// from category (names)
-    clientThreats: [],          // ["Legal", ...]
-    therapists: [],             // doctor codes
+    caseStatus: null,
+    caseMedium: null,
+    caseSource: null,
+
+    caseDispositions: [], // keep multi (creatable)
+    caseSpecificResolution: null, // single
+
+    clientThreats: [], // keep multi
+    therapists: [], // keep multi
   });
 
   const handleMulti = (field) => (selected) =>
     setFilters((p) => ({ ...p, [field]: selected || [] }));
+
+  const handleSingle = (field) => (selected) =>
+    setFilters((p) => ({ ...p, [field]: selected || null }));
 
   const handleDate = (field) => (e) =>
     setFilters((p) => ({ ...p, [field]: e.target.value }));
 
   // ---------- Raw option stores ----------
   const [categoriesRaw, setCategoriesRaw] = useState([]);
-  const [subCatsRaw, setSubCatsRaw] = useState([]);       // merged from selected categories
-  const [subSubCatsRaw, setSubSubCatsRaw] = useState([]); // merged from selected subcats(+cats)
+  const [subCatsRaw, setSubCatsRaw] = useState([]);
+  const [subSubCatsRaw, setSubSubCatsRaw] = useState([]);
+  const [subSubSubCatsRaw, setSubSubSubCatsRaw] = useState([]); // if you add API later
   const [mediumsRaw, setMediumsRaw] = useState([]);
-  const [sourcesRaw, setSourcesRaw] = useState([]);       // merged from selected categories+mediums
-  const [specificResRaw, setSpecificResRaw] = useState([]);// merged from categories
+  const [sourcesRaw, setSourcesRaw] = useState([]);
+  const [specificResRaw, setSpecificResRaw] = useState([]);
   const [therapistsRaw, setTherapistsRaw] = useState([]);
 
   // ---------- Data / UI ----------
@@ -78,11 +112,24 @@ const CaseDetailedReport = () => {
 
   // ---------- Static options ----------
   const statusOptions = useMemo(
-    () => ["Open", "WIP", "Closed", "Resolved"].map((s) => ({ value: s, label: s })),
+    () => ["Open", "WIP", "Closed"].map((s) => ({ value: s, label: s })),
     []
   );
   const clientThreatOptions = useMemo(
-    () => ["Legal", "Verbal", "Written", "Physical"].map((s) => ({ value: s, label: s })),
+    () =>
+      ["Legal", "Verbal", "Written", "Physical", "NA"].map((s) => ({
+        value: s,
+        label: s,
+      })),
+    []
+  );
+
+  const dispositionOptions = useMemo(
+    () =>
+      ["No Solution", "Resolved", "Unresolved"].map((d) => ({
+        value: d,
+        label: d,
+      })),
     []
   );
 
@@ -92,6 +139,15 @@ const CaseDetailedReport = () => {
     return isNaN(d) ? iso : d.toLocaleDateString("en-GB"); // dd/MM/yyyy
   };
   const safe = (v) => (v == null ? "" : String(v));
+
+  // ---- date formatting for payload ----
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const formatDDMMYYYY_Dash = (d) => {
+    const dt = d instanceof Date ? d : new Date(d);
+    if (isNaN(dt)) return "";
+    return `${pad2(dt.getDate())}-${pad2(dt.getMonth() + 1)}-${dt.getFullYear()}`;
+  };
+  const todayDDMMYYYY = () => formatDDMMYYYY_Dash(new Date());
 
   // ---------- Load fundamentals on mount ----------
   useEffect(() => {
@@ -136,7 +192,7 @@ const CaseDetailedReport = () => {
           headers: { "Content-Type": "application/json" },
         });
         const d = await r.json();
-        const list = Array.isArray(d) ? d : (d ? [d] : []);
+        const list = Array.isArray(d) ? d : d ? [d] : [];
         setTherapistsRaw(
           list
             .filter((doc) => doc?.code && doc?.name && doc.name !== "< - Select one - >")
@@ -149,165 +205,129 @@ const CaseDetailedReport = () => {
     })();
   }, []);
 
-  // ---------- Multi-cascade: Category -> SubCategory + SpecificRes + (maybe) Sources ----------
+  // ---------- Single-cascade: Category -> SubCategory + SpecificRes + reset others ----------
   useEffect(() => {
-    const cats = filters.categoryCodes.map((o) => o.value);
-    // Reset dependents when categories change
+    const cat = filters.categoryCode?.value || "";
+
+    // Reset dependents when category changes
     setSubCatsRaw([]);
     setSubSubCatsRaw([]);
+    setSubSubSubCatsRaw([]);
     setSpecificResRaw([]);
     setSourcesRaw([]);
+
     setFilters((p) => ({
       ...p,
-      subCategoryCodes: [],
-      subSubCategoryCodes: [],
-      caseSpecificResolutions: [],
-      caseSources: [],
+      subCategoryCode: null,
+      subSubCategoryCode: null,
+      subSubSubCategoryCode: null,
+      caseSpecificResolution: null,
+      caseSource: null,
     }));
-    if (cats.length === 0) return;
+
+    if (!cat) return;
 
     (async () => {
+      // Subcategories
       try {
-        // Fetch subcategories for each selected category; merge unique by code
-        const subcatArrays = await Promise.all(
-          cats.map(async (code) => {
-            try {
-              const r = await fetch(
-                `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?CategoryCode=${encodeURIComponent(
-                  code
-                )}`,
-                { credentials: "include", headers: { "Content-Type": "application/json" } }
-              );
-              const d = await r.json();
-              return Array.isArray(d) ? d : [];
-            } catch {
-              return [];
-            }
-          })
+        const r = await fetch(
+          `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?CategoryCode=${encodeURIComponent(
+            cat
+          )}`,
+          { credentials: "include", headers: { "Content-Type": "application/json" } }
         );
-        const mergedSub = uniqBy(
-          subcatArrays.flat(),
-          (x) => x?.subCategoryCode ?? x?.subCategoryName
-        );
-        setSubCatsRaw(mergedSub);
+        const d = await r.json();
+        setSubCatsRaw(Array.isArray(d) ? d : []);
       } catch (e) {
-        console.error("Failed to merge subcategories", e);
+        console.error("Failed to load subcategories", e);
         setSubCatsRaw([]);
       }
 
+      // Specific resolutions
       try {
-        // Specific resolutions per category
-        const specArrays = await Promise.all(
-          cats.map(async (code) => {
-            try {
-              const r = await fetch(
-                `${API_BASE_URL}/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${encodeURIComponent(
-                  code
-                )}`,
-                { credentials: "include", headers: { "Content-Type": "application/json" } }
-              );
-              const d = await r.json();
-              const list = Array.isArray(d) ? d : (d ? [d] : []);
-              return list.filter((x) => x?.name).map((x) => x.name.trim());
-            } catch {
-              return [];
-            }
-          })
+        const r = await fetch(
+          `${API_BASE_URL}/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${encodeURIComponent(
+            cat
+          )}`,
+          { credentials: "include", headers: { "Content-Type": "application/json" } }
         );
-        const mergedSpec = Array.from(new Set(specArrays.flat()));
+        const d = await r.json();
+        const list = Array.isArray(d) ? d : d ? [d] : [];
+        const mergedSpec = Array.from(
+          new Set(list.filter((x) => x?.name).map((x) => x.name.trim()))
+        );
         setSpecificResRaw(mergedSpec);
       } catch (e) {
-        console.error("Failed to merge specific resolutions", e);
+        console.error("Failed to load specific resolutions", e);
         setSpecificResRaw([]);
       }
 
-      // If we already have mediums selected, refresh Sources too
-      if (filters.caseMediums.length > 0) {
-        await refreshSources(cats, filters.caseMediums.map((m) => m.value));
+      // If medium already selected, refresh sources
+      if (filters.caseMedium?.value) {
+        await refreshSources(cat, filters.caseMedium.value);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.categoryCodes]);
+  }, [filters.categoryCode]);
 
-  // ---------- Multi-cascade: SubCategory -> SubSubCategory ----------
+  // ---------- Single-cascade: SubCategory -> SubSubCategory ----------
   useEffect(() => {
-    const cats = filters.categoryCodes.map((o) => o.value);
-    const subs = filters.subCategoryCodes.map((o) => o.value);
+    const cat = filters.categoryCode?.value || "";
+    const sub = filters.subCategoryCode?.value || "";
 
     setSubSubCatsRaw([]);
-    setFilters((p) => ({ ...p, subSubCategoryCodes: [] }));
+    setSubSubSubCatsRaw([]);
 
-    if (cats.length === 0 || subs.length === 0) return;
+    setFilters((p) => ({
+      ...p,
+      subSubCategoryCode: null,
+      subSubSubCategoryCode: null,
+    }));
+
+    if (!cat || !sub) return;
 
     (async () => {
       try {
-        // For each (category, subCat) combination, fetch subSub; merge unique
-        const combos = [];
-        for (const c of cats) for (const s of subs) combos.push({ c, s });
-        const subsubArrays = await Promise.all(
-          combos.map(async ({ c, s }) => {
-            try {
-              const r = await fetch(
-                `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?CategoryCode=${encodeURIComponent(
-                  c
-                )}&SubCategoryCode=${encodeURIComponent(s)}`,
-                { credentials: "include", headers: { "Content-Type": "application/json" } }
-              );
-              const d = await r.json();
-              return Array.isArray(d) ? d : [];
-            } catch {
-              return [];
-            }
-          })
+        const r = await fetch(
+          `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?CategoryCode=${encodeURIComponent(
+            cat
+          )}&SubCategoryCode=${encodeURIComponent(sub)}`,
+          { credentials: "include", headers: { "Content-Type": "application/json" } }
         );
-        const merged = uniqBy(
-          subsubArrays.flat(),
-          (x) => x?.subCategoryCode ?? x?.subSubCategoryName
-        );
-        setSubSubCatsRaw(merged);
+        const d = await r.json();
+        setSubSubCatsRaw(Array.isArray(d) ? d : []);
       } catch (e) {
-        console.error("Failed to merge sub-sub categories", e);
+        console.error("Failed to load sub-sub categories", e);
         setSubSubCatsRaw([]);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.subCategoryCodes]);
+  }, [filters.subCategoryCode]);
 
-  // ---------- Multi-cascade: Category + Medium -> Sources ----------
+  // ---------- Single-cascade: Category + Medium -> Sources ----------
   useEffect(() => {
-    const cats = filters.categoryCodes.map((o) => o.value);
-    const meds = filters.caseMediums.map((o) => o.value);
+    const cat = filters.categoryCode?.value || "";
+    const med = filters.caseMedium?.value || "";
+
     setSourcesRaw([]);
-    setFilters((p) => ({ ...p, caseSources: [] }));
+    setFilters((p) => ({ ...p, caseSource: null }));
 
-    if (cats.length === 0 || meds.length === 0) return;
+    if (!cat || !med) return;
 
-    refreshSources(cats, meds);
+    refreshSources(cat, med);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.caseMediums]);
+  }, [filters.caseMedium]);
 
-  const refreshSources = async (cats, meds) => {
+  const refreshSources = async (cat, med) => {
     try {
-      const pairs = [];
-      for (const c of cats) for (const m of meds) pairs.push({ c, m });
-      const arrays = await Promise.all(
-        pairs.map(async ({ c, m }) => {
-          try {
-            const r = await fetch(
-              `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${encodeURIComponent(
-                c
-              )}&MediumCode=${encodeURIComponent(m)}`,
-              { credentials: "include", headers: { "Content-Type": "application/json" } }
-            );
-            const d = await r.json();
-            return Array.isArray(d) ? d : [];
-          } catch {
-            return [];
-          }
-        })
+      const r = await fetch(
+        `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${encodeURIComponent(
+          cat
+        )}&MediumCode=${encodeURIComponent(med)}`,
+        { credentials: "include", headers: { "Content-Type": "application/json" } }
       );
-      const merged = uniqBy(arrays.flat(), (x) => x?.code ?? x?.name);
-      setSourcesRaw(merged);
+      const d = await r.json();
+      setSourcesRaw(Array.isArray(d) ? d : []);
     } catch (e) {
       console.error("Failed to load sources", e);
       setSourcesRaw([]);
@@ -327,6 +347,11 @@ const CaseDetailedReport = () => {
     () => toOptions(subSubCatsRaw, "subCategoryCode", "subSubCategoryName"),
     [subSubCatsRaw]
   );
+  const subSubSubCategoryOptions = useMemo(
+    () => toOptions(subSubSubCatsRaw, "subCategoryCode", "subSubSubCategoryName"),
+    [subSubSubCatsRaw]
+  );
+
   const mediumOptions = useMemo(
     () =>
       (Array.isArray(mediumsRaw) ? mediumsRaw : []).map((m) => ({
@@ -336,7 +361,11 @@ const CaseDetailedReport = () => {
     [mediumsRaw]
   );
   const sourceOptions = useMemo(
-    () => toOptions(sourcesRaw, "code", "name").map((o) => ({ ...o, label: o.label.trim() })), // trim names
+    () =>
+      toOptions(sourcesRaw, "code", "name").map((o) => ({
+        ...o,
+        label: (o.label || "").trim(),
+      })),
     [sourcesRaw]
   );
   const specificResOptions = useMemo(
@@ -355,21 +384,42 @@ const CaseDetailedReport = () => {
     setReportData([]);
     setCurrentPage(1);
 
-    const hasDates = Boolean(filters.fromDate && filters.toDate);
+    const clinicCode = getLoggedInClinicCode();
+
+    // rule:
+    // if user didn't select -> send defaults, keep UI empty
+const hasDates = Boolean(filters.fromDate && filters.toDate);
+
+const fromDateToSend = hasDates
+  ? new Date(filters.fromDate).toISOString()
+  : new Date("1900-01-01T00:00:00.000Z").toISOString();
+
+const toDateToSend = hasDates
+  ? new Date(filters.toDate).toISOString()
+  : new Date().toISOString();
 
     const payload = {
-      categoryCode: filters.categoryCodes.map((o) => o.value).join(","),
-      subCategoryCode: filters.subCategoryCodes.map((o) => o.value).join(","),
-      subSubCategoryCode: filters.subSubCategoryCodes.map((o) => o.value).join(","),
-      caseStatus: filters.caseStatuses.map((o) => o.value).join(","),
-      caseMedium: filters.caseMediums.map((o) => o.value).join(","),
-      caseSource: filters.caseSources.map((o) => o.value).join(","),
-      caseDisposition: filters.caseDispositions.map((o) => o.value).join(","), // creatable
-      caseSpecificResolution: filters.caseSpecificResolutions.map((o) => o.value).join(","),
-      clientThreat: filters.clientThreats.map((o) => o.value).join(","),
-      therapist: filters.therapists.map((o) => o.value).join(","),
-      fromDate: hasDates ? new Date(filters.fromDate).toISOString() : "",
-      todate: hasDates ? new Date(filters.toDate).toISOString() : "",
+      // if backend needs clinic filtering, add it here
+      clinicCode: clinicCode,
+      centerCode: clinicCode,
+
+      categoryCode: filters.categoryCode?.value || "",
+      subCategoryCode: filters.subCategoryCode?.value || "",
+      subSubCategoryCode: filters.subSubCategoryCode?.value || "",
+      subSubSubCategoryCode: filters.subSubSubCategoryCode?.value || "",
+
+      caseStatus: filters.caseStatus?.value || "",
+      caseMedium: filters.caseMedium?.value || "",
+      caseSource: filters.caseSource?.value || "",
+
+      caseDisposition: filters.caseDispositions.map((o) => o.value).join(","), // creatable multi
+      caseSpecificResolution: filters.caseSpecificResolution?.value || "",
+
+      clientThreat: filters.clientThreats.map((o) => o.value).join(","), // multi
+      therapist: filters.therapists.map((o) => o.value).join(","), // multi
+
+      fromDate: fromDateToSend,
+      todate: toDateToSend,
       dateFlag: hasDates ? "1" : "0",
     };
 
@@ -382,7 +432,18 @@ const CaseDetailedReport = () => {
       });
       const raw = await res.json();
       const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
-      setReportData(rows);
+
+      // Optional UI fallback filtering by clinic if rows include clinicCode/centerCode/loginCode
+      const filteredRows = clinicCode
+        ? rows.filter((x) => {
+            const rowClinic = String(
+              x?.clinicCode || x?.centerCode || x?.loginCode || ""
+            ).toLowerCase();
+            return rowClinic ? rowClinic === String(clinicCode).toLowerCase() : true;
+          })
+        : rows;
+
+      setReportData(filteredRows);
       setShowResults(true);
     } catch (e) {
       console.error("Failed to load Case Detailed Report", e);
@@ -450,19 +511,26 @@ const CaseDetailedReport = () => {
     setFilters({
       fromDate: "",
       toDate: "",
-      categoryCodes: [],
-      subCategoryCodes: [],
-      subSubCategoryCodes: [],
-      caseStatuses: [],
-      caseMediums: [],
-      caseSources: [],
+
+      categoryCode: null,
+      subCategoryCode: null,
+      subSubCategoryCode: null,
+      subSubSubCategoryCode: null,
+
+      caseStatus: null,
+      caseMedium: null,
+      caseSource: null,
+
       caseDispositions: [],
-      caseSpecificResolutions: [],
+      caseSpecificResolution: null,
+
       clientThreats: [],
       therapists: [],
     });
+
     setSubCatsRaw([]);
     setSubSubCatsRaw([]);
+    setSubSubSubCatsRaw([]);
     setSourcesRaw([]);
     setSpecificResRaw([]);
     setReportData([]);
@@ -512,10 +580,9 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Category</label>
             <Select
-              isMulti
               options={categoryOptions}
-              value={filters.categoryCodes}
-              onChange={handleMulti("categoryCodes")}
+              value={filters.categoryCode}
+              onChange={handleSingle("categoryCode")}
               placeholder="Select category..."
             />
           </div>
@@ -523,11 +590,10 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Sub Category</label>
             <Select
-              isMulti
-              isDisabled={filters.categoryCodes.length === 0}
+              isDisabled={!filters.categoryCode}
               options={subCategoryOptions}
-              value={filters.subCategoryCodes}
-              onChange={handleMulti("subCategoryCodes")}
+              value={filters.subCategoryCode}
+              onChange={handleSingle("subCategoryCode")}
               placeholder="Select sub category..."
             />
           </div>
@@ -535,22 +601,32 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Sub Sub Category</label>
             <Select
-              isMulti
-              isDisabled={filters.categoryCodes.length === 0 || filters.subCategoryCodes.length === 0}
+              isDisabled={!filters.categoryCode || !filters.subCategoryCode}
               options={subSubCategoryOptions}
-              value={filters.subSubCategoryCodes}
-              onChange={handleMulti("subSubCategoryCodes")}
+              value={filters.subSubCategoryCode}
+              onChange={handleSingle("subSubCategoryCode")}
               placeholder="Select sub sub category..."
             />
           </div>
 
+          {/* If/when you add a Sub Sub Sub Category dropdown from API, enable this */}
+          {/* <div className="fg">
+            <label>Sub Sub Sub Category</label>
+            <Select
+              isDisabled={!filters.subSubCategoryCode}
+              options={subSubSubCategoryOptions}
+              value={filters.subSubSubCategoryCode}
+              onChange={handleSingle("subSubSubCategoryCode")}
+              placeholder="Select sub sub sub category..."
+            />
+          </div> */}
+
           <div className="fg">
             <label>Case Medium</label>
             <Select
-              isMulti
               options={mediumOptions}
-              value={filters.caseMediums}
-              onChange={handleMulti("caseMediums")}
+              value={filters.caseMedium}
+              onChange={handleSingle("caseMedium")}
               placeholder="Select medium..."
             />
           </div>
@@ -558,13 +634,10 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Case Source</label>
             <Select
-              isMulti
-              isDisabled={
-                filters.caseMediums.length === 0 || filters.categoryCodes.length === 0 || sourceOptions.length === 0
-              }
+              isDisabled={!filters.caseMedium || !filters.categoryCode || sourceOptions.length === 0}
               options={sourceOptions}
-              value={filters.caseSources}
-              onChange={handleMulti("caseSources")}
+              value={filters.caseSource}
+              onChange={handleSingle("caseSource")}
               placeholder="Select source..."
             />
           </div>
@@ -572,10 +645,9 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Case Status</label>
             <Select
-              isMulti
               options={statusOptions}
-              value={filters.caseStatuses}
-              onChange={handleMulti("caseStatuses")}
+              value={filters.caseStatus}
+              onChange={handleSingle("caseStatus")}
               placeholder="Select status..."
             />
           </div>
@@ -584,21 +656,21 @@ const CaseDetailedReport = () => {
             <label>Case Disposition</label>
             <CreatableSelect
               isMulti
-              options={[]} // supply options if/when available
+              options={dispositionOptions}
               value={filters.caseDispositions}
               onChange={handleMulti("caseDispositions")}
-              placeholder="Type or select disposition..."
+              placeholder="Select or type disposition..."
+              isClearable
             />
           </div>
 
           <div className="fg">
             <label>Specific Resolution</label>
             <Select
-              isMulti
-              isDisabled={filters.categoryCodes.length === 0 || specificResOptions.length === 0}
+              isDisabled={!filters.categoryCode || specificResOptions.length === 0}
               options={specificResOptions}
-              value={filters.caseSpecificResolutions}
-              onChange={handleMulti("caseSpecificResolutions")}
+              value={filters.caseSpecificResolution}
+              onChange={handleSingle("caseSpecificResolution")}
               placeholder="Select specific resolution..."
             />
           </div>
@@ -747,11 +819,22 @@ const CaseDetailedReport = () => {
 
       {/* Styles (scoped) */}
       <style jsx>{`
-        .breadcrumb { font-size: 14px; margin-bottom: 14px; color: #666; }
-        .breadcrumb-link { color: var(--secft-color); cursor: default; }
-        .filters-card, .results-card {
-          background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
-          padding: 16px; margin-bottom: 16px;
+        .breadcrumb {
+          font-size: 14px;
+          margin-bottom: 14px;
+          color: #666;
+        }
+        .breadcrumb-link {
+          color: var(--secft-color);
+          cursor: default;
+        }
+        .filters-card,
+        .results-card {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+          padding: 16px;
+          margin-bottom: 16px;
         }
         .date-grid {
           display: grid;
@@ -765,77 +848,157 @@ const CaseDetailedReport = () => {
           gap: 14px 16px;
           align-items: end;
         }
-        .fg { display: flex; flex-direction: column; }
-        label { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+        .fg {
+          display: flex;
+          flex-direction: column;
+        }
+        label {
+          font-size: 14px;
+          font-weight: 600;
+          color: #334155;
+          margin-bottom: 6px;
+        }
         input[type="date"] {
-          height: 38px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none;
+          height: 38px;
+          border: 1px solid #d8dee8;
+          border-radius: 8px;
+          padding: 0 10px;
+          outline: none;
           background: #fff;
         }
-        .filter-actions { display: flex; gap: 10px; margin-top: 14px; }
-        .filter-actions button {
-          border: none; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer;
-          background: #e2e8f0; color: #0f172a;
+        .filter-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
         }
-        .filter-actions .primary { background: #1d2c43; color: #fff; }
-        .filter-actions .secondary { background: #334b71; color: #fff; }
+        .filter-actions button {
+          border: none;
+          border-radius: 8px;
+          padding: 10px 18px;
+          font-weight: 700;
+          cursor: pointer;
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+        .filter-actions .primary {
+          background: #1d2c43;
+          color: #fff;
+        }
+        .filter-actions .secondary {
+          background: #334b71;
+          color: #fff;
+        }
 
-        .results-header { margin-bottom: 10px; color: #334155; }
+        .results-header {
+          margin-bottom: 10px;
+          color: #334155;
+        }
 
         /* Scrollable container */
-        .table-wrap { overflow: auto; position: relative; }
+        .table-wrap {
+          overflow: auto;
+          position: relative;
+        }
 
         /* Table + sticky header */
-        table { width: 100%; border-collapse: separate; border-spacing: 0; }
-        thead th {
-          text-align: left; background: #f8fafc; color: #0f172a; font-size: 13px; padding: 10px;
-          border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 1;
+        table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
         }
-        tbody td { font-size: 13px; padding: 10px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+        thead th {
+          text-align: left;
+          background: #f8fafc;
+          color: #0f172a;
+          font-size: 13px;
+          padding: 10px;
+          border-bottom: 1px solid #e5e7eb;
+          position: sticky;
+          top: 0;
+          z-index: 1;
+        }
+        tbody td {
+          font-size: 13px;
+          padding: 10px;
+          border-bottom: 1px solid #f1f5f9;
+          background: #fff;
+        }
 
         /* Freeze FIRST column (header + body) */
         .report-table .sticky-col {
           position: sticky;
           left: 0;
-          z-index: 2;              /* above normal cells */
-          background: #fff;        /* body cell bg */
-          min-width: 200px;        /* adjust to taste */
-          box-shadow: 2px 2px 10px rgb(152, 156, 166); /* divider on the right */
+          background: #fff;
+          min-width: 200px;
+          box-shadow: 2px 2px 10px rgb(152, 156, 166);
         }
-
 
         .report-table thead .sticky-col {
-          z-index: 3;              /* above body sticky cells */
-          background: #f9fafb;     /* header bg */
+          background: #f9fafb;
         }
-.report-table td{white-space: nowrap;padding: 12px;}
+
+        .report-table td {
+          white-space: nowrap;
+          padding: 12px;
+        }
+
         .status-pill {
-          display: inline-block; padding:6px 8px; border-radius: 6px; font-weight: 600; font-size: 12px;
-          background: #e2e8f0; color: #0f172a;
+          display: inline-block;
+          padding: 6px 8px;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 12px;
+          background: #e2e8f0;
+          color: #0f172a;
         }
-        .status-pill.open { background: rgba(238, 106, 106, 0.1);
-    color: rgba(238, 106, 106, 1);}
-        .status-pill.wip {     background: rgba(84, 92, 87, 0.1);
-    color: rgba(84, 92, 87, 1);
-} 
-        .status-pill.closed { background: rgba(38, 200, 106, 0.1);
-    color: rgba(38, 200, 106, 1); }
-        .status-pill.resolved { background: #e9d8fd; color: #553c9a; }
+        .status-pill.open {
+          background: rgba(238, 106, 106, 0.1);
+          color: rgba(238, 106, 106, 1);
+        }
+        .status-pill.wip {
+          background: rgba(84, 92, 87, 0.1);
+          color: rgba(84, 92, 87, 1);
+        }
+        .status-pill.closed {
+          background: rgba(38, 200, 106, 0.1);
+          color: rgba(38, 200, 106, 1);
+        }
+        .status-pill.resolved {
+          background: #e9d8fd;
+          color: #553c9a;
+        }
 
         .pagination-bar {
           margin-top: 12px;
-          display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+          display: flex;
+          justify-content: center;
+          gap: 6px;
+          flex-wrap: wrap;
         }
         .pagination-bar button {
-          min-width: 34px; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #cbd5e1;
-          background: #fff; cursor: pointer; font-weight: 600;
+          min-width: 34px;
+          height: 34px;
+          padding: 0 10px;
+          border-radius: 8px;
+          border: 1px solid #cbd5e1;
+          background: #fff;
+          cursor: pointer;
+          font-weight: 600;
         }
         .pagination-bar button.active {
-          background: #1d2c43; color: #fff; border-color: #1d2c43;
+          background: #1d2c43;
+          color: #fff;
+          border-color: #1d2c43;
         }
-        .pagination-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination-bar button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
 
         @media (max-width: 760px) {
-          .filters-grid { grid-template-columns: 1fr; }
+          .filters-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </div>

@@ -789,7 +789,7 @@ const computedCc = useMemo(() => {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontWeight: 700 }}>
+              <div style={{ fontWeight: 700, display: 'none' }}>
                 QC Info{" "}
                 {stageLabel && (
                   <span
