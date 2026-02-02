@@ -1,18 +1,28 @@
 import React from "react";
 
 const FilterBar = ({ onCreateCase, onFilter, employeeList = [] }) => {
-  const handleChange = (key, value) => {
-    const updated = { ...filters, [key]: value };
-    setFilters(updated);
-    onFilter(updated);
-  };
-
   const [filters, setFilters] = React.useState({
     priority: "",
     owner: "",
     assignTo: "",
     status: "",
   });
+
+  const handleChange = (key, value) => {
+    const updated = { ...filters, [key]: value };
+    setFilters(updated);
+    onFilter(updated);
+  };
+
+  // ✅ get logged-in user role
+  const userSession = JSON.parse(sessionStorage.getItem("userSession") || "{}");
+  const roleName = userSession?.roleName || "";
+
+  // ✅ allowed roles
+  const ALLOWED_CREATE_CASE_ROLES = ["Admin", "Team Member", "System User"];
+  const canCreateCase = ALLOWED_CREATE_CASE_ROLES.includes(roleName);
+
+  console.log("canCreateCase="+canCreateCase)
 
   const priorities = ["", "Normal", "High", "Low"];
   const statuses = ["", "WIP", "Open", "Closed"];
@@ -93,11 +103,14 @@ const FilterBar = ({ onCreateCase, onFilter, employeeList = [] }) => {
         </div>
       </div>
 
-      <div className="pri-btn-div">
-        <button className="pribtn" onClick={onCreateCase}>
-          Create Case
-        </button>
-      </div>
+      {/* ✅ Create Case – role based */}
+      {canCreateCase && (
+        <div className="pri-btn-div">
+          <button className="pribtn" onClick={onCreateCase}>
+            Create Case
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -655,7 +655,7 @@ const toDateToSend = hasDates
           <div className="fg">
             <label>Case Disposition</label>
             <CreatableSelect
-              isMulti
+              
               options={dispositionOptions}
               value={filters.caseDispositions}
               onChange={handleMulti("caseDispositions")}
@@ -678,7 +678,7 @@ const toDateToSend = hasDates
           <div className="fg">
             <label>Client Threat</label>
             <Select
-              isMulti
+              
               options={clientThreatOptions}
               value={filters.clientThreats}
               onChange={handleMulti("clientThreats")}

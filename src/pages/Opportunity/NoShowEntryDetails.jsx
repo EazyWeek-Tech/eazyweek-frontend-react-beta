@@ -8,7 +8,7 @@ const DISPOSITION_OPTIONS = [
   { value: "", label: "" },
   { value: "LS008", label: "Converted" },
   { value: "LS011", label: "Not Converted" },
-  { value: "LS004", label: "WIP" },
+  { value: "LS013", label: "WIP" },
 ];
 
 // ✅ Sub-Disposition options (dependent on Disposition)
@@ -16,7 +16,7 @@ const SUB_DISPOSITION_BY_DISPOSITION = {
   LS008: [
     { value: "LS0021", label: "Converted" },
   ],
-  LS004: [
+  LS013: [
     { value: "LS0022", label: "WIP" },
   ],
   LS011: [
