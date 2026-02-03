@@ -493,6 +493,49 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     );
   };
 
+    // -----------------------------
+  // ✅ Logged-in user email lookup (from /api/Employees)
+  // -----------------------------
+  const getLoggedInUserEmail = async () => {
+    const userCode = trim(currentUser?.userId); // ex: "CENT-00184"
+    if (!userCode) return "";
+
+    // 1) try from already fetched employees list
+    const fromState = (employees || []).find(
+      (e) => trim(e.employeeCode) === userCode && trim(e.emailID)
+    );
+    if (fromState?.emailID) return trim(fromState.emailID);
+
+    // 2) fallback: fetch fresh from API
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await responseToJsonSafe(res);
+      const fromApi = (data || []).find(
+        (e) => trim(e.employeeCode) === userCode && trim(e.emailID)
+      );
+      return trim(fromApi?.emailID || "");
+    } catch (err) {
+      console.error("Failed to lookup logged-in user email:", err);
+      return "";
+    }
+  };
+
+  const buildMailCC = async () => {
+    const creatorEmail = await getLoggedInUserEmail();
+
+    // ✅ "send email along with the current email chain"
+    // keep existing cc + moreCC, and append creatorEmail
+    const merged = normalizeEmailList(
+      [formValues.cc, formValues.moreCC, creatorEmail].filter(Boolean).join(",")
+    );
+
+    return { mergedCC: merged, creatorEmail };
+  };
+
   // Normalize a list of email addresses
   const normalizeEmailList = (raw) => {
     if (!raw) return "";
@@ -513,7 +556,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     return uniq.join(",");
   };
 
-  const sendCaseAssignmentEmail = async (caseNoParam) => {
+    const sendCaseAssignmentEmail = async (caseNoParam) => {
+    const { mergedCC } = await buildMailCC();
+
     const mailBody = {
       emailTo: (formValues.email || "").trim().replace(/[\r\n"]/g, ""),
       centerName: getCenterName(),
@@ -523,13 +568,19 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
       issueDescription: formValues.issuedesciption || "",
       newResponse: formValues.response || "",
       firstTimeResolution: formValues.firsttimeresolution || "",
-      emailCC: normalizeEmailList(formValues.cc),
+
+      // ✅ include creator email + existing CCs in same chain
+      emailCC: mergedCC,
+
+      // keep moreCC too if your backend uses it separately
       moreCC: normalizeEmailList(formValues.moreCC),
     };
+
     if (!mailBody.emailTo) {
       console.warn("CaseMail skipped: no emailTo set.");
       return;
     }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseMail`, {
         method: "POST",
@@ -537,6 +588,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mailBody),
       });
+
       if (!res.ok) console.error("CaseMail failed with status:", res.status);
     } catch (err) {
       console.error("Error sending CaseMail:", err);
