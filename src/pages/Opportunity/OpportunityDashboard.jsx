@@ -34,48 +34,22 @@ const COLORS = {
 };
 
 const STATUS_DATA_MANUAL_LEAD = [
-  { label: "Total", value: 10, fill: COLORS.total },
-  { label: "Open", value: 4, fill: COLORS.open },
-  { label: "WIP", value: 1, fill: COLORS.wip },
-  { label: "Closed", value: 3, fill: COLORS.closed },
-  { label: "Converted", value: 2, fill: COLORS.converted },
 ];
 
 const STATUS_DATA_PAID_X_NOT_Y = [
-  { label: "Total", value: 285, fill: COLORS.total },
-  { label: "Open", value: 235, fill: COLORS.open },
-  { label: "WIP", value: 20, fill: COLORS.wip },
-  { label: "Closed", value: 20, fill: COLORS.closed },
-  { label: "Converted", value: 10, fill: COLORS.converted },
 ];
 
 const STATUS_DATA_NO_SHOW = [
-  { label: "Total", value: 9, fill: COLORS.total },
-  { label: "Open", value: 9, fill: COLORS.open },
-  { label: "WIP", value: 0, fill: COLORS.wip },
-  { label: "Closed", value: 0, fill: COLORS.closed },
-  { label: "Converted", value: 6, fill: COLORS.converted },
 ];
 
 const STATUS_DATA_PAID_X_CAT = [
-  { label: "Total", value: 6, fill: COLORS.total },
-  { label: "Open", value: 3, fill: COLORS.open },
-  { label: "WIP", value: 0, fill: COLORS.wip },
-  { label: "Closed", value: 3, fill: COLORS.closed },
-  { label: "Converted", value: 3, fill: COLORS.converted },
 ];
 
 /* Stacked-by-clinic cards (static) */
 const STACKED_CUSTOMER_SPECIAL_DAY = [
-  { name: "Bright-00112", Total: 120, Open: 60, WIP: 40, Closed: 20, Converted: 0 },
 ];
 
-const STACKED_CANCELLED_APPT = [
-  { name: "Bright-00111", Total: 10, Open: 4, WIP: 2, Closed: 2, Converted: 2 },
-  { name: "Bright-00187", Total: 20, Open: 8, WIP: 4, Closed: 4, Converted: 4 },
-  { name: "Bright-00195", Total: 30, Open: 10, WIP: 0, Closed: 15, Converted: 5 },
-  { name: "Bright-00217", Total: 20, Open: 8, WIP: 4, Closed: 4, Converted: 4 },
-];
+const STACKED_CANCELLED_APPT = [];
 
 /** Convert Date | 'yyyy-MM-dd' | 'dd/MM/yyyy' -> 'yyyy-MM-dd' (date-only) */
 const toISODateOnly = (d) => {

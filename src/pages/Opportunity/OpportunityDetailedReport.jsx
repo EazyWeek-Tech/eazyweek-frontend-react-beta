@@ -621,7 +621,7 @@ export default function OpportunityDetailedReport() {
       "OppStatus",
       "Created By",
       "Closed By",
-      "WIP",
+    //  "WIP",
       "Clinic",
       "Campaign Code",
     ];
@@ -640,7 +640,7 @@ export default function OpportunityDetailedReport() {
         r.oppStatus ?? "",
         r.createdBy ?? "",
         r.closedBy ?? "",
-        r.wip ?? "",
+      //  r.wip ?? "",
         r.clinic ?? "",
         r.oppCode ?? "",
       ]),
@@ -669,7 +669,7 @@ export default function OpportunityDetailedReport() {
               r.oppStatus,
               r.createdBy,
               r.closedBy,
-              r.wip,
+            //  r.wip,
               r.clinic,
               r.oppCode,
             ][idx] ?? ""
@@ -821,7 +821,7 @@ export default function OpportunityDetailedReport() {
               <th>Lead Status</th>
               <th>Created By</th>
               <th>Closed By</th>
-              <th>WIP</th>
+            {/*   <th>WIP</th> */}
               <th>Clinic</th>
             </tr>
           </thead>
@@ -868,7 +868,7 @@ export default function OpportunityDetailedReport() {
                   </td>
                   <td>{r.createdBy}</td>
                   <td>{r.closedBy}</td>
-                  <td>{r.wip}</td>
+                  {/* <td>{r.wip}</td> */}
                   <td>{r.clinic}</td>
                 </tr>
               ))}
