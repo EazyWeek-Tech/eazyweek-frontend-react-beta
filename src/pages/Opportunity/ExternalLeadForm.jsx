@@ -283,38 +283,39 @@ const ExternalLeadForm = () => {
   /** ---------------- Form ---------------- */
   const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
 
-  const [form, setForm] = useState(() => {
-    const custName = safe(row?.custName);
-    const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
-    const last = safe(
-      row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : "")
-    );
+ const [form, setForm] = useState(() => {
+  const custName = safe(row?.custName);
+  const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
+  const last = safe(
+    row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : "")
+  );
 
-    return {
-      countryCode: "",
-      mobile: safe(row?.custMobileNo || row?.mobileNo || row?.mobile || ""),
-      firstName: first,
-      lastName: last,
-      email: safe(row?.email || row?.emailID || ""),
+  return {
+    countryCode: "",
+    mobile: safe(row?.custMobileNo || ""),
+    firstName: first,
+    lastName: last,
+    email: safe(row?.email || ""),
 
-      preferredLanguage: "English",
+    preferredLanguage: "English",
 
-      // ✅ Prefilled on load
-      centerCode: "",
-      doctor: "",
-      interestedVerticalCode: "",
-      interestedOther: "",
+    centerCode: "",
+    doctor: safe(row?.therapistCode || ""),
+    doctorName: safe(row?.therapistname || ""),
 
-      // ✅ disposition/sub disposition (hardcoded)
-      dispositionId: "",
-      subDispositionId: "",
+    interestedVerticalCode: safe(row?.interestedInCode || ""),
+    interestedVerticalName: safe(row?.interestedInName || ""),
+    interestedOther: "",
 
-      followUpDate: getTomorrowInputDate(),
-      followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
+dispositionId: safe(row?.dispositionCode || ""),      // ✅
+subDispositionId: safe(row?.subDispositionCode || ""), // ✅
 
-      remarks: safe(row?.remarks || ""),
-    };
-  });
+    followUpDate: getTomorrowInputDate(),
+    followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
+
+    remarks: safe(row?.remarks || ""),
+  };
+});
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -526,8 +527,12 @@ const handleSubmit = async () => {
       preferedLang: safe(form.preferredLanguage),
       subDisposition: safe(form.subDispositionId).trim(),
       therapistCode: safe(form.doctor).trim(),
-      interesedIn: safe(form.interestedVerticalCode).trim(),
-      others: safe(form.interestedOther),
+therapistName: safe(form.doctorName).trim(),
+
+interesedIn: safe(form.interestedVerticalCode).trim(),
+interesedInName: safe(form.interestedVerticalName).trim(),
+
+others: safe(form.interestedOther),
     };
 
     console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
@@ -670,18 +675,26 @@ const handleSubmit = async () => {
                 <label>
                   Interested In <span className="req">*</span>
                 </label>
-                <select
-                  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
-                  name="interestedVerticalCode"
-                  value={form.interestedVerticalCode}
-                  onChange={onChange}
-                >
-                  {verticalOptions.map((o) => (
-                    <option key={o.value || o.label} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+               <select
+  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
+  name="interestedVerticalCode"
+  value={form.interestedVerticalCode}
+  onChange={(e) => {
+    const code = e.target.value;
+    const opt = verticalOptions.find((x) => x.value === code);
+    setForm((p) => ({
+      ...p,
+      interestedVerticalCode: code,
+      interestedVerticalName: opt?.label || "",
+    }));
+  }}
+>
+  {verticalOptions.map((o) => (
+    <option key={o.value || o.label} value={o.value}>
+      {o.label}
+    </option>
+  ))}
+</select>
                 {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
               </div>
 
@@ -689,18 +702,26 @@ const handleSubmit = async () => {
                 <label>
                   Doctor / Therapist <span className="req">*</span>
                 </label>
-                <select
-                  className={`inp ${errors.doctor ? "err" : ""}`}
-                  name="doctor"
-                  value={form.doctor}
-                  onChange={onChange}
-                >
-                  {doctorOptions.map((d) => (
-                    <option key={d.value || d.label} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
+               <select
+  className={`inp ${errors.doctor ? "err" : ""}`}
+  name="doctor"
+  value={form.doctor}
+  onChange={(e) => {
+    const code = e.target.value;
+    const opt = doctorOptions.find((x) => x.value === code);
+    setForm((p) => ({
+      ...p,
+      doctor: code,
+      doctorName: opt?.label || "",
+    }));
+  }}
+>
+  {doctorOptions.map((d) => (
+    <option key={d.value || d.label} value={d.value}>
+      {d.label}
+    </option>
+  ))}
+</select>
                 {errors.doctor && <div className="errText">{errors.doctor}</div>}
               </div>
 
