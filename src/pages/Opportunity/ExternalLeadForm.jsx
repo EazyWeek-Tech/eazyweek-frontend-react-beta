@@ -45,7 +45,6 @@ const toOppStatusInt = (dispositionId) => {
   return d === "LS004" ? 1 : 2; // WIP => 1 else 2
 };
 
-
 /** Keep only digits */
 const digitsOnly = (s) => safe(s).replace(/\D/g, "");
 
@@ -77,8 +76,6 @@ const normalizeMobileForApi = (countryCode, mobile) => {
   // less than 10 digits
   return { countryCode: cc ? `+${cc}` : "", mobileNo: m };
 };
-
-
 
 const fetchJson = async (url) => {
   const res = await fetch(url, {
@@ -128,16 +125,13 @@ const readList = (data) => {
 /** Parse "01:30 PM" -> { hhmmss: "13:30:00", ampm: "PM" } */
 const toApiFollowUpTimeParts = (label) => {
   const s = safe(label).trim();
-  // expecting "hh:mm AM/PM"
   const m = s.match(/^(\d{2}):(\d{2})\s?(AM|PM)$/i);
-  if (!m) {
-    return { hhmmss: "", ampm: "" };
-  }
+  if (!m) return { hhmmss: "", ampm: "" };
+
   let hh = parseInt(m[1], 10);
   const mm = parseInt(m[2], 10);
   const ap = m[3].toUpperCase();
 
-  // 12h -> 24h
   if (ap === "AM") {
     if (hh === 12) hh = 0;
   } else {
@@ -151,7 +145,6 @@ const toApiFollowUpTimeParts = (label) => {
 const toApiFollowUpDateISO = (yyyyMMdd) => {
   const s = safe(yyyyMMdd).trim();
   if (!s) return "";
-  // force UTC midnight
   return `${s}T00:00:00.000Z`;
 };
 
@@ -199,39 +192,33 @@ const buildSubDispositionOptions = (leadStatusCode) => {
   ];
 };
 
+/** ---------------- Session Center Resolver ----------------
+ * Finds the session JSON that contains loginCode/topCode anywhere in sessionStorage.
+ * Returns "LNS" (from loginCode/topCode) so dropdown shows "Lines".
+ */
+const getCenterFromSession = () => {
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      const raw = sessionStorage.getItem(key);
+      if (!raw) continue;
 
-/** ---------------- Logged-in Center Resolver ---------------- */
+      // quick string filter before parsing
+      if (!raw.includes("loginCode") && !raw.includes("topCode")) continue;
 
-const getLoggedInCenterCode = () => {
-  const candidates = [
-    sessionStorage.getItem("user"),
-    localStorage.getItem("user"),
-    sessionStorage.getItem("loginUser"),
-    localStorage.getItem("loginUser"),
-  ].filter(Boolean);
-
-  for (const raw of candidates) {
-    try {
-      const u = JSON.parse(raw);
-      const code =
-        u?.centerCode ||
-        u?.clinicCentre_FK ||
-        u?.clinicCenterCode ||
-        u?.centreCode ||
-        u?.center ||
-        u?.CenterCode;
-      if (code) return safe(code).trim();
-    } catch {
-      // ignore parse errors
+      try {
+        const s = JSON.parse(raw);
+        const code = safe(s?.loginCode || s?.topCode).trim();
+        if (code) return code;
+      } catch {
+        // ignore
+      }
     }
+  } catch {
+    // ignore
   }
-
-  const direct =
-    sessionStorage.getItem("centerCode") || localStorage.getItem("centerCode");
-  return safe(direct).trim();
+  return "";
 };
-
-
 
 /** ---------------- Component ---------------- */
 const ExternalLeadForm = () => {
@@ -240,8 +227,6 @@ const ExternalLeadForm = () => {
   const locationObj = useLocation();
   const { state } = locationObj;
 
-  // expected from table navigation:
-  // state: { row, oppCode, header, leadKind, leadOppId }
   const row = state?.row || null;
 
   const oppCodeFromState = safe(state?.oppCode).trim();
@@ -252,17 +237,13 @@ const ExternalLeadForm = () => {
   const leadOppIdFromParams = safe(params?.leadOppId).trim();
   const resolvedLeadOppId = leadOppIdFromState || leadOppIdFromParams;
 
-  // ✅ recID per your URL: /opportunity/external/:oppCode/lead/:leadOppId
   const recID = Number(safe(params?.leadOppId || resolvedLeadOppId).trim() || 0) || 0;
 
   const [toast, setToast] = useState({ show: false, msg: "" });
   const showToast = (msg) => {
     setToast({ show: true, msg });
     window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(
-      () => setToast({ show: false, msg: "" }),
-      2500
-    );
+    showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 2500);
   };
 
   /** ---------------- Options ---------------- */
@@ -285,65 +266,60 @@ const ExternalLeadForm = () => {
 
   /** ---------------- Form ---------------- */
   const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
-
   const [isSubmitHidden, setIsSubmitHidden] = useState(false);
 
-useEffect(() => {
-  // Decide hiding ONLY from the loaded/initial disposition (row/initial value)
-  const initialDisp =
-    safe(row?.dispositionCode).trim() || safe(form.dispositionId).trim();
+  const [form, setForm] = useState(() => {
+    const custName = safe(row?.custName);
+    const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
+    const last = safe(row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : ""));
 
-  const initialOppStatus = initialDisp === "LS004" ? "1" : "2";
+    return {
+      countryCode: "",
+      mobile: safe(row?.custMobileNo || ""),
+      firstName: first,
+      lastName: last,
+      email: safe(row?.email || ""),
 
-  const shouldHide =
-    initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
+      preferredLanguage: "English",
 
-  setIsSubmitHidden(shouldHide);
-  // run only once on load (row is stable from navigation state)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+      centerCode: "",
+      doctor: safe(row?.therapistCode || ""),
+      doctorName: safe(row?.therapistname || ""),
 
+      interestedVerticalCode: safe(row?.interestedInCode || ""),
+      interestedVerticalName: safe(row?.interestedInName || ""),
+      interestedOther: "",
 
- const [form, setForm] = useState(() => {
-  const custName = safe(row?.custName);
-  const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
-  const last = safe(
-    row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : "")
-  );
+      dispositionId: safe(row?.dispositionCode || ""),
+      subDispositionId: safe(row?.subDispositionCode || ""),
 
-  return {
-    countryCode: "",
-    mobile: safe(row?.custMobileNo || ""),
-    firstName: first,
-    lastName: last,
-    email: safe(row?.email || ""),
+      followUpDate: getTomorrowInputDate(),
+      followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
 
-    preferredLanguage: "English",
+      remarks: safe(row?.remarks || ""),
+    };
+  });
 
-    centerCode: "",
-    doctor: safe(row?.therapistCode || ""),
-    doctorName: safe(row?.therapistname || ""),
+  // ✅ sessionCenter computed safely (won’t freeze empty if storage writes slightly later)
+  const [sessionCenter, setSessionCenter] = useState("");
+  useEffect(() => {
+    const code = getCenterFromSession();
+    console.log("Detected sessionCenter =", code);
+    setSessionCenter(code);
+  }, []);
 
-    interestedVerticalCode: safe(row?.interestedInCode || ""),
-    interestedVerticalName: safe(row?.interestedInName || ""),
-    interestedOther: "",
-
-dispositionId: safe(row?.dispositionCode || ""),      // ✅
-subDispositionId: safe(row?.subDispositionCode || ""), // ✅
-
-    followUpDate: getTomorrowInputDate(),
-    followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
-
-    remarks: safe(row?.remarks || ""),
-  };
-});
-
-
+  useEffect(() => {
+    const initialDisp = safe(row?.dispositionCode).trim() || safe(form.dispositionId).trim();
+    const initialOppStatus = initialDisp === "LS004" ? "1" : "2";
+    const shouldHide = initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
+    setIsSubmitHidden(shouldHide);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  /** ---------------- Load Centers + Default center = logged-in center ---------------- */
+  /** ---------------- Load Centers ---------------- */
   useEffect(() => {
     let alive = true;
 
@@ -361,14 +337,7 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
         ];
 
         if (!alive) return;
-
         setCenterOptions(opts);
-
-        // ✅ default to logged-in center
-        const loggedCenter = getLoggedInCenterCode();
-        if (loggedCenter) {
-          setForm((p) => ({ ...p, centerCode: loggedCenter }));
-        }
       } catch (e) {
         console.error("LoadCenters failed", e);
       }
@@ -380,47 +349,84 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
     };
   }, []);
 
-  /** ---------------- Load Doctors (depends on center) ---------------- */
+  /** ✅ Apply session center once the option exists */
   useEffect(() => {
-    let alive = true;
+    if (form.centerCode) return;
+    if (!sessionCenter) return;
+    if (!centerOptions?.length) return;
 
-    const run = async () => {
-      const centerCode = safe(form.centerCode).trim();
-      if (!centerCode) {
-        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-        return;
+    const exists = centerOptions.some(
+      (o) => safe(o.value).trim() === safe(sessionCenter).trim()
+    );
+    if (!exists) return;
+
+    setForm((p) => ({ ...p, centerCode: safe(sessionCenter).trim() }));
+  }, [centerOptions, sessionCenter, form.centerCode]);
+
+  /** ---------------- Load Doctors (depends on center) ---------------- */
+useEffect(() => {
+  let alive = true;
+
+  const run = async () => {
+    const centerCode = safe(form.centerCode).trim();
+
+    // if no center selected, reset list
+    if (!centerCode) {
+      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+      return;
+    }
+
+    try {
+      // NEW API (AppVerticals = centerCode as per your instruction)
+      const data = await fetchJson(
+        `${API_BASE_URL}/api/Opportunity/OppDoctors/${encodeURIComponent(centerCode)}`
+      );
+
+      const list = readList(data);
+
+      // sample response: [{ name, code, value }]
+      // normalize into {label,value}
+      let opts = (Array.isArray(list) ? list : [])
+        .map((x) => ({
+          value: safe(x?.code).trim(),
+          label: safe(x?.name).trim() || safe(x?.code).trim(),
+        }))
+        // avoid blank duplicates
+        .filter((o, idx, arr) => idx === arr.findIndex((p) => p.value === o.value && p.label === o.label));
+
+      // ensure select one exists as first option (even if API already sends it)
+      const hasSelectOne = opts.some((o) => safe(o.value).trim() === "");
+      if (!hasSelectOne) {
+        opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+      } else {
+        // move blank to top
+        const blank = opts.find((o) => safe(o.value).trim() === "");
+        opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
       }
 
-      try {
-        const data = await fetchJson(
-          `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(
-            centerCode
-          )}`
-        );
-        const list = readList(data);
+      if (!alive) return;
+      setDoctorOptions(opts);
 
-        const opts = [
-          { label: "< - Select one - >", value: "" },
-          ...list.map((x) => ({
-            value: safe(x?.code || x?.recid || x?.id).trim(),
-            label: safe(x?.name).trim() || safe(x?.code).trim(),
-          })),
-        ];
+      // if selected doctor is not in the new list, clear it
+      setForm((p) => {
+        const cur = safe(p.doctor).trim();
+        if (!cur) return p;
+        const exists = opts.some((o) => safe(o.value).trim() === cur);
+        return exists ? p : { ...p, doctor: "", doctorName: "" };
+      });
+    } catch (e) {
+      console.error("OppDoctors failed", e);
+      if (!alive) return;
+      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+    }
+  };
 
-        if (!alive) return;
-        setDoctorOptions(opts);
-      } catch (e) {
-        console.error("LoadAllPractioner failed", e);
-        if (!alive) return;
-        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-      }
-    };
+  run();
+  return () => {
+    alive = false;
+  };
+}, [form.centerCode]);
 
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [form.centerCode]);
 
   /** ---------------- Load Verticals ---------------- */
   useEffect(() => {
@@ -428,9 +434,7 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
 
     const run = async () => {
       try {
-        const data = await fetchJson(
-          `${API_BASE_URL}/api/Opportunity/OppInterestedVertical`
-        );
+        const data = await fetchJson(`${API_BASE_URL}/api/Opportunity/OppInterestedVertical`);
         const list = readList(data);
 
         const opts = [
@@ -462,7 +466,6 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
     const opts = buildSubDispositionOptions(disp);
     setSubDispositionOptions(opts);
 
-    // reset invalid sub disposition when disposition changes
     setForm((p) => {
       if (!disp) return { ...p, subDispositionId: "" };
       const ok = opts.some((o) => o.value && o.value === p.subDispositionId);
@@ -515,65 +518,60 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
     return Object.keys(e).length === 0;
   };
 
-const handleSubmit = async () => {
-  if (!validate()) {
-    alert("Submit blocked by validation. Check required fields.");
-    return;
-  }
+  const handleSubmit = async () => {
+    if (!validate()) {
+      alert("Submit blocked by validation. Check required fields.");
+      return;
+    }
 
-  setSaving(true);
-  try {
-    const { hhmmss, ampm } = toApiFollowUpTimeParts(form.followUpTime);
+    setSaving(true);
+    try {
+      const { hhmmss, ampm } = toApiFollowUpTimeParts(form.followUpTime);
+      const nm = normalizeMobileForApi(form.countryCode, form.mobile);
 
-    const nm = normalizeMobileForApi(form.countryCode, form.mobile);
+      const payload = {
+        recID,
+        disposition: safe(form.dispositionId).trim(),
+        remarks: safe(form.remarks),
+        oppCode: safe(resolvedOppCode).trim(),
+        oppStatus: safe(form.dispositionId).trim() === "LS004" ? "1" : "2",
 
-    const payload = {
-      recID,
-      disposition: safe(form.dispositionId).trim(),
-      remarks: safe(form.remarks),
-      oppCode: safe(resolvedOppCode).trim(),
+        followUpDate: toApiFollowUpDateISO(form.followUpDate),
+        followUpTime: hhmmss,
+        followUpTimeAmPM: ampm,
 
-      // ✅ force string exactly like swagger
-      oppStatus: safe(form.dispositionId).trim() === "LS004" ? "1" : "2",
+        firstName: safe(form.firstName),
+        lastName: safe(form.lastName),
 
-      followUpDate: toApiFollowUpDateISO(form.followUpDate),
-      followUpTime: hhmmss,
-      followUpTimeAmPM: ampm,
+        countryCode: nm.countryCode,
+        mobileNo: nm.mobileNo,
 
-      firstName: safe(form.firstName),
-      lastName: safe(form.lastName),
+        email: safe(form.email),
+        preferedLang: safe(form.preferredLanguage),
+        subDisposition: safe(form.subDispositionId).trim(),
 
-      countryCode: nm.countryCode,
-      mobileNo: nm.mobileNo,
+        therapistCode: safe(form.doctor).trim(),
+        therapistName: safe(form.doctorName).trim(),
 
-      email: safe(form.email),
-      preferedLang: safe(form.preferredLanguage),
-      subDisposition: safe(form.subDispositionId).trim(),
-      therapistCode: safe(form.doctor).trim(),
-therapistName: safe(form.doctorName).trim(),
+        interesedIn: safe(form.interestedVerticalCode).trim(),
+        interesedInName: safe(form.interestedVerticalName).trim(),
 
-interesedIn: safe(form.interestedVerticalCode).trim(),
-interesedInName: safe(form.interestedVerticalName).trim(),
+        others: safe(form.interestedOther),
+      };
 
-others: safe(form.interestedOther),
-    };
+      console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
 
-    console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
+      await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
 
-    await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
-
-    showToast("Saved successfully");
-    navigate(-1);
-  } catch (e) {
-    console.error("UpdateOppDetails failed", e);
-    alert(`Save failed: ${e?.message || e}`);
-  } finally {
-    setSaving(false);
-  }
-};
-
-
-
+      showToast("Saved successfully");
+      navigate(-1);
+    } catch (e) {
+      console.error("UpdateOppDetails failed", e);
+      alert(`Save failed: ${e?.message || e}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -693,31 +691,30 @@ others: safe(form.interestedOther),
                 {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
               </div>
 
-              
               <div className="field">
                 <label>
                   Interested In <span className="req">*</span>
                 </label>
-               <select
-  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
-  name="interestedVerticalCode"
-  value={form.interestedVerticalCode}
-  onChange={(e) => {
-    const code = e.target.value;
-    const opt = verticalOptions.find((x) => x.value === code);
-    setForm((p) => ({
-      ...p,
-      interestedVerticalCode: code,
-      interestedVerticalName: opt?.label || "",
-    }));
-  }}
->
-  {verticalOptions.map((o) => (
-    <option key={o.value || o.label} value={o.value}>
-      {o.label}
-    </option>
-  ))}
-</select>
+                <select
+                  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
+                  name="interestedVerticalCode"
+                  value={form.interestedVerticalCode}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const opt = verticalOptions.find((x) => x.value === code);
+                    setForm((p) => ({
+                      ...p,
+                      interestedVerticalCode: code,
+                      interestedVerticalName: opt?.label || "",
+                    }));
+                  }}
+                >
+                  {verticalOptions.map((o) => (
+                    <option key={o.value || o.label} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
                 {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
               </div>
 
@@ -726,28 +723,27 @@ others: safe(form.interestedOther),
                   Doctor / Therapist <span className="req">*</span>
                 </label>
                 <select
-  className={`inp ${errors.doctor ? "err" : ""}`}
-  name="doctor"
-  value={form.doctor}
-  onChange={(e) => {
-    const code = e.target.value;
-    const opt = doctorOptions.find((x) => x.value === code);
-    setForm((p) => ({
-      ...p,
-      doctor: code,
-      doctorName: opt?.label || "",
-    }));
-  }}
->
-  {doctorOptions.map((d) => (
-    <option key={d.value || d.label} value={d.value}>
-      {d.label}
-    </option>
-  ))}
-</select>
+                  className={`inp ${errors.doctor ? "err" : ""}`}
+                  name="doctor"
+                  value={form.doctor}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const opt = doctorOptions.find((x) => x.value === code);
+                    setForm((p) => ({
+                      ...p,
+                      doctor: code,
+                      doctorName: opt?.label || "",
+                    }));
+                  }}
+                >
+                  {doctorOptions.map((d) => (
+                    <option key={d.value || d.label} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
                 {errors.doctor && <div className="errText">{errors.doctor}</div>}
               </div>
-
 
               <div className="field">
                 <label>Other</label>
@@ -835,17 +831,16 @@ others: safe(form.interestedOther),
         </fieldset>
 
         <div className="btnRow">
-  {!isSubmitHidden && (
-    <button className="btn" onClick={handleSubmit} disabled={saving}>
-      {saving ? "Saving..." : "Submit"}
-    </button>
-  )}
+          {!isSubmitHidden && (
+            <button className="btn" onClick={handleSubmit} disabled={saving}>
+              {saving ? "Saving..." : "Submit"}
+            </button>
+          )}
 
-  <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
-    Back
-  </button>
-</div>
-
+          <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+            Back
+          </button>
+        </div>
       </div>
 
       <style jsx="true">{`
