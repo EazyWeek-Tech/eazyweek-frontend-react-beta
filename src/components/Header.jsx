@@ -222,12 +222,17 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       // 🔥 refresh session from server
       const newSession = await getSessionFromApi();
 
-      // ✅ reset session storage (keep user), then reload
-      const keepUser = sessionStorage.getItem("user") || localStorage.getItem("user");
+      // ✅ reset session storage (keep user), then go dashboard & reload
+      const keepUser =
+        sessionStorage.getItem("user") || localStorage.getItem("user");
       sessionStorage.clear();
       if (keepUser) sessionStorage.setItem("user", keepUser);
       sessionStorage.setItem("userSession", JSON.stringify(newSession));
 
+      // ✅ Navigate to dashboard/home on center change
+      navigate("/dashboard", { replace: true });
+
+      // ✅ Reload so app fully re-inits with new session center
       hardReload();
     } catch (e) {
       console.error("Failed to update session on clinic change", e);
@@ -307,9 +312,6 @@ const Header = ({ onToggleSidebar, onLogout }) => {
             {showProfileMenu && (
               <div className="usrmenu active">
                 <ul>
-                  {/* <li>
-                    <a href="#">Profile</a>
-                  </li> */}
                   <li>
                     <a href="#" onClick={handleLogout}>
                       Log Out
