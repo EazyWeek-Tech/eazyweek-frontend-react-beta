@@ -796,10 +796,9 @@ const raw = await fetchAllLeads(uiRecId);
             <div className="fgroup">
               <label className="flabel">Sales Owner :</label>
               <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
-                <option value="">- &lt; Select one &gt; -</option>
                 {ownerOptions.map((o, i) => (
                   <option key={i} value={o}>
-                    {o || "(Unassigned)"}
+                    {o}
                   </option>
                 ))}
               </select>
