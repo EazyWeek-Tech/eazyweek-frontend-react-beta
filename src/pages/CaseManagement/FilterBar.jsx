@@ -104,7 +104,7 @@ const FilterBar = ({ onCreateCase, onFilter, employeeList = [] }) => {
       </div>
 
       {/* ✅ Create Case – role based */}
-      {canCreateCase && (
+      {!canCreateCase && (
         <div className="pri-btn-div">
           <button className="pribtn" onClick={onCreateCase}>
             Create Case
