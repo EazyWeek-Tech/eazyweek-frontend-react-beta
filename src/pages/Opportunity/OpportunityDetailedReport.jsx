@@ -34,6 +34,11 @@ const pick = (obj, keys, fallback = "") => {
   }
   return fallback;
 };
+const withLD = (v) => {
+  const s = norm(v);
+  if (!s) return "";
+  return s.toUpperCase().startsWith("LD-") ? s : `LD-${s}`;
+};
 
 // ✅ Backend-only default dates (DO NOT show on UI)
 const DEFAULT_FROM_DATE_ISO = "2020-01-22";
@@ -568,7 +573,8 @@ export default function OpportunityDetailedReport() {
           toDate: fmt(toRaw),
           createdDate: fmt(createdRaw),
 
-          leadId: pick(x, ["leadId", "leadID", "leadCode", "customerId", "custId", "id"]),
+          leadId: withLD(pick(x, ["leadId", "leadID", "leadCode", "customerId", "custId", "id"])),
+
           leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
 
           oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
