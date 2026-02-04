@@ -7,26 +7,31 @@ const DISPOSITION_OPTIONS = [
   { value: "", label: "" },
   { value: "LS008", label: "Converted" },
   { value: "LS011", label: "Not Converted" },
-  { value: "LS004", label: "WIP" },
+  { value: "LS013", label: "WIP" },
 ];
 
 // ✅ Sub-Disposition options (dependent on Disposition)
 const SUB_DISPOSITION_BY_DISPOSITION = {
   LS008: [
     { value: "LS0021", label: "Converted" },
+    { value: "LS028", label: "Rescheduling" },
   ],
-  LS004: [
+  LS013: [
     { value: "LS0022", label: "WIP" },
+    { value: "LS029", label: "Switched Off" },
+    { value: "LS030", label: "No Answer" },
   ],
   LS011: [
     { value: "LS022", label: "Will Visit Personally" },
     { value: "LS023", label: "Doctor not available" },
     { value: "LS024", label: "Price" },
     { value: "LS025", label: "Clinic too far" },
-    { value: "LS026", label: "Machine_Service Availibility- Not Converted" },
+    { value: "LS026", label: "Machine Service Availibility" },
     { value: "LS027", label: "Took Service Outside " },
+    { value: "LS031", label: "Refuse to Reschedule " },
   ],
 };
+
 const getSubDispositionOptions = (disp) => {
   const key = normalizeLSCode(disp);
   return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
@@ -95,16 +100,35 @@ const tomorrowISO = () => {
   return `${y}-${m}-${day}`;
 };
 const normalizeDispCode = (v) => {
-  const s = String(v ?? "").trim().toUpperCase();
+  const s = String(v ?? "").trim();
   if (!s) return "";
 
-  if (/^LS\d{2,6}$/.test(s)) return s;
+  // already LS code
+  if (/^LS\d{2,6}$/i.test(s)) return s.toUpperCase();
 
+  // label -> code
   const t = s.toLowerCase();
   if (t === "converted") return "LS008";
   if (t === "not converted") return "LS011";
+  if (t === "wip") return "LS013"; // ✅ ADD
 
   return s;
+};
+
+const normalizeSubDispForDisposition = (dispCode, subValueOrLabel) => {
+  const raw = String(subValueOrLabel ?? "").trim();
+  if (!raw) return "";
+
+  // if already code like LS0022
+  const maybeCode = normalizeLSCode(raw);
+  if (/^LS\d{2,6}$/.test(maybeCode)) return maybeCode;
+
+  // else treat as label and find matching option by label
+  const opts = getSubDispositionOptions(dispCode);
+  const match = opts.find(
+    (o) => String(o.label).trim().toLowerCase() === raw.toLowerCase()
+  );
+  return match ? normalizeLSCode(match.value) : "";
 };
 
 // ---------- helpers to sanitize API follow-up dates ----------
@@ -303,9 +327,6 @@ useEffect(() => {
 );
 setInitialDisp(apiDisp);
 
-const apiSubDisp = normalizeLSCode(
-  data?.subDistpositionCode || data?.subDistpositionName
-);
 
 const apiReasonCode = String(
   data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
@@ -313,8 +334,11 @@ const apiReasonCode = String(
 
 const apiRemarks = String(data?.remarts || "").trim();
 
-// ✅ decide disposition shown in UI
 const resolvedDisp = normalizeDispCode(state?.row?.disposition) || apiDisp || "";
+
+
+const apiSubDispRaw = data?.subDistpositionCode || data?.subDistpositionName;
+const apiSubDisp = normalizeSubDispForDisposition(resolvedDisp, apiSubDispRaw);
 
 // ✅ validate subdisp belongs to this disposition group
 const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) =>

@@ -15,17 +15,21 @@ const DISPOSITION_OPTIONS = [
 const SUB_DISPOSITION_BY_DISPOSITION = {
   LS008: [
     { value: "LS0021", label: "Converted" },
+    { value: "LS028", label: "Rescheduling" },
   ],
   LS013: [
     { value: "LS0022", label: "WIP" },
+    { value: "LS029", label: "Switched Off" },
+    { value: "LS030", label: "No Answer" },
   ],
   LS011: [
     { value: "LS022", label: "Will Visit Personally" },
     { value: "LS023", label: "Doctor not available" },
     { value: "LS024", label: "Price" },
     { value: "LS025", label: "Clinic too far" },
-    { value: "LS026", label: "Machine_Service Availibility- Not Converted" },
+    { value: "LS026", label: "Machine Service Availibility" },
     { value: "LS027", label: "Took Service Outside " },
+    { value: "LS031", label: "Refuse to Reschedule " },
   ],
 };
 
@@ -76,7 +80,6 @@ const tomorrowISO = () => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
-
 const normalizeDispCode = (v) => {
   const s = String(v ?? "").trim();
   if (!s) return "";
@@ -88,8 +91,25 @@ const normalizeDispCode = (v) => {
   const t = s.toLowerCase();
   if (t === "converted") return "LS008";
   if (t === "not converted") return "LS011";
+  if (t === "wip") return "LS013"; // ✅ ADD THIS
 
   return s;
+};
+
+const normalizeSubDispForDisposition = (dispCode, subValueOrLabel) => {
+  const raw = String(subValueOrLabel ?? "").trim();
+  if (!raw) return "";
+
+  // if already a code like LS0022
+  const maybeCode = normalizeLSCode(raw);
+  if (/^LS\d{2,6}$/.test(maybeCode)) return maybeCode;
+
+  // otherwise treat as label and find matching option by label
+  const opts = getSubDispositionOptions(dispCode);
+  const match = opts.find(
+    (o) => String(o.label).trim().toLowerCase() === raw.toLowerCase()
+  );
+  return match ? normalizeLSCode(match.value) : "";
 };
 
 // ---------- helpers to sanitize API follow-up dates ----------
@@ -271,12 +291,15 @@ useEffect(() => {
         const apiAmPm = normalizeAmPm(data?.followUpTimeAmPM);
         setFollowUpTime(apiTime || DEFAULT_TIME);
         setFollowUpAmPm((apiTime ? apiAmPm : DEFAULT_AMPM) || DEFAULT_AMPM);
-
-     const apiDisp = normalizeLSCode(data?.distpositionCode || data?.distpositionName);
+const apiDisp = normalizeDispCode(data?.distpositionCode || data?.distpositionName);
 setInitialDisp(apiDisp);
 
+const resolvedDisp =
+  normalizeDispCode(state?.row?.disposition) ||
+  apiDisp ||
+  "";
 const apiSubDispRaw = data?.subDistpositionCode || data?.subDistpositionName;
-const apiSubDisp = normalizeLSCode(apiSubDispRaw);
+const apiSubDisp = normalizeSubDispForDisposition(apiDisp, apiSubDispRaw);
 
 const apiReasonCode = String(
   data?.reasonCode ?? data?.reason ?? data?.oppReasonCode ?? ""
@@ -285,7 +308,6 @@ const apiReasonCode = String(
 const apiRemarks = String(data?.remarts || "").trim();
 
 // ✅ choose UI disposition
-const resolvedDisp = normalizeLSCode(state?.row?.disposition) || apiDisp || "";
 
 // ✅ allow-list check using normalized values
 const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) => normalizeLSCode(x.value));
