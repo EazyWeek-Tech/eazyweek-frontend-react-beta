@@ -40,6 +40,23 @@ const formatDDMMYYYY = (v) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+const isPlaceholderISODate = (v) => {
+  const s = String(v || "").trim();
+  if (!s) return true;
+  return s.startsWith("1900-01-01") || s.startsWith("0001-01-01");
+};
+
+const formatCampaignPeriod = (start, end) => {
+  const sOk = !isPlaceholderISODate(start);
+  const eOk = !isPlaceholderISODate(end);
+
+  if (!sOk && !eOk) return "—";
+  if (sOk && !eOk) return `${formatDDMMYYYY(start)} – —`;
+  if (!sOk && eOk) return `— – ${formatDDMMYYYY(end)}`;
+
+  return `${formatDDMMYYYY(start)} – ${formatDDMMYYYY(end)}`;
+};
+
 
 /** 'dd/MM/yyyy' | ISO | Date -> JS Date (midnight) */
 const toDate = (v) => {
@@ -1076,6 +1093,9 @@ const OpportunityDetails = () => {
   const [timeToSlot, setTimeToSlot] = useState("");
   const [timeToMer, setTimeToMer] = useState("AM");
 
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaign, setCampaign] = useState(null);
+
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -1104,6 +1124,32 @@ const OpportunityDetails = () => {
     const code = (fallbackHeader?.oRuleCode || fallbackHeader?.oRuleDetails || "").toString().trim().toLowerCase();
     return !!fallbackHeader?.manualLead || code === "manual lead";
   }, [fallbackHeader]);
+useEffect(() => {
+  let alive = true;
+
+  (async () => {
+    if (!oppCode) return;
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`,
+        { method: "GET", credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`Campaign HTTP ${res.status}`);
+      const data = await res.json();
+      if (!alive) return;
+
+      setCampaign(data || null);
+    } catch (e) {
+      console.error("getCampaign failed:", e);
+      if (!alive) return;
+      setCampaign(null);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [oppCode]);
 
   // ✅ Load normal opportunity details ONLY if not manual lead
   useEffect(() => {
@@ -1511,27 +1557,44 @@ const getRowDateStampForFilter = (row) => {
           <div className="details-header">
             <div className="title-col">
               <div className="pair">
-                <span className="label">Opportunity Code :</span>
-                <span className="value pill">{safe(H.oppCode, "—")}</span>
-              </div>
-              <div className="pair">
-                <span className="label">Opportunity Name :</span>
-                <span className="value">{safe(H.oppName, "—")}</span>
-              </div>
-              <div className="pair">
-                <span className="label">Rule Details :</span>
-                <span className="value">{safe(H.oRuleDetails || H.oRuleCode, "—")}</span>
-              </div>
+  <span className="label">Opportunity Code :</span>
+  <span className="value pill">{safe(campaign?.oppCode || H?.oppCode, "—")}</span>
+</div>
+
+<div className="pair">
+  <span className="label">Opportunity Name :</span>
+  <span className="value">{safe(campaign?.oppName || H?.oppName, "—")}</span>
+</div>
+
+<div className="pair">
+  <span className="label">Rule Code :</span>
+  <span className="value">{safe(campaign?.oRuleCode || H?.oRuleCode, "—")}</span>
+</div>
+
+<div className="pair">
+  <span className="label">Rule Details :</span>
+  <span className="value">{safe(campaign?.oRuleDetails || H?.oRuleDetails, "—")}</span>
+</div>
+
+<div className="pair">
+  <span className="label">Campaign Period :</span>
+  <span className="value">
+    {formatCampaignPeriod(campaign?.oppCampStartDate, campaign?.oppCampEndDate)}
+  </span>
+</div>
               <div className="xywrap">
+                {safe(H.oRuleYvalue) ? (
+                  <>
                 <div className="pair">
                   <span className="label short">X :</span>
                   <span className="value">{safe(H.oRuleXvalue, "—")}</span>
                 </div>
-                {safe(H.oRuleYvalue) ? (
+                
                   <div className="pair">
                     <span className="label short">Y :</span>
                     <span className="value">{H.oRuleYvalue}</span>
                   </div>
+                  </>
                 ) : null}
               </div>
             </div>
