@@ -264,32 +264,49 @@ async function lookupEmployeeByCode(codeRaw) {
     return null;
   }
 }
-function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" }) {
-  const clean = (s) => (s ?? "").toString().trim();
-  const isLikelyEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-  const cleanupList = (s) => {
-    const parts = (s ?? "")
-      .toString()
-      .replace(/;/g, ",")
-      .split(",")
-      .map((x) => x.trim())
-      .filter((x) => x.length > 0);
+const isLikelyEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s ?? "").toString().trim());
 
-    const seen = new Set();
-    const out = [];
-    for (const p of parts) {
-      const key = p.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(p);
-      }
+const cleanupList = (s) => {
+  const parts = (s ?? "")
+    .toString()
+    .replace(/;/g, ",")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+
+  const seen = new Set();
+  const out = [];
+  for (const p of parts) {
+    const key = p.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(p);
     }
-    return out.join(",");
-  };
+  }
+  return out.join(",");
+};
 
+const appendEmailToList = (listStr, email) => {
+  const e = (email ?? "").toString().trim();
+  if (!e || !isLikelyEmail(e)) return cleanupList(listStr);
+
+  const merged = cleanupList([listStr, e].filter(Boolean).join(","));
+  return merged;
+};
+function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics", ownerEmail = "" }) {
+  const clean = (s) => (s ?? "").toString().trim();
+
+  // ✅ To: first valid email from selected.email
   const normalizedToList = cleanupList(selected?.email || "");
-  const emailToFirst = normalizedToList.split(",").find(isLikelyEmail) || clean(selected?.email);
+  const emailToFirst =
+    normalizedToList.split(",").find((x) => isLikelyEmail(x)) || clean(selected?.email);
+
+  // ✅ Keep existing CC as-is (cleaned)
+  const emailCC = cleanupList(selected?.cc || "");
+
+  // ✅ Add owner into MORE-CC (this matches your requirement)
+  const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
   return {
     emailTo: emailToFirst,
@@ -300,8 +317,9 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics" 
     issueDescription: clean(selected?.issueDescription),
     newResponse: clean(selected?.response),
     firstTimeResolution: clean(selected?.firstTimeResolution),
-    emailCC: cleanupList(selected?.cc),
-    moreCC: cleanupList(selected?.moreCc),
+
+    emailCC,   // ✅ unchanged CC
+    moreCC,    // ✅ owner appended here
   };
 }
 async function sendCaseMail(payload, setToast) {
@@ -377,9 +395,24 @@ async function triggerCaseMail({
         issuesData?.issueDescription ?? selectedCaseData?.issueDescription ?? ""
       ),
     };
+    
+    const ownerEmail =
+  trim(
+    selectedCaseData?.caseOwnerEmail ||
+    selectedCaseData?.ownerEmail ||
+    selectedCaseData?.caseOwnerEMailID ||
+    ""
+  ) || "";
 
-    const mailPayload = buildCaseMailPayload({ selected, centerNameFallback: "Bright Clinics" });
-    await sendCaseMail(mailPayload, setToast);
+const mailPayload = buildCaseMailPayload({
+  selected,
+  centerNameFallback: "Bright Clinics",
+  ownerEmail, // ✅ now passed correctly
+});
+
+console.log("MAIL PAYLOAD", mailPayload);
+
+await sendCaseMail(mailPayload, setToast); // ✅ only once
   } catch (e) {
     // do NOT break save/submit for mail failures
     setToast?.({
@@ -553,6 +586,7 @@ const CaseDetailsPage = () => {
           secondSlaName: trim(data.secondSlaName),
           secondSlaCode: trim(data.nextLevelID),
           firstSlaName: trim(data.firstSlaName || ""),
+          caseOwnerEmail: trim(data.caseOwnerEmail || data.caseOwnerEMailID || data.ownerEmail || ""),
         };
 
         setSelectedCaseData(mapped);
