@@ -41,6 +41,11 @@ const safe = (v, fallback = "—") =>
 /** -----------------------------
  * API helpers
  * ----------------------------- */
+const padLeadId = (v, width = 7) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.trunc(n)).padStart(width, "0");
+};
 
 // ✅ campaign header (to know oRuleCode, oppName, etc.)
 const GET_CAMPAIGN_URL = (oppCode) =>
@@ -107,7 +112,6 @@ const normalizeOppStatus = (v) => {
   // numeric codes
   if (s === "1") return "Open";
   if (s === "2") return "Closed";
-  if (s === "WIP") return "WIP"
 
   // text variants
   const t = s.toLowerCase();
@@ -625,7 +629,8 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     }}
     title="Open Lead"
   >
-    {r.recid ? `LD-EX-${r.recid}` : "—"}
+    {r.recid ? `LD-EX-${padLeadId(r.recid)}` : "—"}
+
   </span>
 </td>
 
