@@ -518,7 +518,7 @@ setForm((p) => ({
 
             {/* ✅ NEW: Reasons dropdown (after subdisposition) */}
             <div className="formrow">
-              <label className="lab" htmlFor="reasonCode">Reason :</label>
+              <label className="lab" htmlFor="reasonCode">Reason <span className="req">*</span>:</label>
               <select
                 id="reasonCode"
                 name="reasonCode"

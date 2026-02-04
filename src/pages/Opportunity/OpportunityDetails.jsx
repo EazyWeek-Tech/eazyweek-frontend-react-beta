@@ -198,7 +198,11 @@ const dateToStamp = (d) => {
   const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return +dd;
 };
-
+const formatProspectId = (recid) => {
+  const n = Number(recid);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `LD-${String(Math.trunc(n)).padStart(7, "0")}`;
+};
 /** Convert '01:30' + 'PM' -> '13:30' (12h -> 24h) */
 const to24h = (slot, meridiem) => {
   if (!slot || !meridiem) return "";
@@ -1618,9 +1622,8 @@ const getRowDateStampForFilter = (row) => {
               <div className="fgroup">
                 <label className="flabel">Sales Owner :</label>
                 <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
-                  <option value="">- &lt; Select one &gt; -</option>
                   {ownerOptions.map((o, i) => (
-                    <option key={i} value={o}>{o || "(Unassigned)"}</option>
+                    <option key={i} value={o}>{o }</option>
                   ))}
                 </select>
               </div>
@@ -1711,7 +1714,8 @@ const getRowDateStampForFilter = (row) => {
                     <tr key={`${r.recid || r.custID || r.id || i}-${i}`}>
                       <td>
                          <button className="linkish" onClick={() => openCustomer(r)}>
-                        LD-{safe(r.recid)}
+                          {formatProspectId(r.recid)}
+
                         </button>
                       </td>
                       <td>

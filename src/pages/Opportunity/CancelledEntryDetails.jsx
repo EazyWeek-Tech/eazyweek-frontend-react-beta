@@ -584,7 +584,7 @@ const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
             {/* ✅ NEW: Reasons dropdown */}
             <div className="formrow">
               <label className="lab" htmlFor="reasonCode">
-                Reason :
+                Reason <span className="req">*</span>:
               </label>
               <select
                 id="reasonCode"
