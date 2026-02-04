@@ -615,7 +615,7 @@ export default function OpportunityDetailedReport() {
       "Created Date",
       "Lead ID",
       "Lead Name",
-      "OppName",
+      "Campaign Name",
       "Campaign Status",
       "Converted",
       "OppStatus",
@@ -623,7 +623,7 @@ export default function OpportunityDetailedReport() {
       "Closed By",
       "WIP",
       "Clinic",
-      "Opp Code",
+      "Campaign Code",
     ];
 
     const aoa = [
