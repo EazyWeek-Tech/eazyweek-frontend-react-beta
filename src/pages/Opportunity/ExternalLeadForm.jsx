@@ -364,44 +364,69 @@ const ExternalLeadForm = () => {
   }, [centerOptions, sessionCenter, form.centerCode]);
 
   /** ---------------- Load Doctors (depends on center) ---------------- */
-  useEffect(() => {
-    let alive = true;
+useEffect(() => {
+  let alive = true;
 
-    const run = async () => {
-      const centerCode = safe(form.centerCode).trim();
-      if (!centerCode) {
-        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-        return;
+  const run = async () => {
+    const centerCode = safe(form.centerCode).trim();
+
+    // if no center selected, reset list
+    if (!centerCode) {
+      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+      return;
+    }
+
+    try {
+      // NEW API (AppVerticals = centerCode as per your instruction)
+      const data = await fetchJson(
+        `${API_BASE_URL}/api/Opportunity/OppDoctors/${encodeURIComponent(centerCode)}`
+      );
+
+      const list = readList(data);
+
+      // sample response: [{ name, code, value }]
+      // normalize into {label,value}
+      let opts = (Array.isArray(list) ? list : [])
+        .map((x) => ({
+          value: safe(x?.code).trim(),
+          label: safe(x?.name).trim() || safe(x?.code).trim(),
+        }))
+        // avoid blank duplicates
+        .filter((o, idx, arr) => idx === arr.findIndex((p) => p.value === o.value && p.label === o.label));
+
+      // ensure select one exists as first option (even if API already sends it)
+      const hasSelectOne = opts.some((o) => safe(o.value).trim() === "");
+      if (!hasSelectOne) {
+        opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+      } else {
+        // move blank to top
+        const blank = opts.find((o) => safe(o.value).trim() === "");
+        opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
       }
 
-      try {
-        const data = await fetchJson(
-          `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
-        );
-        const list = readList(data);
+      if (!alive) return;
+      setDoctorOptions(opts);
 
-        const opts = [
-          { label: "< - Select one - >", value: "" },
-          ...list.map((x) => ({
-            value: safe(x?.code || x?.recid || x?.id).trim(),
-            label: safe(x?.name).trim() || safe(x?.code).trim(),
-          })),
-        ];
+      // if selected doctor is not in the new list, clear it
+      setForm((p) => {
+        const cur = safe(p.doctor).trim();
+        if (!cur) return p;
+        const exists = opts.some((o) => safe(o.value).trim() === cur);
+        return exists ? p : { ...p, doctor: "", doctorName: "" };
+      });
+    } catch (e) {
+      console.error("OppDoctors failed", e);
+      if (!alive) return;
+      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+    }
+  };
 
-        if (!alive) return;
-        setDoctorOptions(opts);
-      } catch (e) {
-        console.error("LoadAllPractioner failed", e);
-        if (!alive) return;
-        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-      }
-    };
+  run();
+  return () => {
+    alive = false;
+  };
+}, [form.centerCode]);
 
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [form.centerCode]);
 
   /** ---------------- Load Verticals ---------------- */
   useEffect(() => {
