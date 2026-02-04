@@ -1561,12 +1561,12 @@ const getRowDateStampForFilter = (row) => {
           <div className="details-header">
             <div className="title-col">
               <div className="pair">
-  <span className="label">Opportunity Code :</span>
+  <span className="label">Campaign Code :</span>
   <span className="value pill">{safe(campaign?.oppCode || H?.oppCode, "—")}</span>
 </div>
 
 <div className="pair">
-  <span className="label">Opportunity Name :</span>
+  <span className="label">Campaign Name :</span>
   <span className="value">{safe(campaign?.oppName || H?.oppName, "—")}</span>
 </div>
 

@@ -9,6 +9,7 @@ const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const pad2 = (n) => String(n).padStart(2, "0");
 
 const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
+const OPP_TYPE = "ExternalSource";
 
 const getTomorrowInputDate = () => {
   const d = new Date();
@@ -39,11 +40,6 @@ const TIME_OPTIONS = (() => {
   }
   return out;
 })();
-
-const toOppStatusInt = (dispositionId) => {
-  const d = safe(dispositionId).trim();
-  return d === "LS004" ? 1 : 2; // WIP => 1 else 2
-};
 
 /** Keep only digits */
 const digitsOnly = (s) => safe(s).replace(/\D/g, "");
@@ -148,53 +144,8 @@ const toApiFollowUpDateISO = (yyyyMMdd) => {
   return `${s}T00:00:00.000Z`;
 };
 
-/** ---------------- Hardcoded Disposition Masters ---------------- */
-const DISPOSITIONS = [
-  { label: "< - Select one - >", value: "" },
-  { label: "Not Converted", value: "LS003" },
-  { label: "WIP", value: "LS004" },
-  { label: "Converted", value: "LS007" },
-];
-
-const SUBDISPOSITIONS_MASTER = [
-  { code: "LS001", name: "Duplicate", leadStatusCode: "LS001" },
-  { code: "LS002", name: "Unreachable", leadStatusCode: "LS002" },
-  { code: "LS003", name: "DND", leadStatusCode: "LS002" },
-  { code: "LS004", name: "Wrong Invalid Number", leadStatusCode: "LS002" },
-  { code: "LS005", name: "Not related to our Services", leadStatusCode: "LS002" },
-  { code: "LS006", name: "Test Lead", leadStatusCode: "LS002" },
-
-  { code: "LS007", name: "Will Visit Personally", leadStatusCode: "LS003" },
-  { code: "LS008", name: "Doctor not available", leadStatusCode: "LS003" },
-  { code: "LS009", name: "Price", leadStatusCode: "LS003" },
-  { code: "LS010", name: "Clinic too far", leadStatusCode: "LS003" },
-  { code: "LS011", name: "Machine_Service Availibility", leadStatusCode: "LS003" },
-  { code: "LS012", name: "Took Service Outside", leadStatusCode: "LS003" },
-
-  { code: "LS013", name: "Inquiry only", leadStatusCode: "LS005" },
-  { code: "LS014", name: "Feedback", leadStatusCode: "LS005" },
-  { code: "LS015", name: "Complaint Doctor", leadStatusCode: "LS005" },
-  { code: "LS016", name: "Existing Appointment", leadStatusCode: "LS005" },
-  { code: "LS017", name: "Follow up Session Consultation", leadStatusCode: "LS005" },
-  { code: "LS018", name: "Complaint Service", leadStatusCode: "LS005" },
-
-  { code: "LS019", name: "WIP", leadStatusCode: "LS004" },
-  { code: "LS0020", name: "Converted", leadStatusCode: "LS007" },
-];
-
-const buildSubDispositionOptions = (leadStatusCode) => {
-  const list = SUBDISPOSITIONS_MASTER.filter(
-    (x) => safe(x.leadStatusCode).trim() === safe(leadStatusCode).trim()
-  );
-  return [
-    { label: "< - Select one - >", value: "" },
-    ...list.map((x) => ({ label: x.name, value: x.code })),
-  ];
-};
-
 /** ---------------- Session Center Resolver ----------------
  * Finds the session JSON that contains loginCode/topCode anywhere in sessionStorage.
- * Returns "LNS" (from loginCode/topCode) so dropdown shows "Lines".
  */
 const getCenterFromSession = () => {
   try {
@@ -203,7 +154,6 @@ const getCenterFromSession = () => {
       const raw = sessionStorage.getItem(key);
       if (!raw) continue;
 
-      // quick string filter before parsing
       if (!raw.includes("loginCode") && !raw.includes("topCode")) continue;
 
       try {
@@ -237,13 +187,17 @@ const ExternalLeadForm = () => {
   const leadOppIdFromParams = safe(params?.leadOppId).trim();
   const resolvedLeadOppId = leadOppIdFromState || leadOppIdFromParams;
 
-  const recID = Number(safe(params?.leadOppId || resolvedLeadOppId).trim() || 0) || 0;
+  const recID =
+    Number(safe(params?.leadOppId || resolvedLeadOppId).trim() || 0) || 0;
 
   const [toast, setToast] = useState({ show: false, msg: "" });
   const showToast = (msg) => {
     setToast({ show: true, msg });
     window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast({ show: false, msg: "" }), 2500);
+    showToast._t = window.setTimeout(
+      () => setToast({ show: false, msg: "" }),
+      2500
+    );
   };
 
   /** ---------------- Options ---------------- */
@@ -259,7 +213,10 @@ const ExternalLeadForm = () => {
     { label: "< - Select one - >", value: "" },
   ]);
 
-  const [dispositionOptions] = useState(DISPOSITIONS);
+  // ✅ Disposition / Sub-disposition from API
+  const [dispositionOptions, setDispositionOptions] = useState([
+    { label: "< - Select one - >", value: "" },
+  ]);
   const [subDispositionOptions, setSubDispositionOptions] = useState([
     { label: "< - Select one - >", value: "" },
   ]);
@@ -271,7 +228,9 @@ const ExternalLeadForm = () => {
   const [form, setForm] = useState(() => {
     const custName = safe(row?.custName);
     const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
-    const last = safe(row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : ""));
+    const last = safe(
+      row?.lastName || (custName ? custName.split(" ").slice(1).join(" ") : "")
+    );
 
     return {
       countryCode: "",
@@ -290,6 +249,7 @@ const ExternalLeadForm = () => {
       interestedVerticalName: safe(row?.interestedInName || ""),
       interestedOther: "",
 
+      // from row if present
       dispositionId: safe(row?.dispositionCode || ""),
       subDispositionId: safe(row?.subDispositionCode || ""),
 
@@ -300,7 +260,7 @@ const ExternalLeadForm = () => {
     };
   });
 
-  // ✅ sessionCenter computed safely (won’t freeze empty if storage writes slightly later)
+  // ✅ sessionCenter computed safely
   const [sessionCenter, setSessionCenter] = useState("");
   useEffect(() => {
     const code = getCenterFromSession();
@@ -308,16 +268,123 @@ const ExternalLeadForm = () => {
     setSessionCenter(code);
   }, []);
 
+  // hide submit on initial load (kept same logic as your current file)
   useEffect(() => {
     const initialDisp = safe(row?.dispositionCode).trim() || safe(form.dispositionId).trim();
     const initialOppStatus = initialDisp === "LS004" ? "1" : "2";
-    const shouldHide = initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
+    const shouldHide =
+      initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
     setIsSubmitHidden(shouldHide);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // also update hide submit when user changes disposition (so it reacts live)
+  useEffect(() => {
+    const disp = safe(form.dispositionId).trim();
+    const oppStatus = disp === "LS004" ? "1" : "2";
+    const shouldHide = oppStatus === "2" && (disp === "LS003" || disp === "LS007");
+    setIsSubmitHidden(shouldHide);
+  }, [form.dispositionId]);
+
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  /** ---------------- Load Dispositions (API) ---------------- */
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      try {
+        const data = await fetchJson(
+          `${API_BASE_URL}/api/Opportunity/Dispostion/${encodeURIComponent(OPP_TYPE)}`
+        );
+        const list = readList(data);
+
+        let opts = (Array.isArray(list) ? list : []).map((x) => ({
+          value: safe(x?.code).trim(),
+          label: safe(x?.name).trim() || safe(x?.code).trim(),
+        }));
+
+        // ensure "< - Select one - >" exists at top
+        const hasBlank = opts.some((o) => safe(o.value).trim() === "");
+        if (!hasBlank) opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+        else {
+          const blank = opts.find((o) => safe(o.value).trim() === "");
+          opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
+        }
+
+        if (!alive) return;
+        setDispositionOptions(opts);
+      } catch (e) {
+        console.error("Dispostion failed", e);
+        if (!alive) return;
+        setDispositionOptions([{ label: "< - Select one - >", value: "" }]);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /** ---------------- Load Sub-Dispositions (API) ---------------- */
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      const disp = safe(form.dispositionId).trim();
+
+      if (!disp) {
+        setSubDispositionOptions([{ label: "< - Select one - >", value: "" }]);
+        setForm((p) => ({ ...p, subDispositionId: "" }));
+        return;
+      }
+
+      try {
+        const data = await fetchJson(
+          `${API_BASE_URL}/api/Opportunity/SubDispostion/${encodeURIComponent(
+            OPP_TYPE
+          )}/${encodeURIComponent(disp)}`
+        );
+        const list = readList(data);
+
+        let opts = (Array.isArray(list) ? list : []).map((x) => ({
+          value: safe(x?.code).trim(),
+          label: safe(x?.name).trim() || safe(x?.code).trim(),
+        }));
+
+        // ensure select one at top
+        const hasBlank = opts.some((o) => safe(o.value).trim() === "");
+        if (!hasBlank) opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+        else {
+          const blank = opts.find((o) => safe(o.value).trim() === "");
+          opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
+        }
+
+        if (!alive) return;
+        setSubDispositionOptions(opts);
+
+        // if current selected subDisposition not in list -> clear it
+        setForm((p) => {
+          const cur = safe(p.subDispositionId).trim();
+          if (!cur) return p;
+          const exists = opts.some((o) => safe(o.value).trim() === cur);
+          return exists ? p : { ...p, subDispositionId: "" };
+        });
+      } catch (e) {
+        console.error("SubDispostion failed", e);
+        if (!alive) return;
+        setSubDispositionOptions([{ label: "< - Select one - >", value: "" }]);
+        setForm((p) => ({ ...p, subDispositionId: "" }));
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [form.dispositionId]);
 
   /** ---------------- Load Centers ---------------- */
   useEffect(() => {
@@ -364,69 +431,62 @@ const ExternalLeadForm = () => {
   }, [centerOptions, sessionCenter, form.centerCode]);
 
   /** ---------------- Load Doctors (depends on center) ---------------- */
-useEffect(() => {
-  let alive = true;
+  useEffect(() => {
+    let alive = true;
 
-  const run = async () => {
-    const centerCode = safe(form.centerCode).trim();
+    const run = async () => {
+      const centerCode = safe(form.centerCode).trim();
 
-    // if no center selected, reset list
-    if (!centerCode) {
-      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-      return;
-    }
-
-    try {
-      // NEW API (AppVerticals = centerCode as per your instruction)
-      const data = await fetchJson(
-        `${API_BASE_URL}/api/Opportunity/OppDoctors/${encodeURIComponent(centerCode)}`
-      );
-
-      const list = readList(data);
-
-      // sample response: [{ name, code, value }]
-      // normalize into {label,value}
-      let opts = (Array.isArray(list) ? list : [])
-        .map((x) => ({
-          value: safe(x?.code).trim(),
-          label: safe(x?.name).trim() || safe(x?.code).trim(),
-        }))
-        // avoid blank duplicates
-        .filter((o, idx, arr) => idx === arr.findIndex((p) => p.value === o.value && p.label === o.label));
-
-      // ensure select one exists as first option (even if API already sends it)
-      const hasSelectOne = opts.some((o) => safe(o.value).trim() === "");
-      if (!hasSelectOne) {
-        opts = [{ label: "< - Select one - >", value: "" }, ...opts];
-      } else {
-        // move blank to top
-        const blank = opts.find((o) => safe(o.value).trim() === "");
-        opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
+      if (!centerCode) {
+        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+        return;
       }
 
-      if (!alive) return;
-      setDoctorOptions(opts);
+      try {
+        const data = await fetchJson(
+          `${API_BASE_URL}/api/Opportunity/OppDoctors/${encodeURIComponent(centerCode)}`
+        );
+        const list = readList(data);
 
-      // if selected doctor is not in the new list, clear it
-      setForm((p) => {
-        const cur = safe(p.doctor).trim();
-        if (!cur) return p;
-        const exists = opts.some((o) => safe(o.value).trim() === cur);
-        return exists ? p : { ...p, doctor: "", doctorName: "" };
-      });
-    } catch (e) {
-      console.error("OppDoctors failed", e);
-      if (!alive) return;
-      setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
-    }
-  };
+        let opts = (Array.isArray(list) ? list : [])
+          .map((x) => ({
+            value: safe(x?.code).trim(),
+            label: safe(x?.name).trim() || safe(x?.code).trim(),
+          }))
+          .filter(
+            (o, idx, arr) =>
+              idx === arr.findIndex((p) => p.value === o.value && p.label === o.label)
+          );
 
-  run();
-  return () => {
-    alive = false;
-  };
-}, [form.centerCode]);
+        const hasSelectOne = opts.some((o) => safe(o.value).trim() === "");
+        if (!hasSelectOne) {
+          opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+        } else {
+          const blank = opts.find((o) => safe(o.value).trim() === "");
+          opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
+        }
 
+        if (!alive) return;
+        setDoctorOptions(opts);
+
+        setForm((p) => {
+          const cur = safe(p.doctor).trim();
+          if (!cur) return p;
+          const exists = opts.some((o) => safe(o.value).trim() === cur);
+          return exists ? p : { ...p, doctor: "", doctorName: "" };
+        });
+      } catch (e) {
+        console.error("OppDoctors failed", e);
+        if (!alive) return;
+        setDoctorOptions([{ label: "< - Select one - >", value: "" }]);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [form.centerCode]);
 
   /** ---------------- Load Verticals ---------------- */
   useEffect(() => {
@@ -460,19 +520,6 @@ useEffect(() => {
     };
   }, []);
 
-  /** ---------------- SubDisposition depends on Disposition ---------------- */
-  useEffect(() => {
-    const disp = safe(form.dispositionId).trim();
-    const opts = buildSubDispositionOptions(disp);
-    setSubDispositionOptions(opts);
-
-    setForm((p) => {
-      if (!disp) return { ...p, subDispositionId: "" };
-      const ok = opts.some((o) => o.value && o.value === p.subDispositionId);
-      return ok ? p : { ...p, subDispositionId: "" };
-    });
-  }, [form.dispositionId]);
-
   const onChange = (e) => {
     const { name, value } = e.target;
 
@@ -488,6 +535,11 @@ useEffect(() => {
 
       if (name === "followUpTime" && !safe(value).trim()) {
         next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
+      }
+
+      // if disposition changes, clear subDisposition immediately (API will repopulate)
+      if (name === "dispositionId") {
+        next.subDispositionId = "";
       }
 
       return next;
@@ -663,7 +715,12 @@ useEffect(() => {
             <div className="col">
               <div className="field">
                 <label>Preferred Language</label>
-                <select className="inp" name="preferredLanguage" value={form.preferredLanguage} onChange={onChange}>
+                <select
+                  className="inp"
+                  name="preferredLanguage"
+                  value={form.preferredLanguage}
+                  onChange={onChange}
+                >
                   {langOptions.map((l) => (
                     <option key={l} value={l}>
                       {l}
@@ -707,6 +764,11 @@ useEffect(() => {
                       interestedVerticalCode: code,
                       interestedVerticalName: opt?.label || "",
                     }));
+                    setErrors((prev) => {
+                      if (!prev.interestedVerticalCode) return prev;
+                      const { interestedVerticalCode: _, ...rest } = prev;
+                      return rest;
+                    });
                   }}
                 >
                   {verticalOptions.map((o) => (
@@ -715,7 +777,9 @@ useEffect(() => {
                     </option>
                   ))}
                 </select>
-                {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
+                {errors.interestedVerticalCode && (
+                  <div className="errText">{errors.interestedVerticalCode}</div>
+                )}
               </div>
 
               <div className="field">
@@ -734,6 +798,11 @@ useEffect(() => {
                       doctor: code,
                       doctorName: opt?.label || "",
                     }));
+                    setErrors((prev) => {
+                      if (!prev.doctor) return prev;
+                      const { doctor: _, ...rest } = prev;
+                      return rest;
+                    });
                   }}
                 >
                   {doctorOptions.map((d) => (
@@ -747,7 +816,12 @@ useEffect(() => {
 
               <div className="field">
                 <label>Other</label>
-                <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
+                <input
+                  className="inp"
+                  name="interestedOther"
+                  value={form.interestedOther}
+                  onChange={onChange}
+                />
               </div>
             </div>
           </div>
@@ -794,7 +868,9 @@ useEffect(() => {
                     </option>
                   ))}
                 </select>
-                {errors.subDispositionId && <div className="errText">{errors.subDispositionId}</div>}
+                {errors.subDispositionId && (
+                  <div className="errText">{errors.subDispositionId}</div>
+                )}
               </div>
             </div>
 
@@ -813,7 +889,12 @@ useEffect(() => {
 
               <div className="field">
                 <label>Follow Up Time</label>
-                <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
+                <select
+                  className="inp"
+                  name="followUpTime"
+                  value={form.followUpTime}
+                  onChange={onChange}
+                >
                   {TIME_OPTIONS.map((t) => (
                     <option key={t.value || t.label} value={t.value}>
                       {t.label}
@@ -826,7 +907,13 @@ useEffect(() => {
 
           <div className="field mtWide">
             <label>Remarks</label>
-            <textarea className="txta" rows={5} name="remarks" value={form.remarks} onChange={onChange} />
+            <textarea
+              className="txta"
+              rows={5}
+              name="remarks"
+              value={form.remarks}
+              onChange={onChange}
+            />
           </div>
         </fieldset>
 
