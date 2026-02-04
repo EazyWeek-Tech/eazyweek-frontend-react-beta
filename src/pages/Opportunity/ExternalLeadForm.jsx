@@ -201,6 +201,7 @@ const buildSubDispositionOptions = (leadStatusCode) => {
 
 
 /** ---------------- Logged-in Center Resolver ---------------- */
+
 const getLoggedInCenterCode = () => {
   const candidates = [
     sessionStorage.getItem("user"),
@@ -229,6 +230,8 @@ const getLoggedInCenterCode = () => {
     sessionStorage.getItem("centerCode") || localStorage.getItem("centerCode");
   return safe(direct).trim();
 };
+
+
 
 /** ---------------- Component ---------------- */
 const ExternalLeadForm = () => {
@@ -283,6 +286,24 @@ const ExternalLeadForm = () => {
   /** ---------------- Form ---------------- */
   const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
 
+  const [isSubmitHidden, setIsSubmitHidden] = useState(false);
+
+useEffect(() => {
+  // Decide hiding ONLY from the loaded/initial disposition (row/initial value)
+  const initialDisp =
+    safe(row?.dispositionCode).trim() || safe(form.dispositionId).trim();
+
+  const initialOppStatus = initialDisp === "LS004" ? "1" : "2";
+
+  const shouldHide =
+    initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
+
+  setIsSubmitHidden(shouldHide);
+  // run only once on load (row is stable from navigation state)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+
  const [form, setForm] = useState(() => {
   const custName = safe(row?.custName);
   const first = safe(row?.firstName || (custName ? custName.split(" ")[0] : ""));
@@ -316,6 +337,8 @@ subDispositionId: safe(row?.subDispositionCode || ""), // ✅
     remarks: safe(row?.remarks || ""),
   };
 });
+
+
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -702,7 +725,7 @@ others: safe(form.interestedOther),
                 <label>
                   Doctor / Therapist <span className="req">*</span>
                 </label>
-               <select
+                <select
   className={`inp ${errors.doctor ? "err" : ""}`}
   name="doctor"
   value={form.doctor}
@@ -812,14 +835,17 @@ others: safe(form.interestedOther),
         </fieldset>
 
         <div className="btnRow">
-          <button className="btn" onClick={handleSubmit} disabled={saving}>
-            {saving ? "Saving..." : "Submit"}
-          </button>
+  {!isSubmitHidden && (
+    <button className="btn" onClick={handleSubmit} disabled={saving}>
+      {saving ? "Saving..." : "Submit"}
+    </button>
+  )}
 
-          <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
-            Back
-          </button>
-        </div>
+  <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+    Back
+  </button>
+</div>
+
       </div>
 
       <style jsx="true">{`
