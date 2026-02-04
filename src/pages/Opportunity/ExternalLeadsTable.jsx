@@ -107,6 +107,7 @@ const normalizeOppStatus = (v) => {
   // numeric codes
   if (s === "1") return "Open";
   if (s === "2") return "Closed";
+  if (s === "WIP") return "WIP"
 
   // text variants
   const t = s.toLowerCase();
@@ -117,13 +118,28 @@ const normalizeOppStatus = (v) => {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 const mapExternalRow = (x) => {
+  const oppStatus = normalizeOppStatus(x?.oppStatus);
+
   return {
     recid: x?.recid ?? x?.recId ?? "",
     custID: (x?.custID ?? "").toString(),
     custName: (x?.custName ?? "").toString(),
     custMobileNo: (x?.custMobileNo ?? "").toString(),
-    oppStatus: normalizeOppStatus(x?.oppStatus),
-    disposition: (x?.disposition ?? "").toString(),
+
+    // ✅ add these so Details page can prefill
+    therapistCode: (x?.therapistCode ?? "").toString().trim(),
+    therapistname: (x?.therapistname ?? x?.therapistName ?? "").toString().trim(),
+
+    interestedInCode: (x?.interestedInCode ?? "").toString().trim(),
+    interestedInName: (x?.interestedInName ?? "").toString().trim(),
+
+    dispositionCode: (x?.dispositionCode ?? "").toString().trim(),
+    disposition: (x?.disposition ?? "").toString().trim(),
+
+    subDispositionCode: (x?.subDispositionCode ?? "").toString().trim(),
+    subDisposition: (x?.subDisposition ?? "").toString().trim(),
+
+    oppStatus,
     remarks: (x?.remarks ?? "").toString(),
     salesOwner: (x?.salesOwner ?? "").toString(),
     createddate: x?.createddate ?? x?.createdDate ?? "",
@@ -132,8 +148,9 @@ const mapExternalRow = (x) => {
       x?.custID,
       x?.custName,
       x?.custMobileNo,
-     normalizeOppStatus(x?.oppStatus),
+      oppStatus,
       x?.disposition,
+      x?.subDisposition,
       x?.remarks,
       x?.salesOwner,
       x?.createddate,
@@ -142,7 +159,6 @@ const mapExternalRow = (x) => {
       .join(" | "),
   };
 };
-
 export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const navigate = useNavigate();
   const params = useParams();
@@ -502,7 +518,6 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
               >
                 <option value="">All</option>
                 <option value="Open">Open</option>
-                <option value="Pending">Pending</option>
                 <option value="Closed">Closed</option>
                 <option value="WIP">WIP</option>
               </select>

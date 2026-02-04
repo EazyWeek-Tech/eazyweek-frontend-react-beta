@@ -1566,10 +1566,6 @@ const getRowDateStampForFilter = (row) => {
   <span className="value">{safe(campaign?.oppName || H?.oppName, "—")}</span>
 </div>
 
-<div className="pair">
-  <span className="label">Rule Code :</span>
-  <span className="value">{safe(campaign?.oRuleCode || H?.oRuleCode, "—")}</span>
-</div>
 
 <div className="pair">
   <span className="label">Rule Details :</span>
