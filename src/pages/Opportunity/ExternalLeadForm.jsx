@@ -278,13 +278,6 @@ const ExternalLeadForm = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // also update hide submit when user changes disposition (so it reacts live)
-  useEffect(() => {
-    const disp = safe(form.dispositionId).trim();
-    const oppStatus = disp === "LS004" ? "1" : "2";
-    const shouldHide = oppStatus === "2" && (disp === "LS003" || disp === "LS007");
-    setIsSubmitHidden(shouldHide);
-  }, [form.dispositionId]);
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
