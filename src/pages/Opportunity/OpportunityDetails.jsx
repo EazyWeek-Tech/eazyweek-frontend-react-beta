@@ -212,6 +212,23 @@ const to24h = (slot, meridiem) => {
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
 
+// Therapist name (API keys can vary)
+const getTherapistName = (row) => {
+  return (
+    row?.therapistname ||     
+    row?.therapistName ||
+    row?.therapist ||
+    row?.practitionerName ||
+    row?.therapist_name ||
+    row?.TherapistName ||
+    row?.PractitionerName ||
+    ""
+  )
+    .toString()
+    .trim();
+};
+
+
 /** Extract follow-up DATE from row (prefers explicit followUpDate) */
 const getRowFollowUpDate = (row) => {
   const tryFields = [
@@ -1070,6 +1087,9 @@ const OpportunityDetails = () => {
   const openAssignMenu = () => setAssignChoiceOpen(true);
   const closeAssignMenu = () => setAssignChoiceOpen(false);
 
+  const [therapistFilter, setTherapistFilter] = useState("");
+
+
   // store picked action: assign/reassign + mode
   const [assignAction, setAssignAction] = useState({ type: "assign", mode: "auto" });
 
@@ -1195,18 +1215,29 @@ useEffect(() => {
         setHeader(arr[0] ?? null);
         setRows(arr);
 
-        const computed = arr.map((r) => {
-          const d = getRowFollowUpDate(r);
-          const hhmm = getRowTimeHHmm(r);
-          return {
-            ...r,
-            __dateStamp: dateToStamp(d),
-            __timeMin: hhmmToMinutes(hhmm),
-            __q: [r?.custID, r?.custName, r?.custMobileNo, displayOppStatus(r?.oppStatus), r?.salesOwner]
-              .map((x) => (x ?? "").toString().toLowerCase())
-              .join(" | "),
-          };
-        });
+       const computed = arr.map((r) => {
+  const d = getRowFollowUpDate(r);
+  const hhmm = getRowTimeHHmm(r);
+  const therapistName = getTherapistName(r);
+
+  return {
+    ...r,
+    __dateStamp: dateToStamp(d),
+    __timeMin: hhmmToMinutes(hhmm),
+    __therapistName: therapistName, // ✅ keep a normalized field for table/filter
+    __q: [
+      r?.custID,
+      r?.custName,
+      r?.custMobileNo,
+      displayOppStatus(r?.oppStatus),
+      r?.salesOwner,
+      therapistName, // ✅ searchable
+    ]
+      .map((x) => (x ?? "").toString().toLowerCase())
+      .join(" | "),
+  };
+});
+
 
         // apply auto store assignments (if any)
         const store = loadAssignStore(oppCode);
@@ -1250,20 +1281,22 @@ useEffect(() => {
   const filterTimeTo = useMemo(() => to24h(timeToSlot, timeToMer), [timeToSlot, timeToMer]);
 
   useEffect(() => {
-    setPage(1);
-  }, [
-    searchTerm,
-    statusFilter,
-    ownerFilter,
-    followDateMode,
-    rangeFrom,
-    rangeTo,
-    filterTimeFrom,
-    filterTimeTo,
-    sortConfig?.key,
-    sortConfig?.direction,
-    isManualLead,
-  ]);
+  setPage(1);
+}, [
+  searchTerm,
+  statusFilter,
+  ownerFilter,
+  therapistFilter, // ✅ add this
+  followDateMode,
+  rangeFrom,
+  rangeTo,
+  filterTimeFrom,
+  filterTimeTo,
+  sortConfig?.key,
+  sortConfig?.direction,
+  isManualLead,
+]);
+
 
   const ownerOptions = useMemo(() => {
     const set = new Set();
@@ -1272,6 +1305,16 @@ useEffect(() => {
     });
     return ["", ...Array.from(set)];
   }, [normRows]);
+
+  const therapistOptions = useMemo(() => {
+  const set = new Set();
+  normRows.forEach((r) => {
+    const t = getTherapistName(r);
+    if (t) set.add(t);
+  });
+  return ["", ...Array.from(set)];
+}, [normRows]);
+
 
   const currentOwners = useMemo(() => {
     const set = new Set();
@@ -1337,6 +1380,13 @@ const getRowDateStampForFilter = (row) => {
     }
   }
 
+  // 3b) Therapist filter
+if (therapistFilter) {
+  const tf = therapistFilter.trim().toLowerCase();
+  list = list.filter((r) => String(r.__therapistName || getTherapistName(r)).trim().toLowerCase() === tf);
+}
+
+
   // 4) Follow-up date filter (Today / Tomorrow / Range)
   if (dateRange) {
     const from = +new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate());
@@ -1400,6 +1450,7 @@ const getRowDateStampForFilter = (row) => {
   ownerFilter,
   dateRange,
   filterTimeFrom,
+  therapistFilter,
   filterTimeTo,
   sortConfig,
 ]);
@@ -1620,6 +1671,18 @@ const getRowDateStampForFilter = (row) => {
               </div>
 
               <div className="fgroup">
+  <label className="flabel">Therapist :</label>
+  <select className="finput" value={therapistFilter} onChange={(e) => setTherapistFilter(e.target.value)}>
+    {therapistOptions.map((t, i) => (
+      <option key={i} value={t}>
+        {t || "All"}
+      </option>
+    ))}
+  </select>
+</div>
+
+
+              <div className="fgroup">
                 <label className="flabel">Sales Owner :</label>
                 <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
                   {ownerOptions.map((o, i) => (
@@ -1703,6 +1766,11 @@ const getRowDateStampForFilter = (row) => {
                     <th onClick={() => handleSort("custMobileNo")}>MobileNo <span className="sort">{sortArrow("custMobileNo")}</span></th>
                     <th onClick={() => handleSort("oppStatus")}>Status <span className="sort">{sortArrow("oppStatus")}</span></th>
                     <th onClick={() => handleSort("disposition")}>Disposition <span className="sort">{sortArrow("disposition")}</span></th>
+                    <th onClick={() => handleSort("__therapistName")}>
+  Therapist Name <span className="sort">{sortArrow("__therapistName")}</span>
+</th>
+
+                    
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
                     <th onClick={() => handleSort("createddate")}>Created Date <span className="sort">{sortArrow("createddate")}</span></th>
@@ -1731,6 +1799,8 @@ const getRowDateStampForFilter = (row) => {
                       <td>{displayOppStatus(r.oppStatus)}</td>
 
                       <td>{safe(r.disposition, "—")}</td>
+                      <td>{safe(r.__therapistName || getTherapistName(r), "—")}</td>
+
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
                       <td>{formatDDMMYYYY(r.createddate)}</td>
@@ -1926,6 +1996,8 @@ const getRowDateStampForFilter = (row) => {
         .breadcrumb-link { color:#334b71; cursor:pointer; }
         .breadcrumb-link:hover { text-decoration:underline; }
         .breadcrumb-current { color:#888; }
+        .opptable { width:100%; border-collapse:collapse; min-width:1100px; }
+
         .details-card { background:#fff; padding:24px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
         .details-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
         .title-col { display:grid; gap:8px; }
@@ -1954,10 +2026,10 @@ const getRowDateStampForFilter = (row) => {
 
         .table-wrap { margin-top:16px; overflow-x:auto; border-radius:10px; }
         .opptable { width:100%; border-collapse:collapse; min-width:1000px; }
-        .opptable thead th { text-align:left; font-weight:600; font-size:14px; color:#445; background:#f6f8fb; padding:12px 14px; border-bottom:1px solid #e8edf5; white-space:nowrap; cursor:pointer; user-select:none; }
-        .opptable tbody td { font-size:14px; color:#333; padding:12px 14px; border-bottom:1px solid #f0f2f6; vertical-align:middle; }
+        .opptable thead th { text-align:left; font-weight:600; font-size:12px; color:#445; background:#f6f8fb; padding:12px 14px; border-bottom:1px solid #e8edf5; white-space:nowrap; cursor:pointer; user-select:none; }
+        .opptable tbody td { font-size:13px; line-height:20px; color:#333; padding:12px 14px; border-bottom:1px solid #f0f2f6; vertical-align:middle; }
         .opptable tbody tr:hover { background:#fafbfe; }
-        .linkish { background:none; border:none; padding:0; color:#2b5ec2; cursor:pointer; font-weight:600; }
+        .linkish { background:none; border:none; padding:0; color:#2b5ec2; cursor:pointer; font-weight:600; font-size: 13px; }
         .sort { margin-left:6px; color:#6b7280; font-size:12px; }
         .empty-note { margin-top:12px; padding:14px; background:#f9fafc; border:1px dashed #e6eaf2; border-radius:8px; color:#5c6b7a; font-size:14px; }
         .loading-msg { padding:40px; text-align:center; font-size:18px; color:#666; }
