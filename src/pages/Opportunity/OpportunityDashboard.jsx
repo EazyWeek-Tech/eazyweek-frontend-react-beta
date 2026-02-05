@@ -33,23 +33,44 @@ const COLORS = {
   axis: "#6e7b8f",
 };
 
-const STATUS_DATA_MANUAL_LEAD = [
-];
 
-const STATUS_DATA_PAID_X_NOT_Y = [
-];
+const RULE_KEYS = {
+  MANUAL: "MANUAL",
+  PAID_X_NOT_Y: "PAID_X_NOT_Y",
+  NO_SHOW: "NO_SHOW",
+  PAID_X_CAT: "PAID_X_CAT",
+  CUSTOMER_SPECIAL_DAY: "CUSTOMER_SPECIAL_DAY",
+  CANCELLED_APPT: "CANCELLED_APPT",
+  EXTERNAL: "EXTERNAL",
+};
 
-const STATUS_DATA_NO_SHOW = [
-];
+const detectRuleKey = (row) => {
+  if (isManualLeadRow(row)) return RULE_KEYS.MANUAL;
+  if (isExternalLeadRow(row)) return RULE_KEYS.EXTERNAL;
 
-const STATUS_DATA_PAID_X_CAT = [
-];
+  const code = String(row?.oRuleCode ?? row?.ruleCode ?? "").trim().toUpperCase();
+  const name = String(row?.oppName ?? row?.oRuleDetails ?? "").toLowerCase();
 
-/* Stacked-by-clinic cards (static) */
-const STACKED_CUSTOMER_SPECIAL_DAY = [
-];
+  // ✅ confirmed from your API data
+  if (code === "R3") return RULE_KEYS.NO_SHOW;        // No Show
+  if (code === "R4") return RULE_KEYS.CANCELLED_APPT; // Cancelled
 
-const STACKED_CANCELLED_APPT = [];
+  // unknown / not confirmed yet (keep if you have them)
+  if (code === "R1") return RULE_KEYS.PAID_X_NOT_Y;
+  if (code === "R2") return RULE_KEYS.PAID_X_CAT;
+  if (code === "R5") return RULE_KEYS.CUSTOMER_SPECIAL_DAY;
+
+  // fallback by text
+  if (name.includes("paid") && name.includes("not")) return RULE_KEYS.PAID_X_NOT_Y;
+  if (name.includes("no show")) return RULE_KEYS.NO_SHOW;
+  if (name.includes("category") && name.includes("paid")) return RULE_KEYS.PAID_X_CAT;
+  if (name.includes("special day")) return RULE_KEYS.CUSTOMER_SPECIAL_DAY;
+  if (name.includes("cancel")) return RULE_KEYS.CANCELLED_APPT;
+
+  return "";
+};
+
+
 
 /** Convert Date | 'yyyy-MM-dd' | 'dd/MM/yyyy' -> 'yyyy-MM-dd' (date-only) */
 const toISODateOnly = (d) => {
@@ -284,6 +305,109 @@ const canManageCampaigns = userRoleName.toLowerCase() === "admin";
     }
   };
 
+  const safeNum = (v) => (Number.isFinite(+v) ? +v : 0);
+
+const summarizeRows = (rows) => {
+  const total = rows.reduce((s, r) => s + safeNum(r.totalOpportunities), 0);
+  const open = rows.reduce((s, r) => s + safeNum(r.noOfOpenOpportunities), 0);
+  const closed = rows.reduce((s, r) => s + safeNum(r.noOfClosedOpportunities), 0);
+  const converted = rows.reduce((s, r) => s + safeNum(r.noOfConvertedOutOfClosed), 0);
+
+  const wip = Math.max(0, total - open - closed);
+
+  return { total, open, wip, closed, converted };
+};
+
+const simpleStatusDataset = (sum) => ([
+  { label: "Total", value: sum.total, fill: COLORS.total },
+  { label: "Open", value: sum.open, fill: COLORS.open },
+  { label: "WIP", value: sum.wip, fill: COLORS.wip },
+  { label: "Closed", value: sum.closed, fill: COLORS.closed },
+  { label: "Converted", value: sum.converted, fill: COLORS.converted },
+]);
+
+const buildStackedByClinic = (rows) => {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const clinic = String(r.clinic || r.centerName || "Unknown").trim() || "Unknown";
+
+    const cur = map.get(clinic) || { name: clinic, Total: 0, Open: 0, WIP: 0, Closed: 0, Converted: 0 };
+
+    cur.Total += safeNum(r.totalOpportunities);
+    cur.Open += safeNum(r.noOfOpenOpportunities);
+    cur.Closed += safeNum(r.noOfClosedOpportunities);
+    cur.Converted += safeNum(r.noOfConvertedOutOfClosed);
+
+    map.set(clinic, cur);
+  });
+
+  // finalize WIP after sums
+  const out = Array.from(map.values()).map((x) => ({
+    ...x,
+    WIP: Math.max(0, safeNum(x.Total) - safeNum(x.Open) - safeNum(x.Closed)),
+  }));
+
+  // optional: sort by Total desc
+  out.sort((a, b) => safeNum(b.Total) - safeNum(a.Total));
+  return out;
+};
+
+const rowsByRule = useMemo(() => {
+  const grouped = {
+    [RULE_KEYS.MANUAL]: [],
+    [RULE_KEYS.PAID_X_NOT_Y]: [],
+    [RULE_KEYS.NO_SHOW]: [],
+    [RULE_KEYS.PAID_X_CAT]: [],
+    [RULE_KEYS.CUSTOMER_SPECIAL_DAY]: [],
+    [RULE_KEYS.CANCELLED_APPT]: [],
+    [RULE_KEYS.EXTERNAL]: [],
+  };
+
+  (opportunityData || []).forEach((r) => {
+    const key = detectRuleKey(r);
+    if (key && grouped[key]) grouped[key].push(r);
+  });
+
+  return grouped;
+}, [opportunityData]);
+
+const STATUS_DATA_MANUAL_LEAD = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.MANUAL])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_EXTERNAL_SOURCE = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.EXTERNAL])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_NO_SHOW = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.NO_SHOW])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_CANCELLED_APPT = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.CANCELLED_APPT])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_CUSTOMER_SPECIAL_DAY = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.CUSTOMER_SPECIAL_DAY])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_PAID_X_NOT_Y = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.PAID_X_NOT_Y])),
+  [rowsByRule]
+);
+
+const STATUS_DATA_PAID_X_CAT = useMemo(
+  () => simpleStatusDataset(summarizeRows(rowsByRule[RULE_KEYS.PAID_X_CAT])),
+  [rowsByRule]
+);
+
+
   const filteredAndSortedData = useMemo(() => {
     const filtered = data.filter((item) => {
       const s = searchTerm.toLowerCase();
@@ -483,26 +607,48 @@ const canManageCampaigns = userRoleName.toLowerCase() === "admin";
 
 
   /* -------------------- CHART CARDS -------------------- */
-  const SimpleBarCard = ({ title, dataset }) => (
+  const SimpleBarCard = ({ title, dataset }) => {
+  const hasAny = Array.isArray(dataset) && dataset.some((d) => Number(d?.value) > 0);
+
+  return (
     <div className="chart-card">
       <div className="chart-title">{title}</div>
-      <div style={{ width: "100%", height: 200 }}>
-        <ResponsiveContainer>
-          <BarChart data={dataset} margin={{ top: 10, right: 20, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke={COLORS.grid} vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: COLORS.axis, fontSize: 12 }} />
-            <YAxis allowDecimals={false} tick={{ fill: COLORS.axis, fontSize: 12 }} />
-            <Tooltip />
-            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-              {dataset.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+
+      {!hasAny ? (
+        <div
+          style={{
+            width: "100%",
+            height: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: COLORS.axis,
+            fontSize: 13,
+          }}
+        >
+          No data
+        </div>
+      ) : (
+        <div style={{ width: "100%", height: 200 }}>
+          <ResponsiveContainer>
+            <BarChart data={dataset} margin={{ top: 10, right: 20, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: COLORS.axis, fontSize: 12 }} />
+              <YAxis allowDecimals={false} tick={{ fill: COLORS.axis, fontSize: 12 }} />
+              <Tooltip />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {dataset.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
+};
+
 
   const StackedByClinicCard = ({ title, dataset }) => (
     <div className="chart-card">
@@ -637,18 +783,19 @@ const canManageCampaigns = userRoleName.toLowerCase() === "admin";
           </div>
         </div>
 
-        {/* Charts Grid */}
         <div className="charts-grid">
-          <SimpleBarCard title="Rule: Manual Lead" dataset={STATUS_DATA_MANUAL_LEAD} />
-          <SimpleBarCard title="Rule: Paid for X but not for Y Opp" dataset={STATUS_DATA_PAID_X_NOT_Y} />
-          <SimpleBarCard title="Rule: No show appointment for X days" dataset={STATUS_DATA_NO_SHOW} />
-          <StackedByClinicCard title="Rule: Customer Special Day" dataset={STACKED_CUSTOMER_SPECIAL_DAY} />
-          <SimpleBarCard
-            title="Rule: Paid for X Category in Y days and No future appointment in Z days for Category P"
-            dataset={STATUS_DATA_PAID_X_CAT}
-          />
-          <StackedByClinicCard title="Rule: Cancelled appointment for X days" dataset={STACKED_CANCELLED_APPT} />
-        </div>
+  <SimpleBarCard title="Rule: Manual Lead" dataset={STATUS_DATA_MANUAL_LEAD} />
+  <SimpleBarCard title="Rule: External Source (R7)" dataset={STATUS_DATA_EXTERNAL_SOURCE} />
+
+  <SimpleBarCard title="Rule: No show appointment for X days" dataset={STATUS_DATA_NO_SHOW} />
+  <SimpleBarCard title="Rule: Cancelled appointment for X days" dataset={STATUS_DATA_CANCELLED_APPT} />
+  <SimpleBarCard title="Rule: Customer Special Day" dataset={STATUS_DATA_CUSTOMER_SPECIAL_DAY} />
+
+  {/* enable later when data exists */}
+  {/* <SimpleBarCard title="Rule: Paid for X but not for Y" dataset={STATUS_DATA_PAID_X_NOT_Y} /> */}
+  {/* <SimpleBarCard title="Rule: Paid X Category..." dataset={STATUS_DATA_PAID_X_CAT} /> */}
+</div>
+
 
         {/* Actions */}
         <div className="action-section">
