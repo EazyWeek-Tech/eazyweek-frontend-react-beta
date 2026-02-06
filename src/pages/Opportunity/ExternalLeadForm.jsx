@@ -377,7 +377,7 @@ const SUBSOURCE_BY_SOURCE = {
         dispositionId: safe(row?.dispositionCode || ""),
         subDispositionId: safe(row?.subDispositionCode || ""),
 
-        followUpDate: toInputDate(row?.appointmentdatetime) || getTomorrowInputDate(),
+        followUpDate: toInputDate(row?.followUpDate) || getTomorrowInputDate(),
 
         followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
 
