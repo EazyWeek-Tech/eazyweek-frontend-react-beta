@@ -79,6 +79,7 @@ import ExternalLeadsTable from "./pages/Opportunity/ExternalLeadsTable";
 import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
 import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
 import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
+import OppUploader from "./pages/Opportunity/OppUploader";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -419,6 +420,9 @@ function App() {
                     path="/custom-forms/hyaluronidase-treatment"
                     element={<HyaluronidaseTreatmentForm />}
                   />
+
+                  <Route path="/upload/oppuploader" element={<OppUploader />} />
+
                   <Route
                     path="/custom-forms/general-form"
                     element={<GeneralForm />}

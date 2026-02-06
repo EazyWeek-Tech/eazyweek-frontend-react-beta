@@ -121,7 +121,11 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "On Demand",
       icon: "bx-cloud-download",
-      submenu: [{ name: "On Demand Triggers", path: "/on-demand" }],
+      submenu: [
+        { name: "On Demand Triggers", path: "/on-demand" },
+        {name: "Excel Upload", path:"/upload/oppuploader"},
+      
+      ],
     },
     {
       label: "Settings",
