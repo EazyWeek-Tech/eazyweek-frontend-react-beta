@@ -1453,10 +1453,10 @@ if (
       {/* ✅ Source/Sub Source row */}
       <div className="rf-grid" style={{ alignItems: "center", marginBottom: 10 }}>
         <label className="rf-field" style={{ width: "320px" }}>
-          <span className="rf-label">External Source</span>
+          <span className="rf-label">External Medium</span>
           <select
             className="rf-input"
-            style={{ width: "100%" }}
+            style={{ width: "auto" }}
             value={externalSource}
             onChange={(e) => setExternalSource(e.target.value)}
           >
@@ -1469,10 +1469,10 @@ if (
         </label>
 
         <label className="rf-field" style={{ width: "320px" }}>
-          <span className="rf-label">External Sub Source</span>
+          <span className="rf-label">External Sub Medium</span>
           <select
             className="rf-input"
-            style={{ width: "100%" }}
+            style={{ width: "auto" }}
             value={externalSubSource}
             onChange={(e) => setExternalSubSource(e.target.value)}
             disabled={!externalSource}
