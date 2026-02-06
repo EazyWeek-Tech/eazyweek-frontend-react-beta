@@ -57,45 +57,67 @@ const formatCampaignPeriod = (start, end) => {
   return `${formatDDMMYYYY(start)} – ${formatDDMMYYYY(end)}`;
 };
 
-
-/** 'dd/MM/yyyy' | ISO | Date -> JS Date (midnight) */
+/** Parse: yyyy-MM-dd | dd/MM/yyyy | dd-MM-yyyy (optionally with time) | ISO -> Date(midnight local) */
 const toDate = (v) => {
   if (!v) return null;
-  if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+
+  if (v instanceof Date) {
+    if (Number.isNaN(+v)) return null;
+    return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  }
+
   const s = String(v).trim();
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  if (!s) return null;
+
+  // ✅ yyyy-MM-dd (avoid UTC shift)
+  const isoOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoOnly) return new Date(+isoOnly[1], +isoOnly[2] - 1, +isoOnly[3]);
+
+  // ✅ dd/MM/yyyy (optionally followed by time)
+  const dmySlash = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s|T|$)/);
+  if (dmySlash) return new Date(+dmySlash[3], +dmySlash[2] - 1, +dmySlash[1]);
+
+  // ✅ dd-MM-yyyy (optionally followed by time)  <-- your UI screenshot format
+  const dmyDash = s.match(/^(\d{2})-(\d{2})-(\d{4})(?:\s|T|$)/);
+  if (dmyDash) return new Date(+dmyDash[3], +dmyDash[2] - 1, +dmyDash[1]);
+
+  // ✅ ISO datetime
   const d = new Date(s);
-  return Number.isNaN(+d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (Number.isNaN(+d)) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
-/** Extract "HH:mm" from row. Tries followUpTime, appointmentdatetime, or createddate (24h) */
+/** Follow-up TIME ONLY -> "HH:mm" (24h). Returns "" if not present */
 const getRowTimeHHmm = (row) => {
-  const tryFields = [
-    row?.followUpTime,
-    row?.followuptime,
-    row?.appointmentdatetime,
-    row?.appointmentDateTime,
-    row?.createddate,
-  ].filter(Boolean);
+  // case A: split fields (your API)
+  const tRaw = (row?.followUptime ?? row?.followUpTime ?? row?.followuptime ?? "").toString().trim();
+  const ampm = (row?.followUpAMPM ?? row?.followUpAmpm ?? "").toString().trim().toUpperCase();
 
-  for (const f of tryFields) {
-    const s = String(f);
-    const mm = s.match(/\b(\d{1,2}):(\d{2})\b/);
-    if (mm) {
-      const h = String(Number(mm[1])).padStart(2, "0");
-      const m = mm[2];
-      return `${h}:${m}`;
-    }
-    const d = new Date(s);
-    if (!Number.isNaN(+d)) {
-      const h = String(d.getHours()).padStart(2, "0");
-      const m = String(d.getMinutes()).padStart(2, "0");
-      return `${h}:${m}`;
-    }
+  // if time is "01:30" and AMPM is provided separately
+  if (tRaw && ampm && /^\d{1,2}:\d{2}$/.test(tRaw)) {
+    const [hh, mm] = tRaw.split(":").map(Number);
+    const base = hh % 12;
+    const H = ampm === "PM" ? base + 12 : base;
+    return `${String(H).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
   }
+
+  // case B: time contains AM/PM in same string: "01:30 PM"
+  const m12 = tRaw.match(/\b(\d{1,2}):(\d{2})\s*(AM|PM)\b/i);
+  if (m12) {
+    let hh = Number(m12[1]) % 12;
+    if (m12[3].toUpperCase() === "PM") hh += 12;
+    return `${String(hh).padStart(2, "0")}:${m12[2]}`;
+  }
+
+  // case C: already 24h "13:30"
+  const m24 = tRaw.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (m24) return `${String(Number(m24[1])).padStart(2, "0")}:${m24[2]}`;
+
   return "";
 };
+
+
+
 
 const SHIFTS = [
   "09:00 - 14:00",
@@ -1218,12 +1240,13 @@ useEffect(() => {
        const computed = arr.map((r) => {
   const d = getRowFollowUpDate(r);
   const hhmm = getRowTimeHHmm(r);
+
   const therapistName = getTherapistName(r);
 
   return {
     ...r,
     __dateStamp: dateToStamp(d),
-    __timeMin: hhmmToMinutes(hhmm),
+   __timeMin: hhmmToMinutes(hhmm),
     __therapistName: therapistName, // ✅ keep a normalized field for table/filter
     __q: [
       r?.custID,
@@ -1351,10 +1374,15 @@ useEffect(() => {
 
 
   const normStatus = (v) => displayOppStatus(v).toString().trim().toLowerCase();
-
 const getRowDateStampForFilter = (row) => {
-  // Use your existing "opp date" logic (followup/appointment/created)
-  return getOppDateStamp(row, false);
+  // ✅ follow-up date first
+  const d =
+    getRowFollowUpDate(row) ||
+    toDate(row?.followUpDate) ||
+    toDate(row?.appointmentdatetime) ||
+    toDate(row?.createddate);
+
+  return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
 };
 
  const filteredRows = useMemo(() => {
@@ -1441,6 +1469,17 @@ if (therapistFilter) {
       return 0;
     });
   }
+
+  console.log("FILTER DEBUG", {
+  total: normRows.length,
+  afterFilters: list.length,
+  sampleRowDate: normRows[0]?.appointmentdatetime || normRows[0]?.createddate,
+  sampleStamp: getOppDateStamp(normRows[0], false),
+  rangeFrom,
+  rangeTo,
+  dateRange,
+});
+
 
   return list;
 }, [
@@ -1728,19 +1767,6 @@ if (therapistFilter) {
                 </div>
               </div>
 
-              <div className="fgroup ftime">
-                <label className="flabel">Follow Up time (To) :</label>
-                <div className="ftime-row">
-                  <select className="finput" value={timeToSlot} onChange={(e) => setTimeToSlot(e.target.value)}>
-                    <option value="">—</option>
-                    {HALF_HOURS_1_TO_730.map((t) => <option key={`ts-${t}`} value={t}>{t}</option>)}
-                  </select>
-                  <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
-                    <option>AM</option>
-                    <option>PM</option>
-                  </select>
-                </div>
-              </div>
             </div>
           </div>
 
