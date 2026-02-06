@@ -9,6 +9,7 @@ const UPLOAD_ENDPOINT = "/api/Opportunity/UploadNoShowExcel";
 
 // Excel headers (case-insensitive; spaces ignored)
 const EXPECTED_HEADERS = [
+  "THERAPISTCODE", // ✅ added
   "THERAPISTNAME",
   "SERVICENAME",
   "APPOINTMENTDATETIME",
@@ -30,23 +31,56 @@ const trim = (s) => (s ?? "").toString().trim();
 const isRowEmpty = (obj) =>
   !Object.values(obj || {}).some((v) => trim(v) !== "");
 
-/** Excel date -> string (backend-friendly) */
-const normalizeDateValue = (v) => {
-  if (v === null || v === undefined) return "";
-  if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
+/** pad 2 digits */
+const pad2 = (n) => String(n).padStart(2, "0");
 
+/** Convert excel date/string -> "YYYY/MM/DD" */
+const toYYYYMMDD = (v) => {
+  if (v === null || v === undefined) return "";
+
+  // Date object (when cellDates:true)
+  if (v instanceof Date && !Number.isNaN(+v)) {
+    const y = v.getFullYear();
+    const m = pad2(v.getMonth() + 1);
+    const d = pad2(v.getDate());
+    return `${y}/${m}/${d}`;
+  }
+
+  // Excel serial number
   if (typeof v === "number") {
     const dt = XLSX.SSF.parse_date_code(v);
     if (dt && dt.y && dt.m && dt.d) {
-      const iso = new Date(
-        Date.UTC(dt.y, dt.m - 1, dt.d, dt.H || 0, dt.M || 0, dt.S || 0)
-      );
-      if (!Number.isNaN(+iso)) return iso.toISOString();
+      const y = dt.y;
+      const m = pad2(dt.m);
+      const d = pad2(dt.d);
+      return `${y}/${m}/${d}`;
     }
+    // if it's not actually a date, fallback
     return String(v);
   }
 
-  return String(v).trim();
+  // String value: try to parse common forms, otherwise return trimmed
+  const s = String(v).trim();
+  if (!s) return "";
+
+  // yyyy-mm-dd or yyyy/mm/dd -> yyyy/mm/dd
+  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m) return `${m[1]}/${pad2(m[2])}/${pad2(m[3])}`;
+
+  // dd/mm/yyyy -> yyyy/mm/dd
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[3]}/${pad2(m[2])}/${pad2(m[1])}`;
+
+  // Try native Date parse
+  const dt = new Date(s);
+  if (!Number.isNaN(+dt)) {
+    const y = dt.getFullYear();
+    const mm = pad2(dt.getMonth() + 1);
+    const dd = pad2(dt.getDate());
+    return `${y}/${mm}/${dd}`;
+  }
+
+  return s;
 };
 
 const validateHeaders = (sheetHeaders = []) => {
@@ -63,9 +97,7 @@ const validateHeaders = (sheetHeaders = []) => {
 
 /** Convert excel row object -> backend "line" shape */
 const toLine = (rowObj) => {
-  // rowObj may have original header keys; normalize by header name
   const get = (key) => {
-    // Try direct, then case/space normalized match
     if (rowObj?.[key] !== undefined) return rowObj[key];
     const nk = normHeader(key);
     const hitKey = Object.keys(rowObj || {}).find((k) => normHeader(k) === nk);
@@ -73,14 +105,15 @@ const toLine = (rowObj) => {
   };
 
   return {
+    therapistCode: trim(get("THERAPISTCODE")), // ✅ added
     therapistName: trim(get("THERAPISTNAME")),
     serviceName: trim(get("SERVICENAME")),
-    appointmentDate: normalizeDateValue(get("APPOINTMENTDATETIME")), // ✅ as per required JSON
-    custID: trim(get("CustID")), // ✅ as per required JSON (custID)
+    appointmentDate: toYYYYMMDD(get("APPOINTMENTDATETIME")), // ✅ YYYY/MM/DD
+    custID: trim(get("CustID")),
     custName: trim(get("CustName")),
     custMobileNo: trim(get("CustMobileNo")),
     clinicCode: trim(get("ClinicCode")),
-    campignCode: trim(get("OppCode")), // ✅ map OppCode -> campignCode (spelling per API)
+    campignCode: trim(get("OppCode")), // (spelling as per API)
   };
 };
 
@@ -88,7 +121,7 @@ export default function OppUploader() {
   const inputRef = useRef(null);
 
   const [fileName, setFileName] = useState("");
-  const [lines, setLines] = useState([]); // ✅ lines format
+  const [lines, setLines] = useState([]);
   const [rawHeaders, setRawHeaders] = useState([]);
   const [error, setError] = useState("");
   const [parsing, setParsing] = useState(false);
@@ -216,7 +249,6 @@ export default function OppUploader() {
     try {
       const url = `${API_BASE_URL}${UPLOAD_ENDPOINT}`;
 
-      // ✅ required API format
       const payload = {
         uploadNoShowLinesJson: lines,
       };
@@ -232,7 +264,6 @@ export default function OppUploader() {
         throw new Error(text || `Upload failed with status ${res.status}`);
       }
 
-      // backend might return json or text
       let msg = "";
       try {
         const data = await res.json();
@@ -240,7 +271,7 @@ export default function OppUploader() {
           data?.message ||
           data?.Message ||
           data?.statusMessage ||
-          JSON.stringify(data);
+          (typeof data === "string" ? data : JSON.stringify(data));
       } catch {
         msg = await res.text().catch(() => "");
       }
@@ -369,7 +400,6 @@ export default function OppUploader() {
             <b>Total rows:</b> {lines.length}
           </div>
 
-          {/* Preview table */}
           <div
             style={{
               border: "1px solid #e5e7eb",
@@ -424,7 +454,6 @@ export default function OppUploader() {
             </table>
           </div>
 
-          {/* JSON preview */}
           <details>
             <summary style={{ cursor: "pointer" }}>
               Show JSON payload (first 5 lines)
