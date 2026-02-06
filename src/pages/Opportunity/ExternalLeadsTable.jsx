@@ -144,6 +144,11 @@ const normalizeOppStatus = (v) => {
 const mapExternalRow = (x) => {
   const oppStatus = normalizeOppStatus(x?.oppStatus);
 
+  const getPrimaryDate = (row) =>
+  (row?.followUpDate && String(row.followUpDate).trim()) ||
+  "";
+
+
   return {
     recid: x?.recid ?? x?.recId ?? "",
     custID: (x?.custID ?? "").toString(),
@@ -162,10 +167,7 @@ const mapExternalRow = (x) => {
 
     subDispositionCode: (x?.subDispositionCode ?? "").toString().trim(),
     subDisposition: (x?.subDisposition ?? "").toString().trim(),
-
-    appointmentdatetime: (x?.appointmentdatetime ?? x?.appointmentDateTime ?? x?.appointmentDate ?? "")
-  .toString()
-  .trim(),
+followUpDate: (x?.followUpDate ?? "").toString().trim(),
 
   medium: (x?.medium ?? "").toString().trim(),
 subMedium: (x?.subMedium ?? "").toString().trim(),
