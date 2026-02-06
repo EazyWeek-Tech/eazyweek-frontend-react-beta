@@ -47,6 +47,26 @@ const padLeadId = (v, width = 7) => {
   return String(Math.trunc(n)).padStart(width, "0");
 };
 
+/** "13:30:00" + "PM" -> "01:30 PM" (UI label) */
+const toTimeLabel12h = (hhmmss, ampm) => {
+  const t = String(hhmmss || "").trim();
+  const ap = String(ampm || "").trim().toUpperCase();
+
+  const m = t.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return ap ? ap : "";
+
+  let hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+
+  // convert to 12h label
+  let labelAmpm = ap || (hh >= 12 ? "PM" : "AM");
+  let h12 = hh % 12;
+  if (h12 === 0) h12 = 12;
+
+  return `${String(h12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${labelAmpm}`;
+};
+
+
 // ✅ campaign header (to know oRuleCode, oppName, etc.)
 const GET_CAMPAIGN_URL = (oppCode) =>
   `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`;
@@ -142,6 +162,22 @@ const mapExternalRow = (x) => {
 
     subDispositionCode: (x?.subDispositionCode ?? "").toString().trim(),
     subDisposition: (x?.subDisposition ?? "").toString().trim(),
+
+    appointmentdatetime: (x?.appointmentdatetime ?? x?.appointmentDateTime ?? x?.appointmentDate ?? "")
+  .toString()
+  .trim(),
+
+  medium: (x?.medium ?? "").toString().trim(),
+subMedium: (x?.subMedium ?? "").toString().trim(),
+source: (x?.source ?? "").toString().trim(),
+subSource: (x?.subSource ?? "").toString().trim(),
+
+followUptime: (x?.followUptime ?? "").toString().trim(),     // "13:30:00"
+followUpAMPM: (x?.followUpAMPM ?? "").toString().trim(),     // "PM"
+
+// merged label for UI/form ("01:30 PM")
+followUpTimeLabel: toTimeLabel12h(x?.followUptime, x?.followUpAMPM),
+
 
     oppStatus,
     remarks: (x?.remarks ?? "").toString(),
