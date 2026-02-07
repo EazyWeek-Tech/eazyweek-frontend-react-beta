@@ -8,8 +8,81 @@ const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const norm = (v) => safe(v).trim().toLowerCase();
 const pad2 = (n) => String(n).padStart(2, "0");
 
+const SUBSOURCE_BY_SOURCE = {
+  S001: [
+    { name: "Influencers A", code: "SS006" },
+    { name: "Influencers B", code: "SS007" },
+    { name: "Influencers C", code: "SS008" },
+  ],
+  S002: [
+    { name: "Client Referal A", code: "SS009" },
+    { name: "Client Referal B", code: "SS010" },
+    { name: "Client Referal C", code: "SS011" },
+  ],
+  S003: [
+    { name: "Business Development A", code: "SS012" },
+    { name: "Business Development B", code: "SS013" },
+    { name: "Business Development C", code: "SS014" },
+  ],
+  S004: [
+    { name: "SEM A", code: "SS015" },
+    { name: "SEM B", code: "SS016" },
+    { name: "SEM C", code: "SS017" },
+  ],
+  S005: [
+    { name: "Google Maps A", code: "SS018" },
+    { name: "Google Maps B", code: "SS019" },
+    { name: "Google Maps C", code: "SS020" },
+  ],
+  S006: [
+    { name: "Social Organic A", code: "SS021" },
+    { name: "Social Organic B", code: "SS022" },
+    { name: "Social Organic C", code: "SS023" },
+  ],
+  S007: [
+    { name: "Website A", code: "SS024" },
+    { name: "Website B", code: "SS025" },
+    { name: "Website C", code: "SS026" },
+  ],
+  S008: [
+    { name: "Walkin A", code: "SS027" },
+    { name: "Walkin B", code: "SS028" },
+    { name: "Walkin C", code: "SS029" },
+  ],
+  S009: [
+    { name: "Social Media A", code: "SS030" },
+    { name: "Social Media B", code: "SS031" },
+    { name: "Social Media C", code: "SS032" },
+  ],
+};
+
+
 /** ✅ Defaults for Follow-up */
 const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
+
+// "SS019" -> 19 , "19" -> 19
+const subSourceValueToFk = (v) => {
+  const s = safe(v).trim();
+  if (!s) return 0;
+
+  // if already numeric
+  const n = Number(s);
+  if (Number.isFinite(n)) return n;
+
+  // extract digits from codes like SS019
+  const m = s.match(/(\d+)/);
+  return m ? Number(m[1]) : 0;
+};
+
+// FK(12) -> "SS012"
+const subSourceFkToCode = (fk) => {
+  const n = Number(fk);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `SS${String(n).padStart(3, "0")}`;
+};
+
+
+
 
 // ✅ Campaign
 const GET_CAMPAIGN_URL = (oppCode) =>
@@ -645,9 +718,10 @@ const ManualOppCustomerDetails = () => {
     interestedOther: "",
 
     doctor: "",
-    mediumCode: "",
-    sourceName: "",
-    subSourceName: "",
+mediumCode: "Manual",
+subMedium: "Manual",
+sourceName: "",
+subSourceName: "",
 
     leadStatus: "LS004",
     leadSubStatus: "",
@@ -813,24 +887,38 @@ if (!isEdit) {
     loadMaster();
   }, [isEdit]);
 
+  // ✅ Build SubSource dropdown from selected Source (works in Edit too)
+useEffect(() => {
+  const srcValue = safe(form.sourceName).trim();
+  if (!srcValue) {
+    setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+    return;
+  }
+
+  const srcOpt = (sourceOptions || []).find((s) => String(s.value) === String(srcValue));
+  const srcCode = safe(srcOpt?.code).trim(); // "S001"..."S009"
+
+  if (srcCode && SUBSOURCE_BY_SOURCE[srcCode]) {
+    const mapped = SUBSOURCE_BY_SOURCE[srcCode].map((s) => ({
+      label: s.name,
+      value: s.code, // "SS019"
+    }));
+    setSubSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+  } else {
+    setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+  }
+}, [form.sourceName, sourceOptions]);
+
+
   /** ---------------- SubSource load ---------------- */
-  useEffect(() => {
-    const loadSubSources = async () => {
-      setSubSourceLoading(true);
-      try {
-        const data = await fetchJSON(SUBSOURCE_URL, { method: "GET" });
-        const arr = Array.isArray(data) ? data : [];
-        const mapped = arr.map((s) => ({ label: safe(s?.name).trim(), value: safe(s?.code).trim() })).filter((x) => x.label);
-        setSubSourceOptions(mapped.length ? mapped : [{ label: "< - Select one - >", value: "" }]);
-      } catch (e) {
-        console.error("Failed to load subsources", e);
-        setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
-      } finally {
-        setSubSourceLoading(false);
-      }
-    };
-    loadSubSources();
-  }, []);
+// ✅ DO NOT load/override global subsources because we map them by source now.
+// ✅ Keep only the default placeholder.
+useEffect(() => {
+  setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+  // keep loading flag false
+  setSubSourceLoading(false);
+}, []);
+
 
   /** ---------------- Disposition load ---------------- */
   useEffect(() => {
@@ -958,7 +1046,7 @@ if (!isEdit) {
         }
 
         const parsedTime = parseTimeToForm(data?.followUpTime);
-        const mediumValue = resolveMediumValueFromSeervices(mediumOptions, data?.seervices);
+        const mediumValue = resolveMediumValueFromSeervices(mediumOptions, 'Manual');
 
         setForm((p) => {
           const apiDate = toInputDate(data?.followUpDate);
@@ -979,7 +1067,8 @@ if (!isEdit) {
 
             interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
             sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
-            subSourceName: String(data?.leadSubSource_FK ?? p.subSourceName ?? ""),
+            subSourceName: subSourceFkToCode(data?.leadSubSource_FK) || safe(p.subSourceName),
+
 
             dispositionId: String(data?.disposition_FK ?? p.dispositionId ?? ""),
             subDispositionId: String(data?.subDisposition_FK ?? p.subDispositionId ?? ""),
@@ -1012,6 +1101,29 @@ if (!isEdit) {
 
     
   if (name === "centerCode") centerTouchedRef.current = true;
+
+  if (name === "sourceName") {
+  // set source and reset subsource
+  setForm((p) => ({ ...p, sourceName: value, subSourceName: "" }));
+
+  // build subsource list from mapping
+  const srcOpt = (sourceOptions || []).find((s) => String(s.value) === String(value));
+  const srcCode = safe(srcOpt?.code).trim();
+
+  if (srcCode && SUBSOURCE_BY_SOURCE[srcCode]) {
+    const mapped = SUBSOURCE_BY_SOURCE[srcCode].map((s) => ({ label: s.name, value: s.code }));
+    setSubSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+  }
+
+  // clear any old errors (optional fields now)
+  setErrors((prev) => {
+    const { sourceName: _s, subSourceName: _ss, ...rest } = prev;
+    return rest;
+  });
+
+  return;
+}
+
 
 
     setForm((p) => {
@@ -1049,8 +1161,6 @@ if (!isEdit) {
     if (!form.centerCode) e.centerCode = "Centre is required.";
     if (!form.doctor) e.doctor = "Doctor/Therapist is required.";
     if (!form.interestedVerticalCode) e.interestedVerticalCode = "Interested in is required.";
-    if (!form.mediumCode) e.mediumCode = "Lead medium is required.";
-    if (!form.sourceName) e.sourceName = "Lead source is required.";
     if (!isValidEmail(form.email)) e.email = "Please enter a valid email.";
 
     if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
@@ -1164,7 +1274,9 @@ if (!isEdit) {
 
   /** ---------------- Create / Update ---------------- */
   const createLeadOpp = async (status) => {
-    const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
+    const mediumName = "Manual";
+const subMediumName = safe(form.subMedium || "Manual");
+
 
     const finalStatus = resolvePayloadStatus({
       baseStatus: status,
@@ -1191,11 +1303,14 @@ if (!isEdit) {
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
-      seervices: mediumName,
+      seervices: '',
+      medium:"Manual",
+      subMedium:"Manual",
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
-      leadSubSource_FK: 0,
+      leadSubSource_FK: subSourceValueToFk(form.subSourceName),
+
 
       disposition_FK: toNumberOr0(form.dispositionId),
       subDisposition_FK: toNumberOr0(form.subDispositionId),
@@ -1235,8 +1350,9 @@ if (!isEdit) {
     if (!originalSalesOwnerRecId) {
       console.warn("⚠️ originalSalesOwnerRecId is 0. SalesOwner may overwrite if backend updates it.");
     }
+const mediumName = "Manual";
+const subMediumName = safe(form.subMedium || "Manual");
 
-    const mediumName = findOptionLabelByValue(mediumOptions, form.mediumCode);
 
     const finalStatus = resolvePayloadStatus({
       baseStatus: "Open",
@@ -1263,7 +1379,8 @@ if (!isEdit) {
 
     // ✅ SubSource: prefer current selection, else keep original API value
     const leadSubSourceFkForUpdate =
-      toNumberOr0(form.subSourceName) || toNumberOr0(originalLeadSubSourceFkFromApi) || 0;
+  subSourceValueToFk(form.subSourceName) || toNumberOr0(originalLeadSubSourceFkFromApi) || 0;
+
 
     const { finalDate, finalTime } = resolveFollowUpForPayload(form);
     const nowLocal = toLocalDateTimeString(new Date());
@@ -1285,7 +1402,9 @@ if (!isEdit) {
 
       clinicCentre_FK: toNumberOr0(form.centerCode),
       doctor_FK: toNumberOr0(form.doctor),
-      seervices: mediumName,
+      seervices: '',
+      medium:'Manual',
+      subMedium:'Manual',
 
       interestIn_FK: toNumberOr0(form.interestedVerticalCode),
       leadSource_FK: toNumberOr0(form.sourceName),
@@ -1540,28 +1659,22 @@ if (!isEdit) {
                 {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
               </div>
 
+
               <div className="field">
-                <label>Other</label>
-                <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
+               <label>Lead Medium</label>
+<input className="inp" name="mediumCode" value={form.mediumCode} disabled />
+
               </div>
 
               <div className="field">
-                <label>
-                  Lead Medium <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.mediumCode ? "err" : ""}`} name="mediumCode" value={form.mediumCode} onChange={onChange} disabled={mediumLoading}>
-                  {mediumOptions.map((opt) => (
-                    <option key={opt.value || opt.label} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.mediumCode && <div className="errText">{errors.mediumCode}</div>}
-              </div>
+  <label>Submedium</label>
+  <input className="inp" name="subMedium" value={form.subMedium} disabled />
+</div>
+
 
               <div className="field">
                 <label>
-                  Lead Source <span className="req">*</span>
+                  Lead Source 
                 </label>
                 <select className={`inp ${errors.sourceName ? "err" : ""}`} name="sourceName" value={form.sourceName} onChange={onChange} disabled={sourceLoading}>
                   {sourceOptions.map((opt) => (
@@ -1582,6 +1695,13 @@ if (!isEdit) {
                     </option>
                   ))}
                 </select>
+              </div>
+
+
+              
+              <div className="field">
+                <label>Other</label>
+                <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
               </div>
             </div>
           </div>
