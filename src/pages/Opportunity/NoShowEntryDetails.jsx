@@ -205,6 +205,15 @@ const NoShowEntryDetails = () => {
   const [reasonOptions, setReasonOptions] = useState([{ code: "", name: "" }]);
   const [reasonsLoading, setReasonsLoading] = useState(false);
 
+  const OPP_TYPE = "Transaction"; // as per your requirement
+
+const [dispOptions, setDispOptions] = useState([{ value: "", label: "" }]);
+const [dispLoading, setDispLoading] = useState(false);
+
+const [subDispOptions, setSubDispOptions] = useState([{ value: "", label: "" }]);
+const [subDispLoading, setSubDispLoading] = useState(false);
+
+
   // ✅ include reasonCode in form
   const [form, setForm] = useState({
     disposition: "",
@@ -215,16 +224,90 @@ const NoShowEntryDetails = () => {
 
   const [saving, setSaving] = useState(false);
 
-  const subDispositionOptions = useMemo(() => {
-  return getSubDispositionOptions(form.disposition);
-}, [form.disposition]);
+
 useEffect(() => {
-  const allowed = subDispositionOptions.map((x) => x.value);
-  if (form.sbdisposition && !allowed.includes(form.sbdisposition)) {
+  const loadDispositions = async () => {
+    setDispLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/Opportunity/Dispostion/${encodeURIComponent(OPP_TYPE)}`,
+        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`Disposition HTTP ${res.status}`);
+
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
+
+      const mapped = (Array.isArray(arr) ? arr : [])
+        .map((x) => ({
+          value: normalizeLSCode(x?.code),
+          label: String(x?.name ?? "").trim(),
+        }))
+        .filter((x) => x.value || x.label);
+
+      setDispOptions([{ value: "", label: "" }, ...mapped]);
+    } catch (e) {
+      console.error("Dispostion load failed:", e);
+      setDispOptions([{ value: "", label: "" }]);
+    } finally {
+      setDispLoading(false);
+    }
+  };
+
+  loadDispositions();
+}, []);
+
+useEffect(() => {
+  const dispCode = normalizeLSCode(form.disposition);
+
+  // reset list when no disposition selected
+  if (!dispCode) {
+    setSubDispOptions([{ value: "", label: "" }]);
     setForm((p) => ({ ...p, sbdisposition: "" }));
+    return;
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [form.disposition, subDispositionOptions]);
+
+  const loadSubDispositions = async () => {
+    setSubDispLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/Opportunity/SubDispostion/${encodeURIComponent(OPP_TYPE)}/${encodeURIComponent(dispCode)}`,
+        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`SubDisposition HTTP ${res.status}`);
+
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
+
+      const mapped = (Array.isArray(arr) ? arr : [])
+        .map((x) => ({
+          value: normalizeLSCode(x?.code),
+          label: String(x?.name ?? "").trim(),
+        }))
+        .filter((x) => x.value || x.label);
+
+      setSubDispOptions([{ value: "", label: "" }, ...mapped]);
+
+      // ✅ ensure current selected subdisp is valid
+      setForm((p) => {
+        const allowed = new Set(mapped.map((m) => m.value));
+        if (p.sbdisposition && !allowed.has(normalizeLSCode(p.sbdisposition))) {
+          return { ...p, sbdisposition: "" };
+        }
+        return p;
+      });
+    } catch (e) {
+      console.error("SubDispostion load failed:", e);
+      setSubDispOptions([{ value: "", label: "" }]);
+      setForm((p) => ({ ...p, sbdisposition: "" }));
+    } finally {
+      setSubDispLoading(false);
+    }
+  };
+
+  loadSubDispositions();
+}, [form.disposition]);
+
 
 
   // ✅ Load reasons list
@@ -317,7 +400,7 @@ const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
 setForm((p) => ({
   ...p,
   disposition: resolvedDisp,
-  sbdisposition: p.sbdisposition || resolvedSubDisp || "",
+  sbdisposition: p.sbdisposition || apiSubDisp  || "",
   remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
   reasonCode: p.reasonCode || apiReasonCode || "",
 }));
@@ -485,34 +568,42 @@ setForm((p) => ({
             <div className="formrow">
               <label className="lab" htmlFor="disposition">Disposition <span className="req">*</span>:</label>
               <select
-                id="disposition"
-                name="disposition"
-                value={form.disposition}
-                disabled={isLocked}
-                onChange={(e) => !isLocked && handleChange(e)}
-                className="inp"
-              >
-                {DISPOSITION_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+  id="disposition"
+  name="disposition"
+  value={form.disposition}
+  disabled={isLocked || dispLoading}
+  onChange={(e) => !isLocked && handleChange(e)}
+  className="inp"
+>
+  {dispOptions.map((opt) => (
+    <option key={opt.value || opt.label} value={opt.value}>
+      {opt.label}
+    </option>
+  ))}
+</select>
+
             </div>
 
             <div className="formrow">
               <label className="lab" htmlFor="sbdisposition">Sub-Disposition <span className="req">*</span>:</label>
-              <select
+             <select
   id="sbdisposition"
   name="sbdisposition"
   value={form.sbdisposition}
-  disabled={isLocked || !form.disposition}
+  disabled={isLocked || !form.disposition || subDispLoading}
   onChange={(e) => !isLocked && handleChange(e)}
   className="inp"
 >
   <option value="">—</option>
-  {subDispositionOptions.map((opt) => (
-    <option key={opt.value} value={opt.value}>{opt.label}</option>
-  ))}
+  {subDispOptions
+    .filter((x) => x.value) // skip blank here since we already show "—"
+    .map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ))}
 </select>
+
 
             </div>
 

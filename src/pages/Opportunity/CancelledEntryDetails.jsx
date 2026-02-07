@@ -3,41 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
-const DISPOSITION_OPTIONS = [
-  { value: "", label: "" },
-  { value: "LS008", label: "Converted" },
-  { value: "LS011", label: "Not Converted" },
-  { value: "LS013", label: "WIP" },
-];
-
-// ✅ Sub-Disposition options (dependent on Disposition)
-const SUB_DISPOSITION_BY_DISPOSITION = {
-  LS008: [
-    { value: "LS0021", label: "Converted" },
-    { value: "LS028", label: "Rescheduling" },
-  ],
-  LS013: [
-    { value: "LS0022", label: "WIP" },
-    { value: "LS029", label: "Switched Off" },
-    { value: "LS030", label: "No Answer" },
-  ],
-  LS011: [
-    { value: "LS022", label: "Will Visit Personally" },
-    { value: "LS023", label: "Doctor not available" },
-    { value: "LS024", label: "Price" },
-    { value: "LS025", label: "Clinic too far" },
-    { value: "LS026", label: "Machine Service Availibility" },
-    { value: "LS027", label: "Took Service Outside " },
-    { value: "LS031", label: "Refuse to Reschedule " },
-  ],
-};
-
-const getSubDispositionOptions = (disp) => {
-  const key = normalizeLSCode(disp);
-  return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
-};
-
-
 const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
 
 const oppStatusFromDisposition = (code) => {
@@ -115,21 +80,13 @@ const normalizeDispCode = (v) => {
   return s;
 };
 
-const normalizeSubDispForDisposition = (dispCode, subValueOrLabel) => {
-  const raw = String(subValueOrLabel ?? "").trim();
-  if (!raw) return "";
-
-  // if already code like LS0022
-  const maybeCode = normalizeLSCode(raw);
-  if (/^LS\d{2,6}$/.test(maybeCode)) return maybeCode;
-
-  // else treat as label and find matching option by label
-  const opts = getSubDispositionOptions(dispCode);
-  const match = opts.find(
-    (o) => String(o.label).trim().toLowerCase() === raw.toLowerCase()
-  );
-  return match ? normalizeLSCode(match.value) : "";
+const normalizeSubDispCode = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  const code = normalizeLSCode(s);
+  return /^LS\d{2,6}$/.test(code) ? code : "";
 };
+
 
 // ---------- helpers to sanitize API follow-up dates ----------
 const isPlaceholderDate = (yyyyMmDd) => {
@@ -223,7 +180,14 @@ const CancelledEntryDetails = () => {
   const [reasonOptions, setReasonOptions] = useState([{ code: "", name: "" }]);
   const [reasonsLoading, setReasonsLoading] = useState(false);
 
-  
+  const OPP_TYPE = "Transaction";
+
+const [dispOptions, setDispOptions] = useState([{ value: "", label: "" }]);
+const [dispLoading, setDispLoading] = useState(false);
+
+const [subDispOptions, setSubDispOptions] = useState([{ value: "", label: "" }]);
+const [subDispLoading, setSubDispLoading] = useState(false);
+
 
   // ✅ add reasonCode in form
   const [form, setForm] = useState({
@@ -237,14 +201,6 @@ const CancelledEntryDetails = () => {
   return getSubDispositionOptions(form.disposition);
 }, [form.disposition]);
 
-useEffect(() => {
-  // ✅ If disposition changes, and current subdisp is not part of that group, clear it.
-  const allowed = subDispositionOptions.map((x) => x.value);
-  if (form.sbdisposition && !allowed.includes(form.sbdisposition)) {
-    setForm((p) => ({ ...p, sbdisposition: "" }));
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [form.disposition]);
 
 
   const [saving, setSaving] = useState(false);
@@ -286,6 +242,82 @@ useEffect(() => {
     loadReasons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+  const loadDispositions = async () => {
+    setDispLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/Opportunity/Dispostion/${encodeURIComponent(OPP_TYPE)}`,
+        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`Disposition HTTP ${res.status}`);
+
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
+      const mapped = (Array.isArray(arr) ? arr : [])
+        .map((x) => ({ value: normalizeLSCode(x?.code), label: String(x?.name ?? "").trim() }))
+        .filter((x) => x.value || x.label);
+
+      setDispOptions([{ value: "", label: "" }, ...mapped]);
+    } catch (e) {
+      console.error("Dispostion load failed:", e);
+      setDispOptions([{ value: "", label: "" }]);
+    } finally {
+      setDispLoading(false);
+    }
+  };
+
+  loadDispositions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+useEffect(() => {
+  const dispCode = normalizeLSCode(form.disposition);
+
+  if (!dispCode) {
+    setSubDispOptions([{ value: "", label: "" }]);
+    setForm((p) => ({ ...p, sbdisposition: "" }));
+    return;
+  }
+
+  const loadSubDispositions = async () => {
+    setSubDispLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/Opportunity/SubDispostion/${encodeURIComponent(OPP_TYPE)}/${encodeURIComponent(dispCode)}`,
+        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`SubDisposition HTTP ${res.status}`);
+
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
+      const mapped = (Array.isArray(arr) ? arr : [])
+        .map((x) => ({ value: normalizeLSCode(x?.code), label: String(x?.name ?? "").trim() }))
+        .filter((x) => x.value || x.label);
+
+      setSubDispOptions([{ value: "", label: "" }, ...mapped]);
+
+      // ✅ clear invalid current selection
+      setForm((p) => {
+        const allowed = new Set(mapped.map((m) => m.value));
+        if (p.sbdisposition && !allowed.has(normalizeLSCode(p.sbdisposition))) {
+          return { ...p, sbdisposition: "" };
+        }
+        return p;
+      });
+    } catch (e) {
+      console.error("SubDispostion load failed:", e);
+      setSubDispOptions([{ value: "", label: "" }]);
+      setForm((p) => ({ ...p, sbdisposition: "" }));
+    } finally {
+      setSubDispLoading(false);
+    }
+  };
+
+  loadSubDispositions();
+}, [form.disposition]);
+
 
   useEffect(() => {
     const doFetch = async () => {
@@ -336,9 +368,9 @@ const apiRemarks = String(data?.remarts || "").trim();
 
 const resolvedDisp = normalizeDispCode(state?.row?.disposition) || apiDisp || "";
 
-
 const apiSubDispRaw = data?.subDistpositionCode || data?.subDistpositionName;
-const apiSubDisp = normalizeSubDispForDisposition(resolvedDisp, apiSubDispRaw);
+const apiSubDisp = normalizeSubDispCode(apiSubDispRaw);
+
 
 // ✅ validate subdisp belongs to this disposition group
 const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) =>
@@ -349,7 +381,8 @@ const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
         setForm((p) => ({
   ...p,
   disposition: resolvedDisp,
-  sbdisposition: p.sbdisposition || resolvedSubDisp || "",
+  sbdisposition: p.sbdisposition || apiSubDisp || "",
+
   remarks: String(state?.row?.remarks ?? "").trim() || apiRemarks || "",
   reasonCode: p.reasonCode || apiReasonCode || "",
 }));
@@ -544,19 +577,20 @@ const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
                 Disposition <span className="req">*</span>:
               </label>
               <select
-                id="disposition"
-                name="disposition"
-                value={form.disposition}
-                disabled={isLocked}
-                onChange={(e) => !isLocked && handleChange(e)}
-                className="inp"
-              >
-                {DISPOSITION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+  id="disposition"
+  name="disposition"
+  value={form.disposition}
+  disabled={isLocked || dispLoading}
+  onChange={(e) => !isLocked && handleChange(e)}
+  className="inp"
+>
+  {dispOptions.map((opt) => (
+    <option key={opt.value || opt.label} value={opt.value}>
+      {opt.label}
+    </option>
+  ))}
+</select>
+
             </div>
 
             <div className="formrow">
@@ -564,20 +598,23 @@ const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
     Sub-Disposition <span className="req">*</span>:
   </label>
   <select
-    id="sbdisposition"
-    name="sbdisposition"
-    value={form.sbdisposition}
-    disabled={isLocked || !form.disposition}
-    onChange={(e) => !isLocked && handleChange(e)}
-    className="inp"
-  >
-    <option value="">—</option>
-    {subDispositionOptions.map((opt) => (
+  id="sbdisposition"
+  name="sbdisposition"
+  value={form.sbdisposition}
+  disabled={isLocked || !form.disposition || subDispLoading}
+  onChange={(e) => !isLocked && handleChange(e)}
+  className="inp"
+>
+  <option value="">—</option>
+  {subDispOptions
+    .filter((x) => x.value)
+    .map((opt) => (
       <option key={opt.value} value={opt.value}>
         {opt.label}
       </option>
     ))}
-  </select>
+</select>
+
 </div>
 
 
