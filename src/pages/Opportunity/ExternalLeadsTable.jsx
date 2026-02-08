@@ -221,6 +221,9 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const [campaignErr, setCampaignErr] = useState("");
   const [campaignHeader, setCampaignHeader] = useState(null);
 
+  const [dispositionFilter, setDispositionFilter] = useState("");
+
+
   // data
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -357,6 +360,16 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     return ["", ...Array.from(set)];
   }, [rows]);
 
+  const dispositionOptions = useMemo(() => {
+  const set = new Set();
+  rows.forEach((r) => {
+    const d = String(r?.disposition || "").trim();
+    if (d) set.add(d);
+  });
+  return ["", ...Array.from(set)];
+}, [rows]);
+
+
   // Filtered + sorted
   const filtered = useMemo(() => {
     let list = rows.slice();
@@ -374,6 +387,12 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
       list = list.filter((r) => String(r?.salesOwner || "").toLowerCase() === ow);
     }
 
+    if (dispositionFilter) {
+  const d = dispositionFilter.toLowerCase();
+  list = list.filter((r) => String(r?.disposition || "").toLowerCase() === d);
+}
+
+
     if (sortKey) {
       const dir = sortDir === "asc" ? 1 : -1;
       list.sort((a, b) => {
@@ -386,12 +405,12 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     }
 
     return list;
-  }, [rows, searchTerm, statusFilter, ownerFilter, sortKey, sortDir]);
+  }, [rows, searchTerm, statusFilter, ownerFilter,dispositionFilter, sortKey, sortDir]);
 
   // ✅ reset page when any filter/search/sort/date changes
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, ownerFilter, fromDate, toDate, sortKey, sortDir]);
+  }, [searchTerm, statusFilter, ownerFilter, fromDate, dispositionFilter, toDate, sortKey, sortDir]);
 
   // ✅ pagination calculations
   const totalRecords = filtered.length;
@@ -508,11 +527,6 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
             </div>
 
             <div className="pair">
-              <span className="label">Rule Code :</span>
-              <span className="value">{safe(uiHeader?.oRuleCode)}</span>
-            </div>
-
-            <div className="pair">
               <span className="label">Rule Details :</span>
               <span className="value">
                 {safe(uiHeader?.oRuleDetails || uiHeader?.oRuleName || uiHeader?.oRuleCode)}
@@ -561,7 +575,6 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
                 <option value="">All</option>
                 <option value="Open">Open</option>
                 <option value="Closed">Closed</option>
-                <option value="WIP">WIP</option>
               </select>
             </div>
 
@@ -599,6 +612,24 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
                 onChange={(e) => setToDate(e.target.value)}
               />
             </div>
+
+
+            <div className="fgroup">
+  <label className="flabel">Disposition :</label>
+  <select
+    className="finput"
+    value={dispositionFilter}
+    onChange={(e) => setDispositionFilter(e.target.value)}
+  >
+    {dispositionOptions.map((d, i) => (
+      <option key={i} value={d}>
+        {d || "All"}
+      </option>
+    ))}
+  </select>
+</div>
+
+
           </div>
         </div>
 

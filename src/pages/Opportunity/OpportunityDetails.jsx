@@ -1125,6 +1125,8 @@ const OpportunityDetails = () => {
   };
 
   const [statusFilter, setStatusFilter] = useState("");
+  const [dispositionFilter, setDispositionFilter] = useState("");
+
   const [ownerFilter, setOwnerFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
@@ -1298,6 +1300,8 @@ if (!fromDate || !toDate) {
   filterTimeTo,
   sortConfig?.key,
   sortConfig?.direction,
+    dispositionFilter,
+
   isManualLead,
 ]);
 
@@ -1309,6 +1313,16 @@ if (!fromDate || !toDate) {
     });
     return ["", ...Array.from(set)];
   }, [normRows]);
+
+  const dispositionOptions = useMemo(() => {
+  const set = new Set();
+  rows.forEach((r) => {
+    const d = String(r?.disposition || "").trim();
+    if (d) set.add(d);
+  });
+  return ["", ...Array.from(set)];
+}, [rows]);
+
 
   const therapistOptions = useMemo(() => {
   const set = new Set();
@@ -1389,6 +1403,14 @@ const getRowDateStampForFilter = (row) => {
     }
   }
 
+  if (dispositionFilter) {
+  const d = dispositionFilter.toLowerCase();
+  list = list.filter(
+    (r) => String(r?.disposition || "").toLowerCase() === d
+  );
+}
+
+
   // 3b) Therapist filter
 if (therapistFilter) {
   const tf = therapistFilter.trim().toLowerCase();
@@ -1468,6 +1490,7 @@ if (therapistFilter) {
   searchTerm,
   statusFilter,
   ownerFilter,
+  dispositionFilter,
   dateRange,
   filterTimeFrom,
   therapistFilter,
@@ -1711,6 +1734,22 @@ if (therapistFilter) {
                   ))}
                 </select>
               </div>
+
+              <div className="fgroup">
+  <label className="flabel">Disposition :</label>
+  <select
+    className="finput"
+    value={dispositionFilter}
+    onChange={(e) => setDispositionFilter(e.target.value)}
+  >
+    {dispositionOptions.map((d, i) => (
+      <option key={i} value={d}>
+        {d || "All"}
+      </option>
+    ))}
+  </select>
+</div>
+
 
               <div className="fgroup">
                 <label className="flabel">Follow Up Date :</label>
