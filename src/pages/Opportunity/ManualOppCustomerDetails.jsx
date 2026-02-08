@@ -8,54 +8,6 @@ const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const norm = (v) => safe(v).trim().toLowerCase();
 const pad2 = (n) => String(n).padStart(2, "0");
 
-const SUBSOURCE_BY_SOURCE = {
-  S001: [
-    { name: "Influencers A", code: "SS006" },
-    { name: "Influencers B", code: "SS007" },
-    { name: "Influencers C", code: "SS008" },
-  ],
-  S002: [
-    { name: "Client Referal A", code: "SS009" },
-    { name: "Client Referal B", code: "SS010" },
-    { name: "Client Referal C", code: "SS011" },
-  ],
-  S003: [
-    { name: "Business Development A", code: "SS012" },
-    { name: "Business Development B", code: "SS013" },
-    { name: "Business Development C", code: "SS014" },
-  ],
-  S004: [
-    { name: "SEM A", code: "SS015" },
-    { name: "SEM B", code: "SS016" },
-    { name: "SEM C", code: "SS017" },
-  ],
-  S005: [
-    { name: "Google Maps A", code: "SS018" },
-    { name: "Google Maps B", code: "SS019" },
-    { name: "Google Maps C", code: "SS020" },
-  ],
-  S006: [
-    { name: "Social Organic A", code: "SS021" },
-    { name: "Social Organic B", code: "SS022" },
-    { name: "Social Organic C", code: "SS023" },
-  ],
-  S007: [
-    { name: "Website A", code: "SS024" },
-    { name: "Website B", code: "SS025" },
-    { name: "Website C", code: "SS026" },
-  ],
-  S008: [
-    { name: "Walkin A", code: "SS027" },
-    { name: "Walkin B", code: "SS028" },
-    { name: "Walkin C", code: "SS029" },
-  ],
-  S009: [
-    { name: "Social Media A", code: "SS030" },
-    { name: "Social Media B", code: "SS031" },
-    { name: "Social Media C", code: "SS032" },
-  ],
-};
-
 
 /** ✅ Defaults for Follow-up */
 const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
@@ -82,6 +34,18 @@ const subSourceFkToCode = (fk) => {
 };
 
 
+// ✅ Convert API subsource row -> "SS012" style code (preferred by UI)
+const toSubSourceCodeFromApi = (x) => {
+  // if backend already returns a code like "SS012"
+  const apiCode = safe(x?.code).trim();
+  if (apiCode) return apiCode;
+
+  // else try building from numeric recid/value/id
+  const fk = Number(x?.recid ?? x?.value ?? x?.id ?? 0);
+  if (!Number.isFinite(fk) || fk <= 0) return "";
+
+  return subSourceFkToCode(fk); // -> "SS012"
+};
 
 
 // ✅ Campaign
@@ -488,6 +452,83 @@ const getSessionCentreKey = () => {
 
   return "";
 };
+
+const SearchableSingleSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder = "Type to search...",
+  disabled = false,
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const wrapRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const opt = (options || []).find((o) => safe(o.value).trim() === safe(value).trim());
+    setQ(opt?.label || "");
+  }, [value, options]);
+
+  React.useEffect(() => {
+    const onDoc = (e) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    const t = safe(q).toLowerCase().trim();
+    const list = (options || []).filter((o) => safe(o.value).trim() !== "");
+    if (!t) return list.slice(0, 100);
+    return list
+      .filter((o) => safe(o.label).toLowerCase().includes(t) || safe(o.value).toLowerCase().includes(t))
+      .slice(0, 100);
+  }, [q, options]);
+
+  return (
+    <div className={`ssWrap ${disabled ? "isDisabled" : ""}`} ref={wrapRef}>
+      <input
+        className="inp"
+        value={q}
+        disabled={disabled}
+        placeholder={placeholder}
+        onFocus={() => !disabled && setOpen(true)}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+          if (!safe(e.target.value).trim()) onChange(""); // clear selection
+        }}
+      />
+
+      {open && !disabled && (
+        <div className="ssMenu">
+          {filtered.length === 0 ? (
+            <div className="ssItem muted">No results</div>
+          ) : (
+            filtered.map((o) => (
+              <div
+                key={o.value || o.label}
+                className={`ssItem ${safe(o.value).trim() === safe(value).trim() ? "active" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                title={o.label}
+              >
+                <div className="ssLabel">{o.label}</div>
+                <div className="ssCode">{o.value}</div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 /** ---------------- Component ---------------- */
 const ManualOppCustomerDetails = () => {
@@ -899,37 +940,91 @@ if (!isEdit) {
     loadMaster();
   }, [isEdit]);
 
-  // ✅ Build SubSource dropdown from selected Source (works in Edit too)
-useEffect(() => {
-  const srcValue = safe(form.sourceName).trim();
-  if (!srcValue) {
-    setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
-    return;
-  }
+ useEffect(() => {
+  let alive = true;
 
-  const srcOpt = (sourceOptions || []).find((s) => String(s.value) === String(srcValue));
-  const srcCode = safe(srcOpt?.code).trim(); // "S001"..."S009"
+  const run = async () => {
+    const srcValue = safe(form.sourceName).trim();
+    if (!srcValue) {
+      setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      setForm((p) => ({ ...p, subSourceName: "" }));
+      return;
+    }
 
-  if (srcCode && SUBSOURCE_BY_SOURCE[srcCode]) {
-    const mapped = SUBSOURCE_BY_SOURCE[srcCode].map((s) => ({
-      label: s.name,
-      value: s.code, // "SS019"
-    }));
-    setSubSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
-  } else {
-    setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
-  }
+    // sourceName is value/recid, but API needs SourceCode like "S001"
+    const srcOpt = (sourceOptions || []).find((s) => String(s.value) === String(srcValue));
+    const srcCode = safe(srcOpt?.code).trim();
+
+    if (!srcCode) {
+      setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      setForm((p) => ({ ...p, subSourceName: "" }));
+      return;
+    }
+
+    setSubSourceLoading(true);
+    try {
+      const data = await fetchJSON(
+        `${API_BASE_URL}/api/Opportunity/OppSubSource/${encodeURIComponent(srcCode)}`,
+        { method: "GET" }
+      );
+
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.result)
+        ? data.result
+        : Array.isArray(data?.items)
+        ? data.items
+        : [];
+
+      const opts = [
+  { label: "", value: "" },
+  ...list
+    .map((x) => {
+      const code = toSubSourceCodeFromApi(x); // ✅ UI value becomes "SS012"
+      const label =
+        safe(x?.name).trim() ||
+        safe(x?.subSourceName).trim() ||
+        code;
+
+      return {
+        value: code,  // ✅ IMPORTANT: value must match form.subSourceName ("SSxxx")
+        label,
+      };
+    })
+    .filter((o) => safe(o.value).trim()),
+];
+
+
+      if (!alive) return;
+
+      setSubSourceOptions(opts);
+
+      // keep selection only if still valid
+      setForm((p) => {
+        const cur = safe(p.subSourceName).trim();
+        if (!cur) return p;
+        const exists = opts.some((o) => safe(o.value).trim() === cur);
+        return exists ? p : { ...p, subSourceName: "" };
+      });
+    } catch (e) {
+      console.error("OppSubSource failed:", e);
+      if (!alive) return;
+      setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      setForm((p) => ({ ...p, subSourceName: "" }));
+    } finally {
+      if (alive) setSubSourceLoading(false);
+    }
+  };
+
+  run();
+  return () => {
+    alive = false;
+  };
 }, [form.sourceName, sourceOptions]);
 
 
-  /** ---------------- SubSource load ---------------- */
-// ✅ DO NOT load/override global subsources because we map them by source now.
-// ✅ Keep only the default placeholder.
-useEffect(() => {
-  setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
-  // keep loading flag false
-  setSubSourceLoading(false);
-}, []);
 
 
   /** ---------------- Disposition load ---------------- */
@@ -1113,21 +1208,9 @@ useEffect(() => {
 
     
   if (name === "centerCode") centerTouchedRef.current = true;
-
-  if (name === "sourceName") {
-  // set source and reset subsource
+if (name === "sourceName") {
   setForm((p) => ({ ...p, sourceName: value, subSourceName: "" }));
 
-  // build subsource list from mapping
-  const srcOpt = (sourceOptions || []).find((s) => String(s.value) === String(value));
-  const srcCode = safe(srcOpt?.code).trim();
-
-  if (srcCode && SUBSOURCE_BY_SOURCE[srcCode]) {
-    const mapped = SUBSOURCE_BY_SOURCE[srcCode].map((s) => ({ label: s.name, value: s.code }));
-    setSubSourceOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
-  }
-
-  // clear any old errors (optional fields now)
   setErrors((prev) => {
     const { sourceName: _s, subSourceName: _ss, ...rest } = prev;
     return rest;
@@ -1135,6 +1218,7 @@ useEffect(() => {
 
   return;
 }
+
 
 
 
@@ -1702,13 +1786,14 @@ const subMediumName = safe(form.subMedium || "Manual");
 
               <div className="field">
                 <label>Lead Sub-Source</label>
-                <select className="inp" name="subSourceName" value={form.subSourceName} onChange={onChange} disabled={subSourceLoading}>
-                  {subSourceOptions.map((opt) => (
-                    <option key={opt.value || opt.label} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSingleSelect
+  options={subSourceOptions}
+  value={form.subSourceName}
+  disabled={subSourceLoading || !safe(form.sourceName).trim()}
+  placeholder={!safe(form.sourceName).trim() ? "Select Source first" : "Type to search subsource..."}
+  onChange={(val) => setForm((p) => ({ ...p, subSourceName: val }))}
+ />
+
               </div>
 
 
@@ -1829,6 +1914,65 @@ const subMediumName = safe(form.subMedium || "Manual");
           font-weight: 700;
           color: #1d2a3b;
         }
+
+        .ssWrap {
+  position: relative;
+  width: 100%;
+}
+.ssWrap.isDisabled {
+  opacity: 0.7;
+}
+.ssMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 10px;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow: auto;
+  z-index: 9999;
+}
+.ssItem {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eef2f7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ssItem:last-child {
+  border-bottom: 0;
+}
+.ssItem:hover {
+  background: #f8fafc;
+}
+.ssItem.active {
+  background: #eef2ff;
+}
+.ssItem.muted {
+  cursor: default;
+  color: #6b7280;
+}
+.ssLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+.ssCode {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  flex: 0 0 auto;
+}
+
         .subTitle {
           margin-top: 2px;
           font-size: 12px;
