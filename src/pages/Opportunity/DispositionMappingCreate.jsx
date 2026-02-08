@@ -22,6 +22,9 @@ export default function DispositionMappingCreate() {
   const [disposition, setDisposition] = useState(""); // value = dispositionID (string)
   const [subDisposition, setSubDisposition] = useState("");
 
+  const [existingSubs, setExistingSubs] = useState([]); 
+
+
   // ✅ Grouped items: [{ dispositionID, dispositionName, subDispositions: [] }]
   const [items, setItems] = useState([]);
 
@@ -71,6 +74,18 @@ export default function DispositionMappingCreate() {
       return text;
     }
   };
+
+  const existsInBackend = (dispId, subDisp) => {
+  const dId = String(trim(dispId));
+  const sd = trim(subDisp).toLowerCase();
+
+  return existingSubs.some(
+    (x) =>
+      x.dispositionID === dId &&
+      x.subDispositionName === sd
+  );
+};
+
 
   // ---------------------------
   // Load Dispositions (active only)
@@ -123,6 +138,40 @@ export default function DispositionMappingCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  useEffect(() => {
+  let alive = true;
+
+  const loadSubDispositions = async () => {
+    try {
+      const data = await fetchJson(
+        `${API_BASE_URL}/api/Disposition/SubDispositionList`
+      );
+
+      const arr = Array.isArray(data) ? data : [];
+
+      // ✅ keep only active ones
+      const active = arr
+        .filter((x) => x?.isActive === true)
+        .map((x) => ({
+          dispositionID: String(x.dispositionID),
+          subDispositionName: trim(x.subDispositionName).toLowerCase(),
+        }));
+
+      if (alive) setExistingSubs(active);
+    } catch (e) {
+      console.error("Failed to load subdispositions", e);
+      if (alive) setExistingSubs([]);
+    }
+  };
+
+  loadSubDispositions();
+  return () => {
+    alive = false;
+  };
+}, []);
+
+
   const dispositionNameById = useMemo(() => {
     const m = new Map();
     (dispOptions || []).forEach((o) => m.set(String(o.value), o.label));
@@ -138,50 +187,73 @@ export default function DispositionMappingCreate() {
   // ---------------------------
   // Add subdisposition (multi per dispositionID)
   // ---------------------------
-  const handleAdd = () => {
-    const dId = trim(disposition); // dispositionID
-    const sd = trim(subDisposition);
+ const handleAdd = () => {
+  const dId = trim(disposition);
+  const sd = trim(subDisposition);
 
-    if (!dId) {
-      alert("Please select a disposition.");
-      return;
+  setSaveErr("");
+
+  if (!dId) {
+    alert("Please select a disposition.");
+    return;
+  }
+
+  if (!sd) {
+    alert("Please enter subdisposition.");
+    return;
+  }
+
+  // ✅ 1) Block duplicates already saved in DB
+  if (existsInBackend(dId, sd)) {
+    alert(
+      "This subdisposition already exists for the selected disposition."
+    );
+    return;
+  }
+
+  // ✅ 2) Block duplicates already added in UI
+  const existsInUi = items.some(
+    (grp) =>
+      String(grp.dispositionID) === String(dId) &&
+      grp.subDispositions.some(
+        (x) => trim(x).toLowerCase() === sd.toLowerCase()
+      )
+  );
+
+  if (existsInUi) {
+    alert("This subdisposition is already added.");
+    return;
+  }
+
+  const dispName = dispositionNameById.get(String(dId)) || dId;
+
+  setItems((prev) => {
+    const idx = prev.findIndex(
+      (x) => String(x.dispositionID) === String(dId)
+    );
+
+    if (idx >= 0) {
+      const copy = [...prev];
+      copy[idx] = {
+        ...copy[idx],
+        subDispositions: [...copy[idx].subDispositions, sd],
+      };
+      return copy;
     }
-    if (!sd) {
-      alert("Please enter subdisposition.");
-      return;
-    }
 
-    const dispName = dispositionNameById.get(String(dId)) || dId;
+    return [
+      ...prev,
+      {
+        dispositionID: dId,
+        dispositionName: dispName,
+        subDispositions: [sd],
+      },
+    ];
+  });
 
-    setItems((prev) => {
-      const idx = prev.findIndex((x) => String(x.dispositionID) === String(dId));
+  setSubDisposition("");
+};
 
-      // If disposition exists, append subdisp (avoid duplicates)
-      if (idx >= 0) {
-        const copy = [...prev];
-        const existing = copy[idx];
-
-        const alreadyExists = existing.subDispositions.some(
-          (x) => trim(x).toLowerCase() === sd.toLowerCase()
-        );
-        if (alreadyExists) return prev;
-
-        copy[idx] = {
-          ...existing,
-          subDispositions: [...existing.subDispositions, sd],
-        };
-        return copy;
-      }
-
-      // Else create new disposition group
-      return [
-        ...prev,
-        { dispositionID: dId, dispositionName: dispName, subDispositions: [sd] },
-      ];
-    });
-
-    setSubDisposition("");
-  };
 
   // ✅ Delete only one subdisposition under a dispositionID
   const handleDeleteSub = (dispId, subDisp) => {

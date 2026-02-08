@@ -111,6 +111,15 @@ const toLocalDateTimeString = (dateObj) => {
   const ss = pad2(d.getSeconds());
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`; // ✅ no Z
 };
+const getTodayInputDate = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`; // yyyy-MM-dd
+};
+
 
 const getTomorrowInputDate = () => {
   const d = new Date();
@@ -225,7 +234,7 @@ const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
 
 // ✅ Send DATE ONLY (no timezone conversion possible)
 const toFollowUpDateOnly = (yyyyMmDd) => {
-  const minAllowed = getTomorrowInputDate();
+  const minAllowed = getTodayInputDate();
   let dateStr = safe(yyyyMmDd).trim() || minAllowed;
   if (dateStr < minAllowed) dateStr = minAllowed;
   return dateStr; // "YYYY-MM-DD"
@@ -517,7 +526,10 @@ const ManualOppCustomerDetails = () => {
   const [langOptions] = useState(LANG_INIT);
 
   /** ✅ Minimum allowed date for picker (tomorrow only) */
-  const minFollowUpDate = useMemo(() => getTomorrowInputDate(), []);
+const minFollowUpDate = useMemo(
+  () => (isEdit ? getTodayInputDate() : getTomorrowInputDate()),
+  [isEdit]
+);
 
   /** ---- Employees ---- */
   const [employees, setEmployees] = useState([]);
@@ -1050,7 +1062,7 @@ useEffect(() => {
 
         setForm((p) => {
           const apiDate = toInputDate(data?.followUpDate);
-          const min = getTomorrowInputDate();
+          const min = getTodayInputDate();
           const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : p.followUpDate || min;
 
           return {
@@ -1131,11 +1143,12 @@ useEffect(() => {
 
       // ✅ enforce tomorrow minimum on date change
       if (name === "followUpDate") {
-        const v = safe(value).trim();
-        const min = getTomorrowInputDate();
-        if (!v) next.followUpDate = min;
-        else next.followUpDate = v < min ? min : v;
-      }
+  const v = safe(value).trim();
+  const min = isEdit ? getTodayInputDate() : getTomorrowInputDate();
+  if (!v) next.followUpDate = min;
+  else next.followUpDate = v < min ? min : v;
+}
+
 
       // ✅ default time if cleared
       if (name === "followUpTime" && !safe(value).trim()) {
@@ -1262,7 +1275,8 @@ useEffect(() => {
   };
 
   const resolveFollowUpForPayload = (currentForm) => {
-    const min = getTomorrowInputDate();
+      const min = isEdit ? getTodayInputDate() : getTomorrowInputDate();
+
     const dateValRaw = safe(currentForm?.followUpDate).trim();
     const timeVal = safe(currentForm?.followUpTime).trim();
 
