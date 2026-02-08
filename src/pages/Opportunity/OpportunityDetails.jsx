@@ -1139,8 +1139,10 @@ const OpportunityDetails = () => {
   const [timeToSlot, setTimeToSlot] = useState("");
   const [timeToMer, setTimeToMer] = useState("AM");
 
-  const [campaignLoading, setCampaignLoading] = useState(false);
-  const [campaign, setCampaign] = useState(null);
+  // ✅ dates coming ONLY from dashboard
+const [dashFromDate] = useState(() => state?.fromDate || "");
+const [dashToDate] = useState(() => state?.toDate || "");
+
 
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -1170,32 +1172,6 @@ const OpportunityDetails = () => {
     const code = (fallbackHeader?.oRuleCode || fallbackHeader?.oRuleDetails || "").toString().trim().toLowerCase();
     return !!fallbackHeader?.manualLead || code === "manual lead";
   }, [fallbackHeader]);
-useEffect(() => {
-  let alive = true;
-
-  (async () => {
-    if (!oppCode) return;
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`,
-        { method: "GET", credentials: "include" }
-      );
-      if (!res.ok) throw new Error(`Campaign HTTP ${res.status}`);
-      const data = await res.json();
-      if (!alive) return;
-
-      setCampaign(data || null);
-    } catch (e) {
-      console.error("getCampaign failed:", e);
-      if (!alive) return;
-      setCampaign(null);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [oppCode]);
 
   // ✅ Load normal opportunity details ONLY if not manual lead
   useEffect(() => {
@@ -1214,12 +1190,16 @@ useEffect(() => {
       setError("");
 
       try {
-        const now = new Date();
-        const defaultFrom = new Date(now);
-        defaultFrom.setDate(now.getDate() - 13);
+        const fromDate = dashFromDate;
+const toDate = dashToDate;
 
-        const fromDate = state?.fromDate || toISODateOnly(defaultFrom);
-        const toDate = state?.toDate || toISODateOnly(now);
+// optional safety: if dashboard didn't send, stop (or you can fallback if you want)
+if (!fromDate || !toDate) {
+  setError("From/To date missing from dashboard.");
+  setLoading(false);
+  return;
+}
+
 
         const payload = { oppCode, fromDate, toDate };
 
@@ -1284,7 +1264,8 @@ useEffect(() => {
     };
 
     fetchDetails();
-  }, [oppCode, state?.fromDate, state?.toDate, manualLeadHint, fallbackHeader, state]);
+  }, [oppCode, dashFromDate, dashToDate, manualLeadHint, fallbackHeader]);
+
 
   const hasRows = normRows?.length > 0;
   const safe = (v, fallback = "") => (v === null || v === undefined || v === "" ? fallback : v);
@@ -1652,24 +1633,25 @@ if (therapistFilter) {
             <div className="title-col">
               <div className="pair">
   <span className="label">Campaign Code :</span>
-  <span className="value pill">{safe(campaign?.oppCode || H?.oppCode, "—")}</span>
+<span className="value pill">{safe(H?.oppCode, "—")}</span>
 </div>
 
 <div className="pair">
   <span className="label">Campaign Name :</span>
-  <span className="value">{safe(campaign?.oppName || H?.oppName, "—")}</span>
+<span className="value">{safe(H?.oppName, "—")}</span>
 </div>
 
 
 <div className="pair">
   <span className="label">Rule Details :</span>
-  <span className="value">{safe(campaign?.oRuleDetails || H?.oRuleDetails, "—")}</span>
+<span className="value">{safe(H?.oRuleDetails, "—")}</span>
 </div>
 
 <div className="pair">
   <span className="label">Campaign Period :</span>
   <span className="value">
-    {formatCampaignPeriod(campaign?.oppCampStartDate, campaign?.oppCampEndDate)}
+      {formatDDMMYYYY(dashFromDate)} - {formatDDMMYYYY(dashToDate)}
+
   </span>
 </div>
               <div className="xywrap">
