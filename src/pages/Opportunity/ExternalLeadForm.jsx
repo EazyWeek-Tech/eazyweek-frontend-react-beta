@@ -232,53 +232,83 @@
     return "";
   };
 
-  // ✅ Hardcoded SubSource map (by Source code) - codes start from SS006
-const SUBSOURCE_BY_SOURCE = {
-  S001: [
-    { name: "Influencers A", code: "SS006" },
-    { name: "Influencers B", code: "SS007" },
-    { name: "Influencers C", code: "SS008" },
-  ],
-  S002: [
-    { name: "Client Referal A", code: "SS009" },
-    { name: "Client Referal B", code: "SS010" },
-    { name: "Client Referal C", code: "SS011" },
-  ],
-  S003: [
-    { name: "Business Development A", code: "SS012" },
-    { name: "Business Development B", code: "SS013" },
-    { name: "Business Development C", code: "SS014" },
-  ],
-  S004: [
-    { name: "SEM A", code: "SS015" },
-    { name: "SEM B", code: "SS016" },
-    { name: "SEM C", code: "SS017" },
-  ],
-  S005: [
-    { name: "Google Maps A", code: "SS018" },
-    { name: "Google Maps B", code: "SS019" },
-    { name: "Google Maps C", code: "SS020" },
-  ],
-  S006: [
-    { name: "Social Organic A", code: "SS021" },
-    { name: "Social Organic B", code: "SS022" },
-    { name: "Social Organic C", code: "SS023" },
-  ],
-  S007: [
-    { name: "Website A", code: "SS024" },
-    { name: "Website B", code: "SS025" },
-    { name: "Website C", code: "SS026" },
-  ],
-  S008: [
-    { name: "Walkin A", code: "SS027" },
-    { name: "Walkin B", code: "SS028" },
-    { name: "Walkin C", code: "SS029" },
-  ],
-  S009: [
-    { name: "Social Media A", code: "SS030" },
-    { name: "Social Media B", code: "SS031" },
-    { name: "Social Media C", code: "SS032" },
-  ],
+  const SearchableSingleSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder = "Type to search...",
+  disabled = false,
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const wrapRef = React.useRef(null);
+
+  // keep input text synced with selected value (show label)
+  React.useEffect(() => {
+    const opt = (options || []).find((o) => safe(o.value).trim() === safe(value).trim());
+    setQ(opt?.label || "");
+  }, [value, options]);
+
+  React.useEffect(() => {
+    const onDoc = (e) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    const t = safe(q).toLowerCase().trim();
+    const list = (options || []).filter((o) => safe(o.value).trim() !== "");
+    if (!t) return list.slice(0, 80);
+    return list
+      .filter((o) => safe(o.label).toLowerCase().includes(t) || safe(o.value).toLowerCase().includes(t))
+      .slice(0, 80);
+  }, [q, options]);
+
+  return (
+    <div className={`ssWrap ${disabled ? "isDisabled" : ""}`} ref={wrapRef}>
+      <input
+        className="inp"
+        value={q}
+        disabled={disabled}
+        placeholder={placeholder}
+        onFocus={() => !disabled && setOpen(true)}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+          // if user clears -> clear selection
+          if (!safe(e.target.value).trim()) onChange("");
+        }}
+      />
+
+      {open && !disabled && (
+        <div className="ssMenu">
+          {filtered.length === 0 ? (
+            <div className="ssItem muted">No results</div>
+          ) : (
+            filtered.map((o) => (
+              <div
+                key={o.value || o.label}
+                className={`ssItem ${safe(o.value).trim() === safe(value).trim() ? "active" : ""}`}
+                onMouseDown={(e) => {
+                  // prevent blur before click
+                  e.preventDefault();
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                title={o.label}
+              >
+                <div className="ssLabel">{o.label}</div>
+                <div className="ssCode">{o.value}</div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 
@@ -322,7 +352,6 @@ const SUBSOURCE_BY_SOURCE = {
     { label: "< - Select one - >", value: "" },
   ]);
   const [subSourceOptions, setSubSourceOptions] = useState([
-    { label: "< - Select one - >", value: "" },
   ]);
 
 
@@ -452,34 +481,55 @@ const SUBSOURCE_BY_SOURCE = {
     };
   }, []);
 
-  /** ---------------- Load SubSources (depends on source) ---------------- */
+/** ---------------- Load SubSources (API depends on source) ---------------- */
 useEffect(() => {
+  let alive = true;
   const src = safe(form.source).trim();
 
-  if (!src) {
-    setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
-    setForm((p) => ({ ...p, subSource: "" }));
-    return;
-  }
+  const run = async () => {
+    if (!src) {
+      setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      setForm((p) => ({ ...p, subSource: "" }));
+      return;
+    }
 
-  const list = SUBSOURCE_BY_SOURCE[src] || [];
+    try {
+      const data = await fetchJson(
+        `${API_BASE_URL}/api/Opportunity/OppSubSource/${encodeURIComponent(src)}`
+      );
+      const list = readList(data);
 
-  const opts = [
-    { label: "< - Select one - >", value: "" },
-    ...list.map((x) => ({
-      label: x.name,
-      value: x.code,
-    })),
-  ];
+      const opts = [
+        { label: "", value: "" },
+        ...list.map((x) => ({
+          value: safe(x?.code).trim(),
+          label: safe(x?.name).trim() || safe(x?.code).trim(),
+        })),
+      ];
 
-  setSubSourceOptions(opts);
+      if (!alive) return;
+      setSubSourceOptions(opts);
 
-  setForm((p) =>
-    opts.some((o) => o.value === p.subSource) ? p : { ...p, subSource: "" }
-  );
+      // if current selected subSource not in list -> clear it
+      setForm((p) => {
+        const cur = safe(p.subSource).trim();
+        if (!cur) return p;
+        const exists = opts.some((o) => safe(o.value).trim() === cur);
+        return exists ? p : { ...p, subSource: "" };
+      });
+    } catch (e) {
+      console.error("OppSubSource failed", e);
+      if (!alive) return;
+      setSubSourceOptions([{ label: "< - Select one - >", value: "" }]);
+      setForm((p) => ({ ...p, subSource: "" }));
+    }
+  };
+
+  run();
+  return () => {
+    alive = false;
+  };
 }, [form.source]);
-
-
 
 
     /** ---------------- Load Dispositions (API) ---------------- */
@@ -1068,21 +1118,13 @@ useEffect(() => {
 
   <div className="field">
     <label>Subsource</label>
-    <select
-    className="inp"
-    name="subSource"
+    <SearchableSingleSelect
+    options={subSourceOptions}
     value={form.subSource}
-    onChange={(e) =>
-      setForm((p) => ({ ...p, subSource: e.target.value }))
-    }
     disabled={!safe(form.source).trim()}
-  >
-    {subSourceOptions.map((o) => (
-      <option key={o.value || o.label} value={o.value}>
-        {o.label}
-      </option>
-    ))}
-  </select>
+    placeholder={!safe(form.source).trim() ? "Select Source first" : "Type to search subsource..."}
+    onChange={(val) => setForm((p) => ({ ...p, subSource: val }))}
+  />
 
 
   </div>
@@ -1246,6 +1288,66 @@ useEffect(() => {
             color: #7b8798;
             font-weight: 700;
           }
+
+          .ssWrap {
+  position: relative;
+  width: 100%;
+}
+.ssWrap.isDisabled {
+  opacity: 0.7;
+}
+.ssMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 10px;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow: auto;
+  z-index: 9999;
+}
+.ssItem {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eef2f7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ssItem:last-child {
+  border-bottom: 0;
+}
+.ssItem:hover {
+  background: #f8fafc;
+}
+.ssItem.active {
+  background: #eef2ff;
+}
+.ssItem.muted {
+  cursor: default;
+  color: #6b7280;
+}
+.ssLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+.ssCode {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  flex: 0 0 auto;
+  display:none;
+}
+
 
           .fs {
             border: 1px solid #e6ebf2;
