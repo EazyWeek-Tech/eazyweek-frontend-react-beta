@@ -660,7 +660,7 @@ ExternalSubSource: "",
         break;
       }
 
-      case "externalSourceRule": {
+    case "externalSourceRule": {
   const from = (v.extFromDate || "").toString().trim();
 
   const toMode = String(v.extToMode || "current"); // "current" | "custom"
@@ -669,47 +669,36 @@ ExternalSubSource: "",
       ? (v.extToDate || "").toString().trim()
       : todayLocalYMD();
 
-  // ✅ base required fields for backend
+  const diffDays = daysBetween(from, to) || "0";
+
+  // mandatory
   base.ruleCode = "R7";
   base.ruleDetails = "External source";
 
-  // ✅ clear irrelevant date buckets
-  base.staticFromDate = "";
-  base.staticToDate = "";
-  base.customFromDate = "";
-  base.customToDate = "";
-
-  // ✅ campaign dates always sent
+  // campaign dates
   base.campStartDate = safeDMY(from);
   base.campEndDate = safeDMY(to);
 
-  // ✅ set source fields
+  // source mapping
   base.ExternalSource = externalSource || "";
   base.ExternalSubSource = externalSubSource || "";
 
-  // ✅ IMPORTANT: ruleType + noShowDays logic
+  // no-show ALWAYS 0
+  base.noShowDays = "0";
+  base.noShowCustomDays = "";
+
   if (toMode === "current") {
-    // Current date => Dynamic
+    // ✅ Dynamic
     base.ruleType = "2";
     base.ruleFetchType = "2";
-    base.ruleDays = "0";
-    base.noShowDays = "0";
-    base.noShowCustomDays = "";
+    base.ruleDays = diffDays;
   } else {
-    // Custom date => Static
-    const diff = daysBetween(from, to) || "";
-
+    // ✅ Static
     base.ruleType = "1";
     base.ruleFetchType = "1";
+    base.ruleDays = "0";
 
-    // You asked specifically: noShowDays should be the difference
-    base.noShowDays = diff;
-    base.noShowCustomDays = "";
-
-    // (optional but usually helps backend validations)
-    base.ruleDays = diff;
-
-    // If your backend expects static dates for ruleType=1, send them too:
+    // static dates (safe for backend validation)
     base.staticFromDate = safeDMY(from);
     base.staticToDate = safeDMY(to);
   }
