@@ -34,6 +34,42 @@ const isRowEmpty = (obj) =>
 /** pad 2 digits */
 const pad2 = (n) => String(n).padStart(2, "0");
 
+/** Escape XML/HTML special characters to entities */
+const escapeHtml = (v) => {
+  if (v === null || v === undefined) return "";
+
+  // keep Date as-is (date handler will format)
+  if (v instanceof Date && !Number.isNaN(+v)) return v;
+
+  // convert numbers/booleans safely
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+
+  let s = String(v);
+
+  // remove null bytes
+  s = s.replace(/\u0000/g, "");
+
+  // remove unsafe control chars (keep \t \n \r)
+  s = s.replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+
+  // escape XML/HTML entities
+  s = s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  return s.trim();
+};
+
+/** Escape + trim (string output) */
+const escTrim = (v) => {
+  const out = escapeHtml(v);
+  return out instanceof Date ? "" : String(out).trim();
+};
+
+
 /** Convert excel date/string -> "YYYY/MM/DD" */
 const toYYYYMMDD = (v) => {
   if (v === null || v === undefined) return "";
@@ -105,16 +141,17 @@ const toLine = (rowObj) => {
   };
 
   return {
-    therapistCode: trim(get("THERAPISTCODE")), // ✅ added
-    therapistName: trim(get("THERAPISTNAME")),
-    serviceName: trim(get("SERVICENAME")),
-    appointmentDate: toYYYYMMDD(get("APPOINTMENTDATETIME")), // ✅ YYYY/MM/DD
-    custID: trim(get("CustID")),
-    custName: trim(get("CustName")),
-    custMobileNo: trim(get("CustMobileNo")),
-    clinicCode: trim(get("ClinicCode")),
-    campignCode: trim(get("OppCode")), // (spelling as per API)
-  };
+  therapistCode: escTrim(get("THERAPISTCODE")),
+  therapistName: escTrim(get("THERAPISTNAME")),
+  serviceName: escTrim(get("SERVICENAME")),
+  appointmentDate: toYYYYMMDD(get("APPOINTMENTDATETIME")),
+  custID: escTrim(get("CustID")),
+  custName: escTrim(get("CustName")),
+  custMobileNo: escTrim(get("CustMobileNo")),
+  clinicCode: escTrim(get("ClinicCode")),
+  campignCode: escTrim(get("OppCode")), // (spelling as per API)
+};
+
 };
 
 export default function OppUploader() {
@@ -193,7 +230,8 @@ export default function OppUploader() {
         blankrows: false,
       });
 
-      const headerRow = (aoa?.[0] || []).map((h) => String(h ?? "").trim());
+      const headerRow = (aoa?.[0] || []).map((h) => escTrim(h));
+
       setRawHeaders(headerRow);
 
       const { ok, missing } = validateHeaders(headerRow);
