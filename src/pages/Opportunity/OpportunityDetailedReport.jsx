@@ -30,17 +30,104 @@ const atEndOfDayZ = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
 const pick = (obj, keys, fallback = "") => {
   for (const k of keys) {
     const v = obj?.[k];
-    if (v !== undefined && v !== null && String(v) !== "") return v;
+    if (v === undefined || v === null) continue;
+
+    // handle arrays
+    if (Array.isArray(v)) {
+      const s = v.map((x) => norm(x)).filter(Boolean).join(", ");
+      if (s) return s;
+      continue;
+    }
+
+    // handle objects (rare but safe)
+    if (typeof v === "object") {
+      const s = norm(v?.label ?? v?.name ?? v?.value ?? "");
+      if (s) return s;
+      continue;
+    }
+
+    //  IMPORTANT: trim strings
+    const s = norm(v);
+    if (s) return s;
   }
   return fallback;
 };
+
+//  get value by key, case-insensitive and ignoring _ and spaces
+const getKeyCI = (obj, key) => {
+  if (!obj || !key) return undefined;
+
+  const target = norm(key).toLowerCase().replace(/[_\s]/g, "");
+
+  // direct
+  if (obj[key] !== undefined) return obj[key];
+
+  // case-insensitive match
+  for (const k of Object.keys(obj)) {
+    const kk = norm(k).toLowerCase().replace(/[_\s]/g, "");
+    if (kk === target) return obj[k];
+  }
+  return undefined;
+};
+
+const pickCI = (obj, keys, fallback = "") => {
+  for (const k of keys) {
+    const v = getKeyCI(obj, k);
+    if (v === undefined || v === null) continue;
+
+    if (Array.isArray(v)) {
+      const s = v.map((x) => norm(x)).filter(Boolean).join(", ");
+      if (s) return s;
+      continue;
+    }
+
+    if (typeof v === "object") {
+      const s = norm(v?.label ?? v?.name ?? v?.value ?? v?.text ?? "");
+      if (s) return s;
+      continue;
+    }
+
+    const s = norm(v);
+    if (s) return s;
+  }
+  return fallback;
+};
+
+
 const withLD = (v) => {
   const s = norm(v);
   if (!s) return "";
   return s.toUpperCase().startsWith("LD-") ? s : `LD-${s}`;
 };
+const padLeadId = (v, width = 7) => {
+  const n = Number(String(v ?? "").trim());
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.trunc(n)).padStart(width, "0");
+};
+const formatLeadId = (leadIdRaw, ruleCodeRaw) => {
+  const raw = norm(leadIdRaw);
+  if (!raw) return "";
 
-// ✅ Backend-only default dates (DO NOT show on UI)
+  // If backend already sends a formatted lead id, keep it as-is
+  const upper = raw.toUpperCase();
+  if (upper.startsWith("LD-EX-") || upper.startsWith("LD-")) return raw;
+
+  // Numeric -> pad
+  const padded = padLeadId(raw, 7);
+  if (!padded) return "";
+
+  const rule = norm(ruleCodeRaw).toUpperCase();
+
+  //  Only R7 is External Source => LD-EX-#######
+  if (rule === "R7") return `LD-EX-${padded}`;
+
+  //  All other rules => LD-#######
+  return `LD-${padded}`;
+};
+
+
+
+//  Backend-only default dates (DO NOT show on UI)
 const DEFAULT_FROM_DATE_ISO = "2020-01-22";
 const todayISODate = () => {
   const d = new Date();
@@ -50,7 +137,7 @@ const todayISODate = () => {
   return `${y}-${m}-${day}`;
 };
 
-/** ✅ NEW: session context resolver (loginCode/topCode/userID) */
+/**  NEW: session context resolver (loginCode/topCode/userID) */
 const getSessionContext = () => {
   try {
     const tryParse = (v) => {
@@ -93,7 +180,7 @@ const getSessionContext = () => {
   }
 };
 
-/** ✅ NEW: match center against loginCode/topCode */
+/**  NEW: match center against loginCode/topCode */
 const matchesLoginClinic = (centerLabel, centerValue, loginCode, topCode) => {
   const l = norm(centerLabel).toLowerCase();
   const v = norm(centerValue).toLowerCase();
@@ -285,17 +372,17 @@ export default function OpportunityDetailedReport() {
   const navigate = useNavigate();
   const { state } = useLocation() || {};
 
-  // ✅ Dates: DO NOT show defaults on UI
+  //  Dates: DO NOT show defaults on UI
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
   // filters
   const [campaignStatusCode, setCampaignStatusCode] = useState("");
 
-  /** ✅ CHANGED: Campaign Rule is MULTI */
+  /**  CHANGED: Campaign Rule is MULTI */
   const [oppRuleCodes, setOppRuleCodes] = useState([]);
 
-  /** ✅ CHANGED: clinic can be single or multi (Centriq) */
+  /**  CHANGED: clinic can be single or multi (Centriq) */
   const sessionCtx = useMemo(() => getSessionContext(), []);
   const isCentriq = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
 
@@ -396,7 +483,7 @@ export default function OpportunityDetailedReport() {
           label: x.name ?? x.centerName ?? (x.code ?? ""),
         }));
 
-        /** ✅ NEW: apply session-based restriction */
+        /**  NEW: apply session-based restriction */
         let list = listAll;
 
         if (!isCentriq) {
@@ -431,7 +518,7 @@ export default function OpportunityDetailedReport() {
   }, []);
 
   /* ==========================================================
-     ✅ Campaign Name list when status + (multi) rule are selected
+      Campaign Name list when status + (multi) rule are selected
      ========================================================== */
   useEffect(() => {
     const status = norm(campaignStatusCode);
@@ -501,6 +588,12 @@ export default function OpportunityDetailedReport() {
     return () => ac.abort();
   }, [campaignStatusCode, oppRuleCodes]);
 
+  const isExternalSelected = useMemo(() => {
+  const rules = Array.isArray(oppRuleCodes) ? oppRuleCodes : [];
+  return rules.map(norm).some((r) => r.toUpperCase() === "R7");
+}, [oppRuleCodes]);
+
+
   /* ---- Fetch report (only on View) ---- */
   const loadDetailed = async () => {
     setLoading(true);
@@ -541,6 +634,11 @@ export default function OpportunityDetailedReport() {
       const d = await r.json();
       const arr = Array.isArray(d) ? d : d ? [d] : [];
 
+      const sample = arr.find((x) => norm(getKeyCI(x, "salesOwner")) || norm(getKeyCI(x, "reasons")));
+console.log("SAMPLE WITH SALESOWNER/REASONS:", sample);
+console.log("SAMPLE KEYS:", sample ? Object.keys(sample) : []);
+
+
       const fmt = (s) => {
         const iso = toISODateOnly(s);
         if (!iso) return "";
@@ -565,6 +663,11 @@ export default function OpportunityDetailedReport() {
         const fromRaw = pick(x, ["fromDate", "campaignFromDate"]);
         const toRaw = pick(x, ["toDate", "campaignToDate"]);
         const createdRaw = pick(x, ["createdDate", "createdOn"]);
+          const leadIdRaw = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
+          const ruleCodeRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
+
+
+
 
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
@@ -572,8 +675,32 @@ export default function OpportunityDetailedReport() {
           fromDate: fmt(fromRaw),
           toDate: fmt(toRaw),
           createdDate: fmt(createdRaw),
+          //  recid,
+          leadId: formatLeadId(leadIdRaw, ruleCodeRaw),
+          ruleCode: ruleCodeRaw,
+salesOwner: pickCI(x, [
+  "salesOwner",
+  "salesowner",
+  "SalesOwner",
+  "sales_owner",
+  "salesOwnerName",
+  "salesOwnerFullName",
+  "salesOwnerEmpCode",
+  "salesOwnerEmployeeCode",
+  "ownerName",
+  "owner",
+]),
+reasons: pickCI(x, [
+  "reasons",
+  "Reasons",
+  "reason",
+  "reasonName",
+  "reasonText",
+  "reasonDesc",
+  "remarksReason",
+]),
 
-          leadId: withLD(pick(x, ["leadId", "leadID", "leadCode", "customerId", "custId", "id"])),
+
 
           leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
 
@@ -621,6 +748,8 @@ export default function OpportunityDetailedReport() {
       "OppStatus",
       "Created By",
       "Closed By",
+      "Sales Owner",     //  NEW
+  "Reasons",         //  NEW
     //  "WIP",
       "Clinic",
       "Campaign Code",
@@ -638,9 +767,12 @@ export default function OpportunityDetailedReport() {
         r.campaignStatus ?? "",
         r.converted ?? "",
         r.oppStatus ?? "",
+        r.salesOwner ?? "",   //  NEW
+  r.reasons ?? "",      //  NEW
+      //  r.wip ?? "",
+      
         r.createdBy ?? "",
         r.closedBy ?? "",
-      //  r.wip ?? "",
         r.clinic ?? "",
         r.oppCode ?? "",
       ]),
@@ -659,19 +791,20 @@ export default function OpportunityDetailedReport() {
           String(
             [
               r.fromDate,
-              r.toDate,
-              r.createdDate,
-              r.leadId,
-              r.leadName,
-              r.oppName,
-              r.campaignStatus,
-              r.converted,
-              r.oppStatus,
-              r.createdBy,
-              r.closedBy,
-            //  r.wip,
-              r.clinic,
-              r.oppCode,
+  r.toDate,
+  r.createdDate,
+  r.leadId ?? "",
+  r.leadName ?? "",
+  r.oppName ?? "",
+  r.campaignStatus ?? "",
+  r.converted ?? "",
+  r.oppStatus ?? "",
+  r.createdBy ?? "",
+  r.closedBy ?? "",
+  r.salesOwner ?? "",
+  r.reasons ?? "",
+  r.clinic ?? "",
+  r.oppCode ?? "",
             ][idx] ?? ""
           ).length
         )
@@ -766,7 +899,7 @@ export default function OpportunityDetailedReport() {
           <div className="frow">
             <label>Clinic</label>
 
-            {/* ✅ Centriq: multi + select all */}
+            {/*  Centriq: multi + select all */}
             {isCentriq ? (
               <SearchableDropdown
                 options={clinics}
@@ -777,7 +910,7 @@ export default function OpportunityDetailedReport() {
                 showSelectAll
               />
             ) : (
-              // ✅ Non-centriq: locked single clinic
+              //  Non-centriq: locked single clinic
               <SearchableDropdown
                 options={clinics}
                 value={clinicCode}
@@ -807,6 +940,7 @@ export default function OpportunityDetailedReport() {
       </div>
 
       <div className="table-wrap">
+         <div className="table-scroll">
         <table className="tbl">
           <thead>
             <tr>
@@ -817,8 +951,11 @@ export default function OpportunityDetailedReport() {
               <th>Lead Name</th>
               <th>Campaign Name</th>
               <th>Campaign Status</th>
+              
               <th>Converted</th>
               <th>Lead Status</th>
+              <th>Sales Owner</th>
+<th>Reasons</th>
               <th>Created By</th>
               <th>Closed By</th>
             {/*   <th>WIP</th> */}
@@ -828,7 +965,7 @@ export default function OpportunityDetailedReport() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={13} className="loading">
+                <td colSpan={14} className="loading">
                   Loading…
                 </td>
               </tr>
@@ -836,7 +973,7 @@ export default function OpportunityDetailedReport() {
 
             {!loading && !pageRows.length && (
               <tr>
-                <td colSpan={13} className="empty">
+                <td colSpan={14} className="empty">
                   No data
                 </td>
               </tr>
@@ -866,15 +1003,19 @@ export default function OpportunityDetailedReport() {
                       {r.oppStatus}
                     </button>
                   </td>
+                  
+<td>{r.salesOwner}</td>
+<td>{r.reasons}</td>
                   <td>{r.createdBy}</td>
                   <td>{r.closedBy}</td>
+
                   {/* <td>{r.wip}</td> */}
                   <td>{r.clinic}</td>
                 </tr>
               ))}
           </tbody>
         </table>
-
+              </div>
         <div className="pager">
           <button className="pagebtn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             Prev
@@ -903,7 +1044,7 @@ export default function OpportunityDetailedReport() {
         .filters { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 16px; margin-bottom: 16px; }
         .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 18px; }
         .frow { display: flex; flex-direction: column; gap: 6px; }
-        label { font-size: 14px; font-weight: 700; color: #5a6270; }
+        label { font-size: 12px; font-weight: 700; color: #5a6270; }
         input[type="date"] {
           height: 36px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 10px; outline: none; background: #fff;
         }
@@ -914,15 +1055,57 @@ export default function OpportunityDetailedReport() {
         .btn { background: #112032; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
         .btn[disabled] { opacity: .55; cursor: not-allowed; }
 
-        .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 10px 0; }
+        .table-wrap {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  padding: 10px 0;
+}
+
+/*  Scroll container */
+.table-scroll {
+  max-height: 420px;          /* vertical scroll height */
+  overflow: auto;             /* enables both X & Y scroll */
+}
+
+/*  Ensure table can overflow horizontally */
+table.tbl {
+  width: 100%;
+  min-width: 1200px;          /* force horizontal scroll */
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/*  Sticky header */
+.tbl thead th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+}
+
+/* Optional: smoother scroll look */
+.table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.table-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+.table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
         table.tbl { width: 100%; border-collapse: separate; border-spacing: 0 0; }
         .tbl thead th {
           text-align: left; font-size: 13px; color: #6c7688; font-weight: 700;
           padding: 10px 14px; border-bottom: 1px solid #eef1f6; position: sticky; top: 0; background: #fff; z-index: 1;
         }
-        .tbl tbody td { font-size: 14px; color: #1b2636; padding: 12px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: top; line-height: 1.35; }
+        .tbl tbody td { font-size: 12px; color: #1b2636; padding: 6px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: top; line-height: 1.35; }
 
-        .link { background: none; border: none; padding: 0; color: #2e5aac; cursor: pointer; font-weight: 600; text-align: left; }
+        .link { background: none; border: none; padding: 0;font-size: 12px; color: #2e5aac; cursor: pointer; font-weight: 600; text-align: left; }
         .link:hover { text-decoration: underline; }
 
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
