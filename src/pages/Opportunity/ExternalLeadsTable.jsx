@@ -192,6 +192,8 @@ followUpTimeLabel: toTimeLabel12h(x?.followUptime, x?.followUpAMPM),
 
 modifieddate: x?.modifieddate ?? x?.modifiedDate ?? "",
 
+modifiedBy: x?.modifiedBy ?? x?.modifiedBy ?? "",
+
 
 
     oppStatus,
@@ -211,6 +213,7 @@ modifieddate: x?.modifieddate ?? x?.modifiedDate ?? "",
       x?.createddate,
       x?.modifiedDate,
 x?.modifieddate,
+x?.modifiedBy
 
     ]
       .map((t) => (t ?? "").toString().toLowerCase())
@@ -703,6 +706,10 @@ const [dateTouched, setDateTouched] = useState(false);
                     <th onClick={() => toggleSort("salesOwner")}>
                       Sales Owner <SortMark k="salesOwner" />
                     </th>
+                    
+                    <th onClick={() => toggleSort("modifiedBy")}>
+  Modified By <SortMark k="modifiedBy" />
+</th>
                     <th onClick={() => toggleSort("modifieddate")}>
   Modified Date <SortMark k="modifieddate" />
 </th>
@@ -738,6 +745,7 @@ const [dateTouched, setDateTouched] = useState(false);
                       <td>{safe(r.disposition)}</td>
                       <td>{safe(r.remarks)}</td>
                       <td>{safe(r.salesOwner)}</td>
+                      <td>{safe(r.modifiedBy)}</td>
                       <td>{formatDDMMYYYY(r.modifieddate)}</td>
 
                       <td>{formatDDMMYYYY(r.createddate)}</td>
