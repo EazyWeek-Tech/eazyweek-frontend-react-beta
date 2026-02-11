@@ -26,6 +26,16 @@ const toISODateOnly = (d) => {
   return Number.isNaN(+dt) ? "" : toISODateOnly(dt);
 };
 
+const getTodayInputDate = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+
 const formatDDMMYYYY = (v) => {
   if (!v) return "—";
   const iso = toISODateOnly(v);
@@ -236,8 +246,12 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   // optional date range for API
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => getTodayInputDate());
+const [toDate, setToDate] = useState(() => getTodayInputDate());
+
+const [dateTouched, setDateTouched] = useState(false);
+
+
 
   // sorting
   const [sortKey, setSortKey] = useState("");
@@ -276,12 +290,15 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
         setCampaignHeader(data || null);
 
         // ✅ set default date range from campaign if present
-        const cs = toISODateOnly(data?.oppCampStartDate);
+       /*  const cs = toISODateOnly(data?.oppCampStartDate);
         const ce = toISODateOnly(data?.oppCampEndDate);
         if (cs && ce) {
           setFromDate(cs);
           setToDate(ce);
-        }
+        } */
+       if (!dateTouched) {
+  // no-op intentionally
+}
       } catch (e) {
         console.error("Campaign header load failed", e);
         if (!alive) return;
@@ -599,7 +616,8 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
                 type="date"
                 className="finput"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => { setDateTouched(true); setFromDate(e.target.value); }}
+
               />
             </div>
 
@@ -609,7 +627,8 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
                 type="date"
                 className="finput"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => { setDateTouched(true); setToDate(e.target.value); }}
+
               />
             </div>
 
@@ -759,9 +778,7 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
       <style jsx>{`
         .details-card {
           background: #fff;
-          padding: 24px;
-          border-radius: 10px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+          padding: 24px 0;
         }
 
         .leadLink {
