@@ -1232,6 +1232,7 @@ if (!fromDate || !toDate) {
 
   const therapistName = getTherapistName(r);
   const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
+  const modifiedBy = r?.modifiedBy;
 
 
   return {
@@ -1240,6 +1241,7 @@ if (!fromDate || !toDate) {
    __timeMin: hhmmToMinutes(hhmm),
     __therapistName: therapistName, // ✅ keep a normalized field for table/filter
     modifieddate: modified,
+    modifiedBy: modifiedBy,
 
     __q: [
       r?.custID,
@@ -1248,7 +1250,7 @@ if (!fromDate || !toDate) {
       displayOppStatus(r?.oppStatus),
       r?.salesOwner,
       modified,
-
+      modifiedBy,
       therapistName, // ✅ searchable
       
     ]
@@ -1862,6 +1864,10 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                     
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
+                    
+                    <th onClick={() => handleSort("modifiedBy")}>
+  Modified By <span className="sort">{sortArrow("modifiedBy")}</span>
+</th>
                     <th onClick={() => handleSort("modifieddate")}>
   Modified Date <span className="sort">{sortArrow("modifieddate")}</span>
 </th>
@@ -1895,6 +1901,7 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
 
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
+                      <td>{safe(r.modifiedBy, "—")}</td>
                       <td>{formatDDMMYYYY(r.modifieddate || r.modifiedDate)}</td>
 
                       <td>{formatDDMMYYYY(r.createddate)}</td>
