@@ -778,9 +778,7 @@ const [dateTouched, setDateTouched] = useState(false);
       <style jsx>{`
         .details-card {
           background: #fff;
-          padding: 24px;
-          border-radius: 10px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+          padding: 24px 0;
         }
 
         .leadLink {
