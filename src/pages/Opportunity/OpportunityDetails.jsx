@@ -803,6 +803,7 @@ const AutoDistributionModal = ({ onClose, oppCode, onStartAssignment, actionType
           employeeCode: (e?.employeeCode ?? "").toString(),
           roleName: (e?.roleName ?? "").toString(),
           clinicCode: (e?.clinicCode ?? "").toString(),
+
           __shift: pickRandomShift(),
           __q: (e?.employeeName ?? "").toString().toLowerCase(),
         }));
@@ -1224,19 +1225,26 @@ if (!fromDate || !toDate) {
   const hhmm = getRowTimeHHmm(r);
 
   const therapistName = getTherapistName(r);
+  const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
+
 
   return {
     ...r,
     __dateStamp: dateToStamp(d),
    __timeMin: hhmmToMinutes(hhmm),
     __therapistName: therapistName, // ✅ keep a normalized field for table/filter
+    modifieddate: modified,
+
     __q: [
       r?.custID,
       r?.custName,
       r?.custMobileNo,
       displayOppStatus(r?.oppStatus),
       r?.salesOwner,
+      modified,
+
       therapistName, // ✅ searchable
+      
     ]
       .map((x) => (x ?? "").toString().toLowerCase())
       .join(" | "),
@@ -1820,6 +1828,9 @@ if (therapistFilter) {
                     
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
+                    <th onClick={() => handleSort("modifieddate")}>
+  Modified Date <span className="sort">{sortArrow("modifieddate")}</span>
+</th>
                     <th onClick={() => handleSort("createddate")}>Created Date <span className="sort">{sortArrow("createddate")}</span></th>
                   </tr>
                 </thead>
@@ -1850,6 +1861,8 @@ if (therapistFilter) {
 
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
+                      <td>{formatDDMMYYYY(r.modifieddate || r.modifiedDate)}</td>
+
                       <td>{formatDDMMYYYY(r.createddate)}</td>
                     </tr>
                   ))}
