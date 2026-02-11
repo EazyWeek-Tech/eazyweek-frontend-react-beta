@@ -190,6 +190,9 @@ followUpAMPM: (x?.followUpAMPM ?? "").toString().trim(),     // "PM"
 // merged label for UI/form ("01:30 PM")
 followUpTimeLabel: toTimeLabel12h(x?.followUptime, x?.followUpAMPM),
 
+modifieddate: x?.modifieddate ?? x?.modifiedDate ?? "",
+
+
 
     oppStatus,
     remarks: (x?.remarks ?? "").toString(),
@@ -206,6 +209,9 @@ followUpTimeLabel: toTimeLabel12h(x?.followUptime, x?.followUpAMPM),
       x?.remarks,
       x?.salesOwner,
       x?.createddate,
+      x?.modifiedDate,
+x?.modifieddate,
+
     ]
       .map((t) => (t ?? "").toString().toLowerCase())
       .join(" | "),
@@ -697,6 +703,9 @@ const [dateTouched, setDateTouched] = useState(false);
                     <th onClick={() => toggleSort("salesOwner")}>
                       Sales Owner <SortMark k="salesOwner" />
                     </th>
+                    <th onClick={() => toggleSort("modifieddate")}>
+  Modified Date <SortMark k="modifieddate" />
+</th>
                     <th onClick={() => toggleSort("createddate")}>
                       Created Date <SortMark k="createddate" />
                     </th>
@@ -729,6 +738,8 @@ const [dateTouched, setDateTouched] = useState(false);
                       <td>{safe(r.disposition)}</td>
                       <td>{safe(r.remarks)}</td>
                       <td>{safe(r.salesOwner)}</td>
+                      <td>{formatDDMMYYYY(r.modifieddate)}</td>
+
                       <td>{formatDDMMYYYY(r.createddate)}</td>
                     </tr>
                   ))}
