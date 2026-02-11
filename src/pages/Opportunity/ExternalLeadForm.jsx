@@ -704,7 +704,7 @@ useEffect(() => {
 
           const hasSelectOne = opts.some((o) => safe(o.value).trim() === "");
           if (!hasSelectOne) {
-            opts = [{ label: "< - Select one - >", value: "" }, ...opts];
+            opts = [{ label: "< -- Select one -- >", value: "" }, ...opts];
           } else {
             const blank = opts.find((o) => safe(o.value).trim() === "");
             opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
