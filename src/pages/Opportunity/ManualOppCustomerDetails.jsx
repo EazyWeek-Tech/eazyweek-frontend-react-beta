@@ -1266,6 +1266,7 @@ if (name === "sourceName") {
     if (!toNumberOr0(salesOwnerRecId) && !toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId)) {
       e.salesOwner = "Sales Owner not resolved. Please re-login or refresh.";
     }
+    if (!safe(form.sourceName).trim()) e.sourceName = "Lead Source is required.";
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -1772,8 +1773,9 @@ const subMediumName = safe(form.subMedium || "Manual");
 
               <div className="field">
                 <label>
-                  Lead Source 
-                </label>
+  Lead Source <span className="req">*</span>
+</label>
+
                 <select className={`inp ${errors.sourceName ? "err" : ""}`} name="sourceName" value={form.sourceName} onChange={onChange} disabled={sourceLoading}>
                   {sourceOptions.map((opt) => (
                     <option key={opt.value || opt.label} value={opt.value}>

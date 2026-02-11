@@ -815,6 +815,8 @@ useEffect(() => {
       if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
       if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
 
+      if (!safe(form.source).trim()) e.source = "Source is required.";
+
       setErrors(e);
       return Object.keys(e).length === 0;
     };
@@ -1092,9 +1094,12 @@ useEffect(() => {
   </div>
 
   <div className="field">
-    <label>Source</label>
-    <select
-    className="inp"
+  <label>
+    Source <span className="req">*</span>
+  </label>
+
+  <select
+    className={`inp ${errors.source ? "err" : ""}`}
     name="source"
     value={form.source}
     onChange={(e) => {
@@ -1104,6 +1109,12 @@ useEffect(() => {
         source: code,
         subSource: "", // reset
       }));
+
+      setErrors((prev) => {
+        if (!prev.source) return prev;
+        const { source: _, ...rest } = prev;
+        return rest;
+      });
     }}
   >
     {sourceOptions.map((o) => (
@@ -1113,8 +1124,9 @@ useEffect(() => {
     ))}
   </select>
 
+  {errors.source && <div className="errText">{errors.source}</div>}
+</div>
 
-  </div>
 
   <div className="field">
     <label>Subsource</label>
