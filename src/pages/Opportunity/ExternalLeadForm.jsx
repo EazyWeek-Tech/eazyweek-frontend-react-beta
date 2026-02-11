@@ -3,6 +3,7 @@
   import React, { useEffect, useMemo, useState } from "react";
   import { useLocation, useNavigate, useParams } from "react-router-dom";
   import { API_BASE_URL } from "../../config";
+  import CallButton from "../../components/CallButton";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -709,6 +710,11 @@ useEffect(() => {
             opts = [blank, ...opts.filter((o) => safe(o.value).trim() !== "")];
           }
 
+          const hasNone = opts.some((o) => safe(o.value).trim() === "__NONE__");
+if (!hasNone) {
+  opts = [...opts, { label: "None", value: "None" }];
+}
+
           if (!alive) return;
           setDoctorOptions(opts);
 
@@ -880,6 +886,9 @@ useEffect(() => {
       }
     };
 
+    const loggedInMobile = "8454801741";         // replace with your real logged-in user mobile
+  const clientMobile = "9819061936";  
+
     return (
       <>
         {toast.show && <div className="toast">{toast.msg}</div>}
@@ -898,6 +907,16 @@ useEffect(() => {
 
           <fieldset className="fs">
             <legend>Lead Details</legend>
+          <div>
+              {/* <CallButton
+        firstNumber={loggedInMobile}
+        secondNumber={clientMobile}
+        label="Call Client"
+        onSuccess={(data) => console.log("Call OK:", data)}
+        onError={(e) => console.error("Call failed:", e)}
+      /> */}
+          </div>
+            
 
             <div className="formGrid3">
               <div className="col">
