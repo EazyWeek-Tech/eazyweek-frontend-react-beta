@@ -276,8 +276,8 @@ const getOppDateStamp = (row, isManualLead) => {
   return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
 };
 
-/** Build half-hour slots from 01:00 -> 07:30 (used in UI filters) */
-const HALF_HOURS_1_TO_730 = [
+/** Build half-hour slots from 01:00 -> 12:30 (used in UI filters) */
+const HALF_HOURS_1_TO_1230 = [
   "01:00", "01:30",
   "02:00", "02:30",
   "03:00", "03:30",
@@ -285,7 +285,13 @@ const HALF_HOURS_1_TO_730 = [
   "05:00", "05:30",
   "06:00", "06:30",
   "07:00", "07:30",
+  "08:00", "08:30",
+  "09:00", "09:30",
+  "10:00", "10:30",
+  "11:00", "11:30",
+  "12:00", "12:30",
 ];
+
 
 const ModalShell = ({ title, onClose, children, width = 720 }) => {
   useEffect(() => {
@@ -803,6 +809,7 @@ const AutoDistributionModal = ({ onClose, oppCode, onStartAssignment, actionType
           employeeCode: (e?.employeeCode ?? "").toString(),
           roleName: (e?.roleName ?? "").toString(),
           clinicCode: (e?.clinicCode ?? "").toString(),
+
           __shift: pickRandomShift(),
           __q: (e?.employeeName ?? "").toString().toLowerCase(),
         }));
@@ -1224,19 +1231,26 @@ if (!fromDate || !toDate) {
   const hhmm = getRowTimeHHmm(r);
 
   const therapistName = getTherapistName(r);
+  const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
+
 
   return {
     ...r,
     __dateStamp: dateToStamp(d),
    __timeMin: hhmmToMinutes(hhmm),
     __therapistName: therapistName, // ✅ keep a normalized field for table/filter
+    modifieddate: modified,
+
     __q: [
       r?.custID,
       r?.custName,
       r?.custMobileNo,
       displayOppStatus(r?.oppStatus),
       r?.salesOwner,
+      modified,
+
       therapistName, // ✅ searchable
+      
     ]
       .map((x) => (x ?? "").toString().toLowerCase())
       .join(" | "),
@@ -1430,8 +1444,16 @@ if (therapistFilter) {
   }
 
   // 5) Time window filter
-  const fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
-  const toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+ let fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
+let toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+
+// ✅ if both are set and reversed, swap
+if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
+  const tmp = fromMin;
+  fromMin = toMin;
+  toMin = tmp;
+}
+
 
   const inTimeWindow = (r) => {
     if (!filterTimeFrom && !filterTimeTo) return true;
@@ -1778,15 +1800,35 @@ if (therapistFilter) {
                 <label className="flabel">Follow Up time (From) :</label>
                 <div className="ftime-row">
                   <select className="finput" value={timeFromSlot} onChange={(e) => setTimeFromSlot(e.target.value)}>
-                    <option value="">—</option>
-                    {HALF_HOURS_1_TO_730.map((t) => <option key={`fs-${t}`} value={t}>{t}</option>)}
-                  </select>
-                  <select className="finput" value={timeFromMer} onChange={(e) => setTimeFromMer(e.target.value)}>
-                    <option>AM</option>
-                    <option>PM</option>
-                  </select>
-                </div>
-              </div>
+      <option value="">—</option>
+      {HALF_HOURS_1_TO_1230.map((t) => (
+        <option key={`ts-${t}`} value={t}>{t}</option>
+      ))}
+    </select>
+    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
+      <option>AM</option>
+      <option>PM</option>
+    </select>
+  </div>
+</div>
+
+<div className="fgroup ftime">
+  <label className="flabel">Follow Up time (To) :</label>
+  <div className="ftime-row">
+    <select className="finput" value={timeToSlot} onChange={(e) => setTimeToSlot(e.target.value)}>
+      <option value="">—</option>
+      {HALF_HOURS_1_TO_1230.map((t) => (
+        <option key={`ts-${t}`} value={t}>{t}</option>
+      ))}
+    </select>
+    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
+      <option>AM</option>
+      <option>PM</option>
+    </select>
+  </div>
+</div>
+
+
 
             </div>
           </div>
@@ -1820,6 +1862,9 @@ if (therapistFilter) {
                     
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
+                    <th onClick={() => handleSort("modifieddate")}>
+  Modified Date <span className="sort">{sortArrow("modifieddate")}</span>
+</th>
                     <th onClick={() => handleSort("createddate")}>Created Date <span className="sort">{sortArrow("createddate")}</span></th>
                   </tr>
                 </thead>
@@ -1850,6 +1895,8 @@ if (therapistFilter) {
 
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
+                      <td>{formatDDMMYYYY(r.modifieddate || r.modifiedDate)}</td>
+
                       <td>{formatDDMMYYYY(r.createddate)}</td>
                     </tr>
                   ))}
