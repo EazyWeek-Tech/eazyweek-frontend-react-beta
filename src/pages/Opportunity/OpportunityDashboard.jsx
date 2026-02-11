@@ -244,6 +244,8 @@ const canManageCampaigns = userRoleName.toLowerCase() === "admin";
             it.noOfOpenOpportunities ?? it.noOfOpenopportunities ?? it.noOfOpen ?? 0,
           noOfClosedOpportunities:
             it.noOfClosedOpportunities ?? it.noOfClosedopportunities ?? it.noOfClosed ?? 0,
+              recordswithoutSalesOwner: it.recordswithoutSalesOwner ?? it.recordsWithoutSalesOwner ?? it.records_without_sales_owner ?? 0,
+
           noOfConvertedOutOfClosed:
             it.noOfConvertedOutOfClosed ??
             it.noOfConvertedoutofClosed ??
@@ -939,6 +941,17 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
                         : "↕"}
                     </span>
                   </th>
+                  <th onClick={() => handleSort("recordswithoutSalesOwner")}>
+  Records without Sales Owner
+  <span className="sort-indicator">
+    {sortConfig.key === "recordswithoutSalesOwner"
+      ? sortConfig.direction === "asc"
+        ? "↑"
+        : "↓"
+      : "↕"}
+  </span>
+</th>
+
                   <th onClick={() => handleSort("noOfConvertedOutOfClosed")}>
                     No.Of Converted out of Closed
                     <span className="sort-indicator">
@@ -981,6 +994,8 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
                     <td>{item.totalOpportunities}</td>
                     <td>{item.noOfOpenOpportunities}</td>
                     <td>{item.noOfClosedOpportunities}</td>
+                    <td>{item.recordswithoutSalesOwner ?? 0}</td>
+
                     <td>{item.noOfConvertedOutOfClosed}</td>
                     <td>
                       <span className={`segment-badge segment-${(item.segmentType || "").toLowerCase()}`}>
