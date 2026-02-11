@@ -276,8 +276,8 @@ const getOppDateStamp = (row, isManualLead) => {
   return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
 };
 
-/** Build half-hour slots from 01:00 -> 07:30 (used in UI filters) */
-const HALF_HOURS_1_TO_730 = [
+/** Build half-hour slots from 01:00 -> 12:30 (used in UI filters) */
+const HALF_HOURS_1_TO_1230 = [
   "01:00", "01:30",
   "02:00", "02:30",
   "03:00", "03:30",
@@ -285,7 +285,13 @@ const HALF_HOURS_1_TO_730 = [
   "05:00", "05:30",
   "06:00", "06:30",
   "07:00", "07:30",
+  "08:00", "08:30",
+  "09:00", "09:30",
+  "10:00", "10:30",
+  "11:00", "11:30",
+  "12:00", "12:30",
 ];
+
 
 const ModalShell = ({ title, onClose, children, width = 720 }) => {
   useEffect(() => {
@@ -1438,8 +1444,16 @@ if (therapistFilter) {
   }
 
   // 5) Time window filter
-  const fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
-  const toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+ let fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
+let toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+
+// ✅ if both are set and reversed, swap
+if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
+  const tmp = fromMin;
+  fromMin = toMin;
+  toMin = tmp;
+}
+
 
   const inTimeWindow = (r) => {
     if (!filterTimeFrom && !filterTimeTo) return true;
@@ -1786,15 +1800,35 @@ if (therapistFilter) {
                 <label className="flabel">Follow Up time (From) :</label>
                 <div className="ftime-row">
                   <select className="finput" value={timeFromSlot} onChange={(e) => setTimeFromSlot(e.target.value)}>
-                    <option value="">—</option>
-                    {HALF_HOURS_1_TO_730.map((t) => <option key={`fs-${t}`} value={t}>{t}</option>)}
-                  </select>
-                  <select className="finput" value={timeFromMer} onChange={(e) => setTimeFromMer(e.target.value)}>
-                    <option>AM</option>
-                    <option>PM</option>
-                  </select>
-                </div>
-              </div>
+      <option value="">—</option>
+      {HALF_HOURS_1_TO_1230.map((t) => (
+        <option key={`ts-${t}`} value={t}>{t}</option>
+      ))}
+    </select>
+    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
+      <option>AM</option>
+      <option>PM</option>
+    </select>
+  </div>
+</div>
+
+<div className="fgroup ftime">
+  <label className="flabel">Follow Up time (To) :</label>
+  <div className="ftime-row">
+    <select className="finput" value={timeToSlot} onChange={(e) => setTimeToSlot(e.target.value)}>
+      <option value="">—</option>
+      {HALF_HOURS_1_TO_1230.map((t) => (
+        <option key={`ts-${t}`} value={t}>{t}</option>
+      ))}
+    </select>
+    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
+      <option>AM</option>
+      <option>PM</option>
+    </select>
+  </div>
+</div>
+
+
 
             </div>
           </div>
