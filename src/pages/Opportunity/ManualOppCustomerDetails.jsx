@@ -910,7 +910,7 @@ if (!isEdit) {
             };
           })
           .filter((x) => x.label && x.value);
-        setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...docsMapped]);
+        setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...docsMapped, { label: "None", value: "0" }]);
 
         const vertMapped = (Array.isArray(data?.appointmentVerticals) ? data.appointmentVerticals : [])
           .map((v) => ({ label: safe(v?.name).trim(), value: String(v?.value ?? ""), code: safe(v?.code).trim() }))
