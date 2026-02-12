@@ -1647,7 +1647,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
                   className={validationErrors.email ? "error-border" : ""}
                 >
                   {formValues.email && formValues.emailDisplay ? (
-                    <option value={formValues.email}>{formValues.emailDisplay}</option>
+                    <option value={formValues.email}>{formValues.email}</option>
                   ) : (
                     <option value="">No email available</option>
                   )}
