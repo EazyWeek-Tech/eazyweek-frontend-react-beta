@@ -28,22 +28,38 @@ const CaseManagement = () => {
   );
 
   useEffect(() => {
-    if (user) {
-      fetchCases({ owner: "", priority: "", assignTo: "", status: "" });
-      fetchEmployees();
-    }
-  }, [user]);
+  if (user) {
+    fetchCases(buildCaseFilterPayload(filters)); // ✅ load with current filters
+    fetchEmployees();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user]);
 
-  const applyClientFilters = (records, filters) => {
-    return records.filter((rec) => {
-      return (
-        (!filters.owner || rec.createdby === filters.owner) &&
-        (!filters.priority || rec.priority === filters.priority) &&
-        (!filters.assignTo || rec.assignedto === filters.assignTo) &&
-        (!filters.status || rec.status === filters.status)
-      );
-    });
-  };
+// ✅ whenever filters change -> fetch again
+useEffect(() => {
+  if (!user) return;
+  fetchCases(buildCaseFilterPayload(filters));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [filters]);
+
+
+ const norm = (v) => (v ?? "").toString().trim().toLowerCase();
+
+const buildCaseFilterPayload = (f) => ({
+  owner: f?.owner || "",
+  priority: f?.priority || "",
+  assignTo: f?.assignTo || "",
+  status: f?.status || "",
+});
+
+
+const stripHtml = (html) =>
+  (html ?? "")
+    .toString()
+    .replace(/<[^>]*>/g, " ")   // remove tags
+    .replace(/\s+/g, " ")       // collapse spaces
+    .trim();
+
 
   const fetchCases = async (filters) => {
     try {
@@ -60,32 +76,46 @@ const CaseManagement = () => {
       const data = await res.json();
       console.log("case data");
       console.log(data);
-      const mapped = data.map((item) => ({
-        caseno: item.caseNO,
-        casetitle: item.caseTitle ?? "-",
-        status: item.status,
-        priority: item.priority ?? "-",
-        category: item.category,
-        subCategory: item.subCategory,
-        subSubCategory: item.subSubCategory,
-        subSubSubCategory: item.subSubSubCategory,
-        assignedto: item.assignTo?.trim() || "-",
-        createdby: item.owner || "-",
-        customerName: item.customerName,
-        customerPhoneNo: item.customerPhoneNo,
-        createddate:
-          item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
-            ? new Date(item.createdDate).toLocaleString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            : "-",
-      }));
-      mapped.sort((a, b) => new Date(b.createddate) - new Date(a.createddate));
+       
+      const mapped = data.map((item) => {
+  const priorityText = stripHtml(item.priority); // ✅ DEFINE IT HERE
+
+  return {
+    caseno: item.caseNO,
+    casetitle: item.caseTitle ?? "-",
+    status: item.status,
+    priority: item.priority ?? "-",        // HTML (for display)
+    priorityText: priorityText || "-",     // ✅ plain text (for filtering)
+    category: item.category,
+    subCategory: item.subCategory,
+    subSubCategory: item.subSubCategory,
+    subSubSubCategory: item.subSubSubCategory,
+    assignedto: item.assignTo?.trim() || "-",
+    createdby: item.owner || "-",
+    customerName: item.customerName,
+    customerPhoneNo: item.customerPhoneNo,
+    createddateRaw:
+      item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
+        ? item.createdDate
+        : null,
+    createddate:
+      item.createdDate && item.createdDate !== "0001-01-01T00:00:00"
+        ? new Date(item.createdDate).toLocaleString("en-US", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : "-",
+  };
+});
+
+      mapped.sort(
+  (a, b) => new Date(b.createddateRaw || 0) - new Date(a.createddateRaw || 0)
+);
+
       setCaseRecords(mapped);
     } catch (err) {
       console.error("Failed to fetch cases:", err);
@@ -133,14 +163,16 @@ const CaseManagement = () => {
         </div>
         <DashboardOverview />
         <FilterBar
-          onCreateCase={() => setIsModalOpen(true)}
-          onFilter={setFilters}
-          employeeList={employees}
-        />
-        <CaseTable
-          records={applyClientFilters(caseRecords, filters)}
-          highlightCaseNo={highlightCaseNo}
-        />
+  onCreateCase={() => setIsModalOpen(true)}
+  onFilter={setFilters}
+  employeeList={employees}
+/>
+
+<CaseTable
+  records={caseRecords}
+  highlightCaseNo={highlightCaseNo}
+/>
+
       </div>
 
       {isModalOpen && (
