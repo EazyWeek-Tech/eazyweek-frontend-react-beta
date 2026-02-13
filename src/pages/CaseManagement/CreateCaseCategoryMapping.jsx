@@ -42,6 +42,9 @@ const CreateCaseCategoryMapping = () => {
   const [clinicCode, setClinicCode] = useState("");
   const [clinicName, setClinicName] = useState("");
 
+  // ✅ Centers (Clinic dropdown)
+  const [centers, setCenters] = useState([]);
+
   // Select values
   const [categoryCode, setCategoryCode] = useState("");
   const [subCategoryCode, setSubCategoryCode] = useState("");
@@ -59,6 +62,14 @@ const CreateCaseCategoryMapping = () => {
   const [subSubCategories, setSubSubCategories] = useState([]);
   const [subSubSubCategories, setSubSubSubCategories] = useState([]);
   const [employees, setEmployees] = useState([]);
+
+  // Helpers
+  const coerceArray = (raw) => {
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw?.data)) return raw.data;
+    if (raw && typeof raw === "object") return [raw];
+    return [];
+  };
 
   // Load clinic from session
   useEffect(() => {
@@ -78,20 +89,69 @@ const CreateCaseCategoryMapping = () => {
         sessionStorage.getItem("centerCode") ||
         sessionStorage.getItem("job") ||
         ""
-      ).toString().trim();
-      const flatCenterName = (sessionStorage.getItem("centerName") || "").toString().trim();
+      )
+        .toString()
+        .trim();
+      const flatCenterName = (sessionStorage.getItem("centerName") || "")
+        .toString()
+        .trim();
       if (!clinicCode && flatCenterCode) setClinicCode(flatCenterCode);
       if (!clinicName && flatCenterName) setClinicName(flatCenterName);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helpers
-  const coerceArray = (raw) => {
-    if (Array.isArray(raw)) return raw;
-    if (Array.isArray(raw?.data)) return raw.data;
-    if (raw && typeof raw === "object") return [raw];
-    return [];
+  // ✅ Load centers for Clinic dropdown
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`LoadCenters: HTTP ${res.status}`);
+        const raw = await res.json();
+
+        const list = coerceArray(raw)
+          .map((r, i) => ({
+            recId: r.recid ?? r.recId ?? r.id ?? i,
+            code: String(r.code ?? "").trim(),
+            name: String(r.name ?? "").trim(),
+            zone: r.zone ?? "",
+            address: r.address ?? "",
+          }))
+          .filter((c) => c.code)
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        if (!cancelled) setCenters(list);
+      } catch (e) {
+        console.error("Centers load error:", e);
+        if (!cancelled) setCenters([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ When centers are loaded, sync clinicName if clinicCode is already set from session
+  useEffect(() => {
+    if (!clinicCode) return;
+    const found = centers.find((c) => c.code === clinicCode);
+    if (found && found.name && clinicName !== found.name) setClinicName(found.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centers, clinicCode]);
+
+  // ✅ Clinic dropdown change
+  const onClinicChange = (code) => {
+    const val = (code || "").toString().trim();
+    setClinicCode(val);
+
+    const found = centers.find((c) => c.code === val);
+    setClinicName(found?.name || "");
   };
 
   const normalizeByType = (row, typeName, idx = 0) => {
@@ -123,7 +183,9 @@ const CreateCaseCategoryMapping = () => {
     let cancelled = false;
 
     const fetchType = async (typeName) => {
-      const url = `${API_BASE_URL}/api/Master/GetCaseCategory/${encodeURIComponent(typeName)}`;
+      const url = `${API_BASE_URL}/api/Master/GetCaseCategory/${encodeURIComponent(
+        typeName
+      )}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error(`${typeName}: HTTP ${res.status}`);
       const data = await res.json();
@@ -162,6 +224,7 @@ const CreateCaseCategoryMapping = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load employees (Default Assignment)
@@ -169,7 +232,9 @@ const CreateCaseCategoryMapping = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include" });
+        const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+          credentials: "include",
+        });
         if (!res.ok) throw new Error(`Employees: HTTP ${res.status}`);
         const raw = await res.json();
         const list = coerceArray(raw).map((r, i) => ({
@@ -188,6 +253,7 @@ const CreateCaseCategoryMapping = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Prefill for edit
@@ -201,7 +267,8 @@ const CreateCaseCategoryMapping = () => {
     setDefaultAssignment(src.defaultAssignment || "");
     setPriority(""); // if you later store priority, set it here
     setRecId(Number(src.recId ?? src.recID ?? qpRecId ?? 0));
-  }, [isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit]);
 
   const validate = () => {
     const errors = [];
@@ -221,6 +288,9 @@ const CreateCaseCategoryMapping = () => {
       priority: priority || "",
       isDraft: isDraft ? 1 : 0,
       recId: recId || 0, // 0=create, >0=edit/upsert
+
+      // NOTE: If backend needs clinic code, uncomment:
+      // clinicCode: clinicCode || "",
     };
 
     const res = await fetch(`${API_BASE_URL}/api/Master/CreateCaseCategoryMapping`, {
@@ -258,7 +328,9 @@ const CreateCaseCategoryMapping = () => {
       await postMapping(false);
       alert(isEdit ? "Mapping updated." : "Mapping created.");
       // Clear cached edit object after success
-      try { sessionStorage.removeItem("editMapping"); } catch {}
+      try {
+        sessionStorage.removeItem("editMapping");
+      } catch {}
       navigate(-1);
     } catch (e) {
       console.error(e);
@@ -277,9 +349,18 @@ const CreateCaseCategoryMapping = () => {
     return [{ code, name: nameFallback || code, recId: `temp-${code}` }, ...arr];
   };
 
-  const categoriesSafe = useMemo(() => ensureOption(categories, categoryCode), [categories, categoryCode]);
-  const subCategoriesSafe = useMemo(() => ensureOption(subCategories, subCategoryCode), [subCategories, subCategoryCode]);
-  const subSubCategoriesSafe = useMemo(() => ensureOption(subSubCategories, subSubCategoryCode), [subSubCategories, subSubCategoryCode]);
+  const categoriesSafe = useMemo(
+    () => ensureOption(categories, categoryCode),
+    [categories, categoryCode]
+  );
+  const subCategoriesSafe = useMemo(
+    () => ensureOption(subCategories, subCategoryCode),
+    [subCategories, subCategoryCode]
+  );
+  const subSubCategoriesSafe = useMemo(
+    () => ensureOption(subSubCategories, subSubCategoryCode),
+    [subSubCategories, subSubCategoryCode]
+  );
   const subSubSubCategoriesSafe = useMemo(
     () => ensureOption(subSubSubCategories, subSubSubCategoryCode),
     [subSubSubCategories, subSubSubCategoryCode]
@@ -288,56 +369,158 @@ const CreateCaseCategoryMapping = () => {
   return (
     <>
       <style jsx>{`
-        .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; }
-        .crumb { color: #334b71; font-size: 14px; margin-bottom: 6px; }
-        .title { font-size: 22px; font-weight: 700; color: #111827; margin-bottom: 16px; }
-        .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px; margin-left:8px; background:#eef2ff; color:#3730a3; }
-        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
-        .row { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; margin-bottom: 14px; }
-        .label { color: #374151; font-weight: 600; }
-        .fld, .select { height: 40px; border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 12px; font-size: 14px; width: 100%; background: #fff; }
-        .actions { display: flex; gap: 12px; justify-content: center; margin-top: 22px; }
-        .btn { border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; cursor: pointer; min-width: 120px; }
-        .btn.save { background: #1f2937; color: #fff; }
-        .btn.submit { background: #334b71; color: #fff; }
-        .btn.close { background: #6b7280; color: #fff; }
-        .btn:disabled { opacity: .6; cursor: not-allowed; }
-        .inline { display: flex; gap: 10px; align-items: center; }
-        .muted { color: #6b7280; }
+        .wrap {
+          max-width: 980px;
+          margin: 0 auto;
+          padding: 20px 16px 64px;
+        }
+        .crumb {
+          color: #334b71;
+          font-size: 14px;
+          margin-bottom: 6px;
+        }
+        .title {
+          font-size: 22px;
+          font-weight: 700;
+          color: #111827;
+          margin-bottom: 16px;
+        }
+        .pill {
+          display: inline-block;
+          padding: 4px 10px;
+          border-radius: 999px;
+          font-weight: 700;
+          font-size: 12px;
+          margin-left: 8px;
+          background: #eef2ff;
+          color: #3730a3;
+        }
+        .card {
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 20px;
+        }
+        .row {
+          display: grid;
+          grid-template-columns: 200px 1fr;
+          gap: 12px;
+          align-items: center;
+          margin-bottom: 14px;
+        }
+        .label {
+          color: #374151;
+          font-weight: 600;
+        }
+        .fld,
+        .select {
+          height: 40px;
+          border: 1px solid #d1d5db;
+          border-radius: 10px;
+          padding: 8px 12px;
+          font-size: 14px;
+          width: 100%;
+          background: #fff;
+        }
+        .actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+          margin-top: 22px;
+        }
+        .btn {
+          border: none;
+          border-radius: 10px;
+          padding: 10px 18px;
+          font-weight: 700;
+          cursor: pointer;
+          min-width: 120px;
+        }
+        .btn.save {
+          background: #1f2937;
+          color: #fff;
+        }
+        .btn.submit {
+          background: #334b71;
+          color: #fff;
+        }
+        .btn.close {
+          background: #6b7280;
+          color: #fff;
+        }
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .inline {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+        .muted {
+          color: #6b7280;
+        }
       `}</style>
 
       <div className="wrap">
         <div className="crumb">
-          <a style={{ cursor: "pointer" }} onClick={() => { try { sessionStorage.removeItem("editMapping"); } catch {}; navigate("/case-category-mapping"); }}>
+          <a
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              try {
+                sessionStorage.removeItem("editMapping");
+              } catch {}
+              navigate("/case-category-mapping");
+            }}
+          >
             Case Management
           </a>{" "}
           &gt; {isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}
           {isEdit && <span className="pill">Edit Mode</span>}
         </div>
-        <div className="title">{isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}</div>
+        <div className="title">
+          {isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}
+        </div>
 
         <div className="card">
-          {/* Clinic (display) */}
+          {/* ✅ Clinic */}
           <div className="row">
             <div className="label">Clinic :</div>
-            {clinicCode || clinicName ? (
-              <div className="inline">
-                <input className="fld" value={`${clinicName || clinicCode}`} readOnly />
-                <input className="fld" value={clinicCode} readOnly />
-              </div>
-            ) : (
-              <input className="fld" value="" readOnly placeholder="—" />
-            )}
+
+            <div className="inline">
+              {/* ✅ first input -> select dropdown (name) */}
+              <select
+                className="select"
+                value={clinicCode}
+                onChange={(e) => onClinicChange(e.target.value)}
+                disabled={isDisabled}
+              >
+                <option value="">Select clinic</option>
+                {centers.map((c) => (
+                  <option key={`cen-${c.code}-${c.recId}`} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* ✅ second input -> code display */}
+              <input className="fld" value={clinicCode} readOnly placeholder="Code" />
+            </div>
           </div>
 
           {/* Category */}
           <div className="row">
             <div className="label">Category:</div>
-            <select className="select" value={categoryCode} onChange={(e) => setCategoryCode(e.target.value)} disabled={isDisabled}>
+            <select
+              className="select"
+              value={categoryCode}
+              onChange={(e) => setCategoryCode(e.target.value)}
+              disabled={isDisabled}
+            >
               <option value="">Select one</option>
               {categoriesSafe.map((o) => (
                 <option key={`cat-${o.code}-${o.recId}`} value={o.code}>
-                   {o.name}
+                  {o.name}
                 </option>
               ))}
             </select>
@@ -346,11 +529,16 @@ const CreateCaseCategoryMapping = () => {
           {/* Sub Category */}
           <div className="row">
             <div className="label">Sub Category:</div>
-            <select className="select" value={subCategoryCode} onChange={(e) => setSubCategoryCode(e.target.value)} disabled={isDisabled}>
+            <select
+              className="select"
+              value={subCategoryCode}
+              onChange={(e) => setSubCategoryCode(e.target.value)}
+              disabled={isDisabled}
+            >
               <option value="">Select one</option>
               {subCategoriesSafe.map((o) => (
                 <option key={`sub-${o.code}-${o.recId}`} value={o.code}>
-                   {o.name}
+                  {o.name}
                 </option>
               ))}
             </select>
@@ -359,11 +547,16 @@ const CreateCaseCategoryMapping = () => {
           {/* Sub Sub Category */}
           <div className="row">
             <div className="label">Sub Sub Category:</div>
-            <select className="select" value={subSubCategoryCode} onChange={(e) => setSubSubCategoryCode(e.target.value)} disabled={isDisabled}>
+            <select
+              className="select"
+              value={subSubCategoryCode}
+              onChange={(e) => setSubSubCategoryCode(e.target.value)}
+              disabled={isDisabled}
+            >
               <option value="">Select one</option>
               {subSubCategoriesSafe.map((o) => (
                 <option key={`sub2-${o.code}-${o.recId}`} value={o.code}>
-                   {o.name}
+                  {o.name}
                 </option>
               ))}
             </select>
@@ -372,11 +565,16 @@ const CreateCaseCategoryMapping = () => {
           {/* Sub Sub Sub Category */}
           <div className="row">
             <div className="label">Sub Sub Sub Category:</div>
-            <select className="select" value={subSubSubCategoryCode} onChange={(e) => setSubSubSubCategoryCode(e.target.value)} disabled={isDisabled}>
+            <select
+              className="select"
+              value={subSubSubCategoryCode}
+              onChange={(e) => setSubSubSubCategoryCode(e.target.value)}
+              disabled={isDisabled}
+            >
               <option value="">Select one</option>
               {subSubSubCategoriesSafe.map((o) => (
                 <option key={`sub3-${o.code}-${o.recId}`} value={o.code}>
-                   {o.name}
+                  {o.name}
                 </option>
               ))}
             </select>
@@ -385,7 +583,12 @@ const CreateCaseCategoryMapping = () => {
           {/* Priority */}
           <div className="row">
             <div className="label">Priority:</div>
-            <select className="select" value={priority} onChange={(e) => setPriority(e.target.value)} disabled={busy}>
+            <select
+              className="select"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              disabled={busy}
+            >
               <option value="">Select one</option>
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
@@ -397,11 +600,16 @@ const CreateCaseCategoryMapping = () => {
           {/* Default Assignment */}
           <div className="row">
             <div className="label">Default Assignment:</div>
-            <select className="select" value={defaultAssignment} onChange={(e) => setDefaultAssignment(e.target.value)} disabled={loading}>
+            <select
+              className="select"
+              value={defaultAssignment}
+              onChange={(e) => setDefaultAssignment(e.target.value)}
+              disabled={loading}
+            >
               <option value="">Select one</option>
               {employees.map((e) => (
                 <option key={`emp-${e.code}-${e.recId}`} value={e.code}>
-               {e.name}
+                  {e.name}
                 </option>
               ))}
             </select>
@@ -418,7 +626,9 @@ const CreateCaseCategoryMapping = () => {
             <button
               className="btn close"
               onClick={() => {
-                try { sessionStorage.removeItem("editMapping"); } catch {}
+                try {
+                  sessionStorage.removeItem("editMapping");
+                } catch {}
                 navigate(-1);
               }}
               disabled={busy}
@@ -429,7 +639,8 @@ const CreateCaseCategoryMapping = () => {
 
           {isEdit && (
             <p className="muted" style={{ marginTop: 12 }}>
-              Editing mapping #{stateMapping?.recId ?? stateMapping?.recID ?? qpRecId ?? "?"}. Submit to update.
+              Editing mapping #{stateMapping?.recId ?? stateMapping?.recID ?? qpRecId ?? "?"}.
+              Submit to update.
             </p>
           )}
         </div>
