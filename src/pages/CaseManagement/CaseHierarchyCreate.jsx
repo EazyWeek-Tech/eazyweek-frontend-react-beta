@@ -186,6 +186,8 @@ function AutoComplete({
 }) {
   const [open, setOpen] = useState(false);
 
+
+
   // 👇 show name if present, otherwise show the code; keep it in sync when either prop changes
   const shown = (display && display.trim()) || (value && value.trim()) || "";
   const [q, setQ] = useState(shown);
@@ -193,27 +195,44 @@ function AutoComplete({
     setQ(shown);
   }, [shown]);
 
+  const normEmp = (s) => (s ?? "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "");
+const sameEmp = (a, b) => normEmp(a) && normEmp(a) === normEmp(b);
+
+
   const rootRef = useClickOutside(() => setOpen(false));
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    const base = !s
-      ? options
-      : options.filter(
-          (o) =>
-            o.employeeName?.toLowerCase().includes(s) ||
-            o.employeeCode?.toLowerCase().includes(s)
-        );
-    // ⬇️ Only exclude the opposite field in the SAME level (not across levels)
-    const excludeSet = new Set(excludeCodes.filter((c) => c && c !== value));
-    return base.filter((o) => !excludeSet.has(o.employeeCode)).slice(0, 50);
-  }, [options, q, excludeCodes, value]);
+  const s = q.trim().toLowerCase();
 
-  const choose = (o) => {
-    onSelect(o.employeeCode, o.employeeName);
-    setQ(o.employeeName || o.employeeCode || ""); // keep visible after pick
-    setOpen(false);
-  };
+  const base = !s
+    ? options
+    : options.filter(
+        (o) =>
+          o.employeeName?.toLowerCase().includes(s) ||
+          o.employeeCode?.toLowerCase().includes(s)
+      );
+
+  // normalize exclude list (but don't exclude the current value)
+  const excludeSet = new Set(
+    (excludeCodes || [])
+      .filter(Boolean)
+      .filter((c) => !sameEmp(c, value))
+      .map(normEmp)
+  );
+
+  return base
+    .filter((o) => !excludeSet.has(normEmp(o.employeeCode)))
+    .slice(0, 50);
+}, [options, q, excludeCodes, value]);
+
+const choose = (o) => {
+  const pickedCode = o.employeeCode || "";
+  const nextCode = sameEmp(value, pickedCode) ? value : pickedCode; // ✅ preserve formatting
+  onSelect(nextCode, o.employeeName);
+  setQ(o.employeeName || nextCode || "");
+  setOpen(false);
+};
+
   const clear = () => {
     onSelect("", "");
     setQ("");
@@ -670,21 +689,35 @@ useEffect(() => {
 
   /* When employees list arrives, resolve display names for codes we already have */
   useEffect(() => {
-    if (!employees.length) return;
-    const mapByNorm = new Map(
-   employees.map((e) => [normCode(e.employeeCode), e.employeeName || ""])
- );
+  if (!employees.length) return;
 
-    const nameOf = (code) => mapByNorm.get(normCode(code)) || "";
+  const exactMap = new Map(
+    employees.map((e) => [e.employeeCode, e.employeeName || ""])
+  );
 
-    setLevels((prev) =>
-      prev.map((L) => ({
-        ...L,
-        assigneeName: L.assignee ? nameOf(L.assignee) : "",
-        postSlaAssigneeName: L.postSlaAssignee ? nameOf(L.postSlaAssignee) : "",
-      }))
-    );
-  }, [employees]);
+  const normalizedMap = new Map();
+  employees.forEach((e) => {
+    const n = normCode(e.employeeCode);
+    if (!normalizedMap.has(n)) {
+      normalizedMap.set(n, e.employeeName || "");
+    }
+  });
+
+  const resolveName = (code) => {
+    if (!code) return "";
+    if (exactMap.has(code)) return exactMap.get(code); // ✅ highest priority
+    return normalizedMap.get(normCode(code)) || "";   // fallback only
+  };
+
+  setLevels((prev) =>
+    prev.map((L) => ({
+      ...L,
+      assigneeName: L.assignee ? resolveName(L.assignee) : "",
+      postSlaAssigneeName: L.postSlaAssignee ? resolveName(L.postSlaAssignee) : "",
+    }))
+  );
+}, [employees]);
+
 
   /* validation & payload */
   // ⬇️ Accepts isDraft to only enforce "at least one SLA" on Submit/Update.
