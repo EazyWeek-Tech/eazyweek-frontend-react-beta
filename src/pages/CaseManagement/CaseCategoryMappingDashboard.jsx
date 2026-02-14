@@ -65,7 +65,8 @@ const CaseCategoryMappingDashboard = () => {
 
       const norm = list.map((r, i) => ({
         recId: r.recID ?? r.recId ?? r.id ?? `${i}`,
-        centerName: (clinicName || r.centerName || r.clinicName || "-").toString(),
+        centerName: (r.centerName || r.clinicName || clinicName || "-").toString(),
+
         categoryName: (r.categoryName ?? "").toString(),
         subCategoryName: (r.subCategoryName ?? "NA").toString(),
         subSubCategoryName: (r.subSubCategoryName ?? "NA").toString(),
