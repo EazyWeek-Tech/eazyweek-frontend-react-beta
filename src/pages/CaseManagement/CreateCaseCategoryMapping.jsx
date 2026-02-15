@@ -84,20 +84,30 @@ const CreateCaseCategoryMapping = () => {
   const pickClinicFromSession = () => {
     // 1) Highest priority: userSession -> topCode/loginCode
     try {
-      const rawSess = sessionStorage.getItem("userSession");
-      if (rawSess) {
-        const s = JSON.parse(rawSess);
-        const code = safeStr(s.topCode) || safeStr(s.loginCode);
-        if (code) return { code, name: "" };
-      }
+      const rawSess =
+  localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
+
+if (rawSess) {
+  const s = JSON.parse(rawSess);
+  const code =
+    safeStr(s.TopCode) ||
+    safeStr(s.topCode) ||
+    safeStr(s.LoginCode) ||
+    safeStr(s.loginCode);
+  if (code) return { code, name: "" };
+}
+
     } catch {}
 
     // 2) Fallback: user object -> centerCode/centerName
     try {
       const rawUser =
-        sessionStorage.getItem("user") ||
-        sessionStorage.getItem("userDetails") ||
-        sessionStorage.getItem("sessionUser");
+  localStorage.getItem("user") ||
+  sessionStorage.getItem("user") ||
+  localStorage.getItem("userDetails") ||
+  sessionStorage.getItem("userDetails") ||
+  localStorage.getItem("sessionUser") ||
+  sessionStorage.getItem("sessionUser");
 
       if (rawUser) {
         const u = JSON.parse(rawUser);
@@ -108,7 +118,12 @@ const CreateCaseCategoryMapping = () => {
     } catch {}
 
     // 3) Fallback: flat keys (if any)
-    const flat = safeStr(sessionStorage.getItem("topCode")) || safeStr(sessionStorage.getItem("loginCode"));
+    const flat =
+  safeStr(localStorage.getItem("topCode")) ||
+  safeStr(sessionStorage.getItem("topCode")) ||
+  safeStr(localStorage.getItem("loginCode")) ||
+  safeStr(sessionStorage.getItem("loginCode"));
+
     if (flat) return { code: flat, name: "" };
 
     return { code: "", name: "" };

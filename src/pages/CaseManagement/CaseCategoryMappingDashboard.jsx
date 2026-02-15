@@ -31,15 +31,24 @@ const CaseCategoryMappingDashboard = () => {
   useEffect(() => {
     try {
       const rawUser =
-        sessionStorage.getItem("user") ||
-        sessionStorage.getItem("userDetails") ||
-        sessionStorage.getItem("sessionUser");
+  localStorage.getItem("user") ||
+  sessionStorage.getItem("user") ||
+  localStorage.getItem("userDetails") ||
+  sessionStorage.getItem("userDetails") ||
+  localStorage.getItem("sessionUser") ||
+  sessionStorage.getItem("sessionUser");
+
       if (rawUser) {
         const o = JSON.parse(rawUser);
         const cName = (o.centerName || o.clinicName || "").toString().trim();
         if (cName) setClinicName(cName);
       }
-      const flatName = (sessionStorage.getItem("centerName") || "").toString().trim();
+      const flatName =
+  (localStorage.getItem("centerName") || sessionStorage.getItem("centerName") || "")
+    .toString()
+    .trim();
+
+      
       if (!clinicName && flatName) setClinicName(flatName);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps

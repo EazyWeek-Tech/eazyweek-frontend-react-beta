@@ -157,7 +157,7 @@ const ServiceBookingContainer = ({
       return;
     }
 
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     const parsedUser = stored ? JSON.parse(stored) : {};
     console.log("selectedDate")
     console.log(selectedDate)

@@ -272,7 +272,7 @@ const AddCustomerModal = ({ onClose }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+     const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
    const payload = {

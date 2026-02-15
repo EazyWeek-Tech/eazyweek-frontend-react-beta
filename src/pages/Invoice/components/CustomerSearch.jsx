@@ -39,7 +39,7 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, nu
     setFormData(updated);
     setFocusedField(field);
 
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
     if (!value || value.length < 2 || !centerCode) {

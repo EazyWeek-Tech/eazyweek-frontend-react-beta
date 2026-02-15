@@ -30,7 +30,7 @@ const InvoiceForm = ({ onAddItem, resetKey, customer, showToast, servicename, se
 
   // Get center code from sessionStorage or localStorage
   const getCenterCode = () => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     return stored ? JSON.parse(stored).centerCode : "";
   };
 

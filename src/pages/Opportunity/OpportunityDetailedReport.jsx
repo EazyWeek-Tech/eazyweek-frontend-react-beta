@@ -150,12 +150,13 @@ const getSessionContext = () => {
 
     // Most common places apps store session json
     const candidates = [
-      sessionStorage.getItem("sessionValues"),
-      sessionStorage.getItem("session"),
-      sessionStorage.getItem("userSession"),
+      
       localStorage.getItem("sessionValues"),
       localStorage.getItem("session"),
       localStorage.getItem("userSession"),
+      sessionStorage.getItem("sessionValues"),
+      sessionStorage.getItem("session"),
+      sessionStorage.getItem("userSession"),
     ]
       .map((x) => (x ? tryParse(x) : null))
       .filter(Boolean);
