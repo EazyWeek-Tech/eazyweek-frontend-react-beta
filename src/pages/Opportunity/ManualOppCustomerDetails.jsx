@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+  import CallButton from "../../components/CallButton";
+
 
 /** ---------------- Helpers ---------------- */
 const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -1597,6 +1599,8 @@ const subMediumName = safe(form.subMedium || "Manual");
   };
 
   const lockForm = isEdit && isClosed;
+     const loggedInMobile = "8454801741";         // replace with your real logged-in user mobile
+  const clientMobile = "9819061936"; 
 
   /** ---------------- UI ---------------- */
   return (
@@ -1659,6 +1663,16 @@ const subMediumName = safe(form.subMedium || "Manual");
         <div className="pageHeader">
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
+
+           {/*  <CallButton
+  firstNumber={loggedInMobile}
+  secondNumber={clientMobile}
+  leadId={numericLeadOppId || undefined} // optional as per doc
+  label="Call Client"
+  onSuccess={(data) => console.log("Call OK:", data)}
+  onError={(e) => console.error("Call failed:", e)}
+/> */}
+
             <div className="subTitle"></div>
           </div>
         </div>

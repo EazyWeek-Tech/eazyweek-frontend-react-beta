@@ -80,6 +80,7 @@ const getSecondValueFromRange = (range) => {
           setActualList(data.map((entry) => ({
             caseWith: entry.caseWith || "",
             timestamp: formatDateTime(entry.caseReceiveDate),
+            diffHours: entry.diffHours,
           })));
         }
       } catch (err) {
@@ -185,7 +186,8 @@ const getSecondValueFromRange = (range) => {
           <div className="flow-line"></div>
           {actualList.map((item, index) => (
             <div key={index} className="flow-item">
-              <div className="flow-time">0
+              <div className="flow-time">
+                {item.diffHours}
 
                 <div>
                   <hr className="tmline" />
