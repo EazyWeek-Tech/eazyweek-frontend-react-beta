@@ -314,7 +314,7 @@ const CreateCaseCategoryMapping = () => {
       recId: recId || 0, // 0=create, >0=edit/upsert
 
       // ✅ If backend needs clinic code, uncomment:
-      // clinicCode: clinicCode || "",
+       centerCode: clinicCode || "",
     };
 
     const res = await fetch(`${API_BASE_URL}/api/Master/CreateCaseCategoryMapping`, {
