@@ -12,6 +12,92 @@ const LIST_API = (base) => `${base}/api/Master/LoadCaseCategoryMapping`;
 const DELETE_API = (base, id) =>
   `${base}/api/Master/DeleteCaseCategoryMapping/${encodeURIComponent(id)}`;
 
+const safe = (v) => (v ?? "").toString();
+const normCode = (v) => safe(v).trim().toUpperCase();
+const normStr = (v) => safe(v).trim();
+
+function tryParseJSON(raw) {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ✅ Reads the *ACTIVE* center code from storage.
+ * This must match what your top dropdown writes.
+ *
+ * Priority order:
+ * 1) session-like objects (loginCode/topCode)
+ * 2) flat keys (centerCode/loginCode)
+ * 3) user object fallback (user.centerCode)
+ */
+function readActiveCenterFromStorage() {
+  // ---- 1) session/auth objects that may be updated by the dropdown ----
+  const sessionKeys = [
+    "session",
+    "sessionInfo",
+    "auth",
+    "authInfo",
+    "userSession",
+    "appSession",
+    "currentSession",
+    "selectedCenter",      // <-- common
+    "selectedClinic",      // <-- common
+    "activeCenter",        // <-- common
+    "activeClinic",        // <-- common
+    "center",              // <-- sometimes used
+  ];
+
+  for (const k of sessionKeys) {
+    const raw =
+      localStorage.getItem(k) ||
+      sessionStorage.getItem(k);
+
+    const obj = tryParseJSON(raw);
+    if (obj && typeof obj === "object") {
+      const code = normCode(obj.loginCode || obj.topCode || obj.centerCode || obj.code);
+      const name = normStr(obj.centerName || obj.name || obj.clinicName);
+      if (code) return { code, name };
+    }
+  }
+
+  // ---- 2) flat keys (sometimes dropdown writes plain value) ----
+  const flatCode =
+    localStorage.getItem("loginCode") ||
+    sessionStorage.getItem("loginCode") ||
+    localStorage.getItem("topCode") ||
+    sessionStorage.getItem("topCode") ||
+    localStorage.getItem("centerCode") ||
+    sessionStorage.getItem("centerCode") ||
+    localStorage.getItem("activeCenterCode") ||
+    sessionStorage.getItem("activeCenterCode") ||
+    localStorage.getItem("selectedCenterCode") ||
+    sessionStorage.getItem("selectedCenterCode");
+
+  const flatName =
+    localStorage.getItem("centerName") ||
+    sessionStorage.getItem("centerName") ||
+    localStorage.getItem("activeCenterName") ||
+    sessionStorage.getItem("activeCenterName") ||
+    localStorage.getItem("selectedCenterName") ||
+    sessionStorage.getItem("selectedCenterName");
+
+  if (flatCode) return { code: normCode(flatCode), name: normStr(flatName) };
+
+  // ---- 3) fallback: user object (usually original assigned center) ----
+  const rawUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+  const u = tryParseJSON(rawUser);
+  if (u && typeof u === "object") {
+    const code = normCode(u.centerCode);
+    const name = normStr(u.centerName);
+    if (code) return { code, name };
+  }
+
+  return { code: "", name: "" };
+}
+
 const CaseCategoryMappingDashboard = () => {
   const navigate = useNavigate();
 
@@ -23,44 +109,59 @@ const CaseCategoryMappingDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [perPage, setPerPage] = useState(10);
   const [rows, setRows] = useState([]);
-  const [busyRow, setBusyRow] = useState(null); // { recId, action }
+  const [busyRow, setBusyRow] = useState(null);
 
-  // clinic from session
-  const [clinicName, setClinicName] = useState("");
-
-  useEffect(() => {
-    try {
-      const rawUser =
-  localStorage.getItem("user") ||
-  sessionStorage.getItem("user") ||
-  localStorage.getItem("userDetails") ||
-  sessionStorage.getItem("userDetails") ||
-  localStorage.getItem("sessionUser") ||
-  sessionStorage.getItem("sessionUser");
-
-      if (rawUser) {
-        const o = JSON.parse(rawUser);
-        const cName = (o.centerName || o.clinicName || "").toString().trim();
-        if (cName) setClinicName(cName);
-      }
-      const flatName =
-  (localStorage.getItem("centerName") || sessionStorage.getItem("centerName") || "")
-    .toString()
-    .trim();
-
-      
-      if (!clinicName && flatName) setClinicName(flatName);
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // ✅ ACTIVE center (must follow top dropdown)
+  const [activeCenterCode, setActiveCenterCode] = useState("");
+  const [activeCenterName, setActiveCenterName] = useState("");
 
   const showToast = (message, type = "error", ms = 2200) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), ms);
   };
 
-  // Load data
+  /**
+   * ✅ Keep active center in sync with dropdown changes.
+   * - Polling is used because storage events do not fire in same tab.
+   * - Also refresh on focus/visibilitychange.
+   */
+  useEffect(() => {
+    const sync = () => {
+      const { code, name } = readActiveCenterFromStorage();
+
+      setActiveCenterCode((prev) => (prev !== code ? code : prev));
+      setActiveCenterName((prev) => (prev !== name ? name : prev));
+    };
+
+    // initial sync
+    sync();
+
+    // Poll (lightweight): adjust interval if you want (e.g., 300ms / 1000ms)
+    const t = setInterval(sync, 600);
+
+    // Sync on focus/visibility changes
+    const onFocus = () => sync();
+    const onVis = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  // Load data (always filter by activeCenterCode)
   const fetchRows = useCallback(async () => {
+    if (!activeCenterCode) {
+      setRows([]);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(LIST_API(API_BASE_URL), {
@@ -69,12 +170,17 @@ const CaseCategoryMappingDashboard = () => {
         headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       const list = Array.isArray(data) ? data : data ? [data] : [];
 
-      const norm = list.map((r, i) => ({
+      // ✅ STRICT filter: API centerCode must equal active center
+      const filtered = list.filter((r) => normCode(r?.centerCode) === normCode(activeCenterCode));
+
+      const norm = filtered.map((r, i) => ({
         recId: r.recID ?? r.recId ?? r.id ?? `${i}`,
-        centerName: (r.centerName || r.clinicName || clinicName || "-").toString(),
+        centerCode: r.centerCode ?? "",
+        centerName: (r.centerName || "-").toString(),
 
         categoryName: (r.categoryName ?? "").toString(),
         subCategoryName: (r.subCategoryName ?? "NA").toString(),
@@ -88,7 +194,6 @@ const CaseCategoryMappingDashboard = () => {
         subSubCategoryCode: r.subSubCategoryCode ?? "",
         subSubSubCategoryCode: r.subSubSubCategoryCode ?? "",
         priority: r.priority ?? r.Priority ?? r.priorityName ?? "",
-
         defaultAssignment: r.defaultAssignment ?? "",
       }));
 
@@ -100,13 +205,15 @@ const CaseCategoryMappingDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [clinicName]);
+  }, [activeCenterCode]);
 
+  // Refetch when active center changes (dropdown switch)
   useEffect(() => {
+    if (!activeCenterCode) return;
     fetchRows();
-  }, [fetchRows]);
+  }, [activeCenterCode, fetchRows]);
 
-  const safe = (v) => (v ?? "").toString();
+  // External search
   const filteredRows = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return rows;
@@ -137,6 +244,7 @@ const CaseCategoryMappingDashboard = () => {
     <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>`;
 
   const renderStatus = (row) => {
+    // mappingStatus from API has HTML already
     if (row.mappingStatus) return row.mappingStatus;
     const s = row.caseStatus || (row.status ? "Active" : "Inactive");
     const cls = (s || "").toLowerCase() === "active" ? "badge active" : "badge inactive";
@@ -193,7 +301,6 @@ const CaseCategoryMappingDashboard = () => {
       dom: "rt<'dt-footer'ip>",
     });
 
-    // Robust delegated handlers (table + FC clones + document)
     const handle = (e) => {
       const target = e.target;
       const btnEdit = target.closest?.(".btn-edit");
@@ -207,7 +314,6 @@ const CaseCategoryMappingDashboard = () => {
         try {
           sessionStorage.setItem("editMapping", JSON.stringify(row));
         } catch {}
-        // ✅ use the route you actually declared in App.jsx
         navigate(`/create-categories-mapping?mode=edit&recId=${encodeURIComponent(id)}`, {
           state: { mode: "edit", mapping: row },
           replace: false,
@@ -309,6 +415,12 @@ const CaseCategoryMappingDashboard = () => {
             <span className="breadcrumb-separator">›</span>
             <span className="breadcrumb-current">Category Mapping</span>
           </div>
+
+          {!!activeCenterCode && (
+            <div style={{ marginTop: 6, color: "#647187", fontWeight: 600 }}>
+              Center: {activeCenterCode}{activeCenterName ? ` - ${activeCenterName}` : ""}
+            </div>
+          )}
         </div>
 
         <div className="actions">
@@ -316,7 +428,6 @@ const CaseCategoryMappingDashboard = () => {
             className="btn"
             onClick={() => {
               try { sessionStorage.removeItem("editMapping"); } catch {}
-              // ✅ use your declared route and pass mode=create in state
               navigate("/create-categories-mapping", { state: { mode: "create" } });
             }}
           >
@@ -329,9 +440,7 @@ const CaseCategoryMappingDashboard = () => {
         <div className="left">
           <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}>
             {[10, 25, 50, 100].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
+              <option key={n} value={n}>{n}</option>
             ))}
           </select>
           <span>&nbsp;entries per page</span>
@@ -363,7 +472,7 @@ const CaseCategoryMappingDashboard = () => {
               <th>Sub Category</th>
               <th>Sub Sub Category</th>
               <th>Sub Sub Sub Category</th>
-               <th>Priority</th>
+              <th>Priority</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
