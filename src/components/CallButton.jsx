@@ -1,120 +1,161 @@
-"use client";
+// src/components/CallButton.jsx
 import React, { useMemo, useState } from "react";
 
 /**
- * CallButton
+ * Altius Click-to-Call
+ *
+ * Base: https://linesclinicsbridge.altius.cc
+ * Endpoint: /api/initiateCall (GET)
+ * Header: apiKey: <key>
+ *
  * Props:
- * - firstNumber: string (logged-in user)
- * - secondNumber: string (client)
- * - label?: string
- * - className?: string
- * - disabled?: boolean
- * - onSuccess?: (data) => void
- * - onError?: (error) => void
+ *  - firstNumber: agent mobile
+ *  - secondNumber: customer mobile
+ *  - leadId?: string | number (optional)
+ *  - label?: string
+ *  - apiKey?: string
+ *  - baseUrl?: string
+ *  - onSuccess?: (data) => void
+ *  - onError?: (err) => void
  */
-const DEFAULT_BASE_URL = "http://10.1.2.65/call_bridge.php";
 
-const digitsOnly = (v) => (v ?? "").toString().replace(/[^\d]/g, "");
+const DEFAULT_BASE_URL = "https://linesclinicsbridge.altius.cc";
+const DEFAULT_API_KEY = "2e6l0gbrflegasilk2o"; // test key
 
-const CallButton = ({
+/**
+ * Normalize mobile number:
+ * - keep digits only
+ * - remove leading zeros
+ * - DO NOT force 10 digits (important for KSA numbers)
+ */
+const normalizeMobile = (v) => {
+  let s = (v ?? "").toString().trim();
+
+  // keep digits only
+  s = s.replace(/[^\d]/g, "");
+
+  // remove leading zeros (0055xxxx → 55xxxx)
+  s = s.replace(/^0+/, "");
+
+  return s;
+};
+
+export default function CallButton({
   firstNumber,
   secondNumber,
-  label = "Call",
-  className = "",
-  disabled = false,
+  leadId,
+  label = "Call Client",
+  apiKey = DEFAULT_API_KEY,
+  baseUrl = DEFAULT_BASE_URL,
   onSuccess,
   onError,
-  baseUrl = DEFAULT_BASE_URL,
-}) => {
+}) {
   const [loading, setLoading] = useState(false);
-  const [lastMsg, setLastMsg] = useState("");
+  const [msg, setMsg] = useState("");
 
-  const a = useMemo(() => digitsOnly(firstNumber), [firstNumber]);
-  const b = useMemo(() => digitsOnly(secondNumber), [secondNumber]);
+  const agentNo = useMemo(
+    () => normalizeMobile(firstNumber),
+    [firstNumber]
+  );
+  const customerNo = useMemo(
+    () => normalizeMobile(secondNumber),
+    [secondNumber]
+  );
 
-  const canCall = !!a && !!b && !disabled && !loading;
+  const disabled = loading || !agentNo || !customerNo;
 
-  const buildUrl = () => {
-    const url = new URL(baseUrl);
-    url.searchParams.set("first_number", a);
-    url.searchParams.set("second_number", b);
-    return url.toString();
-  };
+  const initiateCall = async () => {
+    setMsg("");
 
-  const handleCall = async () => {
-    if (!canCall) return;
+    if (!agentNo) {
+      const err = new Error("Agent mobile not available");
+      onError?.(err);
+      setMsg(err.message);
+      return;
+    }
+
+    if (!customerNo) {
+      const err = new Error("Customer mobile not available");
+      onError?.(err);
+      setMsg(err.message);
+      return;
+    }
+
+    // Build URL
+    const url = new URL("/api/initiateCall", baseUrl);
+    url.searchParams.set("agentNo", agentNo);
+    url.searchParams.set("customerNo", customerNo);
+
+    if (leadId !== null && leadId !== undefined && String(leadId).trim() !== "") {
+      url.searchParams.set("leadId", String(leadId));
+    }
 
     setLoading(true);
-    setLastMsg("");
-
     try {
-      const url = buildUrl();
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          apiKey, // ✅ SAME AS YOUR CURL
+          Accept: "application/json",
+        },
+      });
 
-      // NOTE:
-      // If this endpoint doesn't send CORS headers, browser will block it.
-      // In that case, use the proxy option (below).
-      const res = await fetch(url, { method: "GET" });
-
-      // Some PHP endpoints respond with text/html, some with JSON.
       const text = await res.text();
+      let data = null;
 
-      if (!res.ok) {
-        const err = new Error(`Call API failed (${res.status})`);
-        err.details = text;
-        throw err;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        // non-JSON response
       }
 
-      // Try JSON parse, else keep text
-      let data = text;
-      try {
-        data = JSON.parse(text);
-      } catch {}
+      if (!res.ok) {
+        const err = new Error(
+          `Call API failed: HTTP ${res.status} ${res.statusText}${
+            text ? ` - ${text.slice(0, 150)}` : ""
+          }`
+        );
+        onError?.(err);
+        setMsg(err.message);
+        return;
+      }
 
-      const msg = typeof data === "string" ? data : "Call triggered";
-      setLastMsg(msg);
+      if (data && data.success === false) {
+        const err = new Error(data.message || "Call initiation failed");
+        onError?.(err);
+        setMsg(err.message);
+        return;
+      }
 
       onSuccess?.(data);
+      setMsg(data?.message || "Call initiated successfully");
     } catch (e) {
-      setLastMsg(e?.message || "Failed to trigger call");
       onError?.(e);
+      setMsg(e?.message || "Unable to connect to call service");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <>
-    <div className={`call-btn-wrap ${className}`}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <button
         type="button"
-        onClick={handleCall}
-        disabled={!canCall}
-        className="btn-call"
-        title={!a ? "Missing agent number" : !b ? "Missing client number" : "Call"}
-        style={{
-          cursor: canCall ? "pointer" : "not-allowed",
-          opacity: canCall ? 1 : 0.6,
-        }}
+        onClick={initiateCall}
+        disabled={disabled}
+        className="btn"
       >
         {loading ? "Calling..." : label}
       </button>
 
-      {/* optional tiny status */}
-      {lastMsg ? (
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-          {lastMsg}
+      {!!msg && (
+        <div
+          style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}
+          title={msg}
+        >
+          {msg}
         </div>
-      ) : null}
+      )}
     </div>
-
-    <style>{`
-        .call-btn-wrap{display: flex; justify-content: flex-end;}
-         .btn-call{padding: 8px 10px; color:#fff; background: #21b953; font-weight: 600;  border: none; border-radius: 8px; }
-    `}
-       
-    </style>
-    </>
   );
-};
-
-export default CallButton;
+}

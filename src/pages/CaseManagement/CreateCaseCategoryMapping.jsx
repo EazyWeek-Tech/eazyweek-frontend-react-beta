@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -63,7 +63,7 @@ const CreateCaseCategoryMapping = () => {
   const [subSubSubCategories, setSubSubSubCategories] = useState([]);
   const [employees, setEmployees] = useState([]);
 
-  // Helpers
+  /** ---------------- Helpers ---------------- */
   const coerceArray = (raw) => {
     if (Array.isArray(raw)) return raw;
     if (Array.isArray(raw?.data)) return raw.data;
@@ -71,33 +71,59 @@ const CreateCaseCategoryMapping = () => {
     return [];
   };
 
-  // Load clinic from session
-  useEffect(() => {
+  const safeStr = (v) => (v === null || v === undefined ? "" : String(v).trim());
+
+  /**
+   * ✅ IMPORTANT:
+   * Your session has BOTH:
+   *  - sessionStorage.user.centerCode = "Bright"
+   *  - sessionStorage.userSession.topCode/loginCode = "Silk"
+   *
+   * We MUST prefer userSession.topCode/loginCode to preselect clinic.
+   */
+  const pickClinicFromSession = () => {
+    // 1) Highest priority: userSession -> topCode/loginCode
+    try {
+      const rawSess = sessionStorage.getItem("userSession");
+      if (rawSess) {
+        const s = JSON.parse(rawSess);
+        const code = safeStr(s.topCode) || safeStr(s.loginCode);
+        if (code) return { code, name: "" };
+      }
+    } catch {}
+
+    // 2) Fallback: user object -> centerCode/centerName
     try {
       const rawUser =
         sessionStorage.getItem("user") ||
         sessionStorage.getItem("userDetails") ||
         sessionStorage.getItem("sessionUser");
+
       if (rawUser) {
-        const o = JSON.parse(rawUser);
-        const cCode = (o.centerCode || o.job || "").toString().trim();
-        const cName = (o.centerName || o.clinicName || "").toString().trim();
-        if (cCode) setClinicCode(cCode);
-        if (cName) setClinicName(cName);
+        const u = JSON.parse(rawUser);
+        const code = safeStr(u.centerCode) || safeStr(u.job);
+        const name = safeStr(u.centerName) || safeStr(u.clinicName);
+        if (code) return { code, name };
       }
-      const flatCenterCode = (
-        sessionStorage.getItem("centerCode") ||
-        sessionStorage.getItem("job") ||
-        ""
-      )
-        .toString()
-        .trim();
-      const flatCenterName = (sessionStorage.getItem("centerName") || "")
-        .toString()
-        .trim();
-      if (!clinicCode && flatCenterCode) setClinicCode(flatCenterCode);
-      if (!clinicName && flatCenterName) setClinicName(flatCenterName);
     } catch {}
+
+    // 3) Fallback: flat keys (if any)
+    const flat = safeStr(sessionStorage.getItem("topCode")) || safeStr(sessionStorage.getItem("loginCode"));
+    if (flat) return { code: flat, name: "" };
+
+    return { code: "", name: "" };
+  };
+
+  // ✅ Initialize clinic ONLY ONCE (and NEVER override after)
+  const clinicInitializedRef = useRef(false);
+
+  useEffect(() => {
+    if (clinicInitializedRef.current) return;
+    clinicInitializedRef.current = true;
+
+    const picked = pickClinicFromSession();
+    if (picked.code) setClinicCode(picked.code);
+    if (picked.name) setClinicName(picked.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,8 +142,8 @@ const CreateCaseCategoryMapping = () => {
         const list = coerceArray(raw)
           .map((r, i) => ({
             recId: r.recid ?? r.recId ?? r.id ?? i,
-            code: String(r.code ?? "").trim(),
-            name: String(r.name ?? "").trim(),
+            code: safeStr(r.code),
+            name: safeStr(r.name),
             zone: r.zone ?? "",
             address: r.address ?? "",
           }))
@@ -137,17 +163,17 @@ const CreateCaseCategoryMapping = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ When centers are loaded, sync clinicName if clinicCode is already set from session
+  // ✅ When centers are loaded, sync clinicName for the selected clinicCode
   useEffect(() => {
     if (!clinicCode) return;
     const found = centers.find((c) => c.code === clinicCode);
-    if (found && found.name && clinicName !== found.name) setClinicName(found.name);
+    if (found?.name && clinicName !== found.name) setClinicName(found.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centers, clinicCode]);
 
   // ✅ Clinic dropdown change
   const onClinicChange = (code) => {
-    const val = (code || "").toString().trim();
+    const val = safeStr(code);
     setClinicCode(val);
 
     const found = centers.find((c) => c.code === val);
@@ -183,9 +209,7 @@ const CreateCaseCategoryMapping = () => {
     let cancelled = false;
 
     const fetchType = async (typeName) => {
-      const url = `${API_BASE_URL}/api/Master/GetCaseCategory/${encodeURIComponent(
-        typeName
-      )}`;
+      const url = `${API_BASE_URL}/api/Master/GetCaseCategory/${encodeURIComponent(typeName)}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error(`${typeName}: HTTP ${res.status}`);
       const data = await res.json();
@@ -239,8 +263,8 @@ const CreateCaseCategoryMapping = () => {
         const raw = await res.json();
         const list = coerceArray(raw).map((r, i) => ({
           recId: r.recId ?? r.recID ?? r.id ?? i,
-          code: String(r.employeeCode ?? r.code ?? ""),
-          name: String(r.employeeName ?? r.name ?? ""),
+          code: safeStr(r.employeeCode ?? r.code ?? ""),
+          name: safeStr(r.employeeName ?? r.name ?? ""),
           email: r.emailID ?? r.email ?? "",
         }));
         const clean = list.filter((e) => e.code).sort((a, b) => a.code.localeCompare(b.code));
@@ -266,7 +290,6 @@ const CreateCaseCategoryMapping = () => {
     setSubSubSubCategoryCode(src.subSubSubCategoryCode || "");
     setDefaultAssignment(src.defaultAssignment || "");
     setPriority(String(src.priority ?? src.Priority ?? "").trim());
-
     setRecId(Number(src.recId ?? src.recID ?? qpRecId ?? 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit]);
@@ -290,7 +313,7 @@ const CreateCaseCategoryMapping = () => {
       isDraft: isDraft ? 1 : 0,
       recId: recId || 0, // 0=create, >0=edit/upsert
 
-      // NOTE: If backend needs clinic code, uncomment:
+      // ✅ If backend needs clinic code, uncomment:
       // clinicCode: clinicCode || "",
     };
 
@@ -328,7 +351,6 @@ const CreateCaseCategoryMapping = () => {
     try {
       await postMapping(false);
       alert(isEdit ? "Mapping updated." : "Mapping created.");
-      // Clear cached edit object after success
       try {
         sessionStorage.removeItem("editMapping");
       } catch {}
@@ -350,10 +372,7 @@ const CreateCaseCategoryMapping = () => {
     return [{ code, name: nameFallback || code, recId: `temp-${code}` }, ...arr];
   };
 
-  const categoriesSafe = useMemo(
-    () => ensureOption(categories, categoryCode),
-    [categories, categoryCode]
-  );
+  const categoriesSafe = useMemo(() => ensureOption(categories, categoryCode), [categories, categoryCode]);
   const subCategoriesSafe = useMemo(
     () => ensureOption(subCategories, subCategoryCode),
     [subCategories, subCategoryCode]
@@ -479,9 +498,8 @@ const CreateCaseCategoryMapping = () => {
           &gt; {isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}
           {isEdit && <span className="pill">Edit Mode</span>}
         </div>
-        <div className="title">
-          {isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}
-        </div>
+
+        <div className="title">{isEdit ? "Edit Category Mapping" : "Creation of Category Mapping"}</div>
 
         <div className="card">
           {/* ✅ Clinic */}
@@ -489,7 +507,6 @@ const CreateCaseCategoryMapping = () => {
             <div className="label">Clinic :</div>
 
             <div className="inline">
-              {/* ✅ first input -> select dropdown (name) */}
               <select
                 className="select"
                 value={clinicCode}
@@ -504,7 +521,6 @@ const CreateCaseCategoryMapping = () => {
                 ))}
               </select>
 
-              {/* ✅ second input -> code display */}
               <input className="fld" value={clinicCode} readOnly placeholder="Code" />
             </div>
           </div>
@@ -584,12 +600,7 @@ const CreateCaseCategoryMapping = () => {
           {/* Priority */}
           <div className="row">
             <div className="label">Priority:</div>
-            <select
-              className="select"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              disabled={busy}
-            >
+            <select className="select" value={priority} onChange={(e) => setPriority(e.target.value)} disabled={busy}>
               <option value="">Select one</option>
               <option value="Low">Low</option>
               <option value="Normal">Normal</option>
@@ -639,10 +650,15 @@ const CreateCaseCategoryMapping = () => {
 
           {isEdit && (
             <p className="muted" style={{ marginTop: 12 }}>
-              Editing mapping #{stateMapping?.recId ?? stateMapping?.recID ?? qpRecId ?? "?"}.
-              Submit to update.
+              Editing mapping #{stateMapping?.recId ?? stateMapping?.recID ?? qpRecId ?? "?"}. Submit to update.
             </p>
           )}
+
+          {clinicName ? (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Selected Clinic: <b>{clinicName}</b>
+            </p>
+          ) : null}
         </div>
       </div>
     </>
