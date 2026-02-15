@@ -78,6 +78,8 @@ const CaseCategoryMappingDashboard = () => {
         subCategoryCode: r.subCategoryCode ?? "",
         subSubCategoryCode: r.subSubCategoryCode ?? "",
         subSubSubCategoryCode: r.subSubSubCategoryCode ?? "",
+        priority: r.priority ?? r.Priority ?? r.priorityName ?? "",
+
         defaultAssignment: r.defaultAssignment ?? "",
       }));
 
@@ -149,6 +151,7 @@ const CaseCategoryMappingDashboard = () => {
     { data: "subCategoryName", title: "Sub Category", className: "text-nowrap", width: "200px" },
     { data: "subSubCategoryName", title: "Sub Sub Category", className: "text-nowrap", width: "200px" },
     { data: "subSubSubCategoryName", title: "Sub Sub Sub Category", className: "text-nowrap", width: "220px" },
+    { data: "priority", title: "Priority", className: "text-nowrap", width: "120px" },
     { data: null, title: "Status", className: "text-nowrap", width: "110px", render: renderStatus },
     {
       data: null,
@@ -351,6 +354,7 @@ const CaseCategoryMappingDashboard = () => {
               <th>Sub Category</th>
               <th>Sub Sub Category</th>
               <th>Sub Sub Sub Category</th>
+               <th>Priority</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
