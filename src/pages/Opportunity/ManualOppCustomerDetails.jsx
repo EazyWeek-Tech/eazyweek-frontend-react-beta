@@ -324,7 +324,7 @@ const LS_NEW_LEAD_KEY = (oppCode) => `EW_OPP_NEW_LEAD_${oppCode}`;
 
 // Logged-in user
 const getLoggedInUser = () => {
-  const raw = sessionStorage.getItem("user") || localStorage.getItem("user");
+  const raw = localStorage.getItem("user") ||  sessionStorage.getItem("user");
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -378,7 +378,7 @@ const getSessionCentreKey = () => {
     "loginCode",
   ];
 
-  const stores = [sessionStorage, localStorage];
+  const stores = [localStorage, sessionStorage];
 
   const pickFromObject = (obj) => {
     if (!obj || typeof obj !== "object") return "";

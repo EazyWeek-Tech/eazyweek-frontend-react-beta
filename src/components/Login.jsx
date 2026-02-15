@@ -40,7 +40,8 @@ const Login = ({ onLoginSuccess }) => {
       const data = await response.json();
       console.log("Session GET Response:", data);
 
-      sessionStorage.setItem("userSession", JSON.stringify(data));
+      localStorage.setItem("userSession", JSON.stringify(data));
+
     } catch (error) {
       console.error("Error fetching session:", error);
     }
@@ -130,11 +131,9 @@ const Login = ({ onLoginSuccess }) => {
         const user = data[0];
         setUserInfo(user);
 
-        if (remember) {
-          localStorage.setItem("user", JSON.stringify(user));
-        } else {
-          sessionStorage.setItem("user", JSON.stringify(user));
-        }
+        localStorage.setItem("user", JSON.stringify(user));
+localStorage.setItem("remember", remember ? "1" : "0");
+
 
         // ✅ Now set session with centerCode
         await setSessionToApi({ user });

@@ -3,7 +3,7 @@ import { API_BASE_URL } from "../../../../../config";
 
 
 const CreateDataHandler = async (query) => {
-  const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+  const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
   const centerCode = stored ? JSON.parse(stored).centerCode : "";
   const res = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(query)}/${centerCode}`);
   if (!res.ok) throw new Error("Failed to fetch");

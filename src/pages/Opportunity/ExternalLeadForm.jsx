@@ -210,28 +210,76 @@
   /** ---------------- Session Center Resolver ----------------
    * Finds the session JSON that contains loginCode/topCode anywhere in sessionStorage.
    */
-  const getCenterFromSession = () => {
+  /** ---------------- Center Resolver (LOCAL first) ----------------
+ * Tries:
+ *  1) localStorage.userSession (topCode/loginCode)
+ *  2) sessionStorage.userSession (topCode/loginCode)
+ *  3) scan localStorage for any JSON containing loginCode/topCode
+ *  4) scan sessionStorage for any JSON containing loginCode/topCode
+ * Returns: centerCode string
+ */
+const getCenterFromStorage = () => {
+  const pickFromObj = (obj) => {
+    if (!obj || typeof obj !== "object") return "";
+    const code = safe(obj?.loginCode || obj?.topCode || obj?.TopCode || obj?.LoginCode).trim();
+    return code || "";
+  };
+
+  const tryParse = (raw) => {
     try {
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        const raw = sessionStorage.getItem(key);
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  // 1) localStorage.userSession preferred
+  try {
+    const raw = localStorage.getItem("userSession");
+    const obj = tryParse(raw);
+    const code = pickFromObj(obj);
+    if (code) return code;
+  } catch {}
+
+  // 2) sessionStorage.userSession
+  try {
+    const raw = sessionStorage.getItem("userSession");
+    const obj = tryParse(raw);
+    const code = pickFromObj(obj);
+    if (code) return code;
+  } catch {}
+
+  // helper: scan storage keys
+  const scan = (storage) => {
+    try {
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        const raw = storage.getItem(key);
         if (!raw) continue;
 
-        if (!raw.includes("loginCode") && !raw.includes("topCode")) continue;
+        // quick filter to avoid parsing everything
+        if (!raw.includes("loginCode") && !raw.includes("topCode") && !raw.includes("TopCode") && !raw.includes("LoginCode"))
+          continue;
 
-        try {
-          const s = JSON.parse(raw);
-          const code = safe(s?.loginCode || s?.topCode).trim();
-          if (code) return code;
-        } catch {
-          // ignore
-        }
+        const obj = tryParse(raw);
+        const code = pickFromObj(obj);
+        if (code) return code;
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
     return "";
   };
+
+  // 3) scan localStorage
+  const lc = scan(localStorage);
+  if (lc) return lc;
+
+  // 4) scan sessionStorage
+  const sc = scan(sessionStorage);
+  if (sc) return sc;
+
+  return "";
+};
+
 
   const SearchableSingleSelect = ({
   options,
@@ -431,7 +479,10 @@
     // ✅ sessionCenter computed safely
     const [sessionCenter, setSessionCenter] = useState("");
     useEffect(() => {
-      const code = getCenterFromSession();
+      const code = getCenterFromStorage();
+console.log("Detected center (local-first) =", code);
+setSessionCenter(code);
+
       console.log("Detected sessionCenter =", code);
       setSessionCenter(code);
     }, []);

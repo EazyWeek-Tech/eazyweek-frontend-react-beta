@@ -90,7 +90,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 
   const [currentUser] = useState(() => {
     try {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;

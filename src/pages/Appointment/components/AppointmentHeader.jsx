@@ -12,7 +12,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
   const [noResults, setNoResults] = useState(false);
     const [user, setUser] = useState(null);
    useEffect(() => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     if (stored) {
       const parsedUser = JSON.parse(stored);
       setUser(parsedUser);
@@ -29,7 +29,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
   }, []);
 
   const fetchSuggestions = async (query) => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
     if (!query || query.length < 2) {
       setSuggestions([]);

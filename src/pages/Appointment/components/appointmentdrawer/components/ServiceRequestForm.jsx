@@ -47,7 +47,7 @@ const ServiceRequestForm = ({
 
   useEffect(() => {
     const fetchRooms = async () => {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
       if (!centerCode) return;
       const roomURL = `${API_BASE_URL}/api/Master/LoadRoom/${centerCode}`;
@@ -97,7 +97,7 @@ const ServiceRequestForm = ({
   const fetchPractitioners = async (serviceCode, preselectPractitionerId) => {
     try {
       const stored =
-        sessionStorage.getItem("user") || localStorage.getItem("user");
+        localStorage.getItem("user") || sessionStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
       const practitionerUrl = `${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(
         serviceCode
@@ -122,7 +122,7 @@ const ServiceRequestForm = ({
     if (value.length >= 2) {
       debounceRef.current = setTimeout(async () => {
         const stored =
-          sessionStorage.getItem("user") || localStorage.getItem("user");
+          localStorage.getItem("user") || sessionStorage.getItem("user");
         const centerCode = stored ? JSON.parse(stored).centerCode : "";
         try {
           const url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(

@@ -44,7 +44,7 @@ function getSessionUserId() {
   if (fromGlobal) return fromGlobal;
 
   const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
-  for (const storage of [window.sessionStorage, window.localStorage]) {
+  for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
     for (const k of keys) {
       const raw = storage.getItem(k);

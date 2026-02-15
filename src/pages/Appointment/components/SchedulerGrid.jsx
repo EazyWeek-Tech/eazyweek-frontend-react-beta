@@ -54,7 +54,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
   }, [newCustomer]);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
     const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
     const fetchDoctors = async () => {
@@ -74,7 +74,7 @@ const AppointmentScheduler = ({ onAddCustomer, newCustomer }) => {
 
   const fetchAppointments = async (date) => {
     try {
-      const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+      const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
       const centerCode = stored ? JSON.parse(stored).centerCode : "";
 
       const payload = { appointmentdate: date, searchtext: '', centerCode };

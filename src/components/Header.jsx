@@ -58,7 +58,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
 
   /* -------------------- load logged-in user -------------------- */
   useEffect(() => {
-    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
     if (!stored) return;
 
     const parsed = JSON.parse(stored);
@@ -80,7 +80,8 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- read session center from storage (initial) -------------------- */
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("userSession");
+      const raw =  localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
+
       if (!raw) return;
       const s = JSON.parse(raw);
 
@@ -131,6 +132,8 @@ const Header = ({ onToggleSidebar, onLogout }) => {
     }
 
     const data = await res.json();
+    localStorage.setItem("userSession", JSON.stringify(data));
+
     sessionStorage.setItem("userSession", JSON.stringify(data));
 
     const code =
@@ -225,9 +228,10 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       // ✅ reset session storage (keep user), then go dashboard & reload
       const keepUser =
         sessionStorage.getItem("user") || localStorage.getItem("user");
-      sessionStorage.clear();
-      if (keepUser) sessionStorage.setItem("user", keepUser);
-      sessionStorage.setItem("userSession", JSON.stringify(newSession));
+      // ✅ update stored session (don’t clear everything)
+localStorage.setItem("userSession", JSON.stringify(newSession));
+sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
+
 
       // ✅ Navigate to dashboard/home on center change
       navigate("/dashboard", { replace: true });
@@ -243,9 +247,19 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- logout -------------------- */
   const handleLogout = (e) => {
     e.preventDefault();
-    sessionStorage.clear();
-    onLogout?.();
-    navigate("/login", { replace: true });
+    
+    localStorage.removeItem("user");
+localStorage.removeItem("userSession");
+localStorage.removeItem("ssoToken");
+localStorage.removeItem("remember");
+
+sessionStorage.removeItem("user");
+sessionStorage.removeItem("userSession");
+sessionStorage.removeItem("ssoToken");
+
+onLogout?.();
+navigate("/login", { replace: true });
+
   };
 
   const fullName = user

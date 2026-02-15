@@ -85,7 +85,7 @@ import OppUploader from "./pages/Opportunity/OppUploader";
 const getInitialUser = () => {
   try {
     const stored =
-      sessionStorage.getItem("user") || localStorage.getItem("user");
+     localStorage.getItem("user") || sessionStorage.getItem("user") 
     if (stored) {
       return JSON.parse(stored);
     }
@@ -100,9 +100,9 @@ const getInitialUser = () => {
         token,
       };
 
-      // Save token & user in sessionStorage (you can also choose localStorage)
-      sessionStorage.setItem("ssoToken", token);
-      sessionStorage.setItem("user", JSON.stringify(ssoUser));
+      localStorage.setItem("ssoToken", token);
+localStorage.setItem("user", JSON.stringify(ssoUser));
+
 
       // Clean the URL (remove ?token=...)
       const url = new URL(window.location.href);
@@ -138,8 +138,15 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-    sessionStorage.clear();
-    localStorage.clear();
+    sessionStorage.removeItem("user");
+sessionStorage.removeItem("userSession");
+sessionStorage.removeItem("ssoToken");
+
+localStorage.removeItem("user");
+localStorage.removeItem("userSession");
+localStorage.removeItem("ssoToken");
+localStorage.removeItem("remember");
+
     navigate("/login", { replace: true });
   };
 
