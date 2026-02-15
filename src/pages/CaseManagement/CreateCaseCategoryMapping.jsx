@@ -265,7 +265,8 @@ const CreateCaseCategoryMapping = () => {
     setSubSubCategoryCode(src.subSubCategoryCode || "");
     setSubSubSubCategoryCode(src.subSubSubCategoryCode || "");
     setDefaultAssignment(src.defaultAssignment || "");
-    setPriority(""); // if you later store priority, set it here
+    setPriority(String(src.priority ?? src.Priority ?? "").trim());
+
     setRecId(Number(src.recId ?? src.recID ?? qpRecId ?? 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit]);
@@ -591,9 +592,8 @@ const CreateCaseCategoryMapping = () => {
             >
               <option value="">Select one</option>
               <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
+              <option value="Normal">Normal</option>
               <option value="High">High</option>
-              <option value="Critical">Critical</option>
             </select>
           </div>
 
