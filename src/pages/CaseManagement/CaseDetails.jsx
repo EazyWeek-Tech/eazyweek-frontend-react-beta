@@ -53,11 +53,23 @@ const normNameBase = (s) =>
 const readOrgContext = (general, current) => {
   const ss = (k) => getStore(k);
 
-  const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
+  // include common object keys (case variations)
+  const objKeys = [
+    "user",
+    "userDetails",
+    "currentUser",
+    "authUser",
+    "sessionUser",
+    "userSession",
+    "UserSession",
+    "usersession",
+  ];
+
   const fromJson = (k) => {
     for (const key of objKeys) {
-      const raw = sessionStorage.getItem(key);
+      const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
       if (!raw) continue;
+
       try {
         const obj = JSON.parse(raw);
         const val =
@@ -70,8 +82,27 @@ const readOrgContext = (general, current) => {
     return "";
   };
 
-  const topGuess = firstNonEmpty(ss("topCode"), fromJson("topCode"));
+  // ✅ This is your requirement:
+  // take centerCode from localStorage.UserSession.loginCode (fallback to topCode)
+  const loginCode = firstNonEmpty(
+    ss("loginCode"),
+    ss("LoginCode"),
+    fromJson("loginCode"),
+    fromJson("LoginCode"),
+    fromJson("topCode"),
+    fromJson("TopCode")
+  );
+
+  const topGuess = firstNonEmpty(
+    ss("topCode"),
+    ss("TopCode"),
+    fromJson("topCode"),
+    fromJson("TopCode"),
+    loginCode
+  );
+
   const centerGuess = firstNonEmpty(
+    loginCode,                  // ✅ highest priority
     topGuess,
     general?.centerCode,
     current?.centerCode,
@@ -80,6 +111,7 @@ const readOrgContext = (general, current) => {
     ss("centercode"),
     ss("job"),
     fromJson("centerCode"),
+    fromJson("CenterCode"),
     fromJson("job")
   );
 
@@ -90,8 +122,10 @@ const readOrgContext = (general, current) => {
     ss("DepartmentCode"),
     ss("deptCode"),
     ss("depCode"),
-    fromJson("departmentCode")
+    fromJson("departmentCode"),
+    fromJson("DepartmentCode")
   );
+
   const clinicGuess = firstNonEmpty(
     general?.custClinicCode,
     current?.custClinicCode,
@@ -99,15 +133,20 @@ const readOrgContext = (general, current) => {
     ss("clinicCode"),
     ss("ClinicCode"),
     fromJson("custClinicCode"),
-    fromJson("clinicCode")
+    fromJson("clinicCode"),
+    fromJson("ClinicCode")
   );
 
   return {
     centercode: centerGuess || "",
+    centerCode: centerGuess || "",       // ✅ alias for backend expecting centerCode
     departmentcode: departmentGuess || "",
+    departmentCode: departmentGuess || "", // ✅ alias
     custcliniccode: clinicGuess || "",
+    custClinicCode: clinicGuess || "",     // ✅ alias
   };
 };
+
 
 const readSessionUser = () => {
   const getAny = (k) =>
@@ -182,13 +221,20 @@ const readSessionUser = () => {
 // --------------------------------------------
 function buildRequiredBlock({ actionType, general, current, status, disposition }) {
   const org = readOrgContext(general, current);
-  const must = { caseno: current?.caseNo, centercode: org.centercode };
+
+  const must = {
+    caseno: current?.caseNo,
+    centercode: org.centercode,
+    centerCode: org.centerCode, // ✅ add this
+  };
+
   if (actionType === "updateStatus") {
     must.status = trim(status);
     if (trim(status) === "Closed") must.casedisposition = trim(disposition);
   }
   return must;
 }
+
 function validateRequired(requiredObj) {
   const missing = Object.entries(requiredObj)
     .filter(([, v]) => !isNonEmpty(v))
@@ -255,10 +301,13 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
     totalCharges: N(current?.total),
 
     isdraft: operation === "save" ? 1 : 0,
-
     centercode: S(org.centercode),
+    centerCode: S(org.centercode),          // ✅ add this
     departmentcode: S(org.departmentcode),
+    departmentCode: S(org.departmentcode),  // ✅ add this
     custcliniccode: S(org.custcliniccode),
+    custClinicCode: S(org.custcliniccode),  // ✅ add this
+
   };
 }
 
