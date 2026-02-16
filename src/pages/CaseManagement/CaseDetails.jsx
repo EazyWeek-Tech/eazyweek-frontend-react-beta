@@ -51,7 +51,8 @@ const normNameBase = (s) =>
     .replace(/\s+/g, " ");
 
 const readOrgContext = (general, current) => {
-  const ss = (k) => trim(sessionStorage.getItem(k));
+  const ss = (k) => getStore(k);
+
   const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
   const fromJson = (k) => {
     for (const key of objKeys) {
@@ -102,35 +103,43 @@ const readOrgContext = (general, current) => {
   );
 
   return {
-    centercode: "Bright" || centerGuess || "",
-    departmentcode: departmentGuess || "department",
-    custcliniccode: clinicGuess || "Bright",
+    centercode: centerGuess || "",
+    departmentcode: departmentGuess || "",
+    custcliniccode: clinicGuess || "",
   };
 };
 
 const readSessionUser = () => {
-  const get = (k) => (sessionStorage.getItem(k) ?? "").toString();
-  const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser"];
+  const getAny = (k) =>
+    (sessionStorage.getItem(k) ?? localStorage.getItem(k) ?? "").toString();
+
+  const objKeys = ["user", "userDetails", "currentUser", "authUser", "sessionUser", "userSession"];
+
   let code = "",
     name = "",
     firstName = "",
     lastName = "";
 
   for (const k of objKeys) {
-    const raw = sessionStorage.getItem(k);
+    const raw = sessionStorage.getItem(k) ?? localStorage.getItem(k);
     if (!raw) continue;
+
     try {
       const obj = JSON.parse(raw);
+
       code = firstNonEmpty(
         code,
         obj.userId,
         obj.userID,
         obj.employeeCode,
         obj.empCode,
-        obj.code
+        obj.code,
+        obj.loginCode // sometimes loginCode is the “code”
       );
+
       firstName = firstNonEmpty(firstName, obj.firstName, obj.firstname, obj.FirstName);
       lastName = firstNonEmpty(lastName, obj.lastName, obj.lastname, obj.LastName);
+
       name = firstNonEmpty(
         name,
         obj.userName,
@@ -140,20 +149,33 @@ const readSessionUser = () => {
       );
     } catch {}
   }
-  code = firstNonEmpty(code, get("userId"), get("userid"), get("employeeCode"), get("empCode"));
-  firstName = firstNonEmpty(firstName, get("firstName"), get("firstname"), get("FirstName"));
-  lastName = firstNonEmpty(lastName, get("lastName"), get("lastname"), get("LastName"));
+
+  // fallback direct keys (both storages)
+  code = firstNonEmpty(
+    code,
+    getAny("userId"),
+    getAny("userID"),
+    getAny("employeeCode"),
+    getAny("empCode"),
+    getAny("loginCode")
+  );
+
+  firstName = firstNonEmpty(firstName, getAny("firstName"), getAny("firstname"), getAny("FirstName"));
+  lastName = firstNonEmpty(lastName, getAny("lastName"), getAny("lastname"), getAny("LastName"));
+
   name = firstNonEmpty(
     name,
-    get("userName"),
-    get("username"),
+    getAny("userName"),
+    getAny("username"),
     (firstName || lastName) ? `${firstName || ""} ${lastName || ""}` : ""
   );
 
   if (!code && !name && !firstName && !lastName) return null;
+
   const fullName = firstNonEmpty(`${firstName} ${lastName}`.trim(), name);
-  return { code, name, firstName, lastName, fullName };
+  return { code: trim(code), name: trim(name), firstName: trim(firstName), lastName: trim(lastName), fullName: trim(fullName) };
 };
+
 
 // --------------------------------------------
 // Guardrails
@@ -173,6 +195,8 @@ function validateRequired(requiredObj) {
     .map(([k]) => k);
   return { ok: missing.length === 0, missing };
 }
+const getStore = (k) =>
+  trim(localStorage.getItem(k)) || trim(sessionStorage.getItem(k));
 
 // --------------------------------------------
 // Payload builder
@@ -869,6 +893,8 @@ const CaseDetailsPage = () => {
   const loggedIsCurrentAssignee =
     (!!currentAssigneeCodeNorm && !!currentUserCodeNorm && currentAssigneeCodeNorm === currentUserCodeNorm) ||
     (!!currentAssigneeNameNorm && !!currentUserNameNorm && currentAssigneeNameNorm === currentUserNameNorm);
+
+    console.log(loggedIsCurrentAssignee)
 
   const canEditCase = loggedIsCurrentAssignee && !closed;
 
@@ -1609,7 +1635,41 @@ if (actionType === "submit") {
               <div className="loader"></div>
             </div>
           ) : (
-            renderTabContent()
+           <div className="tabcontent" style={{ display: "block", position: "relative" }}>
+  <div style={{ display: activeTab === "general" ? "block" : "none" }}>
+    <GeneralTab ref={generalRef} data={selectedCaseData} />
+  </div>
+
+  <div style={{ display: activeTab === "issues" ? "block" : "none" }}>
+    <IssuesTab
+      ref={issuesRef}
+      data={selectedCaseData}
+      assignedToName={firstNonEmpty(selectedCaseData?.assignName, selectedCaseData?.assignToCode, "")}
+      assignedToCode={selectedCaseData ? selectedCaseData.assignToCode : ""}
+      onResponseChange={(ok) => setIsResponseFilled(ok)}
+      level1Name={l1DisplayName}
+      level2Name={l2DisplayName}
+    />
+  </div>
+
+  <div style={{ display: activeTab === "sla" ? "block" : "none" }}>
+    <SLATab ref={slaRef} />
+  </div>
+
+  <div style={{ display: activeTab === "journey" ? "block" : "none" }}>
+    <JourneyTab ref={journeyRef} caseNo={selectedCaseData.caseNo} />
+  </div>
+
+  <div style={{ display: activeTab === "expense" ? "block" : "none" }}>
+    <ExpenseTab ref={expenseRef} />
+  </div>
+
+  {tabLoading && (
+    <div className="loader-wrapper" style={{ position: "absolute", inset: 0 }}>
+      <div className="loader"></div>
+    </div>
+  )}
+</div>
           )}
         </div>
 
