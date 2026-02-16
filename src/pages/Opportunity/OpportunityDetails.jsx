@@ -1561,50 +1561,76 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
 
 
   const exportCSV = () => {
-    const headers = [
-      "CustID",
-      "CustName",
-      "CustMobileNo",
-      "OppStatus",
-      "Disposition",
-      "Remarks",
-      "SalesOwner",
-      "CreatedDate",
+  // Export exactly what the table shows (+ a couple useful IDs)
+  const headers = [
+    "ProspectID",
+    "ProspectType",
+    "CustomerID",
+    "CustomerName",
+    "MobileNo",
+    "Status",
+    "Disposition",
+    "TherapistName",
+    "Remarks",
+    "SalesOwner",
+    "SalesOwnerCode",
+    "ModifiedBy",
+    "ModifiedDate",
+    "CreatedDate",
+    "RecID", // optional but helpful
+  ];
+
+  const escape = (v) => {
+    const s = v == null ? "" : String(v);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const safeCSV = (v) => (v === null || v === undefined ? "" : v);
+
+  const lines = [headers.join(",")];
+
+  // ✅ Export filtered rows (not just current page)
+  filteredRows.forEach((r) => {
+    const recid = getRecId(r);
+
+    const therapist = safeCSV(r.__therapistName || getTherapistName(r));
+    const modified = safeCSV(r.modifieddate || r.modifiedDate);
+
+    const rowArr = [
+      formatProspectId(recid),              // ProspectID
+      "Opportunity",                        // ProspectType
+      safeCSV(r.custID),                    // CustomerID
+      safeCSV(r.custName),                  // CustomerName
+      safeCSV(r.custMobileNo),              // MobileNo
+      displayOppStatus(r.oppStatus),        // Status
+      safeCSV(r.disposition),               // Disposition
+      therapist,                            // TherapistName
+      safeCSV(r.remarks),                   // Remarks
+      safeCSV(r.salesOwner),                // SalesOwner
+      safeCSV(r.salesOwnerCode),            // SalesOwnerCode
+      safeCSV(r.modifiedBy),                // ModifiedBy
+      formatDDMMYYYY(modified),             // ModifiedDate
+      formatDDMMYYYY(r.createddate),        // CreatedDate
+      recid,                                // RecID
     ];
 
-    const escape = (v) => {
-      const s = v == null ? "" : String(v);
-      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-      return s;
-    };
+    lines.push(rowArr.map(escape).join(","));
+  });
 
-    const lines = [headers.join(",")];
-    filteredRows.forEach((r) => {
-      const rowArr = [
-        r.custID,
-        r.custName,
-        r.custMobileNo,
-        r.oppStatus,
-        r.disposition,
-        r.remarks,
-        r.salesOwner,
-        r.createddate,
-      ];
-      lines.push(rowArr.map(escape).join(","));
-    });
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${H?.oppCode || "opportunity"}-details.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${H?.oppCode || "opportunity"}-details.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const handleSort = (key) => {
     setSortConfig((prev) => {

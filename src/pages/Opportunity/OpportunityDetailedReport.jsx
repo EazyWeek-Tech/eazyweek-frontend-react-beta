@@ -747,7 +747,7 @@ reasons: pickCI(x, [
       "Campaign Status",
       "Converted",
       "OppStatus",
-      "Created By",
+     // "Created By",
       "Closed By",
       "Sales Owner",     //  NEW
   "Reasons",         //  NEW
@@ -772,7 +772,7 @@ reasons: pickCI(x, [
   r.reasons ?? "",      //  NEW
       //  r.wip ?? "",
       
-        r.createdBy ?? "",
+      //  r.createdBy ?? "",
         r.closedBy ?? "",
         r.clinic ?? "",
         r.oppCode ?? "",
@@ -800,7 +800,7 @@ reasons: pickCI(x, [
   r.campaignStatus ?? "",
   r.converted ?? "",
   r.oppStatus ?? "",
-  r.createdBy ?? "",
+ // r.createdBy ?? "",
   r.closedBy ?? "",
   r.salesOwner ?? "",
   r.reasons ?? "",
@@ -957,7 +957,7 @@ reasons: pickCI(x, [
               <th>Lead Status</th>
               <th>Sales Owner</th>
 <th>Reasons</th>
-              <th>Created By</th>
+              {/* <th>Created By</th> */}
               <th>Closed By</th>
             {/*   <th>WIP</th> */}
               <th>Clinic</th>
@@ -1007,7 +1007,7 @@ reasons: pickCI(x, [
                   
 <td>{r.salesOwner}</td>
 <td>{r.reasons}</td>
-                  <td>{r.createdBy}</td>
+                  {/* <td>{r.createdBy}</td> */}
                   <td>{r.closedBy}</td>
 
                   {/* <td>{r.wip}</td> */}
