@@ -704,7 +704,15 @@ const CaseDetailsPage = () => {
           moreCc: trim(data.moreCC),
           remarks: trim(data.remarks),
 
-          categorySpecificResolution: trim(data.specificResolutionName || data.categorySpecificResolution),
+          categorySpecificResolution: trim(
+  firstNonEmpty(
+    data.specificResolutionName,
+    data.specificResolutionCode,          // ✅ fallback (your case)
+    data.categorySpecificResolution,
+    data.specificResolution
+  )
+),
+
 
           materialCost: data.materialCost ?? 0,
           labourCost: data.labourCOst ?? 0,
