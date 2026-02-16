@@ -23,6 +23,8 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const [employees, setEmployees] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [centers, setCenters] = useState([]);
+
 
   // holds the real case no once server generates it
   const [caseNo, setCaseNo] = useState("");
@@ -38,6 +40,24 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), timeout);
   };
   useEffect(() => () => toastTimer.current && clearTimeout(toastTimer.current), []);
+
+  const fetchCenters = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await responseToJsonSafe(res);
+    setCenters(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Error fetching centers:", err);
+    setCenters([]);
+  }
+};
+
+fetchCenters();
+
 
   // Install global fetch logger once
   useEffect(() => {
@@ -147,6 +167,9 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     }
     return "";
   };
+
+
+
 
   // ✅ centercode = loginCode or topCode (priority: loginCode -> topCode)
   const readCenterFromSession = () => {
@@ -484,14 +507,20 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     return s?.subCategoryName || "";
   };
 
+  const getClinicNameFromCenters = (centerCode) => {
+  const code = trim(centerCode).toUpperCase();
+  if (!code) return "";
+  const hit = (centers || []).find((c) => trim(c.code).toUpperCase() === code);
+  return trim(hit?.name || "");
+};
+
   // email uses centerName; centercode uses loginCode/topCode (separate concerns)
-  const getCenterName = () => {
-    return firstNonEmpty(
-      readCenterNameFromSession(),
-      // as a fallback, show the same code in the email if name isn't available
-      readCenterFromSession()
-    );
-  };
+  // ✅ Center display should be loginCode/topCode (e.g., "LNS", "MXM")
+const getCenterName = () => {
+  const code = readCenterFromSession(); // loginCode/topCode like "MXM"
+  return getClinicNameFromCenters(code) || code; // fallback to code if name not found yet
+};
+
 
     // -----------------------------
   // ✅ Logged-in user email lookup (from /api/Employees)
@@ -530,7 +559,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
     // ✅ "send email along with the current email chain"
     // keep existing cc + moreCC, and append creatorEmail
     const merged = normalizeEmailList(
-      [formValues.cc, formValues.moreCC, creatorEmail].filter(Boolean).join(",")
+      [formValues.cc,  creatorEmail].filter(Boolean).join(",")
     );
 
     return { mergedCC: merged, creatorEmail };

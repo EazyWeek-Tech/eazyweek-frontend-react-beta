@@ -310,6 +310,55 @@ function buildFullPayload({ general, current, status, disposition, operation }) 
 
   };
 }
+// --------------------------------------------
+// Centers (for centerName from centercode)
+// --------------------------------------------
+// --------------------------------------------
+// Centers (for centerName from centercode)
+// --------------------------------------------
+let __centersCache = null;
+let __centersLoaded = false;
+
+async function loadCentersOnce() {
+  if (__centersLoaded) return Array.isArray(__centersCache) ? __centersCache : [];
+  __centersLoaded = true;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const data = await res.json();
+    __centersCache = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error("LoadCenters failed:", e);
+    __centersCache = [];
+  }
+
+  return __centersCache;
+}
+
+function getCenterNameFromCenters(centers, centerCodeRaw) {
+  const code = normCodeId(centerCodeRaw); // MXM -> MXM
+  if (!code) return "";
+
+  const hit = (centers || []).find((c) => normCodeId(c?.code) === code);
+  return trim(hit?.name || "");
+}
+
+async function resolveCenterNameForMail({ generalData, selectedCaseData }) {
+  // ✅ Always prefer session/loginCode/topCode (your requirement)
+  const org = readOrgContext(generalData || {}, selectedCaseData || {});
+  const centerCode = trim(org?.centercode || org?.centerCode || "");
+
+  const centers = await loadCentersOnce();
+  const name = getCenterNameFromCenters(centers, centerCode);
+
+  // return best available
+  return name || centerCode || "Bright Clinics";
+}
+
 
 // --------------------------------------------
 // Mail helpers
@@ -367,23 +416,27 @@ const appendEmailToList = (listStr, email) => {
   const merged = cleanupList([listStr, e].filter(Boolean).join(","));
   return merged;
 };
-function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics", ownerEmail = "" }) {
+function buildCaseMailPayload({
+  selected,
+  centerNameFallback = "Bright Clinics",
+  ownerEmail = "",
+  centerNameResolved = "",   // ✅ NEW
+}) {
   const clean = (s) => (s ?? "").toString().trim();
 
-  // ✅ To: first valid email from selected.email
   const normalizedToList = cleanupList(selected?.email || "");
   const emailToFirst =
     normalizedToList.split(",").find((x) => isLikelyEmail(x)) || clean(selected?.email);
 
-  // ✅ Keep existing CC as-is (cleaned)
   const emailCC = cleanupList(selected?.cc || "");
-
-  // ✅ Add owner into MORE-CC (this matches your requirement)
   const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
   return {
     emailTo: emailToFirst,
-    centerName: clean(selected?.centerName) || centerNameFallback,
+
+    // ✅ use resolved center name
+    centerName: clean(centerNameResolved) || clean(selected?.centerName) || centerNameFallback,
+
     caseNo: clean(selected?.caseNo),
     categoryName: clean(selected?.caseCategory || selected?.categoryName),
     subCategoryName: clean(selected?.subCategoryName),
@@ -391,10 +444,11 @@ function buildCaseMailPayload({ selected, centerNameFallback = "Bright Clinics",
     newResponse: clean(selected?.response),
     firstTimeResolution: clean(selected?.firstTimeResolution),
 
-    emailCC,   // ✅ unchanged CC
-    moreCC,    // ✅ owner appended here
+    emailCC,
+    moreCC,
   };
 }
+
 async function sendCaseMail(payload, setToast) {
   try {
     if (!payload.emailTo) {
@@ -477,8 +531,15 @@ async function triggerCaseMail({
     ""
   ) || "";
 
+  const centerNameResolved = await resolveCenterNameForMail({
+  generalData,
+  selectedCaseData,
+});
+
+
 const mailPayload = buildCaseMailPayload({
   selected,
+  centerNameResolved,
   centerNameFallback: "Bright Clinics",
   ownerEmail, // ✅ now passed correctly
 });
