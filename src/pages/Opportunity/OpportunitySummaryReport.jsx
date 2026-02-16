@@ -620,8 +620,8 @@ export default function OpportunitySummaryReport() {
     setExporting(true);
     try {
      const excelRows = rows.map((r) => ({
-  "From Date": r.fromDate || "",
-  "To Date": r.toDate || "",
+  "Created From Date": r.fromDate || "",
+  "Created To Date": r.toDate || "",
   "OppName": r.oppName || "",
   "Campaign Status": r.campaignStatus || "",
   "Total Opportunities(A+B+C)": r.totalOpportunities ?? "",
@@ -680,12 +680,12 @@ export default function OpportunitySummaryReport() {
       <div className="filters">
         <div className="grid">
           <div className="frow">
-            <label>From Date</label>
+            <label>Created From Date</label>
             <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
           </div>
 
           <div className="frow">
-            <label>To Date</label>
+            <label>Created To Date</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
           </div>
 
@@ -772,8 +772,8 @@ export default function OpportunitySummaryReport() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>From Date</th>
-              <th>To Date</th>
+              <th>Created From Date</th>
+              <th>Created To Date</th>
               <th>OppName</th>
               <th>Campaign Status</th>
               <th>Total Opportunities(A+B+C)</th>
