@@ -7,6 +7,19 @@ import { API_BASE_URL } from "../../config";
 
 const PAGE_SIZE = 10;
 
+// ✅ Static Specific Resolution options (always show)
+const SPECIFIC_RESOLUTION_STATIC = [
+  "Doctor meet up appointment given",
+  "Refund given",
+  "Approval in process (refund /complimentary session)",
+  "Client not reachable",
+  "Client is fine and will continue with our services",
+  "Client might come back later",
+  "Retained with complimentary session",
+  "Refund cancelled and retained",
+  "Refunded into prepaid card to be used in different service",
+];
+
 // Helpers
 const uniqBy = (arr, keyFn) => {
   const seen = new Set();
@@ -195,7 +208,10 @@ const CaseDetailedReport = () => {
         const list = Array.isArray(d) ? d : d ? [d] : [];
         setTherapistsRaw(
           list
-            .filter((doc) => doc?.code && doc?.name && doc.name !== "< - Select one - >")
+            .filter(
+              (doc) =>
+                doc?.code && doc?.name && doc.name !== "< - Select one - >"
+            )
             .map((doc) => ({ code: doc.code, name: doc.name }))
         );
       } catch (e) {
@@ -234,7 +250,10 @@ const CaseDetailedReport = () => {
           `${API_BASE_URL}/api/CaseCategory/CaseSubCategory?CategoryCode=${encodeURIComponent(
             cat
           )}`,
-          { credentials: "include", headers: { "Content-Type": "application/json" } }
+          {
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
         );
         const d = await r.json();
         setSubCatsRaw(Array.isArray(d) ? d : []);
@@ -249,7 +268,10 @@ const CaseDetailedReport = () => {
           `${API_BASE_URL}/api/CaseDropDown/Medium/SpecificResolution?CategoryCode=${encodeURIComponent(
             cat
           )}`,
-          { credentials: "include", headers: { "Content-Type": "application/json" } }
+          {
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
         );
         const d = await r.json();
         const list = Array.isArray(d) ? d : d ? [d] : [];
@@ -292,7 +314,10 @@ const CaseDetailedReport = () => {
           `${API_BASE_URL}/api/CaseCategory/CaseSubSubCategory?CategoryCode=${encodeURIComponent(
             cat
           )}&SubCategoryCode=${encodeURIComponent(sub)}`,
-          { credentials: "include", headers: { "Content-Type": "application/json" } }
+          {
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
         );
         const d = await r.json();
         setSubSubCatsRaw(Array.isArray(d) ? d : []);
@@ -324,7 +349,10 @@ const CaseDetailedReport = () => {
         `${API_BASE_URL}/api/CaseDropDown/Medium/Source?CategoryCode=${encodeURIComponent(
           cat
         )}&MediumCode=${encodeURIComponent(med)}`,
-        { credentials: "include", headers: { "Content-Type": "application/json" } }
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
       );
       const d = await r.json();
       setSourcesRaw(Array.isArray(d) ? d : []);
@@ -348,7 +376,8 @@ const CaseDetailedReport = () => {
     [subSubCatsRaw]
   );
   const subSubSubCategoryOptions = useMemo(
-    () => toOptions(subSubSubCatsRaw, "subCategoryCode", "subSubSubCategoryName"),
+    () =>
+      toOptions(subSubSubCatsRaw, "subCategoryCode", "subSubSubCategoryName"),
     [subSubSubCatsRaw]
   );
 
@@ -360,6 +389,7 @@ const CaseDetailedReport = () => {
       })),
     [mediumsRaw]
   );
+
   const sourceOptions = useMemo(
     () =>
       toOptions(sourcesRaw, "code", "name").map((o) => ({
@@ -368,10 +398,25 @@ const CaseDetailedReport = () => {
       })),
     [sourcesRaw]
   );
-  const specificResOptions = useMemo(
-    () => Array.from(new Set(specificResRaw)).map((n) => ({ value: n, label: n })),
-    [specificResRaw]
-  );
+
+  // ✅ UPDATED: merge static + API specific resolutions (dedupe case-insensitive)
+  const specificResOptions = useMemo(() => {
+    const apiList = Array.isArray(specificResRaw) ? specificResRaw : [];
+    const merged = [...SPECIFIC_RESOLUTION_STATIC, ...apiList]
+      .map((x) => (x ?? "").toString().trim())
+      .filter(Boolean);
+
+    const out = [];
+    const seen = new Set();
+    for (const item of merged) {
+      const key = item.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ value: item, label: item });
+    }
+    return out;
+  }, [specificResRaw]);
+
   const therapistOptions = useMemo(
     () => toOptions(therapistsRaw, "code", "name"),
     [therapistsRaw]
@@ -388,15 +433,15 @@ const CaseDetailedReport = () => {
 
     // rule:
     // if user didn't select -> send defaults, keep UI empty
-const hasDates = Boolean(filters.fromDate && filters.toDate);
+    const hasDates = Boolean(filters.fromDate && filters.toDate);
 
-const fromDateToSend = hasDates
-  ? new Date(filters.fromDate).toISOString()
-  : new Date("1900-01-01T00:00:00.000Z").toISOString();
+    const fromDateToSend = hasDates
+      ? new Date(filters.fromDate).toISOString()
+      : new Date("1900-01-01T00:00:00.000Z").toISOString();
 
-const toDateToSend = hasDates
-  ? new Date(filters.toDate).toISOString()
-  : new Date().toISOString();
+    const toDateToSend = hasDates
+      ? new Date(filters.toDate).toISOString()
+      : new Date().toISOString();
 
     const payload = {
       // if backend needs clinic filtering, add it here
@@ -424,24 +469,46 @@ const toDateToSend = hasDates
     };
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseDetailedReport`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/api/CaseOperation/CaseDetailedReport`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
       const raw = await res.json();
-      const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+
+      // normalize response so table always receives an array
+      const rows = Array.isArray(raw)
+        ? raw
+        : raw && typeof raw === "object"
+        ? [raw]
+        : [];
+
+      // support wrapped responses { data: [...] } or { result: [...] }
+      const normalizedRows = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.result)
+        ? raw.result
+        : rows;
+
+      // Remove message-only objects if backend returns { message: "Success" } without row keys
+      const cleanRows = normalizedRows.filter((x) => x && x.caseNo);
 
       // Optional UI fallback filtering by clinic if rows include clinicCode/centerCode/loginCode
       const filteredRows = clinicCode
-        ? rows.filter((x) => {
+        ? cleanRows.filter((x) => {
             const rowClinic = String(
               x?.clinicCode || x?.centerCode || x?.loginCode || ""
             ).toLowerCase();
-            return rowClinic ? rowClinic === String(clinicCode).toLowerCase() : true;
+            return rowClinic
+              ? rowClinic === String(clinicCode).toLowerCase()
+              : true;
           })
-        : rows;
+        : cleanRows;
 
       setReportData(filteredRows);
       setShowResults(true);
@@ -547,11 +614,24 @@ const toDateToSend = hasDates
   // Render up to 5 numbered buttons around current page
   const pageNumbers = useMemo(() => {
     const maxBtns = 5;
-    if (totalPages <= maxBtns) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    if (totalPages <= maxBtns)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
     if (currentPage <= 3) return [1, 2, 3, 4, 5];
     if (currentPage >= totalPages - 2)
-      return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-    return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+      return [
+        totalPages - 4,
+        totalPages - 3,
+        totalPages - 2,
+        totalPages - 1,
+        totalPages,
+      ];
+    return [
+      currentPage - 2,
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      currentPage + 2,
+    ];
   }, [currentPage, totalPages]);
 
   return (
@@ -568,11 +648,19 @@ const toDateToSend = hasDates
         <div className="date-grid">
           <div className="fg">
             <label>From Date</label>
-            <input type="date" value={filters.fromDate} onChange={handleDate("fromDate")} />
+            <input
+              type="date"
+              value={filters.fromDate}
+              onChange={handleDate("fromDate")}
+            />
           </div>
           <div className="fg">
             <label>To Date</label>
-            <input type="date" value={filters.toDate} onChange={handleDate("toDate")} />
+            <input
+              type="date"
+              value={filters.toDate}
+              onChange={handleDate("toDate")}
+            />
           </div>
         </div>
 
@@ -634,7 +722,11 @@ const toDateToSend = hasDates
           <div className="fg">
             <label>Case Source</label>
             <Select
-              isDisabled={!filters.caseMedium || !filters.categoryCode || sourceOptions.length === 0}
+              isDisabled={
+                !filters.caseMedium ||
+                !filters.categoryCode ||
+                sourceOptions.length === 0
+              }
               options={sourceOptions}
               value={filters.caseSource}
               onChange={handleSingle("caseSource")}
@@ -655,7 +747,6 @@ const toDateToSend = hasDates
           <div className="fg">
             <label>Case Disposition</label>
             <CreatableSelect
-              
               options={dispositionOptions}
               value={filters.caseDispositions}
               onChange={handleMulti("caseDispositions")}
@@ -678,7 +769,6 @@ const toDateToSend = hasDates
           <div className="fg">
             <label>Client Threat</label>
             <Select
-              
               options={clientThreatOptions}
               value={filters.clientThreats}
               onChange={handleMulti("clientThreats")}
@@ -702,7 +792,11 @@ const toDateToSend = hasDates
           <button className="primary" onClick={handleView} disabled={loading}>
             {loading ? "Loading..." : "View"}
           </button>
-          <button className="secondary" onClick={handleExport} disabled={!reportData.length}>
+          <button
+            className="secondary"
+            onClick={handleExport}
+            disabled={!reportData.length}
+          >
             Export
           </button>
           <button onClick={handleClear}>Clear</button>
@@ -747,7 +841,10 @@ const toDateToSend = hasDates
                 <tbody>
                   {pageRows.length === 0 ? (
                     <tr>
-                      <td colSpan={15} style={{ textAlign: "center", padding: 16 }}>
+                      <td
+                        colSpan={15}
+                        style={{ textAlign: "center", padding: 16 }}
+                      >
                         No data
                       </td>
                     </tr>

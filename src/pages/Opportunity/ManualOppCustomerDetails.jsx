@@ -1599,8 +1599,8 @@ const subMediumName = safe(form.subMedium || "Manual");
   };
 
   const lockForm = isEdit && isClosed;
-     const loggedInMobile = "8454801741";         // replace with your real logged-in user mobile
-  const clientMobile = "9819061936"; 
+     const loggedInMobile = "501947803";         // replace with your real logged-in user mobile
+  const clientMobile = "550355156"; 
 
   /** ---------------- UI ---------------- */
   return (
@@ -1664,14 +1664,14 @@ const subMediumName = safe(form.subMedium || "Manual");
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
 
-           {/*  <CallButton
+            <CallButton
   firstNumber={loggedInMobile}
   secondNumber={clientMobile}
   leadId={numericLeadOppId || undefined} // optional as per doc
   label="Call Client"
   onSuccess={(data) => console.log("Call OK:", data)}
   onError={(e) => console.error("Call failed:", e)}
-/> */}
+/> 
 
             <div className="subTitle"></div>
           </div>
