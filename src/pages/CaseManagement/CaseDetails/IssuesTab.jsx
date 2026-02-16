@@ -25,6 +25,8 @@ const firstNonEmpty = (...vals) => {
   return "";
 };
 
+
+
 // email helpers
 const splitEmails = (s) =>
   (s ?? "")
@@ -118,6 +120,21 @@ const IssuesTab = forwardRef(
         );
       }
     }, [formValues.response, onResponseChange]);
+
+    
+const moreCcRef = useRef(null);
+
+const insertAtCursor = (el, text) => {
+  if (!el) return;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+
+  // Insert text at cursor
+  el.setRangeText(text, start, end, "end");
+
+  // Sync React state
+  setFormValues((prev) => ({ ...prev, moreCc: el.value }));
+};
 
     // Seed from case (strictly from API)
     useEffect(() => {
@@ -525,12 +542,16 @@ const computedCc = useMemo(() => {
       }
 
       if (name === "moreCc") {
-        const cleaned = trim(
-          value.replace(/\s*,\s*/g, ",").replace(/,+$/g, "")
-        );
-        setFormValues((prev) => ({ ...prev, moreCc: cleaned }));
-        return;
-      }
+  const cleanedLive = (value || "")
+    .replace(/؛/g, ",")
+    .replace(/;/g, ",")
+    .replace(/،/g, ",")          // Arabic comma -> comma
+    .replace(/\s*,\s*/g, ",")    // normalize spaces around commas
+    .replace(/,{2,}/g, ",");     // collapse multiple commas
+  setFormValues((prev) => ({ ...prev, moreCc: cleanedLive }));
+  return;
+}
+
 
       setFormValues((prev) => ({
         ...prev,
@@ -670,6 +691,7 @@ const computedCc = useMemo(() => {
             name="clientThreat"
             value={formValues.clientThreat || ""}
             onChange={handleChange}
+            disabled
           >
             <option value="">-- Select --</option>
             <option value="Legal">Legal</option>
@@ -942,12 +964,21 @@ const computedCc = useMemo(() => {
 
           <div className="form-group">
             <label>More CC</label>
-            <textarea
-              name="moreCc"
-              value={formValues.moreCc || ""}
-              onChange={handleChange}
-              rows="5"
-            />
+           <textarea
+  name="moreCc"
+  value={formValues.moreCc || ""}
+  onChange={handleChange}
+  rows="5"
+  onBlur={() => {
+    setFormValues((prev) => ({
+      ...prev,
+      moreCc: trim((prev.moreCc || "").replace(/,+$/g, "")),
+    }));
+  }}
+/>
+
+
+
           </div>
 
           <div className="form-group">
