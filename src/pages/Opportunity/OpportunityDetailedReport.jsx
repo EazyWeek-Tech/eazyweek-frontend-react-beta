@@ -734,96 +734,70 @@ reasons: pickCI(x, [
   /* ===========================
      Export to Excel (.xlsx)
      =========================== */
-  async function exportExcel() {
-    if (!rows.length) return;
+ async function exportExcel() {
+  if (!rows.length) return;
 
-    const headers = [
-      "From Date",
-      "To Date",
-      "Created Date",
-      "Lead ID",
-      "Lead Name",
-      "Campaign Name",
-      "Campaign Status",
-      "Converted",
-      "OppStatus",
-     // "Created By",
-      "Closed By",
-      "Sales Owner",     //  NEW
-  "Reasons",         //  NEW
-    //  "WIP",
-      "Clinic",
-      "Campaign Code",
-    ];
+  // ✅ Keep headers exactly aligned with data columns below
+  const headers = [
+    "Created Date",
+    "Lead ID",
+    "Lead Name",
+    "Campaign Name",
+    "Campaign Status",
+    "Converted",
+    "Lead Status",
+    "Sales Owner",
+    "Reasons",
+    "Modified By",
+    "Clinic",
+    "Campaign Code",
+  ];
 
-    const aoa = [
-      headers,
-      ...rows.map((r) => [
-        r.fromDate,
-        r.toDate,
-        r.createdDate,
-        r.leadId ?? "",
-        r.leadName ?? "",
-        r.oppName ?? "",
-        r.campaignStatus ?? "",
-        r.converted ?? "",
-        r.oppStatus ?? "",
-        r.salesOwner ?? "",   //  NEW
-  r.reasons ?? "",      //  NEW
-      //  r.wip ?? "",
-      
-      //  r.createdBy ?? "",
-        r.closedBy ?? "",
-        r.clinic ?? "",
-        r.oppCode ?? "",
-      ]),
-    ];
+  const aoa = [
+    headers,
+    ...rows.map((r) => [
+      r.createdDate ?? "",
+      r.leadId ?? "",
+      r.leadName ?? "",
+      r.oppName ?? "",
+      r.campaignStatus ?? "",
+      r.converted ?? "",
+      r.oppStatus ?? "",
+      r.salesOwner ?? "",
+      r.reasons ?? "",
+      r.closedBy ?? "",   // 🔁 You are showing "Modified By" column in UI but using closedBy value
+      r.clinic ?? "",
+      r.oppCode ?? "",
+    ]),
+  ];
 
-    const XLSXMod = await import("xlsx");
-    const XLSX = XLSXMod.default || XLSXMod;
+  const XLSXMod = await import("xlsx");
+  const XLSX = XLSXMod.default || XLSXMod;
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    ws["!cols"] = headers.map((h, idx) => {
-      const maxLen = Math.max(
-        h.length,
-        ...rows.map((r) =>
-          String(
-            [
-              r.fromDate,
-  r.toDate,
-  r.createdDate,
-  r.leadId ?? "",
-  r.leadName ?? "",
-  r.oppName ?? "",
-  r.campaignStatus ?? "",
-  r.converted ?? "",
-  r.oppStatus ?? "",
- // r.createdBy ?? "",
-  r.closedBy ?? "",
-  r.salesOwner ?? "",
-  r.reasons ?? "",
-  r.clinic ?? "",
-  r.oppCode ?? "",
-            ][idx] ?? ""
-          ).length
-        )
-      );
-      return { wch: Math.min(Math.max(12, maxLen + 2), 40) };
-    });
+  // ✅ Auto width based on aoa (so it always matches)
+  ws["!cols"] = headers.map((h, cIdx) => {
+    const maxLen = Math.max(
+      h.length,
+      ...rows.map((r) => String(aoa[rows.indexOf(r) + 1]?.[cIdx] ?? "").length)
+    );
+    return { wch: Math.min(Math.max(12, maxLen + 2), 40) };
+  });
 
-    ws["!autofilter"] = {
-      ref: XLSX.utils.encode_range({
-        s: { r: 0, c: 0 },
-        e: { r: aoa.length - 1, c: headers.length - 1 },
-      }),
-    };
+  ws["!autofilter"] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: aoa.length - 1, c: headers.length - 1 },
+    }),
+  };
 
-    XLSX.utils.book_append_sheet(wb, ws, "Opportunity Detail");
-    const fname = `Opportunity_Detailed_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, fname);
-  }
+  XLSX.utils.book_append_sheet(wb, ws, "Opportunity Detail");
+  const fname = `Opportunity_Detailed_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
 
   return (
     <div className="wrap">
@@ -840,7 +814,7 @@ reasons: pickCI(x, [
       <div className="filters">
         <div className="grid">
           <div className="frow">
-            <label>From Date</label>
+            <label>Created From Date</label>
             <input
               type="date"
               value={fromDate}
@@ -849,7 +823,7 @@ reasons: pickCI(x, [
           </div>
 
           <div className="frow">
-            <label>To Date</label>
+            <label>Created To Date</label>
             <input
               type="date"
               value={toDate}
@@ -945,8 +919,8 @@ reasons: pickCI(x, [
         <table className="tbl">
           <thead>
             <tr>
-              <th>From Date</th>
-              <th>To Date</th>
+             {/*  <th>From Date</th>
+              <th>To Date</th> */}
               <th>Created Date</th>
               <th>Lead ID</th>
               <th>Lead Name</th>
@@ -958,7 +932,7 @@ reasons: pickCI(x, [
               <th>Sales Owner</th>
 <th>Reasons</th>
               {/* <th>Created By</th> */}
-              <th>Closed By</th>
+              <th>Modified By</th>
             {/*   <th>WIP</th> */}
               <th>Clinic</th>
             </tr>
@@ -983,12 +957,12 @@ reasons: pickCI(x, [
             {!loading &&
               pageRows.map((r, idx) => (
                 <tr key={`${r.key}-${idx}`}>
-                  <td>
+                  {/* <td>
                     <button className="link" onClick={() => onClickOpp(r.oppCode)}>
                       {r.fromDate}
                     </button>
                   </td>
-                  <td>{r.toDate}</td>
+                  <td>{r.toDate}</td> */}
                   <td>{r.createdDate}</td>
                   <td>{r.leadId}</td>
                   <td>{r.leadName}</td>
