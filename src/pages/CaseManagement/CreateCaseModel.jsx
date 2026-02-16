@@ -24,22 +24,107 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [centers, setCenters] = useState([]);
+  const [assignSearch, setAssignSearch] = useState("");
+const [assignOpen, setAssignOpen] = useState(false);
+const [assignActiveIndex, setAssignActiveIndex] = useState(-1);
+const assignWrapRef = useRef(null);
 
+ const [formValues, setFormValues] = useState({
+    title: "",
+    category: "",
+    subcategory: "",
+    subSubcategory: "",
+    subSubSubcategory: "",
+    caseMedium: "",
+    caseSource: "",
+    priority: "",
+    customer: "",
+    customerCode: "",
+    product: "",
+    service: "",
+    serviceCategory: "",
+    assignedTo: "",
+    employeeCode: "",
+    owner: "",
+    issuedesciption: "",
+    clientThreat: "",
+    therapist: "",
+    doctorCode: "",
+    firsttimeresolution: "",
+    response: "",
+    employeno: "",
+    assignedemailid: "",
+    email: "",
+    emailDisplay: "",
+    cc: "",
+    moreCC: "",
+    specificResolution: "",
+    remarks: "",
+  });
 
   // holds the real case no once server generates it
   const [caseNo, setCaseNo] = useState("");
 
   const toastRef = useRef(null);
 
+  const pickEmployee = (emp) => {
+  if (!emp) return;
+
+  handleChange("employeeCode", emp.employeeCode || "");
+  handleChange("employeno", emp.mobileNo || "");
+  handleChange("email", emp.emailID || "");
+  handleChange("emailDisplay", emp.employeeName || "");
+
+  setAssignSearch(emp.employeeName || "");
+  setAssignOpen(false);
+  setAssignActiveIndex(-1);
+
+  setValidationErrors((prev) => ({
+    ...prev,
+    employeeCode: null,
+    email: null,
+  }));
+};
+
+const filteredEmployees = (employees || []).filter((emp) => {
+  const q = (assignSearch || "").toLowerCase().trim();
+  if (!q) return true;
+  const name = (emp.employeeName || "").toLowerCase();
+  const code = (emp.employeeCode || "").toLowerCase();
+  const mobile = (emp.mobileNo || "").toLowerCase();
+  const email = (emp.emailID || "").toLowerCase();
+  return (
+    name.includes(q) ||
+    code.includes(q) ||
+    mobile.includes(q) ||
+    email.includes(q)
+  );
+});
+
+// Close dropdown on outside click
+useEffect(() => {
+  const onDocDown = (e) => {
+    if (!assignWrapRef.current) return;
+    if (!assignWrapRef.current.contains(e.target)) {
+      setAssignOpen(false);
+      setAssignActiveIndex(-1);
+    }
+  };
+  document.addEventListener("mousedown", onDocDown);
+  return () => document.removeEventListener("mousedown", onDocDown);
+}, []);
+
+// Keep search box in sync if employeeCode is set from API/config
+useEffect(() => {
+  if (!formValues.employeeCode) return;
+  const emp = (employees || []).find((x) => x.employeeCode === formValues.employeeCode);
+  if (emp?.employeeName) setAssignSearch(emp.employeeName);
+}, [formValues.employeeCode, employees]);
+
+
   // App-level toast (fixed position)
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
-  const toastTimer = useRef(null);
-  const showToast = (message, type = "success", timeout = 4000) => {
-    setToast({ visible: true, message, type });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), timeout);
-  };
-  useEffect(() => () => toastTimer.current && clearTimeout(toastTimer.current), []);
+
 
   const fetchCenters = async () => {
   try {
@@ -56,7 +141,20 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   }
 };
 
-fetchCenters();
+useEffect(() => {
+  fetchCenters();
+}, []); // run once on mount
+
+
+
+  const toastTimer = useRef(null);
+  const showToast = (message, type = "success", timeout = 4000) => {
+    setToast({ visible: true, message, type });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), timeout);
+  };
+  useEffect(() => () => toastTimer.current && clearTimeout(toastTimer.current), []);
+
 
 
   // Install global fetch logger once
@@ -412,38 +510,7 @@ fetchCenters();
     }
   }, [currentUser]);
 
-  const [formValues, setFormValues] = useState({
-    title: "",
-    category: "",
-    subcategory: "",
-    subSubcategory: "",
-    subSubSubcategory: "",
-    caseMedium: "",
-    caseSource: "",
-    priority: "",
-    customer: "",
-    customerCode: "",
-    product: "",
-    service: "",
-    serviceCategory: "",
-    assignedTo: "",
-    employeeCode: "",
-    owner: "",
-    issuedesciption: "",
-    clientThreat: "",
-    therapist: "",
-    doctorCode: "",
-    firsttimeresolution: "",
-    response: "",
-    employeno: "",
-    assignedemailid: "",
-    email: "",
-    emailDisplay: "",
-    cc: "",
-    moreCC: "",
-    specificResolution: "",
-    remarks: "",
-  });
+ 
 
   const handleChange = (field, value) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
@@ -1627,35 +1694,124 @@ const getCenterName = () => {
               </div>
 
               {/* Assigned To (required) */}
-              <div className="form-group">
-                <label htmlFor="assignedTo">
-                  Assigned To <span style={{ color: "red" }}>*</span>
-                </label>
-                <select
-                  id="assignedTo"
-                  value={formValues.employeeCode || ""}
-                  onChange={(e) => {
-                    const selectedCode = e.target.value;
-                    const selectedEmp = employees.find((emp) => emp.employeeCode === selectedCode);
-                    handleChange("employeeCode", selectedCode);
-                    handleChange("employeno", selectedEmp?.mobileNo || "");
-                    handleChange("email", selectedEmp?.emailID || "");
-                    handleChange("emailDisplay", selectedEmp?.employeeName || "");
-                    setValidationErrors((prev) => ({ ...prev, employeeCode: null, email: null }));
-                  }}
-                  className={validationErrors.employeeCode ? "error-border" : ""}
-                >
-                  <option value="">Select Employee</option>
-                  {employees.map((emp, index) => (
-                    <option key={`${emp.employeeCode}-${emp.recId}-${index}`} value={emp.employeeCode}>
-                      {emp.employeeName}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.employeeCode && (
-                  <div className="error-text">{validationErrors.employeeCode}</div>
-                )}
-              </div>
+              {/* Assigned To (required) - AUTOCOMPLETE */}
+<div className="form-group" ref={assignWrapRef} style={{ position: "relative" }}>
+  <label htmlFor="assignedToSearch">
+    Assigned To <span style={{ color: "red" }}>*</span>
+  </label>
+
+  <input
+    id="assignedToSearch"
+    type="text"
+    placeholder="Type name / code / mobile / email..."
+    value={assignSearch}
+    onChange={(e) => {
+      const v = e.target.value;
+      setAssignSearch(v);
+      setAssignOpen(true);
+      setAssignActiveIndex(-1);
+
+      // If user starts typing again, clear selection to force re-pick
+      handleChange("employeeCode", "");
+      handleChange("employeno", "");
+      handleChange("email", "");
+      handleChange("emailDisplay", "");
+
+      setValidationErrors((prev) => ({
+        ...prev,
+        employeeCode: v.trim() ? "Please select an employee from the list." : "Assigned To is required.",
+        email: null,
+      }));
+    }}
+    onFocus={() => setAssignOpen(true)}
+    onKeyDown={(e) => {
+      if (!assignOpen) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAssignActiveIndex((i) => Math.min(i + 1, filteredEmployees.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAssignActiveIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const emp = filteredEmployees[assignActiveIndex];
+        if (emp) pickEmployee(emp);
+      } else if (e.key === "Escape") {
+        setAssignOpen(false);
+        setAssignActiveIndex(-1);
+      }
+    }}
+    className={validationErrors.employeeCode ? "error-border" : ""}
+    autoComplete="off"
+  />
+
+  {validationErrors.employeeCode && (
+    <div className="error-text">{validationErrors.employeeCode}</div>
+  )}
+
+  {assignOpen && filteredEmployees.length > 0 && (
+    <div
+      className="autocomplete-menu"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: "58px",
+        zIndex: 9999,
+        background: "#fff",
+        border: "1px solid #ddd",
+        borderTop: "none",
+        maxHeight: 220,
+        overflowY: "auto",
+      }}
+    >
+      {filteredEmployees.slice(0, 50).map((emp, idx) => {
+        const active = idx === assignActiveIndex;
+        return (
+          <div
+            key={`${emp.employeeCode}-${emp.recId ?? idx}`}
+            onMouseDown={(e) => {
+              // prevent input blur before click
+              e.preventDefault();
+              pickEmployee(emp);
+            }}
+            onMouseEnter={() => setAssignActiveIndex(idx)}
+            style={{
+              padding: "8px 10px",
+              cursor: "pointer",
+              background: "#fff",
+              borderBottom: "1px solid #eee",
+            }}
+          >
+            <div style={{ fontWeight: 400 }}>
+              {emp.employeeName}
+             
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  {assignOpen && filteredEmployees.length === 0 && (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: "100%",
+        zIndex: 9999,
+        background: "#fff",
+        border: "1px solid #ddd",
+        padding: "8px 10px",
+      }}
+    >
+      No matches
+    </div>
+  )}
+</div>
+
 
               {/* Email (required) */}
               <div className="form-group">
