@@ -556,6 +556,115 @@ await sendCaseMail(mailPayload, setToast); // ✅ only once
   }
 }
 
+// --------------------------------------------
+// Session sync (centerCode) helpers
+// --------------------------------------------
+const SESSION_SET_API = (base) => `${base}/api/session/set`;
+
+const readUserSessionRaw = () => {
+  // Try common keys (your app uses UserSession/sessionId etc.)
+  const keys = ["UserSession", "userSession", "sessionUser", "user", "userDetails", "currentUser", "authUser"];
+  for (const k of keys) {
+    const raw = localStorage.getItem(k) ?? sessionStorage.getItem(k);
+    if (!raw) continue;
+    try {
+      const obj = JSON.parse(raw);
+      const loginCode = firstNonEmpty(obj?.loginCode, obj?.LoginCode, obj?.topCode, obj?.TopCode);
+      const topCode = firstNonEmpty(obj?.topCode, obj?.TopCode, obj?.loginCode, obj?.LoginCode);
+      const userID = firstNonEmpty(obj?.userID, obj?.userId, obj?.UserID, obj?.employeeCode, obj?.empCode);
+      if (loginCode || topCode || userID) {
+        return {
+          key: k,
+          rawObj: obj,
+          loginCode: trim(loginCode),
+          topCode: trim(topCode),
+          userID: trim(userID),
+        };
+      }
+    } catch {}
+  }
+
+  // fallback direct keys
+  const loginCode = trim(localStorage.getItem("loginCode") ?? sessionStorage.getItem("loginCode"));
+  const topCode = trim(localStorage.getItem("topCode") ?? sessionStorage.getItem("topCode"));
+  const userID = trim(localStorage.getItem("userID") ?? sessionStorage.getItem("userID"));
+  if (loginCode || topCode || userID) return { key: null, rawObj: null, loginCode, topCode, userID };
+
+  return null;
+};
+
+const writeUserSessionCenter = ({ centerCode, userID }) => {
+  // update common direct keys (safe)
+  localStorage.setItem("loginCode", centerCode);
+  localStorage.setItem("topCode", centerCode);
+  if (userID) localStorage.setItem("userID", userID);
+
+  sessionStorage.setItem("loginCode", centerCode);
+  sessionStorage.setItem("topCode", centerCode);
+  if (userID) sessionStorage.setItem("userID", userID);
+
+  // update JSON object if present
+  const keys = ["UserSession", "userSession"];
+  for (const k of keys) {
+    const raw = localStorage.getItem(k) ?? sessionStorage.getItem(k);
+    if (!raw) continue;
+    try {
+      const obj = JSON.parse(raw);
+      obj.loginCode = centerCode;
+      obj.topCode = centerCode;
+      if (userID) obj.userID = obj.userID || userID;
+
+      // write back to BOTH storages (covers whichever your app reads later)
+      localStorage.setItem(k, JSON.stringify(obj));
+      sessionStorage.setItem(k, JSON.stringify(obj));
+    } catch {}
+  }
+};
+
+async function syncSessionCenterIfNeeded({ apiCenterCode, apiBaseUrl }) {
+  const centerFromApi = trim(apiCenterCode);
+  if (!centerFromApi) return { didSync: false, reason: "API centerCode empty" };
+
+  const current = readUserSessionRaw();
+  const currentLogin = trim(current?.loginCode);
+  const currentTop = trim(current?.topCode);
+  const userID = trim(current?.userID);
+
+  // if missing userID, still allow sync but call may fail depending on backend rules
+  const same =
+    currentLogin.toLowerCase() === centerFromApi.toLowerCase() &&
+    currentTop.toLowerCase() === centerFromApi.toLowerCase();
+
+  if (same) return { didSync: false, reason: "Already matching" };
+
+  // prevent infinite loop
+  const guardKey = `__center_sync_done__${centerFromApi}`;
+  if (sessionStorage.getItem(guardKey) === "1") {
+    return { didSync: false, reason: "Guard active (already tried)" };
+  }
+  sessionStorage.setItem(guardKey, "1");
+
+  // call backend session set
+  const payload = { loginCode: centerFromApi, topCode: centerFromApi, userID: userID || "" };
+
+  const res = await fetch(SESSION_SET_API(apiBaseUrl), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const txt = await res.text();
+  if (!res.ok) {
+    throw new Error(`Session set failed: HTTP ${res.status} ${res.statusText} - ${txt.slice(0, 160)}`);
+  }
+
+  // update local/session storage too (frontend uses it everywhere)
+  writeUserSessionCenter({ centerCode: centerFromApi, userID });
+
+  return { didSync: true, reason: "Session updated" };
+}
+
 
 // --------------------------------------------
 // Component
@@ -640,6 +749,33 @@ const CaseDetailsPage = () => {
         );
         const data = await response.json();
 
+
+        // ✅ NEW requirement: auto-sync session centerCode if mismatch
+try {
+  const apiCenter = trim(data?.centerCode); // e.g. "Bright"
+  const didTryKey = `__case_center_sync__${caseNumber}`;
+
+  // run only once per caseNumber load
+  if (apiCenter && sessionStorage.getItem(didTryKey) !== "1") {
+    sessionStorage.setItem(didTryKey, "1");
+
+    const sync = await syncSessionCenterIfNeeded({
+      apiCenterCode: apiCenter,
+      apiBaseUrl: API_BASE_URL,
+    });
+
+    if (sync?.didSync) {
+      // ✅ reload same page (keeps same route)
+      window.location.reload();
+      return; // stop further mapping/render
+    }
+  }
+} catch (e) {
+  console.error("Center sync failed:", e);
+  // do NOT block page if sync fails
+}
+
+
         const mappedCurrentCode = trim(firstNonEmpty(data.caseWithCode, data.caseWithCode));
         const mappedCurrentName = trim(firstNonEmpty(data.caseWithName, data.caseWithName));
 
@@ -704,7 +840,15 @@ const CaseDetailsPage = () => {
           moreCc: trim(data.moreCC),
           remarks: trim(data.remarks),
 
-          categorySpecificResolution: trim(data.specificResolutionName || data.categorySpecificResolution),
+          categorySpecificResolution: trim(
+  firstNonEmpty(
+    data.specificResolutionName,
+    data.specificResolutionCode,          // ✅ fallback (your case)
+    data.categorySpecificResolution,
+    data.specificResolution
+  )
+),
+
 
           materialCost: data.materialCost ?? 0,
           labourCost: data.labourCOst ?? 0,
