@@ -32,6 +32,46 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const fromSessionCenterCode = (sessionCode) =>
     sessionCode === NOZONE_SESSION_CODE ? NOZONE_UI_CODE : sessionCode;
 
+  const clearCenterStickyKeys = () => {
+  const keys = [
+    "loginCode",
+    "topCode",
+    "userID",
+    "userId",
+    "LoginCode",
+    "TopCode",
+  ];
+
+  try {
+    keys.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+
+    // ✅ also clean inside JSON session blobs (very important)
+    const jsonKeys = ["userSession", "UserSession"];
+    jsonKeys.forEach((jk) => {
+      const raw = localStorage.getItem(jk) || sessionStorage.getItem(jk);
+      if (!raw) return;
+
+      try {
+        const obj = JSON.parse(raw);
+        delete obj.loginCode;
+        delete obj.LoginCode;
+        delete obj.topCode;
+        delete obj.TopCode;
+        delete obj.userID;
+        delete obj.userId;
+        localStorage.setItem(jk, JSON.stringify(obj));
+        sessionStorage.setItem(jk, JSON.stringify(obj));
+      } catch {}
+    });
+  } catch (e) {
+    console.error("clearCenterStickyKeys failed", e);
+  }
+};
+
+
   /* -------------------- headers helper -------------------- */
   const commonHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
   const headersFor = (method = "GET") => {
@@ -217,7 +257,10 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       }
 
       setSelectedClinic(clinic);
-      setDropdownOpen(false);
+setDropdownOpen(false);
+
+clearCenterStickyKeys();
+
 
       // 🔥 set session with mapped code
       await setSessionToApi(clinic.code);
