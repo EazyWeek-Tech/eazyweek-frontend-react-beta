@@ -748,7 +748,8 @@ reasons: pickCI(x, [
     "Lead Status",
     "Sales Owner",
     "Reasons",
-    "Modified By",
+    "Created By",
+    "Closed By",
     "Clinic",
     "Campaign Code",
   ];
@@ -765,7 +766,8 @@ reasons: pickCI(x, [
       r.oppStatus ?? "",
       r.salesOwner ?? "",
       r.reasons ?? "",
-      r.closedBy ?? "",   // 🔁 You are showing "Modified By" column in UI but using closedBy value
+      r.createdBy ?? "",
+      r.closedBy ?? "",   
       r.clinic ?? "",
       r.oppCode ?? "",
     ]),
@@ -930,9 +932,9 @@ reasons: pickCI(x, [
               <th>Converted</th>
               <th>Lead Status</th>
               <th>Sales Owner</th>
-<th>Reasons</th>
-              {/* <th>Created By</th> */}
-              <th>Modified By</th>
+              <th>Reasons</th>
+               <th>Created By</th> 
+              <th>Closed By</th>
             {/*   <th>WIP</th> */}
               <th>Clinic</th>
             </tr>
@@ -981,7 +983,7 @@ reasons: pickCI(x, [
                   
 <td>{r.salesOwner}</td>
 <td>{r.reasons}</td>
-                  {/* <td>{r.createdBy}</td> */}
+                   <td>{r.createdBy}</td> 
                   <td>{r.closedBy}</td>
 
                   {/* <td>{r.wip}</td> */}
@@ -1056,6 +1058,7 @@ table.tbl {
   position: sticky;
   top: 0;
   background: #fff;
+  white-space:nowrap;
   z-index: 2;
 }
 
@@ -1078,9 +1081,9 @@ table.tbl {
           text-align: left; font-size: 13px; color: #6c7688; font-weight: 700;
           padding: 10px 14px; border-bottom: 1px solid #eef1f6; position: sticky; top: 0; background: #fff; z-index: 1;
         }
-        .tbl tbody td { font-size: 12px; color: #1b2636; padding: 6px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: top; line-height: 1.35; }
+        .tbl tbody td { font-size: 12px; line-height: 18px; color: #1b2636; padding: 6px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: top; line-height: 1.35; }
 
-        .link { background: none; border: none; padding: 0;font-size: 12px; color: #2e5aac; cursor: pointer; font-weight: 600; text-align: left; }
+        .link { background: none; border: none; line-height: 18px; padding: 0;font-size: 12px; color: #2e5aac; cursor: pointer; font-weight: 600; text-align: left; }
         .link:hover { text-decoration: underline; }
 
         .loading, .empty { text-align: center; color: #6b7280; padding: 18px; }
