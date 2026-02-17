@@ -94,7 +94,7 @@ const isEmpty = (v) => v === null || v === undefined || String(v).trim() === "";
 const toProspectId = (leadOppId) => {
   const n = Number(leadOppId);
   if (!n || Number.isNaN(n)) return "—";
-  return `LD-${String(n).padStart(7, "0")}`;
+  return `LD-MN-${String(n).padStart(7, "0")}`;
 };
 
 // normalize string for lookups
