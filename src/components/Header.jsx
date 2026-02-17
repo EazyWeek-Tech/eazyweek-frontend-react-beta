@@ -245,22 +245,35 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
   };
 
   /* -------------------- logout -------------------- */
-  const handleLogout = (e) => {
-    e.preventDefault();
-    
-    localStorage.removeItem("user");
-localStorage.removeItem("userSession");
-localStorage.removeItem("ssoToken");
-localStorage.removeItem("remember");
+  const handleLogout = async (e) => {
+  e.preventDefault();
 
-sessionStorage.removeItem("user");
-sessionStorage.removeItem("userSession");
-sessionStorage.removeItem("ssoToken");
+  try {
+    // ✅ optional but BEST: tell backend to clear server session / cookies
+    await fetch(`${API_BASE_URL}/api/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+  } finally {
+    // ✅ HARD RESET — removes ALL cached junk
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (err) {
+      console.error("Storage clear failed", err);
+    }
 
-onLogout?.();
-navigate("/login", { replace: true });
+    // ✅ notify parent if needed
+    onLogout?.();
 
-  };
+    // ✅ redirect cleanly
+    navigate("/login", { replace: true });
+
+    // ✅ optional safety reload (ensures zero memory leaks)
+    window.location.reload();
+  }
+};
+
 
   const fullName = user
     ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
