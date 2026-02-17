@@ -624,7 +624,7 @@ export default function OpportunitySummaryReport() {
   "Created To Date": r.toDate || "",
   "OppName": r.oppName || "",
   "Campaign Status": r.campaignStatus || "",
-  "Total Opportunities(A+B+C)": r.totalOpportunities ?? "",
+  "Total Opportunities(A+B)": r.totalOpportunities ?? "",
   "Closed(A)": r.closedA ?? "",
   "Open(B)": r.openB ?? "",
   "WIP(C)": r.wipC ?? "",
