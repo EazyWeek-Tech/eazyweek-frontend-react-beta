@@ -32,6 +32,46 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const fromSessionCenterCode = (sessionCode) =>
     sessionCode === NOZONE_SESSION_CODE ? NOZONE_UI_CODE : sessionCode;
 
+  const clearCenterStickyKeys = () => {
+  const keys = [
+    "loginCode",
+    "topCode",
+    "userID",
+    "userId",
+    "LoginCode",
+    "TopCode",
+  ];
+
+  try {
+    keys.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+
+    // ✅ also clean inside JSON session blobs (very important)
+    const jsonKeys = ["userSession", "UserSession"];
+    jsonKeys.forEach((jk) => {
+      const raw = localStorage.getItem(jk) || sessionStorage.getItem(jk);
+      if (!raw) return;
+
+      try {
+        const obj = JSON.parse(raw);
+        delete obj.loginCode;
+        delete obj.LoginCode;
+        delete obj.topCode;
+        delete obj.TopCode;
+        delete obj.userID;
+        delete obj.userId;
+        localStorage.setItem(jk, JSON.stringify(obj));
+        sessionStorage.setItem(jk, JSON.stringify(obj));
+      } catch {}
+    });
+  } catch (e) {
+    console.error("clearCenterStickyKeys failed", e);
+  }
+};
+
+
   /* -------------------- headers helper -------------------- */
   const commonHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
   const headersFor = (method = "GET") => {
@@ -217,7 +257,10 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       }
 
       setSelectedClinic(clinic);
-      setDropdownOpen(false);
+setDropdownOpen(false);
+
+clearCenterStickyKeys();
+
 
       // 🔥 set session with mapped code
       await setSessionToApi(clinic.code);
@@ -245,22 +288,35 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
   };
 
   /* -------------------- logout -------------------- */
-  const handleLogout = (e) => {
-    e.preventDefault();
-    
-    localStorage.removeItem("user");
-localStorage.removeItem("userSession");
-localStorage.removeItem("ssoToken");
-localStorage.removeItem("remember");
+  const handleLogout = async (e) => {
+  e.preventDefault();
 
-sessionStorage.removeItem("user");
-sessionStorage.removeItem("userSession");
-sessionStorage.removeItem("ssoToken");
+  try {
+    // ✅ optional but BEST: tell backend to clear server session / cookies
+    await fetch(`${API_BASE_URL}/api/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+  } finally {
+    // ✅ HARD RESET — removes ALL cached junk
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (err) {
+      console.error("Storage clear failed", err);
+    }
 
-onLogout?.();
-navigate("/login", { replace: true });
+    // ✅ notify parent if needed
+    onLogout?.();
 
-  };
+    // ✅ redirect cleanly
+    navigate("/login", { replace: true });
+
+    // ✅ optional safety reload (ensures zero memory leaks)
+    window.location.reload();
+  }
+};
+
 
   const fullName = user
     ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
