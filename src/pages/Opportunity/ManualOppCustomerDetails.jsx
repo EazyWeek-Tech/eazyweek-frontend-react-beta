@@ -1664,14 +1664,14 @@ const subMediumName = safe(form.subMedium || "Manual");
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
 
-            <CallButton
+           {/*  <CallButton
   firstNumber={loggedInMobile}
   secondNumber={clientMobile}
   leadId={numericLeadOppId || undefined} // optional as per doc
   label="Call Client"
   onSuccess={(data) => console.log("Call OK:", data)}
   onError={(e) => console.error("Call failed:", e)}
-/> 
+/>  */}
 
             <div className="subTitle"></div>
           </div>
