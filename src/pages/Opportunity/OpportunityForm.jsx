@@ -21,10 +21,11 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     { value: "S5", label: "WhatsApp" },
     { value: "S6", label: "Instagram Post"  },
     { value: "S7", label: "Instagram Message"  },
+    { value: "S8", label: "Broadcast"  },
   ];
 
   const EXTERNAL_SUBSOURCE_MAP = {
-    S1: [
+    S1: [ 
       { value: "", label: "< - Select one - >" },
       { value: "SS1", label: "Instagram" },
       { value: "SS2", label: "Tiktok" },
@@ -57,6 +58,10 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     S7: [
       { value: "", label: "< - Select one - >" },
       { value: "SS1", label: "Outbound/Inbound" },
+    ],
+    S8: [
+      { value: "", label: "< - Select one - >" },
+      { value: "SS1", label: "" },
     ],
   };
 
