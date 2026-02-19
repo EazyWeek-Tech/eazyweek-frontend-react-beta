@@ -21,7 +21,6 @@ const OpportunityForm = ({ onBack, onNext, mode = "create" }) => {
     { value: "S5", label: "WhatsApp" },
     { value: "S6", label: "Instagram Post"  },
     { value: "S7", label: "Instagram Message"  },
-    { value: "S8", label: "Broadcast"  },
   ];
 
   const EXTERNAL_SUBSOURCE_MAP = {
