@@ -695,7 +695,8 @@ ExternalSubSource: "",
     // ✅ Dynamic
     base.ruleType = "2";
     base.ruleFetchType = "2";
-    base.ruleDays = diffDays;
+    //base.ruleDays = diffDays; -- Commented to get correct from and to dates for dynamic
+    base.ruleDays = "0";
   } else {
     // ✅ Static
     base.ruleType = "1";
