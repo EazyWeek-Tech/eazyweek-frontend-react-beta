@@ -398,7 +398,6 @@ const getCenterFromStorage = () => {
 
     // ✅ Source / SubSource options
   const [sourceOptions, setSourceOptions] = useState([
-    { label: "< - Select one - >", value: "" },
   ]);
   const [subSourceOptions, setSubSourceOptions] = useState([
   ]);

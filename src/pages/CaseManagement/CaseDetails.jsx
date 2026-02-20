@@ -427,9 +427,11 @@ function buildCaseMailPayload({
   const normalizedToList = cleanupList(selected?.email || "");
   const emailToFirst =
     normalizedToList.split(",").find((x) => isLikelyEmail(x)) || clean(selected?.email);
+// Keep existing cc + always include case owner email in CC (not To)
+// Also keep "moreCc" behavior as-is (it already appends ownerEmail there)
+const emailCC = appendEmailToList(cleanupList(selected?.cc || ""), ownerEmail);
+const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
-  const emailCC = cleanupList(selected?.cc || "");
-  const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
   return {
     emailTo: emailToFirst,
@@ -523,13 +525,17 @@ async function triggerCaseMail({
       ),
     };
     
-    const ownerEmail =
+   const ownerEmail =
   trim(
+    selected?.caseOwnerEmail ||
+    selected?.ownerEmail ||
+    selected?.caseOwnerEMailID ||
     selectedCaseData?.caseOwnerEmail ||
     selectedCaseData?.ownerEmail ||
     selectedCaseData?.caseOwnerEMailID ||
     ""
   ) || "";
+
 
   const centerNameResolved = await resolveCenterNameForMail({
   generalData,

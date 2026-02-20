@@ -1898,8 +1898,9 @@ button.disabled {
 .actual-placeholder {
   padding: 12px 8px;
 }
-.actual-flow{display: flex; gap: 30px;margin: 20px 0;}
-.flow-item{display: flex;gap:30px;text-align: center;}
+.actual-flow{display: flex; gap: 10px;margin: 20px 0;max-width: 100%; overflow-x: auto;padding: 0 0 10px;}
+.sla-tables{max-width: 100%;}
+.flow-item{display: flex;gap:10px;text-align: center;}
 .flow-time > div{width: 100px;}
 
 .tabs-container form{width: calc(100% - 300px);}
