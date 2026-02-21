@@ -296,7 +296,22 @@ const [dateTouched, setDateTouched] = useState(false);
         const data = JSON.parse(text);
 
         if (!alive) return;
-        setCampaignHeader(data || null);
+        
+        
+        const minimal = data
+  ? {
+      oppCode: (data.oppCode ?? "").toString().trim(),
+      oppName: (data.oppName ?? "").toString().trim(),
+      oRuleCode: (data.oRuleCode ?? "").toString().trim(),
+      type: (data.oRuleDetails ?? data.oRuleCode ?? "").toString().trim(),
+
+      // ✅ campaign period from API
+      oppCampStartDate: data.oppCampStartDate ?? "",
+      oppCampEndDate: data.oppCampEndDate ?? "",
+    }
+  : null;
+
+setCampaignHeader(minimal);
 
         // ✅ set default date range from campaign if present
        /*  const cs = toISODateOnly(data?.oppCampStartDate);
@@ -560,14 +575,14 @@ const [dateTouched, setDateTouched] = useState(false);
             </div>
 
             {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
-              <div className="pair">
-                <span className="label">Campaign Period :</span>
-                <span className="value">
-                  {formatDDMMYYYY(uiHeader?.oppCampStartDate)} -{" "}
-                  {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
-                </span>
-              </div>
-            ) : null}
+  <div className="pair">
+    <span className="label">Campaign Period :</span>
+    <span className="value">
+      {formatDDMMYYYY(uiHeader?.oppCampStartDate)} -{" "}
+      {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
+    </span>
+  </div>
+) : null}
 
             {campaignLoading ? (
               <div style={{ fontSize: 12, color: "#64748b" }}>Loading campaign…</div>
