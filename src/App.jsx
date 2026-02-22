@@ -222,7 +222,8 @@ localStorage.removeItem("remember");
   element={<ManualOppCustomerDetails />}
   
 />
-<Route path="/opportunity/external/:oppCode" element={<ExternalLeadsTable />} />
+
+<Route path="/opportunity/external/:fromDate/:toDate/:oppCode" element={<ExternalLeadsTable />} />
 
 
  <Route
@@ -301,10 +302,8 @@ localStorage.removeItem("remember");
                     element={<DetailedReport />}
                   />
                   <Route path="/audit" element={<AuditDashboard />} />
-                  <Route
-                    path="/opportunity/details/:oppCode"
-                    element={<OpportunityDetails />}
-                  />
+                  <Route path="/opportunity/details/:fromDate/:toDate/:oppCode" element={<OpportunityDetails />} />
+
                   <Route
                     path="/opportunity/create"
                     element={<OpportunityForm mode="create" />}
