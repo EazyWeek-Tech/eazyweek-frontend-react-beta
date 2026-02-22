@@ -261,15 +261,6 @@ const [toDate, setToDate] = useState(() => getTodayInputDate());
 
 const [dateTouched, setDateTouched] = useState(false);
 
-// ✅ NEW: initialize date filters from URL params
-useEffect(() => {
-  const f = toISODateOnly(fromDateFromUrl);
-  const t = toISODateOnly(toDateFromUrl);
-
-  if (f) setFromDate(f);
-  if (t) setToDate(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [fromDateFromUrl, toDateFromUrl]);
 
   // sorting
   const [sortKey, setSortKey] = useState("");
