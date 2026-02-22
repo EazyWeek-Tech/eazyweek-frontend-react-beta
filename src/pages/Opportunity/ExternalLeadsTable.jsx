@@ -45,6 +45,11 @@ const formatDDMMYYYY = (v) => {
   return `${d}/${m}/${y}`;
 };
 
+const ddmmyyyyToISO = (s) => {
+  const m = String(s || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+};
+
 const safe = (v, fallback = "—") =>
   v === null || v === undefined || v === "" ? fallback : v;
 
@@ -81,55 +86,36 @@ const toTimeLabel12h = (hhmmss, ampm) => {
 const GET_CAMPAIGN_URL = (oppCode) =>
   `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`;
 
-// ✅ LoadOppDetails: try GET (querystring) first, fallback POST if needed
+// ✅ LoadOppDetails: POST only (correct backend method)
 const fetchOppDetails = async ({ oppCode, fromISO, toISO }) => {
-  const qs = new URLSearchParams();
-  qs.set("oppCode", String(oppCode || "").trim());
-  if (fromISO) qs.set("fromDate", `${fromISO}T00:00:00.000Z`);
-  if (toISO) qs.set("toDate", `${toISO}T23:59:59.999Z`);
+  const code = String(oppCode || "").trim();
 
-  // 1) Try GET ?oppCode=&fromDate=&toDate=
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/api/Opportunity/LoadOppDetails?${qs.toString()}`,
-      {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-      }
-    );
+  // keep dates safe (avoid sending "" or invalid -> SQL overflow)
+  const from = fromISO ? toISODateOnly(fromISO) : getTodayInputDate();
+  const to = toISO ? toISODateOnly(toISO) : getTodayInputDate();
 
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
-    const data = JSON.parse(text);
+  const payload = {
+    oppCode: code,
+    fromDate: `${from}T00:00:00.000Z`,
+    toDate: `${to}T23:59:59.999Z`,
+  };
 
-    // API might return single object or array
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    return data ? [data] : [];
-  } catch (e) {
-    // 2) Fallback POST with JSON body (in case backend expects body)
-    const payload = {
-      oppCode: String(oppCode || "").trim(),
-      fromDate: fromISO ? `${fromISO}T00:00:00.000Z` : new Date().toISOString(),
-      toDate: toISO ? `${toISO}T23:59:59.999Z` : new Date().toISOString(),
-    };
+  const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
 
-    const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
 
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
-    const data = JSON.parse(text);
+  const data = JSON.parse(text);
 
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.data)) return data.data;
-    return data ? [data] : [];
-  }
+  // API might return single object or array
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  return data ? [data] : [];
 };
 
 /** -----------------------------
@@ -296,7 +282,22 @@ const [dateTouched, setDateTouched] = useState(false);
         const data = JSON.parse(text);
 
         if (!alive) return;
-        setCampaignHeader(data || null);
+        
+        
+        const minimal = data
+  ? {
+      oppCode: (data.oppCode ?? "").toString().trim(),
+      oppName: (data.oppName ?? "").toString().trim(),
+      oRuleCode: (data.oRuleCode ?? "").toString().trim(),
+      type: (data.oRuleDetails ?? data.oRuleCode ?? "").toString().trim(),
+
+      // ✅ campaign period from API
+      oppCampStartDate: data.oppCampStartDate ?? "",
+      oppCampEndDate: data.oppCampEndDate ?? "",
+    }
+  : null;
+
+setCampaignHeader(minimal);
 
         // ✅ set default date range from campaign if present
        /*  const cs = toISODateOnly(data?.oppCampStartDate);
@@ -399,6 +400,21 @@ const [dateTouched, setDateTouched] = useState(false);
   // Filtered + sorted
   const filtered = useMemo(() => {
     let list = rows.slice();
+
+    // ✅ Filter by Created Date (createddate is dd/MM/yyyy from API)
+const fromISO = toISODateOnly(fromDate); // fromDate input: yyyy-MM-dd
+const toISO = toISODateOnly(toDate);     // toDate input: yyyy-MM-dd
+
+if (fromISO || toISO) {
+  list = list.filter((r) => {
+    const createdISO = ddmmyyyyToISO(r?.createddate); // "04/02/2026" -> "2026-02-04"
+    if (!createdISO) return false;
+
+    if (fromISO && createdISO < fromISO) return false;
+    if (toISO && createdISO > toISO) return false;
+    return true;
+  });
+}
 
     const s = searchTerm.trim().toLowerCase();
     if (s) list = list.filter((r) => (r.__q || "").includes(s));
@@ -560,14 +576,14 @@ const [dateTouched, setDateTouched] = useState(false);
             </div>
 
             {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
-              <div className="pair">
-                <span className="label">Campaign Period :</span>
-                <span className="value">
-                  {formatDDMMYYYY(uiHeader?.oppCampStartDate)} -{" "}
-                  {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
-                </span>
-              </div>
-            ) : null}
+  <div className="pair">
+    <span className="label">Campaign Period :</span>
+    <span className="value">
+      {formatDDMMYYYY(uiHeader?.oppCampStartDate)} -{" "}
+      {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
+    </span>
+  </div>
+) : null}
 
             {campaignLoading ? (
               <div style={{ fontSize: 12, color: "#64748b" }}>Loading campaign…</div>
