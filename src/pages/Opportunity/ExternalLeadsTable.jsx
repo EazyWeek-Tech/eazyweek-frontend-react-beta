@@ -45,6 +45,16 @@ const formatDDMMYYYY = (v) => {
   return `${d}/${m}/${y}`;
 };
 
+// ✅ NEW: dd-MM-yyyy for header
+const formatDDMMYYYYDash = (v) => {
+  if (!v) return "—";
+  const iso = toISODateOnly(v);
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return "—";
+  return `${d}-${m}-${y}`;
+};
+
 const ddmmyyyyToISO = (s) => {
   const m = String(s || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
@@ -208,12 +218,17 @@ x?.modifiedBy
 };
 export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const navigate = useNavigate();
-  const params = useParams();
+const params = useParams();
 
-  const oppCodeFromUrl = params?.oppCode || params?.OppCode || "";
-  const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "")
-    .toString()
-    .trim();
+// ✅ NEW: read from/to/oppCode from URL
+const fromDateFromUrl = params?.fromDate || "";
+const toDateFromUrl = params?.toDate || "";
+const oppCodeFromUrl = params?.oppCode || params?.OppCode || "";
+
+// ✅ same logic, but now oppCode comes from the new URL shape too
+const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "")
+  .toString()
+  .trim();
 
   // -----------------------------
   // Pagination
@@ -246,7 +261,15 @@ const [toDate, setToDate] = useState(() => getTodayInputDate());
 
 const [dateTouched, setDateTouched] = useState(false);
 
+// ✅ NEW: initialize date filters from URL params
+useEffect(() => {
+  const f = toISODateOnly(fromDateFromUrl);
+  const t = toISODateOnly(toDateFromUrl);
 
+  if (f) setFromDate(f);
+  if (t) setToDate(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [fromDateFromUrl, toDateFromUrl]);
 
   // sorting
   const [sortKey, setSortKey] = useState("");
@@ -571,16 +594,15 @@ if (fromISO || toISO) {
             <div className="pair">
               <span className="label">Rule Details :</span>
               <span className="value">
-                {safe(uiHeader?.oRuleDetails || uiHeader?.oRuleName || uiHeader?.oRuleCode)}
+               External Source
               </span>
             </div>
 
-            {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
+            {fromDateFromUrl || toDateFromUrl ? (
   <div className="pair">
     <span className="label">Campaign Period :</span>
     <span className="value">
-      {formatDDMMYYYY(uiHeader?.oppCampStartDate)} -{" "}
-      {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
+      {formatDDMMYYYYDash(fromDateFromUrl)} - {formatDDMMYYYYDash(toDateFromUrl)}
     </span>
   </div>
 ) : null}

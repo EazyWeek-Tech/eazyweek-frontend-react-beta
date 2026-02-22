@@ -567,44 +567,51 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
   const handleOpportunityClick = (row) => {
   if (!row) return;
 
-   console.log("Clicked row:", row);
+  const oppCode = String(row?.oppCode || "").trim();
+  if (!oppCode) return;
 
+  // ✅ decide from/to (use row dates if present, else fallback)
+  const now = new Date();
+  const fallbackFrom = toISODateOnly(new Date(new Date().setDate(now.getDate() - 13)));
+  const fallbackTo = toISODateOnly(new Date());
+
+  const from = toISODateOnly(row?.fromDate) || fallbackFrom;
+  const to = toISODateOnly(row?.toDate) || fallbackTo;
+
+  // ✅ External Leads route (R7) with from/to BEFORE oppCode
   if (isExternalLeadRow(row)) {
-    console.log("✅ External detected");
-  } else {
-    console.log("❌ External NOT detected");
-  }
-
-  const { oppCode, fromDate, toDate, oppName, oRuleDetails, oRuleXvalue } = row;
-
-  // ✅ External Leads route
-  if (isExternalLeadRow(row)) {
-    navigate(`/opportunity/external/${encodeURIComponent(oppCode)}`, {
-      state: {
-        oppName: oppName || undefined,
-        fromDate: toISODateOnly(fromDate),
-        toDate: toISODateOnly(toDate),
-        externalLead: true,
-      },
-    });
+    navigate(
+      `/opportunity/external/${encodeURIComponent(from)}/${encodeURIComponent(
+        to
+      )}/${encodeURIComponent(oppCode)}`,
+      {
+        state: {
+          oppName: row?.oppName || undefined,
+          fromDate: from,
+          toDate: to,
+          externalLead: true,
+        },
+      }
+    );
     return;
   }
 
-  // ✅ Manual Lead route (your existing one)
-  const now = new Date();
-  const from = fromDate ? fromDate : toISODateOnly(new Date(now.setDate(now.getDate() - 13)));
-  const to = toDate ? toDate : toISODateOnly(new Date());
-
-  navigate(`/opportunity/details/${oppCode}`, {
-    state: {
-      oppName: oppName || undefined,
-      oRuleDetails: oRuleDetails || undefined,
-      oRuleXvalue: oRuleXvalue || undefined,
-      fromDate: toISODateOnly(from),
-      toDate: toISODateOnly(to),
-      manualLead: isManualLeadRow(row),
-    },
-  });
+  // ✅ Normal route (details) with from/to BEFORE oppCode
+  navigate(
+    `/opportunity/details/${encodeURIComponent(from)}/${encodeURIComponent(
+      to
+    )}/${encodeURIComponent(oppCode)}`,
+    {
+      state: {
+        oppName: row?.oppName || undefined,
+        oRuleDetails: row?.oRuleDetails || undefined,
+        oRuleXvalue: row?.oRuleXvalue || undefined,
+        fromDate: from,
+        toDate: to,
+        manualLead: isManualLeadRow(row),
+      },
+    }
+  );
 };
 
 
