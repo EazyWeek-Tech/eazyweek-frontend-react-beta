@@ -532,33 +532,61 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
   };
 
   const handleRefresh = async () => {
-    const oppCode = 123; // ✅ as per your requirement
+  setLoading(true);
 
-    setLoading(true);
-    try {
-      // 1) Call GetLatestData first
-      const res1 = await fetch(`${API_BASE_URL}/api/Opportunity/GetLatestData/${oppCode}`, {
-        credentials: "include",
-      });
+  try {
+    let oppCodes = [];
 
-      if (!res1.ok) {
-        const errText = await res1.text();
-        throw new Error(`GetLatestData failed: HTTP ${res1.status} - ${errText.slice(0, 180)}`);
-      }
-
-      // 2) After GetLatestData completes, reload list with status = 1
-      setStatusFilter("1"); // keep UI in sync (Active)
-      setCurrentPage(1);
-      await fetchOpportunities("1"); // ✅ now also patches Manual Lead counts
-
-      showToast("Latest data loaded successfully!", "success");
-    } catch (e) {
-      console.error("Get Latest Data error:", e);
-      showToast(e?.message || "Failed to get latest data", "error");
-    } finally {
-      setLoading(false);
+    // ✅ If something is selected → refresh selected campaigns
+    if (selectedRows && selectedRows.length > 0) {
+      oppCodes = selectedRows
+        .map((id) => {
+          const row = (opportunityData || []).find(
+            (x) => (x.recID || x.oppCode) === id
+          );
+          return String(row?.oppCode || id || "").trim();
+        })
+        .filter(Boolean);
     }
-  };
+
+    // ✅ If nothing selected → refresh ALL using 123
+    if (oppCodes.length === 0) {
+      oppCodes = ["123"];
+    }
+
+    // 🔁 Call API (one-by-one if multiple)
+    for (const oppCode of oppCodes) {
+      const res = await fetch(
+        `${API_BASE_URL}/api/Opportunity/GetLatestData/${encodeURIComponent(oppCode)}`,
+        { credentials: "include" }
+      );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(
+          `GetLatestData failed for ${oppCode}: HTTP ${res.status} - ${errText.slice(0, 180)}`
+        );
+      }
+    }
+
+    // ✅ Reload dashboard data
+    setStatusFilter("1");
+    setCurrentPage(1);
+    await fetchOpportunities("1");
+
+    showToast(
+      oppCodes[0] === "123"
+        ? "Latest data loaded for all campaigns"
+        : `Latest data loaded for ${oppCodes.length} campaign(s)`,
+      "success"
+    );
+  } catch (e) {
+    console.error("Get Latest Data error:", e);
+    showToast(e?.message || "Failed to get latest data", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   /**
    * Navigate to /opportunity/details/{oppCode}
