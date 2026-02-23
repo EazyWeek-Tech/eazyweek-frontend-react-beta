@@ -606,6 +606,9 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
   const from = toISODateOnly(row?.fromDate) || fallbackFrom;
   const to = toISODateOnly(row?.toDate) || fallbackTo;
 
+    const segmentType = String(row?.segmentType || "").trim();
+
+
   // ✅ External Leads route (R7) with from/to BEFORE oppCode
   if (isExternalLeadRow(row)) {
     navigate(
@@ -618,6 +621,7 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
           fromDate: from,
           toDate: to,
           externalLead: true,
+          segmentType,
         },
       }
     );
