@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState, } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 /** -----------------------------
@@ -220,6 +220,14 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const navigate = useNavigate();
 const params = useParams();
 
+const location = useLocation();
+
+const segmentTypeFromState = location?.state?.segmentType || "";
+const segmentTypeFromUrl = params?.segmentType || "";
+const segmentType = String(segmentTypeFromState || segmentTypeFromUrl || "").trim();
+
+const isStaticSegment = segmentType.toLowerCase() === "static";
+
 // ✅ NEW: read from/to/oppCode from URL
 const fromDateFromUrl = params?.fromDate || "";
 const toDateFromUrl = params?.toDate || "";
@@ -256,12 +264,22 @@ const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "")
   const [searchTerm, setSearchTerm] = useState("");
 
   // optional date range for API
-  const [fromDate, setFromDate] = useState(() => getTodayInputDate());
-const [toDate, setToDate] = useState(() => getTodayInputDate());
+ const [fromDate, setFromDate] = useState(() => (isStaticSegment ? "" : getTodayInputDate()));
+const [toDate, setToDate] = useState(() => (isStaticSegment ? "" : getTodayInputDate()));
 
 const [dateTouched, setDateTouched] = useState(false);
 
-
+// ✅ NEW: force blank dates for Static segment, and restore defaults for non-static
+useEffect(() => {
+  if (isStaticSegment) {
+    setFromDate("");
+    setToDate("");
+  } else {
+    setFromDate((p) => (p ? p : getTodayInputDate()));
+    setToDate((p) => (p ? p : getTodayInputDate()));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isStaticSegment]);
   // sorting
   const [sortKey, setSortKey] = useState("");
   const [sortDir, setSortDir] = useState("asc"); // asc|desc
@@ -367,11 +385,15 @@ setCampaignHeader(minimal);
       setErr("");
 
       try {
-        const list = await fetchOppDetails({
-          oppCode: uiOppCode,
-          fromISO: fromDate ? toISODateOnly(fromDate) : "",
-          toISO: toDate ? toISODateOnly(toDate) : "",
-        });
+        // ✅ For Static segment, keep UI blank but still call API with safe dates
+const apiFrom = isStaticSegment ? getTodayInputDate() : (fromDate || getTodayInputDate());
+const apiTo = isStaticSegment ? getTodayInputDate() : (toDate || getTodayInputDate());
+
+const list = await fetchOppDetails({
+  oppCode: uiOppCode,
+  fromISO: apiFrom,
+  toISO: apiTo,
+});
 
         if (!alive) return;
         setRows((list || []).map(mapExternalRow));
@@ -389,7 +411,7 @@ setCampaignHeader(minimal);
     return () => {
       alive = false;
     };
-  }, [uiOppCode, isR7, campaignHeader, fromDate, toDate]);
+ }, [uiOppCode, isR7, campaignHeader, fromDate, toDate, isStaticSegment]);
 
   // Owner options
   const ownerOptions = useMemo(() => {
@@ -415,13 +437,12 @@ setCampaignHeader(minimal);
   const filtered = useMemo(() => {
     let list = rows.slice();
 
-    // ✅ Filter by Created Date (createddate is dd/MM/yyyy from API)
-const fromISO = toISODateOnly(fromDate); // fromDate input: yyyy-MM-dd
-const toISO = toISODateOnly(toDate);     // toDate input: yyyy-MM-dd
+   const fromISO = isStaticSegment ? "" : toISODateOnly(fromDate);
+const toISO = isStaticSegment ? "" : toISODateOnly(toDate);
 
 if (fromISO || toISO) {
   list = list.filter((r) => {
-    const createdISO = ddmmyyyyToISO(r?.createddate); // "04/02/2026" -> "2026-02-04"
+    const createdISO = ddmmyyyyToISO(r?.createddate);
     if (!createdISO) return false;
 
     if (fromISO && createdISO < fromISO) return false;
@@ -588,6 +609,12 @@ if (fromISO || toISO) {
                External Source
               </span>
             </div>
+           {/*  {segmentType ? (
+  <div className="pair">
+    <span className="label">Segment Type :</span>
+    <span className="value">{segmentType}</span>
+  </div>
+) : null} */}
 
             {fromDateFromUrl || toDateFromUrl ? (
   <div className="pair">
