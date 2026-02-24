@@ -133,6 +133,34 @@ const exportSummaryFileName = ({ fromDate, toDate, oppStatus, oppRule }) => {
 };
 
 /* ===========================
+   ✅ Querystring builder (supports arrays)
+   =========================== */
+const buildQS = (obj) => {
+  const qs = new URLSearchParams();
+
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    if (v === undefined || v === null) return;
+
+    // ✅ array → repeated query params (CampaignIds=1108&CampaignIds=1102)
+    if (Array.isArray(v)) {
+      v.forEach((item) => {
+        if (item === undefined || item === null) return;
+        const s = String(item).trim();
+        if (!s) return;
+        qs.append(k, s);
+      });
+      return;
+    }
+
+    const s = String(v).trim();
+    if (!s) return;
+    qs.set(k, s);
+  });
+
+  return qs.toString();
+};
+
+/* ===========================
    SearchableDropdown (single/multi)
    =========================== */
 function SearchableDropdown({
@@ -145,6 +173,9 @@ function SearchableDropdown({
   width = "100%",
   maxMenuHeight = 280,
   showSelectAll = true,
+
+  // ✅ NEW: disable specific option values (no UI change, just behavior)
+  disabledValues = [],
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -165,6 +196,9 @@ function SearchableDropdown({
     return options.filter((o) => norm(o.label).toLowerCase().includes(q));
   }, [options, query]);
 
+  const isDisabledOption = (val) =>
+    Array.isArray(disabledValues) && disabledValues.includes(val);
+
   const isSelected = (val) =>
     multiple ? Array.isArray(value) && value.includes(val) : value === val;
 
@@ -183,6 +217,8 @@ function SearchableDropdown({
   }, [value, options, multiple, placeholder]);
 
   const toggleItem = (val) => {
+    if (isDisabledOption(val)) return; // ✅ guard
+
     if (multiple) {
       const arr = Array.isArray(value) ? [...value] : [];
       const idx = arr.indexOf(val);
@@ -205,12 +241,19 @@ function SearchableDropdown({
 
   const toggleSelectAll = () => {
     if (!multiple) return;
+
+    // ✅ when some values are disabled, select-all should ignore disabled options
+    const selectable = filtered.filter((o) => !isDisabledOption(o.value));
+
     const arr = Array.isArray(value) ? [...value] : [];
-    if (allSelected) {
-      onChange(arr.filter((v) => !filtered.some((o) => o.value === v)));
+    const allSelectableSelected =
+      selectable.length > 0 && selectable.every((o) => arr.includes(o.value));
+
+    if (allSelectableSelected) {
+      onChange(arr.filter((v) => !selectable.some((o) => o.value === v)));
     } else {
       const union = new Set(arr);
-      filtered.forEach((o) => union.add(o.value));
+      selectable.forEach((o) => union.add(o.value));
       onChange(Array.from(union));
     }
   };
@@ -257,8 +300,11 @@ function SearchableDropdown({
                   type="checkbox"
                   checked={!!isSelected(o.value)}
                   onChange={() => toggleItem(o.value)}
+                  disabled={isDisabledOption(o.value)}
                 />
-                <span>{o.label}</span>
+                <span style={isDisabledOption(o.value) ? { opacity: 0.6 } : undefined}>
+                  {o.label}
+                </span>
               </label>
             ))}
             {!filtered.length && <div className="dd-empty">No matches</div>}
@@ -302,9 +348,12 @@ function SearchableDropdown({
    Page: Opportunity Summary Report
    =========================== */
 
-// ✅ FIXED: removed accidental space in endpoint
+// ✅ FIX: endpoint with NO extra space
 const OPP_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/Opportunity/ OppSummaryReport`;
 const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
+
+// ✅ Manual Lead Summary API (query params)
+const MANUAL_LEAD_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/LeadOpp/report/leadopps/Summary`;
 
 export default function OpportunitySummaryReport() {
   const navigate = useNavigate();
@@ -317,8 +366,15 @@ export default function OpportunitySummaryReport() {
   // filters
   const [campaignStatusCode, setCampaignStatusCode] = useState("");
 
-  /** ✅ CHANGED: Campaign Rule MULTI */
+  /** ✅ Campaign Rule MULTI */
   const [oppRuleCodes, setOppRuleCodes] = useState([]);
+
+  const MANUAL_RULE_VALUE = "Manual Lead";
+
+  const isManualSelected = useMemo(
+    () => Array.isArray(oppRuleCodes) && oppRuleCodes.includes(MANUAL_RULE_VALUE),
+    [oppRuleCodes]
+  );
 
   /** ✅ session-based clinic behavior */
   const sessionCtx = useMemo(() => getSessionContext(), []);
@@ -353,16 +409,11 @@ export default function OpportunitySummaryReport() {
     role !== "clinic manager" &&
     role !== "finance reviwer";
 
-  const [clinicCode, setClinicCode] = useState("");   // single mode
-  const [clinicCodes, setClinicCodes] = useState([]); // Centriq multi mode
+  const [clinicCode, setClinicCode] = useState(""); // single mode (value = code string)
+  const [clinicCodes, setClinicCodes] = useState([]); // Centriq multi mode (value = code strings)
 
-  const [oppNames, setOppNames] = useState(
-    Array.isArray(state?.oppNames)
-      ? state.oppNames.map(norm)
-      : state?.oppName
-      ? [norm(state.oppName)]
-      : []
-  );
+  // ✅ IMPORTANT: oppNames now stores selected CampaignIds (recid) as strings
+  const [oppNames, setOppNames] = useState([]);
 
   // options
   const campaignStatusOptions = [
@@ -372,7 +423,10 @@ export default function OpportunitySummaryReport() {
 
   const oppRuleOptions = [
     { value: "R1", label: "Paid for X but not for Y" },
-    { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
+    {
+      value: "R2",
+      label: "Paid for X Category in Y days and No future appointment in Z days for Category P",
+    },
     { value: "R3", label: "No show appointment for X days" },
     { value: "R4", label: "Cancelled appointment for X days" },
     { value: "Manual Lead", label: "Manual Lead" },
@@ -381,8 +435,14 @@ export default function OpportunitySummaryReport() {
     { value: "R7", label: "External Source" },
   ];
 
-  const [clinics, setClinics] = useState([]);
-  const [oppNameOptions, setOppNameOptions] = useState([]);
+  // ✅ If manual selected, disable all other rules
+  const disabledRuleValues = useMemo(() => {
+    if (!isManualSelected) return [];
+    return oppRuleOptions.map((x) => x.value).filter((v) => v !== MANUAL_RULE_VALUE);
+  }, [isManualSelected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [clinics, setClinics] = useState([]); // each option: { value, label, recid }
+  const [oppNameOptions, setOppNameOptions] = useState([]); // each option: { value: recidStr, label: oppName, oppcode, recid }
 
   // table
   const [rows, setRows] = useState([]);
@@ -393,18 +453,70 @@ export default function OpportunitySummaryReport() {
   const [exporting, setExporting] = useState(false);
 
   const [toast, setToast] = useState(null);
+
+  // paging
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  // ✅ Manual server paging meta
+  const [manualMeta, setManualMeta] = useState({
+    pageNumber: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+  });
+
+  const pageCount = useMemo(() => {
+    return isManualSelected
+      ? Math.max(1, Number(manualMeta?.totalPages || 1))
+      : Math.max(1, Math.ceil(rows.length / pageSize));
+  }, [isManualSelected, manualMeta, rows.length, pageSize]);
+
   const pageRows = useMemo(() => {
+    if (isManualSelected) return rows; // server already paged
     const start = (page - 1) * pageSize;
     return rows.slice(start, start + pageSize);
-  }, [rows, page]);
+  }, [isManualSelected, rows, page, pageSize]);
 
   const showToast = (message, type = "error", ms = 2200) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), ms);
+  };
+
+  // ✅ Map campaignId (recid) -> oppcode (for manual click navigation)
+  const campaignIdToOppCode = useMemo(() => {
+    const m = new Map();
+    (oppNameOptions || []).forEach((o) => {
+      if (o?.value && o?.oppcode) m.set(String(o.value), String(o.oppcode));
+    });
+    return m;
+  }, [oppNameOptions]);
+
+  // ✅ derive OppName CSV for non-manual API (from selected recids)
+  const selectedOppNameCSV = useMemo(() => {
+    const selectedIds = Array.isArray(oppNames) ? oppNames.map(String) : [];
+    return selectedIds
+      .map((id) => oppNameOptions.find((o) => String(o.value) === String(id))?.label)
+      .filter(Boolean)
+      .join(",");
+  }, [oppNames, oppNameOptions]);
+
+  // ✅ resolve clinicCentreId from selected clinic (centers dropdown)
+  const getSelectedClinicCentreId = () => {
+    // Non-centriq: single locked clinic
+    if (!isCentriq) {
+      const opt = clinics.find((c) => norm(c.value) === norm(clinicCode));
+      const id = opt?.recid;
+      return id !== "" && id !== undefined && id !== null ? Number(id) : undefined;
+    }
+
+    // Centriq multi: manual API supports SINGLE clinicCentreId -> only send if exactly 1 selected
+    const selected = Array.isArray(clinicCodes) ? clinicCodes : [];
+    if (selected.length !== 1) return undefined;
+
+    const opt = clinics.find((c) => norm(c.value) === norm(selected[0]));
+    const id = opt?.recid;
+    return id !== "" && id !== undefined && id !== null ? Number(id) : undefined;
   };
 
   /* ---- Load clinics only ---- */
@@ -412,12 +524,16 @@ export default function OpportunitySummaryReport() {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
+        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
+          credentials: "include",
+        });
         const d = await r.json();
 
+        // ✅ include recid for clinicCentreId
         const listAll = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
-          value: norm(x.code ?? x.centerCode ?? x.name),
+          value: norm(x.code ?? x.centerCode ?? x.name), // keep for existing API clinicCode
           label: x.name ?? x.centerName ?? (x.code ?? ""),
+          recid: x.recid ?? x.recId ?? x.id ?? "",
         }));
 
         let list = listAll;
@@ -452,6 +568,8 @@ export default function OpportunitySummaryReport() {
 
   /* ==========================================================
      ✅ Campaign Names: when status + (multi) rules selected
+     - GetOppNames returns: { oppName, oppcode, recid }
+     - store dropdown value = recid (CampaignId)
      ========================================================== */
   useEffect(() => {
     const status = norm(campaignStatusCode);
@@ -486,22 +604,36 @@ export default function OpportunitySummaryReport() {
 
         const flat = results.flat();
 
+        // ✅ value = recid (CampaignId)
         const uniq = Array.from(
           new Map(
             flat
-              .map((x) => ({ oppName: norm(x?.oppName) }))
-              .filter((x) => x.oppName)
-              .map((x) => [x.oppName, { value: x.oppName, label: x.oppName }])
+              .map((x) => ({
+                oppName: norm(x?.oppName),
+                recid: x?.recid,
+                oppcode: norm(x?.oppcode),
+              }))
+              .filter((x) => x.oppName && x.recid !== undefined && x.recid !== null)
+              .map((x) => [
+                String(x.recid),
+                {
+                  value: String(x.recid),
+                  label: x.oppName,
+                  oppcode: x.oppcode,
+                  recid: x.recid,
+                },
+              ])
           ).values()
         ).sort((a, b) => a.label.localeCompare(b.label));
 
         setOppNameOptions(uniq);
 
+        // keep only allowed selected values
         setOppNames((prev) => {
           const prevArr = Array.isArray(prev) ? prev : [];
           if (!prevArr.length) return [];
           const allowed = new Set(uniq.map((o) => o.value));
-          return prevArr.filter((v) => allowed.has(norm(v)));
+          return prevArr.filter((v) => allowed.has(String(v)));
         });
       } catch (e) {
         if (e?.name === "AbortError") return;
@@ -515,12 +647,72 @@ export default function OpportunitySummaryReport() {
     })();
 
     return () => ac.abort();
-  }, [campaignStatusCode, oppRuleCodes]);
+  }, [campaignStatusCode, oppRuleCodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---- Fetch summary (only on View) ---- */
-  const loadSummary = async () => {
+  /* ===========================
+     Manual fetch helper
+     - Pass CampaignIds (recids) and clinicCentreId (center recid)
+     =========================== */
+  const fetchManualPage = async (pageNumber, size) => {
+    const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
+    const effectiveToISO = toISODateOnly(toDate) || todayISODate();
+
+    const clinicCSV = isCentriq
+      ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
+      : clinicCode || "";
+
+    const oppStatusInt =
+      campaignStatusCode !== "" && !Number.isNaN(Number(campaignStatusCode))
+        ? Number(campaignStatusCode)
+        : undefined;
+
+    const clinicCentreId = getSelectedClinicCentreId();
+
+    const selectedCampaignIds = Array.isArray(oppNames)
+      ? oppNames
+          .map((x) => Number(x))
+          .filter((n) => typeof n === "number" && !Number.isNaN(n))
+      : [];
+
+    // optional: send OppName CSV also (backend said works with any one property)
+    const selectedOppNameCSVLocal = (Array.isArray(oppNames) ? oppNames : [])
+      .map((id) => oppNameOptions.find((o) => String(o.value) === String(id))?.label)
+      .filter(Boolean)
+      .join(",");
+
+    const qs = buildQS({
+      FromDate: atStartOfDayZ(effectiveFromISO),
+      ToDate: atEndOfDayZ(effectiveToISO),
+      OppStatus: oppStatusInt,
+      ClinicCode: clinicCSV || "",
+      ORuleCode: MANUAL_RULE_VALUE,
+
+      // ✅ required for manual
+      CampaignIds: selectedCampaignIds,
+      clinicCentreId: clinicCentreId,
+
+      // optional
+      OppName: selectedOppNameCSVLocal,
+      DateFlag: "0",
+      PageNumber: pageNumber,
+      PageSize: size,
+    });
+
+    const r = await fetch(`${MANUAL_LEAD_SUMMARY_ENDPOINT}?${qs}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  };
+
+  /* ---- Fetch summary (only on View, plus server-side page for manual) ---- */
+  const loadSummary = async (pageOverride) => {
     setLoading(true);
-    setPage(1);
+
+    // ✅ For manual, page can change via next/prev calls
+    const requestedPage = isManualSelected ? Number(pageOverride || 1) : 1;
+    setPage(requestedPage);
 
     try {
       const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
@@ -534,7 +726,7 @@ export default function OpportunitySummaryReport() {
 
       const clinicCSV = isCentriq
         ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
-        : (clinicCode || "");
+        : clinicCode || "";
 
       const body = {
         fromDate: atStartOfDayZ(effectiveFromISO),
@@ -542,21 +734,47 @@ export default function OpportunitySummaryReport() {
         oppStatus: campaignStatusCode || "",
         clinicCode: clinicCSV || "",
         oppRule: rulesCSV || "",
-        oppName: (oppNames || []).join(","),
+        // ✅ Non-manual API expects oppName string CSV
+        oppName: selectedOppNameCSV,
         dateFlag: df,
       };
 
-      const r = await fetch(OPP_SUMMARY_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let d;
 
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (isManualSelected) {
+        // ✅ Manual: server-side paging
+        d = await fetchManualPage(requestedPage, pageSize);
 
-      const d = await r.json();
-      const arr = Array.isArray(d) ? d : d ? [d] : [];
+        setManualMeta({
+          pageNumber: Number(d?.pageNumber || requestedPage || 1),
+          pageSize: Number(d?.pageSize || pageSize),
+          totalRecords: Number(d?.totalRecords || 0),
+          totalPages: Number(d?.totalPages || 1),
+        });
+      } else {
+        // ✅ Existing API: unchanged
+        const r = await fetch(OPP_SUMMARY_ENDPOINT, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        d = await r.json();
+
+        // reset manual meta
+        setManualMeta({ pageNumber: 1, pageSize, totalRecords: 0, totalPages: 1 });
+      }
+
+      const arr = isManualSelected
+        ? Array.isArray(d?.data)
+          ? d.data
+          : []
+        : Array.isArray(d)
+        ? d
+        : d
+        ? [d]
+        : [];
 
       const fmt = (s) => {
         const iso = toISODateOnly(s);
@@ -564,50 +782,69 @@ export default function OpportunitySummaryReport() {
         const dt = new Date(iso);
         return isNaN(dt)
           ? ""
-          : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
+          : new Intl.DateTimeFormat("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(dt);
       };
 
-      const yesNo = (v) => {
-        const s = String(v ?? "").toLowerCase();
-        if (["1", "true", "y", "yes"].includes(s)) return "YES";
-        if (["0", "false", "n", "no"].includes(s)) return "NO";
-        return s ? "YES" : "NO";
-      };
+      // ✅ Keep columns consistent:
+      // For Manual response: show CreatedDate in both From & To columns
+      const normalized = arr.map((x, i) => {
+        const created = pick(x, ["createdDate", "createdOn", "fromDate", "campaignFromDate"]);
+        const createdFmt = fmt(created);
 
-      const normalized = arr.map((x, i) => ({
-  key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-  oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
+        const campId = pick(x, ["camp_id", "campId", "campaignId", "recid", "id"]);
+        const resolvedOppCode = campaignIdToOppCode.get(String(campId));
 
-  fromDate: fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
-  toDate: fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
+        return {
+          key: pick(x, ["oppCode", "opportunityCode", "code", "id", "recid", "camp_id"], `row-${i}`),
 
-  // ✅ existing
-  oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-  campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-  clinic: pick(x, ["centerName", "clinicName", "center"]),
+          // ✅ manual doesn't have oppCode; resolve from GetOppNames using campaignId
+          oppCode: isManualSelected ? (resolvedOppCode || "") : pick(x, ["oppCode", "opportunityCode", "code"]),
 
-  // ✅ NEW: numbers from response
-  totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
-  closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
-  openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
-  wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
-  convertedCount: pick(x, ["noOfOppConverted", "convertedCount", "convertedOpportunities", "noOfConvertedoutofClosed"]),
-}));
+          fromDate: isManualSelected
+            ? createdFmt
+            : fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
+          toDate: isManualSelected
+            ? createdFmt
+            : fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
 
+          oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+          campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign", "oppStatus"]),
+          clinic: pick(x, ["clinicName", "centerName", "clinicName", "center", "ClinicCode", "clinicCode"]),
+
+          totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
+          closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
+          openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
+          wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
+          convertedCount: pick(x, [
+            "noOfOppConverted",
+            "convertedCount",
+            "converted",
+            "convertedOpportunities",
+            "noOfConvertedoutofClosed",
+          ]),
+        };
+      });
 
       setRows(normalized);
     } catch (e) {
       console.error(e);
       showToast("Failed to load opportunity summary");
       setRows([]);
+      setManualMeta({ pageNumber: 1, pageSize, totalRecords: 0, totalPages: 1 });
+      setPage(1);
     } finally {
       setLoading(false);
     }
   };
 
   function onClickOpp(code) {
-    if (!code) return;
-    navigate(`/opportunity/view/${encodeURIComponent(code)}`, { state: { from: "opp-summary" } });
+    const c = norm(code);
+    if (!c) return;
+    navigate(`/opportunity/view/${encodeURIComponent(c)}`, { state: { from: "opp-summary" } });
   }
 
   /* ===========================
@@ -619,20 +856,72 @@ export default function OpportunitySummaryReport() {
 
     setExporting(true);
     try {
-     const excelRows = rows.map((r) => ({
-  "Created From Date": r.fromDate || "",
-  "Created To Date": r.toDate || "",
-  "OppName": r.oppName || "",
-  "Campaign Status": r.campaignStatus || "",
-  "Total Opportunities(A+B)": r.totalOpportunities ?? "",
-  "Closed(A)": r.closedA ?? "",
-  "Open(B)": r.openB ?? "",
-  "WIP(C)": r.wipC ?? "",
-  "No.Of Opp Converted": r.convertedCount ?? "",
-  "Clinic": r.clinic || "",
-  "Opp Code": r.oppCode || "",
-}));
+      let exportSourceRows = rows;
 
+      // ✅ Manual export should fetch ALL records (all pages)
+      if (isManualSelected) {
+        const all = [];
+        const first = await fetchManualPage(1, pageSize);
+        const totalPages = Number(first?.totalPages || 1);
+
+        const firstData = Array.isArray(first?.data) ? first.data : [];
+        all.push(...firstData);
+
+        for (let p = 2; p <= totalPages; p++) {
+          const next = await fetchManualPage(p, pageSize);
+          const data = Array.isArray(next?.data) ? next.data : [];
+          all.push(...data);
+        }
+
+        // normalize to same row shape (CreatedDate into From/To)
+        exportSourceRows = all.map((x, i) => {
+          const created = pick(x, ["createdDate", "createdOn"]);
+          const createdFmt = (() => {
+            const iso = toISODateOnly(created);
+            if (!iso) return "";
+            const dt = new Date(iso);
+            return isNaN(dt)
+              ? ""
+              : new Intl.DateTimeFormat("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                }).format(dt);
+          })();
+
+          const campId = pick(x, ["camp_id", "campId", "campaignId", "recid", "id"]);
+          const resolvedOppCode = campaignIdToOppCode.get(String(campId));
+
+          return {
+            key: pick(x, ["camp_id", "oppCode", "id"], `m-${i}`),
+            oppCode: resolvedOppCode || "",
+            fromDate: createdFmt,
+            toDate: createdFmt,
+            oppName: pick(x, ["oppName"]),
+            campaignStatus: pick(x, ["oppStatus"]),
+            totalOpportunities: pick(x, ["totalOpp"]),
+            closedA: pick(x, ["closed"]),
+            openB: pick(x, ["open"]),
+            wipC: pick(x, ["wip"]),
+            convertedCount: pick(x, ["converted"]),
+            clinic: pick(x, ["clinicName"]),
+          };
+        });
+      }
+
+      const excelRows = exportSourceRows.map((r) => ({
+        "Created From Date": r.fromDate || "",
+        "Created To Date": r.toDate || "",
+        OppName: r.oppName || "",
+        "Campaign Status": r.campaignStatus || "",
+        "Total Opportunities(A+B)": r.totalOpportunities ?? "",
+        "Closed(A)": r.closedA ?? "",
+        "Open(B)": r.openB ?? "",
+        "WIP(C)": r.wipC ?? "",
+        "No.Of Opp Converted": r.convertedCount ?? "",
+        Clinic: r.clinic || "",
+        "Opp Code": r.oppCode || "",
+      }));
 
       const XLSX = await loadXLSX();
       const ws = XLSX.utils.json_to_sheet(excelRows);
@@ -644,7 +933,10 @@ export default function OpportunitySummaryReport() {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : []).map(norm).filter(Boolean).join(",");
+      const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
+        .map(norm)
+        .filter(Boolean)
+        .join(",");
 
       downloadBlob(
         blob,
@@ -681,12 +973,20 @@ export default function OpportunitySummaryReport() {
         <div className="grid">
           <div className="frow">
             <label>Created From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
+            />
           </div>
 
           <div className="frow">
             <label>Created To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
+            />
           </div>
 
           <div className="frow">
@@ -705,10 +1005,18 @@ export default function OpportunitySummaryReport() {
             <SearchableDropdown
               options={oppRuleOptions}
               value={oppRuleCodes}
-              onChange={setOppRuleCodes}
+              onChange={(next) => {
+                const arr = Array.isArray(next) ? next : [];
+                const hasManual = arr.includes(MANUAL_RULE_VALUE);
+
+                // ✅ If Manual selected → lock to only manual
+                if (hasManual) setOppRuleCodes([MANUAL_RULE_VALUE]);
+                else setOppRuleCodes(arr.filter((v) => v !== MANUAL_RULE_VALUE));
+              }}
               multiple
               showSelectAll
               placeholder="None selected"
+              disabledValues={disabledRuleValues}
             />
           </div>
 
@@ -719,7 +1027,11 @@ export default function OpportunitySummaryReport() {
               value={oppNames}
               onChange={setOppNames}
               multiple
-              placeholder={!campaignStatusCode || !(oppRuleCodes || []).length ? "Select status & rule first" : "None selected"}
+              placeholder={
+                !campaignStatusCode || !(oppRuleCodes || []).length
+                  ? "Select status & rule first"
+                  : "None selected"
+              }
               disabled={!campaignStatusCode || !(oppRuleCodes || []).length || loadingOppNames}
             />
             {loadingOppNames && <small className="hint">Loading campaign names…</small>}
@@ -754,18 +1066,18 @@ export default function OpportunitySummaryReport() {
         </div>
 
         <div className="actions">
-  {canView && (
-    <button className="btn" onClick={loadSummary} disabled={loading}>
-      View
-    </button>
-  )}
+          {canView && (
+            <button className="btn" onClick={() => loadSummary(1)} disabled={loading}>
+              View
+            </button>
+          )}
 
-  {canExport && (
-    <button className="btn" onClick={exportExcel} disabled={!rows.length}>
-      Export
-    </button>
-  )}
-</div>
+          {canExport && (
+            <button className="btn" onClick={exportExcel} disabled={!rows.length}>
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="table-wrap">
@@ -803,40 +1115,53 @@ export default function OpportunitySummaryReport() {
             )}
 
             {!loading &&
-  pageRows.map((r, idx) => (
-    <tr key={`${r.key}-${idx}`}>
-      <td>
-        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-          {r.fromDate}
-        </button>
-      </td>
-      <td>{r.toDate}</td>
+              pageRows.map((r, idx) => (
+                <tr key={`${r.key}-${idx}`}>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                      {r.fromDate}
+                    </button>
+                  </td>
+                  <td>{r.toDate}</td>
 
-      <td>
-        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
-          {r.oppName}
-        </button>
-      </td>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                      {r.oppName}
+                    </button>
+                  </td>
 
-      <td>{r.campaignStatus}</td>
-      <td>{r.totalOpportunities}</td>
-      <td>{r.closedA}</td>
-      <td>{r.openB}</td>
-      <td>{r.wipC}</td>
-      <td>{r.convertedCount}</td>
-      <td>{r.clinic}</td>
-    </tr>
-  ))}
-
+                  <td>{r.campaignStatus}</td>
+                  <td>{r.totalOpportunities}</td>
+                  <td>{r.closedA}</td>
+                  <td>{r.openB}</td>
+                  <td>{r.wipC}</td>
+                  <td>{r.convertedCount}</td>
+                  <td>{r.clinic}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
 
         <div className="pager">
-          <button className="pagebtn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <button
+            className="pagebtn"
+            disabled={page <= 1}
+            onClick={() => {
+              if (isManualSelected) loadSummary(page - 1);
+              else setPage((p) => p - 1);
+            }}
+          >
             Prev
           </button>
           <span className="pageno">{page}</span>
-          <button className="pagebtn" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>
+          <button
+            className="pagebtn"
+            disabled={page >= pageCount}
+            onClick={() => {
+              if (isManualSelected) loadSummary(page + 1);
+              else setPage((p) => p + 1);
+            }}
+          >
             Next
           </button>
           <span className="pagecount">/ {pageCount}</span>
