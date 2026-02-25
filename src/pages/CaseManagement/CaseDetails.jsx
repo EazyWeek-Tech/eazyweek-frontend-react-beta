@@ -1836,7 +1836,7 @@ if (actionType === "submit") {
                 value={uiStatus || status} // ✅ NEW: show "Closed" when user selects it
                 disabled={saving || closed || closeLock}
                 onChange={async (e) => {
-                  const newStatus = e.target.value;
+                  const newStatus = e.target.value; 
 
                   if (closeLock) {
     setToast({

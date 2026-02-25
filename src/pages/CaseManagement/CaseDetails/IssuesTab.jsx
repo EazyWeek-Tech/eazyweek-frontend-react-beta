@@ -963,7 +963,7 @@ const computedCc = useMemo(() => {
           </div>
 
           <div className="form-group">
-            <label>More CC</label>
+            <label>More CC (Case Owner Email is prefilled in the More CC field)</label>
            <textarea
   name="moreCc"
   value={formValues.moreCc || ""}
