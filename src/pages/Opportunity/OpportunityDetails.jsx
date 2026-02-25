@@ -1102,6 +1102,9 @@ const OpportunityDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [apptFrom, setApptFrom] = useState("");
+const [apptTo, setApptTo] = useState("");
+
   const [toast, setToast] = useState(null);
   const showToast = (msg) => {
     setToast(msg);
@@ -1200,7 +1203,7 @@ const [dashToDate] = useState(() => state?.toDate || "");
 
       try {
         const fromDate = dashFromDate;
-const toDate = dashToDate;
+const toDateStr  = dashToDate;
 
 // optional safety: if dashboard didn't send, stop (or you can fallback if you want)
 if (!fromDate || !toDate) {
@@ -1210,7 +1213,7 @@ if (!fromDate || !toDate) {
 }
 
 
-        const payload = { oppCode, fromDate, toDate };
+        const payload = { oppCode, fromDate, toDate: toDateStr };
 
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
           method: "POST",
@@ -1234,15 +1237,18 @@ if (!fromDate || !toDate) {
   const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
   const modifiedBy = r?.modifiedBy;
 
+  // ✅ Appointment date stamp (for R3/R4 filter + column)
+  const apptD = toDate(r?.appointmentdatetime || r?.appointmentDateTime || "");
+  const apptStamp = apptD ? +new Date(apptD.getFullYear(), apptD.getMonth(), apptD.getDate()) : NaN;
 
   return {
     ...r,
     __dateStamp: dateToStamp(d),
-   __timeMin: hhmmToMinutes(hhmm),
-    __therapistName: therapistName, // ✅ keep a normalized field for table/filter
+    __apptStamp: apptStamp, // ✅ NEW
+    __timeMin: hhmmToMinutes(hhmm),
+    __therapistName: therapistName,
     modifieddate: modified,
     modifiedBy: modifiedBy,
-
     __q: [
       r?.custID,
       r?.custName,
@@ -1251,8 +1257,7 @@ if (!fromDate || !toDate) {
       r?.salesOwner,
       modified,
       modifiedBy,
-      therapistName, // ✅ searchable
-      
+      therapistName,
     ]
       .map((x) => (x ?? "").toString().toLowerCase())
       .join(" | "),
@@ -1298,25 +1303,40 @@ if (!fromDate || !toDate) {
     return code === "manual lead";
   }, [H]);
 
+  // ✅ Only for No Show (R3) and Cancelled (R4)
+const showAppointmentDate = useMemo(() => {
+  const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
+    .trim()
+    .toUpperCase();
+  return rule === "R3" || rule === "R4";
+}, [H, state]);
+
   // Filters/sort/pagination are for NON-manual table only
   const filterTimeFrom = useMemo(() => to24h(timeFromSlot, timeFromMer), [timeFromSlot, timeFromMer]);
   const filterTimeTo = useMemo(() => to24h(timeToSlot, timeToMer), [timeToSlot, timeToMer]);
 
-  useEffect(() => {
+ useEffect(() => {
   setPage(1);
 }, [
   searchTerm,
   statusFilter,
   ownerFilter,
-  therapistFilter, // ✅ add this
+  therapistFilter,
+  dispositionFilter,
+
   followDateMode,
   rangeFrom,
   rangeTo,
+
   filterTimeFrom,
   filterTimeTo,
+
+  apptFrom,
+  apptTo,
+  showAppointmentDate,
+
   sortConfig?.key,
   sortConfig?.direction,
-    dispositionFilter,
 
   isManualLead,
 ]);
@@ -1426,6 +1446,27 @@ const getRowDateStampForFilter = (row) => {
   );
 }
 
+// ✅ Appointment Date filter (ONLY for R3/R4)
+if (showAppointmentDate && (apptFrom || apptTo)) {
+  const fD = apptFrom ? toDate(apptFrom) : null;
+const tD = apptTo ? toDate(apptTo) : null;
+
+let f = fD ? dateToStamp(fD) : NaN;
+let t = tD ? dateToStamp(tD) : NaN;
+  if (!Number.isNaN(f) && !Number.isNaN(t) && f > t) {
+    const tmp = f;
+    f = t;
+    t = tmp;
+  }
+
+  list = list.filter((r) => {
+    const stamp = r.__apptStamp;
+    if (Number.isNaN(stamp)) return false;
+    if (!Number.isNaN(f) && stamp < f) return false;
+    if (!Number.isNaN(t) && stamp > t) return false;
+    return true;
+  });
+}
 
   // 3b) Therapist filter
 if (therapistFilter) {
@@ -1515,10 +1556,16 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
   statusFilter,
   ownerFilter,
   dispositionFilter,
+  therapistFilter,
+
   dateRange,
   filterTimeFrom,
-  therapistFilter,
   filterTimeTo,
+
+  apptFrom,
+  apptTo,
+  showAppointmentDate,
+
   sortConfig,
 ]);
 
@@ -1800,6 +1847,28 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
   </select>
 </div>
 
+{showAppointmentDate ? (
+  <div className="fgroup">
+    <label className="flabel">Appointment Date :</label>
+    <div style={{ display: "flex", gap: 8 }}>
+      <input
+        type="date"
+        className="finput"
+        value={apptFrom}
+        onChange={(e) => setApptFrom(e.target.value)}
+        placeholder="From"
+      />
+      <input
+        type="date"
+        className="finput"
+        value={apptTo}
+        onChange={(e) => setApptTo(e.target.value)}
+        placeholder="To"
+      />
+    </div>
+  </div>
+) : null}
+
 
               <div className="fgroup">
                 <label className="flabel">Follow Up Date :</label>
@@ -1886,7 +1955,11 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                     <th onClick={() => handleSort("__therapistName")}>
   Therapist Name <span className="sort">{sortArrow("__therapistName")}</span>
 </th>
-
+            {showAppointmentDate ? (
+  <th onClick={() => handleSort("appointmentdatetime")}>
+    Appointment Date <span className="sort">{sortArrow("appointmentdatetime")}</span>
+  </th>
+) : null}
                     
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
@@ -1924,6 +1997,10 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
 
                       <td>{safe(r.disposition, "—")}</td>
                       <td>{safe(r.__therapistName || getTherapistName(r), "—")}</td>
+
+                      {showAppointmentDate ? (
+  <td>{formatDDMMYYYY(r.appointmentdatetime || r.appointmentDateTime)}</td>
+) : null}
 
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
