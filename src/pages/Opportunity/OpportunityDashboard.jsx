@@ -608,6 +608,8 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
 
     const segmentType = String(row?.segmentType || "").trim();
 
+    const oRuleCode = String(row?.oRuleCode || "").trim(); 
+
 
   // ✅ External Leads route (R7) with from/to BEFORE oppCode
   if (isExternalLeadRow(row)) {
@@ -618,6 +620,7 @@ const STATUS_DATA_PAID_X_CAT = useMemo(
       {
         state: {
           oppName: row?.oppName || undefined,
+          oRuleCode,
           fromDate: from,
           toDate: to,
           externalLead: true,
