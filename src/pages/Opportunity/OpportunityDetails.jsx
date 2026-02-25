@@ -57,6 +57,27 @@ const formatCampaignPeriod = (start, end) => {
   return `${formatDDMMYYYY(start)} – ${formatDDMMYYYY(end)}`;
 };
 
+
+export const oppRuleOptions = [
+  { value: "R1", label: "Paid for X but not for Y" },
+  {
+    value: "R2",
+    label: "Paid for X Category in Y days and No future appointment in Z days for Category P",
+  },
+  { value: "R3", label: "No show appointment for X days" },
+  { value: "R4", label: "Cancelled appointment for X days" },
+  { value: "Manual Lead", label: "Manual Lead" },
+  { value: "R5", label: "Customer Special Day" },
+  { value: "R6", label: "Customer Type" },
+  { value: "R7", label: "External Source" },
+];
+
+// quick lookup map
+const RULE_LABEL_MAP = oppRuleOptions.reduce((acc, r) => {
+  acc[r.value.toUpperCase()] = r.label;
+  return acc;
+}, {});
+
 /** Parse: yyyy-MM-dd | dd/MM/yyyy | dd-MM-yyyy (optionally with time) | ISO -> Date(midnight local) */
 const toDate = (v) => {
   if (!v) return null;
@@ -193,7 +214,16 @@ const displayOppStatus = (v) => {
   return v ?? "—";
 };
 
+const getRuleDetailsFromCode = (ruleCode, fallbackDetails = "") => {
+  const code = (ruleCode ?? "").toString().trim().toUpperCase();
 
+  if (RULE_LABEL_MAP[code]) return RULE_LABEL_MAP[code];
+
+  // If backend already sent a readable text
+  if (fallbackDetails) return fallbackDetails;
+
+  return "—";
+};
 const saveAssignStore = (oppCode, data) => {
   localStorage.setItem(ASSIGN_STORE_KEY(oppCode), JSON.stringify(data));
 };
@@ -1303,6 +1333,18 @@ if (!fromDate || !toDate) {
     return code === "manual lead";
   }, [H]);
 
+  const Hdisplay = useMemo(() => {
+  const base = H || {};
+  return {
+    ...base,
+    // ✅ always prefer dashboard oppName if provided
+    oppName: (state?.oppName ?? "").toString().trim() || base.oppName,
+    oRuleDetails: (state?.oRuleDetails ?? "").toString().trim() || base.oRuleDetails,
+    oRuleXvalue: (state?.oRuleXvalue ?? "").toString().trim() || base.oRuleXvalue,
+    oRuleCode: (state?.oRuleCode ?? "").toString().trim() || base.oRuleCode,
+  };
+}, [H, state]);
+
   // ✅ Only for No Show (R3) and Cancelled (R4)
 const showAppointmentDate = useMemo(() => {
   const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
@@ -1758,13 +1800,18 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
 
 <div className="pair">
   <span className="label">Campaign Name :</span>
-<span className="value">{safe(H?.oppName, "—")}</span>
+<span className="value">{safe(Hdisplay?.oppName, "—")}</span>
 </div>
 
 
 <div className="pair">
   <span className="label">Rule Details :</span>
-<span className="value">{safe(H?.oRuleDetails, "—")}</span>
+<span className="value">
+  {getRuleDetailsFromCode(
+    Hdisplay?.oRuleCode,
+    Hdisplay?.oRuleDetails
+  )}
+</span>
 </div>
 
 <div className="pair">
