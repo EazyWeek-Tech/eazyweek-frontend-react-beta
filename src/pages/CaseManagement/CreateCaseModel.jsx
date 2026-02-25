@@ -621,39 +621,56 @@ const getCenterName = () => {
   };
 
   const buildMailCC = async () => {
-    const creatorEmail = await getLoggedInUserEmail();
+  // Only use CC coming from config (data.emailCC -> formValues.cc)
+  const merged = normalizeEmailList(formValues.cc);
+  return { mergedCC: merged };
+};
 
-    // ✅ "send email along with the current email chain"
-    // keep existing cc + moreCC, and append creatorEmail
-    const merged = normalizeEmailList(
-      [formValues.cc,  creatorEmail].filter(Boolean).join(",")
-    );
+  const buildMoreCCWithOwner = async () => {
+  // Case owner = logged-in user (case creator/owner)
+  const ownerEmail = await getLoggedInUserEmail();
 
-    return { mergedCC: merged, creatorEmail };
-  };
+  const mergedMoreCC = normalizeEmailList(
+    [formValues.moreCC, ownerEmail].filter(Boolean).join(",")
+  );
 
-  // Normalize a list of email addresses
-  const normalizeEmailList = (raw) => {
-    if (!raw) return "";
-    const parts = String(raw)
-      .split(/[,;\n]+/g)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => s.replace(/[\r\n"]/g, ""));
-    const seen = new Set();
-    const uniq = [];
-    for (const p of parts) {
-      const k = p.toLowerCase();
-      if (!seen.has(k)) {
-        seen.add(k);
-        uniq.push(p);
-      }
-    }
-    return uniq.join(",");
-  };
+  return { mergedMoreCC, ownerEmail };
+};
+const extractEmail = (s) => {
+  const t = (s || "").trim().replace(/[\r\n"]/g, "");
+  // match: Name <email@x.com> OR just email@x.com
+  const m = t.match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})>?/i);
+  return m ? m[1].toLowerCase() : "";
+};
+
+const normalizeEmailList = (raw) => {
+  if (!raw) return "";
+  const parts = String(raw)
+    .split(/[,;\n]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const uniq = [];
+
+  for (const p of parts) {
+    const key = extractEmail(p) || p.toLowerCase();
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // store clean email only (recommended)
+    const emailOnly = extractEmail(p);
+    uniq.push(emailOnly || p);
+  }
+
+  return uniq.join(",");
+};
 
     const sendCaseAssignmentEmail = async (caseNoParam) => {
     const { mergedCC } = await buildMailCC();
+const { mergedMoreCC } = await buildMoreCCWithOwner();
+
 
     const mailBody = {
       emailTo: (formValues.email || "").trim().replace(/[\r\n"]/g, ""),
@@ -669,7 +686,7 @@ const getCenterName = () => {
       emailCC: mergedCC,
 
       // keep moreCC too if your backend uses it separately
-      moreCC: normalizeEmailList(formValues.moreCC),
+      moreCC: mergedMoreCC,
     };
 
     if (!mailBody.emailTo) {
@@ -760,6 +777,7 @@ const getCenterName = () => {
     const generalErrs = validateGeneralTab();
     const issueErrs = activeTab === "register" ? validateIssueTab() : {};
     const allErrs = { ...generalErrs, ...issueErrs };
+    const { mergedMoreCC } = await buildMoreCCWithOwner();
 
     if (Object.keys(allErrs).length > 0) {
       console.log("[CREATE CASE] Save blocked by validation", { generalErrs, issueErrs });
@@ -805,7 +823,7 @@ const getCenterName = () => {
       employeno: formValues.employeno,
       assignedemailid: formValues.email,
       cc: formValues.cc,
-      moreCC: formValues.moreCC,
+      moreCC: mergedMoreCC,
       categorySpecificResolution: formValues.specificResolution,
       remarks: formValues.remarks,
       casedisposition: "",
@@ -894,6 +912,7 @@ const getCenterName = () => {
     const generalErrs = validateGeneralTab();
     const issueErrs = validateIssueTab();
     const allErrs = { ...generalErrs, ...issueErrs };
+    const { mergedMoreCC } = await buildMoreCCWithOwner();
     if (Object.keys(allErrs).length > 0) {
       setValidationErrors(allErrs);
       if (Object.keys(generalErrs).length > 0) setActiveTab("sign-in");
@@ -931,7 +950,7 @@ const getCenterName = () => {
       employeno: formValues.employeno,
       assignedemailid: formValues.email,
       cc: formValues.cc,
-      moreCC: formValues.moreCC,
+      moreCC: mergedMoreCC,
       categorySpecificResolution: formValues.specificResolution,
       remarks: formValues.remarks,
       casedisposition: "",
