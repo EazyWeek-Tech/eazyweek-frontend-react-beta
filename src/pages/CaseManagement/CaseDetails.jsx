@@ -1065,6 +1065,28 @@ try {
     return dispAsCodeEq || dispAsNameEq;
   })();
 
+    // --------------------------------------------
+  // ✅ NEW: Close allowed only at last hierarchy level
+  // --------------------------------------------
+  const hasTwoLevelHierarchy = (() => {
+    // Prefer hierarchy (CaseHierarchyDB) when available
+    const h2 = trim(hierarchy?.secondAssignement);
+    if (h2) return true;
+
+    // Fallback to case-details fields if hierarchy isn't loaded
+    const s2Name = trim(selectedCaseData?.secondSlaName);
+    const s2Code = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID);
+    return !!(s2Name || s2Code);
+  })();
+
+  // last-level means:
+  // - if 2 levels exist => must be at level 2
+  // - if only 1 level => allowed at current level
+  const isAtLastLevel = hasTwoLevelHierarchy ? isAtLevel2Now : true;
+
+  // ✅ Disable close dropdowns if 2-level hierarchy AND user not at L2
+  const closeLock = hasTwoLevelHierarchy && !isAtLastLevel;
+
   const isBadAssignee = (v) => {
     const s = (v ?? "").toString().trim();
     return !s || s === "-" || /^assign\s*to$/i.test(s);
@@ -1681,13 +1703,40 @@ if (actionType === "submit") {
         </div>
       )}
 
+      {closeLock && (
+  <div
+    className="info-banner"
+    style={{
+      margin: "12px 0",
+      padding: "10px 12px",
+      border: "1px solid #ffe1a6",
+      background: "#fff7e6",
+      color: "#8a4b00",
+      borderRadius: 6,
+      fontSize: 14,
+    }}
+  >
+    <strong>Note:</strong> This case has a 2-level hierarchy and can be closed only at <strong>Level 2</strong>.
+    Please proceed via escalation/assignment to Level 2.
+  </div>
+)}
+
       <div className="casedetwrp">
         <div className="casecell">
           <div className="form-group">
             <label>Case Disposition{closed ? " *" : ""}</label>
           <select
   value={disposition}
+  disabled={saving || closed || closeLock}
  onChange={(e) => {
+  if (closeLock) {
+    setToast({
+      type: "error",
+      message: "This case can be closed only at Level 2 for this category.",
+    });
+    return;
+  }
+
   const val = e.target.value;
   setDisposition(val);
 
@@ -1736,7 +1785,6 @@ if (actionType === "submit") {
     message: "All details are ready. Click Submit to close the case.",
   });
 }}
-  disabled={saving || closed}
 >
               <option value="0">Select Case Disposition</option>
               <option value="No Solution">No Solution</option>
@@ -1756,7 +1804,7 @@ if (actionType === "submit") {
                 onChange={(e) =>
                   setSelectedCaseData((prev) => (prev ? { ...prev, categorySpecificResolution: e.target.value } : prev))
                 }
-                disabled={saving || closed}
+                disabled={saving || closed || closeLock}
               >
                 <option value="">Select</option>
 
@@ -1786,9 +1834,18 @@ if (actionType === "submit") {
               <label>Case Status</label>
               <select
                 value={uiStatus || status} // ✅ NEW: show "Closed" when user selects it
-                disabled={saving || closed}
+                disabled={saving || closed || closeLock}
                 onChange={async (e) => {
                   const newStatus = e.target.value;
+
+                  if (closeLock) {
+    setToast({
+      type: "error",
+      message: "Status cannot be changed/closed at Level 1 when this category has 2-level hierarchy.",
+    });
+    return;
+  }
+
                   const prevUi = uiStatus || status;
 
                   if (newStatus === "Closed") {
