@@ -429,7 +429,7 @@ function buildCaseMailPayload({
     normalizedToList.split(",").find((x) => isLikelyEmail(x)) || clean(selected?.email);
 // Keep existing cc + always include case owner email in CC (not To)
 // Also keep "moreCc" behavior as-is (it already appends ownerEmail there)
-const emailCC = appendEmailToList(cleanupList(selected?.cc || ""), ownerEmail);
+const emailCC = appendEmailToList(cleanupList(selected?.cc || ""));
 const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
 
