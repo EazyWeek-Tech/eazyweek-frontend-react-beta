@@ -504,23 +504,23 @@ const computedCc = useMemo(() => {
       const { name, value, type, files } = e.target;
 
       if (name === "assignToCode") {
-        userTouchedAssignRef.current = true;
-        const vRaw = trim(value);
-        const selected = employees.find(
-          (emp) => emp.employeeCode === vRaw
-        );
-        setFormValues((prev) => ({
-          ...prev,
-          assignToCode: selected?.employeeCode || vRaw || "",
-          assignedTo:
-            selected?.employeeName ||
-            (vRaw ? prev.assignedTo : "Assign To"),
-          employeeMobile:
-            selected?.mobileNo || prev.employeeMobile || "",
-          email: selected?.emailID || prev.email || "",
-        }));
-        return;
-      }
+  userTouchedAssignRef.current = true;
+  const vRaw = trim(value);
+  const selected = employees.find((emp) => emp.employeeCode === vRaw);
+
+  setFormValues((prev) => ({
+    ...prev,
+    assignToCode: selected?.employeeCode || vRaw || "",
+    assignedTo: selected?.employeeName || (vRaw ? prev.assignedTo : "Assign To"),
+
+    // KEEP mobile logic as-is
+    employeeMobile: selected?.mobileNo || prev.employeeMobile || "",
+
+    // ✅ CLEAR Email when user forcefully selects Next Assignee
+    email: "",
+  }));
+  return;
+}
 
       if (name === "therapistCode") {
         const v = normCode(value);

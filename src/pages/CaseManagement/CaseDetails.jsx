@@ -1946,13 +1946,7 @@ if (actionType === "submit") {
           </span>
         </div>
 
-        <div className="tabcontent" style={{ display: "block" }}>
-          {tabLoading ? (
-            <div className="loader-wrapper">
-              <div className="loader"></div>
-            </div>
-          ) : (
-           <div className="tabcontent" style={{ display: "block", position: "relative" }}>
+        <div className="tabcontent" style={{ display: "block", position: "relative" }}>
   <div style={{ display: activeTab === "general" ? "block" : "none" }}>
     <GeneralTab ref={generalRef} data={selectedCaseData} />
   </div>
@@ -1982,13 +1976,11 @@ if (actionType === "submit") {
   </div>
 
   {tabLoading && (
-    <div className="loader-wrapper" style={{ position: "absolute", inset: 0 }}>
+    <div className="loader-wrapper" style={{ position: "absolute", inset: 0, zIndex: 10 }}>
       <div className="loader"></div>
     </div>
   )}
 </div>
-          )}
-        </div>
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
           <div className="buttongrp mt-3">
