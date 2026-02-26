@@ -505,6 +505,7 @@ const computedCc = useMemo(() => {
 
       if (name === "assignToCode") {
   userTouchedAssignRef.current = true;
+
   const vRaw = trim(value);
   const selected = employees.find((emp) => emp.employeeCode === vRaw);
 
@@ -516,8 +517,9 @@ const computedCc = useMemo(() => {
     // KEEP mobile logic as-is
     employeeMobile: selected?.mobileNo || prev.employeeMobile || "",
 
-    // ✅ CLEAR Email when user forcefully selects Next Assignee
-    email: "",
+    // ✅ If user selects placeholder (empty) -> clear email
+    // ✅ If user selects an employee -> prefill that employee emailID
+    email: vRaw ? trim(selected?.emailID || "") : "",
   }));
   return;
 }
