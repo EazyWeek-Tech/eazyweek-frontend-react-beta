@@ -724,7 +724,7 @@ ExternalSubSource: "",
 
         // ✅ make it "static"
         base.ruleType = "1";
-        base.ruleFetchType = "1";
+        base.ruleFetchType = "2";
         base.ruleDays = "9999";
 
         // ✅ IMPORTANT: send static dates as well (many backends validate these)
