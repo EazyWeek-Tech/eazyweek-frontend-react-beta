@@ -886,6 +886,7 @@ export default function OpportunityDetailedReport() {
         const fromRaw = pick(x, ["fromDate", "campaignFromDate"]);
         const toRaw = pick(x, ["toDate", "campaignToDate"]);
         const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
+        const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
 
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
@@ -893,6 +894,7 @@ export default function OpportunityDetailedReport() {
           fromDate: fmt(fromRaw),
           toDate: fmt(toRaw),
           createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
+          appointmentDate: fmt(apptRaw),
           leadId: formatLeadId(leadIdRaw, ruleRaw),
           ruleCode: ruleRaw,
 
@@ -1039,6 +1041,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
       "Lead ID",
       "Lead Name",
       "Campaign Name",
+      "Appointment Date",
       "Campaign Status",
       "Converted",
       "Lead Status",
@@ -1066,6 +1069,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
         r.closedBy ?? "",
         r.clinic ?? "",
         r.oppCode ?? "",
+        r.appointmentDate ?? ""
       ]),
     ];
 
@@ -1217,6 +1221,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                 <th>Lead ID</th>
                 <th>Lead Name</th>
                 <th>Campaign Name</th>
+                <th>Appointment Date</th>
                 <th>Campaign Status</th>
                 <th>Converted</th>
                 <th>Lead Status</th>
@@ -1254,6 +1259,9 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                       <button className="link" onClick={() => onClickOpp(r.oppCode)}>
                         {r.oppName}
                       </button>
+                    </td>
+                    <td>
+                      {r.appointmentDate}
                     </td>
                     <td>{r.campaignStatus}</td>
                     <td>{r.converted}</td>
