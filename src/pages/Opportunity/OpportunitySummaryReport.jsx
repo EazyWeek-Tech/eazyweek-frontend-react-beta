@@ -14,12 +14,19 @@ const norm = (s) => (s ?? "").toString().trim();
 function toISODateOnly(s) {
   const t = norm(s);
   if (!t) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  // ✅ If it starts with YYYY-MM-DD (with or without time), take date part directly
+  const m0 = t.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m0) return m0[1];
+
+  // dd/MM/yyyy or dd-MM-yyyy -> yyyy-MM-dd
   const m = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (m) {
     const [, d, mo, y] = m;
     return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
+
+  // fallback
   const d = new Date(t);
   return isNaN(d) ? "" : d.toISOString().slice(0, 10);
 }
@@ -1122,7 +1129,9 @@ export default function OpportunitySummaryReport() {
                       {r.fromDate}
                     </button>
                   </td>
-                  <td>{r.toDate}</td>
+                  <td>
+                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                    {r.toDate}</button></td>
 
                   <td>
                     <button className="link" onClick={() => onClickOpp(r.oppCode)}>
