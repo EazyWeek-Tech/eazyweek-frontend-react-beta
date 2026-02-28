@@ -628,6 +628,21 @@ useEffect(() => {
     return list;
   }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo, followTime]);
 
+    // ✅ detect if any client-side filter/search is active
+  const isFiltering = useMemo(() => {
+    return Boolean(
+      (searchTerm && searchTerm.trim()) ||
+        statusFilter ||
+        ownerFilter ||
+        followDateMode ||
+        (followDateMode === "2" && (rangeFrom || rangeTo)) ||
+        followTime
+    );
+  }, [searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo, followTime]);
+
+  // ✅ count to display in UI
+  const displayedRecordCount = isFiltering ? filtered.length : totalRecords;
+
   const openManualLead = (row) => {
     const leadId = row?.leadOpp_ID;
 
@@ -950,8 +965,13 @@ const raw = await fetchAllLeads(uiRecId);
         {!loading && !err && !filtered.length ? <div className="empty-note">No  entries found.</div> : null}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
-          <div style={{ fontSize: 13, color: "#64748b" }}>
-            Total records: <strong>{totalRecords}</strong>
+                    <div style={{ fontSize: 13, color: "#64748b" }}>
+            Total records: <strong>{displayedRecordCount}</strong>
+            {isFiltering ? (
+              <span style={{ marginLeft: 8 }}>
+                (Filtered from <strong>{totalRecords}</strong>)
+              </span>
+            ) : null}
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

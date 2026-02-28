@@ -870,9 +870,9 @@ export default function OpportunityDetailedReport() {
     oppStatus: leadStatusRaw || campaignStatusRaw,
 
     salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-    reasons: pick(x, ["remark", "reasons", "reason", "Remarks"]),
-
-    createdBy: pick(x, ["createdBy", "createdByName"]) || modifiedByRaw,
+  //  reasons: pick(x, ["remark", "reasons", "reason", "Remarks"]),
+    reasons:'',
+    createdBy: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
 
     // ✅ Closed By only when Lead Status is Converted or Not Converted
     closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
