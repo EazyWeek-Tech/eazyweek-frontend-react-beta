@@ -819,13 +819,17 @@ export default function OpportunitySummaryReport() {
             : fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
 
           oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-          campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign", "oppStatus"]),
+          campaignStatus: isManualSelected
+  ? (String(pick(x, ["oppStatus", "campaignStatus", "oppStatusCode"])) === "1" ? "Active" : "Expired")
+  : pick(x, ["campaignStatus", "campaignState", "statusCampaign", "oppStatus"]),
           clinic: pick(x, ["clinicName", "centerName", "clinicName", "center", "ClinicCode", "clinicCode"]),
 
           totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
           closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
-          openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
-          wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
+         // openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
+         // wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
+         wipC: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
+         openB:'0',
           convertedCount: pick(x, [
             "noOfOppConverted",
             "convertedCount",
