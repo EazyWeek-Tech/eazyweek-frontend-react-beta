@@ -805,18 +805,28 @@ export default function OpportunitySummaryReport() {
         const campId = pick(x, ["camp_id", "campId", "campaignId", "recid", "id"]);
         const resolvedOppCode = campaignIdToOppCode.get(String(campId));
 
+        // ✅ For Manual response: use API fromDate/toDate (campaign range)
+const manualFrom = pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"]);
+const manualTo = pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"]);
+
+const manualFromFmt = fmt(manualFrom);
+const manualToFmt = fmt(manualTo);
+
+
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id", "recid", "camp_id"], `row-${i}`),
 
           // ✅ manual doesn't have oppCode; resolve from GetOppNames using campaignId
           oppCode: isManualSelected ? (resolvedOppCode || "") : pick(x, ["oppCode", "opportunityCode", "code"]),
 
-          fromDate: isManualSelected
-            ? createdFmt
-            : fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
-          toDate: isManualSelected
-            ? createdFmt
-            : fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
+         
+fromDate: isManualSelected
+  ? manualFromFmt
+  : fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
+
+toDate: isManualSelected
+  ? manualToFmt
+  : fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
 
           oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
           campaignStatus: isManualSelected
