@@ -803,7 +803,6 @@ const raw = await fetchAllLeads(uiRecId);
               <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="">All</option>
                 <option value="Open">Open</option>
-                <option value="Pending">Pending</option>
                 <option value="Closed">Closed</option>
               </select>
             </div>

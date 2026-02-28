@@ -1378,6 +1378,12 @@ if (name === "sourceName") {
     const mediumName = "Manual";
 const subMediumName = safe(form.subMedium || "Manual");
 
+const isDirectClosed = isClosedDisposition(form.dispositionId, dispositionOptions);
+const modifierRecId =
+  toNumberOr0(salesOwnerRecId) ||
+  toNumberOr0(pickUserIdentity(getLoggedInUser())?.recId) ||
+  0;
+
 
     const finalStatus = resolvePayloadStatus({
       baseStatus: status,
@@ -1431,9 +1437,9 @@ const subMediumName = safe(form.subMedium || "Manual");
       remarks: form.remarks,
       customerMsg: "",
 
-      // ✅ NO UTC
-      modifiedBy: 0,
-      modifiedDate: null,
+      // ✅ If user creates directly as Converted/Not Converted, treat as "modified" too
+  modifiedBy: isDirectClosed ? modifierRecId : 0,
+  modifiedDate: isDirectClosed ? nowLocal : null,
       createdDate: nowLocal,
     };
 
