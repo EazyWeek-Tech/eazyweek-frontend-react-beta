@@ -826,10 +826,10 @@ export default function OpportunitySummaryReport() {
 
           totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
           closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
-         // openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
+          openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
          // wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
          wipC: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
-         openB:'0',
+        // openB:'0',
           convertedCount: pick(x, [
             "noOfOppConverted",
             "convertedCount",
@@ -1099,7 +1099,11 @@ export default function OpportunitySummaryReport() {
               <th>Created To Date</th>
               <th>OppName</th>
               <th>Campaign Status</th>
-              <th>Total Opportunities(A+B+C)</th>
+              <th>
+  {isManualSelected
+    ? "Total Opportunities (A+B)"
+    : "Total Opportunities (A+B+C)"}
+</th>
               <th>Closed(A)</th>
               <th>Open(B)</th>
               <th>WIP(C)</th>
