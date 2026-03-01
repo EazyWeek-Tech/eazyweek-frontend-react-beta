@@ -229,7 +229,7 @@ const mapManualLeadRow = (x, resolveOwnerRecId, resolveCustIdFromRecId) => {
 };
 
 
-export default function ManualLeadsTable({ oppCode, header, onToast }) {
+export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate, mlToDate  }) {
   const navigate = useNavigate();
 
   // ✅ read oppCode from URL:
@@ -239,6 +239,23 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
 
   // ✅ single source of truth for oppCode
   const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "").toString().trim();
+    // ✅ Dates MUST come from URL only (route: /opportunity/details/:fromDate/:toDate/:oppCode)
+const fromDateFromUrl =
+  params?.fromDate || params?.FromDate || params?.from || params?.From || "";
+const toDateFromUrl =
+  params?.toDate || params?.ToDate || params?.to || params?.To || "";
+
+const mlFrom = useMemo(() => toISODateOnly(fromDateFromUrl), [fromDateFromUrl]);
+const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
+
+  // ✅ Keep querystring handy for navigations
+  const mlQs = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (mlFrom) qs.set("fromDate", mlFrom);
+    if (mlTo) qs.set("toDate", mlTo);
+    const s = qs.toString();
+    return s ? `?${s}` : "";
+  }, [mlFrom, mlTo]);
 
   // ✅ campaign header (top section)
   const [campaignLoading, setCampaignLoading] = useState(false);
@@ -768,15 +785,14 @@ const raw = await fetchAllLeads(uiRecId);
               <span className="value">{safe(uiHeader?.oRuleDetails || uiHeader?.oRuleCode)}</span>
             </div>
 
-            {/* ✅ Optional: show campaign dates from API */}
             {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
-              <div className="pair">
-                <span className="label">Campaign Period :</span>
-                <span className="value">
-                  {formatDDMMYYYY(uiHeader?.oppCampStartDate)} - {formatDDMMYYYY(uiHeader?.oppCampEndDate)}
-                </span>
-              </div>
-            ) : null}
+  <div className="pair">
+  <span className="label">Campaign Period :</span>
+  <span className="value">
+    {mlFrom && mlTo ? `${formatDDMMYYYY(mlFrom)} - ${formatDDMMYYYY(mlTo)}` : "—"}
+  </span>
+</div>
+) : null}
 
             {campaignLoading ? <div style={{ fontSize: 12, color: "#64748b" }}>Loading campaign…</div> : null}
             {campaignErr ? <div style={{ fontSize: 12, color: "#c33" }}>{campaignErr}</div> : null}
@@ -1097,7 +1113,7 @@ const raw = await fetchAllLeads(uiRecId);
             align-items: end;
           }
           .fgroup {
-            grid-column: span 3;
+            grid-column: span 4;
           }
 
           .flabel {
