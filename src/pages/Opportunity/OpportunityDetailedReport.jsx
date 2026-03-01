@@ -11,15 +11,23 @@ import { API_BASE_URL } from "../../config";
 const norm = (s) => (s ?? "").toString().trim();
 
 // Normalize to YYYY-MM-DD from ISO or DD-MM-YYYY / DD/MM/YYYY
+// Normalize to YYYY-MM-DD from ISO (with/without time) or DD-MM-YYYY / DD/MM/YYYY
 function toISODateOnly(s) {
   const t = norm(s);
   if (!t) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  // ✅ IMPORTANT: if it starts with YYYY-MM-DD (even with time), take date part directly
+  const m0 = t.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m0) return m0[1];
+
+  // dd/MM/yyyy or dd-MM-yyyy -> yyyy-MM-dd
   const m = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (m) {
     const [, d, mo, y] = m;
     return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
+
+  // fallback (only for weird formats)
   const d = new Date(t);
   return isNaN(d) ? "" : d.toISOString().slice(0, 10);
 }
