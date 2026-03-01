@@ -1123,6 +1123,29 @@ const AutoDistributionModal = ({ onClose, oppCode, onStartAssignment, actionType
 const OpportunityDetails = () => {
   const { oppCode } = useParams();
   const location = useLocation();
+
+    // ✅ Manual Lead date range should come from URL query params
+  // Example URL: /opportunity/OPP001?fromDate=2026-02-21&toDate=2026-02-28
+  const mlQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
+
+  const mlFromDate = useMemo(() => {
+    const raw =
+      mlQuery.get("fromDate") ||
+      mlQuery.get("from") ||
+      mlQuery.get("mlFromDate") ||
+      "";
+    return toISODateOnly(raw);
+  }, [mlQuery]);
+
+  const mlToDate = useMemo(() => {
+    const raw =
+      mlQuery.get("toDate") ||
+      mlQuery.get("to") ||
+      mlQuery.get("mlToDate") ||
+      "";
+    return toISODateOnly(raw);
+  }, [mlQuery]);
+
   const { state } = location;
   const navigate = useNavigate();
 
@@ -1742,8 +1765,13 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
             {" > "}
             <span className="breadcrumb-current">Manual Leads</span>
           </div>
-
-          <ManualLeadsTable oppCode={oppCode} header={H} onToast={(m) => showToast(m)} />
+<ManualLeadsTable
+  oppCode={oppCode}
+  header={H}
+  mlFromDate={mlFromDate}
+  mlToDate={mlToDate}
+  onToast={(m) => showToast(m)}
+/>
         </div>
 
         {toast ? <div className="ew-toast">{toast}</div> : null}
