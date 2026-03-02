@@ -859,6 +859,7 @@ export default function OpportunityDetailedReport() {
   const leadStatusRaw = pick(x, ["disposition", "leadStatus", "oppStatus", "statusName"]);
 
   const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
+  const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
 
   return {
     key: pick(x, ["leadOpp_ID", "id"], `m-${i}`),
@@ -876,6 +877,8 @@ export default function OpportunityDetailedReport() {
 
     // ✅ Lead Status column should show disposition
     oppStatus: leadStatusRaw || campaignStatusRaw,
+
+    mobileNo: mobileNo,
 
     salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
   //  reasons: pick(x, ["remark", "reasons", "reason", "Remarks"]),
@@ -903,6 +906,22 @@ const therapistNameRaw = pick(x, [
   "doctorName",
 ]);
 
+// ✅ MOBILE: handle keys like mobileNo / mobileNo / MobileNo / mobile_no / mobileNumber etc
+const mobileRaw = pickCI(x, [
+  "mobileNo",
+  "mobile",
+  "mobileNumber",
+  "phone",
+  "phoneNo",
+  "phoneNumber",
+  "mobile_no",
+  "mobile_no.",
+  "customerMobile",
+  "customerMobileNo",
+  "custMobile",
+]);
+const mobileNo = norm(mobileRaw);
+
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
           oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
@@ -910,6 +929,7 @@ const therapistNameRaw = pick(x, [
           toDate: fmt(toRaw),
           createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
           appointmentDate: isExternalRow ? "" : fmt(apptRaw),
+          mobileNo: mobileNo,
 
           leadId: formatLeadId(leadIdRaw, ruleRaw),
           therapistName: therapistNameRaw,
@@ -1018,6 +1038,8 @@ const therapistNameRaw = pick(x, [
   const statusRaw = pick(x, ["status"]);
   const modifiedByRaw = pick(x, ["modifiedBy"]);
 
+  
+
   const campaignStatusRaw = pick(x, ["status"]); // Open/Closed
 const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converted/Not Converted/...
 
@@ -1028,12 +1050,14 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
     leadName: pick(x, ["customerName"]),
     oppName: pick(x, ["oppName"]),
     campaignStatus: campaignStatusRaw,
-
+mobileNo: norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"])),
+therapistName: "",
 
     // ✅ Manual rules for export too
     converted: manualConvertedYesNo(leadStatusRaw),
 
    oppStatus: leadStatusRaw || campaignStatusRaw,
+  mobileNo: norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"])),
 
 
     salesOwner: pick(x, ["saleOwner", "salesOwner"]),
@@ -1060,6 +1084,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
       "Campaign Name",
       "Appointment Date",
       "Therapist Name", 
+      "Mobile",
       "Campaign Status",
       "Converted",
       "Lead Status",
@@ -1080,6 +1105,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
         r.oppName ?? "",
         r.appointmentDate ?? "",
         r.therapistName ?? "",
+        r.mobileNo ?? "",
         r.campaignStatus ?? "",
         r.converted ?? "",
         r.oppStatus ?? "",
@@ -1243,6 +1269,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                 <th>Campaign Name</th>
                 <th>Appointment Date</th>
                 <th>Therapist Name</th>
+                <th>Mobile No</th>
                 <th>Campaign Status</th>
                 <th>Converted</th>
                 <th>Lead Status</th>
@@ -1285,6 +1312,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                       {r.appointmentDate}
                     </td>
                     <td>{r.therapistName}</td> 
+                    <td>{r.mobileNo}</td>
                     <td>{r.campaignStatus}</td>
                     <td>{r.converted}</td>
                     <td>

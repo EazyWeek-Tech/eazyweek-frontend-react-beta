@@ -705,6 +705,37 @@ const computedCc = useMemo(() => {
         </div>
 
         <div className="form-group">
+  <label>Therapist</label>
+
+  <select
+    name="therapistCode"
+    value={formValues.therapistCode || ""}
+    onChange={handleChange}
+    disabled
+    onFocus={() => {
+      // fetch list when user opens dropdown (fast & avoids unnecessary calls)
+      if (!therapists.length) fetchTherapists();
+    }}
+  >
+    <option value="">-- Select Therapist --</option>
+
+    {/* ✅ If we have a therapistCode from API but it's not in dropdown list yet */}
+    {!!formValues.therapistCode &&
+      !therapists.some((t) => normCode(t.code) === normCode(formValues.therapistCode)) && (
+        <option value={formValues.therapistCode}>
+          {formValues.therapistName || formValues.therapistCode}
+        </option>
+      )}
+
+    {therapists.map((t) => (
+      <option key={t.code || t.name} value={t.code}>
+        {t.name}
+      </option>
+    ))}
+  </select>
+</div>
+
+        <div className="form-group">
           <label>
             Add Response <span style={{ color: "#d33" }}>*</span>
           </label>
