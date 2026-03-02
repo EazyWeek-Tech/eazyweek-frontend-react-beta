@@ -1669,7 +1669,7 @@ const subMediumName = safe(form.subMedium || "Manual");
         <div className="pageHeader">
           <div className="titleBlock">
             <div className="pageTitle">Lead Details</div>
-
+{/* 
            { <CallButton
   firstNumber={loggedInMobile}
   secondNumber={clientMobile}
@@ -1677,7 +1677,7 @@ const subMediumName = safe(form.subMedium || "Manual");
   label="Call Client"
   onSuccess={(data) => console.log("Call OK:", data)}
   onError={(e) => console.error("Call failed:", e)}
-/> }
+/> } */}
 
             <div className="subTitle"></div>
           </div>
