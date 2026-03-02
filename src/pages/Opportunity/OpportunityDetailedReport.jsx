@@ -896,6 +896,12 @@ export default function OpportunityDetailedReport() {
         const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
         const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
 const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
+const therapistNameRaw = pick(x, [
+  "therapistName",
+  "therapist",
+  "providerName",
+  "doctorName",
+]);
 
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
@@ -906,6 +912,7 @@ const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
           appointmentDate: isExternalRow ? "" : fmt(apptRaw),
 
           leadId: formatLeadId(leadIdRaw, ruleRaw),
+          therapistName: therapistNameRaw,
           ruleCode: ruleRaw,
 
           salesOwner: pickCI(x, [
@@ -1052,6 +1059,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
       "Lead Name",
       "Campaign Name",
       "Appointment Date",
+      "Therapist Name", 
       "Campaign Status",
       "Converted",
       "Lead Status",
@@ -1070,6 +1078,8 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
         r.leadId ?? "",
         r.leadName ?? "",
         r.oppName ?? "",
+        r.appointmentDate ?? "",
+        r.therapistName ?? "",
         r.campaignStatus ?? "",
         r.converted ?? "",
         r.oppStatus ?? "",
@@ -1232,6 +1242,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                 <th>Lead Name</th>
                 <th>Campaign Name</th>
                 <th>Appointment Date</th>
+                <th>Therapist Name</th>
                 <th>Campaign Status</th>
                 <th>Converted</th>
                 <th>Lead Status</th>
@@ -1273,6 +1284,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
                     <td>
                       {r.appointmentDate}
                     </td>
+                    <td>{r.therapistName}</td> 
                     <td>{r.campaignStatus}</td>
                     <td>{r.converted}</td>
                     <td>
