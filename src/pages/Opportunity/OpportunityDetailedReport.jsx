@@ -895,6 +895,7 @@ export default function OpportunityDetailedReport() {
         const toRaw = pick(x, ["toDate", "campaignToDate"]);
         const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
         const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
+const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
 
         return {
           key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
@@ -902,7 +903,8 @@ export default function OpportunityDetailedReport() {
           fromDate: fmt(fromRaw),
           toDate: fmt(toRaw),
           createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
-          appointmentDate: fmt(apptRaw),
+          appointmentDate: isExternalRow ? "" : fmt(apptRaw),
+
           leadId: formatLeadId(leadIdRaw, ruleRaw),
           ruleCode: ruleRaw,
 
