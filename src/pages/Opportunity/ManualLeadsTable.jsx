@@ -285,6 +285,7 @@ const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
   const [ownerFilter, setOwnerFilter] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [dispositionFilter, setDispositionFilter] = useState("");
 
   const [followTime, setFollowTime] = useState("");
 
@@ -600,6 +601,15 @@ useEffect(() => {
     return ["", ...Array.from(set)];
   }, [rows]);
 
+  const dispositionOptions = useMemo(() => {
+  const set = new Set();
+  rows.forEach((r) => {
+    const d = String(r?.disposition || "").trim();
+    if (d) set.add(d);
+  });
+  return ["", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+}, [rows]);
+
   const filtered = useMemo(() => {
     let list = rows.slice();
 
@@ -615,6 +625,11 @@ useEffect(() => {
       const ow = ownerFilter.toLowerCase();
       list = list.filter((r) => String(r?.saleOwner || "").toLowerCase() === ow);
     }
+
+    if (dispositionFilter) {
+  const dd = dispositionFilter.toLowerCase();
+  list = list.filter((r) => String(r?.disposition || "").toLowerCase() === dd);
+}
 
     // ✅ Follow Up Date filters
     if (followDateMode === "0") {
@@ -643,19 +658,19 @@ useEffect(() => {
     }
 
     return list;
-  }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo, followTime]);
+  }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, dispositionFilter, rangeFrom, rangeTo, followTime]);
 
-    // ✅ detect if any client-side filter/search is active
-  const isFiltering = useMemo(() => {
-    return Boolean(
-      (searchTerm && searchTerm.trim()) ||
-        statusFilter ||
-        ownerFilter ||
-        followDateMode ||
-        (followDateMode === "2" && (rangeFrom || rangeTo)) ||
-        followTime
-    );
-  }, [searchTerm, statusFilter, ownerFilter, followDateMode, rangeFrom, rangeTo, followTime]);
+   const isFiltering = useMemo(() => {
+  return Boolean(
+    (searchTerm && searchTerm.trim()) ||
+      statusFilter ||
+      ownerFilter ||
+      dispositionFilter ||
+      followDateMode ||
+      (followDateMode === "2" && (rangeFrom || rangeTo)) ||
+      followTime
+  );
+}, [searchTerm, statusFilter, ownerFilter, dispositionFilter, followDateMode, rangeFrom, rangeTo, followTime]);
 
   // ✅ count to display in UI
   const displayedRecordCount = isFiltering ? filtered.length : totalRecords;
@@ -868,6 +883,24 @@ const raw = await fetchAllLeads(uiRecId);
                 ))}
               </select>
             </div>
+
+            <div className="fgroup">
+  <label className="flabel">Disposition :</label>
+  <select
+    className="finput"
+    value={dispositionFilter}
+    onChange={(e) => setDispositionFilter(e.target.value)}
+  >
+    <option value="">All</option>
+    {dispositionOptions
+      .filter((x) => x) // remove the empty one because we already have "All"
+      .map((d) => (
+        <option key={d} value={d}>
+          {d}
+        </option>
+      ))}
+  </select>
+</div>
 
            {!isR7 && (
   <>
