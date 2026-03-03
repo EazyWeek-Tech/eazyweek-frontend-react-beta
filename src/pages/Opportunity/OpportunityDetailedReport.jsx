@@ -861,6 +861,13 @@ export default function OpportunityDetailedReport() {
   const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
   const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
 
+  const therapistNameRaw = pick(x, [
+  "therapistName",
+  "therapist",
+  "providerName",
+  "doctorName",
+]);
+
   return {
     key: pick(x, ["leadOpp_ID", "id"], `m-${i}`),
     oppCode: resolvedOppCode || "",
@@ -874,6 +881,8 @@ export default function OpportunityDetailedReport() {
 
     // ✅ Converted depends on LEAD STATUS (Converted => YES)
     converted: manualConvertedYesNo(leadStatusRaw),
+    therapistName: therapistNameRaw,
+appointmentDate: "", // manual api doesn't have appointmentDate
 
     // ✅ Lead Status column should show disposition
     oppStatus: leadStatusRaw || campaignStatusRaw,
@@ -1037,7 +1046,12 @@ const mobileNo = norm(mobileRaw);
 
   const statusRaw = pick(x, ["status"]);
   const modifiedByRaw = pick(x, ["modifiedBy"]);
-
+const therapistNameRaw = pick(x, [
+    "therapistName",
+    "therapist",
+    "providerName",
+    "doctorName",
+  ]);
   
 
   const campaignStatusRaw = pick(x, ["status"]); // Open/Closed
@@ -1051,7 +1065,7 @@ const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw; // Converte
     oppName: pick(x, ["oppName"]),
     campaignStatus: campaignStatusRaw,
 mobileNo: norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"])),
-therapistName: "",
+therapistName: therapistNameRaw,
 
     // ✅ Manual rules for export too
     converted: manualConvertedYesNo(leadStatusRaw),
@@ -1061,7 +1075,7 @@ therapistName: "",
 
 
     salesOwner: pick(x, ["saleOwner", "salesOwner"]),
-    reasons: pick(x, ["remark"]),
+    reasons: "",
     createdBy: pick(x, ["createdBy", "createdByName"]) || modifiedByRaw,
     closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
 
