@@ -1319,14 +1319,22 @@ if (!fromDate || !toDate) {
 
 
         // apply auto store assignments (if any)
-        const store = loadAssignStore(oppCode);
-        const assignedMap = store.assigned || {};
-        const withAssigned = computed.map((r) => {
-          const rid = getRecId(r);
-          const a = assignedMap[String(rid)];
-          if (!a) return r;
-          return { ...r, salesOwner: a.employeeName, salesOwnerCode: a.employeeCode };
-        });
+        // ✅ sort by Appointment Date (recent first). Missing dates go last.
+const computedSorted = computed.slice().sort((a, b) => {
+  const sa = Number.isFinite(a.__apptStamp) ? a.__apptStamp : -Infinity;
+  const sb = Number.isFinite(b.__apptStamp) ? b.__apptStamp : -Infinity;
+  return sb - sa; // recent first
+});
+
+// apply auto store assignments (if any)
+const store = loadAssignStore(oppCode);
+const assignedMap = store.assigned || {};
+const withAssigned = computedSorted.map((r) => {
+  const rid = getRecId(r);
+  const a = assignedMap[String(rid)];
+  if (!a) return r;
+  return { ...r, salesOwner: a.employeeName, salesOwnerCode: a.employeeCode };
+});
 
         // apply manual assignments (if any)
         const withManual = applyManualAssignmentsToRows(oppCode, withAssigned);
