@@ -424,6 +424,17 @@ const CaseDetailedReport = () => {
 
   // ---------- View (POST) ----------
   const handleView = async () => {
+
+     if (!filters.fromDate || !filters.toDate) {
+    alert("Please select both From Date and To Date.");
+    return;
+  }
+
+  if (new Date(filters.toDate) < new Date(filters.fromDate)) {
+    alert("To Date cannot be earlier than From Date.");
+    return;
+  }
+
     setLoading(true);
     setShowResults(false);
     setReportData([]);
@@ -648,19 +659,24 @@ const CaseDetailedReport = () => {
         <div className="date-grid">
           <div className="fg">
             <label>From Date</label>
-            <input
-              type="date"
-              value={filters.fromDate}
-              onChange={handleDate("fromDate")}
-            />
+           <input
+  type="date"
+  required
+  value={filters.fromDate}
+  onChange={handleDate("fromDate")}
+/>
+
           </div>
           <div className="fg">
             <label>To Date</label>
-            <input
-              type="date"
-              value={filters.toDate}
-              onChange={handleDate("toDate")}
-            />
+            
+<input
+  type="date"
+  required
+  min={filters.fromDate || undefined} // prevents To < From
+  value={filters.toDate}
+  onChange={handleDate("toDate")}
+/>
           </div>
         </div>
 
@@ -668,6 +684,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Category</label>
             <Select
+            isClearable
               options={categoryOptions}
               value={filters.categoryCode}
               onChange={handleSingle("categoryCode")}
@@ -678,6 +695,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Sub Category</label>
             <Select
+            isClearable
               isDisabled={!filters.categoryCode}
               options={subCategoryOptions}
               value={filters.subCategoryCode}
@@ -689,6 +707,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Sub Sub Category</label>
             <Select
+            isClearable
               isDisabled={!filters.categoryCode || !filters.subCategoryCode}
               options={subSubCategoryOptions}
               value={filters.subSubCategoryCode}
@@ -712,6 +731,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Case Medium</label>
             <Select
+            isClearable
               options={mediumOptions}
               value={filters.caseMedium}
               onChange={handleSingle("caseMedium")}
@@ -722,6 +742,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Case Source</label>
             <Select
+            isClearable
               isDisabled={
                 !filters.caseMedium ||
                 !filters.categoryCode ||
@@ -737,6 +758,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Case Status</label>
             <Select
+            isClearable
               options={statusOptions}
               value={filters.caseStatus}
               onChange={handleSingle("caseStatus")}
@@ -758,6 +780,7 @@ const CaseDetailedReport = () => {
           <div className="fg">
             <label>Specific Resolution</label>
             <Select
+            isClearable
               isDisabled={!filters.categoryCode || specificResOptions.length === 0}
               options={specificResOptions}
               value={filters.caseSpecificResolution}
@@ -1012,7 +1035,7 @@ const CaseDetailedReport = () => {
           border-bottom: 1px solid #e5e7eb;
           position: sticky;
           top: 0;
-          z-index: 1;
+          z-index: 0;
         }
         tbody td {
           font-size: 13px;
