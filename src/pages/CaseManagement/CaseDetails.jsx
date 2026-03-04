@@ -1522,24 +1522,7 @@ await triggerCaseMail({
         );
 
         if (actionType === "save") {
-  // ✅ send mail on SAVE (to current assignee / caseWith)
-  const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
-  const generalLatest = generalRef.current?.getGeneralData?.() ?? {};
-
-  const toCode =
-    trim(selectedCaseData?.caseWithCode) ||
-    trim(payload?.caseWith) ||
-    trim(payload?.assignedto) ||
-    "";
-
-  await triggerCaseMail({
-    selectedCaseData,
-    generalData: generalLatest,
-    issuesData: issuesDataLatest,
-    assigneeCode: toCode,
-    fallbackToEmail: selectedCaseData?.email || "",
-    setToast,
-  });
+  
 
   setToast({
     type: "success",
