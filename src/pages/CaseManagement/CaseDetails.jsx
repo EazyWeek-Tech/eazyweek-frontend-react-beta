@@ -683,6 +683,7 @@ const CaseDetailsPage = () => {
   const [selectedCaseData, setSelectedCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [disposition, setDisposition] = useState("");
+  const submitClickLockRef = useRef(false);
 
   const [status, setStatus] = useState("");          // real status (backend truth)
   const [uiStatus, setUiStatus] = useState("");      // ✅ NEW: dropdown display status
@@ -1198,10 +1199,30 @@ try {
     const effectiveDisposition = trim(overrides.disposition ?? disposition);
 
     const issuesData = issuesRef.current?.getIssuesData?.() ?? {};
-    const effectiveSelected = {
-      ...(overrides.selectedCaseData ?? selectedCaseData),
-      ...issuesData,
-    };
+
+const baseSelected = overrides.selectedCaseData ?? selectedCaseData;
+
+// take assignee from IssuesTab ONLY if it’s a real value and user actually changed it
+const issuesAssigneeCode = trim(issuesData?.assignToCode || issuesData?.assignedto || "");
+const baseAssigneeCode = trim(baseSelected?.assignToCode || baseSelected?.assignedTo || "");
+
+// if IssuesTab assignee is empty/placeholder, ignore it
+const issuesAssigneeIsBad =
+  !issuesAssigneeCode ||
+  issuesAssigneeCode === "-" ||
+  /^assign\s*to$/i.test(issuesAssigneeCode);
+
+// treat as changed only if it’s not bad AND different from base
+const userChangedAssignee = !issuesAssigneeIsBad && norm(issuesAssigneeCode) !== norm(baseAssigneeCode);
+
+const effectiveSelected = {
+  ...baseSelected,
+  ...issuesData,
+
+  // ✅ CRITICAL: if user did NOT really change assignee, keep base assignee
+  assignToCode: userChangedAssignee ? issuesAssigneeCode : baseAssigneeCode,
+  assignedTo: userChangedAssignee ? (issuesData?.assignedTo || issuesData?.assignName) : (baseSelected?.assignedTo || baseSelected?.assignName),
+};
 
     const closingViaSubmit = actionType === "submit" && effectiveStatus === "Closed";
 
@@ -1221,6 +1242,8 @@ try {
     const prevAssigneeCode = trim(selectedCaseData?.assignToCode || selectedCaseData?.assignedTo || "");
     const newAssigneeCode = trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || "");
     const ownerCode = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
+    const ownerCodeRaw = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
+
     const hierarchyNext = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
 
     const hasUserPickedAssignee = !!newAssigneeCode && norm(newAssigneeCode) !== norm(prevAssigneeCode);
@@ -1275,142 +1298,122 @@ try {
     }
 
     // Closing via submit
-    if (closingViaSubmit) {
-      try {
-        if (!trim(effectiveSelected?.response)) {
-          setToast({ type: "error", message: "Please add a response before submitting." });
-          return;
-        }
-        setSaving(true);
-
-        const nonClosedStatus =
-          initialStatusRef.current && initialStatusRef.current !== "Closed"
-            ? initialStatusRef.current
-            : selectedCaseData?.caseStatus && selectedCaseData.caseStatus !== "Closed"
-            ? selectedCaseData.caseStatus
-            : "WIP";
-
-        const assigneeForSubmit = resolveAssigneeForSubmit({
-          newAssigneeCode,
-          prevAssigneeCode,
-          stage1Code,
-          stage2Code: "",
-          ownerCode,
-          currentAssigneeCode: selectedCaseData?.assignToCode,
-          currentAssigneeName: selectedCaseData?.assignName,
-          currentUserCode: currentUser?.code,
-        });
-
-        const submitPayload = buildFullPayload({
-          general: generalData,
-          current: {
-            ...effectiveSelected,
-            assignToCode: assigneeForSubmit || effectiveSelected?.assignToCode,
-          },
-          status: nonClosedStatus,
-          disposition: effectiveDisposition,
-          operation: "submit",
-        });
-
-        submitPayload.assignedto =
-          assigneeForSubmit || submitPayload.assignedto || currentUser?.code || ownerCode || "-";
-        submitPayload.caseWith = submitPayload.assignedto;
-
-        await postCaseOperation(submitPayload, "submit (close flow — persist response)");
-
-        // ✅ send mail on SUBMIT (close flow) BEFORE updateStatus closes it
-const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
-await triggerCaseMail({
-  selectedCaseData,
-  generalData: generalData,
-  issuesData: issuesDataLatest,
-  assigneeCode: trim(submitPayload?.assignedto) || "",
-  fallbackToEmail: selectedCaseData?.email || "",
-  setToast,
-});
-
-
-        const closePayload = buildFullPayload({
-          general: generalData,
-          current: { ...effectiveSelected, response: "" },
-          status: "Closed",
-          disposition: effectiveDisposition,
-          operation: "updateStatus",
-        });
-        closePayload.assignedto = "-";
-        closePayload.caseWith = "-";
-
-        if (USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
-          const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
-          const emailFill = (v) => (isNonEmpty(v) ? v : "-");
-          const ccFill = (v) => (isNonEmpty(v) ? v : "-");
-
-          closePayload.assignedto = fill(closePayload.assignedto, "-");
-          closePayload.caseWith = fill(closePayload.caseWith, "-");
-          closePayload.assignedemailid = emailFill(closePayload.assignedemailid);
-          closePayload.cc = ccFill(closePayload.cc);
-          closePayload.moreCC = ccFill(closePayload.moreCC);
-
-          const stringyKeys = [
-            "casetitle",
-            "category",
-            "subCategory",
-            "subSubCategory",
-            "subSubSubCategory",
-            "casemedium",
-            "casesource",
-            "priority",
-            "custID",
-            "productCode",
-            "servicecode",
-            "serviceccode",
-            "createdby",
-            "issuedesciption",
-            "clientThreat",
-            "doctorCode",
-            "firsttimeresolution",
-            "response",
-            "categorySpecificResolution",
-            "remarks",
-            "casedisposition",
-          ];
-          for (const k of stringyKeys) closePayload[k] = closePayload[k] ?? "";
-          closePayload.materialCost = closePayload.materialCost ?? 0;
-          closePayload.labourCost = closePayload.labourCost ?? 0;
-          closePayload.otherCharges = closePayload.otherCharges ?? 0;
-          closePayload.totalCharges = closePayload.totalCharges ?? 0;
-        }
-
-        await postCaseOperation(closePayload, "updateStatus (close flow — set Closed)");
-
-        setStatus("Closed");
-        setUiStatus("Closed");      // ✅ NEW: sync dropdown too
-        setPendingClose(false);     // ✅ NEW: clear close intent after success
-
-        setSelectedCaseData((prev) =>
-          prev ? { ...prev, caseStatus: "Closed", disposition: closePayload.casedisposition } : prev
-        );
-
-        setToast({ type: "success", message: "Case closed successfully." });
-
-        try {
-          issuesRef.current?.reloadResponses?.();
-        } catch {}
-
-        navigate(-1);
-      } catch (err) {
-        console.error("close via submit error:", err);
-
-        // ✅ NEW: keep UI consistent if close fails
-        setPendingClose(true);
-        setUiStatus("Closed");
-
-        setToast({ type: "error", message: `Failed to close case. Reason: ${err.message}` });
-      } finally {
-        setSaving(false);
-      }
+    // Closing via submit
+if (closingViaSubmit) {
+  try {
+    // ✅ validations stay
+    if (!trim(effectiveSelected?.response)) {
+      setToast({ type: "error", message: "Please add a response before submitting." });
       return;
     }
+    setSaving(true);
+
+    const ownerCode = trim(selectedCaseData?.ownerCode || selectedCaseData?.caseOwnerCode || "");
+
+    // ✅ Build ONE payload ONLY (Closed)
+    const closePayload = buildFullPayload({
+      general: generalData,
+      current: {
+        ...effectiveSelected,
+
+        // ✅ make owner the assignee at source
+        assignToCode: ownerCode,
+        assignedTo: ownerCode,
+
+        // ✅ keep response (don’t blank it)
+        response: trim(effectiveSelected?.response || ""),
+      },
+      status: "Closed",
+      disposition: effectiveDisposition,
+      operation: "updateStatus",
+    });
+
+    // ✅ force these fields (this is what you asked)
+    closePayload.assignedto = ownerCode || "-";
+    closePayload.caseWith = ownerCode || "-";
+
+    // ✅ keep placeholders if your backend needs them
+    if (USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
+      const fill = (v, fb = "N/A") => (isNonEmpty(v) ? v : fb);
+      const emailFill = (v) => (isNonEmpty(v) ? v : "-");
+      const ccFill = (v) => (isNonEmpty(v) ? v : "-");
+
+      closePayload.assignedto = fill(closePayload.assignedto, "-");
+      closePayload.caseWith = fill(closePayload.caseWith, "-");
+      closePayload.assignedemailid = emailFill(closePayload.assignedemailid);
+      closePayload.cc = ccFill(closePayload.cc);
+      closePayload.moreCC = ccFill(closePayload.moreCC);
+
+      const stringyKeys = [
+        "casetitle",
+        "category",
+        "subCategory",
+        "subSubCategory",
+        "subSubSubCategory",
+        "casemedium",
+        "casesource",
+        "priority",
+        "custID",
+        "productCode",
+        "servicecode",
+        "serviceccode",
+        "createdby",
+        "issuedesciption",
+        "clientThreat",
+        "doctorCode",
+        "firsttimeresolution",
+        "response",
+        "categorySpecificResolution",
+        "remarks",
+        "casedisposition",
+      ];
+      for (const k of stringyKeys) closePayload[k] = closePayload[k] ?? "";
+      closePayload.materialCost = closePayload.materialCost ?? 0;
+      closePayload.labourCost = closePayload.labourCost ?? 0;
+      closePayload.otherCharges = closePayload.otherCharges ?? 0;
+      closePayload.totalCharges = closePayload.totalCharges ?? 0;
+    }
+
+    // ✅ ONLY ONE API call
+    await postCaseOperation(closePayload, "updateStatus (single-call close)");
+
+    // ✅ (Optional) send mail AFTER success to OWNER (not L1)
+    const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
+    await triggerCaseMail({
+      selectedCaseData,
+      generalData,
+      issuesData: issuesDataLatest,
+      assigneeCode: ownerCode, // ✅ mailTo should now resolve owner
+      fallbackToEmail: "",
+      setToast,
+    });
+
+    // ✅ UI updates
+    setStatus("Closed");
+    setUiStatus("Closed");
+    setPendingClose(false);
+
+    setSelectedCaseData((prev) =>
+      prev ? { ...prev, caseStatus: "Closed", disposition: closePayload.casedisposition } : prev
+    );
+
+    setToast({ type: "success", message: "Case closed successfully." });
+
+    try {
+      issuesRef.current?.reloadResponses?.();
+    } catch {}
+
+    navigate(-1);
+  } catch (err) {
+    console.error("close via submit error:", err);
+    setPendingClose(true);
+    setUiStatus("Closed");
+    setToast({ type: "error", message: `Failed to close case. Reason: ${err.message}` });
+  } finally {
+    setSaving(false);
+  }
+  return;
+}
 
     // ---- Build base payload for other flows ----
     const operationForBackend = actionType;
@@ -1496,6 +1499,7 @@ await triggerCaseMail({
 
     try {
       setSaving(true);
+      console.log("FINAL PAYLOAD ASSIGNEE", payload.assignedto, payload.caseWith, payload);
       const result = await postCaseOperation(payload, actionType);
 
       if (result?.code === "200") {
@@ -1572,6 +1576,7 @@ if (actionType === "submit") {
       }
     } finally {
       setSaving(false);
+      submitClickLockRef.current = false;
     }
   };
 
@@ -1973,22 +1978,18 @@ if (actionType === "submit") {
               </button>
             )}
             <button
-              type="button"
-              className="secbtn"
-              onClick={onSubmitClick}
-              disabled={submitDisabled}
-              title={
-                saving
-                  ? "Saving in progress…"
-                  : !isResponseFilled && !pendingClose
-                  ? "Add a response to enable Submit."
-                  : pendingClose
-                  ? "Submit will close the case."
-                  : ""
-              }
-            >
-              Submit
-            </button>
+  type="button"
+  className="secbtn"
+  onClick={(e) => {
+    e.preventDefault();
+    if (submitClickLockRef.current) return;   // already clicked
+    submitClickLockRef.current = true;        // lock immediately
+    onSubmitClick();
+  }}
+  disabled={submitDisabled || submitClickLockRef.current}
+>
+  Submit
+</button>
           </div>
         )}
       </section>
