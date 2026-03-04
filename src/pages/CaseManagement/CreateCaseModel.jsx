@@ -155,7 +155,11 @@ useEffect(() => {
   };
   useEffect(() => () => toastTimer.current && clearTimeout(toastTimer.current), []);
 
-
+useEffect(() => {
+  if (!isComplaintCategory()) {
+    setValidationErrors((p) => ({ ...p, doctorCode: null }));
+  }
+}, [selectedCategoryCode, caseCategories]);
 
   // Install global fetch logger once
   useEffect(() => {
@@ -227,6 +231,26 @@ useEffect(() => {
   // centercode should be loginCode or topCode (e.g., "MXM")
   // -----------------------------
   const trim = (v) => (v ?? "").toString().trim();
+
+  // ✅ Complaint category check (robust: tries multiple possible fields)
+const isComplaintCategory = () => {
+  const code = selectedCategoryCode || formValues.category;
+  if (!code) return false;
+
+  const cat = (caseCategories || []).find((c) => c.categoryCode === code);
+
+  const type =
+    (cat?.categoryType || cat?.type || cat?.categoryGroup || "").toString().trim().toLowerCase();
+
+  const name =
+    (cat?.categoryName || "").toString().trim().toLowerCase();
+
+  // If API sends a "type" field, prefer that.
+  if (type) return type === "complaint" || type.includes("complaint");
+
+  // Otherwise fallback to name-based match
+  return name === "complaint" || name.includes("complaint");
+};
 
   const firstNonEmpty = (...vals) => {
     for (const v of vals) {
@@ -739,7 +763,10 @@ const { mergedMoreCC } = await buildMoreCCWithOwner();
     const errs = {};
     if (!formValues.issuedesciption?.trim()) errs.issuedesciption = "Issue Description is required.";
     if (!formValues.clientThreat) errs.clientThreat = "Client Threat is required.";
-    if (!formValues.doctorCode) errs.doctorCode = "Therapist is required.";
+    // ✅ Therapist required ONLY for Complaint category
+if (isComplaintCategory() && !formValues.doctorCode) {
+  errs.doctorCode = "Therapist is required for Complaint cases.";
+}
     if (!formValues.employeno?.trim()) errs.employeno = "Employee Mobile is required.";
     if (!formValues.employeeCode) errs.employeeCode = "Assigned To is required.";
     if (!formValues.email?.trim()) errs.email = "Email is required.";
@@ -1654,8 +1681,8 @@ const { mergedMoreCC } = await buildMoreCCWithOwner();
               {/* Therapist (required) */}
               <div className="form-group">
                 <label htmlFor="therapist">
-                  Therapist <span style={{ color: "red" }}>*</span>
-                </label>
+  Therapist {isComplaintCategory() && <span style={{ color: "red" }}>*</span>}
+</label>
                 <select
                   id="therapist"
                   value={formValues.doctorCode}
