@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+
+import { useSessionTimeout } from "./hooks/useSessionTimeout";
+
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import Login from "./components/Login";
@@ -149,6 +152,8 @@ localStorage.removeItem("remember");
 
     navigate("/login", { replace: true });
   };
+
+  useSessionTimeout(handleLogout);
 
   // If still no user after storage / token check → show login routes
   if (!user) {
