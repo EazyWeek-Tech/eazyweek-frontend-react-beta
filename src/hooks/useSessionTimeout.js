@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-const TIMEOUT_MS = 2 * 60 * 1000; // 15 minutes of inactivity
+const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes of inactivity
 
 export function useSessionTimeout(onLogout) {
   const navigate = useNavigate();
