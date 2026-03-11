@@ -482,7 +482,7 @@ export default function OpportunityDetailedReport() {
   const [nonManualPage, setNonManualPage] = useState(1); // non-manual page (server-side)
 
   // Non-manual page size = 25 (server-side)
-  const NON_MANUAL_PAGE_SIZE = 25;
+  const NON_MANUAL_PAGE_SIZE = 10;
   const pageSize = 10; // manual page size unchanged
 
   // Non-manual server total count
