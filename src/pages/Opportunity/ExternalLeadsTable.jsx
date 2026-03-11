@@ -198,8 +198,8 @@ const fetchOppDetails = async ({
 
   const payload = {
     oppCode: code,
-    fromDate: `${from}T00:00:00.000Z`,
-    toDate: `${to}T23:59:59.999Z`,
+    fromDate: from,   // plain date "2026-02-01" — avoids UTC timezone shift
+    toDate: to,       // plain date "2026-02-10"
     pageNumber: page,
     pageSize,
     searchTerm,
@@ -319,8 +319,8 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [fromDate, setFromDate] = useState(() => (isStaticSegment ? "" : getTodayInputDate()));
-  const [toDate, setToDate] = useState(() => (isStaticSegment ? "" : getTodayInputDate()));
+  const [fromDate, setFromDate] = useState(() => isStaticSegment ? "" : getTodayInputDate());
+  const [toDate, setToDate] = useState(() => isStaticSegment ? "" : getTodayInputDate());
   const [dateTouched, setDateTouched] = useState(false);
 
   // Sorting
@@ -436,11 +436,16 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
         setLoading(false);
         return;
       }
+
+      // Static campaigns fetch on load with wide date range; dynamic fetches with today's date
+
       setLoading(true);
       setErr("");
       try {
-        const apiFrom = isStaticSegment ? getTodayInputDate() : (fromDate || getTodayInputDate());
-        const apiTo = isStaticSegment ? getTodayInputDate() : (toDate || getTodayInputDate());
+        // Static campaigns: no date filter on load (wide range), apply filter when user picks dates
+        // Dynamic campaigns: always filter by date (default today)
+        const apiFrom = isStaticSegment ? (fromDate || "2000-01-01") : (fromDate || getTodayInputDate());
+        const apiTo = isStaticSegment ? (toDate || "2900-01-01") : (toDate || getTodayInputDate());
 
         const { rows: list, totalCount: count } = await fetchOppDetails({
           oppCode: uiOppCode,
