@@ -16,6 +16,20 @@ const USE_PLACEHOLDERS_ON_UPDATE_STATUS = true;
 // --------------------------------------------
 // Utils
 // --------------------------------------------
+const sanitizeEmailList = (str) => {
+  if (!str) return "";
+  return str
+    .split(",")
+    .map((email) =>
+      email
+        .trim()
+        // ✅ Remove all non-printable and non-ASCII characters
+        .replace(/[^\x20-\x7E]/g, "")
+        .trim()
+    )
+    .filter((email) => email.length > 0 && isLikelyEmail(email))
+    .join(",");
+};
 const trim = (s) => (s ?? "").toString().trim();
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
@@ -434,7 +448,7 @@ const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
 
 
   return {
-    emailTo: emailToFirst,
+    emailTo: sanitizeEmailList(emailToFirst),
 
     // ✅ use resolved center name
     centerName: clean(centerNameResolved) || clean(selected?.centerName) || centerNameFallback,
@@ -446,8 +460,8 @@ const moreCC = appendEmailToList(selected?.moreCc || "", ownerEmail);
     newResponse: clean(selected?.response),
     firstTimeResolution: clean(selected?.firstTimeResolution),
 
-    emailCC,
-    moreCC,
+    emailCC: sanitizeEmailList(emailCC),
+     moreCC: sanitizeEmailList(moreCC),
   };
 }
 
