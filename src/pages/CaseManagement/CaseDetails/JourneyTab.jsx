@@ -16,18 +16,17 @@ const JourneyTab = forwardRef(({ caseNo }, ref) => {
           `${API_BASE_URL}/api/CaseOperation/CaseJourney/${caseNo}`,
           {
             method: "GET",
-             credentials: "include",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
             },
           }
         );
         const data = await response.json();
-        const sorted = [
-          ...data.filter((item) => item.typeOfData === "Initiated"),
-          ...data.filter((item) => item.typeOfData === "Response"),
-        ];
-        setJourneyData(sorted);
+
+        // SP now returns rows in correct order (ORDER BY RECID ASC)
+        // No client-side sorting needed
+        setJourneyData(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch journey data:", error);
         setJourneyData([]);
@@ -37,53 +36,92 @@ const JourneyTab = forwardRef(({ caseNo }, ref) => {
     fetchJourney();
   }, [caseNo]);
 
-  const renderRow = (entry, isInitiation = false) => (
+  const getStageLabel = (entry) => {
+    const stage = (entry.stageType || "").toString().trim();
+    if (stage === "Initiated")     return "Initiation By";
+    if (stage === "Closed")        return "Closure";
+    if (stage === "EscalatedToL2") return "Escalated to L2";
+    return "Response";
+  };
+
+  const renderRow = (entry, index) => (
     <div
       className="jrnygrd"
-      key={`${entry.subject}-${entry.typeOfData}-${entry.from || ''}-${entry.to || ''}`}
+      key={entry.recid || `journey-row-${index}`}
     >
       <div className="jrnycell jrnyfrst">
-        {isInitiation ? "Initiation By" : "Response"}
+        {getStageLabel(entry)}
       </div>
+
       <div className="jrnycell jrnysec">
         <div className="emrespwrp">
+
           <div className="emailresp">
             <div className="emlbl">From:</div>
-            <div className="emlval">{entry.from || ""}</div>
+            <div className="emlval">
+              {entry.createdBy || entry.from || ""}
+            </div>
           </div>
+
           <div className="emailresp">
             <div className="emlbl">To:</div>
-            <div className="emlval">{entry.to || ""}</div>
+            <div className="emlval">
+              {entry.emailTo || entry.to || ""}
+            </div>
           </div>
+
           <div className="emailresp">
             <div className="emlbl">CC:</div>
-            <div className="emlval">{entry.cc || ""}</div>
+            <div className="emlval">
+              {entry.emailCC || entry.cc || ""}
+            </div>
           </div>
+
           <div className="emailresp">
             <div className="emlbl">Subject:</div>
-            <div className="emlval">{entry.subject || ""}</div>
+            <div className="emlval">
+              {entry.caseTitle || entry.subject || ""}
+            </div>
           </div>
+
         </div>
       </div>
+
       <div className="jrnycell jrnythr">
         <hr />
       </div>
+
       <div className="jrnycell jrnyfr">
-        <textarea readOnly defaultValue={entry.issueDescription || ""} />
+        <textarea
+          readOnly
+          defaultValue={
+            entry.response ||
+            entry.issueDesciption ||
+            entry.issueDescription ||
+            ""
+          }
+        />
       </div>
     </div>
   );
 
   return (
     <div className="jrnyform tabform">
+      {/* Header row */}
       <div className="jrnygrd">
         <div className="jrnycell jrnyfrst"></div>
         <div className="jrnycell jrnysec csttl">Case Journey</div>
         <div className="jrnycell jrnythr"></div>
         <div className="jrnycell jrnyfr"></div>
       </div>
-      {journeyData.map((entry) =>
-        renderRow(entry, entry.typeOfData === "Initiated")
+
+      {/* Journey rows */}
+      {journeyData.length === 0 ? (
+        <div style={{ padding: "16px", color: "#888", textAlign: "center" }}>
+          No journey data available.
+        </div>
+      ) : (
+        journeyData.map((entry, index) => renderRow(entry, index))
       )}
     </div>
   );
