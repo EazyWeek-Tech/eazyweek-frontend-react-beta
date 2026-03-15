@@ -1268,7 +1268,7 @@ const effectiveSelected = {
 
     // Preflight persist response for non-submit actions
     const responseText = trim(effectiveSelected?.response || "");
-    if (responseText && actionType !== "submit") {
+    if (responseText && actionType !== "submit" && actionType !== "save") {
       const stage2Code = trim(selectedCaseData?.secondSlaCode || selectedCaseData?.nextLevelID || "");
       const assigneeForSubmit = resolveAssigneeForSubmit({
         newAssigneeCode: trim(effectiveSelected?.assignToCode || effectiveSelected?.assignedTo || ""),
@@ -1451,7 +1451,7 @@ if (closingViaSubmit) {
       payload.assignedemailid = resolvedEmail || payload.assignedemailid || "";
     }
 
-    if (actionType !== "submit") payload.response = "";
+    if (actionType !== "submit" && actionType !== "save") payload.response = "";
 
     if (treatAsManual && isAssignToCreator) {
       payload.assignedto = ownerCode;
