@@ -170,6 +170,28 @@ const LS_MANUAL_ASSIGN = (oppCode) => `EW_OPP_MANUAL_ASSIGN_${oppCode}`;
 // (legacy) one-time prepend key (set by ManualOppCustomerDetails on submit)
 const LS_NEW_LEAD_KEY = (oppCode) => `EW_OPP_NEW_LEAD_${oppCode}`;
 
+// ─── Session storage key for filters per oppCode ───────────────────────────
+const SS_FILTER_KEY = (oppCode) => `EW_OPP_FILTERS_${oppCode}`;
+
+/** Read saved filters from sessionStorage for this oppCode. Returns {} if none. */
+const readSavedFilters = (oppCode) => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SS_FILTER_KEY(oppCode)) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+/** Persist current filters to sessionStorage. */
+const saveFilters = (oppCode, filters) => {
+  try {
+    sessionStorage.setItem(SS_FILTER_KEY(oppCode), JSON.stringify(filters));
+  } catch {
+    // sessionStorage can be unavailable in some privacy modes — fail silently
+  }
+};
+// ───────────────────────────────────────────────────────────────────────────
+
 const readManualAssignments = (oppCode) => {
   try {
     return JSON.parse(localStorage.getItem(LS_MANUAL_ASSIGN(oppCode)) || "[]");
@@ -1120,11 +1142,45 @@ const AutoDistributionModal = ({ onClose, oppCode, onStartAssignment, actionType
   );
 };
 
+// ─── Helper: collect all filter values into a plain object ─────────────────
+const buildFilterSnapshot = ({
+  statusFilter,
+  dispositionFilter,
+  ownerFilter,
+  therapistFilter,
+  searchDraft,
+  followDateMode,
+  rangeFrom,
+  rangeTo,
+  timeFromSlot,
+  timeFromMer,
+  timeToSlot,
+  timeToMer,
+  apptFrom,
+  apptTo,
+}) => ({
+  statusFilter,
+  dispositionFilter,
+  ownerFilter,
+  therapistFilter,
+  searchDraft,
+  followDateMode,
+  rangeFrom,
+  rangeTo,
+  timeFromSlot,
+  timeFromMer,
+  timeToSlot,
+  timeToMer,
+  apptFrom,
+  apptTo,
+});
+// ───────────────────────────────────────────────────────────────────────────
+
 const OpportunityDetails = () => {
   const { oppCode } = useParams();
   const location = useLocation();
 
-    // ✅ Manual Lead date range should come from URL query params
+  // ✅ Manual Lead date range should come from URL query params
   // Example URL: /opportunity/OPP001?fromDate=2026-02-21&toDate=2026-02-28
   const mlQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
@@ -1155,8 +1211,12 @@ const OpportunityDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [apptFrom, setApptFrom] = useState("");
-const [apptTo, setApptTo] = useState("");
+  // ─── Restore saved filters from sessionStorage (once, keyed by oppCode) ──
+  // We read once at component initialisation so useState initialisers can use it.
+  const _saved = useMemo(() => readSavedFilters(oppCode), [oppCode]);
+
+  const [apptFrom, setApptFrom] = useState(_saved.apptFrom ?? "");
+  const [apptTo, setApptTo] = useState(_saved.apptTo ?? "");
 
   const [toast, setToast] = useState(null);
   const showToast = (msg) => {
@@ -1172,8 +1232,7 @@ const [apptTo, setApptTo] = useState("");
   const openAssignMenu = () => setAssignChoiceOpen(true);
   const closeAssignMenu = () => setAssignChoiceOpen(false);
 
-  const [therapistFilter, setTherapistFilter] = useState("");
-
+  const [therapistFilter, setTherapistFilter] = useState(_saved.therapistFilter ?? "");
 
   // store picked action: assign/reassign + mode
   const [assignAction, setAssignAction] = useState({ type: "assign", mode: "auto" });
@@ -1187,30 +1246,69 @@ const [apptTo, setApptTo] = useState("");
     if (opt?.mode === "availability") setAvailabilityOpen(true);
   };
 
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dispositionFilter, setDispositionFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(_saved.statusFilter ?? "");
+  const [dispositionFilter, setDispositionFilter] = useState(_saved.dispositionFilter ?? "");
 
-  const [ownerFilter, setOwnerFilter] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchDraft, setSearchDraft] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState(_saved.ownerFilter ?? "");
+  const [searchTerm, setSearchTerm] = useState(_saved.searchDraft ?? "");
+  const [searchDraft, setSearchDraft] = useState(_saved.searchDraft ?? "");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
-  const [followDateMode, setFollowDateMode] = useState("");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
+  const [followDateMode, setFollowDateMode] = useState(_saved.followDateMode ?? "");
+  const [rangeFrom, setRangeFrom] = useState(_saved.rangeFrom ?? "");
+  const [rangeTo, setRangeTo] = useState(_saved.rangeTo ?? "");
 
-  const [timeFromSlot, setTimeFromSlot] = useState("");
-  const [timeFromMer, setTimeFromMer] = useState("AM");
-  const [timeToSlot, setTimeToSlot] = useState("");
-  const [timeToMer, setTimeToMer] = useState("AM");
+  const [timeFromSlot, setTimeFromSlot] = useState(_saved.timeFromSlot ?? "");
+  const [timeFromMer, setTimeFromMer] = useState(_saved.timeFromMer ?? "AM");
+  const [timeToSlot, setTimeToSlot] = useState(_saved.timeToSlot ?? "");
+  const [timeToMer, setTimeToMer] = useState(_saved.timeToMer ?? "AM");
 
   // ✅ dates coming ONLY from dashboard
-const [dashFromDate] = useState(() => state?.fromDate || "");
-const [dashToDate] = useState(() => state?.toDate || "");
-
+  const [dashFromDate] = useState(() => state?.fromDate || "");
+  const [dashToDate] = useState(() => state?.toDate || "");
 
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  // ─── Persist filters to sessionStorage whenever any filter changes ────────
+  useEffect(() => {
+    saveFilters(
+      oppCode,
+      buildFilterSnapshot({
+        statusFilter,
+        dispositionFilter,
+        ownerFilter,
+        therapistFilter,
+        searchDraft,
+        followDateMode,
+        rangeFrom,
+        rangeTo,
+        timeFromSlot,
+        timeFromMer,
+        timeToSlot,
+        timeToMer,
+        apptFrom,
+        apptTo,
+      })
+    );
+  }, [
+    oppCode,
+    statusFilter,
+    dispositionFilter,
+    ownerFilter,
+    therapistFilter,
+    searchDraft,
+    followDateMode,
+    rangeFrom,
+    rangeTo,
+    timeFromSlot,
+    timeFromMer,
+    timeToSlot,
+    timeToMer,
+    apptFrom,
+    apptTo,
+  ]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // debounce search input
   useEffect(() => {
@@ -1256,14 +1354,14 @@ const [dashToDate] = useState(() => state?.toDate || "");
 
       try {
         const fromDate = dashFromDate;
-const toDateStr  = dashToDate;
+        const toDateStr  = dashToDate;
 
-// optional safety: if dashboard didn't send, stop (or you can fallback if you want)
-if (!fromDate || !toDate) {
-  setError("From/To date missing from dashboard.");
-  setLoading(false);
-  return;
-}
+        // optional safety: if dashboard didn't send, stop (or you can fallback if you want)
+        if (!fromDate || !toDate) {
+          setError("From/To date missing from dashboard.");
+          setLoading(false);
+          return;
+        }
 
 
         const payload = { oppCode, fromDate, toDate: toDateStr };
@@ -1282,59 +1380,59 @@ if (!fromDate || !toDate) {
         setHeader(arr[0] ?? null);
         setRows(arr);
 
-       const computed = arr.map((r) => {
-  const d = getRowFollowUpDate(r);
-  const hhmm = getRowTimeHHmm(r);
+        const computed = arr.map((r) => {
+          const d = getRowFollowUpDate(r);
+          const hhmm = getRowTimeHHmm(r);
 
-  const therapistName = getTherapistName(r);
-  const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
-  const modifiedBy = r?.modifiedBy;
+          const therapistName = getTherapistName(r);
+          const modified = r?.modifieddate ?? r?.modifiedDate ?? "";
+          const modifiedBy = r?.modifiedBy;
 
-  // ✅ Appointment date stamp (for R3/R4 filter + column)
-  const apptD = toDate(r?.appointmentdatetime || r?.appointmentDateTime || "");
-  const apptStamp = apptD ? +new Date(apptD.getFullYear(), apptD.getMonth(), apptD.getDate()) : NaN;
+          // ✅ Appointment date stamp (for R3/R4 filter + column)
+          const apptD = toDate(r?.appointmentdatetime || r?.appointmentDateTime || "");
+          const apptStamp = apptD ? +new Date(apptD.getFullYear(), apptD.getMonth(), apptD.getDate()) : NaN;
 
-  return {
-    ...r,
-    __dateStamp: dateToStamp(d),
-    __apptStamp: apptStamp, // ✅ NEW
-    __timeMin: hhmmToMinutes(hhmm),
-    __therapistName: therapistName,
-    modifieddate: modified,
-    modifiedBy: modifiedBy,
-    __q: [
-      r?.custID,
-      r?.custName,
-      r?.custMobileNo,
-      displayOppStatus(r?.oppStatus),
-      r?.salesOwner,
-      modified,
-      modifiedBy,
-      therapistName,
-    ]
-      .map((x) => (x ?? "").toString().toLowerCase())
-      .join(" | "),
-  };
-});
+          return {
+            ...r,
+            __dateStamp: dateToStamp(d),
+            __apptStamp: apptStamp, // ✅ NEW
+            __timeMin: hhmmToMinutes(hhmm),
+            __therapistName: therapistName,
+            modifieddate: modified,
+            modifiedBy: modifiedBy,
+            __q: [
+              r?.custID,
+              r?.custName,
+              r?.custMobileNo,
+              displayOppStatus(r?.oppStatus),
+              r?.salesOwner,
+              modified,
+              modifiedBy,
+              therapistName,
+            ]
+              .map((x) => (x ?? "").toString().toLowerCase())
+              .join(" | "),
+          };
+        });
 
 
         // apply auto store assignments (if any)
         // ✅ sort by Appointment Date (recent first). Missing dates go last.
-const computedSorted = computed.slice().sort((a, b) => {
-  const sa = Number.isFinite(a.__apptStamp) ? a.__apptStamp : -Infinity;
-  const sb = Number.isFinite(b.__apptStamp) ? b.__apptStamp : -Infinity;
-  return sb - sa; // recent first
-});
+        const computedSorted = computed.slice().sort((a, b) => {
+          const sa = Number.isFinite(a.__apptStamp) ? a.__apptStamp : -Infinity;
+          const sb = Number.isFinite(b.__apptStamp) ? b.__apptStamp : -Infinity;
+          return sb - sa; // recent first
+        });
 
-// apply auto store assignments (if any)
-const store = loadAssignStore(oppCode);
-const assignedMap = store.assigned || {};
-const withAssigned = computedSorted.map((r) => {
-  const rid = getRecId(r);
-  const a = assignedMap[String(rid)];
-  if (!a) return r;
-  return { ...r, salesOwner: a.employeeName, salesOwnerCode: a.employeeCode };
-});
+        // apply auto store assignments (if any)
+        const store = loadAssignStore(oppCode);
+        const assignedMap = store.assigned || {};
+        const withAssigned = computedSorted.map((r) => {
+          const rid = getRecId(r);
+          const a = assignedMap[String(rid)];
+          if (!a) return r;
+          return { ...r, salesOwner: a.employeeName, salesOwnerCode: a.employeeCode };
+        });
 
         // apply manual assignments (if any)
         const withManual = applyManualAssignmentsToRows(oppCode, withAssigned);
@@ -1365,54 +1463,54 @@ const withAssigned = computedSorted.map((r) => {
   }, [H]);
 
   const Hdisplay = useMemo(() => {
-  const base = H || {};
-  return {
-    ...base,
-    // ✅ always prefer dashboard oppName if provided
-    oppName: (state?.oppName ?? "").toString().trim() || base.oppName,
-    oRuleDetails: (state?.oRuleDetails ?? "").toString().trim() || base.oRuleDetails,
-    oRuleXvalue: (state?.oRuleXvalue ?? "").toString().trim() || base.oRuleXvalue,
-    oRuleCode: (state?.oRuleCode ?? "").toString().trim() || base.oRuleCode,
-  };
-}, [H, state]);
+    const base = H || {};
+    return {
+      ...base,
+      // ✅ always prefer dashboard oppName if provided
+      oppName: (state?.oppName ?? "").toString().trim() || base.oppName,
+      oRuleDetails: (state?.oRuleDetails ?? "").toString().trim() || base.oRuleDetails,
+      oRuleXvalue: (state?.oRuleXvalue ?? "").toString().trim() || base.oRuleXvalue,
+      oRuleCode: (state?.oRuleCode ?? "").toString().trim() || base.oRuleCode,
+    };
+  }, [H, state]);
 
   // ✅ Only for No Show (R3) and Cancelled (R4)
-const showAppointmentDate = useMemo(() => {
-  const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
-    .trim()
-    .toUpperCase();
-  return rule === "R3" || rule === "R4";
-}, [H, state]);
+  const showAppointmentDate = useMemo(() => {
+    const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
+      .trim()
+      .toUpperCase();
+    return rule === "R3" || rule === "R4";
+  }, [H, state]);
 
   // Filters/sort/pagination are for NON-manual table only
   const filterTimeFrom = useMemo(() => to24h(timeFromSlot, timeFromMer), [timeFromSlot, timeFromMer]);
   const filterTimeTo = useMemo(() => to24h(timeToSlot, timeToMer), [timeToSlot, timeToMer]);
 
- useEffect(() => {
-  setPage(1);
-}, [
-  searchTerm,
-  statusFilter,
-  ownerFilter,
-  therapistFilter,
-  dispositionFilter,
+  useEffect(() => {
+    setPage(1);
+  }, [
+    searchTerm,
+    statusFilter,
+    ownerFilter,
+    therapistFilter,
+    dispositionFilter,
 
-  followDateMode,
-  rangeFrom,
-  rangeTo,
+    followDateMode,
+    rangeFrom,
+    rangeTo,
 
-  filterTimeFrom,
-  filterTimeTo,
+    filterTimeFrom,
+    filterTimeTo,
 
-  apptFrom,
-  apptTo,
-  showAppointmentDate,
+    apptFrom,
+    apptTo,
+    showAppointmentDate,
 
-  sortConfig?.key,
-  sortConfig?.direction,
+    sortConfig?.key,
+    sortConfig?.direction,
 
-  isManualLead,
-]);
+    isManualLead,
+  ]);
 
 
   const ownerOptions = useMemo(() => {
@@ -1424,23 +1522,23 @@ const showAppointmentDate = useMemo(() => {
   }, [normRows]);
 
   const dispositionOptions = useMemo(() => {
-  const set = new Set();
-  rows.forEach((r) => {
-    const d = String(r?.disposition || "").trim();
-    if (d) set.add(d);
-  });
-  return ["", ...Array.from(set)];
-}, [rows]);
+    const set = new Set();
+    rows.forEach((r) => {
+      const d = String(r?.disposition || "").trim();
+      if (d) set.add(d);
+    });
+    return ["", ...Array.from(set)];
+  }, [rows]);
 
 
   const therapistOptions = useMemo(() => {
-  const set = new Set();
-  normRows.forEach((r) => {
-    const t = getTherapistName(r);
-    if (t) set.add(t);
-  });
-  return ["", ...Array.from(set)];
-}, [normRows]);
+    const set = new Set();
+    normRows.forEach((r) => {
+      const t = getTherapistName(r);
+      if (t) set.add(t);
+    });
+    return ["", ...Array.from(set)];
+  }, [normRows]);
 
 
   const currentOwners = useMemo(() => {
@@ -1478,169 +1576,169 @@ const showAppointmentDate = useMemo(() => {
 
 
   const normStatus = (v) => displayOppStatus(v).toString().trim().toLowerCase();
-const getRowDateStampForFilter = (row) => {
-  // ✅ follow-up date first
-  const d =
-    getRowFollowUpDate(row) ||
-    toDate(row?.followUpDate) ||
-    toDate(row?.appointmentdatetime) ||
-    toDate(row?.createddate);
+  const getRowDateStampForFilter = (row) => {
+    // ✅ follow-up date first
+    const d =
+      getRowFollowUpDate(row) ||
+      toDate(row?.followUpDate) ||
+      toDate(row?.appointmentdatetime) ||
+      toDate(row?.createddate);
 
-  return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
-};
-
- const filteredRows = useMemo(() => {
-  let list = normRows.slice();
-
-  // 1) Search
-  const s = searchTerm.trim().toLowerCase();
-  if (s) list = list.filter((r) => (r.__q || "").includes(s));
-
-  // 2) Status filter (Open/Closed)
-  const sf = String(statusFilter || "").trim().toLowerCase();
-  if (sf) {
-    list = list.filter((r) => normStatus(r?.oppStatus) === sf);
-  }
-
-  // 3) Owner filter (including "(Unassigned)")
-  if (ownerFilter) {
-    if (ownerFilter === "(Unassigned)") {
-      list = list.filter((r) => !String(r?.salesOwner || "").trim());
-    } else {
-      const of = String(ownerFilter).trim().toLowerCase();
-      list = list.filter((r) => String(r?.salesOwner || "").trim().toLowerCase() === of);
-    }
-  }
-
-  if (dispositionFilter) {
-  const d = dispositionFilter.toLowerCase();
-  list = list.filter(
-    (r) => String(r?.disposition || "").toLowerCase() === d
-  );
-}
-
-// ✅ Appointment Date filter (ONLY for R3/R4)
-if (showAppointmentDate && (apptFrom || apptTo)) {
-  const fD = apptFrom ? toDate(apptFrom) : null;
-const tD = apptTo ? toDate(apptTo) : null;
-
-let f = fD ? dateToStamp(fD) : NaN;
-let t = tD ? dateToStamp(tD) : NaN;
-  if (!Number.isNaN(f) && !Number.isNaN(t) && f > t) {
-    const tmp = f;
-    f = t;
-    t = tmp;
-  }
-
-  list = list.filter((r) => {
-    const stamp = r.__apptStamp;
-    if (Number.isNaN(stamp)) return false;
-    if (!Number.isNaN(f) && stamp < f) return false;
-    if (!Number.isNaN(t) && stamp > t) return false;
-    return true;
-  });
-}
-
-  // 3b) Therapist filter
-if (therapistFilter) {
-  const tf = therapistFilter.trim().toLowerCase();
-  list = list.filter((r) => String(r.__therapistName || getTherapistName(r)).trim().toLowerCase() === tf);
-}
-
-
-  // 4) Follow-up date filter (Today / Tomorrow / Range)
-  if (dateRange) {
-    const from = +new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate());
-    const to = +new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate());
-
-    list = list.filter((r) => {
-      const stamp = getRowDateStampForFilter(r);
-      return !Number.isNaN(stamp) && stamp >= from && stamp <= to;
-    });
-  }
-
-  // 5) Time window filter
- let fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
-let toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
-
-// ✅ if both are set and reversed, swap
-if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
-  const tmp = fromMin;
-  fromMin = toMin;
-  toMin = tmp;
-}
-
-
-  const inTimeWindow = (r) => {
-    if (!filterTimeFrom && !filterTimeTo) return true;
-    if (Number.isNaN(r.__timeMin)) return false;
-    if (filterTimeFrom && r.__timeMin < fromMin) return false;
-    if (filterTimeTo && r.__timeMin > toMin) return false;
-    return true;
+    return d ? +new Date(d.getFullYear(), d.getMonth(), d.getDate()) : NaN;
   };
 
-  list = list.filter(inTimeWindow);
+  const filteredRows = useMemo(() => {
+    let list = normRows.slice();
 
-  // 6) Sorting (unchanged)
-  if (sortConfig.key) {
-    const { key, direction } = sortConfig;
-    const dir = direction === "asc" ? 1 : -1;
+    // 1) Search
+    const s = searchTerm.trim().toLowerCase();
+    if (s) list = list.filter((r) => (r.__q || "").includes(s));
 
-    const isDateKey =
-      key === "followUpDate" ||
-      key === "followupdate" ||
-      key === "appointmentdatetime" ||
-      key === "createddate";
+    // 2) Status filter (Open/Closed)
+    const sf = String(statusFilter || "").trim().toLowerCase();
+    if (sf) {
+      list = list.filter((r) => normStatus(r?.oppStatus) === sf);
+    }
 
-    list.sort((a, b) => {
-      if (isDateKey) {
-        const da = a.__dateStamp;
-        const db = b.__dateStamp;
-        const hasA = !Number.isNaN(da);
-        const hasB = !Number.isNaN(db);
-        if (hasA && hasB) return (da - db) * dir;
-        if (hasA && !hasB) return -1 * dir;
-        if (!hasA && hasB) return 1 * dir;
+    // 3) Owner filter (including "(Unassigned)")
+    if (ownerFilter) {
+      if (ownerFilter === "(Unassigned)") {
+        list = list.filter((r) => !String(r?.salesOwner || "").trim());
+      } else {
+        const of = String(ownerFilter).trim().toLowerCase();
+        list = list.filter((r) => String(r?.salesOwner || "").trim().toLowerCase() === of);
+      }
+    }
+
+    if (dispositionFilter) {
+      const d = dispositionFilter.toLowerCase();
+      list = list.filter(
+        (r) => String(r?.disposition || "").toLowerCase() === d
+      );
+    }
+
+    // ✅ Appointment Date filter (ONLY for R3/R4)
+    if (showAppointmentDate && (apptFrom || apptTo)) {
+      const fD = apptFrom ? toDate(apptFrom) : null;
+      const tD = apptTo ? toDate(apptTo) : null;
+
+      let f = fD ? dateToStamp(fD) : NaN;
+      let t = tD ? dateToStamp(tD) : NaN;
+      if (!Number.isNaN(f) && !Number.isNaN(t) && f > t) {
+        const tmp = f;
+        f = t;
+        t = tmp;
       }
 
-      const va = (a?.[key] ?? "").toString().toLowerCase();
-      const vb = (b?.[key] ?? "").toString().toLowerCase();
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
+      list = list.filter((r) => {
+        const stamp = r.__apptStamp;
+        if (Number.isNaN(stamp)) return false;
+        if (!Number.isNaN(f) && stamp < f) return false;
+        if (!Number.isNaN(t) && stamp > t) return false;
+        return true;
+      });
+    }
+
+    // 3b) Therapist filter
+    if (therapistFilter) {
+      const tf = therapistFilter.trim().toLowerCase();
+      list = list.filter((r) => String(r.__therapistName || getTherapistName(r)).trim().toLowerCase() === tf);
+    }
+
+
+    // 4) Follow-up date filter (Today / Tomorrow / Range)
+    if (dateRange) {
+      const from = +new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate());
+      const to = +new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate());
+
+      list = list.filter((r) => {
+        const stamp = getRowDateStampForFilter(r);
+        return !Number.isNaN(stamp) && stamp >= from && stamp <= to;
+      });
+    }
+
+    // 5) Time window filter
+    let fromMin = filterTimeFrom ? hhmmToMinutes(filterTimeFrom) : NaN;
+    let toMin = filterTimeTo ? hhmmToMinutes(filterTimeTo) : NaN;
+
+    // ✅ if both are set and reversed, swap
+    if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
+      const tmp = fromMin;
+      fromMin = toMin;
+      toMin = tmp;
+    }
+
+
+    const inTimeWindow = (r) => {
+      if (!filterTimeFrom && !filterTimeTo) return true;
+      if (Number.isNaN(r.__timeMin)) return false;
+      if (filterTimeFrom && r.__timeMin < fromMin) return false;
+      if (filterTimeTo && r.__timeMin > toMin) return false;
+      return true;
+    };
+
+    list = list.filter(inTimeWindow);
+
+    // 6) Sorting (unchanged)
+    if (sortConfig.key) {
+      const { key, direction } = sortConfig;
+      const dir = direction === "asc" ? 1 : -1;
+
+      const isDateKey =
+        key === "followUpDate" ||
+        key === "followupdate" ||
+        key === "appointmentdatetime" ||
+        key === "createddate";
+
+      list.sort((a, b) => {
+        if (isDateKey) {
+          const da = a.__dateStamp;
+          const db = b.__dateStamp;
+          const hasA = !Number.isNaN(da);
+          const hasB = !Number.isNaN(db);
+          if (hasA && hasB) return (da - db) * dir;
+          if (hasA && !hasB) return -1 * dir;
+          if (!hasA && hasB) return 1 * dir;
+        }
+
+        const va = (a?.[key] ?? "").toString().toLowerCase();
+        const vb = (b?.[key] ?? "").toString().toLowerCase();
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+    }
+
+    console.log("FILTER DEBUG", {
+      total: normRows.length,
+      afterFilters: list.length,
+      sampleRowDate: normRows[0]?.appointmentdatetime || normRows[0]?.createddate,
+      sampleStamp: getOppDateStamp(normRows[0], false),
+      rangeFrom,
+      rangeTo,
+      dateRange,
     });
-  }
-
-  console.log("FILTER DEBUG", {
-  total: normRows.length,
-  afterFilters: list.length,
-  sampleRowDate: normRows[0]?.appointmentdatetime || normRows[0]?.createddate,
-  sampleStamp: getOppDateStamp(normRows[0], false),
-  rangeFrom,
-  rangeTo,
-  dateRange,
-});
 
 
-  return list;
-}, [
-  normRows,
-  searchTerm,
-  statusFilter,
-  ownerFilter,
-  dispositionFilter,
-  therapistFilter,
+    return list;
+  }, [
+    normRows,
+    searchTerm,
+    statusFilter,
+    ownerFilter,
+    dispositionFilter,
+    therapistFilter,
 
-  dateRange,
-  filterTimeFrom,
-  filterTimeTo,
+    dateRange,
+    filterTimeFrom,
+    filterTimeTo,
 
-  apptFrom,
-  apptTo,
-  showAppointmentDate,
+    apptFrom,
+    apptTo,
+    showAppointmentDate,
 
-  sortConfig,
-]);
+    sortConfig,
+  ]);
 
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length]);
@@ -1651,105 +1749,105 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
   }, [filteredRows, page]);
 
   const openCustomer = (row) => {
-  const recId = getRecId(row);
+    const recId = getRecId(row);
 
-  const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
-    .trim()
-    .toUpperCase();
+    const rule = String(H?.oRuleCode || H?.oRuleDetails || state?.oRuleCode || state?.oRuleDetails || "")
+      .trim()
+      .toUpperCase();
 
-  // ✅ R3 => No Show
-  if (rule === "R3") {
-    navigate(`/opportunity/${oppCode}/noshow/${row.custID}`, {
+    // ✅ R3 => No Show
+    if (rule === "R3") {
+      navigate(`/opportunity/${oppCode}/noshow/${row.custID}`, {
+        state: { recId, oppCode, row, header: H, isManual: false },
+      });
+      return;
+    }
+
+    // ✅ R4 => Cancelled
+    if (rule === "R4") {
+      navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`, {
+        state: { recId, oppCode, row, header: H, isManual: false },
+      });
+      return;
+    }
+
+    // default
+    navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
       state: { recId, oppCode, row, header: H, isManual: false },
     });
-    return;
-  }
-
-  // ✅ R4 => Cancelled
-  if (rule === "R4") {
-    navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`, {
-      state: { recId, oppCode, row, header: H, isManual: false },
-    });
-    return;
-  }
-
-  // default
-  navigate(`/opportunity/${oppCode}/customer/${row.custID}`, {
-    state: { recId, oppCode, row, header: H, isManual: false },
-  });
-};
+  };
 
 
   const exportCSV = () => {
-  // Export exactly what the table shows (+ a couple useful IDs)
-  const headers = [
-    "ProspectID",
-    "ProspectType",
-    "CustomerID",
-    "CustomerName",
-    "MobileNo",
-    "Status",
-    "Disposition",
-    "TherapistName",
-    "Remarks",
-    "SalesOwner",
-    "SalesOwnerCode",
-    "ModifiedBy",
-    "ModifiedDate",
-    "CreatedDate",
-    "RecID", // optional but helpful
-  ];
-
-  const escape = (v) => {
-    const s = v == null ? "" : String(v);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-
-  const safeCSV = (v) => (v === null || v === undefined ? "" : v);
-
-  const lines = [headers.join(",")];
-
-  // ✅ Export filtered rows (not just current page)
-  filteredRows.forEach((r) => {
-    const recid = getRecId(r);
-
-    const therapist = safeCSV(r.__therapistName || getTherapistName(r));
-    const modified = safeCSV(r.modifieddate || r.modifiedDate);
-
-    const rowArr = [
-      formatProspectId(recid),              // ProspectID
-      "Opportunity",                        // ProspectType
-      safeCSV(r.custID),                    // CustomerID
-      safeCSV(r.custName),                  // CustomerName
-      safeCSV(r.custMobileNo),              // MobileNo
-      displayOppStatus(r.oppStatus),        // Status
-      safeCSV(r.disposition),               // Disposition
-      therapist,                            // TherapistName
-      safeCSV(r.remarks),                   // Remarks
-      safeCSV(r.salesOwner),                // SalesOwner
-      safeCSV(r.salesOwnerCode),            // SalesOwnerCode
-      safeCSV(r.modifiedBy),                // ModifiedBy
-      formatDDMMYYYY(modified),             // ModifiedDate
-      formatDDMMYYYY(r.createddate),        // CreatedDate
-      recid,                                // RecID
+    // Export exactly what the table shows (+ a couple useful IDs)
+    const headers = [
+      "ProspectID",
+      "ProspectType",
+      "CustomerID",
+      "CustomerName",
+      "MobileNo",
+      "Status",
+      "Disposition",
+      "TherapistName",
+      "Remarks",
+      "SalesOwner",
+      "SalesOwnerCode",
+      "ModifiedBy",
+      "ModifiedDate",
+      "CreatedDate",
+      "RecID", // optional but helpful
     ];
 
-    lines.push(rowArr.map(escape).join(","));
-  });
+    const escape = (v) => {
+      const s = v == null ? "" : String(v);
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
 
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${H?.oppCode || "opportunity"}-details.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
+    const safeCSV = (v) => (v === null || v === undefined ? "" : v);
+
+    const lines = [headers.join(",")];
+
+    // ✅ Export filtered rows (not just current page)
+    filteredRows.forEach((r) => {
+      const recid = getRecId(r);
+
+      const therapist = safeCSV(r.__therapistName || getTherapistName(r));
+      const modified = safeCSV(r.modifieddate || r.modifiedDate);
+
+      const rowArr = [
+        formatProspectId(recid),              // ProspectID
+        "Opportunity",                        // ProspectType
+        safeCSV(r.custID),                    // CustomerID
+        safeCSV(r.custName),                  // CustomerName
+        safeCSV(r.custMobileNo),              // MobileNo
+        displayOppStatus(r.oppStatus),        // Status
+        safeCSV(r.disposition),               // Disposition
+        therapist,                            // TherapistName
+        safeCSV(r.remarks),                   // Remarks
+        safeCSV(r.salesOwner),                // SalesOwner
+        safeCSV(r.salesOwnerCode),            // SalesOwnerCode
+        safeCSV(r.modifiedBy),                // ModifiedBy
+        formatDDMMYYYY(modified),             // ModifiedDate
+        formatDDMMYYYY(r.createddate),        // CreatedDate
+        recid,                                // RecID
+      ];
+
+      lines.push(rowArr.map(escape).join(","));
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${H?.oppCode || "opportunity"}-details.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
 
   const handleSort = (key) => {
@@ -1773,13 +1871,13 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
             {" > "}
             <span className="breadcrumb-current">Manual Leads</span>
           </div>
-<ManualLeadsTable
-  oppCode={oppCode}
-  header={H}
-  mlFromDate={mlFromDate}
-  mlToDate={mlToDate}
-  onToast={(m) => showToast(m)}
-/>
+          <ManualLeadsTable
+            oppCode={oppCode}
+            header={H}
+            mlFromDate={mlFromDate}
+            mlToDate={mlToDate}
+            onToast={(m) => showToast(m)}
+          />
         </div>
 
         {toast ? <div className="ew-toast">{toast}</div> : null}
@@ -1830,45 +1928,44 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
           <div className="details-header">
             <div className="title-col">
               <div className="pair">
-  <span className="label">Campaign Code :</span>
-<span className="value pill">{safe(H?.oppCode, "—")}</span>
-</div>
+                <span className="label">Campaign Code :</span>
+                <span className="value pill">{safe(H?.oppCode, "—")}</span>
+              </div>
 
-<div className="pair">
-  <span className="label">Campaign Name :</span>
-<span className="value">{safe(Hdisplay?.oppName, "—")}</span>
-</div>
+              <div className="pair">
+                <span className="label">Campaign Name :</span>
+                <span className="value">{safe(Hdisplay?.oppName, "—")}</span>
+              </div>
 
 
-<div className="pair">
-  <span className="label">Rule Details :</span>
-<span className="value">
-  {getRuleDetailsFromCode(
-    Hdisplay?.oRuleCode,
-    Hdisplay?.oRuleDetails
-  )}
-</span>
-</div>
+              <div className="pair">
+                <span className="label">Rule Details :</span>
+                <span className="value">
+                  {getRuleDetailsFromCode(
+                    Hdisplay?.oRuleCode,
+                    Hdisplay?.oRuleDetails
+                  )}
+                </span>
+              </div>
 
-<div className="pair">
-  <span className="label">Campaign Period :</span>
-  <span className="value">
-      {formatDDMMYYYY(dashFromDate)} - {formatDDMMYYYY(dashToDate)}
-
-  </span>
-</div>
+              <div className="pair">
+                <span className="label">Campaign Period :</span>
+                <span className="value">
+                  {formatDDMMYYYY(dashFromDate)} - {formatDDMMYYYY(dashToDate)}
+                </span>
+              </div>
               <div className="xywrap">
                 {safe(H.oRuleYvalue) ? (
                   <>
-                <div className="pair">
-                  <span className="label short">X :</span>
-                  <span className="value">{safe(H.oRuleXvalue, "—")}</span>
-                </div>
-                
-                  <div className="pair">
-                    <span className="label short">Y :</span>
-                    <span className="value">{H.oRuleYvalue}</span>
-                  </div>
+                    <div className="pair">
+                      <span className="label short">X :</span>
+                      <span className="value">{safe(H.oRuleXvalue, "—")}</span>
+                    </div>
+                    
+                    <div className="pair">
+                      <span className="label short">Y :</span>
+                      <span className="value">{H.oRuleYvalue}</span>
+                    </div>
                   </>
                 ) : null}
               </div>
@@ -1887,70 +1984,69 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
               <div className="fgroup">
                 <label className="flabel">Status :</label>
                 <select className="finput" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-  <option value="">All</option>
-  <option value="Open">Open</option>
-  <option value="Closed">Closed</option>
-</select>
-
+                  <option value="">All</option>
+                  <option value="Open">Open</option>
+                  <option value="Closed">Closed</option>
+                </select>
               </div>
 
               <div className="fgroup">
-  <label className="flabel">Therapist :</label>
-  <select className="finput" value={therapistFilter} onChange={(e) => setTherapistFilter(e.target.value)}>
-    {therapistOptions.map((t, i) => (
-      <option key={i} value={t}>
-        {t || "All"}
-      </option>
-    ))}
-  </select>
-</div>
+                <label className="flabel">Therapist :</label>
+                <select className="finput" value={therapistFilter} onChange={(e) => setTherapistFilter(e.target.value)}>
+                  {therapistOptions.map((t, i) => (
+                    <option key={i} value={t}>
+                      {t || "All"}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
 
               <div className="fgroup">
                 <label className="flabel">Sales Owner :</label>
                 <select className="finput" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
                   {ownerOptions.map((o, i) => (
-                    <option key={i} value={o}>{o }</option>
+                    <option key={i} value={o}>{o}</option>
                   ))}
                 </select>
               </div>
 
               <div className="fgroup">
-  <label className="flabel">Disposition :</label>
-  <select
-    className="finput"
-    value={dispositionFilter}
-    onChange={(e) => setDispositionFilter(e.target.value)}
-  >
-    {dispositionOptions.map((d, i) => (
-      <option key={i} value={d}>
-        {d || "All"}
-      </option>
-    ))}
-  </select>
-</div>
+                <label className="flabel">Disposition :</label>
+                <select
+                  className="finput"
+                  value={dispositionFilter}
+                  onChange={(e) => setDispositionFilter(e.target.value)}
+                >
+                  {dispositionOptions.map((d, i) => (
+                    <option key={i} value={d}>
+                      {d || "All"}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-{showAppointmentDate ? (
-  <div className="fgroup">
-    <label className="flabel">Appointment Date :</label>
-    <div style={{ display: "flex", gap: 8 }}>
-      <input
-        type="date"
-        className="finput"
-        value={apptFrom}
-        onChange={(e) => setApptFrom(e.target.value)}
-        placeholder="From"
-      />
-      <input
-        type="date"
-        className="finput"
-        value={apptTo}
-        onChange={(e) => setApptTo(e.target.value)}
-        placeholder="To"
-      />
-    </div>
-  </div>
-) : null}
+              {showAppointmentDate ? (
+                <div className="fgroup">
+                  <label className="flabel">Appointment Date :</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="date"
+                      className="finput"
+                      value={apptFrom}
+                      onChange={(e) => setApptFrom(e.target.value)}
+                      placeholder="From"
+                    />
+                    <input
+                      type="date"
+                      className="finput"
+                      value={apptTo}
+                      onChange={(e) => setApptTo(e.target.value)}
+                      placeholder="To"
+                    />
+                  </div>
+                </div>
+              ) : null}
 
 
               <div className="fgroup">
@@ -1980,36 +2076,33 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                 <label className="flabel">Follow Up time (From) :</label>
                 <div className="ftime-row">
                   <select className="finput" value={timeFromSlot} onChange={(e) => setTimeFromSlot(e.target.value)}>
-      <option value="">—</option>
-      {HALF_HOURS_1_TO_1230.map((t) => (
-        <option key={`ts-${t}`} value={t}>{t}</option>
-      ))}
-    </select>
-    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
-      <option>AM</option>
-      <option>PM</option>
-    </select>
-  </div>
-</div>
+                    <option value="">—</option>
+                    {HALF_HOURS_1_TO_1230.map((t) => (
+                      <option key={`ts-${t}`} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <select className="finput" value={timeFromMer} onChange={(e) => setTimeFromMer(e.target.value)}>
+                    <option>AM</option>
+                    <option>PM</option>
+                  </select>
+                </div>
+              </div>
 
-<div className="fgroup ftime">
-  <label className="flabel">Follow Up time (To) :</label>
-  <div className="ftime-row">
-    <select className="finput" value={timeToSlot} onChange={(e) => setTimeToSlot(e.target.value)}>
-      <option value="">—</option>
-      {HALF_HOURS_1_TO_1230.map((t) => (
-        <option key={`ts-${t}`} value={t}>{t}</option>
-      ))}
-    </select>
-    <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
-      <option>AM</option>
-      <option>PM</option>
-    </select>
-  </div>
-</div>
-
-
-
+              <div className="fgroup ftime">
+                <label className="flabel">Follow Up time (To) :</label>
+                <div className="ftime-row">
+                  <select className="finput" value={timeToSlot} onChange={(e) => setTimeToSlot(e.target.value)}>
+                    <option value="">—</option>
+                    {HALF_HOURS_1_TO_1230.map((t) => (
+                      <option key={`ts-${t}`} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <select className="finput" value={timeToMer} onChange={(e) => setTimeToMer(e.target.value)}>
+                    <option>AM</option>
+                    <option>PM</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2036,23 +2129,23 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                     <th onClick={() => handleSort("oppStatus")}>Status <span className="sort">{sortArrow("oppStatus")}</span></th>
                     <th onClick={() => handleSort("disposition")}>Disposition <span className="sort">{sortArrow("disposition")}</span></th>
                     <th onClick={() => handleSort("__therapistName")}>
-  Therapist Name <span className="sort">{sortArrow("__therapistName")}</span>
-</th>
-            {showAppointmentDate ? (
-  <th onClick={() => handleSort("appointmentdatetime")}>
-    Appointment Date <span className="sort">{sortArrow("appointmentdatetime")}</span>
-  </th>
-) : null}
+                      Therapist Name <span className="sort">{sortArrow("__therapistName")}</span>
+                    </th>
+                    {showAppointmentDate ? (
+                      <th onClick={() => handleSort("appointmentdatetime")}>
+                        Appointment Date <span className="sort">{sortArrow("appointmentdatetime")}</span>
+                      </th>
+                    ) : null}
                     
                     <th onClick={() => handleSort("remarks")}>Remarks <span className="sort">{sortArrow("remarks")}</span></th>
                     <th onClick={() => handleSort("salesOwner")}>Sales Owner <span className="sort">{sortArrow("salesOwner")}</span></th>
                     
                     <th onClick={() => handleSort("modifiedBy")}>
-  Modified By <span className="sort">{sortArrow("modifiedBy")}</span>
-</th>
+                      Modified By <span className="sort">{sortArrow("modifiedBy")}</span>
+                    </th>
                     <th onClick={() => handleSort("modifieddate")}>
-  Modified Date <span className="sort">{sortArrow("modifieddate")}</span>
-</th>
+                      Modified Date <span className="sort">{sortArrow("modifieddate")}</span>
+                    </th>
                     <th onClick={() => handleSort("createddate")}>Created Date <span className="sort">{sortArrow("createddate")}</span></th>
                   </tr>
                 </thead>
@@ -2061,9 +2154,8 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                   {pagedRows.map((r, i) => (
                     <tr key={`${r.recid || r.custID || r.id || i}-${i}`}>
                       <td>
-                         <button className="linkish" onClick={() => openCustomer(r)}>
+                        <button className="linkish" onClick={() => openCustomer(r)}>
                           {formatProspectId(r.recid)}
-
                         </button>
                       </td>
                       <td>
@@ -2082,8 +2174,8 @@ if (!Number.isNaN(fromMin) && !Number.isNaN(toMin) && fromMin > toMin) {
                       <td>{safe(r.__therapistName || getTherapistName(r), "—")}</td>
 
                       {showAppointmentDate ? (
-  <td>{formatDDMMYYYY(r.appointmentdatetime || r.appointmentDateTime)}</td>
-) : null}
+                        <td>{formatDDMMYYYY(r.appointmentdatetime || r.appointmentDateTime)}</td>
+                      ) : null}
 
                       <td>{safe(r.remarks, "—")}</td>
                       <td>{safe(r.salesOwner, "—")}</td>
