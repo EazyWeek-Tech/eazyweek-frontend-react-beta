@@ -75,6 +75,43 @@ const toTimeLabel12h = (hhmmss, ampm) => {
   return `${String(h12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${labelAmpm}`;
 };
 
+// ─── Session storage helpers (keyed by oppCode) ───────────────────────────
+const SS_EXT_FILTER_KEY = (oppCode) => `EW_EXT_FILTERS_${oppCode}`;
+
+const readSavedFilters = (oppCode) => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SS_EXT_FILTER_KEY(oppCode)) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveFilters = (oppCode, filters) => {
+  try {
+    sessionStorage.setItem(SS_EXT_FILTER_KEY(oppCode), JSON.stringify(filters));
+  } catch {
+    // sessionStorage unavailable in some privacy modes — fail silently
+  }
+};
+
+/** Collect all filterable state into a plain object for persistence. */
+const buildFilterSnapshot = ({
+  statusFilter,
+  ownerFilter,
+  dispositionFilter,
+  searchDraft,
+  fromDate,
+  toDate,
+}) => ({
+  statusFilter,
+  ownerFilter,
+  dispositionFilter,
+  searchDraft,
+  fromDate,
+  toDate,
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 /** -----------------------------
  * SearchableSelect component
  * ----------------------------- */
@@ -198,14 +235,14 @@ const fetchOppDetails = async ({
 
   const payload = {
     oppCode: code,
-    fromDate: from,   // plain date "2026-02-01" — avoids UTC timezone shift
-    toDate: to,       // plain date "2026-02-10"
+    fromDate: from,
+    toDate: to,
     pageNumber: page,
     pageSize,
     searchTerm,
     statusFilter,
     ownerFilter,
-    dispFilter,
+    dispFilter: dispFilter,
   };
 
   const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
@@ -292,6 +329,11 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "")
     .toString().trim();
 
+  // ─── Restore saved filters once, keyed by oppCode ─────────────────────
+  // Must run before any useState that consumes _saved.
+  const _saved = useMemo(() => readSavedFilters(effectiveOppCode), [effectiveOppCode]);
+  // ─────────────────────────────────────────────────────────────────────
+
   // Pagination
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
@@ -312,16 +354,49 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState("");
-  const [ownerFilter, setOwnerFilter] = useState("");
-  const [dispositionFilter, setDispositionFilter] = useState("");
-  const [searchDraft, setSearchDraft] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  // ─── Filters — seeded from sessionStorage ─────────────────────────────
+  const [statusFilter, setStatusFilter] = useState(_saved.statusFilter ?? "");
+  const [ownerFilter, setOwnerFilter] = useState(_saved.ownerFilter ?? "");
+  const [dispositionFilter, setDispositionFilter] = useState(_saved.dispositionFilter ?? "");
+  const [searchDraft, setSearchDraft] = useState(_saved.searchDraft ?? "");
+  const [searchTerm, setSearchTerm] = useState(_saved.searchDraft ?? "");
 
-  const [fromDate, setFromDate] = useState(() => isStaticSegment ? "" : getTodayInputDate());
-  const [toDate, setToDate] = useState(() => isStaticSegment ? "" : getTodayInputDate());
+  // Date filters: prefer saved, then fall back to default logic
+  const [fromDate, setFromDate] = useState(() => {
+    if (_saved.fromDate !== undefined && _saved.fromDate !== null) return _saved.fromDate;
+    return isStaticSegment ? "" : getTodayInputDate();
+  });
+  const [toDate, setToDate] = useState(() => {
+    if (_saved.toDate !== undefined && _saved.toDate !== null) return _saved.toDate;
+    return isStaticSegment ? "" : getTodayInputDate();
+  });
   const [dateTouched, setDateTouched] = useState(false);
+  // ─────────────────────────────────────────────────────────────────────
+
+  // ─── Persist filters to sessionStorage on every change ───────────────
+  useEffect(() => {
+    if (!effectiveOppCode) return;
+    saveFilters(
+      effectiveOppCode,
+      buildFilterSnapshot({
+        statusFilter,
+        ownerFilter,
+        dispositionFilter,
+        searchDraft,
+        fromDate,
+        toDate,
+      })
+    );
+  }, [
+    effectiveOppCode,
+    statusFilter,
+    ownerFilter,
+    dispositionFilter,
+    searchDraft,
+    fromDate,
+    toDate,
+  ]);
+  // ─────────────────────────────────────────────────────────────────────
 
   // Sorting
   const [sortKey, setSortKey] = useState("");
@@ -329,11 +404,12 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
 
   useEffect(() => {
     if (isStaticSegment) {
-      setFromDate("");
-      setToDate("");
+      // Only reset dates if nothing was saved — don't overwrite a restored value
+      setFromDate((p) => (_saved.fromDate !== undefined ? p : ""));
+      setToDate((p) => (_saved.toDate !== undefined ? p : ""));
     } else {
-      setFromDate((p) => (p ? p : getTodayInputDate()));
-      setToDate((p) => (p ? p : getTodayInputDate()));
+      setFromDate((p) => (_saved.fromDate !== undefined ? p : (p ? p : getTodayInputDate())));
+      setToDate((p) => (_saved.toDate !== undefined ? p : (p ? p : getTodayInputDate())));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStaticSegment]);
@@ -437,13 +513,9 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
         return;
       }
 
-      // Static campaigns fetch on load with wide date range; dynamic fetches with today's date
-
       setLoading(true);
       setErr("");
       try {
-        // Static campaigns: no date filter on load (wide range), apply filter when user picks dates
-        // Dynamic campaigns: always filter by date (default today)
         const apiFrom = isStaticSegment ? (fromDate || "2000-01-01") : (fromDate || getTodayInputDate());
         const apiTo = isStaticSegment ? (toDate || "2900-01-01") : (toDate || getTodayInputDate());
 
