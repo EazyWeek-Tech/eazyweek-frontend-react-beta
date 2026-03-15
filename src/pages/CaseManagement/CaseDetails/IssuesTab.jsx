@@ -144,7 +144,7 @@ const insertAtCursor = (el, text) => {
         issueDescription: data.issueDescription ?? prev.issueDescription ?? "",
         firstTimeResolution:
           data.firstTimeResolution ?? prev.firstTimeResolution ?? "",
-        response: prev.response ?? "",
+        //response: prev.response ?? "",
         clientThreat: data.clientThreat ?? prev.clientThreat ?? "",
 
         therapistName: trim(
@@ -198,28 +198,52 @@ const insertAtCursor = (el, text) => {
       userTouchedAssignRef.current = false;
     }, [data?.caseNo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Responses (ActualResponse API)
     const loadResponses = async () => {
-      if (!data?.caseNo) {
-        setResponses([]);
-        return;
-      }
-      try {
-        const list = await fetchJSON(
-          `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
-        );
-        const filtered = (Array.isArray(list) ? list : []).filter(
-          (r) => trim(r.responseDetails || r.details) !== ""
-        );
-        setResponses(filtered);
-      } catch (e) {
-        console.error("Error fetching responses:", e);
-        setResponses([]);
-      }
-    };
-    useEffect(() => {
-      loadResponses();
-    }, [data?.caseNo]);
+  if (!data?.caseNo) {
+    setResponses([]);
+    setFormValues((prev) => ({ ...prev, response: "" }));
+    return;
+  }
+  try {
+    const list = await fetchJSON(
+      `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
+    );
+
+    const all = Array.isArray(list) ? list : [];
+
+    // ✅ Find latest draft response (isDraft = true)
+    const draftResponse = all.find((r) => r.isDraft === true || r.isDraft === 1);
+
+    // ✅ Only show submitted non-empty responses in table
+    const submittedResponses = all.filter(
+      (r) =>
+        r.isDraft !== true &&
+        r.isDraft !== 1 &&
+        trim(r.responseDetails || r.details) !== ""
+    );
+
+    setResponses(submittedResponses);
+
+    // ✅ Prefill textbox with draft if exists, else empty
+    setFormValues((prev) => ({
+      ...prev,
+      response: draftResponse
+        ? trim(draftResponse.responseDetails || draftResponse.details || "")
+        : "",
+    }));
+  } catch (e) {
+    console.error("Error fetching responses:", e);
+    setResponses([]);
+    setFormValues((prev) => ({ ...prev, response: "" }));
+  }
+};
+
+useEffect(() => {
+      const run = async () => {
+        await loadResponses();
+      };
+      run();
+    }, [data?.caseNo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- Current Assignee display (from API caseWithName) ---
     const currentAssigneeDisplay = data?.caseWithName;
