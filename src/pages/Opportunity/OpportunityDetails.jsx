@@ -2032,14 +2032,14 @@ const OpportunityDetails = () => {
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
                       type="date"
-                      className="finput"
+                      className="finput date"
                       value={apptFrom}
                       onChange={(e) => setApptFrom(e.target.value)}
                       placeholder="From"
                     />
                     <input
                       type="date"
-                      className="finput"
+                      className="finput date"
                       value={apptTo}
                       onChange={(e) => setApptTo(e.target.value)}
                       placeholder="To"
@@ -2556,6 +2556,11 @@ const OpportunityDetails = () => {
         .ew-col-check { justify-content: center; }
         .ew-col-name { font-weight: 700; color: #223b63; }
         .ew-col-shift { color: #334155; }
+
+        @media (max-width: 1367px){
+          .finput.date{width: 50%;}
+          .details-card{padding:0;}
+        }
       `}</style>
     </>
   );
