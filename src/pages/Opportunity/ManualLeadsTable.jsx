@@ -80,8 +80,6 @@ const buildLeadListUrl = ({ baseUrl, campaignId, pageNumber, pageSize }) => {
   return `${baseUrl}/api/LeadOpp/List?${qs.toString()}`;
 };
 
-
-
 // -----------------------------
 // Value helpers
 // -----------------------------
@@ -228,25 +226,65 @@ const mapManualLeadRow = (x, resolveOwnerRecId, resolveCustIdFromRecId) => {
   };
 };
 
+// ─── Session storage helpers (keyed by oppCode) ───────────────────────────
+const SS_ML_FILTER_KEY = (oppCode) => `EW_ML_FILTERS_${oppCode}`;
 
-export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate, mlToDate  }) {
+const readSavedFilters = (oppCode) => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SS_ML_FILTER_KEY(oppCode)) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveFilters = (oppCode, filters) => {
+  try {
+    sessionStorage.setItem(SS_ML_FILTER_KEY(oppCode), JSON.stringify(filters));
+  } catch {
+    // sessionStorage unavailable in some privacy modes — fail silently
+  }
+};
+
+/** Collect all filterable state into a plain object for persistence. */
+const buildFilterSnapshot = ({
+  statusFilter,
+  ownerFilter,
+  searchDraft,
+  dispositionFilter,
+  followTime,
+  followDateMode,
+  rangeFrom,
+  rangeTo,
+}) => ({
+  statusFilter,
+  ownerFilter,
+  searchDraft,
+  dispositionFilter,
+  followTime,
+  followDateMode,
+  rangeFrom,
+  rangeTo,
+});
+// ─────────────────────────────────────────────────────────────────────────
+
+export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate, mlToDate }) {
   const navigate = useNavigate();
 
   // ✅ read oppCode from URL:
-  // e.g. /opportunity/details/Bright-00522  => params.oppCode = "Bright-00522"
   const params = useParams();
   const oppCodeFromUrl = params?.oppCode || params?.OppCode || "";
 
   // ✅ single source of truth for oppCode
   const effectiveOppCode = (oppCode || header?.oppCode || oppCodeFromUrl || "").toString().trim();
-    // ✅ Dates MUST come from URL only (route: /opportunity/details/:fromDate/:toDate/:oppCode)
-const fromDateFromUrl =
-  params?.fromDate || params?.FromDate || params?.from || params?.From || "";
-const toDateFromUrl =
-  params?.toDate || params?.ToDate || params?.to || params?.To || "";
 
-const mlFrom = useMemo(() => toISODateOnly(fromDateFromUrl), [fromDateFromUrl]);
-const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
+  // ✅ Dates MUST come from URL only
+  const fromDateFromUrl =
+    params?.fromDate || params?.FromDate || params?.from || params?.From || "";
+  const toDateFromUrl =
+    params?.toDate || params?.ToDate || params?.to || params?.To || "";
+
+  const mlFrom = useMemo(() => toISODateOnly(fromDateFromUrl), [fromDateFromUrl]);
+  const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
 
   // ✅ Keep querystring handy for navigations
   const mlQs = useMemo(() => {
@@ -280,18 +318,49 @@ const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
   const [empLoading, setEmpLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
 
-  // client filters
-  const [statusFilter, setStatusFilter] = useState("");
-  const [ownerFilter, setOwnerFilter] = useState("");
-  const [searchDraft, setSearchDraft] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dispositionFilter, setDispositionFilter] = useState("");
+  // ─── Restore saved filters from sessionStorage (once, keyed by oppCode) ──
+  // Read once at init so useState initialisers can consume it.
+  const _saved = useMemo(() => readSavedFilters(effectiveOppCode), [effectiveOppCode]);
 
-  const [followTime, setFollowTime] = useState("");
+  // client filters — seeded from sessionStorage
+  const [statusFilter, setStatusFilter] = useState(_saved.statusFilter ?? "");
+  const [ownerFilter, setOwnerFilter] = useState(_saved.ownerFilter ?? "");
+  const [searchDraft, setSearchDraft] = useState(_saved.searchDraft ?? "");
+  const [searchTerm, setSearchTerm] = useState(_saved.searchDraft ?? "");
+  const [dispositionFilter, setDispositionFilter] = useState(_saved.dispositionFilter ?? "");
+  const [followTime, setFollowTime] = useState(_saved.followTime ?? "");
+  const [followDateMode, setFollowDateMode] = useState(_saved.followDateMode ?? "");
+  const [rangeFrom, setRangeFrom] = useState(_saved.rangeFrom ?? "");
+  const [rangeTo, setRangeTo] = useState(_saved.rangeTo ?? "");
 
-  const [followDateMode, setFollowDateMode] = useState("");
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
+  // ─── Persist filters to sessionStorage on every change ───────────────────
+  useEffect(() => {
+    if (!effectiveOppCode) return;
+    saveFilters(
+      effectiveOppCode,
+      buildFilterSnapshot({
+        statusFilter,
+        ownerFilter,
+        searchDraft,
+        dispositionFilter,
+        followTime,
+        followDateMode,
+        rangeFrom,
+        rangeTo,
+      })
+    );
+  }, [
+    effectiveOppCode,
+    statusFilter,
+    ownerFilter,
+    searchDraft,
+    dispositionFilter,
+    followTime,
+    followDateMode,
+    rangeFrom,
+    rangeTo,
+  ]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const t = setTimeout(() => setSearchTerm(searchDraft), 250);
@@ -325,11 +394,6 @@ const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
         const data = JSON.parse(text);
 
         if (!alive) return;
-
-        // ✅ if API returns object directly like you showed
-        // {
-        //   oppCode, oppName, oRuleDetails, oRuleCode, ...
-        // }
         setCampaignHeader(data || null);
       } catch (e) {
         console.error("Campaign header load failed", e);
@@ -352,17 +416,14 @@ const mlTo = useMemo(() => toISODateOnly(toDateFromUrl), [toDateFromUrl]);
   const uiOppCode = (uiHeader?.oppCode || effectiveOppCode || "").toString().trim();
 
   // ✅ campaign recid (comes from /getCampaign/{OppCode})
-const uiRecId = Number(uiHeader?.recid ?? uiHeader?.recId) || 0;
+  const uiRecId = Number(uiHeader?.recid ?? uiHeader?.recId) || 0;
 
-// ✅ this is what you will put in URL in place of oppCode
-// fallback to oppCode if recid not available (avoids broken navigation)
-const navId = uiRecId || uiOppCode;
+  // ✅ this is what you will put in URL in place of oppCode
+  const navId = uiRecId || uiOppCode;
 
-const isR7 = String(uiHeader?.oRuleCode || "")
-  .trim()
-  .toUpperCase() === "R7";
-
-
+  const isR7 = String(uiHeader?.oRuleCode || "")
+    .trim()
+    .toUpperCase() === "R7";
 
   // -----------------------------
   // ✅ Fetch employees (recId mapping)
@@ -439,71 +500,68 @@ const isR7 = String(uiHeader?.oRuleCode || "")
   };
 
   // customers lookup (recId -> custId)
-const [custLoading, setCustLoading] = useState(false);
-const [custErr, setCustErr] = useState("");
-const [customers, setCustomers] = useState([]);
+  const [custLoading, setCustLoading] = useState(false);
+  const [custErr, setCustErr] = useState("");
+  const [customers, setCustomers] = useState([]);
 
-// ✅ Load customers (for mapping recId -> custId)
-useEffect(() => {
-  let alive = true;
+  // ✅ Load customers (for mapping recId -> custId)
+  useEffect(() => {
+    let alive = true;
 
-  const run = async () => {
-    setCustLoading(true);
-    setCustErr("");
+    const run = async () => {
+      setCustLoading(true);
+      setCustErr("");
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-      });
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "include",
+        });
 
-      const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
 
-      const data = JSON.parse(text);
+        const data = JSON.parse(text);
 
-      // adjust if your API wraps in {data:[...]}
-      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
-      if (!alive) return;
-      setCustomers(list);
-    } catch (e) {
-      console.error("Customers load failed", e);
-      if (!alive) return;
-      setCustomers([]);
-      setCustErr("Failed to load customers.");
-    } finally {
-      if (alive) setCustLoading(false);
+        if (!alive) return;
+        setCustomers(list);
+      } catch (e) {
+        console.error("Customers load failed", e);
+        if (!alive) return;
+        setCustomers([]);
+        setCustErr("Failed to load customers.");
+      } finally {
+        if (alive) setCustLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const custLookup = useMemo(() => {
+    const byRecId = new Map();
+    for (const c of customers) {
+      const recId = c?.recId ?? c?.RECID ?? c?.RecID;
+      const custId = c?.custId ?? c?.CUSTID ?? c?.customerID ?? c?.customerId;
+
+      if (recId !== null && recId !== undefined && recId !== "" && custId) {
+        byRecId.set(String(recId), String(custId));
+      }
     }
+    return { byRecId };
+  }, [customers]);
+
+  const resolveCustomerIdFromRecId = (recIdLike) => {
+    const key = String(recIdLike ?? "").trim();
+    if (!key) return "";
+    return custLookup.byRecId.get(key) || "";
   };
-
-  run();
-  return () => {
-    alive = false;
-  };
-}, []);
-
-
-const custLookup = useMemo(() => {
-  const byRecId = new Map();
-  for (const c of customers) {
-    const recId = c?.recId ?? c?.RECID ?? c?.RecID;
-    const custId = c?.custId ?? c?.CUSTID ?? c?.customerID ?? c?.customerId;
-
-    if (recId !== null && recId !== undefined && recId !== "" && custId) {
-      byRecId.set(String(recId), String(custId));
-    }
-  }
-  return { byRecId };
-}, [customers]);
-
-const resolveCustomerIdFromRecId = (recIdLike) => {
-  const key = String(recIdLike ?? "").trim();
-  if (!key) return "";
-  return custLookup.byRecId.get(key) || "";
-};
-
 
   // -----------------------------
   // Time helpers (12:00 AM -> 11:30 PM, 30-min steps)
@@ -522,74 +580,72 @@ const resolveCustomerIdFromRecId = (recIdLike) => {
   }, []);
 
   // -----------------------------
-// Fetch manual leads
-// -----------------------------
-useEffect(() => {
-  let alive = true;
+  // Fetch manual leads
+  // -----------------------------
+  useEffect(() => {
+    let alive = true;
 
-  const run = async () => {
-    // ✅ HARD GUARD: never call list API without campaignId
-    if (!uiRecId) {
-      setRows([]);
-      setTotalPages(1);
-      setTotalRecords(0);
-      setErr(""); // or "Campaign not loaded yet"
-      setLoading(false);
-      return;
-    }
+    const run = async () => {
+      // ✅ HARD GUARD: never call list API without campaignId
+      if (!uiRecId) {
+        setRows([]);
+        setTotalPages(1);
+        setTotalRecords(0);
+        setErr("");
+        setLoading(false);
+        return;
+      }
 
-    setLoading(true);
-    setErr("");
+      setLoading(true);
+      setErr("");
 
-    try {
-      const url = buildLeadListUrl({
-        baseUrl: API_BASE_URL,
-        campaignId: uiRecId,   // ✅ always present now
-        pageNumber,
-        pageSize,
-      });
+      try {
+        const url = buildLeadListUrl({
+          baseUrl: API_BASE_URL,
+          campaignId: uiRecId,
+          pageNumber,
+          pageSize,
+        });
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-      });
+        const res = await fetch(url, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "include",
+        });
 
-      const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
 
-      const data = JSON.parse(text);
-      const list = Array.isArray(data?.data) ? data.data : [];
+        const data = JSON.parse(text);
+        const list = Array.isArray(data?.data) ? data.data : [];
 
-      if (!alive) return;
+        if (!alive) return;
 
-      setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)));
+        setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)));
 
-      setTotalPages(Number(data?.totalPages) || 1);
-      setTotalRecords(Number(data?.totalRecords) || list.length);
-    } catch (e) {
-      console.error(e);
-      if (!alive) return;
-      setRows([]);
-      setTotalPages(1);
-      setTotalRecords(0);
-      setErr("Failed to load manual leads.");
-    } finally {
-      if (alive) setLoading(false);
-    }
-  };
+        setTotalPages(Number(data?.totalPages) || 1);
+        setTotalRecords(Number(data?.totalRecords) || list.length);
+      } catch (e) {
+        console.error(e);
+        if (!alive) return;
+        setRows([]);
+        setTotalPages(1);
+        setTotalRecords(0);
+        setErr("Failed to load manual leads.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
 
-  run();
-  return () => {
-    alive = false;
-  };
-}, [uiRecId, pageNumber, pageSize, empLookup, custLookup]); // ✅ include uiRecId
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [uiRecId, pageNumber, pageSize, empLookup, custLookup]);
 
-
-useEffect(() => {
-  if (uiRecId) setPageNumber(1);
-}, [uiRecId]);
-
+  useEffect(() => {
+    if (uiRecId) setPageNumber(1);
+  }, [uiRecId]);
 
   // owner options from current page (still showing name)
   const ownerOptions = useMemo(() => {
@@ -602,13 +658,13 @@ useEffect(() => {
   }, [rows]);
 
   const dispositionOptions = useMemo(() => {
-  const set = new Set();
-  rows.forEach((r) => {
-    const d = String(r?.disposition || "").trim();
-    if (d) set.add(d);
-  });
-  return ["", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-}, [rows]);
+    const set = new Set();
+    rows.forEach((r) => {
+      const d = String(r?.disposition || "").trim();
+      if (d) set.add(d);
+    });
+    return ["", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [rows]);
 
   const filtered = useMemo(() => {
     let list = rows.slice();
@@ -627,9 +683,9 @@ useEffect(() => {
     }
 
     if (dispositionFilter) {
-  const dd = dispositionFilter.toLowerCase();
-  list = list.filter((r) => String(r?.disposition || "").toLowerCase() === dd);
-}
+      const dd = dispositionFilter.toLowerCase();
+      list = list.filter((r) => String(r?.disposition || "").toLowerCase() === dd);
+    }
 
     // ✅ Follow Up Date filters
     if (followDateMode === "0") {
@@ -660,17 +716,17 @@ useEffect(() => {
     return list;
   }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, dispositionFilter, rangeFrom, rangeTo, followTime]);
 
-   const isFiltering = useMemo(() => {
-  return Boolean(
-    (searchTerm && searchTerm.trim()) ||
-      statusFilter ||
-      ownerFilter ||
-      dispositionFilter ||
-      followDateMode ||
-      (followDateMode === "2" && (rangeFrom || rangeTo)) ||
-      followTime
-  );
-}, [searchTerm, statusFilter, ownerFilter, dispositionFilter, followDateMode, rangeFrom, rangeTo, followTime]);
+  const isFiltering = useMemo(() => {
+    return Boolean(
+      (searchTerm && searchTerm.trim()) ||
+        statusFilter ||
+        ownerFilter ||
+        dispositionFilter ||
+        followDateMode ||
+        (followDateMode === "2" && (rangeFrom || rangeTo)) ||
+        followTime
+    );
+  }, [searchTerm, statusFilter, ownerFilter, dispositionFilter, followDateMode, rangeFrom, rangeTo, followTime]);
 
   // ✅ count to display in UI
   const displayedRecordCount = isFiltering ? filtered.length : totalRecords;
@@ -692,39 +748,38 @@ useEffect(() => {
   };
 
   const fetchAllLeads = async (campaignId) => {
-  const exportPageSize = 200;
-  let page = 1;
-  let total = 1;
-  const all = [];
+    const exportPageSize = 200;
+    let page = 1;
+    let total = 1;
+    const all = [];
 
-  while (page <= total) {
-    const url = buildLeadListUrl({
-      baseUrl: API_BASE_URL,
-      campaignId,
-      pageNumber: page,
-      pageSize: exportPageSize,
-    });
+    while (page <= total) {
+      const url = buildLeadListUrl({
+        baseUrl: API_BASE_URL,
+        campaignId,
+        pageNumber: page,
+        pageSize: exportPageSize,
+      });
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "include",
-    });
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
 
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
 
-    const data = JSON.parse(text);
-    const list = Array.isArray(data?.data) ? data.data : [];
+      const data = JSON.parse(text);
+      const list = Array.isArray(data?.data) ? data.data : [];
 
-    total = Number(data?.totalPages) || 1;
-    all.push(...list);
-    page += 1;
-  }
+      total = Number(data?.totalPages) || 1;
+      all.push(...list);
+      page += 1;
+    }
 
-  return all;
-};
-
+    return all;
+  };
 
   const handleExport = async () => {
     if (exporting) return;
@@ -732,15 +787,14 @@ useEffect(() => {
 
     try {
       if (!uiRecId) {
-  alert("Campaign not loaded yet..");
-  return;
-}
-const raw = await fetchAllLeads(uiRecId);
+        alert("Campaign not loaded yet..");
+        return;
+      }
+      const raw = await fetchAllLeads(uiRecId);
 
       const mapped = raw.map((x) =>
-  mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)
-);
-
+        mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)
+      );
 
       const exportRows = mapped;
 
@@ -753,7 +807,7 @@ const raw = await fetchAllLeads(uiRecId);
         "Mobile": r.mobileNumber || "",
         "Status": r.status || "",
         "Follow Up Date": formatDDMMYYYY(r.followUpDate) || "",
-        "Follow Up Time": r.followUpTimeLabel || "", 
+        "Follow Up Time": r.followUpTimeLabel || "",
         "Disposition": r.disposition || "",
         "Remarks": r.remark || "",
         "Sales Owner": r.saleOwner || "",
@@ -801,13 +855,13 @@ const raw = await fetchAllLeads(uiRecId);
             </div>
 
             {uiHeader?.oppCampStartDate || uiHeader?.oppCampEndDate ? (
-  <div className="pair">
-  <span className="label">Campaign Period :</span>
-  <span className="value">
-    {mlFrom && mlTo ? `${formatDDMMYYYY(mlFrom)} - ${formatDDMMYYYY(mlTo)}` : "—"}
-  </span>
-</div>
-) : null}
+              <div className="pair">
+                <span className="label">Campaign Period :</span>
+                <span className="value">
+                  {mlFrom && mlTo ? `${formatDDMMYYYY(mlFrom)} - ${formatDDMMYYYY(mlTo)}` : "—"}
+                </span>
+              </div>
+            ) : null}
 
             {campaignLoading ? <div style={{ fontSize: 12, color: "#64748b" }}>Loading campaign…</div> : null}
             {campaignErr ? <div style={{ fontSize: 12, color: "#c33" }}>{campaignErr}</div> : null}
@@ -816,10 +870,9 @@ const raw = await fetchAllLeads(uiRecId);
           </div>
 
           <div className="header-actions">
-           <button className="btn-export" onClick={handleExport} disabled={exporting || loading}>
-  {exporting ? "Exporting..." : "Export"}
-</button>
-
+            <button className="btn-export" onClick={handleExport} disabled={exporting || loading}>
+              {exporting ? "Exporting..." : "Export"}
+            </button>
 
             <button className="btn-back" onClick={() => navigate(-1)}>
               Back
@@ -885,49 +938,48 @@ const raw = await fetchAllLeads(uiRecId);
             </div>
 
             <div className="fgroup">
-  <label className="flabel">Disposition :</label>
-  <select
-    className="finput"
-    value={dispositionFilter}
-    onChange={(e) => setDispositionFilter(e.target.value)}
-  >
-    <option value="">All</option>
-    {dispositionOptions
-      .filter((x) => x) // remove the empty one because we already have "All"
-      .map((d) => (
-        <option key={d} value={d}>
-          {d}
-        </option>
-      ))}
-  </select>
-</div>
+              <label className="flabel">Disposition :</label>
+              <select
+                className="finput"
+                value={dispositionFilter}
+                onChange={(e) => setDispositionFilter(e.target.value)}
+              >
+                <option value="">All</option>
+                {dispositionOptions
+                  .filter((x) => x)
+                  .map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
-           {!isR7 && (
-  <>
-    <button
-      className="btn-primary"
-      onClick={() => {
-        const code = oppCode || (header?.oppCode ?? "");
-        if (!code) return;
-        navigate(`/manuallead/${code}`, { state: { oppCode: code, header } });
-      }}
-    >
-      Add Lead
-    </button>
+            {!isR7 && (
+              <>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    const code = oppCode || (header?.oppCode ?? "");
+                    if (!code) return;
+                    navigate(`/manuallead/${code}`, { state: { oppCode: code, header } });
+                  }}
+                >
+                  Add Lead
+                </button>
 
-    <button
-      className="btn-primary"
-      onClick={() => {
-        const code = oppCode || (header?.oppCode ?? "");
-        if (!code) return;
-        navigate(`/opportunity/customers`, { state: { oppCode: code, header } });
-      }}
-    >
-      Add Opportunity
-    </button>
-  </>
-)}
-
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    const code = oppCode || (header?.oppCode ?? "");
+                    if (!code) return;
+                    navigate(`/opportunity/customers`, { state: { oppCode: code, header } });
+                  }}
+                >
+                  Add Opportunity
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -990,8 +1042,7 @@ const raw = await fetchAllLeads(uiRecId);
                     {/* ✅ date + time */}
                     <td>{formatDateTime(r.followUpDate)}</td>
 
-                    <td>{safe(r.followUpTimeLabel || "—")}</td> {/* ✅ 13:30:00 -> 01:30 PM */}
-
+                    <td>{safe(r.followUpTimeLabel || "—")}</td>
 
                     <td>{safe(r.disposition)}</td>
                     <td>{safe(r.remark)}</td>
@@ -1010,10 +1061,12 @@ const raw = await fetchAllLeads(uiRecId);
           </div>
         ) : null}
 
-        {!loading && !err && !filtered.length ? <div className="empty-note">No  entries found.</div> : null}
+        {!loading && !err && !filtered.length ? (
+          <div className="empty-note">No entries found.</div>
+        ) : null}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>
+          <div style={{ fontSize: 13, color: "#64748b" }}>
             Total records: <strong>{displayedRecordCount}</strong>
             {isFiltering ? (
               <span style={{ marginLeft: 8 }}>
