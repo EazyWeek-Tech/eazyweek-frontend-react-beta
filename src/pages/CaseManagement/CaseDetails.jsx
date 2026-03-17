@@ -1615,10 +1615,11 @@ if (actionType === "submit") {
     const caseClosed = trim(status) === "Closed";
 
     if (isAtLevel2Now && !caseClosed && isPlaceholderNext) {
-      setL2DialogOpen(true);
-      setL2DialogError("");
-      return;
-    }
+    submitClickLockRef.current = false;  // ✅ reset lock when dialog opens
+    setL2DialogOpen(true);
+    setL2DialogError("");
+    return;
+}
 
     // normal submit (handoff)
     return handleAction("submit");
