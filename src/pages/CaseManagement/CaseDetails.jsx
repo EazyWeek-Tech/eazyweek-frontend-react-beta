@@ -1428,8 +1428,7 @@ if (closingViaSubmit) {
   }
   return;
 }
-
-    // ---- Build base payload for other flows ----
+// ---- Build base payload for other flows ----
     const operationForBackend = actionType;
     const payload = buildFullPayload({
       general: generalData,
@@ -1439,24 +1438,34 @@ if (closingViaSubmit) {
       operation: operationForBackend,
     });
 
-    // SAVE → force current assignee into payload based on caseWith
+    // SAVE → always keep current assignee, never change it
     if (actionType === "save") {
-      const resolvedCode = trim(selectedCaseData?.caseWithCode) || trim(selectedCaseData?.assignToCode) || "";
+      console.log("SAVE DEBUG", {
+        caseWithCode: selectedCaseData?.caseWithCode,
+        assignToCode: selectedCaseData?.assignToCode,
+        payloadAssignedto: payload.assignedto,
+        payloadCaseWith: payload.caseWith,
+        issuesAssigneeCode,
+        baseAssigneeCode,
+      });
+
+      const currentAssignee = trim(selectedCaseData?.caseWithCode) || trim(selectedCaseData?.assignToCode) || "";
       const resolvedMobile = trim(selectedCaseData?.employeeMobile || "");
       const resolvedEmail = trim(selectedCaseData?.email || "");
 
-      payload.assignedto = resolvedCode || payload.assignedto || "";
-      payload.caseWith = resolvedCode || payload.caseWith || "";
-      payload.employeno = resolvedMobile || payload.employeno || "";
-      payload.assignedemailid = resolvedEmail || payload.assignedemailid || "";
+      payload.assignedto = currentAssignee;
+      payload.caseWith = currentAssignee;
+      payload.employeno = resolvedMobile;
+      payload.assignedemailid = resolvedEmail;
     }
 
     if (actionType !== "submit" && actionType !== "save") payload.response = "";
 
-    if (treatAsManual && isAssignToCreator) {
-      payload.assignedto = ownerCode;
-      payload.caseWith = ownerCode;
-    }
+   // ✅ Never override assignee for save — save must keep current assignee
+if (actionType !== "save" && treatAsManual && isAssignToCreator) {
+  payload.assignedto = ownerCode;
+  payload.caseWith = ownerCode;
+}
 
     if (actionType === "submit") {
       if (!trim(effectiveSelected?.response)) {
@@ -1482,27 +1491,12 @@ if (closingViaSubmit) {
       payload.moreCC = ccFill(payload.moreCC);
 
       const stringyKeys = [
-        "casetitle",
-        "category",
-        "subCategory",
-        "subSubCategory",
-        "subSubSubCategory",
-        "casemedium",
-        "casesource",
-        "priority",
-        "custID",
-        "productCode",
-        "servicecode",
-        "serviceccode",
-        "createdby",
-        "issuedesciption",
-        "clientThreat",
-        "doctorCode",
-        "firsttimeresolution",
-        "response",
-        "categorySpecificResolution",
-        "remarks",
-        "casedisposition",
+        "casetitle", "category", "subCategory", "subSubCategory",
+        "subSubSubCategory", "casemedium", "casesource", "priority",
+        "custID", "productCode", "servicecode", "serviceccode",
+        "createdby", "issuedesciption", "clientThreat", "doctorCode",
+        "firsttimeresolution", "response", "categorySpecificResolution",
+        "remarks", "casedisposition",
       ];
       for (const k of stringyKeys) payload[k] = payload[k] ?? "";
       payload.materialCost = payload.materialCost ?? 0;
@@ -1519,8 +1513,8 @@ if (closingViaSubmit) {
       if (result?.code === "200") {
         if (actionType === "updateStatus" && isNonEmpty(effectiveStatus)) {
           setStatus(effectiveStatus);
-          setUiStatus(effectiveStatus); // ✅ NEW
-          setPendingClose(false);       // ✅ NEW: status changed normally clears close intent
+          setUiStatus(effectiveStatus);
+          setPendingClose(false);
         }
 
         const appliedAssignee = trim(payload.assignedto || "");
@@ -1540,51 +1534,47 @@ if (closingViaSubmit) {
         );
 
         if (actionType === "save") {
-  
+          setToast({
+            type: "success",
+            message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
+          });
+          navigate(-1);
+          return;
+        }
 
-  setToast({
-    type: "success",
-    message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
-  });
-  navigate(-1);
-  return;
-}
-if (actionType === "submit") {
-  // ✅ send mail on SUBMIT (to next/current assignee in payload)
-  const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
-  const generalLatest = generalRef.current?.getGeneralData?.() ?? {};
+        if (actionType === "submit") {
+          const issuesDataLatest = issuesRef.current?.getIssuesData?.() ?? {};
+          const generalLatest = generalRef.current?.getGeneralData?.() ?? {};
 
-  const toCode =
-    trim(payload?.assignedto) ||
-    trim(payload?.caseWith) ||
-    trim(selectedCaseData?.assignToCode) ||
-    trim(selectedCaseData?.caseWithCode) ||
-    "";
+          const toCode =
+            trim(payload?.assignedto) ||
+            trim(payload?.caseWith) ||
+            trim(selectedCaseData?.assignToCode) ||
+            trim(selectedCaseData?.caseWithCode) ||
+            "";
 
-  await triggerCaseMail({
-    selectedCaseData,
-    generalData: generalLatest,
-    issuesData: issuesDataLatest,
-    assigneeCode: toCode,
-    fallbackToEmail: selectedCaseData?.email || "",
-    setToast,
-  });
+          await triggerCaseMail({
+            selectedCaseData,
+            generalData: generalLatest,
+            issuesData: issuesDataLatest,
+            assigneeCode: toCode,
+            fallbackToEmail: selectedCaseData?.email || "",
+            setToast,
+          });
 
-  setToast({ type: "success", message: "Case submitted successfully." });
-  navigate(-1);
-  return;
-}
+          setToast({ type: "success", message: "Case submitted successfully." });
+          navigate(-1);
+          return;
+        }
 
-
-  if (actionType === "updateStatus") {
-    setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
-  }
+        if (actionType === "updateStatus") {
+          setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
+        }
       }
     } catch (err) {
       console.error(`${actionType} error:`, err);
       setToast({ type: "error", message: `Failed to ${actionType} case. Reason: ${err.message}` });
 
-      // ✅ NEW: rollback UI status if updateStatus failed
       if (actionType === "updateStatus") {
         setUiStatus(status);
       }
@@ -1593,7 +1583,6 @@ if (actionType === "submit") {
       submitClickLockRef.current = false;
     }
   };
-
   // --------------------------------------------
   // Submit click
   // --------------------------------------------
