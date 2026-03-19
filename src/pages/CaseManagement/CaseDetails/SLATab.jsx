@@ -73,16 +73,34 @@ const getSecondValueFromRange = (range) => {
 
     const fetchActualSLA = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
-        const data = await res.json();
+    const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
+    const data = await res.json();
 
-        if (Array.isArray(data)) {
-          setActualList(data.map((entry) => ({
-            caseWith: entry.caseWith || "",
-            timestamp: formatDateTime(entry.caseReceiveDate),
-            diffHours: entry.diffHours,
-          })));
+    if (Array.isArray(data)) {
+      // ✅ For SLA: show all non-draft rows but deduplicate consecutive 
+      // same-person blocks and skip rows where response is empty
+      // (empty rows are placeholder rows for owner/assignee tracking)
+      const submitted = data.filter((entry) => !entry.isDraft);
+      
+      // Build deduplicated list — keep one entry per person per handoff
+      const seen = new Set();
+      const deduped = [];
+      for (const entry of submitted) {
+        const key = entry.caseWith || "";
+        if (!seen.has(key)) {
+          seen.add(key);
+          deduped.push(entry);
         }
+      }
+
+      setActualList(
+        deduped.map((entry) => ({
+          caseWith: entry.caseWith || "",
+          timestamp: formatDateTime(entry.caseReceiveDate),
+          diffHours: entry.diffHours,
+        }))
+      );
+    }
       } catch (err) {
         console.error("Failed to fetch actual SLA:", err);
       }
