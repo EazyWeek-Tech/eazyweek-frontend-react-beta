@@ -1476,7 +1476,14 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         payload.assignedto = newAssigneeCode || payload.assignedto || "";
         payload.caseWith = newAssigneeCode || payload.caseWith || "";
       }
-      payload.status = "WIP";
+
+      // ✅ Status logic:
+      // If current assignee is the case owner → initial handoff to L1 → keep Open
+      // If current assignee is NOT the owner → L1/L2 is responding → move to WIP
+      const currentAssigneeIsOwner =
+        !!ownerCode && normCodeId(selectedCaseData?.caseWithCode) === normCodeId(ownerCode);
+
+      payload.status = currentAssigneeIsOwner ? "Open" : "WIP";
     }
 
     if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
