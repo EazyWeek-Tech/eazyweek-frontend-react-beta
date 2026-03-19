@@ -56,7 +56,7 @@ const AddCustomerModal = ({ onClose }) => {
   );
 
   const isValidCountryCode = (cc) => validDialCodes.has(cc);
-  const isValidMobile = (m) => /^\d{10}$/.test(m);
+  const isValidMobile = (m) => /^\d{9}$/.test(m);
   const isValidEmail = (e) => /\S+@\S+\.\S+/.test(e);
 
   // --- Load Countries (for nationalityCountry dropdown) ---
@@ -148,7 +148,7 @@ const AddCustomerModal = ({ onClose }) => {
       isValid = false;
     }
     if (!formData.mobile || !isValidMobile(formData.mobile)) {
-      formErrors.mobile = "Mobile number must be 10 digits.";
+      formErrors.mobile = "Mobile number must be 9 digits.";
       isValid = false;
     }
     if (!formData.firstName) {
