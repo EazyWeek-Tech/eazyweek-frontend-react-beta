@@ -83,13 +83,15 @@ const getSecondValueFromRange = (range) => {
       const submitted = data.filter((entry) => !entry.isDraft);
       
       // Build deduplicated list — keep one entry per person per handoff
-      const seen = new Set();
+      // ✅ Deduplicate consecutive same-person blocks only
+      // Keeps repeated people if they appear again after someone else
       const deduped = [];
+      let lastCaseWith = null;
       for (const entry of submitted) {
         const key = entry.caseWith || "";
-        if (!seen.has(key)) {
-          seen.add(key);
+        if (key !== lastCaseWith) {
           deduped.push(entry);
+          lastCaseWith = key;
         }
       }
 
