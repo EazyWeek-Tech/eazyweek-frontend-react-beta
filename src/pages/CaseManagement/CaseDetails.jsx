@@ -1483,7 +1483,9 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
       const currentAssigneeIsOwner =
         !!ownerCode && normCodeId(selectedCaseData?.caseWithCode) === normCodeId(ownerCode);
 
-      payload.status = currentAssigneeIsOwner ? "Open" : "WIP";
+      const isInitialHandoff = currentAssigneeIsOwner && trim(effectiveStatus) === "Open";
+
+      payload.status = isInitialHandoff ? "Open" : "WIP";
     }
 
     if (actionType === "updateStatus" && USE_PLACEHOLDERS_ON_UPDATE_STATUS) {
