@@ -50,11 +50,18 @@ const getSecondValueFromRange = (range) => {
 
         const data = await response.json();
 
+        const firstSlaName = data.firstSlaName?.trim() || "";
+        const secondSlaName = data.secondSlaName?.trim() || "";
+        const firstSlaEName = data.firstSlaEName?.trim() || "";
+        const secondSlaEName = data.secondSlaEName?.trim() || "";
+
         setIdeal({
-          initial: data.firstSlaName?.trim() || "",
-          mid: data.firstSlaEName?.trim() || "",
-          late: data.secondSlaName?.trim() || "",
-          final: data.secondSlaEName?.trim() || "",
+          initial: firstSlaName,
+          // ✅ If L1 escalation name is empty, fall back to L2 assignee
+          mid: firstSlaEName || secondSlaName,
+          late: secondSlaName || firstSlaEName,
+          // ✅ If L2 escalation name is empty, fall back to L2 assignee
+          final: secondSlaEName || secondSlaName,
           firstSlaHours: data.firstSlaHours?.trim() || "",
           secondSlaHours: data.secondSlaHours?.trim() || ""
         });
