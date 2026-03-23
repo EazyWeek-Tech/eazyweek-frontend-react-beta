@@ -96,11 +96,34 @@ const getSecondValueFromRange = (range) => {
       }
 
       setActualList(
-        deduped.map((entry) => ({
-          caseWith: entry.caseWith || "",
-          timestamp: formatDateTime(entry.caseReceiveDate),
-          diffHours: entry.diffHours,
-        }))
+        deduped.map((entry, index, arr) => {
+          // ✅ diffHours = time FROM previous entry TO this entry
+          // index 0 (first block) gets empty — no value between Creation and first block
+          // index 1+ gets time from previous block to this block
+          let diffDisplay = "";
+          if (index > 0) {
+            const prev = new Date(arr[index - 1].caseReceiveDate);
+            const current = new Date(entry.caseReceiveDate);
+            const totalMinutes = Math.round((current - prev) / (1000 * 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            if (hours > 0 && minutes > 0) {
+              diffDisplay = `${hours} hr ${minutes} min`;
+            } else if (hours > 0) {
+              diffDisplay = `${hours} hr`;
+            } else if (minutes > 0) {
+              diffDisplay = `${minutes} min`;
+            } else {
+              diffDisplay = "0 min";
+            }
+          }
+          return {
+            caseWith: entry.caseWith || "",
+            timestamp: formatDateTime(entry.caseReceiveDate),
+            diffHours: diffDisplay,
+          };
+        })
       );
     }
       } catch (err) {
