@@ -213,6 +213,131 @@ const manualClosedBy = (leadStatusRaw, modifiedByRaw) => {
 };
 
 /* ===========================
+   Report Type Detection & Column Definitions
+   =========================== */
+
+/**
+ * Determines the report type based on selected rule codes.
+ * Priority: manual > external (R7) > noshow (R3) > default
+ * When multiple non-manual rules are selected, falls back to 'default' columns.
+ */
+const getReportType = (oppRuleCodes, isManualSelected) => {
+  if (isManualSelected) return "manual";
+
+  const rules = (Array.isArray(oppRuleCodes) ? oppRuleCodes : []).map((r) =>
+    norm(r).toUpperCase()
+  );
+
+  if (rules.length === 0) return "default";
+
+  const hasExternal = rules.includes("R7");
+  const hasNoShow = rules.includes("R3");
+
+  // Single rule selected
+  if (rules.length === 1) {
+    if (hasExternal) return "external";
+    if (hasNoShow) return "noshow";
+    return "default";
+  }
+
+  // Multiple rules: if only external among them, external; if only noshow, noshow; else default
+  const nonDefaultRules = rules.filter((r) => r === "R7" || r === "R3");
+  if (nonDefaultRules.length === rules.length) {
+    if (hasExternal && !hasNoShow) return "external";
+    if (hasNoShow && !hasExternal) return "noshow";
+  }
+
+  return "default";
+};
+
+/**
+ * Column definitions per report type.
+ * Each column: { key, header, clickable? }
+ * clickable = true means the cell renders as a link using oppCode
+ */
+const COLUMN_CONFIGS = {
+  noshow: [
+    { key: "clinic",          header: "Clinic" },
+    { key: "createdDate",     header: "Created Date" },
+    { key: "oppCode",         header: "Campaign Code" },
+    { key: "oppName",         header: "Campaign Name",    clickable: true },
+    { key: "appointmentDate", header: "Appointment Date" },
+    { key: "leadId",          header: "Lead ID" },
+    { key: "leadName",        header: "Lead Name" },
+    { key: "mobileNo",        header: "Mobile" },
+    { key: "therapistName",   header: "Doctor/Therapist Name" },
+    { key: "reasons",         header: "Reasons" },
+    { key: "disposition",     header: "Disposition" },
+    { key: "subDisposition",  header: "Sub-Disposition" },
+    { key: "oppStatus",       header: "Lead Status",      clickable: true },
+    { key: "salesOwner",      header: "Sales Owner" },
+    { key: "closedBy",        header: "Closed By" },
+    { key: "closedDate",      header: "Closed Date" },
+  ],
+
+  external: [
+    { key: "clinic",          header: "Clinic" },
+    { key: "createdDate",     header: "Created Date" },
+    { key: "oppCode",         header: "Campaign Code" },
+    { key: "oppName",         header: "Campaign Name",    clickable: true },
+    { key: "leadId",          header: "Lead ID" },
+    { key: "leadName",        header: "Lead Name" },
+    { key: "mobileNo",        header: "Mobile" },
+    { key: "interestedIn",    header: "Interested In" },
+    { key: "therapistName",   header: "Doctor/Therapist Name" },
+    { key: "medium",          header: "Medium" },
+    { key: "source",          header: "Source" },
+    { key: "subSource",       header: "Sub-Source" },
+    { key: "disposition",     header: "Disposition" },
+    { key: "subDisposition",  header: "Sub-Disposition" },
+    { key: "oppStatus",       header: "Lead Status",      clickable: true },
+    { key: "salesOwner",      header: "Sales Owner" },
+    { key: "closedBy",        header: "Closed By" },
+    { key: "closedDate",      header: "Closed Date" },
+  ],
+
+  manual: [
+    { key: "clinic",          header: "Clinic" },
+    { key: "createdDate",     header: "Created Date" },
+    { key: "oppCode",         header: "Campaign Code" },
+    { key: "oppName",         header: "Campaign Name",    clickable: true },
+    { key: "leadId",          header: "Lead ID" },
+    { key: "leadName",        header: "Lead Name" },
+    { key: "mobileNo",        header: "Mobile" },
+    { key: "interestedIn",    header: "Interested In" },
+    { key: "therapistName",   header: "Doctor/Therapist Name" },
+    { key: "medium",          header: "Medium" },
+    { key: "source",          header: "Source" },
+    { key: "subSource",       header: "Sub-Source" },
+    { key: "disposition",     header: "Disposition" },
+    { key: "subDisposition",  header: "Sub-Disposition" },
+    { key: "oppStatus",       header: "Lead Status",      clickable: true },
+    { key: "salesOwner",      header: "Sales Owner" },
+    { key: "closedBy",        header: "Closed By" },
+    { key: "closedDate",      header: "Closed Date" },
+  ],
+
+  // Fallback for mixed rules / no specific type
+  default: [
+    { key: "createdDate",     header: "Created Date" },
+    { key: "leadId",          header: "Lead ID" },
+    { key: "leadName",        header: "Lead Name" },
+    { key: "oppName",         header: "Campaign Name",    clickable: true },
+    { key: "appointmentDate", header: "Appointment Date" },
+    { key: "therapistName",   header: "Therapist Name" },
+    { key: "mobileNo",        header: "Mobile No" },
+    { key: "campaignStatus",  header: "Campaign Status" },
+    { key: "converted",       header: "Converted" },
+    { key: "oppStatus",       header: "Lead Status",      clickable: true },
+    { key: "salesOwner",      header: "Sales Owner" },
+    { key: "reasons",         header: "Reasons" },
+    { key: "createdBy",       header: "Created By" },
+    { key: "closedBy",        header: "Closed By" },
+    { key: "clinic",          header: "Clinic" },
+  ],
+};
+
+/* ===========================
    SearchableDropdown
    =========================== */
 function SearchableDropdown({
@@ -394,7 +519,7 @@ function SearchableDropdown({
    Endpoints
    =========================== */
 const OPP_DETAIL_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReport`;
-const OPP_DETAIL_PAGED_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReportPaged`; // ✅ NEW
+const OPP_DETAIL_PAGED_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReportPaged`;
 const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 const MANUAL_LEAD_LIST_ENDPOINT = `${API_BASE_URL}/api/LeadOpp/report/leadopps/list`;
 
@@ -478,17 +603,14 @@ export default function OpportunityDetailedReport() {
   const [toast, setToast] = useState(null);
 
   // Separate page states: manual uses its own, non-manual uses nonManualPage
-  const [page, setPage] = useState(1);           // manual page (server-side)
-  const [nonManualPage, setNonManualPage] = useState(1); // non-manual page (server-side)
+  const [page, setPage] = useState(1);
+  const [nonManualPage, setNonManualPage] = useState(1);
 
-  // Non-manual page size = 25 (server-side)
   const NON_MANUAL_PAGE_SIZE = 10;
-  const pageSize = 10; // manual page size unchanged
+  const pageSize = 10;
 
-  // Non-manual server total count
   const [nonManualTotalCount, setNonManualTotalCount] = useState(0);
 
-  // manual server paging meta — UNCHANGED
   const [manualMeta, setManualMeta] = useState({
     pageNumber: 1,
     pageSize: 10,
@@ -496,17 +618,27 @@ export default function OpportunityDetailedReport() {
     totalPages: 1,
   });
 
-  // pageCount: both manual and non-manual use server counts
   const pageCount = useMemo(() => {
     return isManualSelected
       ? Math.max(1, Number(manualMeta?.totalPages || 1))
       : Math.max(1, Math.ceil(nonManualTotalCount / NON_MANUAL_PAGE_SIZE));
   }, [isManualSelected, manualMeta, nonManualTotalCount, NON_MANUAL_PAGE_SIZE]);
 
-  // pageRows: server handles pagination for both manual and non-manual
-  const pageRows = useMemo(() => {
-    return rows;
-  }, [rows]);
+  const pageRows = useMemo(() => rows, [rows]);
+
+  // ✅ Derive current report type for dynamic columns
+  const reportType = useMemo(
+    () => getReportType(oppRuleCodes, isManualSelected),
+    [oppRuleCodes, isManualSelected]
+  );
+
+  // ✅ Active column config
+  const activeColumns = useMemo(
+    () => COLUMN_CONFIGS[reportType] || COLUMN_CONFIGS.default,
+    [reportType]
+  );
+
+  const colSpanCount = activeColumns.length;
 
   const showToast = (message, type = "error", ms = 2200) => {
     setToast({ type, message });
@@ -673,7 +805,7 @@ export default function OpportunityDetailedReport() {
   }, [campaignStatusCode, oppRuleCodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ===========================
-     Manual API: fetch one page — UNCHANGED
+     Manual API: fetch one page
      =========================== */
   const fetchManualPage = async (pageNumber, size) => {
     const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
@@ -722,6 +854,171 @@ export default function OpportunityDetailedReport() {
   };
 
   /* ===========================
+     Row normalizer — extended with new fields
+     =========================== */
+  const normalizeRow = (x, i, isManual, resolvedOppCode, ruleCodeForFormat) => {
+    const fmt = (s) => {
+      const iso = toISODateOnly(s);
+      if (!iso) return "";
+      const dt = new Date(iso);
+      return isNaN(dt)
+        ? ""
+        : new Intl.DateTimeFormat("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          }).format(dt);
+    };
+
+    const yesNo = (v) => {
+      const s = String(v ?? "").toLowerCase();
+      if (["1", "true", "y", "yes"].includes(s)) return "YES";
+      if (["0", "false", "n", "no"].includes(s)) return "NO";
+      return s ? "YES" : "NO";
+    };
+
+    const createdRaw = pick(x, ["createdDate", "createdOn"]);
+    const leadOppIdRaw = pick(x, ["leadOpp_ID", "leadOppId", "id", "leadID", "leadId"]);
+    const ruleCodeRaw = pick(x, ["oRuleCode", "ruleCode", "oppRule", "oRule", "rule"]);
+    const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
+
+    // ✅ New shared fields
+    // SP returns exact column names: DispositionName, SubDispositionName, ClosedDate,
+    // InterestedIn, Medium, Source, SubSource (all resolved to display names in SQL)
+    // Manual endpoint uses different keys — kept as fallbacks
+    const dispositionRaw = pickCI(x, [
+      // ✅ SP exact output name (R3/R7)
+      "DispositionName",
+      // Manual endpoint
+      "disposition", "Disposition", "dispositionName", "leadDisposition",
+    ]);
+    const subDispositionRaw = pickCI(x, [
+      // ✅ SP exact output name (R3/R7)
+      "SubDispositionName",
+      // Manual endpoint
+      "subDisposition", "SubDisposition", "subDispositionName",
+    ]);
+    // ✅ SP returns ClosedDate already formatted as DD/MM/YYYY string — use directly, no fmt() needed
+    const closedDateRaw = pickCI(x, [
+      "ClosedDate",
+      "closedDate", "closedOn", "closeDate", "ModifiedDate", "modifiedDate",
+    ]);
+    const interestedInRaw = pickCI(x, [
+      // ✅ SP exact output name (R7)
+      "InterestedIn",
+      // Manual endpoint (OppMleadDetails): InteresetedVerticalName
+      "InteresetedVerticalName", "interestedIn", "interestedInName", "InterestedInName",
+    ]);
+    const mediumRaw = pickCI(x, [
+      // ✅ SP exact output name (R7)
+      "Medium",
+      // Manual endpoint: MediumName
+      "MediumName", "medium", "leadMedium",
+    ]);
+    const sourceRaw = pickCI(x, [
+      // ✅ SP exact output name (R7)
+      "Source",
+      // Manual endpoint: SourceName
+      "SourceName", "source", "leadSource",
+    ]);
+    const subSourceRaw = pickCI(x, [
+      // ✅ SP exact output name (R7)
+      "SubSource",
+      // Manual endpoint: SubSourceName
+      "SubSourceName", "subSource", "sub_source",
+    ]);
+
+    if (isManual) {
+      const campaignStatusRaw = pick(x, ["status", "campaignStatus", "campaignState"]);
+      const leadStatusRaw = pick(x, ["disposition", "leadStatus", "oppStatus", "statusName"]);
+      const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
+      const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
+      const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
+
+      return {
+        key: pick(x, ["leadOpp_ID", "id"], `m-${i}`),
+        oppCode: resolvedOppCode || "",
+        createdDate: fmt(createdRaw),
+        leadId: formatLeadId(leadOppIdRaw, ruleCodeRaw),
+        leadName: pick(x, ["customerName", "leadName", "custName", "name"]),
+        oppName: pick(x, ["oppName"]),
+        campaignStatus: campaignStatusRaw,
+        converted: manualConvertedYesNo(leadStatusRaw),
+        therapistName: therapistNameRaw,
+        appointmentDate: "",
+        oppStatus: leadStatusRaw || campaignStatusRaw,
+        mobileNo,
+        salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
+        reasons: "",
+        createdBy: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
+        closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
+        clinic: pick(x, ["clinicName", "centerName", "clinic"]),
+        // ✅ New fields
+        disposition: dispositionRaw || leadStatusRaw,
+        subDisposition: subDispositionRaw,
+        closedDate: fmt(closedDateRaw),
+        interestedIn: interestedInRaw,
+        medium: mediumRaw,
+        source: sourceRaw,
+        subSource: subSourceRaw,
+      };
+    }
+
+    // Non-manual
+    const leadIdRaw = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
+    const fromRaw = pick(x, ["fromDate", "campaignFromDate"]);
+    const toRaw = pick(x, ["toDate", "campaignToDate"]);
+    const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
+    const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
+    const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
+    const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
+    const mobileRaw = pickCI(x, [
+      "mobileNo", "mobile", "mobileNumber", "phone", "phoneNo", "phoneNumber",
+      "mobile_no", "mobile_no.", "customerMobile", "customerMobileNo", "custMobile",
+    ]);
+    const mobileNo = norm(mobileRaw);
+    const oppStatusRaw = pick(x, ["statusName", "oppStatus", "status"]);
+
+    return {
+      key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
+      oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
+      fromDate: fmt(fromRaw),
+      toDate: fmt(toRaw),
+      createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
+      appointmentDate: isExternalRow ? "" : fmt(apptRaw),
+      mobileNo,
+      leadId: formatLeadId(leadIdRaw, ruleRaw),
+      therapistName: therapistNameRaw,
+      ruleCode: ruleRaw,
+      salesOwner: pickCI(x, [
+        "salesOwner", "salesowner", "SalesOwner", "sales_owner",
+        "salesOwnerName", "salesOwnerFullName", "salesOwnerEmpCode",
+        "salesOwnerEmployeeCode", "ownerName", "owner",
+      ]),
+      reasons: pickCI(x, [
+        "reasons", "Reasons", "reason", "reasonName", "reasonText",
+        "reasonDesc", "remarksReason", "remarks",
+      ]),
+      leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
+      oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+      campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
+      converted: yesNo(pick(x, ["converted", "isConverted"])),
+      oppStatus: oppStatusRaw,
+      createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
+      closedBy: pick(x, ["ClosedBy", "closedByName", "closedBy"]),
+      clinic: pick(x, ["CNAME", "centerName", "clinicName", "center"]),
+      // ✅ SP returns display names & pre-formatted dates directly
+      disposition: dispositionRaw || oppStatusRaw,
+      subDisposition: subDispositionRaw,
+      closedDate: closedDateRaw.includes("-") ? fmt(closedDateRaw) : closedDateRaw,
+      interestedIn: interestedInRaw,
+      medium: mediumRaw,
+      source: sourceRaw,
+      subSource: subSourceRaw,
+    };
+  };
+
+  /* ===========================
      Load report
      =========================== */
   const loadDetailed = async (pageOverride) => {
@@ -729,7 +1026,6 @@ export default function OpportunityDetailedReport() {
 
     const requestedPage = Number(pageOverride || 1);
 
-    // Reset appropriate page state
     if (isManualSelected) {
       setPage(requestedPage);
     } else {
@@ -749,7 +1045,6 @@ export default function OpportunityDetailedReport() {
       let manualResp = null;
 
       if (isManualSelected) {
-        // ✅ MANUAL: server-side paging — completely unchanged
         manualResp = await fetchManualPage(requestedPage, pageSize);
         arr = Array.isArray(manualResp?.data) ? manualResp.data : [];
 
@@ -760,7 +1055,6 @@ export default function OpportunityDetailedReport() {
           totalPages: Number(manualResp?.totalPages || 1),
         });
       } else {
-        // NON-MANUAL: server-side pagination via new paged endpoint
         const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
           .map(norm)
           .filter(Boolean)
@@ -774,8 +1068,8 @@ export default function OpportunityDetailedReport() {
           oppRule: rulesCSV || "",
           oppName: selectedOppNameCSV,
           dateFlag: df,
-          pageNumber: requestedPage,        // ✅ server-side page
-          pageSize: NON_MANUAL_PAGE_SIZE,   // ✅ 25 per page
+          pageNumber: requestedPage,
+          pageSize: NON_MANUAL_PAGE_SIZE,
         };
 
         const r = await fetch(OPP_DETAIL_PAGED_ENDPOINT, {
@@ -794,104 +1088,11 @@ export default function OpportunityDetailedReport() {
         setManualMeta({ pageNumber: 1, pageSize, totalRecords: 0, totalPages: 1 });
       }
 
-      const fmt = (s) => {
-        const iso = toISODateOnly(s);
-        if (!iso) return "";
-        const dt = new Date(iso);
-        return isNaN(dt)
-          ? ""
-          : new Intl.DateTimeFormat("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            }).format(dt);
-      };
-
-      const yesNo = (v) => {
-        const s = String(v ?? "").toLowerCase();
-        if (["1", "true", "y", "yes"].includes(s)) return "YES";
-        if (["0", "false", "n", "no"].includes(s)) return "NO";
-        return s ? "YES" : "NO";
-      };
-
+      // ✅ Use unified normalizer
       const normalized = arr.map((x, i) => {
-        const createdRaw = pick(x, ["createdDate", "createdOn"]);
-        const leadOppIdRaw = pick(x, ["leadOpp_ID", "leadOppId", "id", "leadID", "leadId"]);
-        const ruleCodeRaw = pick(x, ["oRuleCode", "ruleCode", "oppRule", "oRule", "rule"]);
         const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
         const resolvedOppCode = campaignIdToOppCode.get(String(campId));
-
-        if (isManualSelected) {
-          const campaignStatusRaw = pick(x, ["status", "campaignStatus", "campaignState"]);
-          const leadStatusRaw = pick(x, ["disposition", "leadStatus", "oppStatus", "statusName"]);
-          const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
-          const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
-          const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
-
-          return {
-            key: pick(x, ["leadOpp_ID", "id"], `m-${i}`),
-            oppCode: resolvedOppCode || "",
-            createdDate: fmt(createdRaw),
-            leadId: formatLeadId(leadOppIdRaw, ruleCodeRaw),
-            leadName: pick(x, ["customerName", "leadName", "custName", "name"]),
-            oppName: pick(x, ["oppName"]),
-            campaignStatus: campaignStatusRaw,
-            converted: manualConvertedYesNo(leadStatusRaw),
-            therapistName: therapistNameRaw,
-            appointmentDate: "",
-            oppStatus: leadStatusRaw || campaignStatusRaw,
-            mobileNo: mobileNo,
-            salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-            reasons: "",
-            createdBy: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-            closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
-            clinic: pick(x, ["clinicName", "centerName", "clinic"]),
-          };
-        }
-
-        // Non-manual — unchanged
-        const leadIdRaw = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
-        const fromRaw = pick(x, ["fromDate", "campaignFromDate"]);
-        const toRaw = pick(x, ["toDate", "campaignToDate"]);
-        const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
-        const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
-        const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
-        const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
-        const mobileRaw = pickCI(x, [
-          "mobileNo", "mobile", "mobileNumber", "phone", "phoneNo", "phoneNumber",
-          "mobile_no", "mobile_no.", "customerMobile", "customerMobileNo", "custMobile",
-        ]);
-        const mobileNo = norm(mobileRaw);
-
-        return {
-          key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-          oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
-          fromDate: fmt(fromRaw),
-          toDate: fmt(toRaw),
-          createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
-          appointmentDate: isExternalRow ? "" : fmt(apptRaw),
-          mobileNo: mobileNo,
-          leadId: formatLeadId(leadIdRaw, ruleRaw),
-          therapistName: therapistNameRaw,
-          ruleCode: ruleRaw,
-          salesOwner: pickCI(x, [
-            "salesOwner", "salesowner", "SalesOwner", "sales_owner",
-            "salesOwnerName", "salesOwnerFullName", "salesOwnerEmpCode",
-            "salesOwnerEmployeeCode", "ownerName", "owner",
-          ]),
-          reasons: pickCI(x, [
-            "reasons", "Reasons", "reason", "reasonName", "reasonText",
-            "reasonDesc", "remarksReason", "remarks",
-          ]),
-          leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
-          oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-          campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-          converted: yesNo(pick(x, ["converted", "isConverted"])),
-          oppStatus: pick(x, ["statusName", "oppStatus", "status"]),
-          createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
-          closedBy: pick(x, ["closedByName", "closedBy"]),
-          clinic: pick(x, ["centerName", "clinicName", "center"]),
-        };
+        return normalizeRow(x, i, isManualSelected, resolvedOppCode, null);
       });
 
       setRows(normalized);
@@ -915,9 +1116,7 @@ export default function OpportunityDetailedReport() {
   }
 
   /* ===========================
-     Export to Excel
-     Manual: fetches all pages from manual endpoint
-     Non-manual: calls paged endpoint with pageNumber=0 (fetch all)
+     Export to Excel — updated headers per report type
      =========================== */
   async function exportExcel() {
     if (!nonManualTotalCount && !rows.length) return;
@@ -942,47 +1141,10 @@ export default function OpportunityDetailedReport() {
           pushData(next);
         }
 
-        const fmt = (s) => {
-          const iso = toISODateOnly(s);
-          if (!iso) return "";
-          const dt = new Date(iso);
-          return isNaN(dt)
-            ? ""
-            : new Intl.DateTimeFormat("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              }).format(dt);
-        };
-
         exportRows = all.map((x, i) => {
-          const createdRaw = pick(x, ["createdDate", "createdOn"]);
-          const leadOppIdRaw = pick(x, ["leadOpp_ID", "leadOppId", "id"]);
-          const ruleCodeRaw = pick(x, ["oRuleCode", "ruleCode", "oppRule", "oRule", "rule"]);
           const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
           const resolvedOppCode = campaignIdToOppCode.get(String(campId));
-          const modifiedByRaw = pick(x, ["modifiedBy"]);
-          const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
-          const campaignStatusRaw = pick(x, ["status"]);
-          const leadStatusRaw = pick(x, ["disposition"]) || campaignStatusRaw;
-
-          return {
-            createdDate: fmt(createdRaw),
-            leadId: formatLeadId(leadOppIdRaw, ruleCodeRaw),
-            leadName: pick(x, ["customerName"]),
-            oppName: pick(x, ["oppName"]),
-            campaignStatus: campaignStatusRaw,
-            mobileNo: norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"])),
-            therapistName: therapistNameRaw,
-            converted: manualConvertedYesNo(leadStatusRaw),
-            oppStatus: leadStatusRaw || campaignStatusRaw,
-            salesOwner: pick(x, ["saleOwner", "salesOwner"]),
-            reasons: "",
-            createdBy: pick(x, ["createdBy", "createdByName"]) || modifiedByRaw,
-            closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
-            clinic: pick(x, ["clinicName"]),
-            oppCode: resolvedOppCode || "",
-          };
+          return normalizeRow(x, i, true, resolvedOppCode, null);
         });
       } catch (e) {
         console.error(e);
@@ -990,7 +1152,6 @@ export default function OpportunityDetailedReport() {
         return;
       }
     } else {
-      // ✅ Non-manual: call paged endpoint with pageNumber=0 to get ALL records
       try {
         const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
         const effectiveToISO = toISODateOnly(toDate) || todayISODate();
@@ -1008,7 +1169,7 @@ export default function OpportunityDetailedReport() {
           oppRule: rulesCSV || "",
           oppName: selectedOppNameCSV,
           dateFlag: "0",
-          pageNumber: 0,  // 0 = fetch all (no pagination)
+          pageNumber: 0,
           pageSize: NON_MANUAL_PAGE_SIZE,
         };
 
@@ -1022,44 +1183,7 @@ export default function OpportunityDetailedReport() {
         const d = await r.json();
         const allRaw = Array.isArray(d?.data) ? d.data : [];
 
-        const fmt = (s) => {
-          const iso = toISODateOnly(s);
-          if (!iso) return "";
-          const dt = new Date(iso);
-          return isNaN(dt) ? "" : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
-        };
-        const yesNo = (v) => {
-          const s = String(v ?? "").toLowerCase();
-          if (["1", "true", "y", "yes"].includes(s)) return "YES";
-          if (["0", "false", "n", "no"].includes(s)) return "NO";
-          return s ? "YES" : "NO";
-        };
-
-        exportRows = allRaw.map((x, i) => {
-          const leadIdRaw = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
-          const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
-          const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
-          const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
-          return {
-            key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-            oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
-            createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
-            appointmentDate: isExternalRow ? "" : fmt(apptRaw),
-            mobileNo: norm(pickCI(x, ["mobileNo", "mobile", "mobileNumber", "phone", "phoneNo", "phoneNumber", "mobile_no", "customerMobileNo", "custMobile"])),
-            leadId: formatLeadId(leadIdRaw, ruleRaw),
-            therapistName: pick(x, ["therapistName", "therapist", "providerName", "doctorName"]),
-            leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
-            oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-            campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-            converted: yesNo(pick(x, ["converted", "isConverted"])),
-            oppStatus: pick(x, ["statusName", "oppStatus", "status"]),
-            salesOwner: pickCI(x, ["salesOwner", "salesowner", "SalesOwner", "ownerName", "owner"]),
-            reasons: pickCI(x, ["reasons", "Reasons", "reason", "reasonName", "remarks"]),
-            createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
-            closedBy: pick(x, ["closedByName", "closedBy"]),
-            clinic: pick(x, ["centerName", "clinicName", "center"]),
-          };
-        });
+        exportRows = allRaw.map((x, i) => normalizeRow(x, i, false, null, null));
       } catch (e) {
         console.error(e);
         showToast("Export failed");
@@ -1067,33 +1191,21 @@ export default function OpportunityDetailedReport() {
       }
     }
 
-    const headers = [
-      "Created Date", "Lead ID", "Lead Name", "Campaign Name",
-      "Appointment Date", "Therapist Name", "Mobile",
-      "Campaign Status", "Converted", "Lead Status",
-      "Sales Owner", "Reasons", "Created By", "Closed By", "Clinic", "Campaign Code",
-    ];
+    // ✅ Build export columns from active column config
+    const exportColumns = activeColumns.filter((c) => c.key !== "oppCode"); // oppCode shown as Campaign Code column already
+    // Re-add oppCode as last column "Campaign Code" if not already in config
+    const hasCampCodeCol = activeColumns.some((c) => c.key === "oppCode");
+
+    const headers = activeColumns.map((c) => c.header);
+    if (!hasCampCodeCol) headers.push("Campaign Code");
 
     const aoa = [
       headers,
-      ...exportRows.map((r) => [
-        r.createdDate ?? "",
-        r.leadId ?? "",
-        r.leadName ?? "",
-        r.oppName ?? "",
-        r.appointmentDate ?? "",
-        r.therapistName ?? "",
-        r.mobileNo ?? "",
-        r.campaignStatus ?? "",
-        r.converted ?? "",
-        r.oppStatus ?? "",
-        r.salesOwner ?? "",
-        r.reasons ?? "",
-        r.createdBy ?? "",
-        r.closedBy ?? "",
-        r.clinic ?? "",
-        r.oppCode ?? "",
-      ]),
+      ...exportRows.map((r) => {
+        const vals = activeColumns.map((c) => r[c.key] ?? "");
+        if (!hasCampCodeCol) vals.push(r.oppCode ?? "");
+        return vals;
+      }),
     ];
 
     const XLSXMod = await import("xlsx");
@@ -1277,63 +1389,44 @@ export default function OpportunityDetailedReport() {
       <div className="table-wrap">
         <div className="table-scroll">
           <table className="tbl">
+            {/* ✅ Dynamic thead based on reportType */}
             <thead>
               <tr>
-                <th>Created Date</th>
-                <th>Lead ID</th>
-                <th>Lead Name</th>
-                <th>Campaign Name</th>
-                <th>Appointment Date</th>
-                <th>Therapist Name</th>
-                <th>Mobile No</th>
-                <th>Campaign Status</th>
-                <th>Converted</th>
-                <th>Lead Status</th>
-                <th>Sales Owner</th>
-                <th>Reasons</th>
-                <th>Created By</th>
-                <th>Closed By</th>
-                <th>Clinic</th>
+                {activeColumns.map((col) => (
+                  <th key={col.key}>{col.header}</th>
+                ))}
               </tr>
             </thead>
+
+            {/* ✅ Dynamic tbody based on reportType */}
             <tbody>
               {loading && (
-                <tr><td colSpan={15} className="loading">Loading…</td></tr>
+                <tr><td colSpan={colSpanCount} className="loading">Loading…</td></tr>
               )}
               {!loading && !pageRows.length && (
-                <tr><td colSpan={15} className="empty">No data</td></tr>
+                <tr><td colSpan={colSpanCount} className="empty">No data</td></tr>
               )}
               {!loading && pageRows.map((r, idx) => (
                 <tr key={`${r.key}-${idx}`}>
-                  <td>{r.createdDate}</td>
-                  <td>{r.leadId}</td>
-                  <td>{r.leadName}</td>
-                  <td>
-                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>{r.oppName}</button>
-                  </td>
-                  <td>{r.appointmentDate}</td>
-                  <td>{r.therapistName}</td>
-                  <td>{r.mobileNo}</td>
-                  <td>{r.campaignStatus}</td>
-                  <td>{r.converted}</td>
-                  <td>
-                    <button className="link" onClick={() => onClickOpp(r.oppCode)}>{r.oppStatus}</button>
-                  </td>
-                  <td>{r.salesOwner}</td>
-                  <td>{r.reasons}</td>
-                  <td>{r.createdBy}</td>
-                  <td>{r.closedBy}</td>
-                  <td>{r.clinic}</td>
+                  {activeColumns.map((col) => (
+                    <td key={col.key}>
+                      {col.clickable ? (
+                        <button className="link" onClick={() => onClickOpp(r.oppCode)}>
+                          {r[col.key]}
+                        </button>
+                      ) : (
+                        r[col.key] ?? ""
+                      )}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pager: both manual and non-manual now server-side */}
+        {/* Pager */}
         <div className="pager">
-
-          {/* Non-manual: show server record count */}
           {!isManualSelected && nonManualTotalCount > 0 && (
             <span className="pager-info">
               Showing{" "}
@@ -1356,10 +1449,8 @@ export default function OpportunityDetailedReport() {
             Prev
           </button>
 
-          {/* Non-manual: windowed page number buttons */}
           {!isManualSelected && renderNonManualPageButtons()}
 
-          {/* Manual: just show page number — unchanged */}
           {isManualSelected && <span className="pageno">{page}</span>}
 
           <button
@@ -1373,7 +1464,6 @@ export default function OpportunityDetailedReport() {
             Next
           </button>
 
-          {/* Manual: show total pages — unchanged */}
           {isManualSelected && <span className="pagecount">/ {pageCount}</span>}
         </div>
       </div>
