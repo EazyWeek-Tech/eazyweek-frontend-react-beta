@@ -457,10 +457,10 @@ const PaymentBlock = ({
       return;
     }
 
-    if (!appointmentIdFromUrl) {
+    /* if (!appointmentIdFromUrl) {
       setFormError('Missing appointment ID in URL.');
       return;
-    }
+    } */
 
     const now = new Date().toISOString();
     const isCitizen = (effectiveCustomer?.status || '').toLowerCase() === 'citizen';
@@ -536,7 +536,7 @@ const PaymentBlock = ({
     }));
 
     const payload = {
-      appointmentID: appointmentIdFromUrl,
+      appointmentID: appointmentIdFromUrl || "",
       invoiceDate: now,
       centerCode: sessionCenterCode,
       createdBy,
