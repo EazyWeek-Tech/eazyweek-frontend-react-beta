@@ -747,28 +747,43 @@ const computedCc = useMemo(() => {
         </div>
 
        <div className="form-group">
-          <label>Attachment</label>
-          
-          {attachment?.attachmentBase64 && (
-            <div style={{ marginTop: 10 }}>
-              {attachment.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                <img
-                  src={attachment.attachmentBase64}
-                  alt={attachment.fileName}
-                  style={{ maxWidth: "100%", maxHeight: 300, borderRadius: 6, border: "1px solid #ddd" }}
-                />
-              ) : (
-  <a
-    href={attachment.attachmentBase64}
-    download={attachment.fileName}
-    style={{ color: "#0d6486", fontWeight: 600 }}
-  >
-    📎 {attachment.fileName}
-  </a>
-)}
-            </div>
-          )}
-        </div>
+  <label>Attachment</label>
+
+  {attachment?.attachmentBase64 ? (
+    <div style={{ marginTop: 10 }}>
+      {attachment.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+        <img
+          src={attachment.attachmentBase64}
+          alt={attachment.fileName}
+          style={{
+            maxWidth: "100%",
+            maxHeight: 300,
+            borderRadius: 6,
+            border: "1px solid #ddd",
+          }}
+        />
+      ) : (
+        <a
+          href={attachment.attachmentBase64}
+          download={attachment.fileName}
+          style={{ color: "#0d6486", fontWeight: 600 }}
+        >
+          📎 {attachment.fileName}
+        </a>
+      )}
+    </div>
+  ) : (
+    <div
+      style={{
+        marginTop: 10,
+        color: "#6b7280",
+        fontStyle: "italic",
+      }}
+    >
+      No attachment was added during case creation.
+    </div>
+  )}
+</div>
 
          <div className="form-group">
           <label>First Time Resolution</label>
