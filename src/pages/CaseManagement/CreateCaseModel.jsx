@@ -28,6 +28,7 @@ const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
 const [assignOpen, setAssignOpen] = useState(false);
 const [assignActiveIndex, setAssignActiveIndex] = useState(-1);
 const assignWrapRef = useRef(null);
+const [fileError, setFileError] = useState("");
 
  const [formValues, setFormValues] = useState({
     title: "",
@@ -60,6 +61,7 @@ const assignWrapRef = useRef(null);
     moreCC: "",
     specificResolution: "",
     remarks: "",
+    attachment:null
   });
 
   // holds the real case no once server generates it
@@ -535,10 +537,44 @@ const isComplaintCategory = () => {
   }, [currentUser]);
 
  
+const handleChange = (field, value) => {
+  if (field === "attachment") {
+    const file = value;
 
-  const handleChange = (field, value) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-  };
+    if (!file) {
+      setFormValues((prev) => ({ ...prev, attachment: null }));
+      setFileError("");
+      return;
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/jpg",
+    ];
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+
+    if (!allowedTypes.includes(file.type)) {
+      setFileError("Only PDF, JPG, JPEG, and PNG files are allowed.");
+      setFormValues((prev) => ({ ...prev, attachment: null }));
+      return;
+    }
+
+    if (file.size > maxSize) {
+      setFileError("File size should not exceed 2MB.");
+      setFormValues((prev) => ({ ...prev, attachment: null }));
+      return;
+    }
+
+    setFileError("");
+    setFormValues((prev) => ({ ...prev, attachment: file }));
+    return;
+  }
+
+  setFormValues((prev) => ({ ...prev, [field]: value }));
+};
 
   const resetForm = () => {
     setFormValues({
@@ -572,7 +608,10 @@ const isComplaintCategory = () => {
       moreCC: "",
       specificResolution: "",
       remarks: "",
+      attachment:null
     });
+      setFileError("");
+
     setSelectedCategoryCode("");
     setSelectedSubCategoryCode("");
     setSelectedSubSubCategoryCode("");
@@ -935,6 +974,8 @@ employeno: formValues.employeno,
     }
   };
 
+  
+
   const handleSubmit = async () => {
     const generalErrs = validateGeneralTab();
     const issueErrs = validateIssueTab();
@@ -952,8 +993,25 @@ employeno: formValues.employeno,
     const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
     const user = currentUser;
 
+    //  Convert attachment to base64
+const toBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+});
+
+let attachmentBase64 = "";
+let attachmentFileName = "";
+if (formValues.attachment) {
+  attachmentBase64 = await toBase64(formValues.attachment);
+  attachmentFileName = formValues.attachment.name;
+}
+
     const payload = {
       casetitle: formValues.title,
+      attachmentBase64: attachmentBase64,
+attachmentFileName: attachmentFileName,
       caseno: savedCaseNoEffective,
       category: formValues.category,
       subCategory: formValues.subcategory,
@@ -1647,10 +1705,15 @@ employeno: formValues.employeno,
 
               {/* Attachment (optional) */}
               <div className="form-group">
-                <label htmlFor="attachment">Attachment</label>
-                <input type="file" id="attachment" onChange={(e) => handleChange("attachment", e.target.files[0])} />
-                <div className="error"></div>
-              </div>
+  <label htmlFor="attachment">Attachment</label>
+  <input
+    type="file"
+    id="attachment"
+    accept=".pdf,.jpg,.jpeg,.png"
+    onChange={(e) => handleChange("attachment", e.target.files[0])}
+  />
+  {fileError && <div className="error-text">{fileError}</div>}
+</div>
 
               {/* Client Threat (required) */}
               <div className="form-group">
