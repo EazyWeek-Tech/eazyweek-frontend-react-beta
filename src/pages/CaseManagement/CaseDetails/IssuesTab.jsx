@@ -95,6 +95,7 @@ const IssuesTab = forwardRef(
     const [therapists, setTherapists] = useState([]);
     const [therapistClicked, setTherapistClicked] = useState(false);
     const [responses, setResponses] = useState([]);
+    const [attachment, setAttachment] = useState(null);
 
     // Hierarchy (used for L1/L2 + CC)
     const [hierarchy, setHierarchy] = useState(null);
@@ -239,11 +240,26 @@ const insertAtCursor = (el, text) => {
 };
 
 useEffect(() => {
-      const run = async () => {
-        await loadResponses();
-      };
-      run();
-    }, [data?.caseNo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const run = async () => {
+    await loadResponses();
+
+    // ✅ Fetch attachment if case exists
+    if (data?.caseNo) {
+      try {
+        const res = await fetchJSON(
+          `${API_BASE_URL}/api/CaseOperation/CaseAttachment/${data.caseNo}`
+        );
+        const list = Array.isArray(res) ? res : [];
+        if (list.length > 0) {
+          setAttachment(list[0]); // show first attachment
+        }
+      } catch (e) {
+        console.error("Error fetching attachment:", e);
+      }
+    }
+  };
+  run();
+}, [data?.caseNo]);
 
     // --- Current Assignee display (from API caseWithName) ---
     const currentAssigneeDisplay = data?.caseWithName;
@@ -527,6 +543,40 @@ const computedCc = useMemo(() => {
     const handleChange = (e) => {
       const { name, value, type, files } = e.target;
 
+      if (type === "file") {
+  const file = files[0];
+  if (!file) return;
+
+  const allowedTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/jpg",
+  ];
+
+  const maxSize = 2 * 1024 * 1024; // 2MB
+
+  //  Type validation
+  if (!allowedTypes.includes(file.type)) {
+    alert("Only PDF, JPG, and PNG files are allowed.");
+    return;
+  }
+
+  //  Size validation
+  if (file.size > maxSize) {
+    alert("File size should not exceed 2MB.");
+    return;
+  }
+
+  //  Valid file
+  setFormValues((prev) => ({
+    ...prev,
+    attachment: file,
+  }));
+
+  return;
+}
+
       if (name === "assignToCode") {
   userTouchedAssignRef.current = true;
 
@@ -581,7 +631,7 @@ const computedCc = useMemo(() => {
 
       setFormValues((prev) => ({
         ...prev,
-        [name]: type === "file" ? files[0] : value,
+         [name]: value,
       }));
     };
 
@@ -696,9 +746,28 @@ const computedCc = useMemo(() => {
           />
         </div>
 
-        <div className="form-group">
+       <div className="form-group">
           <label>Attachment</label>
-          <input type="file" name="attachment" onChange={handleChange} />
+          
+          {attachment?.attachmentBase64 && (
+            <div style={{ marginTop: 10 }}>
+              {attachment.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                <img
+                  src={attachment.attachmentBase64}
+                  alt={attachment.fileName}
+                  style={{ maxWidth: "100%", maxHeight: 300, borderRadius: 6, border: "1px solid #ddd" }}
+                />
+              ) : (
+  <a
+    href={attachment.attachmentBase64}
+    download={attachment.fileName}
+    style={{ color: "#0d6486", fontWeight: 600 }}
+  >
+    📎 {attachment.fileName}
+  </a>
+)}
+            </div>
+          )}
         </div>
 
          <div className="form-group">
