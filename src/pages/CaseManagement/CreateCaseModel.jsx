@@ -857,6 +857,19 @@ if (isComplaintCategory() && !formValues.doctorCode) {
     if (isSaving) return;
     setIsSaving(true);
 
+    //  Convert attachment to base64
+    let attachmentBase64 = "";
+    let attachmentFileName = "";
+    if (formValues.attachment) {
+      attachmentBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(formValues.attachment);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+      attachmentFileName = formValues.attachment.name;
+    }
+
     const savedCaseNoFromStorage = localStorage.getItem("lastSavedCaseNo") || "";
     const savedCaseNoEffective = caseNo || savedCaseNoFromStorage || "";
 
@@ -867,6 +880,8 @@ if (isComplaintCategory() && !formValues.doctorCode) {
     const payload = {
       casetitle: formValues.title,
       caseno: casenoForSave,
+      attachmentBase64: attachmentBase64,
+      attachmentFileName: attachmentFileName,
       category: formValues.category,
       subCategory: formValues.subcategory,
       subSubCategory: formValues.subSubcategory,

@@ -752,16 +752,16 @@ const computedCc = useMemo(() => {
   {attachment?.attachmentBase64 ? (
     <div style={{ marginTop: 10 }}>
       {attachment.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-        <img
-          src={attachment.attachmentBase64}
-          alt={attachment.fileName}
-          style={{
-            maxWidth: "100%",
-            maxHeight: 300,
-            borderRadius: 6,
-            border: "1px solid #ddd",
-          }}
-        />
+        <>
+          
+          <a
+            href={attachment.attachmentBase64}
+            download={attachment.fileName}
+            style={{ color: "#0d6486", fontWeight: 600 }}
+          >
+            📎 {attachment.fileName}
+          </a>
+        </>
       ) : (
         <a
           href={attachment.attachmentBase64}
