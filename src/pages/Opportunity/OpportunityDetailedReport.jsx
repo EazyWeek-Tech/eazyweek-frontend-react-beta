@@ -930,7 +930,8 @@ export default function OpportunityDetailedReport() {
 
     if (isManual) {
       const campaignStatusRaw = pick(x, ["status", "campaignStatus", "campaignState"]);
-      const leadStatusRaw = pick(x, ["disposition", "leadStatus", "oppStatus", "statusName"]);
+      const leadStatusRaw = pick(x, ["oppStatus", "leadStatus", "statusName", "Status", "status"]);
+
       const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
       const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
       const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
@@ -946,12 +947,14 @@ export default function OpportunityDetailedReport() {
         converted: manualConvertedYesNo(leadStatusRaw),
         therapistName: therapistNameRaw,
         appointmentDate: "",
-        oppStatus: leadStatusRaw || campaignStatusRaw,
+       oppStatus: pick(x, ["Status", "status", "oppStatus", "leadStatus"]),
+
         mobileNo,
         salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
         reasons: "",
         createdBy: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-        closedBy: manualClosedBy(leadStatusRaw, modifiedByRaw),
+        closedBy: pick(x, ["ClosedBy", "closedBy"]) || manualClosedBy(leadStatusRaw, modifiedByRaw),
+
         clinic: pick(x, ["clinicName", "centerName", "clinic"]),
         // ✅ New fields
         disposition: dispositionRaw || leadStatusRaw,
