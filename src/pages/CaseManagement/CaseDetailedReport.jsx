@@ -417,10 +417,17 @@ const CaseDetailedReport = () => {
     return out;
   }, [specificResRaw]);
 
-  const therapistOptions = useMemo(
-    () => toOptions(therapistsRaw, "code", "name"),
-    [therapistsRaw]
-  );
+  // AFTER — preserve raw code exactly as-is, no String() coercion
+const therapistOptions = useMemo(
+  () =>
+    (Array.isArray(therapistsRaw) ? therapistsRaw : [])
+      .filter((doc) => doc?.code && doc?.name)
+      .map((doc) => ({
+        value: doc.code,   // ← raw value, no String() wrapping
+        label: doc.name,
+      })),
+  [therapistsRaw]
+);
 
   // ---------- View (POST) ----------
   const handleView = async () => {
