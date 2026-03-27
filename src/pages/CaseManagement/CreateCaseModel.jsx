@@ -68,11 +68,13 @@ const [fileError, setFileError] = useState("");
   const [caseNo, setCaseNo] = useState("");
 
   const toastRef = useRef(null);
-
-  const pickEmployee = (emp) => {
+const pickEmployee = (emp) => {
   if (!emp) return;
 
-  handleChange("employeeCode", emp.employeeCode || "");
+  // Normalize: ensure employee codes always include hyphen (e.g. CENT-00366 not CENT00366)
+  const normalizeCode = (code) => (code || "").replace(/^([A-Za-z]+)(\d+)$/, "$1-$2");
+
+  handleChange("employeeCode", normalizeCode(emp.employeeCode || ""));
   handleChange("employeno", emp.mobileNo || "");
   handleChange("email", emp.emailID || "");
   handleChange("emailDisplay", emp.employeeName || "");
@@ -1581,15 +1583,14 @@ attachmentFileName: attachmentFileName,
                   value={formValues.customerCode}
                   disabled={customerOptions.length === 0}
                   onChange={(e) => {
-                    const selectedCode = e.target.value;
-                    const selected = customerOptions.find((cust) => cust.code === selectedCode);
-                    handleChange("customerCode", selectedCode);
-                    handleChange("customer", selected?.name || "");
-                    setValidationErrors((p) => ({
-                      ...p,
-                      customerCode: selectedCode ? null : "Customer is required.",
-                    }));
-                  }}
+    const selectedCode = e.target.value;
+    // Normalize: ensure employee codes always include hyphen (e.g. CENT-00366 not CENT00366)
+    const normalizedCode = selectedCode.replace(/^([A-Za-z]+)(\d+)$/, "$1-$2");
+    const selectedDoc = therapists.find((doc) => doc.code === selectedCode);
+    handleChange("doctorCode", normalizedCode);
+    handleChange("therapist", selectedDoc?.name || "");
+    setValidationErrors((prev) => ({ ...prev, doctorCode: null }));
+  }}
                   className={validationErrors.customerCode ? "error-border" : ""}
                 >
                   <option value="">Select Customer</option>

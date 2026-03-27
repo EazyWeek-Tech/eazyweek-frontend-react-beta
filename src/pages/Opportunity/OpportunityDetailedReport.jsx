@@ -1025,6 +1025,11 @@ export default function OpportunityDetailedReport() {
      Load report
      =========================== */
   const loadDetailed = async (pageOverride) => {
+
+    if (!fromDate || !toDate) {
+    showToast("Please select both From Date and To Date", "error");
+    return;
+  }
     setLoading(true);
 
     const requestedPage = Number(pageOverride || 1);
@@ -1295,13 +1300,23 @@ export default function OpportunityDetailedReport() {
       <div className="filters">
         <div className="grid">
           <div className="frow">
-            <label>Created From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(toISODateOnly(e.target.value))} />
+            <label>Created From Date <span className="req">*</span></label>
+<input
+  type="date"
+  value={fromDate}
+  onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
+  className={!fromDate ? "input-error" : ""}
+/>
           </div>
 
           <div className="frow">
-            <label>Created To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(toISODateOnly(e.target.value))} />
+           <label>Created To Date <span className="req">*</span></label>
+<input
+  type="date"
+  value={toDate}
+  onChange={(e) => setToDate(toISODateOnly(e.target.value))}
+  className={!toDate ? "input-error" : ""}
+/>
           </div>
 
           <div className="frow">
