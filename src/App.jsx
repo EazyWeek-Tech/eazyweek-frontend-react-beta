@@ -83,6 +83,8 @@ import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
 import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
 import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
 import OppUploader from "./pages/Opportunity/OppUploader";
+import OnDemandTriggers from "./pages/OnDemand/OnDemandTriggers";
+
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -222,6 +224,7 @@ localStorage.removeItem("remember");
                     path="/opportunity/customers"
                     element={<AddLeadCustomerList />}
                   />
+                  <Route path="/on-demand" element={<OnDemandTriggers />} />
                   <Route
   path="/manuallead/:oppCode"
   element={<ManualOppCustomerDetails />}
