@@ -57,11 +57,11 @@ export default function LoyaltyProgramConfig() {
         <button
           type="button"
           className="lyl-back"
-          onClick={() => navigate("/dashboard")}
-          aria-label="Back to Dashboard"
-          title="Back to Dashboard"
+          onClick={() => navigate("/loyalty")}
+          aria-label="Back to Loyalty Listing"
+          title="Back to Loyalty Listing"
         >
-          ← Back to Dashboard
+          ← Back to Loyalty Listing
         </button>
       </header>
 
