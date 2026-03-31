@@ -58,6 +58,7 @@ import CreateCaseCategory from "./pages/CaseManagement/CreateCaseCategory";
 import CaseCategoryMappingDashboard from "./pages/CaseManagement/CaseCategoryMappingDashboard";
 import AuditDraftDetails from "./pages/Audit/AuditDraftDetails";
 import LoyaltyProgramConfig from "./pages/Loyalty/LoyaltyProgramConfig";
+import LoyaltyListing from "./pages/Loyalty/LoyaltyListing";
 import MembershipConfig from "./pages/Membership/MembershipConfig";
 import DiscountManagement from "./pages/Discount/DiscountManagement";
 import DiscountConfig from "./pages/Discount/DiscountConfig";
@@ -181,7 +182,7 @@ localStorage.removeItem("remember");
       <Route path="/consultation/history" element={<ConsultationHistory />} />
       <Route path="/invoices" element={<InvoicesTab />} />
       <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
-      <Route path="/loyalty" element={<LoyaltyProgramConfig />} />
+      <Route path="/loyalty/config" element={<LoyaltyProgramConfig />} />
       <Route path="/membership" element={<MembershipConfig />} />
       <Route path="/discounts" element={<DiscountManagement />} />
       <Route path="/discounts/configure/*" element={<DiscountConfig />} />
@@ -212,6 +213,8 @@ localStorage.removeItem("remember");
               <div className="home-sect">
                 <Routes>
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="/loyalty" element={<LoyaltyListing />} />
+
                   <Route
                     path="/segmentaddform/:employeeCode"
                     element={<SegmentAddForm />}
