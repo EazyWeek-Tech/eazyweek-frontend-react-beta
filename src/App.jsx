@@ -183,6 +183,7 @@ localStorage.removeItem("remember");
       <Route path="/invoices" element={<InvoicesTab />} />
       <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
       <Route path="/loyalty/config" element={<LoyaltyProgramConfig />} />
+      
       <Route path="/membership" element={<MembershipConfig />} />
       <Route path="/discounts" element={<DiscountManagement />} />
       <Route path="/discounts/configure/*" element={<DiscountConfig />} />
