@@ -1582,14 +1582,15 @@ attachmentFileName: attachmentFileName,
                   id="customer"
                   value={formValues.customerCode}
                   disabled={customerOptions.length === 0}
-                  onChange={(e) => {
+                 onChange={(e) => {
     const selectedCode = e.target.value;
-    // Normalize: ensure employee codes always include hyphen (e.g. CENT-00366 not CENT00366)
-    const normalizedCode = selectedCode.replace(/^([A-Za-z]+)(\d+)$/, "$1-$2");
-    const selectedDoc = therapists.find((doc) => doc.code === selectedCode);
-    handleChange("doctorCode", normalizedCode);
-    handleChange("therapist", selectedDoc?.name || "");
-    setValidationErrors((prev) => ({ ...prev, doctorCode: null }));
+    const selected = customerOptions.find((cust) => cust.code === selectedCode);
+    handleChange("customerCode", selectedCode);
+    handleChange("customer", selected?.name || "");
+    setValidationErrors((p) => ({
+      ...p,
+      customerCode: selectedCode ? null : "Customer is required.",
+    }));
   }}
                   className={validationErrors.customerCode ? "error-border" : ""}
                 >
