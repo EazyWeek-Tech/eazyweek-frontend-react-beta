@@ -945,7 +945,7 @@ export default function OpportunityDetailedReport() {
         oppName: pick(x, ["oppName"]),
         campaignStatus: campaignStatusRaw,
         converted: manualConvertedYesNo(leadStatusRaw),
-        therapistName: therapistNameRaw,
+        therapistName: therapistNameRaw || "None",
         appointmentDate: "",
        oppStatus: pick(x, ["Status", "status", "oppStatus", "leadStatus"]),
 
