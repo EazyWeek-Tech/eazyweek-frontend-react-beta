@@ -267,6 +267,12 @@ const buildFilterSnapshot = ({
 });
 // ─────────────────────────────────────────────────────────────────────────
 
+// ✅ Client-side page size for display
+const CLIENT_PAGE_SIZE = 10;
+
+// ✅ Export page size (fetch all in batches)
+const EXPORT_PAGE_SIZE = 200;
+
 export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate, mlToDate }) {
   const navigate = useNavigate();
 
@@ -300,26 +306,22 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
   const [campaignErr, setCampaignErr] = useState("");
   const [campaignHeader, setCampaignHeader] = useState(null);
 
-  // server paging
+  // ✅ Client-side page number (controls display slice of filtered results)
   const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize] = useState(50);
-
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRecords, setTotalRecords] = useState(0);
 
   const [exporting, setExporting] = useState(false);
 
-  // api data
+  // ✅ allRows holds ALL fetched records; filtered/pagedRows derived from it
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [rows, setRows] = useState([]);
+  const [allRows, setAllRows] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // employees lookup
   const [empLoading, setEmpLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
 
   // ─── Restore saved filters from sessionStorage (once, keyed by oppCode) ──
-  // Read once at init so useState initialisers can consume it.
   const _saved = useMemo(() => readSavedFilters(effectiveOppCode), [effectiveOppCode]);
 
   // client filters — seeded from sessionStorage
@@ -366,6 +368,12 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
     const t = setTimeout(() => setSearchTerm(searchDraft), 250);
     return () => clearTimeout(t);
   }, [searchDraft]);
+
+  // ─── Reset to page 1 whenever any filter changes ─────────────────────────
+  useEffect(() => {
+    setPageNumber(1);
+  }, [searchTerm, statusFilter, ownerFilter, dispositionFilter, followDateMode, rangeFrom, rangeTo, followTime]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // -----------------------------
   // ✅ Fetch Campaign Header by OppCode (TOP SECTION)
@@ -523,7 +531,6 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
 
         const data = JSON.parse(text);
-
         const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
         if (!alive) return;
@@ -580,16 +587,52 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
   }, []);
 
   // -----------------------------
-  // Fetch manual leads
+  // ✅ fetchAllLeads: fetches ALL pages from the API
+  // Used both for the initial load and for Excel export
+  // -----------------------------
+  const fetchAllLeads = async (campaignId) => {
+    let page = 1;
+    let total = 1;
+    const all = [];
+
+    while (page <= total) {
+      const url = buildLeadListUrl({
+        baseUrl: API_BASE_URL,
+        campaignId,
+        pageNumber: page,
+        pageSize: EXPORT_PAGE_SIZE,
+      });
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
+
+      const data = JSON.parse(text);
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      total = Number(data?.totalPages) || 1;
+      all.push(...list);
+      page += 1;
+    }
+
+    return all;
+  };
+
+  // -----------------------------
+  // ✅ Fetch ALL manual leads upfront so filters work across entire dataset
   // -----------------------------
   useEffect(() => {
     let alive = true;
 
     const run = async () => {
-      // ✅ HARD GUARD: never call list API without campaignId
+      // HARD GUARD: never call list API without campaignId
       if (!uiRecId) {
-        setRows([]);
-        setTotalPages(1);
+        setAllRows([]);
         setTotalRecords(0);
         setErr("");
         setLoading(false);
@@ -600,36 +643,21 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
       setErr("");
 
       try {
-        const url = buildLeadListUrl({
-          baseUrl: API_BASE_URL,
-          campaignId: uiRecId,
-          pageNumber,
-          pageSize,
-        });
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          credentials: "include",
-        });
-
-        const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
-
-        const data = JSON.parse(text);
-        const list = Array.isArray(data?.data) ? data.data : [];
+        // Fetch every page from the server
+        const raw = await fetchAllLeads(uiRecId);
 
         if (!alive) return;
 
-        setRows(list.map((x) => mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)));
+        const mapped = raw.map((x) =>
+          mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)
+        );
 
-        setTotalPages(Number(data?.totalPages) || 1);
-        setTotalRecords(Number(data?.totalRecords) || list.length);
+        setAllRows(mapped);
+        setTotalRecords(mapped.length);
       } catch (e) {
         console.error(e);
         if (!alive) return;
-        setRows([]);
-        setTotalPages(1);
+        setAllRows([]);
         setTotalRecords(0);
         setErr("Failed to load manual leads.");
       } finally {
@@ -641,33 +669,36 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
     return () => {
       alive = false;
     };
-  }, [uiRecId, pageNumber, pageSize, empLookup, custLookup]);
+    // Re-fetch only when campaign or lookup maps change
+  }, [uiRecId, empLookup, custLookup]);
 
+  // Reset page to 1 when campaign changes
   useEffect(() => {
     if (uiRecId) setPageNumber(1);
   }, [uiRecId]);
 
-  // owner options from current page (still showing name)
+  // ─── Dropdown options derived from ALL rows ───────────────────────────────
   const ownerOptions = useMemo(() => {
     const set = new Set();
-    rows.forEach((r) => {
+    allRows.forEach((r) => {
       const n = String(r?.saleOwner || "").trim();
       if (n) set.add(n);
     });
     return ["", ...Array.from(set)];
-  }, [rows]);
+  }, [allRows]);
 
   const dispositionOptions = useMemo(() => {
     const set = new Set();
-    rows.forEach((r) => {
+    allRows.forEach((r) => {
       const d = String(r?.disposition || "").trim();
       if (d) set.add(d);
     });
     return ["", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [rows]);
+  }, [allRows]);
 
+  // ─── Filter across ALL rows ───────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let list = rows.slice();
+    let list = allRows.slice();
 
     const s = searchTerm.trim().toLowerCase();
     if (s) list = list.filter((r) => (r.__q || "").includes(s));
@@ -714,7 +745,17 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
     }
 
     return list;
-  }, [rows, searchTerm, statusFilter, ownerFilter, followDateMode, dispositionFilter, rangeFrom, rangeTo, followTime]);
+  }, [allRows, searchTerm, statusFilter, ownerFilter, followDateMode, dispositionFilter, rangeFrom, rangeTo, followTime]);
+
+  // ─── Client-side pagination on filtered results ───────────────────────────
+  const clientTotalPages = Math.max(1, Math.ceil(filtered.length / CLIENT_PAGE_SIZE));
+
+  const pagedRows = useMemo(() => {
+    const start = (pageNumber - 1) * CLIENT_PAGE_SIZE;
+    return filtered.slice(start, start + CLIENT_PAGE_SIZE);
+  }, [filtered, pageNumber]);
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   const isFiltering = useMemo(() => {
     return Boolean(
@@ -747,40 +788,6 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
     });
   };
 
-  const fetchAllLeads = async (campaignId) => {
-    const exportPageSize = 200;
-    let page = 1;
-    let total = 1;
-    const all = [];
-
-    while (page <= total) {
-      const url = buildLeadListUrl({
-        baseUrl: API_BASE_URL,
-        campaignId,
-        pageNumber: page,
-        pageSize: exportPageSize,
-      });
-
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-      });
-
-      const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
-
-      const data = JSON.parse(text);
-      const list = Array.isArray(data?.data) ? data.data : [];
-
-      total = Number(data?.totalPages) || 1;
-      all.push(...list);
-      page += 1;
-    }
-
-    return all;
-  };
-
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
@@ -790,13 +797,10 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
         alert("Campaign not loaded yet..");
         return;
       }
-      const raw = await fetchAllLeads(uiRecId);
 
-      const mapped = raw.map((x) =>
-        mapManualLeadRow(x, resolveOwnerRecId, resolveCustomerIdFromRecId)
-      );
-
-      const exportRows = mapped;
+      // ✅ Use already-fetched allRows for export (no extra API call needed)
+      // But if you always want fresh data on export, call fetchAllLeads(uiRecId) instead
+      const exportRows = allRows;
 
       const excelRows = exportRows.map((r) => ({
         "Prospect ID": r.prospectId || "",
@@ -1000,7 +1004,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
           </div>
         ) : null}
 
-        {!loading && !err && filtered.length ? (
+        {!loading && !err && pagedRows.length ? (
           <div className="table-wrap">
             <table className="opptable">
               <thead>
@@ -1023,7 +1027,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
               </thead>
 
               <tbody>
-                {filtered.map((r) => (
+                {pagedRows.map((r) => (
                   <tr key={r.leadOpp_ID}>
                     <td>
                       <button className="linkish" onClick={() => openManualLead(r)}>
@@ -1061,7 +1065,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
           </div>
         ) : null}
 
-        {!loading && !err && !filtered.length ? (
+        {!loading && !err && !pagedRows.length ? (
           <div className="empty-note">No entries found.</div>
         ) : null}
 
@@ -1076,19 +1080,39 @@ export default function ManualLeadsTable({ oppCode, header, onToast, mlFromDate,
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPageNumber(1)} disabled={pageNumber <= 1}>
+            <button
+              className="btn-export"
+              style={{ padding: "8px 12px" }}
+              onClick={() => setPageNumber(1)}
+              disabled={pageNumber <= 1}
+            >
               First
             </button>
-            <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPageNumber((p) => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+            <button
+              className="btn-export"
+              style={{ padding: "8px 12px" }}
+              onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+              disabled={pageNumber <= 1}
+            >
               Prev
             </button>
             <div style={{ fontSize: 13, color: "#334155" }}>
-              Page <strong>{pageNumber}</strong> / <strong>{totalPages}</strong>
+              Page <strong>{pageNumber}</strong> / <strong>{clientTotalPages}</strong>
             </div>
-            <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))} disabled={pageNumber >= totalPages}>
+            <button
+              className="btn-export"
+              style={{ padding: "8px 12px" }}
+              onClick={() => setPageNumber((p) => Math.min(clientTotalPages, p + 1))}
+              disabled={pageNumber >= clientTotalPages}
+            >
               Next
             </button>
-            <button className="btn-export" style={{ padding: "8px 12px" }} onClick={() => setPageNumber(totalPages)} disabled={pageNumber >= totalPages}>
+            <button
+              className="btn-export"
+              style={{ padding: "8px 12px" }}
+              onClick={() => setPageNumber(clientTotalPages)}
+              disabled={pageNumber >= clientTotalPages}
+            >
               Last
             </button>
           </div>
