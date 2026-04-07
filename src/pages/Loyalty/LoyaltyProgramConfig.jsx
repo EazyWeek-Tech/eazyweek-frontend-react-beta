@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { API_BASE_URL as API_BASE } from "../../config";
 
 // ── Color tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -20,19 +21,19 @@ const safeJson = async (res, label) => {
 };
 
 const fetchCurrencies = async () => {
-  const res = await fetch("/api/LoyaltyProgram/currency/search", { headers: HEADERS });
+  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS });
   if (!res.ok) throw new Error(`Failed to load currencies (${res.status})`);
   return safeJson(res, "GET currency/search");
 };
 
 const fetchTiers = async (programId) => {
-  const res = await fetch(`/api/v1/loyalty/tier/list/${programId}?activeOnly=true`, { headers: HEADERS });
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/list/${programId}?activeOnly=true`, { headers: HEADERS });
   if (!res.ok) throw new Error(`Failed to load tiers (${res.status})`);
   return safeJson(res, "GET tier/list");
 };
 
 const saveProgram = async (payload) => {
-  const res = await fetch("/api/LoyaltyProgram/CreateOrUpdate", {
+  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
     method: "POST", headers: HEADERS, body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -45,7 +46,7 @@ const saveProgram = async (payload) => {
 
 const fetchProgramByCode = async (programCode) => {
   const res = await fetch(
-    `/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=10`,
+    `${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=10`,
     { headers: HEADERS }
   );
   if (!res.ok) return null;
@@ -56,7 +57,7 @@ const fetchProgramByCode = async (programCode) => {
 };
 
 const saveTier = async (payload) => {
-  const res = await fetch("/api/v1/loyalty/tier", {
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier`, {
     method: "POST", headers: HEADERS, body: JSON.stringify(payload),
   });
   if (!res.ok) {
