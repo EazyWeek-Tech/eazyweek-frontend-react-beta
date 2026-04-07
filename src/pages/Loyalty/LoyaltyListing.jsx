@@ -5,7 +5,7 @@ import { API_BASE_URL } from "../../config";
 // ── API ───────────────────────────────────────────────────────────────────────
 const fetchLoyaltyPrograms = async (pageNumber = 1, pageSize = 10) => {
   const res = await fetch(
-    `${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    `${API_BASE_URL}/api/LoyaltyProgram/program/list?pageNumber=${pageNumber}&pageSize=${pageSize}`,
     { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } }
   );
   if (res.status === 304 || res.status === 404 || res.status === 204)
