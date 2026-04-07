@@ -1,7 +1,7 @@
 // src/pages/Opportunity/OpportunityDetailedReport.jsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -28,7 +28,7 @@ function toISODateOnly(s) {
 }
 
 const atStartOfDayZ = (dateISO) => (dateISO ? `${dateISO}T00:00:00Z` : "");
-const atEndOfDayZ = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
+const atEndOfDayZ   = (dateISO) => (dateISO ? `${dateISO}T23:59:59Z` : "");
 
 const pick = (obj, keys, fallback = "") => {
   for (const k of keys) {
@@ -109,24 +109,22 @@ const formatLeadId = (leadIdRaw, ruleCodeRaw) => {
   const rule = norm(ruleCodeRaw).toUpperCase();
 
   if (rule === "MANUAL LEAD") return `LD-MN-${padded}`;
-  if (rule === "R7") return `LD-EX-${padded}`;
+  if (rule === "R7")          return `LD-EX-${padded}`;
   return `LD-${padded}`;
 };
 
 const DEFAULT_FROM_DATE_ISO = "2020-01-22";
 const todayISODate = () => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const d   = new Date();
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
 
 const getSessionContext = () => {
   try {
-    const tryParse = (v) => {
-      try { return JSON.parse(v); } catch { return null; }
-    };
+    const tryParse = (v) => { try { return JSON.parse(v); } catch { return null; } };
 
     const candidates = [
       localStorage.getItem("sessionValues"),
@@ -142,16 +140,16 @@ const getSessionContext = () => {
     const fallback = {
       sessionId: sessionStorage.getItem("sessionId") || localStorage.getItem("sessionId") || "",
       loginCode: sessionStorage.getItem("loginCode") || localStorage.getItem("loginCode") || "",
-      topCode: sessionStorage.getItem("topCode") || localStorage.getItem("topCode") || "",
-      userID: sessionStorage.getItem("userID") || localStorage.getItem("userID") || "",
+      topCode:   sessionStorage.getItem("topCode")   || localStorage.getItem("topCode")   || "",
+      userID:    sessionStorage.getItem("userID")    || localStorage.getItem("userID")    || "",
     };
 
     const found = candidates[0] || fallback;
     return {
       sessionId: norm(found?.sessionId),
       loginCode: norm(found?.loginCode),
-      topCode: norm(found?.topCode),
-      userID: norm(found?.userID),
+      topCode:   norm(found?.topCode),
+      userID:    norm(found?.userID),
     };
   } catch {
     return { sessionId: "", loginCode: "", topCode: "", userID: "" };
@@ -197,9 +195,8 @@ const buildQS = (obj) => {
   return qs.toString();
 };
 
-const isManualLeadRule = (ruleCodeRaw) =>
-  norm(ruleCodeRaw).toLowerCase() === "manual lead";
-const normStatus = (v) => norm(v).toLowerCase().replace(/\s+/g, " ");
+const isManualLeadRule  = (ruleCodeRaw) => norm(ruleCodeRaw).toLowerCase() === "manual lead";
+const normStatus        = (v) => norm(v).toLowerCase().replace(/\s+/g, " ");
 
 const manualConvertedYesNo = (leadStatusRaw) => {
   const s = normStatus(leadStatusRaw);
@@ -215,12 +212,6 @@ const manualClosedBy = (leadStatusRaw, modifiedByRaw) => {
 /* ===========================
    Report Type Detection & Column Definitions
    =========================== */
-
-/**
- * Determines the report type based on selected rule codes.
- * Priority: manual > external (R7) > noshow (R3) > default
- * When multiple non-manual rules are selected, falls back to 'default' columns.
- */
 const getReportType = (oppRuleCodes, isManualSelected) => {
   if (isManualSelected) return "manual";
 
@@ -231,30 +222,23 @@ const getReportType = (oppRuleCodes, isManualSelected) => {
   if (rules.length === 0) return "default";
 
   const hasExternal = rules.includes("R7");
-  const hasNoShow = rules.includes("R3");
+  const hasNoShow   = rules.includes("R3");
 
-  // Single rule selected
   if (rules.length === 1) {
     if (hasExternal) return "external";
-    if (hasNoShow) return "noshow";
+    if (hasNoShow)   return "noshow";
     return "default";
   }
 
-  // Multiple rules: if only external among them, external; if only noshow, noshow; else default
   const nonDefaultRules = rules.filter((r) => r === "R7" || r === "R3");
   if (nonDefaultRules.length === rules.length) {
     if (hasExternal && !hasNoShow) return "external";
-    if (hasNoShow && !hasExternal) return "noshow";
+    if (hasNoShow   && !hasExternal) return "noshow";
   }
 
   return "default";
 };
 
-/**
- * Column definitions per report type.
- * Each column: { key, header, clickable? }
- * clickable = true means the cell renders as a link using oppCode
- */
 const COLUMN_CONFIGS = {
   noshow: [
     { key: "clinic",          header: "Clinic" },
@@ -317,7 +301,6 @@ const COLUMN_CONFIGS = {
     { key: "closedDate",      header: "Closed Date" },
   ],
 
-  // Fallback for mixed rules / no specific type
   default: [
     { key: "createdDate",     header: "Created Date" },
     { key: "leadId",          header: "Lead ID" },
@@ -352,9 +335,9 @@ function SearchableDropdown({
   showSelectAll = true,
   disabledValues = [],
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState("");
-  const wrapRef = useRef(null);
+  const wrapRef           = useRef(null);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -417,8 +400,8 @@ function SearchableDropdown({
   const toggleSelectAll = () => {
     if (!multiple) return;
 
-    const selectable = filtered.filter((o) => !isDisabledOption(o.value));
-    const arr = Array.isArray(value) ? [...value] : [];
+    const selectable          = filtered.filter((o) => !isDisabledOption(o.value));
+    const arr                 = Array.isArray(value) ? [...value] : [];
     const allSelectableSelected =
       selectable.length > 0 && selectable.every((o) => arr.includes(o.value));
 
@@ -518,39 +501,38 @@ function SearchableDropdown({
 /* ===========================
    Endpoints
    =========================== */
-const OPP_DETAIL_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReport`;
-const OPP_DETAIL_PAGED_ENDPOINT = `${API_BASE_URL}/api/Opportunity/OppDetailReportPaged`;
-const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
-const MANUAL_LEAD_LIST_ENDPOINT = `${API_BASE_URL}/api/LeadOpp/report/leadopps/list`;
+const OPP_DETAIL_ENDPOINT        = `${API_BASE_URL}/api/Opportunity/OppDetailReport`;
+const OPP_DETAIL_PAGED_ENDPOINT  = `${API_BASE_URL}/api/Opportunity/OppDetailReportPaged`;
+const OPP_NAMES_ENDPOINT         = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
+const MANUAL_LEAD_LIST_ENDPOINT  = `${API_BASE_URL}/api/LeadOpp/report/leadopps/list`;
 
 export default function OpportunityDetailedReport() {
-  const navigate = useNavigate();
-  const { state } = useLocation() || {};
+  const navigate    = useNavigate();
+  const { state }   = useLocation() || {};
 
   // Dates
   const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [toDate,   setToDate]   = useState("");
 
   // filters
   const [campaignStatusCode, setCampaignStatusCode] = useState("");
-
-  const [oppRuleCodes, setOppRuleCodes] = useState([]);
+  const [oppRuleCodes,       setOppRuleCodes]       = useState([]);
 
   const MANUAL_RULE_VALUE = "Manual Lead";
-  const isManualSelected = useMemo(
+  const isManualSelected  = useMemo(
     () => Array.isArray(oppRuleCodes) && oppRuleCodes.includes(MANUAL_RULE_VALUE),
     [oppRuleCodes]
   );
 
   const sessionCtx = useMemo(() => getSessionContext(), []);
-  const isCentriq = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
+  const isCentriq  = norm(sessionCtx?.loginCode).toLowerCase() === "centriq clinics";
 
   const [userRoleName, setUserRoleName] = useState("");
   useEffect(() => {
     const raw =
-      localStorage.getItem("user") ||
-      localStorage.getItem("loggedInUser") ||
-      sessionStorage.getItem("user") ||
+      localStorage.getItem("user")         ||
+      localStorage.getItem("loggedInUser")  ||
+      sessionStorage.getItem("user")        ||
       sessionStorage.getItem("loggedInUser");
     if (raw) {
       try {
@@ -562,29 +544,28 @@ export default function OpportunityDetailedReport() {
     }
   }, []);
 
-  const role = (userRoleName || "").toLowerCase();
+  const role      = (userRoleName || "").toLowerCase();
   const canExport = role !== "team member" && role !== "clinic manager" && role !== "finance reviwer";
-  const canView = role !== "clinic manager" && role !== "finance reviwer";
+  const canView   = role !== "clinic manager" && role !== "finance reviwer";
 
-  const [clinicCode, setClinicCode] = useState("");
+  const [clinicCode,  setClinicCode]  = useState("");
   const [clinicCodes, setClinicCodes] = useState([]);
-
-  const [oppNames, setOppNames] = useState([]);
+  const [oppNames,    setOppNames]    = useState([]);
 
   const campaignStatusOptions = [
-    { value: "1", label: "Active" },
+    { value: "1", label: "Active"  },
     { value: "2", label: "Expired" },
   ];
 
   const oppRuleOptions = [
-    { value: "R1", label: "Paid for X but not for Y" },
-    { value: "R2", label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
-    { value: "R3", label: "No show appointment for X days" },
-    { value: "R4", label: "Cancelled appointment for X days" },
-    { value: "Manual Lead", label: "Manual Lead" },
-    { value: "R5", label: "Customer Special Day" },
-    { value: "R6", label: "Customer Type" },
-    { value: "R7", label: "External Source" },
+    { value: "R1",           label: "Paid for X but not for Y" },
+    { value: "R2",           label: "Paid for X Category in Y days and No future appointment in Z days for Category P" },
+    { value: "R3",           label: "No show appointment for X days" },
+    { value: "R4",           label: "Cancelled appointment for X days" },
+    { value: "Manual Lead",  label: "Manual Lead" },
+    { value: "R5",           label: "Customer Special Day" },
+    { value: "R6",           label: "Customer Type" },
+    { value: "R7",           label: "External Source" },
   ];
 
   const disabledRuleValues = useMemo(() => {
@@ -592,30 +573,29 @@ export default function OpportunityDetailedReport() {
     return oppRuleOptions.map((x) => x.value).filter((v) => v !== MANUAL_RULE_VALUE);
   }, [isManualSelected]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [clinics, setClinics] = useState([]);
-  const [oppNameOptions, setOppNameOptions] = useState([]);
+  const [clinics,         setClinics]         = useState([]);
+  const [oppNameOptions,  setOppNameOptions]  = useState([]);
 
   // table
-  const [rows, setRows] = useState([]);
+  const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingOppNames, setLoadingOppNames] = useState(false);
 
   const [toast, setToast] = useState(null);
 
-  // Separate page states: manual uses its own, non-manual uses nonManualPage
-  const [page, setPage] = useState(1);
+  const [page,          setPage]          = useState(1);
   const [nonManualPage, setNonManualPage] = useState(1);
 
   const NON_MANUAL_PAGE_SIZE = 10;
-  const pageSize = 10;
+  const pageSize             = 10;
 
   const [nonManualTotalCount, setNonManualTotalCount] = useState(0);
 
   const [manualMeta, setManualMeta] = useState({
-    pageNumber: 1,
-    pageSize: 10,
+    pageNumber:   1,
+    pageSize:     10,
     totalRecords: 0,
-    totalPages: 1,
+    totalPages:   1,
   });
 
   const pageCount = useMemo(() => {
@@ -626,19 +606,9 @@ export default function OpportunityDetailedReport() {
 
   const pageRows = useMemo(() => rows, [rows]);
 
-  // ✅ Derive current report type for dynamic columns
-  const reportType = useMemo(
-    () => getReportType(oppRuleCodes, isManualSelected),
-    [oppRuleCodes, isManualSelected]
-  );
-
-  // ✅ Active column config
-  const activeColumns = useMemo(
-    () => COLUMN_CONFIGS[reportType] || COLUMN_CONFIGS.default,
-    [reportType]
-  );
-
-  const colSpanCount = activeColumns.length;
+  const reportType    = useMemo(() => getReportType(oppRuleCodes, isManualSelected), [oppRuleCodes, isManualSelected]);
+  const activeColumns = useMemo(() => COLUMN_CONFIGS[reportType] || COLUMN_CONFIGS.default, [reportType]);
+  const colSpanCount  = activeColumns.length;
 
   const showToast = (message, type = "error", ms = 2200) => {
     setToast({ type, message });
@@ -666,18 +636,48 @@ export default function OpportunityDetailedReport() {
       .join(",");
   }, [oppNames, oppNameOptions]);
 
-  const getSelectedClinicCentreId = () => {
-    if (!isCentriq) {
-      const opt = clinics.find((c) => norm(c.value) === norm(clinicCode));
-      const id = opt?.recid;
+  // ✅ Stable ref-based helpers so useCallback deps don't flap
+  const clinicsRef          = useRef(clinics);
+  const clinicCodeRef       = useRef(clinicCode);
+  const clinicCodesRef      = useRef(clinicCodes);
+  const fromDateRef         = useRef(fromDate);
+  const toDateRef           = useRef(toDate);
+  const campaignStatusRef   = useRef(campaignStatusCode);
+  const oppRuleCodesRef     = useRef(oppRuleCodes);
+  const oppNamesRef         = useRef(oppNames);
+  const oppNameOptionsRef   = useRef(oppNameOptions);
+  const isCentriqRef        = useRef(isCentriq);
+  const isManualSelectedRef = useRef(isManualSelected);
+
+  useEffect(() => { clinicsRef.current          = clinics;          }, [clinics]);
+  useEffect(() => { clinicCodeRef.current        = clinicCode;        }, [clinicCode]);
+  useEffect(() => { clinicCodesRef.current       = clinicCodes;       }, [clinicCodes]);
+  useEffect(() => { fromDateRef.current          = fromDate;          }, [fromDate]);
+  useEffect(() => { toDateRef.current            = toDate;            }, [toDate]);
+  useEffect(() => { campaignStatusRef.current    = campaignStatusCode;}, [campaignStatusCode]);
+  useEffect(() => { oppRuleCodesRef.current      = oppRuleCodes;      }, [oppRuleCodes]);
+  useEffect(() => { oppNamesRef.current          = oppNames;          }, [oppNames]);
+  useEffect(() => { oppNameOptionsRef.current    = oppNameOptions;    }, [oppNameOptions]);
+  useEffect(() => { isCentriqRef.current         = isCentriq;         }, [isCentriq]);
+  useEffect(() => { isManualSelectedRef.current  = isManualSelected;  }, [isManualSelected]);
+
+  const getSelectedClinicCentreId = useCallback(() => {
+    const clinicsList  = clinicsRef.current;
+    const cCode        = clinicCodeRef.current;
+    const cCodes       = clinicCodesRef.current;
+    const isCent       = isCentriqRef.current;
+
+    if (!isCent) {
+      const opt = clinicsList.find((c) => norm(c.value) === norm(cCode));
+      const id  = opt?.recid;
       return id !== "" && id !== undefined && id !== null ? Number(id) : undefined;
     }
-    const selected = Array.isArray(clinicCodes) ? clinicCodes : [];
+    const selected = Array.isArray(cCodes) ? cCodes : [];
     if (selected.length !== 1) return undefined;
-    const opt = clinics.find((c) => norm(c.value) === norm(selected[0]));
-    const id = opt?.recid;
+    const opt = clinicsList.find((c) => norm(c.value) === norm(selected[0]));
+    const id  = opt?.recid;
     return id !== "" && id !== undefined && id !== null ? Number(id) : undefined;
-  };
+  }, []); // ✅ stable — reads from refs
 
   /* ---- Load clinics ---- */
   useEffect(() => {
@@ -685,9 +685,8 @@ export default function OpportunityDetailedReport() {
       try {
         setLoading(true);
 
-        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
-        const d = await r.json();
-
+        const r    = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
+        const d    = await r.json();
         const listAll = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({
           value: norm(x.code ?? x.centerCode ?? x.name),
           label: x.name ?? x.centerName ?? (x.code ?? ""),
@@ -698,7 +697,7 @@ export default function OpportunityDetailedReport() {
 
         if (!isCentriq) {
           const loginCode = sessionCtx?.loginCode;
-          const topCode = sessionCtx?.topCode;
+          const topCode   = sessionCtx?.topCode;
 
           const filtered = listAll.filter((c) =>
             matchesLoginClinic(c.label, c.value, loginCode, topCode)
@@ -728,7 +727,7 @@ export default function OpportunityDetailedReport() {
   /* ---- Campaign names ---- */
   useEffect(() => {
     const status = norm(campaignStatusCode);
-    const rules = Array.isArray(oppRuleCodes) ? oppRuleCodes.map(norm).filter(Boolean) : [];
+    const rules  = Array.isArray(oppRuleCodes) ? oppRuleCodes.map(norm).filter(Boolean) : [];
 
     if (!status || !rules.length) {
       setOppNameOptions([]);
@@ -746,11 +745,11 @@ export default function OpportunityDetailedReport() {
             const body = { campStatus: status, ruleCode: rule };
 
             const r = await fetch(OPP_NAMES_ENDPOINT, {
-              method: "POST",
+              method:      "POST",
               credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-              signal: ac.signal,
+              headers:     { "Content-Type": "application/json" },
+              body:        JSON.stringify(body),
+              signal:      ac.signal,
             });
 
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -766,18 +765,13 @@ export default function OpportunityDetailedReport() {
             flat
               .map((x) => ({
                 oppName: norm(x?.oppName),
-                recid: x?.recid,
+                recid:   x?.recid,
                 oppcode: norm(x?.oppcode),
               }))
               .filter((x) => x.oppName && x.recid !== undefined && x.recid !== null)
               .map((x) => [
                 String(x.recid),
-                {
-                  value: String(x.recid),
-                  label: x.oppName,
-                  oppcode: x.oppcode,
-                  recid: x.recid,
-                },
+                { value: String(x.recid), label: x.oppName, oppcode: x.oppcode, recid: x.recid },
               ])
           ).values()
         ).sort((a, b) => a.label.localeCompare(b.label));
@@ -805,286 +799,271 @@ export default function OpportunityDetailedReport() {
   }, [campaignStatusCode, oppRuleCodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ===========================
-     Manual API: fetch one page
-     =========================== */
-  const fetchManualPage = async (pageNumber, size) => {
-    const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
-    const effectiveToISO = toISODateOnly(toDate) || todayISODate();
+     ✅ fetchManualPage — stable via useCallback (reads all volatile state from refs)
+     This prevents fetchManualPage from being a new function reference every render,
+     which was causing the useEffect / loadDetailed to fire multiple times.
+  =========================== */
+  const fetchManualPage = useCallback(async (pageNumber, size) => {
+    const effectiveFromISO = toISODateOnly(fromDateRef.current) || DEFAULT_FROM_DATE_ISO;
+    const effectiveToISO   = toISODateOnly(toDateRef.current)   || todayISODate();
 
-    const clinicCSV = isCentriq
-      ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
-      : clinicCode || "";
+    const isCent    = isCentriqRef.current;
+    const cCodes    = clinicCodesRef.current;
+    const cCode     = clinicCodeRef.current;
+    const names     = oppNamesRef.current;
+    const nameOpts  = oppNameOptionsRef.current;
+    const campStat  = campaignStatusRef.current;
+
+    const clinicCSV = isCent
+      ? (Array.isArray(cCodes) ? cCodes : []).map(norm).filter(Boolean).join(",")
+      : cCode || "";
 
     const oppStatusInt =
-      campaignStatusCode !== "" && !Number.isNaN(Number(campaignStatusCode))
-        ? Number(campaignStatusCode)
+      campStat !== "" && !Number.isNaN(Number(campStat))
+        ? Number(campStat)
         : undefined;
 
     const clinicCentreId = getSelectedClinicCentreId();
 
-    const selectedCampaignIds = Array.isArray(oppNames)
-      ? oppNames.map((x) => Number(x)).filter((n) => typeof n === "number" && !Number.isNaN(n))
+    const selectedCampaignIds = Array.isArray(names)
+      ? names.map((x) => Number(x)).filter((n) => typeof n === "number" && !Number.isNaN(n))
       : [];
 
-    const selectedOppNameCSVLocal = (Array.isArray(oppNames) ? oppNames : [])
-      .map((id) => oppNameOptions.find((o) => String(o.value) === String(id))?.label)
+    const selectedOppNameCSVLocal = (Array.isArray(names) ? names : [])
+      .map((id) => nameOpts.find((o) => String(o.value) === String(id))?.label)
       .filter(Boolean)
       .join(",");
 
     const qs = buildQS({
-      FromDate: atStartOfDayZ(effectiveFromISO),
-      ToDate: atEndOfDayZ(effectiveToISO),
-      OppStatus: oppStatusInt,
-      ClinicCode: clinicCSV || "",
-      ORuleCode: MANUAL_RULE_VALUE,
-      CampaignIds: selectedCampaignIds,
+      FromDate:       atStartOfDayZ(effectiveFromISO),
+      ToDate:         atEndOfDayZ(effectiveToISO),
+      OppStatus:      oppStatusInt,
+      ClinicCode:     clinicCSV || "",
+      ORuleCode:      MANUAL_RULE_VALUE,
+      CampaignIds:    selectedCampaignIds,
       clinicCentreId: clinicCentreId,
-      OppName: selectedOppNameCSVLocal,
-      DateFlag: "0",
-      PageNumber: pageNumber,
-      PageSize: size,
+      OppName:        selectedOppNameCSVLocal,
+      DateFlag:       "0",
+      PageNumber:     pageNumber,
+      PageSize:       size,
     });
 
     const r = await fetch(`${MANUAL_LEAD_LIST_ENDPOINT}?${qs}`, {
-      method: "GET",
+      method:      "GET",
       credentials: "include",
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
-  };
+  }, [getSelectedClinicCentreId]); // ✅ stable — only depends on stable getSelectedClinicCentreId
 
   /* ===========================
-     Row normalizer — extended with new fields
-     =========================== */
-  const normalizeRow = (x, i, isManual, resolvedOppCode, ruleCodeForFormat) => {
+     Row normalizer
+  =========================== */
+  const normalizeRow = useCallback((x, i, isManual, resolvedOppCode, ruleCodeForFormat) => {
     const fmt = (s) => {
       const iso = toISODateOnly(s);
       if (!iso) return "";
       const dt = new Date(iso);
       return isNaN(dt)
         ? ""
-        : new Intl.DateTimeFormat("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          }).format(dt);
+        : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
     };
 
     const yesNo = (v) => {
       const s = String(v ?? "").toLowerCase();
       if (["1", "true", "y", "yes"].includes(s)) return "YES";
-      if (["0", "false", "n", "no"].includes(s)) return "NO";
+      if (["0", "false", "n", "no"].includes(s))  return "NO";
       return s ? "YES" : "NO";
     };
 
-    const createdRaw = pick(x, ["createdDate", "createdOn"]);
+    const createdRaw   = pick(x, ["createdDate", "createdOn"]);
     const leadOppIdRaw = pick(x, ["leadOpp_ID", "leadOppId", "id", "leadID", "leadId"]);
-    const ruleCodeRaw = pick(x, ["oRuleCode", "ruleCode", "oppRule", "oRule", "rule"]);
-    const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
+    const ruleCodeRaw  = pick(x, ["oRuleCode", "ruleCode", "oppRule", "oRule", "rule"]);
+    const campId       = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
 
-    // ✅ New shared fields
-    // SP returns exact column names: DispositionName, SubDispositionName, ClosedDate,
-    // InterestedIn, Medium, Source, SubSource (all resolved to display names in SQL)
-    // Manual endpoint uses different keys — kept as fallbacks
     const dispositionRaw = pickCI(x, [
-      // ✅ SP exact output name (R3/R7)
       "DispositionName",
-      // Manual endpoint
       "disposition", "Disposition", "dispositionName", "leadDisposition",
     ]);
     const subDispositionRaw = pickCI(x, [
-      // ✅ SP exact output name (R3/R7)
       "SubDispositionName",
-      // Manual endpoint
       "subDisposition", "SubDisposition", "subDispositionName",
     ]);
-    // ✅ SP returns ClosedDate already formatted as DD/MM/YYYY string — use directly, no fmt() needed
     const closedDateRaw = pickCI(x, [
       "ClosedDate",
       "closedDate", "closedOn", "closeDate", "ModifiedDate", "modifiedDate",
     ]);
     const interestedInRaw = pickCI(x, [
-      // ✅ SP exact output name (R7)
       "InterestedIn",
-      // Manual endpoint (OppMleadDetails): InteresetedVerticalName
       "InteresetedVerticalName", "interestedIn", "interestedInName", "InterestedInName",
     ]);
-    const mediumRaw = pickCI(x, [
-      // ✅ SP exact output name (R7)
-      "Medium",
-      // Manual endpoint: MediumName
-      "MediumName", "medium", "leadMedium",
-    ]);
-    const sourceRaw = pickCI(x, [
-      // ✅ SP exact output name (R7)
-      "Source",
-      // Manual endpoint: SourceName
-      "SourceName", "source", "leadSource",
-    ]);
-    const subSourceRaw = pickCI(x, [
-      // ✅ SP exact output name (R7)
-      "SubSource",
-      // Manual endpoint: SubSourceName
-      "SubSourceName", "subSource", "sub_source",
-    ]);
+    const mediumRaw   = pickCI(x, ["Medium",    "MediumName",    "medium",    "leadMedium"]);
+    const sourceRaw   = pickCI(x, ["Source",    "SourceName",    "source",    "leadSource"]);
+    const subSourceRaw = pickCI(x, ["SubSource", "SubSourceName", "subSource", "sub_source"]);
 
     if (isManual) {
       const campaignStatusRaw = pick(x, ["status", "campaignStatus", "campaignState"]);
-      const leadStatusRaw = pick(x, ["oppStatus", "leadStatus", "statusName", "Status", "status"]);
-
-      const modifiedByRaw = pick(x, ["modifiedBy", "modifiedByName"]);
-      const mobileNo = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
-      const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
+      const leadStatusRaw     = pick(x, ["oppStatus", "leadStatus", "statusName", "Status", "status"]);
+      const modifiedByRaw     = pick(x, ["modifiedBy", "modifiedByName"]);
+      const mobileNo          = norm(pickCI(x, ["mobile", "mobileNo", "mobileNumber", "phone", "phoneNo"]));
+      const therapistNameRaw  = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
 
       return {
-        key: pick(x, ["leadOpp_ID", "id"], `m-${i}`),
-        oppCode: resolvedOppCode || "",
-        createdDate: fmt(createdRaw),
-        leadId: formatLeadId(leadOppIdRaw, ruleCodeRaw),
-        leadName: pick(x, ["customerName", "leadName", "custName", "name"]),
-        oppName: pick(x, ["oppName"]),
-        campaignStatus: campaignStatusRaw,
-        converted: manualConvertedYesNo(leadStatusRaw),
-        therapistName: therapistNameRaw || "None",
+        key:             pick(x, ["leadOpp_ID", "id"], `m-${i}`),
+        oppCode:         resolvedOppCode || "",
+        createdDate:     fmt(createdRaw),
+        leadId:          formatLeadId(leadOppIdRaw, ruleCodeRaw),
+        leadName:        pick(x, ["customerName", "leadName", "custName", "name"]),
+        oppName:         pick(x, ["oppName"]),
+        campaignStatus:  campaignStatusRaw,
+        converted:       manualConvertedYesNo(leadStatusRaw),
+        therapistName:   therapistNameRaw || "None",
         appointmentDate: "",
-       oppStatus: pick(x, ["Status", "status", "oppStatus", "leadStatus"]),
-
+        oppStatus:       pick(x, ["Status", "status", "oppStatus", "leadStatus"]),
         mobileNo,
-        salesOwner: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-        reasons: "",
-        createdBy: pick(x, ["saleOwner", "salesOwner", "salesowner"]),
-        closedBy: pick(x, ["ClosedBy", "closedBy"]) || manualClosedBy(leadStatusRaw, modifiedByRaw),
-
-        clinic: pick(x, ["clinicName", "centerName", "clinic"]),
-        // ✅ New fields
-        disposition: dispositionRaw || leadStatusRaw,
-        subDisposition: subDispositionRaw,
-        closedDate: fmt(closedDateRaw),
-        interestedIn: interestedInRaw,
-        medium: mediumRaw,
-        source: sourceRaw,
-        subSource: subSourceRaw,
+        salesOwner:      pick(x, ["saleOwner", "salesOwner", "salesowner"]),
+        reasons:         "",
+        createdBy:       pick(x, ["saleOwner", "salesOwner", "salesowner"]),
+        closedBy:        pick(x, ["ClosedBy", "closedBy"]) || manualClosedBy(leadStatusRaw, modifiedByRaw),
+        clinic:          pick(x, ["clinicName", "centerName", "clinic"]),
+        disposition:     dispositionRaw || leadStatusRaw,
+        subDisposition:  subDispositionRaw,
+        closedDate:      fmt(closedDateRaw),
+        interestedIn:    interestedInRaw,
+        medium:          mediumRaw,
+        source:          sourceRaw,
+        subSource:       subSourceRaw,
       };
     }
 
     // Non-manual
-    const leadIdRaw = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
-    const fromRaw = pick(x, ["fromDate", "campaignFromDate"]);
-    const toRaw = pick(x, ["toDate", "campaignToDate"]);
-    const ruleRaw = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
-    const apptRaw = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
-    const isExternalRow = norm(ruleRaw).toUpperCase() === "R7";
+    const leadIdRaw      = pick(x, ["leadID", "leadId", "leadid", "leadCode", "id", "custId", "customerId"]);
+    const fromRaw        = pick(x, ["fromDate", "campaignFromDate"]);
+    const toRaw          = pick(x, ["toDate", "campaignToDate"]);
+    const ruleRaw        = pick(x, ["ruleCode", "oppRule", "oRuleCode", "rule"]);
+    const apptRaw        = pick(x, ["appointmentDate", "apptDate", "appointment_date", "AppointmentDate"]);
+    const isExternalRow  = norm(ruleRaw).toUpperCase() === "R7";
     const therapistNameRaw = pick(x, ["therapistName", "therapist", "providerName", "doctorName"]);
-    const mobileRaw = pickCI(x, [
+    const mobileRaw      = pickCI(x, [
       "mobileNo", "mobile", "mobileNumber", "phone", "phoneNo", "phoneNumber",
       "mobile_no", "mobile_no.", "customerMobile", "customerMobileNo", "custMobile",
     ]);
-    const mobileNo = norm(mobileRaw);
-    const oppStatusRaw = pick(x, ["statusName", "oppStatus", "status"]);
+    const mobileNo       = norm(mobileRaw);
+    const oppStatusRaw   = pick(x, ["statusName", "oppStatus", "status"]);
 
     return {
-      key: pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
-      oppCode: pick(x, ["oppCode", "opportunityCode", "code"]),
-      fromDate: fmt(fromRaw),
-      toDate: fmt(toRaw),
-      createdDate: fmt(pick(x, ["createdDate", "createdOn"])),
+      key:             pick(x, ["oppCode", "opportunityCode", "code", "id"], `row-${i}`),
+      oppCode:         pick(x, ["oppCode", "opportunityCode", "code"]),
+      fromDate:        fmt(fromRaw),
+      toDate:          fmt(toRaw),
+      createdDate:     fmt(pick(x, ["createdDate", "createdOn"])),
       appointmentDate: isExternalRow ? "" : fmt(apptRaw),
       mobileNo,
-      leadId: formatLeadId(leadIdRaw, ruleRaw),
-      therapistName: therapistNameRaw,
-      ruleCode: ruleRaw,
-      salesOwner: pickCI(x, [
+      leadId:          formatLeadId(leadIdRaw, ruleRaw),
+      therapistName:   therapistNameRaw,
+      ruleCode:        ruleRaw,
+      salesOwner:      pickCI(x, [
         "salesOwner", "salesowner", "SalesOwner", "sales_owner",
         "salesOwnerName", "salesOwnerFullName", "salesOwnerEmpCode",
         "salesOwnerEmployeeCode", "ownerName", "owner",
       ]),
-      reasons: pickCI(x, [
+      reasons:         pickCI(x, [
         "reasons", "Reasons", "reason", "reasonName", "reasonText",
         "reasonDesc", "remarksReason", "remarks",
       ]),
-      leadName: pick(x, ["leadName", "customerName", "custName", "name"]),
-      oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-      campaignStatus: pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
-      converted: yesNo(pick(x, ["converted", "isConverted"])),
-      oppStatus: oppStatusRaw,
-      createdBy: pick(x, ["createdByName", "createdBy", "ownerName"]),
-      closedBy: pick(x, ["ClosedBy", "closedByName", "closedBy"]),
-      clinic: pick(x, ["CNAME", "centerName", "clinicName", "center"]),
-      // ✅ SP returns display names & pre-formatted dates directly
-      disposition: dispositionRaw || oppStatusRaw,
-      subDisposition: subDispositionRaw,
-      closedDate: closedDateRaw.includes("-") ? fmt(closedDateRaw) : closedDateRaw,
-      interestedIn: interestedInRaw,
-      medium: mediumRaw,
-      source: sourceRaw,
-      subSource: subSourceRaw,
+      leadName:        pick(x, ["leadName", "customerName", "custName", "name"]),
+      oppName:         pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
+      campaignStatus:  pick(x, ["campaignStatus", "campaignState", "statusCampaign"]),
+      converted:       yesNo(pick(x, ["converted", "isConverted"])),
+      oppStatus:       oppStatusRaw,
+      createdBy:       pick(x, ["createdByName", "createdBy", "ownerName"]),
+      closedBy:        pick(x, ["ClosedBy", "closedByName", "closedBy"]),
+      clinic:          pick(x, ["CNAME", "centerName", "clinicName", "center"]),
+      disposition:     dispositionRaw || oppStatusRaw,
+      subDisposition:  subDispositionRaw,
+      closedDate:      closedDateRaw.includes("-") ? fmt(closedDateRaw) : closedDateRaw,
+      interestedIn:    interestedInRaw,
+      medium:          mediumRaw,
+      source:          sourceRaw,
+      subSource:       subSourceRaw,
     };
-  };
+  }, []); // ✅ stable — pure function, no external deps
 
   /* ===========================
-     Load report
-     =========================== */
-  const loadDetailed = async (pageOverride) => {
+     ✅ Load report — wrapped in useCallback so it is stable across renders
+  =========================== */
+  const loadDetailed = useCallback(async (pageOverride) => {
+    const curFromDate         = fromDateRef.current;
+    const curToDate           = toDateRef.current;
+    const curIsManual         = isManualSelectedRef.current;
+    const curOppRuleCodes     = oppRuleCodesRef.current;
+    const curCampaignStatus   = campaignStatusRef.current;
+    const curClinicCode       = clinicCodeRef.current;
+    const curClinicCodes      = clinicCodesRef.current;
+    const curIsCentriq        = isCentriqRef.current;
+    const curOppNames         = oppNamesRef.current;
+    const curOppNameOptions   = oppNameOptionsRef.current;
 
-    if (!fromDate || !toDate) {
-    showToast("Please select both From Date and To Date", "error");
-    return;
-  }
+    if (!curFromDate || !curToDate) {
+      showToast("Please select both From Date and To Date", "error");
+      return;
+    }
+
     setLoading(true);
 
     const requestedPage = Number(pageOverride || 1);
 
-    if (isManualSelected) {
-      setPage(requestedPage);
-    } else {
-      setNonManualPage(requestedPage);
-    }
+    if (curIsManual) setPage(requestedPage);
+    else             setNonManualPage(requestedPage);
 
     try {
-      const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
-      const effectiveToISO = toISODateOnly(toDate) || todayISODate();
-      const df = "0";
+      const effectiveFromISO = toISODateOnly(curFromDate) || DEFAULT_FROM_DATE_ISO;
+      const effectiveToISO   = toISODateOnly(curToDate)   || todayISODate();
 
-      const clinicCSV = isCentriq
-        ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
-        : clinicCode || "";
+      const clinicCSV = curIsCentriq
+        ? (Array.isArray(curClinicCodes) ? curClinicCodes : []).map(norm).filter(Boolean).join(",")
+        : curClinicCode || "";
 
-      let arr = [];
+      let arr        = [];
       let manualResp = null;
 
-      if (isManualSelected) {
+      if (curIsManual) {
+        // ✅ fetchManualPage is stable (useCallback), so this won't cause extra calls
         manualResp = await fetchManualPage(requestedPage, pageSize);
-        arr = Array.isArray(manualResp?.data) ? manualResp.data : [];
+        arr        = Array.isArray(manualResp?.data) ? manualResp.data : [];
 
         setManualMeta({
-          pageNumber: Number(manualResp?.pageNumber || requestedPage || 1),
-          pageSize: Number(manualResp?.pageSize || pageSize),
+          pageNumber:   Number(manualResp?.pageNumber || requestedPage || 1),
+          pageSize:     Number(manualResp?.pageSize   || pageSize),
           totalRecords: Number(manualResp?.totalRecords || 0),
-          totalPages: Number(manualResp?.totalPages || 1),
+          totalPages:   Number(manualResp?.totalPages   || 1),
         });
       } else {
-        const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
-          .map(norm)
+        const rulesCSV = (Array.isArray(curOppRuleCodes) ? curOppRuleCodes : [])
+          .map(norm).filter(Boolean).join(",");
+
+        const curSelectedOppNameCSV = (Array.isArray(curOppNames) ? curOppNames : [])
+          .map((id) => curOppNameOptions.find((o) => String(o.value) === String(id))?.label)
           .filter(Boolean)
           .join(",");
 
         const body = {
-          fromDate: atStartOfDayZ(effectiveFromISO),
-          toDate: atEndOfDayZ(effectiveToISO),
-          oppStatus: campaignStatusCode || "",
-          clinicCode: clinicCSV || "",
-          oppRule: rulesCSV || "",
-          oppName: selectedOppNameCSV,
-          dateFlag: df,
+          fromDate:   atStartOfDayZ(effectiveFromISO),
+          toDate:     atEndOfDayZ(effectiveToISO),
+          oppStatus:  curCampaignStatus || "",
+          clinicCode: clinicCSV         || "",
+          oppRule:    rulesCSV          || "",
+          oppName:    curSelectedOppNameCSV,
+          dateFlag:   "0",
           pageNumber: requestedPage,
-          pageSize: NON_MANUAL_PAGE_SIZE,
+          pageSize:   NON_MANUAL_PAGE_SIZE,
         };
 
         const r = await fetch(OPP_DETAIL_PAGED_ENDPOINT, {
-          method: "POST",
+          method:      "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          headers:     { "Content-Type": "application/json" },
+          body:        JSON.stringify(body),
         });
 
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -1092,15 +1071,14 @@ export default function OpportunityDetailedReport() {
         const d = await r.json();
         arr = Array.isArray(d?.data) ? d.data : [];
         setNonManualTotalCount(Number(d?.totalCount || 0));
-
         setManualMeta({ pageNumber: 1, pageSize, totalRecords: 0, totalPages: 1 });
       }
 
-      // ✅ Use unified normalizer
+      // ✅ campaignIdToOppCode read from current snapshot via ref if needed
       const normalized = arr.map((x, i) => {
-        const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
+        const campId         = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
         const resolvedOppCode = campaignIdToOppCode.get(String(campId));
-        return normalizeRow(x, i, isManualSelected, resolvedOppCode, null);
+        return normalizeRow(x, i, curIsManual, resolvedOppCode, null);
       });
 
       setRows(normalized);
@@ -1115,7 +1093,7 @@ export default function OpportunityDetailedReport() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchManualPage, normalizeRow, campaignIdToOppCode]); // ✅ only truly stable deps
 
   function onClickOpp(code) {
     const c = norm(code);
@@ -1124,8 +1102,8 @@ export default function OpportunityDetailedReport() {
   }
 
   /* ===========================
-     Export to Excel — updated headers per report type
-     =========================== */
+     Export to Excel
+  =========================== */
   async function exportExcel() {
     if (!nonManualTotalCount && !rows.length) return;
 
@@ -1133,9 +1111,10 @@ export default function OpportunityDetailedReport() {
 
     if (isManualSelected) {
       try {
-        const first = await fetchManualPage(1, pageSize);
+        // ✅ fetchManualPage is now stable — won't create new fn ref each render
+        const first      = await fetchManualPage(1, pageSize);
         const totalPages = Number(first?.totalPages || 1);
-        const all = [];
+        const all        = [];
 
         const pushData = (resp) => {
           const data = Array.isArray(resp?.data) ? resp.data : [];
@@ -1150,7 +1129,7 @@ export default function OpportunityDetailedReport() {
         }
 
         exportRows = all.map((x, i) => {
-          const campId = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
+          const campId         = pick(x, ["camp_id", "campId", "campaignId", "recid"]);
           const resolvedOppCode = campaignIdToOppCode.get(String(campId));
           return normalizeRow(x, i, true, resolvedOppCode, null);
         });
@@ -1161,34 +1140,34 @@ export default function OpportunityDetailedReport() {
       }
     } else {
       try {
-        const effectiveFromISO = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
-        const effectiveToISO = toISODateOnly(toDate) || todayISODate();
-        const clinicCSV = isCentriq
+        const effectiveFromISO  = toISODateOnly(fromDate) || DEFAULT_FROM_DATE_ISO;
+        const effectiveToISO    = toISODateOnly(toDate)   || todayISODate();
+        const clinicCSV         = isCentriq
           ? (Array.isArray(clinicCodes) ? clinicCodes : []).map(norm).filter(Boolean).join(",")
           : clinicCode || "";
-        const rulesCSV = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
+        const rulesCSV          = (Array.isArray(oppRuleCodes) ? oppRuleCodes : [])
           .map(norm).filter(Boolean).join(",");
 
         const body = {
-          fromDate: atStartOfDayZ(effectiveFromISO),
-          toDate: atEndOfDayZ(effectiveToISO),
-          oppStatus: campaignStatusCode || "",
-          clinicCode: clinicCSV || "",
-          oppRule: rulesCSV || "",
-          oppName: selectedOppNameCSV,
-          dateFlag: "0",
+          fromDate:   atStartOfDayZ(effectiveFromISO),
+          toDate:     atEndOfDayZ(effectiveToISO),
+          oppStatus:  campaignStatusCode || "",
+          clinicCode: clinicCSV          || "",
+          oppRule:    rulesCSV           || "",
+          oppName:    selectedOppNameCSV,
+          dateFlag:   "0",
           pageNumber: 0,
-          pageSize: NON_MANUAL_PAGE_SIZE,
+          pageSize:   NON_MANUAL_PAGE_SIZE,
         };
 
         const r = await fetch(OPP_DETAIL_PAGED_ENDPOINT, {
-          method: "POST",
+          method:      "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          headers:     { "Content-Type": "application/json" },
+          body:        JSON.stringify(body),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
+        const d      = await r.json();
         const allRaw = Array.isArray(d?.data) ? d.data : [];
 
         exportRows = allRaw.map((x, i) => normalizeRow(x, i, false, null, null));
@@ -1199,12 +1178,8 @@ export default function OpportunityDetailedReport() {
       }
     }
 
-    // ✅ Build export columns from active column config
-    const exportColumns = activeColumns.filter((c) => c.key !== "oppCode"); // oppCode shown as Campaign Code column already
-    // Re-add oppCode as last column "Campaign Code" if not already in config
     const hasCampCodeCol = activeColumns.some((c) => c.key === "oppCode");
-
-    const headers = activeColumns.map((c) => c.header);
+    const headers        = activeColumns.map((c) => c.header);
     if (!hasCampCodeCol) headers.push("Campaign Code");
 
     const aoa = [
@@ -1217,7 +1192,7 @@ export default function OpportunityDetailedReport() {
     ];
 
     const XLSXMod = await import("xlsx");
-    const XLSX = XLSXMod.default || XLSXMod;
+    const XLSX    = XLSXMod.default || XLSXMod;
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1244,15 +1219,15 @@ export default function OpportunityDetailedReport() {
 
   /* ===========================
      Non-manual page buttons renderer
-     =========================== */
+  =========================== */
   const renderNonManualPageButtons = () => {
-    const windowSize = 5;
-    const totalPages = pageCount;
+    const windowSize  = 5;
+    const totalPages  = pageCount;
     const currentPage = nonManualPage;
 
     let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
-    let end = Math.min(totalPages, start + windowSize - 1);
-    start = Math.max(1, end - windowSize + 1);
+    let end   = Math.min(totalPages, start + windowSize - 1);
+    start     = Math.max(1, end - windowSize + 1);
 
     const nodes = [];
 
@@ -1301,22 +1276,22 @@ export default function OpportunityDetailedReport() {
         <div className="grid">
           <div className="frow">
             <label>Created From Date <span className="req">*</span></label>
-<input
-  type="date"
-  value={fromDate}
-  onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
-  className={!fromDate ? "input-error" : ""}
-/>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(toISODateOnly(e.target.value))}
+              className={!fromDate ? "input-error" : ""}
+            />
           </div>
 
           <div className="frow">
-           <label>Created To Date <span className="req">*</span></label>
-<input
-  type="date"
-  value={toDate}
-  onChange={(e) => setToDate(toISODateOnly(e.target.value))}
-  className={!toDate ? "input-error" : ""}
-/>
+            <label>Created To Date <span className="req">*</span></label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(toISODateOnly(e.target.value))}
+              className={!toDate ? "input-error" : ""}
+            />
           </div>
 
           <div className="frow">
@@ -1336,7 +1311,7 @@ export default function OpportunityDetailedReport() {
               options={oppRuleOptions}
               value={oppRuleCodes}
               onChange={(next) => {
-                const arr = Array.isArray(next) ? next : [];
+                const arr      = Array.isArray(next) ? next : [];
                 const hasManual = arr.includes(MANUAL_RULE_VALUE);
                 if (hasManual) setOppRuleCodes([MANUAL_RULE_VALUE]);
                 else setOppRuleCodes(arr.filter((v) => v !== MANUAL_RULE_VALUE));
@@ -1407,7 +1382,6 @@ export default function OpportunityDetailedReport() {
       <div className="table-wrap">
         <div className="table-scroll">
           <table className="tbl">
-            {/* ✅ Dynamic thead based on reportType */}
             <thead>
               <tr>
                 {activeColumns.map((col) => (
@@ -1416,7 +1390,6 @@ export default function OpportunityDetailedReport() {
               </tr>
             </thead>
 
-            {/* ✅ Dynamic tbody based on reportType */}
             <tbody>
               {loading && (
                 <tr><td colSpan={colSpanCount} className="loading">Loading…</td></tr>
@@ -1461,7 +1434,7 @@ export default function OpportunityDetailedReport() {
             disabled={isManualSelected ? page <= 1 : nonManualPage <= 1}
             onClick={() => {
               if (isManualSelected) loadDetailed(page - 1);
-              else loadDetailed(nonManualPage - 1);
+              else                  loadDetailed(nonManualPage - 1);
             }}
           >
             Prev
@@ -1476,7 +1449,7 @@ export default function OpportunityDetailedReport() {
             disabled={isManualSelected ? page >= pageCount : nonManualPage >= pageCount}
             onClick={() => {
               if (isManualSelected) loadDetailed(page + 1);
-              else loadDetailed(nonManualPage + 1);
+              else                  loadDetailed(nonManualPage + 1);
             }}
           >
             Next
@@ -1534,7 +1507,7 @@ export default function OpportunityDetailedReport() {
         .toast.success { background:#138a36; }
 
         @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+        @media (max-width: 700px)  { .grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
   );
