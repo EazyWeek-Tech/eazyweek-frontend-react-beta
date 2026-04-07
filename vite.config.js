@@ -1,20 +1,21 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
+// 🔁 Replace this with your actual backend base URL
+const BACKEND_URL = "https://insightweb-hkhqgch8hadvcbb0.uaenorth-01.azurewebsites.net";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    historyApiFallback: true, // Fix for direct routing
-  }
-  // server:{
-  //   proxy:{
-  //     '/api':{
-  //       target:'http://localhost:44317',
-  //       changeOrigin: true,
-  //       secure:false,
-  //     },
-  //   },
-  // },
+    proxy: {
+      // All /api/* requests in dev will be forwarded to the backend
+      "/api": {
+        target: BACKEND_URL,
+        changeOrigin: true,
+        secure: true,
+        // Uncomment below if you need to rewrite the path prefix:
+        // rewrite: (path) => path.replace(/^\/api/, '/api'),
+      },
+    },
+  },
 });
