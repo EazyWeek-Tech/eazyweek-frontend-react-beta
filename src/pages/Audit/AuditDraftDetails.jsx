@@ -11,7 +11,6 @@ const num = (v) => {
 };
 const txt = (v) => (v == null ? "" : String(v));
 const norm = (s) => (s ?? "").toString().trim();
-// treat null/undefined/"" (after trim) as blank
 const isBlank = (v) => v == null || (typeof v === "string" && v.trim() === "");
 
 // dd/MM/yyyy -> yyyy-MM-dd
@@ -36,7 +35,10 @@ const parseWeight = (w) => {
 
 // --- Auditor (logged-in user) helpers ---
 const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-const pickUserId = (o) => norm(o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+
+// FIX #6: unified key picker — handles both userID (capital D) and userId
+const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+
 function getSessionUserId() {
   if (typeof window === "undefined") return "";
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
@@ -50,7 +52,7 @@ function getSessionUserId() {
       const raw = storage.getItem(k);
       if (!raw) continue;
       const parsed = tryParseJSON(raw);
-      const id = parsed ? pickUserId(parsed) : norm(raw); // allow plain userId string
+      const id = parsed ? pickUserId(parsed) : norm(raw);
       if (id) return id;
     }
   }
@@ -64,7 +66,7 @@ const pickEmpCode = (emp) =>
 
 // ---- Simple HTML sanitizer (no external libs) ----
 function sanitizeHtml(html) {
-  if (typeof window === "undefined") return ""; // SSR safety
+  if (typeof window === "undefined") return "";
   const ALLOWED = new Set(["b","strong","i","em","u","br","p","ul","ol","li","span","div"]);
   const container = document.createElement("div");
   container.innerHTML = String(html || "");
@@ -72,27 +74,19 @@ function sanitizeHtml(html) {
   const walk = (node) => {
     const kids = Array.from(node.childNodes);
     for (const child of kids) {
-      // Remove comments
-      if (child.nodeType === 8) { // comment
+      if (child.nodeType === 8) {
         node.removeChild(child);
         continue;
       }
-      // Elements
       if (child.nodeType === 1) {
         const tag = child.tagName.toLowerCase();
-
-        // Remove <script>, <style> entirely (and anything not allowed)
         if (!ALLOWED.has(tag)) {
-          // unwrap: keep inner text/children, drop the element
           while (child.firstChild) node.insertBefore(child.firstChild, child);
           node.removeChild(child);
           continue;
         }
-
-        // strip risky attributes
         for (const attr of Array.from(child.attributes)) {
           const name = attr.name.toLowerCase();
-          // remove event handlers and risky attrs
           if (
             name.startsWith("on") ||
             name === "style" ||
@@ -107,7 +101,6 @@ function sanitizeHtml(html) {
           }
         }
       }
-      // Recurse
       if (child.childNodes && child.childNodes.length) walk(child);
     }
   };
@@ -116,20 +109,22 @@ function sanitizeHtml(html) {
   return container.innerHTML;
 }
 
+// FIX #5: valuePresent must always be "0" or "1" — never "-1"
+const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
+
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
   const { auditNo = "" } = useParams();
   const [searchParams] = useSearchParams();
 
-  // URL params (robust to either old/new dashboard)
+  // URL params
   const clinicFromUrl = searchParams.get("clinic") || "";
-  const employeeNameFromUrl =
-    searchParams.get("employeeName") || ""; // explicit name param
+  const employeeNameFromUrl = searchParams.get("employeeName") || "";
   const employeeCodeFromUrl =
-    searchParams.get("empCode") || searchParams.get("employee") || ""; // prefer empCode; fallback to employee
+    searchParams.get("empCode") || searchParams.get("employee") || "";
   const auditorFromUrl = searchParams.get("auditor") || "";
 
-  // Auditor from session userId; fallback to ?auditor
+  // FIX #6: getSessionUserId now handles both userID and userId casing
   const [auditorCode, setAuditorCode] = useState(() => getSessionUserId() || auditorFromUrl || "");
 
   const [loading, setLoading] = useState(true);
@@ -141,10 +136,8 @@ export default function AuditDraftDetails() {
   const [scores, setScores] = useState({});   // { [criteriaCode]: -1|0|1 }
   const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
-  // audited employee code for payload
   const [auditedEmployeeCode, setAuditedEmployeeCode] = useState("");
 
-  // toast
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "error", ms = 2400) => {
@@ -169,7 +162,6 @@ export default function AuditDraftDetails() {
       setLoading(true);
       setError("");
 
-      // API: POST /api/Audit/GetAuditDraftDetails/{AuditNo}  (path param)
       let data;
       let lastErr = "";
       try {
@@ -197,47 +189,46 @@ export default function AuditDraftDetails() {
 
       try {
         const list = Array.isArray(data) ? data : [data].filter(Boolean);
-
-        // Header from first row (use API fields exactly as provided)
         const h0 = list[0] ?? {};
+
+        // FIX #4: employeeName IS now read from the API payload (employeeName field).
+        // The stored proc SpGetDraftAuditSegmentCriteria should return EMPLOYEE or EmployeeName.
+        // We try multiple possible field names so this works regardless of SP column alias.
         const H = {
           auditNo: auditNo,
           managerName: txt(h0.managerName),
-          employeeName: txt(h0.employeeName ?? h0.employee ?? ""),
-          clinicName: clinicFromUrl,                 // not in API payload; keep URL fallback
-          auditorName: auditorFromUrl,               // not in API payload; keep URL fallback
-          auditSegment: txt(h0.audtiSegment || ""),  // note API typo 'audtiSegment'
+          // FIX #4: prefer direct API field; fall back to URL param
+          employeeName: txt(h0.employeeName ?? h0.employee ?? h0.EmployeeName ?? h0.Employee ?? ""),
+          clinicName: clinicFromUrl,
+          auditorName: auditorFromUrl,
+          auditSegment: txt(h0.audtiSegment || h0.auditSegment || ""), // handle both typo and correct spelling
           auditMonth: txt(h0.auditMonth),
-          auditDateDMY: txt(h0.auditDate),           // dd/MM/yyyy
-          employeeCode: employeeCodeFromUrl || "",
-          // NEW: carry through managerCode when present (Digital drafts include it)
+          auditDateDMY: txt(h0.auditDate),
+          employeeCode: employeeCodeFromUrl || txt(h0.employeeCode ?? h0.EmployeeCode ?? ""),
           managerCode: txt(h0.managerCode),
         };
 
         const R = list.map((r, i) => {
-          // Exact fields from API sample
           const criteriaCode = txt(r.criteriaCode || `${i}`);
           const criteriaTxt = txt(r.criteria);
           const subSegmentTxt = txt(r.subSegment);
 
-          // Weightage: numeric string -> keep both string & numeric
-          const weightageRaw = txt(r.weightage);          // e.g. "5"
-          const weightageNum = parseWeight(weightageRaw); // 5
+          const weightageRaw = txt(r.weightage);
+          const weightageNum = parseWeight(weightageRaw);
           const weightageStr = weightageRaw || String(weightageNum);
 
-          // Score arrives as "1.000000"/"0.000000"/"-1.000000" (string). Blank → -1.
+          // Score arrives as "1.000000"/"0.000000"/"-1.000000". Blank → -1.
           const scoreRaw = r.score;
-          let normalizedScore = -1; // -1 → dropdown "Select"
+          let normalizedScore = -1;
           if (!isBlank(scoreRaw)) {
             const n = Number(scoreRaw);
             if (Number.isFinite(n)) {
-              if (n < 0) normalizedScore = -1;     // handles -1.000000
+              if (n < 0) normalizedScore = -1;
               else if (n >= 0.5) normalizedScore = 1;
               else normalizedScore = 0;
             }
           }
 
-          // Prefer API totalScore if present; otherwise derive
           const totalFromApi = (r.totalScore ?? r.totalScore === 0) ? Number(r.totalScore) : null;
           const total = totalFromApi != null ? totalFromApi : (normalizedScore === 1 ? weightageNum : 0);
 
@@ -246,23 +237,22 @@ export default function AuditDraftDetails() {
           return {
             id: criteriaCode,
             subSegment: subSegmentTxt,
-            criteria: criteriaTxt,        // may contain HTML
+            criteria: criteriaTxt,
             criteriaCode,
-            auditSegmentFromApi: txt(r.audtiSegment || ""),
-            score: normalizedScore,       // -1 | 0 | 1
-            weightageStr,                 // for UI string
-            weightageNum,                 // for math
+            auditSegmentFromApi: txt(r.audtiSegment || r.auditSegment || ""),
+            score: normalizedScore,
+            weightageStr,
+            weightageNum,
             totalScore: total,
             remarks: remarksTxt,
           };
         });
 
-        // Build maps for UI controls
         const initScores = {};
         const initRemarks = {};
         for (const row of R) {
           const code = row.criteriaCode || row.id;
-          initScores[code] = row.score;          // -1|0|1
+          initScores[code] = row.score;
           initRemarks[code] = row.remarks || "";
         }
 
@@ -280,13 +270,13 @@ export default function AuditDraftDetails() {
           return;
         }
 
-        // 2) From header (none in API right now)
+        // 2) From header (now populated from API when available)
         if (H.employeeCode) {
           if (!cancelled) setAuditedEmployeeCode(H.employeeCode);
           return;
         }
 
-        // 3) From /api/Employees by matching name (fallback)
+        // 3) From /api/Employees by matching name (fallback — only when code is not available)
         const targetName = normalizeName(employeeNameFromUrl || H.employeeName);
         if (!targetName) return;
 
@@ -336,12 +326,12 @@ export default function AuditDraftDetails() {
         const code = r.criteriaCode || r.id;
         return sum + rowTotal(code, r.weightageStr);
       }, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, scores]
   );
 
-  // UI handlers
   const setScore = (criteriaCode, valStr) => {
-    const val = Number(valStr); // "-1" | "0" | "1" -> -1 | 0 | 1
+    const val = Number(valStr);
     setScores((prev) => ({ ...prev, [criteriaCode]: val }));
   };
 
@@ -349,7 +339,6 @@ export default function AuditDraftDetails() {
     setRemarks((prev) => ({ ...prev, [criteriaCode]: value }));
   };
 
-  // validation: 0/1 on all rows
   const validateAllAnswered = () => {
     for (const r of rows) {
       const code = r.criteriaCode || r.id;
@@ -362,44 +351,41 @@ export default function AuditDraftDetails() {
   const buildPayload = (isDraft) => {
     const subSegmentJson = rows.map((r) => {
       const code = r.criteriaCode || r.id;
-      const s = scores[code];                 // -1 | 0 | 1
+      const s = scores[code]; // -1 | 0 | 1
       const weightNum = Number(r.weightageNum || 0);
 
-      // Encode score: submit => "0"/"1"; save => "-1"/"0"/"1"
       const scoreStr =
         s === 0 || s === 1
           ? String(s)
           : isDraft
-          ? "-1"       // <-- send -1 when unselected on Save
-          : "0";       // <-- force 0 on Submit if still unselected
+          ? "-1"
+          : "0";
 
-      // Total is weight only for "1", otherwise "0" (never blank)
+      // FIX #7: totalScore is always a numeric string — never blank or undefined
       const totalStr = scoreStr === "1" ? String(weightNum) : "0";
 
       return {
         auditNo: "",
         criteria: String(r.criteria || ""),
-        score: scoreStr,                // "-1" | "0" | "1"
-        weightage: String(weightNum),   // normalized numeric string
-        totalScore: totalStr,           // "0" or weight
+        score: scoreStr,              // "-1" | "0" | "1"
+        weightage: String(weightNum), // normalized numeric string
+        totalScore: totalStr,         // always "0" or numeric weight — never blank
         auditorRemarks: String(remarks[code] ?? ""),
         subSegment: String(r.subSegment || ""),
         criteriaCode: String(code || ""),
-        valuePresent: scoreStr,         // mirror "-1"/"0"/"1"
+        // FIX #5: valuePresent is always "0" or "1" — never "-1"
+        valuePresent: encodeValuePresent(s),
       };
     });
 
     const iso = dmyToIso(header?.auditDateDMY || "");
     const year = iso ? iso.slice(0, 4) : "";
 
-    // NEW: carry managerCode through (helps Digital drafts reload correctly)
     const managerCodeOut = txt(header?.managerCode || "");
-    // If you later have doctor/department in this screen, wire them here too:
     const doctorCodeOut = "";
     const departmentCodeOut = "";
 
     return {
-      // NEW: tell backend this is draft vs submit
       request: isDraft ? "save" : "submit",
       auditSegment: header?.auditSegment || "",
       subSegment: "",
@@ -455,8 +441,7 @@ export default function AuditDraftDetails() {
   };
 
   const onSaveOrSubmit = async (isDraft) => {
-    // Only enforce full answers on Submit
-       if (!isDraft) {
+    if (!isDraft) {
       const check = validateAllAnswered();
       if (!check.ok) {
         return showToast("Please answer all criteria (0 or 1) before continuing.");
@@ -470,10 +455,8 @@ export default function AuditDraftDetails() {
       showToast(msg, "success", 1600);
 
       if (isDraft) {
-        // After Save (draft), go back
         setTimeout(() => navigate(-1), 250);
       } else {
-        // After Submit, go to the listing page
         navigate("/auditsegmentview");
       }
     } catch (e) {
@@ -482,8 +465,8 @@ export default function AuditDraftDetails() {
     }
   };
 
-  // Prefer URL name for display, then backend; code from URL/header/resolved
-  const displayEmployeeName = employeeNameFromUrl || header?.employeeName || "";
+  // FIX #4: prefer API-resolved name when available; URL param is secondary
+  const displayEmployeeName = header?.employeeName || employeeNameFromUrl || "";
   const displayEmployeeCode =
     auditedEmployeeCode || employeeCodeFromUrl || header?.employeeCode || "";
 
@@ -518,7 +501,7 @@ export default function AuditDraftDetails() {
               </div>
               <div><strong>Audit Segment :</strong> <span><Txt>{header?.auditSegment}</Txt></span></div>
               <div><strong>Clinic :</strong> <span><Txt>{header?.clinicName || clinicFromUrl}</Txt></span></div>
-              <div><strong>Auditor’s :</strong> <span><Txt>{header?.auditorName}</Txt></span></div>
+              <div><strong>Auditor's :</strong> <span><Txt>{header?.auditorName}</Txt></span></div>
               <div><strong>Audit Month :</strong> <span><Txt>{header?.auditMonth}</Txt></span></div>
               <div><strong>Audit Date :</strong> <span><Txt>{header?.auditDateDMY}</Txt></span></div>
               <div><strong>Score :</strong> <span>{grandTotal.toFixed(2)}</span></div>
@@ -548,7 +531,6 @@ export default function AuditDraftDetails() {
                         <tr key={code}>
                           <td className="left"><Txt>{r.subSegment}</Txt></td>
 
-                          {/* Renders the HTML criteria safely */}
                           <td className="left">
                             <div
                               className="rich"
@@ -625,7 +607,7 @@ export default function AuditDraftDetails() {
         .summary {
           display: grid;
           grid-template-columns: repeat(3, minmax(220px, 1fr));
-          gap:  18px;
+          gap: 18px;
           font-weight: 700;
           padding: 6px 6px 14px;
           border-bottom: 1px solid #eef2f7;
@@ -649,7 +631,6 @@ export default function AuditDraftDetails() {
         .center { text-align: center; }
         .right { text-align: right; }
 
-        /* Rich HTML cell styling */
         .rich { line-height: 1.35; }
         .rich p { margin: 0 0 6px; }
         .rich ul, .rich ol { margin: 6px 0 6px 18px; padding: 0; }

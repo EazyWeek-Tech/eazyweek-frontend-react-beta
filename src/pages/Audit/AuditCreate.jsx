@@ -39,7 +39,11 @@ const toMidnightUtc = (isoDate /* yyyy-mm-dd */) => `${isoDate}T00:00:00.000Z`;
 
 /* ---------- Session helpers for clinic prefill ---------- */
 const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
+
+// FIX #6: unified key picker — handles both userID (capital D) and userId
 const pickTopCode = (o) => norm(o?.topCode ?? o?.loginCode ?? o?.centerCode ?? "");
+const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+
 function getSessionObj() {
   if (typeof window === "undefined") return {};
   const globals = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
@@ -77,8 +81,11 @@ export default function AuditCreate() {
   const [managers, setManagers] = useState([]);
 
   // common fields
-  const sessionTopCodeRef = useMemo(() => pickTopCode(getSessionObj()), []);
-  const [clinicCode, setClinicCode] = useState(state?.clinicCode || ""); // will be prefilled from session topCode
+  const sessionObj = useMemo(() => getSessionObj(), []);
+  const sessionTopCodeRef = useMemo(() => pickTopCode(sessionObj), [sessionObj]);
+
+  // FIX #1: resolve clinicCode (centerCode) once from session for use in all API calls
+  const [clinicCode, setClinicCode] = useState(state?.clinicCode || "");
   const [month, setMonth] = useState(() => toMonthNumber(state?.month)); // 1–12
   const [year, setYear] = useState(state?.year || "");
   const [auditDate, setAuditDate] = useState(state?.auditDate || todayISO());
@@ -145,7 +152,7 @@ export default function AuditCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load clinics (common) + prefill from session topCode
+  // load clinics (common) + prefill clinicCode from session topCode
   useEffect(() => {
     (async () => {
       try {
@@ -156,21 +163,21 @@ export default function AuditCreate() {
           const payload = await r.json();
           centers = Array.isArray(payload) ? payload : payload ? [payload] : [];
         } catch {
-          centers = []; // if this fails, no fallback list — we rely on session code only for display
+          centers = [];
         }
         setClinics(centers);
 
-        // Prefill clinicCode using session topCode/loginCode (case-insensitive)
+        // FIX #1: prefill clinicCode (centerCode) from session topCode/loginCode
         const sessTop = sessionTopCodeRef;
         if (sessTop) {
           const match =
             centers.find((c) => norm(c.code).toLowerCase() === norm(sessTop).toLowerCase()) ||
             centers.find((c) => norm(c.name).toLowerCase() === norm(sessTop).toLowerCase());
           if (match) {
-            setClinicCode(match.code);
+            setClinicCode(match.code); // use the canonical code from the centers list
             return;
           }
-          // If no match but session has a value, still set that as code (name will stay blank)
+          // session code not in list — use it directly as centerCode for API calls
           setClinicCode(sessTop);
           return;
         }
@@ -188,13 +195,19 @@ export default function AuditCreate() {
   }, [API_BASE_URL, sessionTopCodeRef]);
 
   // DIGITAL: doctors + departments
+  // FIX #1: pass clinicCode (centerCode) as a query param so the backend filters by clinic
   useEffect(() => {
     if (!isDigitalSeg) return;
+    if (!clinicCode) return; // wait until clinicCode is resolved
     const seg = encodeURIComponent(segmentName || segmentCode);
+    const cc = encodeURIComponent(clinicCode);
     (async () => {
       try {
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDoctor/${seg}`, { credentials: "include" });
+          const r = await fetch(
+            `${API_BASE_URL}/api/Audit/LoadAuditCreationDoctor/${seg}?centerCode=${cc}`,
+            { credentials: "include" }
+          );
           const d = await r.json();
           setDoctors(Array.isArray(d) ? d : d ? [d] : []);
         } catch {
@@ -213,9 +226,10 @@ export default function AuditCreate() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDigitalSeg, segmentCode, segmentName]);
+  }, [isDigitalSeg, segmentCode, segmentName, clinicCode]);
 
   // NON-DIGITAL: employees
+  // FIX #1: pass clinicCode (centerCode) as a query param
   useEffect(() => {
     if (!segmentCode && !segmentName) {
       setEmployees([]);
@@ -225,11 +239,16 @@ export default function AuditCreate() {
       setEmployees([]);
       return;
     }
+    if (!clinicCode) return; // wait until clinicCode is resolved
     const seg = encodeURIComponent(segmentName || segmentCode);
+    const cc = encodeURIComponent(clinicCode);
     (async () => {
       try {
         setLoadingOpts(true);
-        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${seg}`, { credentials: "include" });
+        const r = await fetch(
+          `${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${seg}?centerCode=${cc}`,
+          { credentials: "include" }
+        );
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
         const list = Array.isArray(d) ? d : d ? [d] : [];
@@ -248,16 +267,19 @@ export default function AuditCreate() {
         setLoadingOpts(false);
       }
     })();
-  }, [segmentCode, segmentName, isDigitalSeg]);
+  }, [segmentCode, segmentName, isDigitalSeg, clinicCode]);
 
-  // DIGITAL: Manager (needs AuditDate) -> fallback Employee
+  // DIGITAL: Manager (needs AuditDate + centerCode) -> fallback Employee
+  // FIX #1: pass clinicCode (centerCode) as a query param for both manager and employee endpoints
   useEffect(() => {
     if (!isDigitalSeg) return;
+    if (!clinicCode) return; // wait until clinicCode is resolved
     const seg = encodeURIComponent(segmentName || segmentCode);
+    const cc = encodeURIComponent(clinicCode);
     const d = auditDateISO;
     const loadManagerThenEmployee = async () => {
       const shapes = [`${d}T00:00:00`, d, `${d}T00:00:00+05:30`, `${d}T00:00:00Z`].map((AuditDate) =>
-        new URLSearchParams({ AuditDate }).toString()
+        new URLSearchParams({ AuditDate, centerCode: clinicCode }).toString()
       );
       for (const qs of shapes) {
         try {
@@ -279,10 +301,13 @@ export default function AuditCreate() {
         }
       }
       try {
-        const rEmp = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationEmployee/${seg}`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
+        const rEmp = await fetch(
+          `${API_BASE_URL}/api/Audit/LoadAuditCreationEmployee/${seg}?centerCode=${cc}`,
+          {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          }
+        );
         if (rEmp.ok) {
           const d = await rEmp.json();
           const list = (Array.isArray(d) ? d : d ? [d] : [])
@@ -301,7 +326,7 @@ export default function AuditCreate() {
     };
     loadManagerThenEmployee();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDigitalSeg, segmentCode, segmentName, auditDateISO]);
+  }, [isDigitalSeg, segmentCode, segmentName, auditDateISO, clinicCode]);
 
   // clear opposite layout fields
   useEffect(() => {
@@ -344,7 +369,6 @@ export default function AuditCreate() {
   // NEXT
   const onNext = async () => {
     if (!segmentCode && !segmentName) return showToast("Please choose an audit segment");
-    // clinic must be prefilled — if still missing, stop
     if (!clinicCode) return showToast("Could not resolve clinic from session. Please re-login and try again.");
     if (!month || !year) return showToast("Please choose month and year");
     if (!auditDateISO) return showToast("Please choose audit date");
@@ -367,7 +391,7 @@ export default function AuditCreate() {
       employeeCode: employeeForCheck,
       auditSegment: segmentCode || segmentName,
       auditDate: toMidnightUtc(auditDateISO),
-      auditMonth: auditMonthStr, // <- string
+      auditMonth: auditMonthStr,
     };
 
     setCheckingDup(true);
@@ -375,11 +399,13 @@ export default function AuditCreate() {
     setCheckingDup(false);
     if (!dupResp) return;
 
+    // FIX #2: treat success=false as duplicate regardless of segment type
+    // The backend now correctly blocks duplicates for all segments (see AuditRepository fix)
     const isDup =
       dupResp.isDuplicate === true ||
       dupResp.duplicate === true ||
       dupResp.exists === true ||
-      (dupResp.success === false && /duplicate|exists|already/i.test(dupResp.message ?? ""));
+      dupResp.success === false;
 
     if (isDup) return showToast(dupResp.message || "Audit already exists for the selected date/person");
 

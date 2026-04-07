@@ -35,6 +35,8 @@ const tryParseJSON = (s) => {
     return null;
   }
 };
+
+// FIX #6: unified key picker — handles both userID (capital D) and userId
 const pickUserId = (o) =>
   norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
 
@@ -46,12 +48,10 @@ const pickClinic = (o) => ({
 
 function getSessionUserId() {
   if (typeof window === "undefined") return "";
-  // Common globals
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const fromGlobal = pickUserId(globalObj);
   if (fromGlobal) return fromGlobal;
 
-  // Common storage keys
   const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
@@ -69,12 +69,10 @@ function getSessionUserId() {
 function getSessionClinic() {
   if (typeof window === "undefined") return { code: "", name: "" };
 
-  // 1) globals
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const picked = pickClinic(globalObj);
   if (picked.code || picked.name) return picked;
 
-  // 2) storage
   const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
@@ -128,8 +126,7 @@ export default function AuditForm() {
   const [criteria, setCriteria] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // row state
-  // Use -1 to represent "not selected"
+  // row state — use -1 to represent "not selected"
   const [scores, setScores] = useState({}); // { [criteriaCode]: -1|0|1 }
   const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
 
@@ -150,7 +147,6 @@ export default function AuditForm() {
       const id = getSessionUserId();
       if (id && id !== auditorCode) setAuditorCode(id);
 
-      // also refresh clinic if session changes
       const sc = getSessionClinic();
       if (sc.code && !clinicCodeQS) setClinicDisplayCode(sc.code);
       if (sc.name && !clinicNameQS) setClinicDisplayName(sc.name);
@@ -175,7 +171,7 @@ export default function AuditForm() {
       };
     }
 
-    if (!code) return; // nothing to resolve
+    if (!code) return;
 
     (async () => {
       try {
@@ -196,7 +192,7 @@ export default function AuditForm() {
       } catch {
         if (!cancelled) {
           setClinicDisplayName("");
-          setClinicDisplayCode(code); // at least show code
+          setClinicDisplayCode(code);
         }
       }
     })();
@@ -275,7 +271,11 @@ export default function AuditForm() {
     return { ok: true };
   };
 
-  // Build payload: on Save send "-1" for unselected; on Submit force "0"/"1"
+  // FIX #5: valuePresent must always be "0" or "1" — never "-1"
+  // Keep this helper consistent with AuditDraftDetails
+  const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
+
+  // Build payload: on Save send "-1" for unselected; on Submit force "0"
   const buildPayload = (isDraft) => {
     const normalizeWeight = (w) => {
       const n = String(w ?? "").match(/-?\d+(\.\d+)?/);
@@ -287,41 +287,35 @@ export default function AuditForm() {
       return isDraft ? "-1" : "0"; // SAVE => "-1", SUBMIT => "0"
     };
 
-    const valuePresentOf = (s) => {
-      // Keep valuePresent strictly "0"/"1" so backend doesn't choke on -1 here.
-      return s === 1 ? "1" : "0";
-    };
-
     const subSegmentJson = criteria.map((row) => {
       const code = String(row?.criteriaCode ?? "");
       const weightStr = normalizeWeight(row?.weightage);
       const scoreStr = encodeScore(scores[code]); // "-1" | "0" | "1"
 
-      // totalScore must be numeric; treat -1 like 0
+      // FIX #7: guard against blank/null totalScore — always produce a numeric string
       const totalStr = scoreStr === "1" ? weightStr : "0";
 
       return {
         auditNo: "",
         criteria: String(row?.criteria ?? ""),
-        score: scoreStr, // "-1" | "0" | "1"
-        weightage: weightStr, // numeric string
-        totalScore: totalStr, // "0" or weight
+        score: scoreStr,
+        weightage: weightStr,
+        totalScore: totalStr, // always "0" or a numeric weight string — never blank
         auditorRemarks: String((remarks[code] ?? "").trim()),
         subSegment: String(row?.subSegment ?? ""),
         criteriaCode: code,
-        valuePresent: valuePresentOf(scores[code]), // "1" only when selected 1; else "0"
+        // FIX #5: valuePresent is always "0" or "1" — mirrors score but clamps -1 → "0"
+        valuePresent: encodeValuePresent(scores[code]),
       };
     });
 
     const headerSubSegment = subSegmentJson.length ? subSegmentJson[0].subSegment : "";
 
-    // Gross total from numeric totals
     const grossFromRows = subSegmentJson.reduce(
       (sum, r) => sum + Number(r.totalScore || "0"),
       0
     );
 
-    // Prefer provided year, otherwise infer from auditDate
     const yearFromAuditDate = /^\d{4}/.test(auditDateISO) ? auditDateISO.slice(0, 4) : "";
     const auditYearOut = String(year || yearFromAuditDate || "0");
 
@@ -405,16 +399,14 @@ export default function AuditForm() {
     }
   };
 
-  // Resolve employee name:
-  // Prefer the URL-provided name (employeeNameQS). If missing, fetch from /api/Employees.
+  // Resolve employee name
   useEffect(() => {
-    if (mode === "digital") return; // not applicable in digital mode
+    if (mode === "digital") return;
     if (!employeeCode) {
       setEmployeeName("");
       return;
     }
 
-    // If the name was provided in the URL, use it directly (no fetch)
     if (employeeNameQS) {
       setEmployeeName(employeeNameQS);
       return;
@@ -454,7 +446,6 @@ export default function AuditForm() {
         const targetCode = norm(employeeCode).toUpperCase();
         const found =
           arr.find((e) => pickCode(e) === targetCode) ||
-          // secondary loose match for backends that use short codes
           arr.find((e) => pickCode(e).endsWith(targetCode));
 
         const name = found ? pickName(found) : "";
