@@ -12,46 +12,25 @@ function useQuery() {
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
-const toDMY = (iso /* yyyy-mm-dd */) => {
+const toDMY = (iso) => {
   const [y, m, d] = (iso || "").split("-");
   if (!y || !m || !d) return iso || "";
   return `${d}-${Number(m)}-${y}`;
 };
 
-const toMidnightUtc = (iso /* yyyy-mm-dd */) => (iso ? `${iso}T00:00:00.000Z` : "");
+const toMidnightUtc = (iso) => (iso ? `${iso}T00:00:00.000Z` : "");
+const parseWeight = (w) => { if (!w) return 0; const m = String(w).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : 0; };
+const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
 
-// Parse "5%" or " 10 % " → 5 (number)
-const parseWeight = (w) => {
-  if (!w) return 0;
-  const m = String(w).match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : 0;
-};
-
-// --- Auditor (logged-in user) helpers ---
-const tryParseJSON = (s) => {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-};
-
-// FIX #6: unified key picker — handles both userID (capital D) and userId
-const pickUserId = (o) =>
-  norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
-
-// extract clinic info from a session-like object
-const pickClinic = (o) => ({
-  code: norm(o?.centerCode ?? o?.loginCode ?? o?.topCode ?? ""),
-  name: norm(o?.centerName ?? o?.clinicName ?? ""),
-});
+const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
+const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
+const pickClinic = (o) => ({ code: norm(o?.centerCode ?? o?.loginCode ?? o?.topCode ?? ""), name: norm(o?.centerName ?? o?.clinicName ?? "") });
 
 function getSessionUserId() {
   if (typeof window === "undefined") return "";
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const fromGlobal = pickUserId(globalObj);
   if (fromGlobal) return fromGlobal;
-
   const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
@@ -68,11 +47,9 @@ function getSessionUserId() {
 
 function getSessionClinic() {
   if (typeof window === "undefined") return { code: "", name: "" };
-
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const picked = pickClinic(globalObj);
   if (picked.code || picked.name) return picked;
-
   const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
@@ -80,256 +57,144 @@ function getSessionClinic() {
       const raw = storage.getItem(k);
       if (!raw) continue;
       const parsed = tryParseJSON(raw);
-      if (parsed && typeof parsed === "object") {
-        const fromStore = pickClinic(parsed);
-        if (fromStore.code || fromStore.name) return fromStore;
-      }
+      if (parsed && typeof parsed === "object") { const fromStore = pickClinic(parsed); if (fromStore.code || fromStore.name) return fromStore; }
     }
   }
   return { code: "", name: "" };
 }
 
+const ScoreBadge = ({ score }) => {
+  if (score === 1) return <span className="score-badge score-yes">Yes</span>;
+  if (score === 0) return <span className="score-badge score-no">No</span>;
+  return <span className="score-badge score-pending">—</span>;
+};
+
 export default function AuditForm() {
   const qs = useQuery();
   const navigate = useNavigate();
 
-  // header data passed via URL from AuditCreate
   const segment = norm(qs.get("segment"));
   const clinicCodeQS = norm(qs.get("clinicCode"));
   const clinicNameQS = decodePlus(norm(qs.get("clinicName") || qs.get("clinic")));
-  const auditMonth = norm(qs.get("auditMonth")); // "Sep"
+  const auditMonth = norm(qs.get("auditMonth"));
   const year = norm(qs.get("year"));
-  const auditDateISO = norm(qs.get("auditDate")); // yyyy-mm-dd
-  const mode = norm(qs.get("mode")); // "digital" | "standard"
+  const auditDateISO = norm(qs.get("auditDate"));
+  const mode = norm(qs.get("mode"));
+  const employeeCode = norm(qs.get("employeeCode"));
+  const employeeNameQS = norm(qs.get("employeeName"));
+  const doctorCode = norm(qs.get("doctorCode"));
+  const departmentCode = norm(qs.get("departmentCode"));
+  const managerCode = norm(qs.get("managerCode"));
 
-  // who is audited
-  const employeeCode = norm(qs.get("employeeCode")); // standard
-  const employeeNameQS = norm(qs.get("employeeName")); // optional name from URL
-  const doctorCode = norm(qs.get("doctorCode")); // digital
-  const departmentCode = norm(qs.get("departmentCode")); // digital
-  const managerCode = norm(qs.get("managerCode")); // digital
-
-  // Auditor (logged-in user) → from session; fallback to ?auditor=<code> if provided
-  const [auditorCode, setAuditorCode] = useState(
-    norm(qs.get("auditor")) || getSessionUserId()
-  );
-
-  // session clinic (used when URL doesn't provide clinic)
+  const [auditorCode, setAuditorCode] = useState(norm(qs.get("auditor")) || getSessionUserId());
   const sessionClinic = useMemo(() => getSessionClinic(), []);
-  const [clinicDisplayName, setClinicDisplayName] = useState(
-    clinicNameQS || sessionClinic.name || ""
-  );
-  const [clinicDisplayCode, setClinicDisplayCode] = useState(
-    clinicCodeQS || sessionClinic.code || ""
-  );
-
+  const [clinicDisplayName, setClinicDisplayName] = useState(clinicNameQS || sessionClinic.name || "");
+  const [clinicDisplayCode, setClinicDisplayCode] = useState(clinicCodeQS || sessionClinic.code || "");
   const [criteria, setCriteria] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // row state — use -1 to represent "not selected"
-  const [scores, setScores] = useState({}); // { [criteriaCode]: -1|0|1 }
-  const [remarks, setRemarks] = useState({}); // { [criteriaCode]: string }
-
+  const [scores, setScores] = useState({});
+  const [remarks, setRemarks] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-
-  // resolved employee name (prefer URL value)
   const [employeeName, setEmployeeName] = useState(employeeNameQS || "");
 
-  const showToast = (message, type = "error", ms = 2400) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), ms);
-  };
+  const showToast = (message, type = "error", ms = 2400) => { setToast({ type, message }); setTimeout(() => setToast(null), ms); };
 
-  // keep auditor in sync if session populates after mount (e.g., SSO)
+  const answeredCount = criteria.filter((r) => { const s = scores[r.criteriaCode]; return s === 0 || s === 1; }).length;
+  const progressPct = criteria.length > 0 ? Math.round((answeredCount / criteria.length) * 100) : 0;
+
+  const grossTotal = criteria.reduce((sum, row) => {
+    const s = scores[row.criteriaCode];
+    return sum + (s === 1 ? parseWeight(row.weightage) : 0);
+  }, 0);
+
   useEffect(() => {
-    const onStorage = () => {
-      const id = getSessionUserId();
-      if (id && id !== auditorCode) setAuditorCode(id);
-
-      const sc = getSessionClinic();
-      if (sc.code && !clinicCodeQS) setClinicDisplayCode(sc.code);
-      if (sc.name && !clinicNameQS) setClinicDisplayName(sc.name);
-    };
+    const onStorage = () => { const id = getSessionUserId(); if (id && id !== auditorCode) setAuditorCode(id); };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auditorCode, clinicCodeQS, clinicNameQS]);
+  }, [auditorCode]);
 
-  // Resolve Clinic display name
   useEffect(() => {
     let cancelled = false;
-
     const code = clinicCodeQS || sessionClinic.code;
     const namePrefilled = clinicNameQS || sessionClinic.name;
-
-    if (namePrefilled) {
-      setClinicDisplayName(namePrefilled);
-      if (!clinicDisplayCode) setClinicDisplayCode(code || "");
-      return () => {
-        cancelled = true;
-      };
-    }
-
+    if (namePrefilled) { setClinicDisplayName(namePrefilled); if (!clinicDisplayCode) setClinicDisplayCode(code || ""); return () => { cancelled = true; }; }
     if (!code) return;
-
     (async () => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
+        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include", headers: { Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const payload = await r.json();
         const centers = Array.isArray(payload) ? payload : payload ? [payload] : [];
-        const match =
-          centers.find((c) => norm(c.code) === code) ||
-          centers.find((c) => norm(c.name) === code);
-        if (!cancelled) {
-          setClinicDisplayName(match?.name || "");
-          setClinicDisplayCode(code);
-        }
-      } catch {
-        if (!cancelled) {
-          setClinicDisplayName("");
-          setClinicDisplayCode(code);
-        }
-      }
+        const match = centers.find((c) => norm(c.code) === code);
+        if (!cancelled) { setClinicDisplayName(match?.name || ""); setClinicDisplayCode(code); }
+      } catch { if (!cancelled) { setClinicDisplayName(""); setClinicDisplayCode(code); } }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, [API_BASE_URL, clinicCodeQS, clinicNameQS, sessionClinic.code, sessionClinic.name]);
 
-  // load criteria by segment
   useEffect(() => {
     if (!segment) return;
     (async () => {
       try {
         setLoading(true);
-        const seg = encodeURIComponent(segment);
-        const r = await fetch(
-          `${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${seg}`,
-          {
-            credentials: "include",
-            headers: { Accept: "application/json" },
-          }
-        );
+        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${encodeURIComponent(segment)}`, { credentials: "include", headers: { Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         const list = Array.isArray(data) ? data : data ? [data] : [];
-
-        // initialize scores with -1 (force user to choose 0/1 for each row)
         const initScores = {};
-        for (const row of list) {
-          if (row?.criteriaCode) initScores[row.criteriaCode] = -1;
-        }
+        for (const row of list) { if (row?.criteriaCode) initScores[row.criteriaCode] = -1; }
         setScores(initScores);
         setCriteria(list);
-      } catch (e) {
-        console.error(e);
-        showToast("Failed to load audit criteria");
-      } finally {
-        setLoading(false);
-      }
+      } catch { showToast("Failed to load audit criteria"); }
+      finally { setLoading(false); }
     })();
   }, [segment, API_BASE_URL]);
 
-  // compute a row's total based on score (0/1) and weightage
-  const rowTotal = (code, weightage) => {
-    const s = scores[code];
-    if (s === 1) return parseWeight(weightage);
-    return 0;
-  };
+  useEffect(() => {
+    if (mode === "digital" || !employeeCode || employeeNameQS) { if (employeeNameQS) setEmployeeName(employeeNameQS); return; }
+    let cancelled = false;
+    const pickCode = (emp) => norm(emp?.empCode ?? emp?.employeeCode ?? emp?.code ?? "").toUpperCase();
+    const pickName = (emp) => norm(emp?.employeeName ?? emp?.name ?? emp?.fullName ?? "");
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include", headers: { Accept: "application/json" } });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const list = await r.json();
+        const arr = Array.isArray(list) ? list : list ? [list] : [];
+        const targetCode = norm(employeeCode).toUpperCase();
+        const found = arr.find((e) => pickCode(e) === targetCode);
+        if (!cancelled) setEmployeeName(found ? pickName(found) : "");
+      } catch { if (!cancelled) setEmployeeName(""); }
+    })();
+    return () => { cancelled = true; };
+  }, [API_BASE_URL, mode, employeeCode, employeeNameQS]);
 
-  // compute gross total (sum of row totals)
-  const grossTotal = criteria.reduce((sum, row) => {
-    const code = row.criteriaCode;
-    return sum + rowTotal(code, row.weightage);
-  }, 0);
+  const validateAllAnswered = () => { for (const row of criteria) { const s = scores[row.criteriaCode]; if (!(s === 0 || s === 1)) return { ok: false }; } return { ok: true }; };
 
-  const handleScoreChange = (code, valStr) => {
-    const val = Number(valStr); // "-1" | "0" | "1" -> -1|0|1
-    setScores((prev) => ({ ...prev, [code]: val }));
-  };
-
-  const handleRemarkChange = (code, text) => {
-    setRemarks((prev) => ({ ...prev, [code]: text }));
-  };
-
-  // Validate all rows answered (0 or 1)
-  const validateAllAnswered = () => {
-    for (const row of criteria) {
-      const code = row.criteriaCode;
-      const s = scores[code];
-      if (!(s === 0 || s === 1)) {
-        return { ok: false, code };
-      }
-    }
-    return { ok: true };
-  };
-
-  // FIX #5: valuePresent must always be "0" or "1" — never "-1"
-  // Keep this helper consistent with AuditDraftDetails
-  const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
-
-  // Build payload: on Save send "-1" for unselected; on Submit force "0"
   const buildPayload = (isDraft) => {
-    const normalizeWeight = (w) => {
-      const n = String(w ?? "").match(/-?\d+(\.\d+)?/);
-      return n ? String(Number(n[0])) : "0";
-    };
-
-    const encodeScore = (s) => {
-      if (s === 0 || s === 1) return String(s); // "0" | "1"
-      return isDraft ? "-1" : "0"; // SAVE => "-1", SUBMIT => "0"
-    };
-
+    const normalizeWeight = (w) => { const n = String(w ?? "").match(/-?\d+(\.\d+)?/); return n ? String(Number(n[0])) : "0"; };
+    const encodeScore = (s) => { if (s === 0 || s === 1) return String(s); return isDraft ? "-1" : "0"; };
     const subSegmentJson = criteria.map((row) => {
       const code = String(row?.criteriaCode ?? "");
       const weightStr = normalizeWeight(row?.weightage);
-      const scoreStr = encodeScore(scores[code]); // "-1" | "0" | "1"
-
-      // FIX #7: guard against blank/null totalScore — always produce a numeric string
+      const scoreStr = encodeScore(scores[code]);
       const totalStr = scoreStr === "1" ? weightStr : "0";
-
-      return {
-        auditNo: "",
-        criteria: String(row?.criteria ?? ""),
-        score: scoreStr,
-        weightage: weightStr,
-        totalScore: totalStr, // always "0" or a numeric weight string — never blank
-        auditorRemarks: String((remarks[code] ?? "").trim()),
-        subSegment: String(row?.subSegment ?? ""),
-        criteriaCode: code,
-        // FIX #5: valuePresent is always "0" or "1" — mirrors score but clamps -1 → "0"
-        valuePresent: encodeValuePresent(scores[code]),
-      };
+      return { auditNo: "", criteria: String(row?.criteria ?? ""), score: scoreStr, weightage: weightStr, totalScore: totalStr, auditorRemarks: String((remarks[code] ?? "").trim()), subSegment: String(row?.subSegment ?? ""), criteriaCode: code, valuePresent: encodeValuePresent(scores[code]) };
     });
-
-    const headerSubSegment = subSegmentJson.length ? subSegmentJson[0].subSegment : "";
-
-    const grossFromRows = subSegmentJson.reduce(
-      (sum, r) => sum + Number(r.totalScore || "0"),
-      0
-    );
-
+    const grossFromRows = subSegmentJson.reduce((sum, r) => sum + Number(r.totalScore || "0"), 0);
     const yearFromAuditDate = /^\d{4}/.test(auditDateISO) ? auditDateISO.slice(0, 4) : "";
-    const auditYearOut = String(year || yearFromAuditDate || "0");
-
     return {
       request: isDraft ? "save" : "submit",
       auditSegment: segment,
-      subSegment: headerSubSegment,
+      subSegment: subSegmentJson.length ? subSegmentJson[0].subSegment : "",
       auditDate: toMidnightUtc(auditDateISO),
       auditMonth: String(auditMonth || ""),
       auditor: String(auditorCode || ""),
       employeeCode: mode === "digital" ? "" : employeeCode,
       grossTotalScore: grossFromRows,
       auditNo: "",
-      auditYear: auditYearOut,
+      auditYear: String(year || yearFromAuditDate || "0"),
       doctorCode: mode === "digital" ? String(doctorCode || "") : "",
       managerCode: mode === "digital" ? String(managerCode || "") : "",
       departmentCode: mode === "digital" ? String(departmentCode || "") : "",
@@ -343,355 +208,270 @@ export default function AuditForm() {
   const postAuditCreation = async (payload) => {
     setSaving(true);
     try {
-      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const msg = data?.responseMessage || `Save failed (HTTP ${r.status})`;
-        throw new Error(msg);
-      }
+      if (!r.ok) throw new Error(data?.responseMessage || `Save failed (HTTP ${r.status})`);
       return data;
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  // Save can be incomplete; Submit must be complete
   const onSaveOrSubmit = async (isDraft) => {
-    if (!isDraft) {
-      const check = validateAllAnswered();
-      if (!check.ok) {
-        return showToast("Please answer all criteria (Yes/No) before submitting.");
-      }
-    }
-
-    const payload = buildPayload(isDraft);
-
-    // quick console preview
+    if (!isDraft) { const check = validateAllAnswered(); if (!check.ok) return showToast("Please answer all criteria before submitting."); }
     try {
-      const sample = payload.subSegmentJson.map((r) => ({
-        criteriaCode: r.criteriaCode,
-        score: r.score,
-        totalScore: r.totalScore,
-        weightage: r.weightage,
-        valuePresent: r.valuePresent,
-      }));
-      console.group(isDraft ? "SAVE payload check" : "SUBMIT payload check");
-      console.table(sample);
-      console.groupEnd();
-    } catch {
-      /* noop */
-    }
-
-    try {
-      const res = await postAuditCreation(payload);
-      const msg =
-        res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully.");
-      showToast(msg, "success", 800);
+      const res = await postAuditCreation(buildPayload(isDraft));
+      showToast(res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully."), "success", 800);
       navigate("/auditsegmentview");
-    } catch (e) {
-      console.error(e);
-      showToast(e.message || "Could not save. Please try again.");
-    }
+    } catch (e) { showToast(e.message || "Could not save. Please try again."); }
   };
 
-  // Resolve employee name
-  useEffect(() => {
-    if (mode === "digital") return;
-    if (!employeeCode) {
-      setEmployeeName("");
-      return;
-    }
-
-    if (employeeNameQS) {
-      setEmployeeName(employeeNameQS);
-      return;
-    }
-
-    let cancelled = false;
-
-    const pickCode = (emp) =>
-      norm(
-        emp?.empCode ??
-          emp?.employeeCode ??
-          emp?.code ??
-          emp?.EmpCode ??
-          emp?.EmployeeCode
-      ).toUpperCase();
-
-    const pickName = (emp) =>
-      norm(
-        emp?.employeeName ??
-          emp?.name ??
-          emp?.fullName ??
-          emp?.empName ??
-          emp?.EmployeeName ??
-          emp?.FullName
-      );
-
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE_URL}/api/Employees`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const list = await r.json();
-        const arr = Array.isArray(list) ? list : list ? [list] : [];
-
-        const targetCode = norm(employeeCode).toUpperCase();
-        const found =
-          arr.find((e) => pickCode(e) === targetCode) ||
-          arr.find((e) => pickCode(e).endsWith(targetCode));
-
-        const name = found ? pickName(found) : "";
-        if (!cancelled) setEmployeeName(name || "");
-      } catch (err) {
-        console.warn("Employee name lookup failed:", err);
-        if (!cancelled) setEmployeeName("");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [API_BASE_URL, mode, employeeCode, employeeNameQS]);
+  const clinicLabel = clinicDisplayName || clinicNameQS || clinicDisplayCode || clinicCodeQS || "—";
+  const personLabel = mode === "digital" ? (doctorCode || "—") : (employeeName || employeeCode || "—");
 
   return (
-    <div className="wrap">
-      <h1 className="title">Fill Audit Segment Details</h1>
-
-      {/* Header summary */}
-      <div className="summary">
-        <div>
-          <b>Audit Segment :</b> {segment || "—"}
-        </div>
-        <div>
-          <b>Clinic :</b>{" "}
-          {clinicDisplayName ||
-            clinicNameQS ||
-            clinicDisplayCode ||
-            clinicCodeQS ||
-            "—"}
-        </div>
-        <div>
-          <b>Audit Month :</b> {auditMonth ? `${auditMonth} / ${year || "—"}` : "—"}
-        </div>
-        <div>
-          <b>Audit Date :</b> {toDMY(auditDateISO) || "—"}
-        </div>
-        {mode === "digital" ? (
-          <>
-            <div>
-              <b>Doctor/Therapist :</b> {doctorCode || "—"}
-            </div>
-            <div>
-              <b>Department :</b> {departmentCode || "—"}
-            </div>
-            <div>
-              <b>Manager :</b> {managerCode || "—"}
-            </div>
-          </>
-        ) : (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-header-inner">
           <div>
-            <b>Employee Name :</b> {employeeName || employeeCode || "—"}
+            <button className="back-btn" onClick={() => navigate(-1)}>← Back</button>
+            <span className="page-eyebrow">Audit Module</span>
+            <h1 className="page-title">Fill Audit Segment Details</h1>
+          </div>
+          <div className="score-chip">
+            <span className="score-chip-label">Score</span>
+            <span className="score-chip-value">{grossTotal.toFixed(1)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="page-body">
+        <div className="summary-bar">
+          <div className="summary-item">
+            <span className="summary-label">Segment</span>
+            <span className="summary-value">{segment || "—"}</span>
+          </div>
+          <div className="summary-divider" />
+          <div className="summary-item">
+            <span className="summary-label">Clinic</span>
+            <span className="summary-value">{clinicLabel}</span>
+          </div>
+          <div className="summary-divider" />
+          <div className="summary-item">
+            <span className="summary-label">Period</span>
+            <span className="summary-value">{auditMonth && year ? `${auditMonth} ${year}` : "—"}</span>
+          </div>
+          <div className="summary-divider" />
+          <div className="summary-item">
+            <span className="summary-label">Date</span>
+            <span className="summary-value">{toDMY(auditDateISO) || "—"}</span>
+          </div>
+          <div className="summary-divider" />
+          <div className="summary-item">
+            <span className="summary-label">{mode === "digital" ? "Doctor" : "Employee"}</span>
+            <span className="summary-value">{personLabel}</span>
+          </div>
+        </div>
+
+        {!loading && criteria.length > 0 && (
+          <div className="progress-bar-wrap">
+            <div className="progress-bar-track">
+              <div className="progress-bar-fill" style={{ width: `${progressPct}%` }} />
+            </div>
+            <span className="progress-label">{answeredCount} of {criteria.length} answered</span>
           </div>
         )}
-      </div>
 
-      {/* Criteria table */}
-      <div className="card">
-        {loading ? (
-          <div className="loading">Loading criteria…</div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}>#</th>
-                <th>Sub Segment</th>
-                <th>Criteria</th>
-                <th style={{ width: 120 }}>Score (0/1)</th>
-                <th style={{ width: 100 }}>Weightage</th>
-                <th style={{ width: 120 }}>Total Score</th>
-                <th style={{ width: 220 }}>Remarks (optional)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {criteria.map((row, idx) => {
-                const code = row.criteriaCode;
-                const weight = row.weightage;
-                const s = scores[code]; // -1 | 0 | 1
-                const total = rowTotal(code, weight);
-
-                return (
-                  <tr key={code || idx}>
-                    <td>{idx + 1}</td>
-                    <td>{row.subSegment || "—"}</td>
-                    <td>
-                      <div
-                        className="criteriaHtml"
-                        dangerouslySetInnerHTML={{ __html: row.criteria || "" }}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        value={String(s ?? -1)}
-                        onChange={(e) => handleScoreChange(code, e.target.value)}
-                      >
-                        <option value="-1">— Select —</option>
-                        <option value="0">0</option>
-                        <option value="1">1</option>
-                      </select>
-                    </td>
-                    <td>{weight || "—"}</td>
-                    <td>
-                      <b>{total}</b>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={remarks[code] ?? ""}
-                        onChange={(e) => handleRemarkChange(code, e.target.value)}
-                        placeholder="Add remarks…"
-                      />
-                    </td>
+        <div className="table-card">
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner" />
+              <span>Loading criteria...</span>
+            </div>
+          ) : (
+            <>
+              <table className="audit-table">
+                <thead>
+                  <tr>
+                    <th className="col-num">#</th>
+                    <th className="col-sub">Sub Segment</th>
+                    <th className="col-criteria">Criteria</th>
+                    <th className="col-score">Score</th>
+                    <th className="col-weight">Weight</th>
+                    <th className="col-total">Total</th>
+                    <th className="col-remarks">Remarks</th>
                   </tr>
-                );
-              })}
-              {criteria.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "16px" }}>
-                    No criteria found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
+                </thead>
+                <tbody>
+                  {criteria.map((row, idx) => {
+                    const code = row.criteriaCode;
+                    const s = scores[code];
+                    const total = s === 1 ? parseWeight(row.weightage) : 0;
+                    const isAnswered = s === 0 || s === 1;
+                    return (
+                      <tr key={code || idx} className={isAnswered ? "row-answered" : ""}>
+                        <td className="col-num">{idx + 1}</td>
+                        <td className="col-sub">
+                          <span className="subseg-pill">{row.subSegment || "—"}</span>
+                        </td>
+                        <td className="col-criteria">
+                          <div className="criteria-html" dangerouslySetInnerHTML={{ __html: row.criteria || "" }} />
+                        </td>
+                        <td className="col-score">
+                          <div className="score-toggle">
+                            <button className={`toggle-btn ${s === 1 ? "toggle-yes active" : "toggle-yes"}`} onClick={() => setScores((p) => ({ ...p, [code]: s === 1 ? -1 : 1 }))}>Yes</button>
+                            <button className={`toggle-btn ${s === 0 ? "toggle-no active" : "toggle-no"}`} onClick={() => setScores((p) => ({ ...p, [code]: s === 0 ? -1 : 0 }))}>No</button>
+                          </div>
+                        </td>
+                        <td className="col-weight">{row.weightage || "—"}</td>
+                        <td className="col-total"><span className={total > 0 ? "total-positive" : "total-zero"}>{total}</span></td>
+                        <td className="col-remarks">
+                          <input type="text" value={remarks[code] ?? ""} onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} placeholder="Optional..." className="remark-input" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {criteria.length === 0 && (
+                    <tr><td colSpan={7} className="empty-state">No criteria found for this segment.</td></tr>
+                  )}
+                </tbody>
+              </table>
 
-        <div className="actions">
-          <button
-            className="btn"
-            onClick={() => onSaveOrSubmit(true)}
-            disabled={saving || loading || criteria.length === 0}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            className="btn primary"
-            onClick={() => onSaveOrSubmit(false)}
-            disabled={saving || loading || criteria.length === 0}
-          >
-            {saving ? "Submitting…" : "Submit"}
-          </button>
+              {criteria.length > 0 && (
+                <div className="table-footer">
+                  <div className="footer-score">
+                    <span className="footer-score-label">Gross Total</span>
+                    <span className="footer-score-value">{grossTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="footer-actions">
+                    <button className="btn-ghost" onClick={() => onSaveOrSubmit(true)} disabled={saving || criteria.length === 0}>
+                      {saving ? "Saving..." : "Save Draft"}
+                    </button>
+                    <button className="btn-primary" onClick={() => onSaveOrSubmit(false)} disabled={saving || criteria.length === 0}>
+                      {saving ? "Submitting..." : `Submit  (${answeredCount}/${criteria.length})`}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
+      {toast && (
+        <div className={`toast toast-${toast.type}`}>
+          <span className="toast-icon">{toast.type === "success" ? "✓" : "!"}</span>
+          {toast.message}
+        </div>
+      )}
 
       <style jsx>{`
-        .wrap {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 16px;
-        }
-        .title {
-          margin: 6px 0 14px;
-          font-size: 22px;
-          color: #0b1f3a;
-        }
-        .summary {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
-          font-weight: 700;
-          background: #fff;
-          border-radius: 10px;
-          padding: 12px 14px;
-          margin-bottom: 12px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-        }
-        .card {
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .page { min-height: 100vh; background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        .page-header { background: #0b1f3a; padding: 0 32px; border-bottom: 3px solid #1a3a6b; }
+        .page-header-inner { max-width: 1240px; margin: 0 auto; padding: 20px 0; display: flex; align-items: flex-end; justify-content: space-between; }
+        .back-btn { display: block; background: none; border: none; color: #6b8fc7; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 6px; }
+        .back-btn:hover { color: #a8c4e8; }
+        .page-eyebrow { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b8fc7; margin-bottom: 4px; }
+        .page-title { font-size: 20px; font-weight: 700; color: #fff; }
+        .score-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 20px; text-align: center; }
+        .score-chip-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b8fc7; }
+        .score-chip-value { display: block; font-size: 26px; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 2px; }
+
+        .page-body { max-width: 1240px; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
+
+        .summary-bar {
           background: #fff;
           border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-          padding: 12px;
-        }
-        .tbl {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        th,
-        td {
-          border: 1px solid #e5e8ef;
-          padding: 8px;
-          vertical-align: top;
-          font-size: 14px;
-          line-height: 18px;
-        }
-        th {
-          background: #f7f9fc;
-          text-align: left;
-        }
-        .criteriaHtml b {
-          font-weight: 700;
-        }
-        select,
-        input[type="text"] {
-          width: 100%;
-          height: 34px;
-          border: 1px solid #d8dee8;
-          border-radius: 8px;
-          padding: 0 8px;
-        }
-        .actions {
+          padding: 16px 24px;
           display: flex;
-          gap: 8px;
-          justify-content: center;
-          margin-top: 14px;
+          align-items: center;
+          gap: 0;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+          flex-wrap: wrap;
         }
-        .btn {
-          background: #1d2c43;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          padding: 8px 18px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-        .btn.primary {
-          background: #112032;
-        }
-        .btn[disabled] {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-        .loading {
-          padding: 16px;
-          text-align: center;
-        }
-        .toast {
-          position: fixed;
-          bottom: 16px;
-          right: 16px;
-          color: #fff;
-          background: #d7263d;
-          padding: 10px 14px;
-          border-radius: 8px;
-          font-weight: 600;
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-        }
-        .toast.success {
-          background: #138a36;
-        }
+        .summary-item { display: flex; flex-direction: column; gap: 3px; padding: 0 20px; flex: 1; min-width: 120px; }
+        .summary-item:first-child { padding-left: 0; }
+        .summary-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #8a94a6; }
+        .summary-value { font-size: 13px; font-weight: 600; color: #1b2636; }
+        .summary-divider { width: 1px; height: 36px; background: #eaecf0; flex-shrink: 0; }
+
+        .progress-bar-wrap { display: flex; align-items: center; gap: 12px; }
+        .progress-bar-track { flex: 1; height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: #0b1f3a; border-radius: 999px; transition: width 0.3s ease; }
+        .progress-label { font-size: 12px; font-weight: 600; color: #8a94a6; white-space: nowrap; }
+
+        .table-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); overflow: hidden; }
+
+        .audit-table { width: 100%; border-collapse: collapse; }
+        .audit-table thead tr { background: #f8f9fb; border-bottom: 2px solid #eaecf0; }
+        .audit-table th { padding: 13px 14px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8a94a6; white-space: nowrap; }
+        .audit-table tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
+        .audit-table tbody tr:hover { background: #fafbfc; }
+        .audit-table tbody tr.row-answered { background: #f8fffe; }
+        .audit-table tbody tr:last-child { border-bottom: none; }
+        .audit-table td { padding: 12px 14px; vertical-align: middle; font-size: 13px; color: #1b2636; }
+
+        .col-num { width: 40px; text-align: center; color: #8a94a6; font-weight: 600; }
+        .col-sub { width: 130px; }
+        .col-criteria { }
+        .col-score { width: 120px; }
+        .col-weight { width: 80px; text-align: center; color: #8a94a6; }
+        .col-total { width: 80px; text-align: center; }
+        .col-remarks { width: 200px; }
+
+        .subseg-pill { display: inline-block; background: #f0f2f5; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: #4b5668; }
+
+        .criteria-html { line-height: 1.5; }
+        .criteria-html b, .criteria-html strong { font-weight: 700; }
+
+        .score-toggle { display: flex; gap: 4px; }
+        .toggle-btn { flex: 1; height: 30px; border-radius: 6px; border: 1.5px solid #d8dee8; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; color: #8a94a6; }
+        .toggle-btn:hover { border-color: #0b1f3a; color: #0b1f3a; }
+        .toggle-yes.active { background: #e8f5e9; border-color: #138a36; color: #138a36; }
+        .toggle-no.active { background: #fdecea; border-color: #c0392b; color: #c0392b; }
+
+        .total-positive { font-weight: 700; color: #138a36; }
+        .total-zero { color: #c0c8d8; }
+
+        .remark-input { width: 100%; height: 32px; border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 0 10px; font-size: 12px; color: #1b2636; background: #f8f9fb; outline: none; transition: border-color 0.15s; }
+        .remark-input:focus { border-color: #0b1f3a; background: #fff; box-shadow: 0 0 0 3px rgba(11,31,58,0.06); }
+
+        .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-top: 2px solid #eaecf0; background: #f8f9fb; }
+        .footer-score { display: flex; align-items: baseline; gap: 10px; }
+        .footer-score-label { font-size: 12px; font-weight: 700; color: #8a94a6; text-transform: uppercase; letter-spacing: 0.08em; }
+        .footer-score-value { font-size: 24px; font-weight: 800; color: #0b1f3a; }
+        .footer-actions { display: flex; gap: 10px; }
+
+        .btn-primary { background: #0b1f3a; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+        .btn-primary:hover { background: #1a3a6b; }
+        .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+        .btn-ghost { background: #fff; color: #0b1f3a; border: 1.5px solid #d8dee8; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .btn-ghost:hover { border-color: #0b1f3a; background: #f8f9fb; }
+        .btn-ghost:disabled { opacity: 0.65; cursor: not-allowed; }
+
+        .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px; color: #8a94a6; font-size: 14px; }
+        .loading-spinner { width: 32px; height: 32px; border: 3px solid #eaecf0; border-top-color: #0b1f3a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 40px; color: #8a94a6; font-size: 14px; }
+
+        .score-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+        .score-yes { background: #e8f5e9; color: #138a36; }
+        .score-no { background: #fdecea; color: #c0392b; }
+        .score-pending { background: #f0f2f5; color: #8a94a6; }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 10px; font-size: 14px; font-weight: 600; color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.18); z-index: 9999; animation: toastIn 0.2s ease; }
+        @keyframes toastIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+        .toast-error { background: #c0392b; }
+        .toast-success { background: #138a36; }
+        .toast-icon { width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+
         @media (max-width: 900px) {
-          .summary {
-            grid-template-columns: 1fr;
-          }
+          .page-body { padding: 16px; }
+          .summary-bar { gap: 12px; }
+          .summary-divider { display: none; }
+          .summary-item { padding: 0; min-width: 100px; }
+          .col-remarks { display: none; }
         }
       `}</style>
     </div>
