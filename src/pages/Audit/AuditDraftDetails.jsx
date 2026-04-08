@@ -445,6 +445,7 @@ export default function AuditDraftDetails() {
 
         .page { min-height: 100vh; background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
 
+        .home-sect{padding:0}
         .page-header { background: #334b71; padding: 0 32px; border-bottom: 3px solid #1a3a6b; }
         .page-header-inner { max-width: 90%; margin: 0 auto; padding: 5px 0; display: flex; align-items: center; justify-content: space-between; }
         .crumbs { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -452,7 +453,7 @@ export default function AuditDraftDetails() {
         .crumb-link:hover { color: #d0ddf0; }
         .crumb-sep { color: #fff; font-size: 13px; }
         .crumb-current { color: #fff; font-size: 13px; }
-        .page-title { font-size: 20px; font-weight: 700; color: #fff; margin: 0; }
+        .page-title { font-size: 20px; font-weight: 700; color: #fff; margin: 0 !important; }
         .score-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 20px; text-align: center; }
         .score-chip-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; }
         .score-chip-value { display: block; font-size: 26px; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 2px; }
@@ -460,7 +461,7 @@ export default function AuditDraftDetails() {
         .page-body { max-width: 90%; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
 
         .full-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 80px; color: #8a94a6; font-size: 14px; }
-        .loading-spinner { width: 36px; height: 36px; border: 3px solid #eaecf0; border-top-color: #0b1f3a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .loading-spinner { width: 36px; height: 36px; border: 3px solid #eaecf0; border-top-color: #334b71; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .error-card { background: #fff; border-radius: 14px; padding: 24px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
@@ -472,11 +473,11 @@ export default function AuditDraftDetails() {
         .summary-item { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .summary-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #8a94a6; margin-bottom: 5px; }
         .summary-value { font-size: 13px; font-weight: 600; color: #1b2636; }
-        .summary-value.highlight { color: #0b1f3a; font-size: 15px; font-weight: 800; }
+        .summary-value.highlight { color: #334b71; font-size: 15px; font-weight: 800; }
 
         .progress-bar-wrap { display: flex; align-items: center; gap: 12px; }
         .progress-bar-track { flex: 1; height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: #0b1f3a; border-radius: 999px; transition: width 0.3s ease; }
+        .progress-bar-fill { height: 100%; background: #334b71; border-radius: 999px; transition: width 0.3s ease; }
         .progress-label { font-size: 12px; font-weight: 600; color: #8a94a6; white-space: nowrap; }
 
         .table-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); overflow: hidden; }
@@ -504,7 +505,7 @@ export default function AuditDraftDetails() {
 
         .score-toggle { display: flex; gap: 4px; }
         .toggle-btn { flex: 1; height: 30px; border-radius: 6px; border: 1.5px solid #d8dee8; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; color: #8a94a6; }
-        .toggle-btn:hover { border-color: #0b1f3a; color: #0b1f3a; }
+        .toggle-btn:hover { border-color: #334b71; color: #334b71; }
         .toggle-yes.active { background: #e8f5e9; border-color: #138a36; color: #138a36; }
         .toggle-no.active { background: #fdecea; border-color: #c0392b; color: #c0392b; }
 
@@ -512,19 +513,19 @@ export default function AuditDraftDetails() {
         .total-zero { color: #c0c8d8; }
 
         .remark-input { width: 100%; height: 32px; border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 0 10px; font-size: 12px; color: #1b2636; background: #f8f9fb; outline: none; transition: border-color 0.15s; }
-        .remark-input:focus { border-color: #0b1f3a; background: #fff; box-shadow: 0 0 0 3px rgba(11,31,58,0.06); }
+        .remark-input:focus { border-color: #334b71; background: #fff; box-shadow: 0 0 0 3px rgba(11,31,58,0.06); }
 
         .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-top: 2px solid #eaecf0; background: #f8f9fb; }
         .footer-score { display: flex; align-items: baseline; gap: 10px; }
         .footer-score-label { font-size: 12px; font-weight: 700; color: #8a94a6; text-transform: uppercase; letter-spacing: 0.08em; }
-        .footer-score-value { font-size: 24px; font-weight: 800; color: #0b1f3a; }
+        .footer-score-value { font-size: 24px; font-weight: 800; color: #334b71; }
         .footer-actions { display: flex; gap: 10px; }
 
-        .btn-primary { background: #0b1f3a; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+        .btn-primary { background: #334b71; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
         .btn-primary:hover { background: #1a3a6b; }
         .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
-        .btn-ghost { background: #fff; color: #0b1f3a; border: 1.5px solid #d8dee8; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-        .btn-ghost:hover { border-color: #0b1f3a; }
+        .btn-ghost { background: #fff; color: #334b71; border: 1.5px solid #d8dee8; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .btn-ghost:hover { border-color: #334b71; }
         .btn-ghost:disabled { opacity: 0.65; cursor: not-allowed; }
         .btn-outline { background: transparent; color: #8a94a6; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
         .btn-outline:hover { border-color: #c0c8d8; color: #4b5668; }

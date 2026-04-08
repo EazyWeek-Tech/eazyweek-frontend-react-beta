@@ -392,9 +392,8 @@ export default function AuditDetailedReport() {
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
 
       <style jsx>{`
-        .rw { min-height:100vh; background:#f0f2f6; font-family:'Segoe UI',system-ui,sans-serif; padding:24px 28px 48px; }
         .rw-hd { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
-        .rw-ttl { font-size:22px; font-weight:800; color:#0b1f3a; letter-spacing:-0.3px; }
+        .rw-ttl { font-size:22px; font-weight:800; color:#334b71; letter-spacing:-0.3px; }
         .rw-bc { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; }
         .bc-lnk { color:#334b71; cursor:pointer; font-weight:600; } .bc-lnk:hover { text-decoration:underline; }
         .bc-sep { color:#c0c8d8; } .bc-cur { color:#8a94a6; }
@@ -424,7 +423,7 @@ export default function AuditDetailedReport() {
         .btn-xls:hover:not(:disabled) { background:#dde3ef; }
         .btn-xls:disabled { opacity:.5; cursor:not-allowed; }
         .btn-go { background:#334b71; color:#fff; border:none; border-radius:8px; padding:8px 24px; font-size:13px; font-weight:700; cursor:pointer; transition:background .15s; }
-        .btn-go:hover:not(:disabled) { background:#0b1f3a; }
+        .btn-go:hover:not(:disabled) { background:#334b71; }
         .btn-go:disabled { opacity:.65; cursor:not-allowed; }
 
         .tc { background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.03); overflow:hidden; }

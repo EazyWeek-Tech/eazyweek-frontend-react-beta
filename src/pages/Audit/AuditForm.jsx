@@ -375,16 +375,17 @@ export default function AuditForm() {
 
         .page { min-height: 100vh; background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
 
-        .page-header { background: #0b1f3a; padding: 0 32px; border-bottom: 3px solid #1a3a6b; }
+        .page-header { background: #334b71; padding: 0 32px; border-bottom: 3px solid #1a3a6b; }
         .page-header-inner { max-width: 1240px; margin: 0 auto; padding: 20px 0; display: flex; align-items: flex-end; justify-content: space-between; }
         .back-btn { display: block; background: none; border: none; color: #6b8fc7; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 6px; }
         .back-btn:hover { color: #a8c4e8; }
-        .page-eyebrow { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b8fc7; margin-bottom: 4px; }
-        .page-title { font-size: 20px; font-weight: 700; color: #fff; }
+        .page-eyebrow { display: none; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b8fc7; margin-bottom: 4px; }
+        .page-title { font-size: 20px; font-weight: 700; color: #fff;margin: 0 !important }
         .score-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 20px; text-align: center; }
         .score-chip-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b8fc7; }
         .score-chip-value { display: block; font-size: 26px; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 2px; }
 
+        .home-sect{padding:0}
         .page-body { max-width: 1240px; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
 
         .summary-bar {
@@ -405,7 +406,7 @@ export default function AuditForm() {
 
         .progress-bar-wrap { display: flex; align-items: center; gap: 12px; }
         .progress-bar-track { flex: 1; height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: #0b1f3a; border-radius: 999px; transition: width 0.3s ease; }
+        .progress-bar-fill { height: 100%; background: #334b71; border-radius: 999px; transition: width 0.3s ease; }
         .progress-label { font-size: 12px; font-weight: 600; color: #8a94a6; white-space: nowrap; }
 
         .table-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); overflow: hidden; }
@@ -434,7 +435,7 @@ export default function AuditForm() {
 
         .score-toggle { display: flex; gap: 4px; }
         .toggle-btn { flex: 1; height: 30px; border-radius: 6px; border: 1.5px solid #d8dee8; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; color: #8a94a6; }
-        .toggle-btn:hover { border-color: #0b1f3a; color: #0b1f3a; }
+        .toggle-btn:hover { border-color: #334b71; color: #334b71; }
         .toggle-yes.active { background: #e8f5e9; border-color: #138a36; color: #138a36; }
         .toggle-no.active { background: #fdecea; border-color: #c0392b; color: #c0392b; }
 
@@ -442,23 +443,23 @@ export default function AuditForm() {
         .total-zero { color: #c0c8d8; }
 
         .remark-input { width: 100%; height: 32px; border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 0 10px; font-size: 12px; color: #1b2636; background: #f8f9fb; outline: none; transition: border-color 0.15s; }
-        .remark-input:focus { border-color: #0b1f3a; background: #fff; box-shadow: 0 0 0 3px rgba(11,31,58,0.06); }
+        .remark-input:focus { border-color: #334b71; background: #fff; box-shadow: 0 0 0 3px rgba(11,31,58,0.06); }
 
         .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-top: 2px solid #eaecf0; background: #f8f9fb; }
         .footer-score { display: flex; align-items: baseline; gap: 10px; }
         .footer-score-label { font-size: 12px; font-weight: 700; color: #8a94a6; text-transform: uppercase; letter-spacing: 0.08em; }
-        .footer-score-value { font-size: 24px; font-weight: 800; color: #0b1f3a; }
+        .footer-score-value { font-size: 24px; font-weight: 800; color: #334b71; }
         .footer-actions { display: flex; gap: 10px; }
 
-        .btn-primary { background: #0b1f3a; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+        .btn-primary { background: #334b71; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
         .btn-primary:hover { background: #1a3a6b; }
         .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
-        .btn-ghost { background: #fff; color: #0b1f3a; border: 1.5px solid #d8dee8; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-        .btn-ghost:hover { border-color: #0b1f3a; background: #f8f9fb; }
+        .btn-ghost { background: #fff; color: #334b71; border: 1.5px solid #d8dee8; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .btn-ghost:hover { border-color: #334b71; background: #f8f9fb; }
         .btn-ghost:disabled { opacity: 0.65; cursor: not-allowed; }
 
         .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px; color: #8a94a6; font-size: 14px; }
-        .loading-spinner { width: 32px; height: 32px; border: 3px solid #eaecf0; border-top-color: #0b1f3a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .loading-spinner { width: 32px; height: 32px; border: 3px solid #eaecf0; border-top-color: #334b71; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .empty-state { text-align: center; padding: 40px; color: #8a94a6; font-size: 14px; }
 
