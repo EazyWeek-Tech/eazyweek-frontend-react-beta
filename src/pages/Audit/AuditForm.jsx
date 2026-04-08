@@ -95,6 +95,7 @@ export default function AuditForm() {
   const [scores, setScores] = useState({});
   const [remarks, setRemarks] = useState({});
   const [saving, setSaving] = useState(false);
+  const [savedAuditNo, setSavedAuditNo] = useState("");
   const [toast, setToast] = useState(null);
   const [employeeName, setEmployeeName] = useState(employeeNameQS || "");
 
@@ -183,7 +184,6 @@ export default function AuditForm() {
       return { auditNo: "", criteria: String(row?.criteria ?? ""), score: scoreStr, weightage: weightStr, totalScore: totalStr, auditorRemarks: String((remarks[code] ?? "").trim()), subSegment: String(row?.subSegment ?? ""), criteriaCode: code, valuePresent: encodeValuePresent(scores[code]) };
     });
     const grossFromRows = subSegmentJson.reduce((sum, r) => sum + Number(r.totalScore || "0"), 0);
-    const yearFromAuditDate = /^\d{4}/.test(auditDateISO) ? auditDateISO.slice(0, 4) : "";
     return {
       request: isDraft ? "save" : "submit",
       auditSegment: segment,
@@ -193,8 +193,8 @@ export default function AuditForm() {
       auditor: String(auditorCode || ""),
       employeeCode: mode === "digital" ? "" : employeeCode,
       grossTotalScore: grossFromRows,
-      auditNo: "",
-      auditYear: String(year || yearFromAuditDate || "0"),
+      auditNo: savedAuditNo,
+      auditYear: String(year || "0"),
       doctorCode: mode === "digital" ? String(doctorCode || "") : "",
       managerCode: mode === "digital" ? String(managerCode || "") : "",
       departmentCode: mode === "digital" ? String(departmentCode || "") : "",
@@ -219,8 +219,15 @@ export default function AuditForm() {
     if (!isDraft) { const check = validateAllAnswered(); if (!check.ok) return showToast("Please answer all criteria before submitting."); }
     try {
       const res = await postAuditCreation(buildPayload(isDraft));
-      showToast(res?.responseMessage || (isDraft ? "Saved as draft." : "Submitted successfully."), "success", 800);
-      navigate("/auditsegmentview");
+      if (isDraft) {
+        const returnedAuditNo = res?.auditNo || res?.auditno || res?.AuditNo || "";
+        if (returnedAuditNo) setSavedAuditNo(returnedAuditNo);
+        showToast(res?.responseMessage || "Saved as draft.", "success", 800);
+        setTimeout(() => navigate("/auditsegmentview"), 900);
+      } else {
+        showToast(res?.responseMessage || "Submitted successfully.", "success", 800);
+        setTimeout(() => navigate("/auditsegmentview"), 900);
+      }
     } catch (e) { showToast(e.message || "Could not save. Please try again."); }
   };
 
