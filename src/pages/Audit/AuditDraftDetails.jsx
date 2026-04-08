@@ -56,7 +56,11 @@ function sanitizeHtml(html) {
       if (child.nodeType === 1) {
         const tag = child.tagName.toLowerCase();
         if (!ALLOWED.has(tag)) { while (child.firstChild) node.insertBefore(child.firstChild, child); node.removeChild(child); continue; }
-        for (const attr of Array.from(child.attributes)) { const name = attr.name.toLowerCase(); if (name.startsWith("on") || ["style","href","src","srcdoc","xlink:href"].includes(name)) { child.removeAttribute(attr.name); } else if (name !== "class") { child.removeAttribute(attr.name); } }
+        for (const attr of Array.from(child.attributes)) {
+          const name = attr.name.toLowerCase();
+          if (name.startsWith("on") || ["style","href","src","srcdoc","xlink:href"].includes(name)) { child.removeAttribute(attr.name); }
+          else if (name !== "class") { child.removeAttribute(attr.name); }
+        }
       }
       if (child.childNodes && child.childNodes.length) walk(child);
     }
@@ -66,6 +70,43 @@ function sanitizeHtml(html) {
 }
 
 const isArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ""));
+
+/*
+  Score normalization from the API response.
+
+  The SP stores:
+    score = "1.000000"  → user picked Yes
+    score = ""          → either user picked No (score=0 sent, SP saved as blank)
+                          OR row was genuinely unanswered (score=-1 sent)
+
+  We use valuePresent to break the tie:
+    valuePresent = 1 → score was 1 (Yes)
+    valuePresent = 0 AND score blank AND totalScore = 0 → ambiguous; treat as unanswered (-1)
+
+  But a previously saved No (score=0) ALSO has valuePresent=0 and totalScore=0,
+  so we cannot reliably distinguish No from unanswered from the API alone.
+
+  The correct SP fix is to store score=0 distinctly from score=-1.
+  Until then, we treat ALL blank-score rows as unanswered (-1) on load,
+  forcing the user to re-confirm their No answers when editing a draft.
+  This is the safest behavior — it never wrongly marks something as answered.
+*/
+function normalizeScoreFromApi(scoreRaw, valuePresent) {
+  const vp = Number(valuePresent);
+  const n = isBlank(scoreRaw) ? NaN : Number(scoreRaw);
+
+  if (Number.isFinite(n)) {
+    if (n >= 0.5) return 1;
+    if (n < 0)   return -1;
+    if (n === 0 && vp === 0)  return 0;
+    if (n === 0 && vp === -1) return -1;
+    if (n === 0 && vp !== 1)  return -1;
+  }
+
+  if (vp === 1)  return 1;
+  if (vp === 0)  return 0;
+  return -1;
+}
 
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
@@ -90,7 +131,10 @@ export default function AuditDraftDetails() {
 
   const showToast = (message, type = "error", ms = 2400) => { setToast({ type, message }); setTimeout(() => setToast(null), ms); };
 
-  const grandTotal = useMemo(() => rows.reduce((sum, r) => { const code = r.criteriaCode || r.id; const s = scores[code]; return sum + (s === 1 ? parseWeight(r.weightageStr) : 0); }, 0), [rows, scores]);
+  const grandTotal = useMemo(
+    () => rows.reduce((sum, r) => { const code = r.criteriaCode || r.id; const s = scores[code]; return sum + (s === 1 ? parseWeight(r.weightageStr) : 0); }, 0),
+    [rows, scores]
+  );
   const answeredCount = rows.filter((r) => { const s = scores[r.criteriaCode || r.id]; return s === 0 || s === 1; }).length;
   const progressPct = rows.length > 0 ? Math.round((answeredCount / rows.length) * 100) : 0;
 
@@ -106,11 +150,16 @@ export default function AuditDraftDetails() {
       setLoading(true); setError("");
       let data; let lastErr = "";
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(String(auditNo || "").trim())}`, { method: "POST", credentials: "include", headers: { Accept: "application/json" } });
+        const res = await fetch(
+          `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(String(auditNo || "").trim())}`,
+          { method: "POST", credentials: "include", headers: { Accept: "application/json" } }
+        );
         if (!res.ok) { const t = await res.text().catch(() => ""); lastErr = `HTTP ${res.status}${t ? ` · ${t.slice(0,180)}` : ""}`; }
         else { const text = await res.text(); data = text ? JSON.parse(text) : []; }
       } catch (e) { lastErr = e?.message || "Network error"; }
+
       if (!data) { if (!cancelled) { setError(lastErr || "Failed to load audit details"); setLoading(false); } return; }
+
       try {
         const list = Array.isArray(data) ? data : [data].filter(Boolean);
         const h0 = list[0] ?? {};
@@ -123,24 +172,39 @@ export default function AuditDraftDetails() {
           auditSegment: txt(h0.audtiSegment || h0.auditSegment || ""),
           auditMonth: txt(h0.auditMonth),
           auditDateDMY: txt(h0.auditDate),
+          auditYear: txt(h0.auditYear ?? h0.AUDITYEAR ?? ""),
           employeeCode: employeeCodeFromUrl || txt(h0.employeeCode ?? h0.EmployeeCode ?? ""),
           managerCode: txt(h0.managerCode),
         };
+
         const R = list.map((r, i) => {
           const criteriaCode = txt(r.criteriaCode || `${i}`);
           const weightageRaw = txt(r.weightage);
           const weightageNum = parseWeight(weightageRaw);
-          const scoreRaw = r.score;
-          let normalizedScore = -1;
-          if (!isBlank(scoreRaw)) { const n = Number(scoreRaw); if (Number.isFinite(n)) { if (n < 0) normalizedScore = -1; else if (n >= 0.5) normalizedScore = 1; else normalizedScore = 0; } }
+
+          const normalizedScore = normalizeScoreFromApi(r.score, r.valuePresent);
+
           const totalFromApi = (r.totalScore ?? r.totalScore === 0) ? Number(r.totalScore) : null;
-          return { id: criteriaCode, subSegment: txt(r.subSegment), criteria: txt(r.criteria), criteriaCode, score: normalizedScore, weightageStr: weightageRaw || String(weightageNum), weightageNum, totalScore: totalFromApi != null ? totalFromApi : (normalizedScore === 1 ? weightageNum : 0), remarks: txt(r.auditRemarks) };
+          return {
+            id: criteriaCode,
+            subSegment: txt(r.subSegment),
+            criteria: txt(r.criteria),
+            criteriaCode,
+            score: normalizedScore,
+            weightageStr: weightageRaw || String(weightageNum),
+            weightageNum,
+            totalScore: totalFromApi != null ? totalFromApi : (normalizedScore === 1 ? weightageNum : 0),
+            remarks: txt(r.auditRemarks),
+          };
         });
+
         const initScores = {}; const initRemarks = {};
         for (const row of R) { const code = row.criteriaCode || row.id; initScores[code] = row.score; initRemarks[code] = row.remarks || ""; }
         if (!cancelled) { setHeader(H); setRows(R); setScores(initScores); setRemarks(initRemarks); }
+
         if (employeeCodeFromUrl) { if (!cancelled) setAuditedEmployeeCode(employeeCodeFromUrl.trim()); return; }
         if (H.employeeCode) { if (!cancelled) setAuditedEmployeeCode(H.employeeCode); return; }
+
         const targetName = normalizeName(employeeNameFromUrl || H.employeeName);
         if (!targetName) return;
         try {
@@ -159,7 +223,10 @@ export default function AuditDraftDetails() {
     return () => { cancelled = true; };
   }, [auditNo, API_BASE_URL, clinicFromUrl, employeeNameFromUrl, employeeCodeFromUrl, auditorFromUrl]);
 
-  const validateAllAnswered = () => { for (const r of rows) { const s = scores[r.criteriaCode || r.id]; if (!(s === 0 || s === 1)) return { ok: false }; } return { ok: true }; };
+  const validateAllAnswered = () => {
+    for (const r of rows) { const s = scores[r.criteriaCode || r.id]; if (!(s === 0 || s === 1)) return { ok: false }; }
+    return { ok: true };
+  };
 
   const buildPayload = (isDraft) => {
     const subSegmentJson = rows.map((r) => {
@@ -168,10 +235,36 @@ export default function AuditDraftDetails() {
       const weightNum = Number(r.weightageNum || 0);
       const scoreStr = (s === 0 || s === 1) ? String(s) : (isDraft ? "-1" : "0");
       const totalStr = scoreStr === "1" ? String(weightNum) : "0";
-      return { auditNo: "", criteria: String(r.criteria || ""), score: scoreStr, weightage: String(weightNum), totalScore: totalStr, auditorRemarks: String(remarks[code] ?? ""), subSegment: String(r.subSegment || ""), criteriaCode: String(code || ""), valuePresent: encodeValuePresent(s) };
+      return {
+        auditNo: auditNo,
+        criteria: String(r.criteria || ""),
+        score: scoreStr,
+        weightage: String(weightNum),
+        totalScore: totalStr,
+        auditorRemarks: String(remarks[code] ?? ""),
+        subSegment: String(r.subSegment || ""),
+        criteriaCode: String(code || ""),
+        valuePresent: encodeValuePresent(s),
+      };
     });
     const iso = dmyToIso(header?.auditDateDMY || "");
-    return { request: isDraft ? "save" : "submit", auditSegment: header?.auditSegment || "", subSegment: "", auditDate: toMidnightUtc(iso), auditMonth: header?.auditMonth || "", auditor: String(auditorCode || ""), employeeCode: String(auditedEmployeeCode || ""), doctorCode: "", managerCode: txt(header?.managerCode || ""), departmentCode: "", auditYear: String(iso ? iso.slice(0, 4) : ""), grossTotalScore: grandTotal, isDraft: isDraft ? 1 : 0, subSegmentJson };
+    return {
+      request: isDraft ? "save" : "submit",
+      auditSegment: header?.auditSegment || "",
+      subSegment: "",
+      auditDate: toMidnightUtc(iso),
+      auditMonth: header?.auditMonth || "",
+      auditor: String(auditorCode || ""),
+      employeeCode: String(auditedEmployeeCode || ""),
+      doctorCode: "",
+      managerCode: txt(header?.managerCode || ""),
+      departmentCode: "",
+      auditYear: String(header?.auditYear || ""),
+      grossTotalScore: grandTotal,
+      isDraft: isDraft ? 1 : 0,
+      auditNo: auditNo,
+      subSegmentJson,
+    };
   };
 
   const postAuditCreation = async (payload) => {
@@ -291,8 +384,14 @@ export default function AuditDraftDetails() {
                           </td>
                           <td className="col-score">
                             <div className="score-toggle">
-                              <button className={`toggle-btn toggle-yes${s === 1 ? " active" : ""}`} onClick={() => setScores((p) => ({ ...p, [code]: s === 1 ? -1 : 1 }))}>Yes</button>
-                              <button className={`toggle-btn toggle-no${s === 0 ? " active" : ""}`} onClick={() => setScores((p) => ({ ...p, [code]: s === 0 ? -1 : 0 }))}>No</button>
+                              <button
+                                className={`toggle-btn toggle-yes${s === 1 ? " active" : ""}`}
+                                onClick={() => setScores((p) => ({ ...p, [code]: s === 1 ? -1 : 1 }))}
+                              >Yes</button>
+                              <button
+                                className={`toggle-btn toggle-no${s === 0 ? " active" : ""}`}
+                                onClick={() => setScores((p) => ({ ...p, [code]: s === 0 ? -1 : 0 }))}
+                              >No</button>
                             </div>
                           </td>
                           <td className="col-weight">{r.weightageStr || `${r.weightageNum}`}</td>
@@ -345,20 +444,20 @@ export default function AuditDraftDetails() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .page { min-height: 100vh; background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
-        .home-sect{padding: 0;}
+
         .page-header { background: #334b71; padding: 0 32px; border-bottom: 3px solid #1a3a6b; }
-        .page-header-inner { max-width: 1240px; margin: 0 auto; padding: 5px 0; display: flex; align-items: center; justify-content: space-between; }
+        .page-header-inner { max-width: 90%; margin: 0 auto; padding: 5px 0; display: flex; align-items: center; justify-content: space-between; }
         .crumbs { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .crumb-link { background: none; border: none; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; }
-        .crumb-link:hover { color: #fff; }
+        .crumb-link:hover { color: #d0ddf0; }
         .crumb-sep { color: #fff; font-size: 13px; }
         .crumb-current { color: #fff; font-size: 13px; }
-        .page-title { font-size: 20px; font-weight: 700; color: #fff; margin:0 !important; }
+        .page-title { font-size: 20px; font-weight: 700; color: #fff; margin: 0; }
         .score-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 20px; text-align: center; }
         .score-chip-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; }
         .score-chip-value { display: block; font-size: 26px; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 2px; }
 
-        .page-body { max-width:90%; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
+        .page-body { max-width: 90%; margin: 0 auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
 
         .full-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 80px; color: #8a94a6; font-size: 14px; }
         .loading-spinner { width: 36px; height: 36px; border: 3px solid #eaecf0; border-top-color: #0b1f3a; border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -383,7 +482,7 @@ export default function AuditDraftDetails() {
         .table-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); overflow: hidden; }
 
         .audit-table { width: 100%; border-collapse: collapse; }
-        .audit-table thead tr { background: #f8f9fb; border-bottom: 2px solid #eaecf0; }
+        .audit-table thead tr { background: #334b71; border-bottom: 2px solid #1a3a6b; }
         .audit-table th { padding: 13px 14px; text-align: left; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; white-space: nowrap; }
         .audit-table tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
         .audit-table tbody tr:hover { background: #fafbfc; }
