@@ -263,7 +263,7 @@ const AuditCreateDashboard = () => {
 
       <style jsx>{`
         .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-        .title { margin: 20px 0 10px 0; font-size: 22px; color: #0b1f3a; }
+        .title { margin: 20px 0 10px 0; font-size: 22px; color: #334b71; }
         .actions { display: flex; gap: 10px; }
         .btn { background: #1d2c43; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
         .toolbar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 12px; }
