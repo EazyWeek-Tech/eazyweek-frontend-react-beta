@@ -715,6 +715,11 @@ export default function OpportunitySummaryReport() {
 
   /* ---- Fetch summary (only on View, plus server-side page for manual) ---- */
   const loadSummary = async (pageOverride) => {
+if (!fromDate || !toDate) {
+    showToast("Please select both Created From Date and Created To Date", "error");
+    return;
+  }
+
     setLoading(true);
 
     // ✅ For manual, page can change via next/prev calls
@@ -796,59 +801,55 @@ export default function OpportunitySummaryReport() {
             }).format(dt);
       };
 
-      // ✅ Keep columns consistent:
-      // For Manual response: show CreatedDate in both From & To columns
       const normalized = arr.map((x, i) => {
-        const created = pick(x, ["createdDate", "createdOn", "fromDate", "campaignFromDate"]);
-        const createdFmt = fmt(created);
+  const campId = pick(x, ["camp_id", "campId", "campaignId", "recid", "id"]);
+  const resolvedOppCode = campaignIdToOppCode.get(String(campId));
 
-        const campId = pick(x, ["camp_id", "campId", "campaignId", "recid", "id"]);
-        const resolvedOppCode = campaignIdToOppCode.get(String(campId));
+  const wipC    = pick(x, ["wip", "wipC", "noOfWIPOpp", "wipOpportunities", "wipCount"]);
+  const pending = pick(x, ["pending", "noOfPendingOpp"]);
 
-        // ✅ For Manual response: use API fromDate/toDate (campaign range)
-const manualFrom = pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"]);
-const manualTo = pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"]);
+  // ✅ Format the filter dates once for display
+  const filterFromFmt = fmt(fromDate);
+  const filterToFmt   = fmt(toDate);
 
-const manualFromFmt = fmt(manualFrom);
-const manualToFmt = fmt(manualTo);
+  return {
+    key: pick(x, ["oppCode", "opportunityCode", "code", "id", "recid", "camp_id"], `row-${i}`),
 
+    oppCode: isManualSelected
+      ? (resolvedOppCode || "")
+      : pick(x, ["oppCode", "opportunityCode", "code"]),
 
-        return {
-          key: pick(x, ["oppCode", "opportunityCode", "code", "id", "recid", "camp_id"], `row-${i}`),
+    // ✅ Always use the filter dates, not what comes from API
+    fromDate: filterFromFmt,
+    toDate:   filterToFmt,
 
-          // ✅ manual doesn't have oppCode; resolve from GetOppNames using campaignId
-          oppCode: isManualSelected ? (resolvedOppCode || "") : pick(x, ["oppCode", "opportunityCode", "code"]),
+    oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
 
-         
-fromDate: isManualSelected
-  ? manualFromFmt
-  : fmt(pick(x, ["fromDate", "campaignFromDate", "createdDate", "createdOn"])),
+    campaignStatus: isManualSelected
+      ? (String(pick(x, ["oppStatus", "campaignStatus", "oppStatusCode"])) === "1"
+          ? "Active" : "Expired")
+      : pick(x, ["campaignStatus", "campaignState", "statusCampaign", "oppStatus"]),
 
-toDate: isManualSelected
-  ? manualToFmt
-  : fmt(pick(x, ["toDate", "campaignToDate", "createdDate", "createdOn"])),
+    clinic: pick(x, ["clinicName", "centerName", "center", "ClinicCode", "clinicCode"]),
 
-          oppName: pick(x, ["oppName", "opportunityName", "nameOfOpp"]),
-          campaignStatus: isManualSelected
-  ? (String(pick(x, ["oppStatus", "campaignStatus", "oppStatusCode"])) === "1" ? "Active" : "Expired")
-  : pick(x, ["campaignStatus", "campaignState", "statusCampaign", "oppStatus"]),
-          clinic: pick(x, ["clinicName", "centerName", "clinicName", "center", "ClinicCode", "clinicCode"]),
+    totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC", "totalNoOfOpenOpp"]),
 
-          totalOpportunities: pick(x, ["totalOpportunities", "totalOpp", "total", "totalOpportunitiesABC"]),
-          closedA: pick(x, ["closed", "closedA", "closedOpportunities", "noOfClosedOpportunities"]),
-          openB: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
-         // wipC: pick(x, ["wip", "wipC", "wipOpportunities", "wipCount"]),
-         wipC: pick(x, ["open", "openB", "openOpportunities", "noOfOpenOpportunities"]),
-        // openB:'0',
-          convertedCount: pick(x, [
-            "noOfOppConverted",
-            "convertedCount",
-            "converted",
-            "convertedOpportunities",
-            "noOfConvertedoutofClosed",
-          ]),
-        };
-      });
+    closedA: pick(x, ["closed", "closedA", "noOfClosedOpp", "noOfClosedOpportunities"]),
+
+    openB: Number(wipC || 0) + Number(pending || 0),
+
+    wipC,
+    pending,
+
+    convertedCount: pick(x, [
+      "noOfOppConverted",
+      "convertedCount",
+      "converted",
+      "convertedOpportunities",
+      "noOfConvertedoutofClosed",
+    ]),
+  };
+});
 
       setRows(normalized);
     } catch (e) {
@@ -1109,13 +1110,10 @@ toDate: isManualSelected
               <th>Created To Date</th>
               <th>OppName</th>
               <th>Campaign Status</th>
-              <th>
-  {isManualSelected
-    ? "Total Opportunities (A+B)"
-    : "Total Opportunities (A+B+C)"}
-</th>
+              <th>Total Opportunities (A+B)</th>
               <th>Closed(A)</th>
               <th>Open(B)</th>
+              <th>Pending</th>
               <th>WIP(C)</th>
               <th>No.Of Opp Converted</th>
               <th>Clinic</th>
@@ -1161,6 +1159,7 @@ toDate: isManualSelected
                   <td>{r.totalOpportunities}</td>
                   <td>{r.closedA}</td>
                   <td>{r.openB}</td>
+                  <td>{r.pending}</td>
                   <td>{r.wipC}</td>
                   <td>{r.convertedCount}</td>
                   <td>{r.clinic}</td>
