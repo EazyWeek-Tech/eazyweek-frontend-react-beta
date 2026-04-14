@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../../config";
 
-// SQL Server minimum date
 const SQL_MIN_YMD = "1753-01-01";
-// Default "empty" dates stored as 1900-01-01 in DB — treat as blank
 const EMPTY_DATE_PREFIXES = ["0001-01-01", "1900-01-01"];
 
 const toIsoOrNull = (yyyyMmDd) => {
@@ -20,10 +18,6 @@ const notFutureAndAfterMin = (yyyyMmDd) => {
   return yyyyMmDd <= today;
 };
 
-/**
- * BUG FIX: Also treat "1900-01-01" as empty (DB default for missing dates).
- * Previously only "0001-01-01T00:00:00" was handled.
- */
 const formatDateForInput = (val) => {
   if (!val) return "";
   const s = String(val).slice(0, 10);
@@ -31,27 +25,26 @@ const formatDateForInput = (val) => {
   return s;
 };
 
-// ── Lookup data (replace with API calls if available) ──────────────────────
 const NATIONALITIES = [
-  { id: 107, code: "SA", name: "Saudi Arabian" },
-  { id: 101, code: "IN", name: "Indian" },
-  { id: 1,   code: "US", name: "American" },
-  { id: 999, code: "OT", name: "Other" },
+  { id: 107, name: "Saudi Arabian" },
+  { id: 101, name: "Indian" },
+  { id: 1,   name: "American" },
+  { id: 999, name: "Other" },
 ];
 
 const COUNTRIES = [
-  { id: 1,  name: "Saudi Arabia" },
-  { id: 2,  name: "India" },
-  { id: 3,  name: "United States" },
+  { id: 1,   name: "Saudi Arabia" },
+  { id: 2,   name: "India" },
+  { id: 3,   name: "United States" },
   { id: 999, name: "Other" },
 ];
 
 const STATES = [
-  { id: 1,  name: "Ar Riyad",    countryId: 1 },
-  { id: 2,  name: "Makkah",      countryId: 1 },
-  { id: 10, name: "Maharashtra", countryId: 2 },
-  { id: 11, name: "Delhi",       countryId: 2 },
-  { id: 999, name: "Other",      countryId: null },
+  { id: 1,   name: "Ar Riyad",    countryId: 1 },
+  { id: 2,   name: "Makkah",      countryId: 1 },
+  { id: 10,  name: "Maharashtra", countryId: 2 },
+  { id: 11,  name: "Delhi",       countryId: 2 },
+  { id: 999, name: "Other",       countryId: null },
 ];
 
 const LANGUAGES = [
@@ -61,22 +54,257 @@ const LANGUAGES = [
 ];
 
 const PHONE_CODES = [
-  { code: "+966", label: "+966 Saudi Arabia" },
-  { code: "+91",  label: "+91 India" },
-  { code: "+1",   label: "+1 USA" },
+  { code: "+966", label: "+966" },
+  { code: "+91",  label: "+91"  },
+  { code: "+1",   label: "+1"   },
 ];
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
+
+  .gt-wrap {
+    font-family: 'DM Sans', sans-serif;
+    color: #1a1f2e;
+    padding: 0 0 48px 0;
+  }
+
+  /* ── Section card ── */
+  .gt-card {
+    background: #fff;
+    border: 1px solid #e8eaf0;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .gt-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 24px;
+    background: #f7f8fc;
+    border-bottom: 1px solid #e8eaf0;
+  }
+
+  .gt-card-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #3E5D8A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .gt-card-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: #fff;
+  }
+
+  .gt-card-title {
+    font-family: 'Inter', serif;
+    font-size: 15px;
+    font-weight: 400;
+    color: #1a1f2e;
+    letter-spacing: 0.01em;
+  }
+
+  .gt-card-body {
+    padding: 24px;
+  }
+
+  /* ── Grid ── */
+  .gt-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px 20px;
+  }
+
+  .gt-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 20px;
+  }
+
+  @media (max-width: 1100px) {
+    .gt-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 800px) {
+    .gt-grid, .gt-grid-2 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 500px) {
+    .gt-grid, .gt-grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Field ── */
+  .gt-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .gt-field.gt-span2 { grid-column: span 2; }
+
+  .gt-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .gt-label .gt-req {
+    color: #e53e3e;
+    margin-left: 2px;
+  }
+
+  .gt-input,
+  .gt-select {
+    height: 38px;
+    padding: 0 12px;
+    border: 1.5px solid #dde1ea;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    color: #1a1f2e;
+    background: #fff;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .gt-input:focus,
+  .gt-select:focus {
+    border-color: #3E5D8A;
+    box-shadow: 0 0 0 3px rgba(62,93,138,0.10);
+  }
+
+  .gt-input.gt-error,
+  .gt-select.gt-error {
+    border-color: #e53e3e;
+    box-shadow: 0 0 0 3px rgba(229,62,62,0.08);
+  }
+
+  .gt-error-msg {
+    font-size: 11px;
+    color: #e53e3e;
+    margin-top: 2px;
+  }
+
+  /* ── Phone row ── */
+  .gt-phone-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .gt-phone-code {
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .gt-phone-number {
+    flex: 1;
+  }
+
+  /* ── Divider ── */
+  .gt-divider {
+    height: 1px;
+    background: #f0f1f5;
+    margin: 20px 0;
+  }
+
+  /* ── Actions ── */
+  .gt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 0 2px;
+    margin-top: 8px;
+  }
+
+  .gt-btn {
+    height: 40px;
+    padding: 0 28px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+  }
+
+  .gt-btn:active { transform: scale(0.97); }
+
+  .gt-btn-primary {
+    background: #3E5D8A;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(62,93,138,0.18);
+  }
+
+  .gt-btn-primary:hover { background: #2f4a72; }
+  .gt-btn-primary:disabled { background: #9badc7; cursor: not-allowed; transform: none; }
+
+  .gt-btn-secondary {
+    background: #f3f4f8;
+    color: #4b5563;
+  }
+
+  .gt-btn-secondary:hover { background: #e5e7ef; }
+
+  /* ── Saving indicator ── */
+  .gt-spinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: gt-spin 0.7s linear infinite;
+    margin-right: 7px;
+    vertical-align: middle;
+  }
+
+  @keyframes gt-spin { to { transform: rotate(360deg); } }
+`;
+
+// ── SVG icons ──────────────────────────────────────────────────────────────
+const IconPerson = () => (
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+  </svg>
+);
+
+const IconLocation = () => (
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+  </svg>
+);
+
+ const F = ({ name, label, required, error, children, span2 }) => (
+    <div className={`gt-field${span2 ? " gt-span2" : ""}`}>
+      <span className="gt-label">
+        {label}{required && <span className="gt-req">*</span>}
+      </span>
+      {children}
+      {error && <span className="gt-error-msg">{error}</span>}
+    </div>
+  );
 
 // ── Component ──────────────────────────────────────────────────────────────
 const GeneralTab = ({ customer }) => {
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData]   = useState({});
   const [formErrors, setFormErrors] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]       = useState(false);
 
   useEffect(() => {
     if (customer) setFormData({ ...customer });
   }, [customer]);
 
-  // Filtered states based on selected country
   const filteredStates = STATES.filter(
     (s) => s.countryId === Number(formData.countryCode) || s.countryId === null
   );
@@ -86,12 +314,6 @@ const GeneralTab = ({ customer }) => {
     const val = type === "checkbox" ? (checked ? 1 : 0) : value;
     setFormData((prev) => ({ ...prev, [name]: val }));
 
-    // When country changes, reset state
-    if (name === "countryCode") {
-      setFormData((prev) => ({ ...prev, countryCode: value, stateCode: 0, stateName: "" }));
-    }
-
-    // Sync name fields from lookup selections
     if (name === "nationalityCode") {
       const found = NATIONALITIES.find((n) => String(n.id) === String(value));
       setFormData((prev) => ({
@@ -122,22 +344,22 @@ const GeneralTab = ({ customer }) => {
 
   const validate = () => {
     const errs = {};
-    if (!String(formData.firstName || "").trim())   errs.firstName   = "First name is required";
-    if (!String(formData.lastName || "").trim())    errs.lastName    = "Last name is required";
-    if (!String(formData.mobilePhone || "").trim()) errs.mobilePhone = "Mobile phone is required";
-    if (!String(formData.gender || "").trim())      errs.gender      = "Gender is required";
-    if (!Number(formData.nationalityCode || 0))     errs.nationalityCode = "Nationality is required";
+    if (!String(formData.firstName    || "").trim()) errs.firstName    = "Required";
+    if (!String(formData.lastName     || "").trim()) errs.lastName     = "Required";
+    if (!String(formData.mobilePhone  || "").trim()) errs.mobilePhone  = "Required";
+    if (!String(formData.gender       || "").trim()) errs.gender       = "Required";
+    if (!Number(formData.nationalityCode || 0))      errs.nationalityCode = "Required";
 
     const birthYmd = formatDateForInput(formData.birthDay);
     if (!birthYmd) {
-      errs.birthDay = "Birth date is required";
+      errs.birthDay = "Required";
     } else if (!notFutureAndAfterMin(birthYmd)) {
-      errs.birthDay = "Birth date must be on/after 1753-01-01 and not in the future";
+      errs.birthDay = "Must be ≥ 1753-01-01 and not in the future";
     }
 
     const annYmd = formatDateForInput(formData.anniversary);
     if (annYmd && !notFutureAndAfterMin(annYmd)) {
-      errs.anniversary = "Anniversary must be on/after 1753-01-01 and not in the future";
+      errs.anniversary = "Must be ≥ 1753-01-01 and not in the future";
     }
 
     setFormErrors(errs);
@@ -163,11 +385,8 @@ const GeneralTab = ({ customer }) => {
       workPhone:     String(formData.workPhone     || ""),
       gender:        String(formData.gender        || ""),
       phoneCode:     String(formData.phoneCode     || ""),
-
-      // BUG FIX: dates now correctly omit 1900-01-01 defaults
-      birthDay:    toIsoOrNull(birthYmd),
-      anniversary: annYmd ? toIsoOrNull(annYmd) : null,
-
+      birthDay:      toIsoOrNull(birthYmd),
+      anniversary:   annYmd ? toIsoOrNull(annYmd) : null,
       referal:         String(formData.referal         || ""),
       refBy:           String(formData.refBy           || ""),
       primaryEmployee: String(formData.primaryEmployee || ""),
@@ -175,13 +394,9 @@ const GeneralTab = ({ customer }) => {
       address2:        String(formData.address2        || ""),
       city:            String(formData.city            || ""),
       zipCode:         String(formData.zipCode         || ""),
-
-      // Use integer codes, not display names
       nationalityCode: Number(formData.nationalityCode || 0),
       countryCode:     Number(formData.countryCode     || 0),
       stateCode:       Number(formData.stateCode       || 0),
-
-      // Name fields kept for display/reference but codes drive the DB
       nationalityName: String(formData.nationalityName || ""),
       countryName:     String(formData.countryName     || ""),
       stateName:       String(formData.stateName       || ""),
@@ -192,15 +407,11 @@ const GeneralTab = ({ customer }) => {
       language:        Number(formData.language        || 0),
       userName:        String(formData.userName        || ""),
       tags:            String(formData.tags            || ""),
-
-      // Communication preferences (previously missing from UI)
-      transactionalSMSEnable:                Number(formData.transactionalSMSEnable                || 0),
-      transactionalEmailEnable:              Number(formData.transactionalEmailEnable              || 0),
-      marketingSMSEnable:                    Number(formData.marketingSMSEnable                    || 0),
-      marketingEmailEnable:                  Number(formData.marketingEmailEnable                  || 0),
-      marketingLoyalPointSMSandEmailEnable:  Number(formData.marketingLoyalPointSMSandEmailEnable  || 0),
-
-      // Block flags (previously missing from UI)
+      transactionalSMSEnable:               Number(formData.transactionalSMSEnable               || 0),
+      transactionalEmailEnable:             Number(formData.transactionalEmailEnable             || 0),
+      marketingSMSEnable:                   Number(formData.marketingSMSEnable                   || 0),
+      marketingEmailEnable:                 Number(formData.marketingEmailEnable                 || 0),
+      marketingLoyalPointSMSandEmailEnable: Number(formData.marketingLoyalPointSMSandEmailEnable || 0),
       blockGuestFromEditCustomerData:           Number(formData.blockGuestFromEditCustomerData           || 0),
       blockGuestFromOnlineAppointmentBooking:   Number(formData.blockGuestFromOnlineAppointmentBooking   || 0),
     };
@@ -216,7 +427,7 @@ const GeneralTab = ({ customer }) => {
       if (!res.ok) throw new Error("Failed to save customer");
       const result = await res.json();
       console.log("SaveCustomer response:", result);
-      alert("Customer details saved successfully!");
+      alert("Customer saved successfully!");
     } catch (err) {
       console.error("Save error:", err);
       alert("Error saving customer details.");
@@ -225,337 +436,247 @@ const GeneralTab = ({ customer }) => {
     }
   };
 
-  const chk = (name) => Number(formData[name] || 0) === 1;
+ 
+
+  const inp = (name, extra = {}) => (
+    <input
+      className={`gt-input${formErrors[name] ? " gt-error" : ""}`}
+      name={name}
+      value={formData[name] || ""}
+      onChange={handleChange}
+      {...extra}
+    />
+  );
+
+  const sel = (name, options, extra = {}) => (
+    <select
+      className={`gt-select${formErrors[name] ? " gt-error" : ""}`}
+      name={name}
+      value={formData[name] || ""}
+      onChange={handleChange}
+      {...extra}
+    >
+      <option value="">Select</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
 
   return (
-    <form onSubmit={handleSubmit}>
+    <>
+      <style>{styles}</style>
+      <form className="gt-wrap" onSubmit={handleSubmit}>
 
-      {/* ── Personal Info ──────────────────────────────────────── */}
-      <div className="section">
-        <h3 className="sectttl">Personal Info</h3>
-        <div className="form-grid">
+        {/* ── Personal Info ─────────────────────────────────────── */}
+        <div className="gt-card">
+          <div className="gt-card-header">
+            <div className="gt-card-icon"><IconPerson /></div>
+            <span className="gt-card-title">Personal Info</span>
+          </div>
+          <div className="gt-card-body">
+            <div className="gt-grid">
 
-          <label>
-            Customer ID
-            <input name="customerId" value={formData.customerId || ""} onChange={handleChange} />
-          </label>
+              <F name="customerId" label="Customer ID">
+                {inp("customerId", { readOnly: true, style: { background: "#f7f8fc", color: "#6b7280" } })}
+              </F>
 
-          <label>
-            First Name*
-            <input name="firstName" value={formData.firstName || ""} onChange={handleChange} />
-            {formErrors.firstName && <span className="error">{formErrors.firstName}</span>}
-          </label>
+              <F name="firstName" label="First Name" required error={formErrors.firstName}>
+                {inp("firstName")}
+              </F>
 
-          <label>
-            Middle Name
-            <input name="middleName" value={formData.middleName || ""} onChange={handleChange} />
-          </label>
+              <F name="middleName" label="Middle Name">
+                {inp("middleName")}
+              </F>
 
-          <label>
-            Last Name*
-            <input name="lastName" value={formData.lastName || ""} onChange={handleChange} />
-            {formErrors.lastName && <span className="error">{formErrors.lastName}</span>}
-          </label>
+              <F name="lastName" label="Last Name" required error={formErrors.lastName}>
+                {inp("lastName")}
+              </F>
 
-          <label>
-            Preferred Name
-            <input name="preferredName" value={formData.preferredName || ""} onChange={handleChange} />
-          </label>
+              <F name="preferredName" label="Preferred Name">
+                {inp("preferredName")}
+              </F>
 
-          <label>
-            Email
-            <input type="email" name="email" value={formData.email || ""} onChange={handleChange} />
-          </label>
+              <F name="email" label="Email">
+                {inp("email", { type: "email" })}
+              </F>
 
-          {/* BUG FIX: Added phone code (PHONE_CODE) selector alongside mobile */}
-          <label>
-            Mobile Phone*
-            <div style={{ display: "flex", gap: "6px" }}>
-              <select
-                name="phoneCode"
-                value={formData.phoneCode || ""}
-                onChange={handleChange}
-                style={{ width: "140px", flexShrink: 0 }}
-              >
-                <option value="">Code</option>
-                {PHONE_CODES.map((p) => (
-                  <option key={p.code} value={p.code}>{p.label}</option>
-                ))}
-              </select>
-              <input
-                name="mobilePhone"
-                value={formData.mobilePhone || ""}
-                onChange={handleChange}
-                style={{ flex: 1 }}
-              />
+              <F name="mobilePhone" label="Mobile Phone" required error={formErrors.mobilePhone}>
+                <div className="gt-phone-row">
+                  <select
+                    className="gt-select gt-phone-code"
+                    name="phoneCode"
+                    value={formData.phoneCode || ""}
+                    onChange={handleChange}
+                  >
+                    <option value="">--</option>
+                    {PHONE_CODES.map((p) => (
+                      <option key={p.code} value={p.code}>{p.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    className={`gt-input gt-phone-number${formErrors.mobilePhone ? " gt-error" : ""}`}
+                    name="mobilePhone"
+                    value={formData.mobilePhone || ""}
+                    onChange={handleChange}
+                  />
+                </div>
+              </F>
+
+              <F name="homePhone" label="Home Phone">
+                {inp("homePhone")}
+              </F>
+
+              <F name="workPhone" label="Work Phone">
+                {inp("workPhone")}
+              </F>
+
+              <F name="gender" label="Gender" required error={formErrors.gender}>
+                {sel("gender", [
+                  { value: "Male",   label: "Male" },
+                  { value: "Female", label: "Female" },
+                  { value: "Other",  label: "Other" },
+                ])}
+              </F>
+
+              <F name="birthDay" label="Birthday" required error={formErrors.birthDay}>
+                <input
+                  className={`gt-input${formErrors.birthDay ? " gt-error" : ""}`}
+                  type="date"
+                  name="birthDay"
+                  value={formatDateForInput(formData.birthDay)}
+                  onChange={handleChange}
+                />
+              </F>
+
+              <F name="anniversary" label="Anniversary" error={formErrors.anniversary}>
+                <input
+                  className={`gt-input${formErrors.anniversary ? " gt-error" : ""}`}
+                  type="date"
+                  name="anniversary"
+                  value={formatDateForInput(formData.anniversary)}
+                  onChange={handleChange}
+                />
+              </F>
+
+              <F name="referal" label="Referral">
+                {inp("referal")}
+              </F>
+
+              <F name="refBy" label="Ref By">
+                {inp("refBy")}
+              </F>
+
+              <F name="primaryEmployee" label="Primary Employee">
+                {inp("primaryEmployee")}
+              </F>
+
+              <F name="language" label="Language">
+                {sel("language", LANGUAGES.map((l) => ({ value: l.id, label: l.name })))}
+              </F>
+
+              <F name="userName" label="Username">
+                {inp("userName")}
+              </F>
+
+              <F name="tags" label="Tags">
+                {inp("tags")}
+              </F>
+
             </div>
-            {formErrors.mobilePhone && <span className="error">{formErrors.mobilePhone}</span>}
-          </label>
-
-          <label>
-            Home Phone
-            <input name="homePhone" value={formData.homePhone || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Work Phone
-            <input name="workPhone" value={formData.workPhone || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Gender*
-            <select name="gender" value={formData.gender || ""} onChange={handleChange}>
-              <option value="">Select</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
-            </select>
-            {formErrors.gender && <span className="error">{formErrors.gender}</span>}
-          </label>
-
-          {/* BUG FIX: formatDateForInput now strips 1900-01-01 defaults */}
-          <label>
-            Birthday*
-            <input
-              type="date"
-              name="birthDay"
-              value={formatDateForInput(formData.birthDay)}
-              onChange={handleChange}
-            />
-            {formErrors.birthDay && <span className="error">{formErrors.birthDay}</span>}
-          </label>
-
-          <label>
-            Anniversary
-            <input
-              type="date"
-              name="anniversary"
-              value={formatDateForInput(formData.anniversary)}
-              onChange={handleChange}
-            />
-            {formErrors.anniversary && <span className="error">{formErrors.anniversary}</span>}
-          </label>
-
-          <label>
-            Referral
-            <input name="referal" value={formData.referal || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Ref By
-            <input name="refBy" value={formData.refBy || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Primary Employee
-            <input name="primaryEmployee" value={formData.primaryEmployee || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Language
-            <select name="language" value={formData.language || 0} onChange={handleChange}>
-              <option value={0}>Select</option>
-              {LANGUAGES.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Username
-            <input name="userName" value={formData.userName || ""} onChange={handleChange} />
-          </label>
-
-          <label>
-            Tags
-            <input name="tags" value={formData.tags || ""} onChange={handleChange} />
-          </label>
-
+          </div>
         </div>
-      </div>
 
-      {/* ── Address ────────────────────────────────────────────── */}
-      <div className="section">
-        <h3 className="sectttl">Address</h3>
-        <div className="form-grid">
+        {/* ── Address ───────────────────────────────────────────── */}
+        <div className="gt-card">
+          <div className="gt-card-header">
+            <div className="gt-card-icon"><IconLocation /></div>
+            <span className="gt-card-title">Address</span>
+          </div>
+          <div className="gt-card-body">
+            <div className="gt-grid">
 
-          <label>
-            Address 1
-            <input name="address1" value={formData.address1 || ""} onChange={handleChange} />
-          </label>
+              <F name="address1" label="Address 1" span2>
+                {inp("address1")}
+              </F>
 
-          <label>
-            Address 2
-            <input name="address2" value={formData.address2 || ""} onChange={handleChange} />
-          </label>
+              <F name="address2" label="Address 2" span2>
+                {inp("address2")}
+              </F>
 
-          <label>
-            City
-            <input name="city" value={formData.city || ""} onChange={handleChange} />
-          </label>
+              <F name="city" label="City">
+                {inp("city")}
+              </F>
 
-          {/* BUG FIX: Added ZIP_CODE field that exists in DB but was missing from UI */}
-          <label>
-            ZIP / Postal Code
-            <input name="zipCode" value={formData.zipCode || ""} onChange={handleChange} />
-          </label>
+              <F name="zipCode" label="ZIP / Postal Code">
+                {inp("zipCode")}
+              </F>
 
-          {/* BUG FIX: Nationality now binds to nationalityCode (int) not nationalityName (string).
-              Previously nationalityName was used as both the value and the key, which broke
-              the mapping to NATIONALITY_NUMBER in the DB. */}
-          <label>
-            Nationality*
-            <select
-              name="nationalityCode"
-              value={formData.nationalityCode || 0}
-              onChange={handleChange}
-            >
-              <option value={0}>Select</option>
-              {NATIONALITIES.map((n) => (
-                <option key={n.id} value={n.id}>{n.name}</option>
-              ))}
-            </select>
-            {formErrors.nationalityCode && <span className="error">{formErrors.nationalityCode}</span>}
-          </label>
+              <F name="nationalityCode" label="Nationality" required error={formErrors.nationalityCode}>
+                <select
+                  className={`gt-select${formErrors.nationalityCode ? " gt-error" : ""}`}
+                  name="nationalityCode"
+                  value={formData.nationalityCode || 0}
+                  onChange={handleChange}
+                >
+                  <option value={0}>Select</option>
+                  {NATIONALITIES.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </select>
+              </F>
 
-          <label>
-            Nationality ID
-            <input name="nationalityId" value={formData.nationalityId || ""} onChange={handleChange} />
-          </label>
+              <F name="nationalityId" label="Nationality ID">
+                {inp("nationalityId")}
+              </F>
 
-          {/* BUG FIX: Country now binds to countryCode (int) */}
-          <label>
-            Country
-            <select
-              name="countryCode"
-              value={formData.countryCode || 0}
-              onChange={handleChange}
-            >
-              <option value={0}>Select</option>
-              {COUNTRIES.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
+              <F name="countryCode" label="Country">
+                <select
+                  className="gt-select"
+                  name="countryCode"
+                  value={formData.countryCode || 0}
+                  onChange={handleChange}
+                >
+                  <option value={0}>Select</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </F>
 
-          {/* BUG FIX: State now binds to stateCode (int) and is filtered by countryCode */}
-          <label>
-            State
-            <select
-              name="stateCode"
-              value={formData.stateCode || 0}
-              onChange={handleChange}
-            >
-              <option value={0}>Select</option>
-              {filteredStates.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </label>
+              <F name="stateCode" label="State">
+                <select
+                  className="gt-select"
+                  name="stateCode"
+                  value={formData.stateCode || 0}
+                  onChange={handleChange}
+                >
+                  <option value={0}>Select</option>
+                  {filteredStates.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </F>
 
-          <label>
-            State (Other)
-            <input name="stateOther" value={formData.stateOther || ""} onChange={handleChange} />
-          </label>
+              <F name="stateOther" label="State (Other)">
+                {inp("stateOther")}
+              </F>
 
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* ── Communication Preferences (previously missing from UI) ── */}
-      <div className="section">
-        <h3 className="sectttl">Communication Preferences</h3>
-        <div className="form-grid-checkboxes">
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="transactionalSMSEnable"
-              checked={chk("transactionalSMSEnable")}
-              onChange={handleChange}
-            />
-            Transactional SMS
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="transactionalEmailEnable"
-              checked={chk("transactionalEmailEnable")}
-              onChange={handleChange}
-            />
-            Transactional Email
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="marketingSMSEnable"
-              checked={chk("marketingSMSEnable")}
-              onChange={handleChange}
-            />
-            Marketing SMS
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="marketingEmailEnable"
-              checked={chk("marketingEmailEnable")}
-              onChange={handleChange}
-            />
-            Marketing Email
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="marketingLoyalPointSMSandEmailEnable"
-              checked={chk("marketingLoyalPointSMSandEmailEnable")}
-              onChange={handleChange}
-            />
-            Loyalty Points SMS &amp; Email
-          </label>
-
+        {/* ── Actions ───────────────────────────────────────────── */}
+        <div className="gt-actions">
+          <button type="button" className="gt-btn gt-btn-secondary">Cancel</button>
+          <button type="submit" className="gt-btn gt-btn-primary" disabled={saving}>
+            {saving && <span className="gt-spinner" />}
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
         </div>
-      </div>
 
-      {/* ── Access Control (previously missing from UI) ────────── */}
-      <div className="section">
-        <h3 className="sectttl">Access Control</h3>
-        <div className="form-grid-checkboxes">
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="blockGuestFromEditCustomerData"
-              checked={chk("blockGuestFromEditCustomerData")}
-              onChange={handleChange}
-            />
-            Block Guest from Editing Personal Info
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="blockGuestFromOnlineAppointmentBooking"
-              checked={chk("blockGuestFromOnlineAppointmentBooking")}
-              onChange={handleChange}
-            />
-            Block Guest from Online Appointment Booking
-          </label>
-
-        </div>
-      </div>
-
-      {/* ── Actions ─────────────────────────────────────────────── */}
-      <div className="form-actions">
-        <button type="submit" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-        <button type="button">Cancel</button>
-      </div>
-
-    </form>
+      </form>
+    </>
   );
 };
 
