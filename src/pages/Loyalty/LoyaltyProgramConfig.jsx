@@ -27,7 +27,7 @@ const fetchCurrencies = async () => {
 };
 
 const fetchTiers = async (programId) => {
-  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/list/${programId}?activeOnly=true`, { headers: HEADERS });
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/list/${programId}?activeOnly=false`, { headers: HEADERS });
   if (!res.ok) throw new Error(`Failed to load tiers (${res.status})`);
   return safeJson(res, "GET tier/list");
 };
