@@ -100,7 +100,7 @@ export default function AuditCreate() {
   const years = useMemo(() => {
     const now = new Date().getFullYear();
     const out = [];
-    for (let y = now + 1; y >= now - 3; y--) out.push(String(y));
+    for (let y = now; y >= now - 3; y--) out.push(String(y));
     return out;
   }, []);
 
@@ -377,8 +377,7 @@ export default function AuditCreate() {
           {toast.message}
         </div>
       )}
-
-      <style jsx>{`
+<style jsx>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .page {
@@ -387,8 +386,10 @@ export default function AuditCreate() {
           font-family: 'Segoe UI', system-ui, sans-serif;
         }
 
+        .home-sect{padding:0}
+
         .page-header {
-          background: #0b1f3a;
+          background: #334b71;
           padding: 0 32px;
           border-bottom: 3px solid #1a3a6b;
         }
@@ -401,12 +402,12 @@ export default function AuditCreate() {
           justify-content: space-between;
         }
         .page-eyebrow {
-          display: block;
+          display: none;
           font-size: 11px;
           font-weight: 600;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          color: #6b8fc7;
+          color: #fff;
           margin-bottom: 4px;
         }
         .page-title {
@@ -414,6 +415,7 @@ export default function AuditCreate() {
           font-weight: 700;
           color: #fff;
           letter-spacing: -0.3px;
+          margin: 0 !important; 
         }
         .page-badge {
           display: flex;
@@ -468,7 +470,7 @@ export default function AuditCreate() {
         .step-number {
           width: 34px; height: 34px;
           border-radius: 50%;
-          background: #0b1f3a;
+          background: #334b71;
           color: #fff;
           font-size: 14px;
           font-weight: 700;
@@ -480,7 +482,7 @@ export default function AuditCreate() {
         .step-title {
           font-size: 15px;
           font-weight: 700;
-          color: #0b1f3a;
+          color: #334b71;
         }
         .step-desc {
           font-size: 12px;
@@ -551,7 +553,7 @@ export default function AuditCreate() {
         }
         .field-control select:focus,
         .field-control input[type="date"]:focus {
-          border-color: #0b1f3a;
+          border-color: #334b71;
           box-shadow: 0 0 0 3px rgba(11,31,58,0.08);
         }
         .field-control .input-readonly {
@@ -572,7 +574,7 @@ export default function AuditCreate() {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: #0b1f3a;
+          background: #334b71;
           color: #fff;
           border: none;
           border-radius: 8px;
