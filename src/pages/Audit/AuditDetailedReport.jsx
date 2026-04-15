@@ -31,14 +31,16 @@ const pickName = (o) => norm(o?.centerName ?? o?.clinicName ?? "");
 function getSessionClinic() {
   if (typeof window === "undefined") return { code: "", name: "" };
   const g = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
-  const code = pickCode(g); const name = pickName(g);
-  if (code || name) return { code, name };
-  for (const st of [window.localStorage, window.sessionStorage]) {
-    if (!st) continue;
-    for (const k of ["user","session","auth","currentUser","loggedInUser"]) {
-      const raw = st.getItem(k); if (!raw) continue;
+  const fromGlobal = pickCode(g);
+  if (fromGlobal) return { code: fromGlobal, name: pickName(g) };
+  const priorityKeys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    if (!storage) continue;
+    for (const k of priorityKeys) {
+      const raw = storage.getItem(k);
+      if (!raw) continue;
       const p = tryJSON(raw);
-      if (p && typeof p === "object") { const c = pickCode(p); const n = pickName(p); if (c || n) return { code: c, name: n }; }
+      if (p && typeof p === "object") { const c = pickCode(p); const n = pickName(p); if (c) return { code: c, name: n }; }
     }
   }
   return { code: "", name: "" };
@@ -168,6 +170,7 @@ export default function AuditDetailedReport() {
   const [auditMonths, setAuditMonths] = useState([]);
   const [auditYears, setAuditYears] = useState([]);
 
+  const [clinicDisplayName, setClinicDisplayName] = useState(sessionClinic.name || sessionClinic.code || "");
   const [segments, setSegments] = useState([]);
   const [auditors, setAuditors] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -185,17 +188,24 @@ export default function AuditDetailedReport() {
   const pageRows = useMemo(() => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE), [rows, page]);
 
   const clinicCode = sessionClinic.code;
-  const clinicLabel = sessionClinic.name || sessionClinic.code || "—";
+  const clinicLabel = clinicDisplayName || sessionClinic.code || "—";
 
   useEffect(() => {
     (async () => {
       try {
-        const [segR, audR] = await Promise.all([
+        const [segR, audR, clinR] = await Promise.all([
           fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { credentials: "include" }).then(r => r.json()).catch(() => []),
           fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { credentials: "include" }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" }).then(r => r.json()).catch(() => []),
         ]);
         setSegments((Array.isArray(segR) ? segR : []).map(x => ({ value: norm(x.code)||norm(x.name), label: norm(x.name)||norm(x.code) })));
         setAuditors((Array.isArray(audR) ? audR : []).map(x => ({ value: x.code ?? x.employeeCode ?? "", label: x.name ?? x.employeeName ?? "" })).filter(a => a.value));
+        const clinList = Array.isArray(clinR) ? clinR : [];
+        const code = sessionClinic.code;
+        if (code) {
+          const match = clinList.find(c => norm(c.code).toLowerCase() === norm(code).toLowerCase());
+          if (match) setClinicDisplayName(match.name ?? match.centerName ?? code);
+        }
       } catch { showToast("Failed to load filter options"); }
     })();
   }, []);

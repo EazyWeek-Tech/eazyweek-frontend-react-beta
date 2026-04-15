@@ -31,7 +31,7 @@ function getSessionUserId() {
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const fromGlobal = pickUserId(globalObj);
   if (fromGlobal) return fromGlobal;
-  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  const keys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
     for (const k of keys) {
@@ -50,7 +50,7 @@ function getSessionClinic() {
   const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   const picked = pickClinic(globalObj);
   if (picked.code || picked.name) return picked;
-  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  const keys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
     for (const k of keys) {

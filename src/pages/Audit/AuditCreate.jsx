@@ -40,7 +40,7 @@ function getSessionObj() {
   if (typeof window === "undefined") return {};
   const globals = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
   if (globals && typeof globals === "object" && Object.keys(globals).length) return globals;
-  const keys = ["user", "session", "auth", "currentUser", "loggedInUser"];
+  const keys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     if (!storage) continue;
     for (const k of keys) {
@@ -100,7 +100,7 @@ export default function AuditCreate() {
   const years = useMemo(() => {
     const now = new Date().getFullYear();
     const out = [];
-    for (let y = now + 1; y >= now - 3; y--) out.push(String(y));
+    for (let y = now; y >= now - 3; y--) out.push(String(y));
     return out;
   }, []);
 
