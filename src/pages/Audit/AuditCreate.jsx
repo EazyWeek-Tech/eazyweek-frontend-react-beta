@@ -244,7 +244,7 @@ export default function AuditCreate() {
     }
     const auditMonthStr = MONTHS[(month - 1 + 12) % 12];
     setCheckingDup(true);
-    const dupResp = await duplicateCheck({ employeeCode: isDigitalSeg ? doctorCode : employeeCode, auditSegment: segmentCode || segmentName, auditDate: toMidnightUtc(auditDateISO), auditMonth: auditMonthStr });
+    const dupResp = await duplicateCheck({ employeeCode: isDigitalSeg ? doctorCode : employeeCode, auditSegment: segmentCode || segmentName, auditDate: toMidnightUtc(auditDateISO), auditMonth: auditMonthStr, auditYear: String(year || "") });
     setCheckingDup(false);
     if (!dupResp) return;
     if (dupResp.success !== true) return showToast(dupResp.message || "Audit already exists for the selected date/person");
@@ -377,8 +377,7 @@ export default function AuditCreate() {
           {toast.message}
         </div>
       )}
-
-      <style jsx>{`
+<style jsx>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .page {
