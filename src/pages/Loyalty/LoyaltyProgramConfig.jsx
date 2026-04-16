@@ -135,8 +135,9 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
       if (tier && t.tierId === tier.tierId) continue;
       const eFrom = Number(t.fromAmount);
       const eTo = Number(t.toAmount);
+      // Use <= so shared boundaries are also blocked (e.g. 100 can't start a new tier if existing ends at 100)
       if (newFrom < eTo && newTo > eFrom) {
-        return `Range ${newFrom}–${newTo} overlaps with existing tier "${t.tierName}" (${eFrom}–${eTo})`;
+        return `Range ${newFrom}–${newTo} overlaps with existing tier "${t.tierName}" (${eFrom}–${eTo}). Next tier should start from ${eTo + 1}`;
       }
     }
     return null;
@@ -159,6 +160,14 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
 
     if (form.fromAmount === "" || isNaN(Number(form.fromAmount))) e.fromAmount = "Required";
     else if (Number(form.fromAmount) < 0) e.fromAmount = "Must be ≥ 0";
+    else {
+      // Check if fromAmount equals an existing tier's toAmount — boundary overlap
+      const fromNum = Number(form.fromAmount);
+      const boundaryConflict = (existingTiers ?? []).some(
+        t => !(tier && t.tierId === tier.tierId) && Number(t.toAmount) === fromNum
+      );
+      if (boundaryConflict) e.fromAmount = `${fromNum} is the end of an existing tier. Use ${fromNum + 1} as the start.`;
+    }
     if (form.toAmount === "" || isNaN(Number(form.toAmount))) e.toAmount = "Required";
     else if (Number(form.toAmount) <= Number(form.fromAmount)) e.toAmount = "Must be greater than From Amount";
     if (!form.currencyId) e.currencyId = "Required";
