@@ -108,7 +108,9 @@ const Toast = ({ msg, type, onClose }) => {
 // ── Tier form modal ───────────────────────────────────────────────────────────
 const EMPTY_TIER = { tierId: 0, tierName: "", tierLevel: "", fromAmount: "", toAmount: "", currencyId: "", expiryDays: "" };
 
-const TierModal = ({ programId, tier, currencies, onClose, onSaved }) => {
+const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTiers, onClose, onSaved }) => {
+  const defaultCurrencyId = tier ? String(tier.currencyId) : String(programCurrencyId ?? "");
+
   const [form, setForm] = useState(tier ? {
     tierId: tier.tierId,
     tierName: tier.tierName,
@@ -117,23 +119,60 @@ const TierModal = ({ programId, tier, currencies, onClose, onSaved }) => {
     toAmount: String(tier.toAmount),
     currencyId: String(tier.currencyId),
     expiryDays: String(tier.expiryDays),
-  } : { ...EMPTY_TIER });
+  } : { ...EMPTY_TIER, currencyId: defaultCurrencyId });
+
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const checkOverlap = (from, to) => {
+    const newFrom = Number(from);
+    const newTo = Number(to);
+    if (isNaN(newFrom) || isNaN(newTo)) return null;
+    for (const t of (existingTiers ?? [])) {
+      if (tier && t.tierId === tier.tierId) continue;
+      const eFrom = Number(t.fromAmount);
+      const eTo = Number(t.toAmount);
+      if (newFrom < eTo && newTo > eFrom) {
+        return `Range ${newFrom}–${newTo} overlaps with existing tier "${t.tierName}" (${eFrom}–${eTo})`;
+      }
+    }
+    return null;
+  };
+
   const errs = useMemo(() => {
     const e = {};
     if (!form.tierName.trim()) e.tierName = "Required";
-    if (!form.tierLevel || isNaN(Number(form.tierLevel))) e.tierLevel = "Required";
+
+    // Tier Level: required + no duplicates
+    if (!form.tierLevel || isNaN(Number(form.tierLevel))) {
+      e.tierLevel = "Required";
+    } else {
+      const levelNum = Number(form.tierLevel);
+      const duplicate = (existingTiers ?? []).some(
+        t => Number(t.tierLevel) === levelNum && !(tier && t.tierId === tier.tierId)
+      );
+      if (duplicate) e.tierLevel = `Tier Level ${levelNum} already exists`;
+    }
+
     if (form.fromAmount === "" || isNaN(Number(form.fromAmount))) e.fromAmount = "Required";
+    else if (Number(form.fromAmount) < 0) e.fromAmount = "Must be ≥ 0";
     if (form.toAmount === "" || isNaN(Number(form.toAmount))) e.toAmount = "Required";
+    else if (Number(form.toAmount) <= Number(form.fromAmount)) e.toAmount = "Must be greater than From Amount";
     if (!form.currencyId) e.currencyId = "Required";
     if (!form.expiryDays || isNaN(Number(form.expiryDays))) e.expiryDays = "Required";
+    else if (Number(form.expiryDays) <= 0) e.expiryDays = "Must be > 0";
+    // Overlap check
+    if (!e.fromAmount && !e.toAmount) {
+      const overlap = checkOverlap(form.fromAmount, form.toAmount);
+      if (overlap) e.fromAmount = overlap;
+    }
     return e;
-  }, [form]);
+  }, [form, existingTiers, tier]);
+
+  const selectedCurrency = currencies.find(c => String(c.currencyId) === String(form.currencyId));
 
   const onSubmit = async () => {
     setSubmitted(true);
@@ -164,7 +203,6 @@ const TierModal = ({ programId, tier, currencies, onClose, onSaved }) => {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
-        {/* Modal header */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5ebf3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 16, color: C.primary }}>{tier ? "Edit Tier" : "Add Tier"}</div>
@@ -173,44 +211,44 @@ const TierModal = ({ programId, tier, currencies, onClose, onSaved }) => {
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e5ebf3", background: "#f4f7fb", cursor: "pointer", fontSize: 16, color: C.axis, display: "grid", placeItems: "center" }}>×</button>
         </div>
 
-        {/* Modal body */}
         <div style={{ padding: 20 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="Tier Name *" error={showErr("tierName")}>
-              <input style={inputStyle(submitted && errs.tierName)} value={form.tierName} onChange={set("tierName")} placeholder="e.g. Silver" />
+              <input style={inputStyle(submitted && errs.tierName)} value={form.tierName} onChange={set("tierName")} placeholder="Tier name" />
             </Field>
             <Field label="Tier Level *" error={showErr("tierLevel")}>
-              <input style={inputStyle(submitted && errs.tierLevel)} value={form.tierLevel} onChange={set("tierLevel")} placeholder="1" inputMode="numeric" />
+              <input style={inputStyle(submitted && errs.tierLevel)} value={form.tierLevel} onChange={set("tierLevel")} placeholder="Level number" inputMode="numeric" />
             </Field>
             <Field label="From Amount *" error={showErr("fromAmount")}>
-              <input style={inputStyle(submitted && errs.fromAmount)} value={form.fromAmount} onChange={set("fromAmount")} placeholder="0" inputMode="decimal" />
+              <input style={inputStyle(submitted && errs.fromAmount)} value={form.fromAmount} onChange={set("fromAmount")} placeholder="Minimum amount" inputMode="decimal" />
             </Field>
             <Field label="To Amount *" error={showErr("toAmount")}>
-              <input style={inputStyle(submitted && errs.toAmount)} value={form.toAmount} onChange={set("toAmount")} placeholder="1000" inputMode="decimal" />
+              <input style={inputStyle(submitted && errs.toAmount)} value={form.toAmount} onChange={set("toAmount")} placeholder="Maximum amount" inputMode="decimal" />
             </Field>
             <Field label="Expiry Days *" error={showErr("expiryDays")}>
-              <input style={inputStyle(submitted && errs.expiryDays)} value={form.expiryDays} onChange={set("expiryDays")} placeholder="365" inputMode="numeric" />
+              <input style={inputStyle(submitted && errs.expiryDays)} value={form.expiryDays} onChange={set("expiryDays")} placeholder="Days until expiry" inputMode="numeric" />
             </Field>
-            <Field label="Currency *" error={showErr("currencyId")}>
-              <div style={{ position: "relative" }}>
-                <select
-                  style={{ ...inputStyle(submitted && errs.currencyId), appearance: "none", paddingRight: 32 }}
-                  value={form.currencyId}
-                  onChange={set("currencyId")}
-                >
-                  <option value="">Select…</option>
-                  {currencies.map(c => (
-                    <option key={c.currencyId} value={c.currencyId}>{c.currencyShortName} ({c.symbol})</option>
-                  ))}
-                </select>
-                <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: C.axis, pointerEvents: "none", fontSize: 11 }}>▾</span>
+            <Field label="Currency" error={showErr("currencyId")}>
+              <div style={{
+                height: 40, borderRadius: 10, padding: "0 12px",
+                border: "1px solid #e5ebf3", background: "#f4f7fb",
+                display: "flex", alignItems: "center", gap: 8,
+                color: C.primary, fontWeight: 600, fontSize: 14,
+              }}>
+                <span style={{ fontSize: 13, color: C.axis }}>
+                  {selectedCurrency
+                    ? `${selectedCurrency.currencyShortName} (${selectedCurrency.symbol})`
+                    : "—"}
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: C.axis, background: "#e5ebf3", padding: "2px 8px", borderRadius: 6 }}>
+                  from program
+                </span>
               </div>
             </Field>
           </div>
           {err && <div style={{ marginTop: 8, padding: "8px 12px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}>⚠ {err}</div>}
         </div>
 
-        {/* Modal footer */}
         <div style={{ padding: "12px 20px", borderTop: "1px solid #e5ebf3", display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button onClick={onClose} style={{ height: 38, padding: "0 20px", borderRadius: 10, border: "1.5px solid #d0d9e8", background: "#fff", color: C.axis, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Cancel</button>
           <button onClick={onSubmit} disabled={saving} style={{ height: 38, padding: "0 24px", borderRadius: 10, border: "none", background: C.primary, color: "#fff", fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", fontSize: 13, opacity: saving ? 0.7 : 1 }}>
@@ -223,11 +261,11 @@ const TierModal = ({ programId, tier, currencies, onClose, onSaved }) => {
 };
 
 // ── Tiers section ─────────────────────────────────────────────────────────────
-const TiersSection = ({ programId, currencies }) => {
+const TiersSection = ({ programId, currencies, programCurrencyId }) => {
   const [tiers, setTiers] = useState([]);
   const [tiersLoading, setTiersLoading] = useState(true);
   const [tiersError, setTiersError] = useState(null);
-  const [modalTier, setModalTier] = useState(undefined); // undefined=closed, null=new, obj=edit
+  const [modalTier, setModalTier] = useState(undefined);
 
   const loadTiers = useCallback(() => {
     setTiersLoading(true);
@@ -276,7 +314,6 @@ const TiersSection = ({ programId, currencies }) => {
 
       {!tiersLoading && tiers.length > 0 && (
         <div style={{ marginTop: 4, borderRadius: 10, overflow: "hidden", border: "1px solid #e5ebf3" }}>
-          {/* Tier table head */}
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.7fr 1fr 1fr 0.8fr 1fr 0.6fr", padding: "9px 14px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 11, fontWeight: 700, color: C.axis, textTransform: "uppercase", letterSpacing: "0.05em" }}>
             <span>Name</span><span>Level</span><span>From</span><span>To</span><span>Expiry</span><span>Currency</span><span></span>
           </div>
@@ -304,6 +341,8 @@ const TiersSection = ({ programId, currencies }) => {
           programId={programId}
           tier={modalTier}
           currencies={currencies}
+          programCurrencyId={programCurrencyId}
+          existingTiers={tiers}
           onClose={() => setModalTier(undefined)}
           onSaved={() => { setModalTier(undefined); loadTiers(); }}
         />
@@ -323,7 +362,6 @@ export default function LoyaltyProgramConfig() {
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Form state
   const [programCode, setProgramCode] = useState(existingProgram?.programCode ?? "");
   const [programName, setProgramName] = useState(existingProgram?.programName ?? "");
   const [enrollmentType, setEnrollmentType] = useState(existingProgram?.enrollmentType ?? "ONREQUEST");
@@ -335,25 +373,28 @@ export default function LoyaltyProgramConfig() {
   );
 
   const [saving, setSaving] = useState(false);
-  const [submitted, setSubmitted] = useState(false); // only show errors after submit attempt
+  const [submitted, setSubmitted] = useState(false);
   const [toast, setToast] = useState({ msg: "", type: "success" });
 
   useEffect(() => {
     fetchCurrencies()
       .then((currs) => {
         setCurrencies(currs ?? []);
-        if (!existingProgram && currs?.length) setCurrencyId(String(currs[0].currencyId));
+        if (!existingProgram && currs?.length) {
+          const sar = currs.find(c => c.currencyShortName === "SAR" || c.currencyCode === "SAR");
+          setCurrencyId(String(sar?.currencyId ?? currs[0].currencyId));
+        }
       })
       .catch((err) => setLoadError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
   const selectedCurrency = currencies.find((c) => String(c.currencyId) === String(currencyId));
-  const currencyLabel = selectedCurrency ? `${selectedCurrency.currencyShortName} (${selectedCurrency.symbol})` : "—";
+  const sym = selectedCurrency?.symbol && selectedCurrency.symbol !== "?" ? ` (${selectedCurrency.symbol})` : "";
+  const currencyLabel = selectedCurrency ? `${selectedCurrency.currencyShortName}${sym}` : "—";
 
   const errors = useMemo(() => {
     const e = {};
-    if (!programCode.trim()) e.programCode = "Program code is required";
     if (!programName.trim()) e.programName = "Program name is required";
     if (!currencyId) e.currencyId = "Currency is required";
     if (!startDate) e.startDate = "Start date is required";
@@ -369,12 +410,12 @@ export default function LoyaltyProgramConfig() {
     setSaving(true);
     const payload = {
       programId: existingProgram?.programId ?? 0,
-      programCode: programCode.trim().toUpperCase(),
+      programCode: isUpdateMode ? programCode : "PENDING",
       programName: programName.trim(),
       enrollmentType,
       status,
       startDate: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-      endDate: endDate ? new Date(endDate).toISOString() : new Date().toISOString(),
+      endDate: endDate ? new Date(endDate).toISOString() : new Date("2060-12-31T23:59:59.000Z").toISOString(),
       currencyId: Number(currencyId),
     };
     try {
@@ -383,14 +424,14 @@ export default function LoyaltyProgramConfig() {
         setToast({ msg: "Program updated successfully!", type: "success" });
         setTimeout(() => navigate("/loyalty"), 1500);
       } else {
-        // After create: stay on page, switch to update mode so tiers become available
-        // Try to get programId from API response, else fetch the newly created program
         let newProgramId = result?.programId ?? result?.data?.programId ?? 0;
         if (!newProgramId) {
           const created = await fetchProgramByCode(payload.programCode);
           newProgramId = created?.programId ?? 0;
         }
-        setExistingProgram({ ...payload, programId: newProgramId, isActive: payload.status === "ACTIVE" });
+        const autoCode = `LYTY-${newProgramId}`;
+        setProgramCode(autoCode);
+        setExistingProgram({ ...payload, programId: newProgramId, programCode: autoCode, isActive: payload.status === "ACTIVE" });
         setToast({ msg: "Program created! You can now add tiers below.", type: "success" });
       }
     } catch (err) {
@@ -428,7 +469,7 @@ export default function LoyaltyProgramConfig() {
           <p className="lyl-sub">
             {isUpdateMode
               ? `Editing: ${existingProgram.programName} · ${existingProgram.programCode}`
-              : "Set up your loyalty program details, enrollment rules and currency"}
+              : "Fill in the details below to set up your loyalty program"}
           </p>
         </div>
         <button className="lyl-back" onClick={() => navigate("/loyalty")}>← Back to Loyalty</button>
@@ -440,11 +481,18 @@ export default function LoyaltyProgramConfig() {
         <p className="lyl-muted">Basic information about your loyalty program</p>
         <div className="lyl-grid2">
           <Field label="Program Name *" error={showErr("programName")}>
-            <input style={inputStyle(submitted && errors.programName)} value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="e.g. Rai Loyalty Program" />
+            <input style={inputStyle(submitted && errors.programName)} value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Program name" />
           </Field>
-          <Field label="Program Code *" error={showErr("programCode")}>
-            <input style={{ ...inputStyle(submitted && errors.programCode), textTransform: "uppercase" }} value={programCode} onChange={(e) => setProgramCode(e.target.value.replace(/\s/g, "_").toUpperCase())} placeholder="e.g. RAI_LOYALTY" />
-          </Field>
+          {isUpdateMode && (
+            <Field label="Program Code">
+              <input
+                style={{ ...inputStyle(false), background: "#f4f7fb", color: "#6e7b8f", cursor: "not-allowed" }}
+                value={programCode}
+                readOnly
+                title="Auto-generated — cannot be changed"
+              />
+            </Field>
+          )}
         </div>
         <div className="lyl-grid2">
           <Field label="Start Date *" error={showErr("startDate")}>
@@ -483,10 +531,16 @@ export default function LoyaltyProgramConfig() {
         <div className="lyl-grid2">
           <Field label="Currency *" error={showErr("currencyId")}>
             <div className="lyl-select-wrap">
-              <select style={{ ...inputStyle(submitted && errors.currencyId), appearance: "none", paddingRight: 36 }} value={currencyId} onChange={(e) => setCurrencyId(e.target.value)}>
+              <select
+                style={{ ...inputStyle(submitted && errors.currencyId), appearance: "none", paddingRight: 36, ...(isUpdateMode ? { background: "#f4f7fb", color: "#6e7b8f", cursor: "not-allowed" } : {}) }}
+                value={currencyId}
+                onChange={(e) => { if (!isUpdateMode) setCurrencyId(e.target.value); }}
+                disabled={isUpdateMode}>
                 <option value="">Select currency…</option>
                 {currencies.map((c) => (
-                  <option key={c.currencyId} value={c.currencyId}>{c.currencyShortName} – {c.currencyFullName} ({c.symbol})</option>
+                  <option key={c.currencyId} value={c.currencyId}>
+                    {c.currencyShortName} – {c.currencyFullName}{c.symbol && c.symbol !== "?" ? ` (${c.symbol})` : ""}
+                  </option>
                 ))}
               </select>
               <span className="lyl-chevron">▾</span>
@@ -504,9 +558,9 @@ export default function LoyaltyProgramConfig() {
         </div>
       </section>
 
-      {/* Tiers — only in update mode (need programId) */}
+      {/* Tiers — only in update mode */}
       {isUpdateMode && (
-        <TiersSection programId={existingProgram.programId} currencies={currencies} />
+        <TiersSection programId={existingProgram.programId} currencies={currencies} programCurrencyId={currencyId} />
       )}
 
       {/* Summary banner */}
@@ -534,7 +588,7 @@ export default function LoyaltyProgramConfig() {
 
       <style>{`
         .lyl-wrap {
-          --lp: ${C.primary}; --lt: ${C.teal}; --lg: ${C.grid}; --la: ${C.axis};
+          --lp: #334b71; --lt: #A7D1CD; --lg: #eef2f7; --la: #6e7b8f;
           background: var(--lg); padding: 24px; display: grid;
           max-width: 900px; margin: 24px auto; gap: 18px; color: var(--lp);
           font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -556,7 +610,7 @@ export default function LoyaltyProgramConfig() {
         .lyl-status-toggle { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid #d8dee8; }
         .lyl-status-btn { flex: 1; height: 40px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; background: #f8fafc; color: var(--la); transition: background .15s, color .15s; font-family: inherit; }
         .lyl-status-btn.selected.active { background: #e6f4ef; color: #2e7d5e; }
-        .lyl-status-btn.selected.inactive { background: #fdf3f3; color: ${C.coral}; }
+        .lyl-status-btn.selected.inactive { background: #fdf3f3; color: #cc6b5c; }
         .lyl-status-btn:first-child { border-right: 1px solid #d8dee8; }
         .lyl-radio-cards { display: grid; gap: 10px; }
         .lyl-radio-card { border: 1px solid #e5ebf3; border-radius: 12px; padding: 12px 14px; background: #fff; cursor: pointer; transition: box-shadow .2s, border-color .2s; }
@@ -578,6 +632,7 @@ export default function LoyaltyProgramConfig() {
         .lyl-save:hover:not(.disabled) { filter: brightness(0.92); box-shadow: 0 8px 18px rgba(51,75,113,.3); }
         .lyl-save:active:not(.disabled) { transform: translateY(1px); }
         .lyl-save.disabled { opacity: 0.55; cursor: not-allowed; }
+        input::placeholder { font-weight: normal; font-size: 11px; opacity: 0.4; color: #666; }
         @keyframes lyl-spin { to { transform: rotate(360deg); } }
         @media (max-width: 640px) { .lyl-header { grid-template-columns: 48px 1fr; } .lyl-back { grid-column: 1 / -1; width: 100%; } }
       `}</style>
