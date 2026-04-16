@@ -379,6 +379,8 @@ export default function OpportunityDetailedReport() {
   const disabledRuleValues = useMemo(()=>{ if(!isManualSelected)return[]; return oppRuleOptions.map((x)=>x.value).filter((v)=>v!==MANUAL_RULE_VALUE); },[isManualSelected]); // eslint-disable-line
 
   const [clinics,        setClinics]        = useState([]);
+  const [datesTouched, setDatesTouched] = useState(false);
+
   const [oppNameOptions, setOppNameOptions] = useState([]);
   const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(false);
@@ -436,11 +438,11 @@ export default function OpportunityDetailedReport() {
 
   //  NEW: Disposition summary computed from loaded rows
   const dispositionSummary = useMemo(()=>{
-    if(!rows.length) return [];
+    if(!filteredPageRows.length) return [];
     const counts = {};
     filteredPageRows.forEach((r)=>{ const key=norm(r.disposition)||norm(r.oppStatus)||"Unknown"; counts[key]=(counts[key]||0)+1; });
     return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  },[rows]);
+  },[filteredPageRows]); 
 
   //  NEW: Selected sales owner label for display
   const selectedSalesOwnerLabel = useMemo(()=>{
@@ -658,6 +660,7 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
 
   /* ---- loadDetailed ---- */
   const loadDetailed = useCallback(async(pageOverride)=>{
+    setDatesTouched(true);
     const curFromDate=fromDateRef.current,curToDate=toDateRef.current;
     const curIsManual=isManualSelectedRef.current,curOppRuleCodes=oppRuleCodesRef.current;
     const curCampaignStatus=campaignStatusRef.current,curClinicCode=clinicCodeRef.current;
@@ -719,6 +722,7 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
 
   /* ---- exportExcel ---- */
   async function exportExcel(){
+    setDatesTouched(true);
     if(!nonManualTotalCount&&!rows.length)return;
     let exportRows=rows;
     if(isManualSelected){
@@ -784,16 +788,26 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
       <div className="filters">
         <div className="grid">
           {/* From Date */}
-          <div className="frow">
-            <label>Created From Date <span className="req">*</span></label>
-            <input type="date" value={fromDate} onChange={(e)=>setFromDate(toISODateOnly(e.target.value))} className={!fromDate?"input-error":""}/>
-          </div>
+<div className="frow">
+  <label>Created From Date <span className="req">*</span></label>
+  <input
+    type="date"
+    value={fromDate}
+    onChange={(e)=>setFromDate(toISODateOnly(e.target.value))}
+    className={datesTouched && !fromDate ? "input-error" : ""}  // ✅ guard with datesTouched
+  />
+</div>
 
-          {/* To Date */}
-          <div className="frow">
-            <label>Created To Date <span className="req">*</span></label>
-            <input type="date" value={toDate} onChange={(e)=>setToDate(toISODateOnly(e.target.value))} className={!toDate?"input-error":""}/>
-          </div>
+{/* To Date */}
+<div className="frow">
+  <label>Created To Date <span className="req">*</span></label>
+  <input
+    type="date"
+    value={toDate}
+    onChange={(e)=>setToDate(toISODateOnly(e.target.value))}
+    className={datesTouched && !toDate ? "input-error" : ""}  // ✅ guard with datesTouched
+  />
+</div>
 
           {/* Campaign Status */}
           <div className="frow">
