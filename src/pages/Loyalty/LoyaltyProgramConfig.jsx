@@ -435,11 +435,27 @@ export default function LoyaltyProgramConfig() {
       } else {
         let newProgramId = result?.programId ?? result?.data?.programId ?? 0;
         if (!newProgramId) {
-          const created = await fetchProgramByCode(payload.programCode);
-          newProgramId = created?.programId ?? 0;
+          // Backend stores empty code — find by fetching list and matching programName + most recent
+          const listRes = await fetch(`${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=50`, { headers: HEADERS });
+          if (listRes.ok) {
+            const listJson = await listRes.json();
+            const matched = (listJson.data ?? [])
+              .filter(p => p.programName === payload.programName)
+              .sort((a, b) => b.programId - a.programId)[0]; // most recently created
+            newProgramId = matched?.programId ?? 0;
+          }
         }
-        const autoCode = `LYTY-${newProgramId}`;
+        const autoCode = newProgramId ? `LYTY-${newProgramId}` : "";
         setProgramCode(autoCode);
+
+        // Also update the program code on the backend now that we have the programId
+        if (newProgramId && autoCode) {
+          fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
+            method: "POST", headers: HEADERS,
+            body: JSON.stringify({ ...payload, programId: newProgramId, programCode: autoCode }),
+          }).catch(() => {}); // fire-and-forget — non-critical
+        }
+
         setExistingProgram({ ...payload, programId: newProgramId, programCode: autoCode, isActive: payload.status === "ACTIVE" });
         setToast({ msg: "Program created! You can now add tiers below.", type: "success" });
       }
@@ -496,7 +512,7 @@ export default function LoyaltyProgramConfig() {
             <Field label="Program Code">
               <input
                 style={{ ...inputStyle(false), background: "#f4f7fb", color: "#6e7b8f", cursor: "not-allowed" }}
-                value={programCode}
+                value={programCode || existingProgram?.programCode || "—"}
                 readOnly
                 title="Auto-generated — cannot be changed"
               />
