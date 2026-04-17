@@ -386,11 +386,11 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const [dispositionOptions, setDispositionOptions] = useState([]);
   const [optionsLoading,     setOptionsLoading]     = useState(false);
 
-  // ── All rows fetched from server (accumulated across all pages) ───────
+  // ── Rows for current page + server total ────────────────────────────────
   const [loading,     setLoading]     = useState(false);
   const [err,         setErr]         = useState("");
-  const [allRows,     setAllRows]     = useState([]);
-  const [serverTotal, setServerTotal] = useState(0);
+  const [allRows,     setAllRows]     = useState([]);   // current page rows from server
+  const [serverTotal, setServerTotal] = useState(0);   // total records on server
 
   // ── Server-side filters ───────────────────────────────────────────────
   const [statusFilter,      setStatusFilter]      = useState(_saved.statusFilter      ?? "");
@@ -544,9 +544,9 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     return () => { alive = false; };
   }, [uiOppCode, isR7]);
 
-  // ── Load ALL leads from server, then filter client-side ───────────────
-  // Fetches all pages in parallel so follow-up date/time filters work
-  // across the full result set — not just the current page.
+  // ── Load ONE page from server ─────────────────────────────────────────
+  // Server handles: status / owner / disposition / search / created-date.
+  // Follow-up date & time are filtered client-side on the returned page rows.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -558,49 +558,20 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
 
       setLoading(true);
       setErr("");
-      setAllRows([]);
-      setServerTotal(0);
 
       try {
         const apiFrom = isStaticSegment ? (fromDate || "2000-01-01") : (fromDate || getTodayInputDate());
         const apiTo   = isStaticSegment ? (toDate   || "2900-01-01") : (toDate   || getTodayInputDate());
 
-        // Page 1 — gives us totalCount so we know how many more pages to fetch
-        const first = await fetchOppDetails({
+        const { rows: list, totalCount: count } = await fetchOppDetails({
           oppCode: uiOppCode, fromISO: apiFrom, toISO: apiTo,
-          page: 1, pageSize: PAGE_SIZE,
+          page, pageSize: PAGE_SIZE,
           searchTerm, statusFilter, ownerFilter, dispFilter: dispositionFilter,
         });
 
         if (!alive) return;
-
-        const total    = first.totalCount;
-        const totalPgs = Math.ceil(total / PAGE_SIZE);
-        let accumulated = (first.rows || []).map(mapExternalRow);
-
-        // Fetch remaining pages in parallel
-        if (totalPgs > 1) {
-          const rest = [];
-          for (let p = 2; p <= totalPgs; p++) rest.push(p);
-
-          const pages = await Promise.all(
-            rest.map((p) =>
-              fetchOppDetails({
-                oppCode: uiOppCode, fromISO: apiFrom, toISO: apiTo,
-                page: p, pageSize: PAGE_SIZE,
-                searchTerm, statusFilter, ownerFilter, dispFilter: dispositionFilter,
-              })
-                .then((r) => (r.rows || []).map(mapExternalRow))
-                .catch(() => [])
-            )
-          );
-
-          pages.forEach((pageRows) => { accumulated = accumulated.concat(pageRows); });
-        }
-
-        if (!alive) return;
-        setAllRows(accumulated);
-        setServerTotal(total);
+        setAllRows((list || []).map(mapExternalRow));
+        setServerTotal(count);
       } catch (e) {
         console.error(e);
         if (!alive) return;
@@ -614,17 +585,15 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   }, [
     uiOppCode, isR7, campaignHeader,
     fromDate, toDate, isStaticSegment,
-    searchTerm, statusFilter, ownerFilter, dispositionFilter,
+    page, searchTerm, statusFilter, ownerFilter, dispositionFilter,
   ]);
 
-  // Reset to page 1 whenever any filter/sort changes
+  // Reset to page 1 when server-side filters change
   useEffect(() => {
     setPage(1);
   }, [
     searchTerm, statusFilter, ownerFilter, dispositionFilter,
     fromDate, toDate,
-    followDateMode, followUpFromDate, followUpToDate, followUpFromTime, followUpToTime,
-    sortKey, sortDir,
   ]);
 
   // ── Client-side: follow-up date/time filter + sort (all rows) ─────────
@@ -677,15 +646,11 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
     return list;
   }, [allRows, followDateRange, followUpFromTime, followUpToTime, sortKey, sortDir]);
 
-  // ── Pagination over filteredRows ──────────────────────────────────────
-  const totalFiltered = filteredRows.length;
-  const totalPages    = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
-  const safePage      = Math.min(Math.max(page, 1), totalPages);
-
-  const pagedRows = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRows, safePage]);
+  // ── Pagination ────────────────────────────────────────────────────────
+  // Server total drives page buttons; filteredRows is the current page after client filters.
+  const totalPages = Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
+  const safePage   = Math.min(Math.max(page, 1), totalPages);
+  const pagedRows  = filteredRows; // already the current page from server
 
   const toggleSort = (key) => {
     if (sortKey !== key) { setSortKey(key); setSortDir("asc"); return; }
@@ -947,10 +912,10 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
             <div className="pager">
               <div className="pager-left">
                 Showing{" "}
-                <strong>{totalFiltered ? (safePage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(safePage * PAGE_SIZE, totalFiltered)}</strong>{" "}
-                of <strong>{totalFiltered}</strong>
-                {totalFiltered !== serverTotal ? (
-                  <span style={{ color: "#94a3b8", marginLeft: 6 }}>(filtered from {serverTotal})</span>
+                <strong>{serverTotal ? (safePage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(safePage * PAGE_SIZE, serverTotal)}</strong>{" "}
+                of <strong>{serverTotal}</strong>
+                {filteredRows.length !== allRows.length ? (
+                  <span style={{ color: "#94a3b8", marginLeft: 6 }}>({filteredRows.length} shown after follow-up filter)</span>
                 ) : null}
               </div>
               <div className="pager-right">
