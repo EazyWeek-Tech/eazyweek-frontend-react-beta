@@ -100,7 +100,7 @@ export default function AuditCreate() {
   const years = useMemo(() => {
     const now = new Date().getFullYear();
     const out = [];
-    for (let y = now; y >= now - 3; y--) out.push(String(y));
+    for (let y = now + 1; y >= now - 3; y--) out.push(String(y));
     return out;
   }, []);
 
@@ -189,10 +189,10 @@ export default function AuditCreate() {
     const seg = encodeURIComponent(segmentName || segmentCode);
     const cc = encodeURIComponent(clinicCode);
     const loadManagerThenEmployee = async () => {
-      const shapes = [`${auditDateISO}T00:00:00`, auditDateISO, `${auditDateISO}T00:00:00Z`].map((AuditDate) => new URLSearchParams({ AuditDate, centerCode: clinicCode }).toString());
-      for (const qs of shapes) {
+      const shapes = [`${auditDateISO}T00:00:00`, auditDateISO, `${auditDateISO}T00:00:00Z`];
+      for (const AuditDate of shapes) {
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${seg}?${qs}`, { credentials: "include", headers: { Accept: "application/json" } });
+          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${encodeURIComponent(AuditDate)}`, { credentials: "include", headers: { Accept: "application/json" } });
           if (r.status === 404) break;
           if (r.ok) {
             const d = await r.json();
@@ -333,19 +333,16 @@ export default function AuditCreate() {
                 <div className="fields-grid fields-grid-3">
                   <Field label="Doctor / Therapist">
                     <select value={doctorCode} onChange={(e) => setDoctorCode(e.target.value)}>
-                      <option value="">— Select —</option>
                       {doctors.map((d) => (<option key={d.code ?? d.name} value={d.code ?? d.name}>{d.name ?? d.code}</option>))}
                     </select>
                   </Field>
                   <Field label="Department">
                     <select value={departmentCode} onChange={(e) => setDepartmentCode(e.target.value)}>
-                      <option value="">— Select —</option>
                       {departments.map((d) => (<option key={d.code ?? d.name} value={d.code ?? d.name}>{d.name ?? d.code}</option>))}
                     </select>
                   </Field>
                   <Field label="Manager">
                     <select value={managerCode} onChange={(e) => setManagerCode(e.target.value)}>
-                      <option value="">— Select —</option>
                       {managers.map((m, i) => { const value = m.code ?? `idx-${i}`; return (<option key={value} value={value}>{m.name || value}</option>); })}
                     </select>
                   </Field>
@@ -377,7 +374,8 @@ export default function AuditCreate() {
           {toast.message}
         </div>
       )}
-<style jsx>{`
+
+      <style jsx>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .page {
@@ -386,10 +384,8 @@ export default function AuditCreate() {
           font-family: 'Segoe UI', system-ui, sans-serif;
         }
 
-        .home-sect{padding:0}
-
         .page-header {
-          background: #334b71;
+          background: #0b1f3a;
           padding: 0 32px;
           border-bottom: 3px solid #1a3a6b;
         }
@@ -402,12 +398,12 @@ export default function AuditCreate() {
           justify-content: space-between;
         }
         .page-eyebrow {
-          display: none;
+          display: block;
           font-size: 11px;
           font-weight: 600;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          color: #fff;
+          color: #6b8fc7;
           margin-bottom: 4px;
         }
         .page-title {
@@ -415,7 +411,6 @@ export default function AuditCreate() {
           font-weight: 700;
           color: #fff;
           letter-spacing: -0.3px;
-          margin: 0 !important; 
         }
         .page-badge {
           display: flex;
@@ -470,7 +465,7 @@ export default function AuditCreate() {
         .step-number {
           width: 34px; height: 34px;
           border-radius: 50%;
-          background: #334b71;
+          background: #0b1f3a;
           color: #fff;
           font-size: 14px;
           font-weight: 700;
@@ -482,7 +477,7 @@ export default function AuditCreate() {
         .step-title {
           font-size: 15px;
           font-weight: 700;
-          color: #334b71;
+          color: #0b1f3a;
         }
         .step-desc {
           font-size: 12px;
@@ -553,7 +548,7 @@ export default function AuditCreate() {
         }
         .field-control select:focus,
         .field-control input[type="date"]:focus {
-          border-color: #334b71;
+          border-color: #0b1f3a;
           box-shadow: 0 0 0 3px rgba(11,31,58,0.08);
         }
         .field-control .input-readonly {
@@ -574,7 +569,7 @@ export default function AuditCreate() {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: #334b71;
+          background: #0b1f3a;
           color: #fff;
           border: none;
           border-radius: 8px;
