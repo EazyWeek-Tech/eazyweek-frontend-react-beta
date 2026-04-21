@@ -81,8 +81,9 @@ export default function AuditForm() {
   const auditDateISO = norm(qs.get("auditDate"));
   const mode = norm(qs.get("mode"));
   const employeeCode = norm(qs.get("employeeCode"));
-  const employeeNameQS = norm(qs.get("employeeName"));
+  const employeeNameQS = decodePlus(norm(qs.get("employeeName")));
   const doctorCode = norm(qs.get("doctorCode"));
+  const doctorNameQS = decodePlus(norm(qs.get("doctorName")));
   const departmentCode = norm(qs.get("departmentCode"));
   const managerCode = norm(qs.get("managerCode"));
 
@@ -98,6 +99,7 @@ export default function AuditForm() {
   const [savedAuditNo, setSavedAuditNo] = useState("");
   const [toast, setToast] = useState(null);
   const [employeeName, setEmployeeName] = useState(employeeNameQS || "");
+  const [doctorName, setDoctorName] = useState(doctorNameQS || "");
 
   const showToast = (message, type = "error", ms = 2400) => { setToast({ type, message }); setTimeout(() => setToast(null), ms); };
 
@@ -153,23 +155,26 @@ export default function AuditForm() {
   }, [segment, API_BASE_URL]);
 
   useEffect(() => {
-    if (mode === "digital" || !employeeCode || employeeNameQS) { if (employeeNameQS) setEmployeeName(employeeNameQS); return; }
+    // For digital mode, use doctorName from QS (already set in state)
+    if (mode === "digital") { if (doctorNameQS) setDoctorName(doctorNameQS); return; }
+    // For standard mode, use employeeName from QS if available
+    if (employeeNameQS) { setEmployeeName(employeeNameQS); return; }
+    // Fallback: fetch employees for this segment and find by code
+    if (!employeeCode || !segment) return;
     let cancelled = false;
-    const pickCode = (emp) => norm(emp?.empCode ?? emp?.employeeCode ?? emp?.code ?? "").toUpperCase();
-    const pickName = (emp) => norm(emp?.employeeName ?? emp?.name ?? emp?.fullName ?? "");
     (async () => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include", headers: { Accept: "application/json" } });
+        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(segment)}`, { credentials: "include", headers: { Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const list = await r.json();
         const arr = Array.isArray(list) ? list : list ? [list] : [];
         const targetCode = norm(employeeCode).toUpperCase();
-        const found = arr.find((e) => pickCode(e) === targetCode);
-        if (!cancelled) setEmployeeName(found ? pickName(found) : "");
-      } catch { if (!cancelled) setEmployeeName(""); }
+        const found = arr.find((e) => norm(e.code ?? e.employeeCode ?? "").toUpperCase() === targetCode);
+        if (!cancelled) setEmployeeName(found ? norm(found.name ?? found.employeeName ?? "") : employeeCode);
+      } catch { if (!cancelled) setEmployeeName(employeeCode); }
     })();
     return () => { cancelled = true; };
-  }, [API_BASE_URL, mode, employeeCode, employeeNameQS]);
+  }, [API_BASE_URL, mode, segment, employeeCode, employeeNameQS, doctorNameQS]);
 
   const validateAllAnswered = () => { for (const row of criteria) { const s = scores[row.criteriaCode]; if (!(s === 0 || s === 1)) return { ok: false }; } return { ok: true }; };
 
@@ -223,16 +228,16 @@ export default function AuditForm() {
         const returnedAuditNo = res?.auditNo || res?.auditno || res?.AuditNo || "";
         if (returnedAuditNo) setSavedAuditNo(returnedAuditNo);
         showToast(res?.responseMessage || "Saved as draft.", "success", 800);
-        setTimeout(() => navigate("/auditsegmentview"), 900);
+        setTimeout(() => navigate("/audit"), 900);
       } else {
         showToast(res?.responseMessage || "Submitted successfully.", "success", 800);
-        setTimeout(() => navigate("/auditsegmentview"), 900);
+        setTimeout(() => navigate("/audit"), 900);
       }
     } catch (e) { showToast(e.message || "Could not save. Please try again."); }
   };
 
   const clinicLabel = clinicDisplayName || clinicNameQS || clinicDisplayCode || clinicCodeQS || "—";
-  const personLabel = mode === "digital" ? (doctorCode || "—") : (employeeName || employeeCode || "—");
+  const personLabel = mode === "digital" ? (doctorName || doctorNameQS || doctorCode || "—") : (employeeName || employeeNameQS || employeeCode || "—");
 
   return (
     <div className="page">
