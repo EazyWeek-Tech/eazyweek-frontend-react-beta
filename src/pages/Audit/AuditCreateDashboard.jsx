@@ -26,6 +26,7 @@ const AuditCreateDashboard = () => {
       auditScore: r.auditScore ?? "",
       auditor: r.auditorName ?? "",
       createdDate: r.createdDate ?? "",
+      createdDateRaw: r.createdDateRaw ?? r.createdDate ?? "",
       statusText: "Draft",
       _raw: r,
     }));
@@ -34,7 +35,6 @@ const AuditCreateDashboard = () => {
     const load = async () => {
       setLoading(true);
       try {
-        // 1) Most servers for this route require POST with the path param
         let res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {
           method: "POST",
           credentials: "include",
@@ -42,7 +42,6 @@ const AuditCreateDashboard = () => {
           body: null,
         });
 
-        // 2) Fallback: POST without path param, send it in body
         if (!res.ok && (res.status === 404 || res.status === 405)) {
           res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits`, {
             method: "POST",
@@ -52,7 +51,6 @@ const AuditCreateDashboard = () => {
           });
         }
 
-        // 3) Last resort: try GET with path param
         if (!res.ok && (res.status === 404 || res.status === 405)) {
           res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {
             method: "GET",
@@ -101,19 +99,19 @@ const AuditCreateDashboard = () => {
     );
   }, [rows, searchTerm]);
 
-  // go to details with clinic/employee(audited code)/employeeName/auditor in the URL
   const goToAudit = (row) => {
     const url =
       `/audit/${encodeURIComponent(row.auditNo)}`
       + `?clinic=${encodeURIComponent(row.clinic || "")}`
-      + `&employee=${encodeURIComponent(row.employeeId || "")}`        // <-- code
-      + `&employeeName=${encodeURIComponent(row.employeeName || "")}`  // <-- name (optional)
+      + `&employee=${encodeURIComponent(row.employeeId || "")}`
+      + `&employeeName=${encodeURIComponent(row.employeeName || "")}`
       + `&auditor=${encodeURIComponent(row.auditor || "")}`;
     navigate(url);
   };
 
   const columns = [
     {
+      id: "auditNo",
       name: "Audit No",
       selector: (row) => row.auditNo,
       sortable: true,
@@ -123,10 +121,11 @@ const AuditCreateDashboard = () => {
         </button>
       ),
     },
-    { name: "Audit Month / Year", selector: (row) => row.auditMonthYear, sortable: true, minWidth: "140px" },
-    { name: "Audit Date", selector: (row) => row.auditDate, sortable: true },
-    { name: "Employee ID", selector: (row) => row.employeeId, sortable: true },
+    { id: "auditMonthYear", name: "Audit Month / Year", selector: (row) => row.auditMonthYear, sortable: true, minWidth: "140px" },
+    { id: "auditDate", name: "Audit Date", selector: (row) => row.auditDate, sortable: true },
+    { id: "employeeId", name: "Employee ID", selector: (row) => row.employeeId, sortable: true },
     {
+      id: "employeeName",
       name: "Employee Name",
       selector: (row) => row.employeeName,
       sortable: true,
@@ -134,18 +133,38 @@ const AuditCreateDashboard = () => {
       minWidth: "200px",
       grow: 2,
     },
-    { name: "Clinic", selector: (row) => row.clinic, minWidth: "160px", sortable: true },
+    { id: "clinic", name: "Clinic", selector: (row) => row.clinic, minWidth: "160px", sortable: true },
     {
+      id: "auditSegment",
       name: "Audit Segment",
       selector: (row) => row.auditSegment,
       sortable: true,
       minWidth: "130px",
       wrap: true,
     },
-    { name: "Audit Score", selector: (row) => row.auditScore, right: true, sortable: true },
-    { name: "Auditor", selector: (row) => row.auditor, sortable: true },
-    { name: "Created Date", selector: (row) => row.createdDate, sortable: true },
+    { id: "auditScore", name: "Audit Score", selector: (row) => row.auditScore, right: true, sortable: true },
+    { id: "auditor", name: "Auditor", selector: (row) => row.auditor, sortable: true },
     {
+      id: "createdDate",
+      name: "Created Date",
+      selector: (row) => row.createdDate,
+      sortable: true,
+      sortFunction: (a, b) => {
+        // Parse DD/MM/YYYY format returned by the SP (convert(nvarchar,date,103))
+        const parse = (s) => {
+          if (!s) return 0;
+          // Handle DD/MM/YYYY
+          const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (m) return new Date(`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`).getTime();
+          // Handle ISO or other formats
+          const d = new Date(s);
+          return isNaN(d) ? 0 : d.getTime();
+        };
+        return parse(a.createdDate) - parse(b.createdDate);
+      },
+    },
+    {
+      id: "statusText",
       name: "Status",
       selector: (row) => row.statusText,
       sortable: true,
@@ -157,43 +176,25 @@ const AuditCreateDashboard = () => {
 
   const exportCSV = () => {
     const header = [
-      "Audit No",
-      "Audit Month / Year",
-      "Audit Date",
-      "Employee ID",
-      "Employee Name",
-      "Clinic",
-      "Audit Segment",
-      "Audit Score",
-      "Auditor",
-      "Created Date",
-      "Status",
+      "Audit No", "Audit Month / Year", "Audit Date", "Employee ID",
+      "Employee Name", "Clinic", "Audit Segment", "Audit Score",
+      "Auditor", "Created Date", "Status",
     ];
     const lines = filteredRows.map((r) => [
-      safe(r.auditNo),
-      safe(r.auditMonthYear),
-      safe(r.auditDate),
-      safe(r.employeeId),
-      safe(r.employeeName),
-      safe(r.clinic),
-      safe(r.auditSegment),
-      safe(r.auditScore),
-      safe(r.auditor),
-      safe(r.createdDate),
-      safe(r.statusText),
+      safe(r.auditNo), safe(r.auditMonthYear), safe(r.auditDate),
+      safe(r.employeeId), safe(r.employeeName), safe(r.clinic),
+      safe(r.auditSegment), safe(r.auditScore), safe(r.auditor),
+      safe(r.createdDate), safe(r.statusText),
     ]);
     const csv = [header, ...lines]
       .map((arr) =>
-        arr
-          .map((v) => {
-            const s = v?.toString() ?? "";
-            const needsWrap = /[",\n]/.test(s);
-            const esc = s.replace(/"/g, '""');
-            return needsWrap ? `"${esc}"` : esc;
-          })
-          .join(",")
-      )
-      .join("\n");
+        arr.map((v) => {
+          const s = v?.toString() ?? "";
+          const needsWrap = /[",\n]/.test(s);
+          const esc = s.replace(/"/g, '""');
+          return needsWrap ? `"${esc}"` : esc;
+        }).join(",")
+      ).join("\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -259,6 +260,8 @@ const AuditCreateDashboard = () => {
         highlightOnHover
         dense={false}
         persistTableHead
+        defaultSortFieldId="createdDate"
+        defaultSortAsc={false}
       />
 
       <style jsx>{`
