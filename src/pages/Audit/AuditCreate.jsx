@@ -249,7 +249,8 @@ export default function AuditCreate() {
     if (!dupResp) return;
     if (dupResp.success !== true) return showToast(dupResp.message || "Audit already exists for the selected date/person");
     const employeeNameSel = !isDigitalSeg ? employees.find((e) => e.employeeCode === employeeCode)?.employeeName || "" : "";
-    const qs = new URLSearchParams({ segment: segmentCode || segmentName, clinicCode: clinicCode || "", clinicName: clinicName || "", auditMonth: auditMonthStr, year: String(year || ""), auditDate: auditDateISO, mode: isDigitalSeg ? "digital" : "standard", ...(isDigitalSeg ? { doctorCode, departmentCode, managerCode } : { employeeCode, employeeName: employeeNameSel }) }).toString();
+    const doctorNameSel = isDigitalSeg ? doctors.find((d) => (d.code ?? d.name) === doctorCode)?.name || "" : "";
+    const qs = new URLSearchParams({ segment: segmentCode || segmentName, clinicCode: clinicCode || "", clinicName: clinicName || "", auditMonth: auditMonthStr, year: String(year || ""), auditDate: auditDateISO, mode: isDigitalSeg ? "digital" : "standard", ...(isDigitalSeg ? { doctorCode, doctorName: doctorNameSel, departmentCode, managerCode } : { employeeCode, employeeName: employeeNameSel }) }).toString();
     navigate(`/audit/${norm(segmentCode || segmentName).toLowerCase()}/form?${qs}`);
   };
 
@@ -333,16 +334,19 @@ export default function AuditCreate() {
                 <div className="fields-grid fields-grid-3">
                   <Field label="Doctor / Therapist">
                     <select value={doctorCode} onChange={(e) => setDoctorCode(e.target.value)}>
+                      <option value="">— Select —</option>
                       {doctors.map((d) => (<option key={d.code ?? d.name} value={d.code ?? d.name}>{d.name ?? d.code}</option>))}
                     </select>
                   </Field>
                   <Field label="Department">
                     <select value={departmentCode} onChange={(e) => setDepartmentCode(e.target.value)}>
+                      <option value="">— Select —</option>
                       {departments.map((d) => (<option key={d.code ?? d.name} value={d.code ?? d.name}>{d.name ?? d.code}</option>))}
                     </select>
                   </Field>
                   <Field label="Manager">
                     <select value={managerCode} onChange={(e) => setManagerCode(e.target.value)}>
+                      <option value="">— Select —</option>
                       {managers.map((m, i) => { const value = m.code ?? `idx-${i}`; return (<option key={value} value={value}>{m.name || value}</option>); })}
                     </select>
                   </Field>
