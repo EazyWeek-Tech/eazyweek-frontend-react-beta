@@ -388,8 +388,10 @@ export default function AuditCreate() {
           font-family: 'Segoe UI', system-ui, sans-serif;
         }
 
+        .home-sect{padding:0;}
+
         .page-header {
-          background: #0b1f3a;
+          background: #334b71;
           padding: 0 32px;
           border-bottom: 3px solid #1a3a6b;
         }
@@ -415,6 +417,7 @@ export default function AuditCreate() {
           font-weight: 700;
           color: #fff;
           letter-spacing: -0.3px;
+          margin: 0 !important;
         }
         .page-badge {
           display: flex;
