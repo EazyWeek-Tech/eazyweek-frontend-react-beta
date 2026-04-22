@@ -16,25 +16,19 @@ const getPhoneExample = (isoCode) => {
 
 const isValidEmail = (e) => /\S+@\S+\.\S+/.test(e);
 
-// ── DialCodeInput — searchable autocomplete for dial codes ─────────────────
-// Defined OUTSIDE AddCustomerModal so it has a stable reference.
+// ── DialCodeInput — searchable autocomplete ────────────────────────────────
 const DialCodeInput = ({ value, onChange, dialOptions, dialLoading }) => {
-  const [query,    setQuery]    = useState(value || "");
-  const [open,     setOpen]     = useState(false);
-  const [focused,  setFocused]  = useState(false);
+  const [query,   setQuery]   = useState(value || "");
+  const [open,    setOpen]    = useState(false);
   const wrapRef  = useRef(null);
   const inputRef = useRef(null);
 
-  // Sync query when value is set externally (e.g. on mount)
   useEffect(() => { setQuery(value || ""); }, [value]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false);
-        setFocused(false);
-        // If user typed something invalid, revert to last valid value
         const exact = dialOptions.find((o) => o.value === query);
         if (!exact) setQuery(value || "");
       }
@@ -43,21 +37,15 @@ const DialCodeInput = ({ value, onChange, dialOptions, dialLoading }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, [query, value, dialOptions]);
 
-  // Filter options: match dial code or country name
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return dialOptions.slice(0, 80); // show first 80 when empty
+    if (!q) return dialOptions.slice(0, 80);
     return dialOptions.filter(
       (o) =>
         o.value.toLowerCase().includes(q) ||
         o.countryName.toLowerCase().includes(q)
     ).slice(0, 60);
   }, [query, dialOptions]);
-
-  const handleInput = (e) => {
-    setQuery(e.target.value);
-    setOpen(true);
-  };
 
   const handleSelect = (opt) => {
     setQuery(opt.value);
@@ -66,17 +54,9 @@ const DialCodeInput = ({ value, onChange, dialOptions, dialLoading }) => {
     inputRef.current?.blur();
   };
 
-  const handleFocus = () => {
-    setFocused(true);
-    setOpen(true);
-  };
-
   const handleKeyDown = (e) => {
     if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); }
-    if (e.key === "Enter" && filtered.length > 0) {
-      e.preventDefault();
-      handleSelect(filtered[0]);
-    }
+    if (e.key === "Enter" && filtered.length > 0) { e.preventDefault(); handleSelect(filtered[0]); }
   };
 
   return (
@@ -85,60 +65,44 @@ const DialCodeInput = ({ value, onChange, dialOptions, dialLoading }) => {
         ref={inputRef}
         type="text"
         value={query}
-        onChange={handleInput}
-        onFocus={handleFocus}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
         placeholder={dialLoading ? "…" : "+966"}
         disabled={dialLoading}
+        autoComplete="off"
         style={{
-          width: "100%",
-          boxSizing: "border-box",
-          padding: "6px 8px",
-          border: "1px solid #dde1ea",
-          borderRadius: 6,
-          fontSize: 13,
-          fontFamily: "inherit",
-          outline: "none",
+          width: "100%", boxSizing: "border-box", padding: "6px 8px",
+          border: "1px solid #dde1ea", borderRadius: 6, fontSize: 13,
+          fontFamily: "inherit", outline: "none",
           background: dialLoading ? "#f7f8fc" : "#fff",
         }}
-        autoComplete="off"
       />
 
       {open && filtered.length > 0 && (
         <ul style={{
-          position:   "absolute",
-          top:        "calc(100% + 4px)",
-          left:       0,
-          zIndex:     9999,
-          background: "#fff",
-          border:     "1px solid #dde1ea",
-          borderRadius: 8,
-          boxShadow:  "0 4px 16px rgba(0,0,0,0.12)",
-          listStyle:  "none",
-          margin:     0,
-          padding:    "4px 0",
-          width:      220,
-          maxHeight:  240,
-          overflowY:  "auto",
+          position: "absolute", top: "calc(100% + 4px)", left: 0,
+          zIndex: 9999, background: "#fff", border: "1px solid #dde1ea",
+          borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          listStyle: "none", margin: 0, padding: "4px 0",
+          width: 220, maxHeight: 240, overflowY: "auto",
         }}>
           {filtered.map((opt) => (
             <li
               key={`${opt.isoCode}-${opt.value}`}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
               style={{
-                padding:    "7px 12px",
-                cursor:     "pointer",
-                fontSize:   13,
-                display:    "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap:        8,
+                padding: "7px 12px", cursor: "pointer", fontSize: 13,
+                display: "flex", justifyContent: "space-between",
+                alignItems: "center", gap: 8,
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = "#f0f4fa"}
               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
             >
               <span style={{ color: "#6b7280", fontWeight: 600, minWidth: 44 }}>{opt.value}</span>
-              <span style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.countryName}</span>
+              <span style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {opt.countryName}
+              </span>
             </li>
           ))}
         </ul>
@@ -176,11 +140,18 @@ const AddCustomerModal = ({ onClose }) => {
     open: false, reason: "", matches: [], pendingPayload: null,
   });
 
-  const { dialOptions, validDialCodes, isoFromDialCode, loading: dialLoading } = useDialCodes();
+  // ✅ maxLengthForIso now available from hook
+  const { dialOptions, validDialCodes, isoFromDialCode, maxLengthForIso, loading: dialLoading } = useDialCodes();
 
   const currentIso = useMemo(
     () => isoFromDialCode(formData.countryCode),
     [formData.countryCode, isoFromDialCode]
+  );
+
+  // ✅ Dynamic maxLength based on selected country
+  const mobileMaxLength = useMemo(
+    () => maxLengthForIso(currentIso),
+    [currentIso, maxLengthForIso]
   );
 
   const phonePlaceholder = useMemo(
@@ -191,6 +162,11 @@ const AddCustomerModal = ({ onClose }) => {
   // ── Validation ────────────────────────────────────────────────────────────
   const isValidCountryCode = (cc) => validDialCodes.has(cc);
 
+  /**
+   * ✅ libphonenumber-js does ALL the work here.
+   * It knows Saudi Arabia = 9 digits, India = 10, Singapore = 8, etc.
+   * No hardcoded length checks needed.
+   */
   const checkPhoneValid = (mobile, dialCode, isoCode) => {
     if (!mobile || !dialCode || !isoCode) return null;
     try { return isValidPhoneNumber(`${dialCode}${mobile}`, isoCode); }
@@ -205,16 +181,17 @@ const AddCustomerModal = ({ onClose }) => {
         break;
       case "mobile": {
         if (!value) { error = "Mobile number is required."; break; }
+        if (!currentIso) { error = "Please select a country code first."; break; }
         const valid = checkPhoneValid(value, formData.countryCode, currentIso);
         if (valid === false)
-          error = `Invalid number${phonePlaceholder ? ` — e.g. ${phonePlaceholder}` : ""}.`;
+          error = `Invalid number for selected country${phonePlaceholder ? ` — e.g. ${phonePlaceholder}` : ""}.`;
         break;
       }
-      case "firstName":  if (!value) error = "First name is required."; break;
-      case "lastName":   if (!value) error = "Last name is required.";  break;
-      case "email":      if (!value || !isValidEmail(value)) error = "Enter a valid email."; break;
-      case "gender":     if (!value) error = "Select gender.";          break;
-      case "nationality":if (!value) error = "Select nationality.";     break;
+      case "firstName":   if (!value) error = "First name is required."; break;
+      case "lastName":    if (!value) error = "Last name is required.";  break;
+      case "email":       if (!value || !isValidEmail(value)) error = "Enter a valid email."; break;
+      case "gender":      if (!value) error = "Select gender."; break;
+      case "nationality": if (!value) error = "Select nationality."; break;
       default: break;
     }
     setErrors((prev) => ({ ...prev, [fieldId]: error }));
@@ -267,26 +244,27 @@ const AddCustomerModal = ({ onClose }) => {
   }, [formData.nationality]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-
-  // Called by DialCodeInput when user selects a code
   const handleDialCodeChange = (newCode) => {
-    setFormData((prev) => ({ ...prev, countryCode: newCode }));
-    if (errors.countryCode) validateField("countryCode", newCode);
-    if (formData.mobile) {
-      const newIso = isoFromDialCode(newCode);
-      setPhoneValid(checkPhoneValid(formData.mobile, newCode, newIso));
-    }
+    setFormData((prev) => ({ ...prev, countryCode: newCode, mobile: "" }));
+    setPhoneValid(null);
+    setErrors((prev) => ({ ...prev, countryCode: "", mobile: "" }));
+    // Focus mobile input after selecting code
+    setTimeout(() => mobileRef.current?.focus(), 50);
   };
 
   const handleChange = (e) => {
     const { id, value } = e.target;
 
     if (id === "mobile") {
-      const v = value.replace(/\D/g, "");
+      // Strip non-digits; maxLength on input handles the cap
+      const v = value.replace(/\D/g, "").slice(0, mobileMaxLength);
+
       setFormData((prev) => ({ ...prev, mobile: v }));
-      if (v) {
-        setPhoneValid(checkPhoneValid(v, formData.countryCode, currentIso));
-        if (errors.mobile) validateField("mobile", v);
+      if (v && currentIso) {
+        const valid = checkPhoneValid(v, formData.countryCode, currentIso);
+        setPhoneValid(valid);
+        // Clear error as soon as number becomes valid
+        if (valid === true) setErrors((prev) => ({ ...prev, mobile: "" }));
       } else {
         setPhoneValid(null);
       }
@@ -427,7 +405,6 @@ const AddCustomerModal = ({ onClose }) => {
               </label>
               <div className="inptdiv" style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
 
-                {/* ✅ Autocomplete dial code — type code or country name */}
                 <DialCodeInput
                   value={formData.countryCode}
                   onChange={handleDialCodeChange}
@@ -444,6 +421,9 @@ const AddCustomerModal = ({ onClose }) => {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder={phonePlaceholder || "Enter mobile number"}
+                    // ✅ maxLength adjusts per country: SA=9, IN=10, SG=8, etc.
+                    maxLength={mobileMaxLength}
+                    inputMode="numeric"
                     style={{
                       width: "100%",
                       borderColor: phoneValid === true
@@ -454,10 +434,14 @@ const AddCustomerModal = ({ onClose }) => {
                     }}
                   />
                   {phoneValid === true && !errors.mobile && (
-                    <div style={{ fontSize: 11, color: "#38a169", marginTop: 3 }}>✓ Valid number</div>
+                    <div style={{ fontSize: 11, color: "#38a169", marginTop: 3 }}>
+                      ✓ Valid number
+                    </div>
                   )}
                   {!errors.mobile && phonePlaceholder && phoneValid !== true && (
-                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>e.g. {phonePlaceholder}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>
+                      e.g. {phonePlaceholder}
+                    </div>
                   )}
                 </div>
               </div>
@@ -537,7 +521,6 @@ const AddCustomerModal = ({ onClose }) => {
               <input type="submit" className="prilnk" value="Add Customer" />
               <input type="button" className="seclnk" value="Cancel" onClick={onClose} />
             </div>
-
           </form>
         </div>
       </div>
