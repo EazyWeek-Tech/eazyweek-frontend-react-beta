@@ -28,6 +28,7 @@
     "file-saver": "^2.0.5",
     "jquery": "^3.7.1",
     "jspdf": "^3.0.3",
+    "libphonenumber-js": "^1.12.41",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
     "react-data-table-component": "^7.7.0",

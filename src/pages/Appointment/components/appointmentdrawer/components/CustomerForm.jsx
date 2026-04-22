@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../../../../config";
 
-
 const CreateDataHandler = async (query) => {
-  const stored =localStorage.getItem("user") || sessionStorage.getItem("user");
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
   const centerCode = stored ? JSON.parse(stored).centerCode : "";
-  const res = await fetch(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(query)}/${centerCode}`);
+  const res = await fetch(
+    `${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(query)}/${centerCode}`
+  );
   if (!res.ok) throw new Error("Failed to fetch");
   return await res.json();
 };
@@ -15,49 +16,48 @@ const Toast = ({ message, onClose }) => {
     const timer = setTimeout(onClose, 3000);
     return () => clearTimeout(timer);
   }, [onClose]);
-
   return <div className="toast">{message}</div>;
 };
 
-const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormData, setCustomerFormData, resetTrigger }) => {
+const CustomerForm = ({
+  prefillData,
+  setCustomerData,
+  setLoading,
+  customerFormData,
+  setCustomerFormData,
+  resetTrigger,
+}) => {
   const emptyData = {
-    custid: "",
-    number: "",
-    firstname: "",
-    lastname: "",
-    email: "",
-    gender: "",
+    custid: "", number: "", firstname: "",
+    lastname: "", email: "", gender: "",
   };
 
-  const [formData, setFormData] = useState(emptyData);
-  const [errors, setErrors] = useState({});
+  const [formData,          setFormData]          = useState(emptyData);
+  const [errors,            setErrors]            = useState({});
   const [mobileSuggestions, setMobileSuggestions] = useState([]);
-  const [nameSuggestions, setNameSuggestions] = useState([]);
-  const [isPrefilled, setIsPrefilled] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+  const [nameSuggestions,   setNameSuggestions]   = useState([]);
+  const [isPrefilled,       setIsPrefilled]       = useState(false);
+  const [isFetching,        setIsFetching]        = useState(false);
+  const [showToast,         setShowToast]         = useState(false);
 
+  // ── Prefill when parent passes data ────────────────────────────────────
   useEffect(() => {
-  if (!prefillData && !resetTrigger) return;
-    console.log(prefillData)
-  const resetData = {
-    number: prefillData?.number || prefillData?.mobile || "",
-    firstname: prefillData?.firstname || prefillData?.name?.split(" ")[0] || "",
-    lastname: prefillData?.lastname || (prefillData?.name?.split(" ").slice(1).join(" ") || ""),
-    email: prefillData?.email || "",
-    gender: prefillData?.gender || "",
-    custid: prefillData?.custid || ""
-  };
-
-  const isDifferent = Object.keys(resetData).some(key => resetData[key] !== formData[key]);
-  if (!isDifferent) return;
-
-  setFormData(resetData);
-  setCustomerData?.(resetData);
-  setCustomerFormData?.(resetData);
-  setIsPrefilled(true);
-}, [prefillData, resetTrigger]);
-
+    if (!prefillData && !resetTrigger) return;
+    const resetData = {
+      number:    prefillData?.number    || prefillData?.mobile || "",
+      firstname: prefillData?.firstname || prefillData?.name?.split(" ")[0] || "",
+      lastname:  prefillData?.lastname  || prefillData?.name?.split(" ").slice(1).join(" ") || "",
+      email:     prefillData?.email     || "",
+      gender:    prefillData?.gender    || "",
+      custid:    prefillData?.custid    || "",
+    };
+    const isDifferent = Object.keys(resetData).some((k) => resetData[k] !== formData[k]);
+    if (!isDifferent) return;
+    setFormData(resetData);
+    setCustomerData?.(resetData);
+    setCustomerFormData?.(resetData);
+    setIsPrefilled(true);
+  }, [prefillData, resetTrigger]);
 
   const syncCustomerData = (updated) => {
     setFormData(updated);
@@ -65,6 +65,7 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
     setCustomerFormData?.(updated);
   };
 
+  // ── Suggestion fetch ────────────────────────────────────────────────────
   const fetchAndSetSuggestions = async (type, value) => {
     try {
       setIsFetching(true);
@@ -75,88 +76,60 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
           ? item.mobile.startsWith(value)
           : item.firstName.toLowerCase().includes(value.toLowerCase())
       );
-      if (type === "number") setMobileSuggestions(matches);
+      if (type === "number")    setMobileSuggestions(matches);
       if (type === "firstname") setNameSuggestions(matches);
-       console.log(data);
     } catch (err) {
       console.error("Suggestion fetch failed:", err);
-      if (type === "number") setMobileSuggestions([]);
+      if (type === "number")    setMobileSuggestions([]);
       if (type === "firstname") setNameSuggestions([]);
     } finally {
       setIsFetching(false);
       setLoading?.(false);
-      
-    }
-   
-  };
-
-  const handleChange = async (e) => {
-    const { id, value } = e.target;
-    const updated = { ...formData, [id]: value };
-    syncCustomerData(updated);
-
-    if (id === "number" && value.length >= 3) {
-      fetchAndSetSuggestions("number", value);
-    } else if (id === "firstname" && value.length >= 2) {
-      fetchAndSetSuggestions("firstname", value);
-    } else {
-      if (id === "number") setMobileSuggestions([]);
-      if (id === "firstname") setNameSuggestions([]);
     }
   };
 
-  const handleSuggestionSelect = (item) => {
-    const selected = {
-  number: item.mobile || "",
-  firstname: item.firstName || "",
-  lastname: item.lastName || "",
-  email: item.email || "",
-  gender: item.gender || "",
-  custid: item.custId || item.custid || item.id || "", 
-};
+  // ── Validate a single field ─────────────────────────────────────────────
+  // ✅ FIX: accepts `currentValue` so it always validates the live input value,
+  //         not stale formData state (which is one render behind on blur).
+  const validateField = (field, currentValue) => {
+    // Fall back to formData if no value passed (e.g. called programmatically)
+    const val = currentValue !== undefined ? currentValue : formData[field];
 
-    setFormData(selected);
-    setCustomerData?.(selected);
-    setCustomerFormData?.(selected);
-    setIsPrefilled(true);
-    setShowToast(true);
-    setMobileSuggestions([]);
-    setNameSuggestions([]);
-  };
-
-  const handleBlur = (e) => validateField(e.target.id);
-
-  const validateField = (field) => {
     let newErrors = { ...errors };
-    let isValid = true;
+    let isValid   = true;
 
     switch (field) {
-      case "number":
-        if (!formData.number || formData.number.length !== 10) {
+      case "number": {
+        // ✅ FIX: strip non-digits before length check
+        const digits = (val || "").replace(/\D/g, "");
+        if (digits.length !== 10) {
           newErrors.number = "Mobile number must be 10 digits.";
           isValid = false;
-        } else delete newErrors.number;
+        } else {
+          delete newErrors.number;
+        }
         break;
+      }
       case "firstname":
-        if (!formData.firstname) {
+        if (!val?.trim()) {
           newErrors.firstname = "First name is required.";
           isValid = false;
         } else delete newErrors.firstname;
         break;
       case "lastname":
-        if (!formData.lastname) {
+        if (!val?.trim()) {
           newErrors.lastname = "Last name is required.";
           isValid = false;
         } else delete newErrors.lastname;
         break;
       case "email":
-        if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
+        if (!val || !/\S+@\S+\.\S+/.test(val)) {
           newErrors.email = "Valid email required.";
           isValid = false;
         } else delete newErrors.email;
         break;
       case "gender":
-        if (!formData.gender) {
+        if (!val) {
           newErrors.gender = "Please select gender.";
           isValid = false;
         } else delete newErrors.gender;
@@ -169,6 +142,63 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
     return isValid;
   };
 
+  // ── Change handler ──────────────────────────────────────────────────────
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+
+    if (id === "number") {
+      // ✅ FIX: strip non-digits and cap at 10 — keeps state clean
+      const digits  = value.replace(/\D/g, "").slice(0, 10);
+      const updated = { ...formData, number: digits };
+      syncCustomerData(updated);
+
+      // Clear error immediately once 10 digits reached
+      if (digits.length === 10) {
+        setErrors((prev) => { const e = { ...prev }; delete e.number; return e; });
+      }
+
+      if (digits.length >= 3) fetchAndSetSuggestions("number", digits);
+      else setMobileSuggestions([]);
+      return;
+    }
+
+    if (id === "firstname") {
+      const updated = { ...formData, firstname: value };
+      syncCustomerData(updated);
+      if (value.length >= 2) fetchAndSetSuggestions("firstname", value);
+      else setNameSuggestions([]);
+      return;
+    }
+
+    syncCustomerData({ ...formData, [id]: value });
+  };
+
+  // ✅ FIX: pass e.target.value so validateField gets the current DOM value,
+  //         not the (potentially stale) React state value.
+  const handleBlur = (e) => validateField(e.target.id, e.target.value);
+
+  // ── Suggestion select ───────────────────────────────────────────────────
+  const handleSuggestionSelect = (item) => {
+    const selected = {
+      number:    item.mobile     || "",
+      firstname: item.firstName  || "",
+      lastname:  item.lastName   || "",
+      email:     item.email      || "",
+      gender:    item.gender     || "",
+      custid:    item.custId || item.custid || item.id || "",
+    };
+    setFormData(selected);
+    setCustomerData?.(selected);
+    setCustomerFormData?.(selected);
+    setIsPrefilled(true);
+    setShowToast(true);
+    setMobileSuggestions([]);
+    setNameSuggestions([]);
+    // Clear errors for pre-filled fields
+    setErrors({});
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <>
       <div className="bscdetwrp">
@@ -176,6 +206,7 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
         <form autoComplete="off">
           <input type="hidden" id="custid" value={formData.custid} />
 
+          {/* Mobile */}
           <div className="form-group" style={{ position: "relative" }}>
             <input
               type="text"
@@ -184,19 +215,30 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
               value={formData.number}
               onChange={handleChange}
               onBlur={handleBlur}
+              maxLength={10}
+              inputMode="numeric"
             />
             <label htmlFor="number" className="frmlbl">Mobile Number</label>
             {errors.number && <div className="error">{errors.number}</div>}
-            {isFetching && <img src={`${import.meta.env.BASE_URL}images/Loading_icon.gif`} alt="Loading" style={{ position: "absolute", right: 10, top: 10, width: 20 }} />}
+            {isFetching && (
+              <img
+                src={`${import.meta.env.BASE_URL}images/Loading_icon.gif`}
+                alt="Loading"
+                style={{ position: "absolute", right: 10, top: 10, width: 20 }}
+              />
+            )}
             {mobileSuggestions.length > 0 && (
               <ul className="suggestions">
                 {mobileSuggestions.map((item, index) => (
-                  <li key={index} onClick={() => handleSuggestionSelect(item)}>{item.firstName} – {item.mobile}</li>
+                  <li key={index} onClick={() => handleSuggestionSelect(item)}>
+                    {item.firstName} – {item.mobile}
+                  </li>
                 ))}
               </ul>
             )}
           </div>
 
+          {/* First Name */}
           <div className="form-group" style={{ position: "relative" }}>
             <input
               type="text"
@@ -211,12 +253,15 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
             {nameSuggestions.length > 0 && (
               <ul className="suggestions">
                 {nameSuggestions.map((item, index) => (
-                  <li key={index} onClick={() => handleSuggestionSelect(item)}>{item.firstName} – {item.mobile}</li>
+                  <li key={index} onClick={() => handleSuggestionSelect(item)}>
+                    {item.firstName} – {item.mobile}
+                  </li>
                 ))}
               </ul>
             )}
           </div>
 
+          {/* Last Name */}
           <div className="form-group">
             <input
               type="text"
@@ -230,6 +275,7 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
             {errors.lastname && <div className="error">{errors.lastname}</div>}
           </div>
 
+          {/* Email */}
           <div className="form-group">
             <input
               type="email"
@@ -243,6 +289,7 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
             {errors.email && <div className="error">{errors.email}</div>}
           </div>
 
+          {/* Gender */}
           <div className="form-group radgrp">
             <label className="frmlbl">Gender</label>
             <div className="rdbox">
@@ -269,6 +316,7 @@ const CustomerForm = ({ prefillData, setCustomerData, setLoading, customerFormDa
             </div>
             {errors.gender && <div className="error">{errors.gender}</div>}
           </div>
+
         </form>
       </div>
 
