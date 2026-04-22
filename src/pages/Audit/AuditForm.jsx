@@ -228,10 +228,10 @@ export default function AuditForm() {
         const returnedAuditNo = res?.auditNo || res?.auditno || res?.AuditNo || "";
         if (returnedAuditNo) setSavedAuditNo(returnedAuditNo);
         showToast(res?.responseMessage || "Saved as draft.", "success", 800);
-        setTimeout(() => navigate("/audit"), 900);
+        setTimeout(() => navigate("/auditsegmentview"), 900);
       } else {
         showToast(res?.responseMessage || "Submitted successfully.", "success", 800);
-        setTimeout(() => navigate("/audit"), 900);
+        setTimeout(() => navigate("/auditsegmentview"), 900);
       }
     } catch (e) { showToast(e.message || "Could not save. Please try again."); }
   };
