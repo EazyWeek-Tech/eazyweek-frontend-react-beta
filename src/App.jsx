@@ -85,6 +85,8 @@ import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
 import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
 import OppUploader from "./pages/Opportunity/OppUploader";
 import OnDemandTriggers from "./pages/OnDemand/OnDemandTriggers";
+import ResetPassword from "./pages/ResetPassword"; 
+
 
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
@@ -248,7 +250,7 @@ localStorage.removeItem("remember");
   path="/opportunity/external/:oppCode/lead/:leadOppId"
   element={<ExternalLeadForm />}
 />
-
+<Route path="/reset-password" element={<ResetPassword />} />
 <Route path="/opportunity/:oppCode/noshow/:custId" element={<NoShowEntryDetails />} />
 <Route path="/opportunity/:oppCode/cancelled/:custId" element={<CancelledEntryDetails />} />
 
