@@ -24,7 +24,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- No Zone mapping -------------------- */
   const NOZONE_UI_CODE = "NOZONE";
   const NOZONE_UI_NAME = "Centriq Clinics";
-  const NOZONE_SESSION_CODE = "Centriq Clinics"; // <-- Backend expects this for TopCode & LoginCode
+  const NOZONE_SESSION_CODE = "Centriq Clinics";
 
   const toSessionCenterCode = (uiCode) =>
     uiCode === NOZONE_UI_CODE ? NOZONE_SESSION_CODE : uiCode;
@@ -33,44 +33,32 @@ const Header = ({ onToggleSidebar, onLogout }) => {
     sessionCode === NOZONE_SESSION_CODE ? NOZONE_UI_CODE : sessionCode;
 
   const clearCenterStickyKeys = () => {
-  const keys = [
-    "loginCode",
-    "topCode",
-    "userID",
-    "userId",
-    "LoginCode",
-    "TopCode",
-  ];
-
-  try {
-    keys.forEach((k) => {
-      localStorage.removeItem(k);
-      sessionStorage.removeItem(k);
-    });
-
-    // ✅ also clean inside JSON session blobs (very important)
-    const jsonKeys = ["userSession", "UserSession"];
-    jsonKeys.forEach((jk) => {
-      const raw = localStorage.getItem(jk) || sessionStorage.getItem(jk);
-      if (!raw) return;
-
-      try {
-        const obj = JSON.parse(raw);
-        delete obj.loginCode;
-        delete obj.LoginCode;
-        delete obj.topCode;
-        delete obj.TopCode;
-        delete obj.userID;
-        delete obj.userId;
-        localStorage.setItem(jk, JSON.stringify(obj));
-        sessionStorage.setItem(jk, JSON.stringify(obj));
-      } catch {}
-    });
-  } catch (e) {
-    console.error("clearCenterStickyKeys failed", e);
-  }
-};
-
+    const keys = ["loginCode", "topCode", "userID", "userId", "LoginCode", "TopCode"];
+    try {
+      keys.forEach((k) => {
+        localStorage.removeItem(k);
+        sessionStorage.removeItem(k);
+      });
+      const jsonKeys = ["userSession", "UserSession"];
+      jsonKeys.forEach((jk) => {
+        const raw = localStorage.getItem(jk) || sessionStorage.getItem(jk);
+        if (!raw) return;
+        try {
+          const obj = JSON.parse(raw);
+          delete obj.loginCode;
+          delete obj.LoginCode;
+          delete obj.topCode;
+          delete obj.TopCode;
+          delete obj.userID;
+          delete obj.userId;
+          localStorage.setItem(jk, JSON.stringify(obj));
+          sessionStorage.setItem(jk, JSON.stringify(obj));
+        } catch {}
+      });
+    } catch (e) {
+      console.error("clearCenterStickyKeys failed", e);
+    }
+  };
 
   /* -------------------- headers helper -------------------- */
   const commonHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
@@ -100,10 +88,8 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   useEffect(() => {
     const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
     if (!stored) return;
-
     const parsed = JSON.parse(stored);
     setUser(parsed);
-
     if (parsed?.empPicBinaryValue) {
       setImageSrc(`data:image/jpeg;base64,${parsed.empPicBinaryValue}`);
     } else if (parsed?.empImageName) {
@@ -120,14 +106,10 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- read session center from storage (initial) -------------------- */
   useEffect(() => {
     try {
-      const raw =  localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
-
+      const raw = localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
       if (!raw) return;
       const s = JSON.parse(raw);
-
-      const code =
-        s?.LoginCode || s?.loginCode || s?.TopCode || s?.centerCode || "";
-
+      const code = s?.LoginCode || s?.loginCode || s?.TopCode || s?.centerCode || "";
       setSessionCenterCode(code || "");
     } catch {
       setSessionCenterCode("");
@@ -137,22 +119,14 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- session APIs -------------------- */
   const setSessionToApi = async (uiCenterCode) => {
     if (!user?.userId) return;
-
     const centerCode = toSessionCenterCode(uiCenterCode);
-
-    const payload = {
-      LoginCode: centerCode,
-      TopCode: centerCode,
-      userID: user.userId,
-    };
-
+    const payload = { LoginCode: centerCode, TopCode: centerCode, userID: user.userId };
     const res = await fetch(`${API_BASE_URL}/api/session/set`, {
       method: "POST",
       credentials: "include",
       headers: headersFor("POST"),
       body: JSON.stringify(payload),
     });
-
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(`Session set failed (${res.status}): ${t.slice(0, 200)}`);
@@ -165,20 +139,14 @@ const Header = ({ onToggleSidebar, onLogout }) => {
       credentials: "include",
       headers: headersFor("GET"),
     });
-
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(`Session get failed (${res.status}): ${t.slice(0, 200)}`);
     }
-
     const data = await res.json();
     localStorage.setItem("userSession", JSON.stringify(data));
-
     sessionStorage.setItem("userSession", JSON.stringify(data));
-
-    const code =
-      data?.LoginCode || data?.loginCode || data?.TopCode || data?.centerCode || "";
-
+    const code = data?.LoginCode || data?.loginCode || data?.TopCode || data?.centerCode || "";
     setSessionCenterCode(code || "");
     return data;
   };
@@ -192,40 +160,23 @@ const Header = ({ onToggleSidebar, onLogout }) => {
           credentials: "include",
           headers: headersFor("GET"),
         });
-
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const data = await res.json();
-
         const mapped = (Array.isArray(data) ? data : []).map((c) => ({
           code: (c.centerCode || c.code || "").toString().trim(),
           name: (c.centerName || c.name || "").toString().trim(),
         }));
-
-        // ✅ Add "No Zone" option at top
         const noZoneOption = { code: NOZONE_UI_CODE, name: NOZONE_UI_NAME };
-
-        const finalList = [
-          noZoneOption,
-          ...mapped.filter((x) => x.code && x.name),
-        ];
-
+        const finalList = [noZoneOption, ...mapped.filter((x) => x.code && x.name)];
         setClinics(finalList);
-
-        // ✅ Select center from session (map session -> UI)
         const uiSessionCode = fromSessionCenterCode(sessionCenterCode);
-
-        const match = uiSessionCode
-          ? finalList.find((c) => c.code === uiSessionCode)
-          : null;
-
+        const match = uiSessionCode ? finalList.find((c) => c.code === uiSessionCode) : null;
         setSelectedClinic(match || finalList[0] || null);
       } catch (err) {
         console.error("Failed to load clinics", err);
         showToast("Failed to load clinics", "error");
       }
     };
-
     fetchClinics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCenterCode]);
@@ -242,44 +193,23 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   }, []);
 
   /* -------------------- clinic change -------------------- */
-  const hardReload = () => {
-    window.location.reload();
-  };
+  const hardReload = () => window.location.reload();
 
   const handleClinicChange = async (clinic) => {
     try {
       if (!clinic?.code) return;
-
-      // avoid duplicate calls
       if (clinic.code === selectedClinic?.code) {
         setDropdownOpen(false);
         return;
       }
-
       setSelectedClinic(clinic);
-setDropdownOpen(false);
-
-clearCenterStickyKeys();
-
-
-      // 🔥 set session with mapped code
+      setDropdownOpen(false);
+      clearCenterStickyKeys();
       await setSessionToApi(clinic.code);
-
-      // 🔥 refresh session from server
       const newSession = await getSessionFromApi();
-
-      // ✅ reset session storage (keep user), then go dashboard & reload
-      const keepUser =
-        sessionStorage.getItem("user") || localStorage.getItem("user");
-      // ✅ update stored session (don’t clear everything)
-localStorage.setItem("userSession", JSON.stringify(newSession));
-sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
-
-
-      // ✅ Navigate to dashboard/home on center change
+      localStorage.setItem("userSession", JSON.stringify(newSession));
+      sessionStorage.setItem("userSession", JSON.stringify(newSession));
       navigate("/dashboard", { replace: true });
-
-      // ✅ Reload so app fully re-inits with new session center
       hardReload();
     } catch (e) {
       console.error("Failed to update session on clinic change", e);
@@ -289,39 +219,33 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
 
   /* -------------------- logout -------------------- */
   const handleLogout = async (e) => {
-  e.preventDefault();
-
-  try {
-    // ✅ optional but BEST: tell backend to clear server session / cookies
-    await fetch(`${API_BASE_URL}/api/logout`, {
-      method: "POST",
-      credentials: "include",
-    }).catch(() => {});
-  } finally {
-    // ✅ HARD RESET — removes ALL cached junk
+    e.preventDefault();
     try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch (err) {
-      console.error("Storage clear failed", err);
+      await fetch(`${API_BASE_URL}/api/logout`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    } finally {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (err) {
+        console.error("Storage clear failed", err);
+      }
+      onLogout?.();
+      navigate("/login", { replace: true });
+      window.location.reload();
     }
+  };
 
-    // ✅ notify parent if needed
-    onLogout?.();
+  /* -------------------- reset password -------------------- */
+  const handleResetPassword = (e) => {
+    e.preventDefault();
+    setShowProfileMenu(false);
+    navigate("/reset-password");
+  };
 
-    // ✅ redirect cleanly
-    navigate("/login", { replace: true });
-
-    // ✅ optional safety reload (ensures zero memory leaks)
-    window.location.reload();
-  }
-};
-
-
-  const fullName = user
-    ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
-    : "User";
-
+  const fullName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "User";
   const userEmail = user?.userName ?? "";
 
   /* ==================== UI ==================== */
@@ -382,8 +306,17 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
             {showProfileMenu && (
               <div className="usrmenu active">
                 <ul>
+                  {/* ✅ Reset Password link — added before logout */}
+                  <li>
+                    <a href="#" onClick={handleResetPassword}>
+                      <i className="bx bx-lock-alt" style={{ marginRight: 8 }}></i>
+                      Reset Password
+                    </a>
+                  </li>
+                  <li className="menu-divider" />
                   <li>
                     <a href="#" onClick={handleLogout}>
+                      <i className="bx bx-log-out" style={{ marginRight: 8 }}></i>
                       Log Out
                     </a>
                   </li>
@@ -395,7 +328,9 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
       </div>
 
       {/* ✅ Toast */}
-      {toast.show && <div className={`hdr-toast ${toast.type}`}>{toast.text}</div>}
+      {toast.show && (
+        <div className={`hdr-toast ${toast.type}`}>{toast.text}</div>
+      )}
 
       <style>{`
         .clinic-dropdown {
@@ -411,7 +346,7 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
           border-radius: 6px;
           cursor: pointer;
           min-width: 160px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -425,21 +360,25 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
           border-radius: 6px;
           margin-top: 4px;
           width: 100%;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         }
         .clinic-option {
           padding: 10px 12px;
           cursor: pointer;
         }
-        .clinic-option:hover {
-          background: #f4f4f4;
-        }
+        .clinic-option:hover { background: #f4f4f4; }
         .clinic-option.active {
           background: #e8f0fe;
           font-weight: bold;
         }
-        .arrow {
-          margin-left: 8px;
+        .arrow { margin-left: 8px; }
+
+        /* ✅ Profile menu divider */
+        .menu-divider {
+          height: 1px;
+          background: #e5e7eb;
+          margin: 4px 0;
+          pointer-events: none;
         }
 
         /* ✅ Toast styles */
@@ -468,7 +407,7 @@ sessionStorage.setItem("userSession", JSON.stringify(newSession)); // optional
         }
         @keyframes hdrToastIn {
           from { transform: translateY(-8px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
+          to   { transform: translateY(0);    opacity: 1; }
         }
       `}</style>
     </header>
