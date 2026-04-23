@@ -1,160 +1,205 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { API_BASE_URL } from "../../../config";
+const HEADERS = { "Cache-Control": "no-cache", Pragma: "no-cache" };
 
-const LoyaltyTab = ({ custId }) => {
-  // ----- Static demo data (you can wire to API later) -----
-  const balanceAmount = 125.0;
-  const balancePoints = 12500;
-  const tierName = "Tier 1";
-  const pointsMultiplier = "4x Points";
-  const progressLabel = "$97";
-  const progressPct = 0.52; // 52% filled, tweak for your sample
+const fmt = (d) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
 
-  const pointsExpiring = [
-    { id: 1, points: 200, expiresOn: "2025-12-30", note: "Use your points before they expire" },
-  ];
+const fmtTime = (d) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
 
-  const pointHistory = [
-    { id: 1, date: "2025-09-01 10:24", type: "Earn",    points: +250, amount: 62.5,  note: "Invoice INV-1024 purchase" },
-    { id: 2, date: "2025-09-08 14:05", type: "Redeem",  points: -100, amount: -10.0, note: "Applied at Checkout ORD-554" },
-    { id: 3, date: "2025-09-17 18:41", type: "Earn",    points: +75,  amount: 18.9,  note: "Add-on service" },
-  ];
+const TYPE_STYLE = {
+  EARN:    { bg: "#e6f4ef", color: "#2e7d5e", border: "#b3d9cc", label: "Earn" },
+  REDEEMED:{ bg: "#fff0ee", color: "#cc6b5c", border: "#f5c4b0", label: "Redeem" },
+  EXPIRED: { bg: "#fdf3f3", color: "#b94a3a", border: "#f0c4c0", label: "Expired" },
+};
 
-  const fmtMoney = (n) =>
-    (n < 0 ? "-$" + Math.abs(n).toFixed(2) : "$" + n.toFixed(2));
+const Spinner = () => (
+  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "32px 0", color: "#6e7b8f", fontSize: 13 }}>
+    <div style={{ width: 20, height: 20, borderRadius: "50%", border: "3px solid #e5ebf3", borderTopColor: "#334b71", animation: "lt-spin 0.8s linear infinite" }} />
+    Loading…
+    <style>{`@keyframes lt-spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
+
+const LoyaltyTab = ({ custId, recId }) => {
+    console.log("LoyaltyTab props:", { custId, recId }); // ← add this
+
+
+  const [balance, setBalance] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const pageSize = 10;
+
+  // Fetch balance
+  useEffect(() => {
+    if (!recId) return;
+    setBalanceLoading(true);
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${recId}`, { headers: HEADERS })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => setBalance(d))
+      .catch(() => setError("Failed to load loyalty balance."))
+      .finally(() => setBalanceLoading(false));
+  }, [recId]);
+
+  // Fetch history
+  const loadHistory = (p = 1) => {
+    if (!recId) return;
+    setHistoryLoading(true);
+    fetch(`${API_BASE_URL}/api/v1/points/history/${recId}?page=${p}&pageSize=${pageSize}`, { headers: HEADERS })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        setHistory(d.data ?? []);
+        setTotalPages(Math.ceil((d.total ?? 0) / pageSize) || 1);
+        setPage(p);
+      })
+      .catch(() => setError("Failed to load point history."))
+      .finally(() => setHistoryLoading(false));
+  };
+
+  useEffect(() => { loadHistory(1); }, [recId]);
+
+  if (!recId) return (
+    <div style={{ padding: "24px 0", color: "#6e7b8f", fontSize: 13 }}>
+      No customer record ID available to load loyalty data.
+    </div>
+  );
+
+  const availPts   = balance?.availablePoints ?? 0;
+  const redeemedPts = balance?.redeemedPoints ?? 0;
+  const expiredPts  = balance?.expiredPoints  ?? 0;
+  const totalEarned = availPts + redeemedPts + expiredPts;
+  const progressPct = totalEarned > 0 ? Math.min(availPts / Math.max(totalEarned, 1), 1) : 0;
 
   return (
-    <div className="loyalty-screen">
-      {/* Balance card */}
-      <div className="balance-card">
-        <div className="amount">${balanceAmount.toFixed(2)}</div>
-        <div className="points">{balancePoints.toLocaleString()} Points</div>
+    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: "#334b71", maxWidth: 720, margin:"0 auto", padding: "20px 0" }}>
 
-        <div className="badges">
-          <span className="badge">
-            <span className="icon">☆</span> {tierName}
-          </span>
-          <span className="badge">
-            <span className="icon">✦</span> {pointsMultiplier}
-          </span>
+      {error && (
+        <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 10, padding: "12px 16px", color: "#cc6b5c", fontSize: 13, marginBottom: 16 }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Balance hero card ── */}
+      <div style={{ background: "#334b71", borderRadius: 16, padding: "22px 24px", marginBottom: 20, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", right: -30, top: -30, width: 160, height: 160, borderRadius: "50%", background: "rgba(167,209,205,0.12)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", right: 60, bottom: -50, width: 120, height: 120, borderRadius: "50%", background: "rgba(243,220,176,0.08)", pointerEvents: "none" }} />
+
+        {balanceLoading ? (
+          <Spinner />
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative" }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Available Points</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{availPts.toLocaleString()}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 5 }}>pts available to use</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                <span style={{ background: "rgba(167,209,205,0.2)", border: "1px solid rgba(167,209,205,0.35)", color: "#A7D1CD", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
+                  {redeemedPts.toLocaleString()} redeemed
+                </span>
+                <span style={{ background: "rgba(204,107,92,0.2)", border: "1px solid rgba(204,107,92,0.35)", color: "#f5b0a0", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
+                  {expiredPts.toLocaleString()} expired
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, position: "relative" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>Available vs total earned</span>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>{availPts.toLocaleString()} / {totalEarned.toLocaleString()} pts</span>
+              </div>
+              <div style={{ height: 7, background: "rgba(255,255,255,0.15)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.round(progressPct * 100)}%`, background: "#A7D1CD", borderRadius: 999 }} />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Summary stats ── */}
+      {!balanceLoading && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Available",  value: availPts.toLocaleString(),    color: "#334b71" },
+            { label: "Redeemed",   value: redeemedPts.toLocaleString(), color: "#2e7d5e" },
+            { label: "Expired",    value: expiredPts.toLocaleString(),  color: "#cc6b5c" },
+          ].map((s, i) => (
+            <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5ebf3", boxShadow: "0 1px 4px rgba(51,75,113,0.06)" }}>
+              <div style={{ fontSize: 11, color: "#6e7b8f", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#8da0b8", marginTop: 4 }}>points</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Point history ── */}
+      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5ebf3", overflow: "hidden", boxShadow: "0 1px 4px rgba(51,75,113,0.06)" }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #f0f4fa", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#334b71" }}>Point History</div>
+          {!historyLoading && (
+            <span style={{ fontSize: 11, color: "#6e7b8f", fontWeight: 600, background: "#eef2f7", padding: "3px 10px", borderRadius: 999, border: "1px solid #e5ebf3" }}>
+              {history.length} records
+            </span>
+          )}
         </div>
 
-        <div className="progress">
-          <div className="bar">
-            <div className="fill" style={{ width: `${Math.round(progressPct * 100)}%` }} />
-          </div>
-          <div className="progress-label">{progressLabel}</div>
-        </div>
+        {historyLoading ? (
+          <div style={{ padding: "0 18px" }}><Spinner /></div>
+        ) : history.length === 0 ? (
+          <div style={{ padding: "32px 18px", textAlign: "center", color: "#6e7b8f", fontSize: 13 }}>No transaction history found.</div>
+        ) : (
+          <>
+            {/* Table header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 0.7fr 0.9fr 1.6fr", padding: "9px 18px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 11, fontWeight: 700, color: "#6e7b8f", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span>Date</span><span>Type</span><span style={{ textAlign: "right" }}>Points</span><span style={{ textAlign: "right" }}>Balance after</span><span style={{ paddingLeft: 12 }}>Description</span>
+            </div>
+
+            {history.map((r, i) => {
+              const ts = TYPE_STYLE[r.transactionType] ?? TYPE_STYLE.EARN;
+              const isNeg = r.transactionType === "REDEEMED" || r.transactionType === "EXPIRED";
+              return (
+                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 0.7fr 0.9fr 1.6fr", padding: "12px 18px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafbfe", borderBottom: i < history.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
+                  <span style={{ color: "#6e7b8f", fontSize: 12 }}>{fmtTime(r.transactionDate)}</span>
+                  <span>
+                    <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>
+                      {ts.label}
+                    </span>
+                  </span>
+                  <span style={{ textAlign: "right", fontWeight: 700, color: isNeg ? "#cc6b5c" : "#2e7d5e" }}>
+                    {isNeg ? "-" : "+"}{r.points.toLocaleString()}
+                  </span>
+                  <span style={{ textAlign: "right", fontWeight: 600, color: "#334b71" }}>
+                    {r.pointsBalanceAfter.toLocaleString()}
+                  </span>
+                  <span style={{ paddingLeft: 12, color: "#6e7b8f", fontSize: 12 }}>{r.description || "—"}</span>
+                </div>
+              );
+            })}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ padding: "12px 18px", borderTop: "1px solid #f0f4fa", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fafbfe" }}>
+                <span style={{ fontSize: 12, color: "#6e7b8f" }}>Page {page} of {totalPages}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button disabled={page <= 1} onClick={() => loadHistory(page - 1)} style={{ height: 28, padding: "0 12px", borderRadius: 7, border: "1px solid #e5ebf3", background: "#fff", color: "#334b71", fontSize: 12, fontWeight: 700, cursor: page <= 1 ? "not-allowed" : "pointer", opacity: page <= 1 ? 0.4 : 1, fontFamily: "inherit" }}>← Prev</button>
+                  <button disabled={page >= totalPages} onClick={() => loadHistory(page + 1)} style={{ height: 28, padding: "0 12px", borderRadius: 7, border: "1px solid #e5ebf3", background: "#fff", color: "#334b71", fontSize: 12, fontWeight: 700, cursor: page >= totalPages ? "not-allowed" : "pointer", opacity: page >= totalPages ? 0.4 : 1, fontFamily: "inherit" }}>Next →</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-
-      {/* Active Challenges intentionally removed */}
-
-      {/* Transaction History */}
-      <h3 className="section-title">Transaction History</h3>
-
-      {/* Points Expiring */}
-      <div className="card">
-        <div className="card-title">Points Expiring</div>
-        <table className="grid">
-          <thead>
-            <tr>
-              <th className="left">Points</th>
-              <th className="left">Expires On</th>
-              <th className="left">Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pointsExpiring.map((r) => (
-              <tr key={r.id}>
-                <td className="left">{r.points}</td>
-                <td className="left">{r.expiresOn}</td>
-                <td className="left">{r.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Point History */}
-      <div className="card">
-        <div className="card-title">Point History</div>
-        <table className="grid">
-          <thead>
-            <tr>
-              <th className="left">Date</th>
-              <th className="left">Type</th>
-              <th className="right">Points</th>
-              <th className="right">Amount</th>
-              <th className="left">Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pointHistory.map((r) => (
-              <tr key={r.id}>
-                <td className="left">{r.date}</td>
-                <td className="left">{r.type}</td>
-                <td className={`right ${r.points < 0 ? "neg" : "pos"}`}>{r.points}</td>
-                <td className={`right ${r.amount < 0 ? "neg" : "pos"}`}>{fmtMoney(r.amount)}</td>
-                <td className="left">{r.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <style jsx="true">{`
-        .loyalty-screen {  max-width: 700px; margin: 30px ;  }
-
-        .balance-card {
-          background: linear-gradient(160deg, #102e55, #817e7e);
-          color: #fff; padding: 18px; border-radius: 16px;
-          box-shadow: 0 8px 24px rgba(59, 43, 143, 0.25);
-          margin: 0 0 30px;
-        }
-        .amount { font-size: 28px; font-weight: 800; line-height: 1; }
-        .points { opacity: 0.9; margin-top: 4px; font-weight: 600; }
-
-        .badges { display: none; gap: 10px; margin-top: 12px; }
-        .badge {
-          background: rgba(255,255,255,0.15);
-          border: 1px solid rgba(255,255,255,0.25);
-          padding: 6px 10px; border-radius: 999px;
-          font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
-        }
-        .badge .icon { font-size: 13px; }
-
-        .progress { margin-top: 14px; }
-        .bar {
-          height: 8px; background: rgba(255,255,255,0.25); border-radius: 999px; overflow: hidden;
-        }
-        .fill {
-          height: 100%; background: #ffffff; opacity: 0.9; border-radius: 999px;
-        }
-        .progress-label { margin-top: 8px; font-size: 12px; opacity: 0.95; font-weight: 700; }
-
-        .section-title { margin: 6px 0 2px; color: #fff;padding: 20px 10px;  }
-
-        .card {
-          background: #fff; border-radius: 12px; padding: 14px;
-          box-shadow: 0 2px 10px rgba(0,0,0,.06);margin: 0 0 30px;
-        }
-        .card-title { font-weight: 800; color: #111827; margin-bottom: 10px; }
-
-        table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
-        thead th {
-          background: #f3f4f6; color: #111827; font-weight: 700; font-size: 13px;
-          padding: 10px; border-bottom: 1px solid #e5e7eb;
-        }
-        tbody td { font-size: 13px; color: #111827; padding: 10px; border-bottom: 1px solid #f3f4f6; }
-        .left { text-align: left; }
-        .right { text-align: right; }
-        .pos { color: #065f46; }
-        .neg { color: #b91c1c; }
-
-        @media (max-width: 560px) {
-          .amount { font-size: 24px; }
-          .badge { font-size: 11px; }
-        }
-      `}</style>
     </div>
   );
 };

@@ -33,6 +33,7 @@ const InvoicePage = () => {
   const appointmentIdFromUrl = searchParams.get('appointmentid');
   const custNameFromUrl = searchParams.get('custname');
   const isPaidInUrl = searchParams.get('isPaymentMade') === '1';
+  const recIdFromUrl = searchParams.get('recid') || '';
 
 useEffect(() => {
   const loadCustomerAndItems = async () => {
@@ -85,7 +86,8 @@ useEffect(() => {
             number: firstItem.number || "",
             email: firstItem.emailId || "",
             gender: firstItem.gender || "",
-            status: firstItem.nationality === "84" ? "Citizen" : "Expat"
+            status: firstItem.nationality === "84" ? "Citizen" : "Expat",
+            recId: recIdFromUrl || firstItem.recId || "",
           });
 
           return;
@@ -102,7 +104,8 @@ useEffect(() => {
         number: "",
         email: "",
         gender: "",
-        status: ""
+        status: "",
+        recId: recIdFromUrl || "",
       });
     }
   };
@@ -258,7 +261,11 @@ useEffect(() => {
 
             <div className="invtotalblk">
               <CustomerSearch
-                onCustomerSelect={setSelectedCustomer}
+               onCustomerSelect={(cust) => setSelectedCustomer({
+    ...cust,
+    custid: cust.custId || cust.custid || "",
+    recId: cust.recId || cust.recid || "",
+  })}
                 prefillCustid={custidFromUrl}
                 fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email}
@@ -289,6 +296,7 @@ useEffect(() => {
               totalAmount={total.toFixed(2)}
               invoiceItems={items}
               customer={selectedCustomer}
+              recId={selectedCustomer?.recId || recIdFromUrl || ""}
             />
           </aside>
         </div>
