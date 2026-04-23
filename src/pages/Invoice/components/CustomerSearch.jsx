@@ -68,22 +68,22 @@ const CustomerSearch = ({ onCustomerSelect, prefillCustid, fullName, emailId, nu
 
   // Handle customer selection from suggestions
   const handleSelect = (cust) => {
-        const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'Expat';
-
-
+    const status = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'Expat';
     setFormData({
       mobile: cust.mobile || '',
       name: `${cust.firstName} ${cust.lastName}`,
       email: cust.email || ''
     });
-
-    setNationalityStatus(status); 
-
+    setNationalityStatus(status);
     setFilteredSuggestions([]);
     setFocusedField(null);
-     const enriched = { ...cust, status };
+    const enriched = { 
+      ...cust, 
+      status,
+      recId: cust.recId || cust.recid || "",  // ← ensure recId is passed
+    };
     onCustomerSelect?.(enriched);
-  };
+};
 
   return (
     <div className="cstsearch">

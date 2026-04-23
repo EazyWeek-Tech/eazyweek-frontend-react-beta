@@ -16,6 +16,7 @@ const CustomerMaster = () => {
   const goToCustomerPage = (row) => {
     const qp = new URLSearchParams();
     if (row?.custId) qp.set("custid", row.custId);
+     if (row?.recId) qp.set("recid", row.recId); 
     const fullName = [row?.firstName, row?.lastName].filter(Boolean).join(" ").trim();
     if (fullName) qp.set("fullname", fullName);
     if (row?.mobile) qp.set("number", row.mobile);

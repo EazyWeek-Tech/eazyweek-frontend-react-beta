@@ -6,6 +6,7 @@ import './CustomerDetails.css';
 const Customer = () => {
   const [searchParams] = useSearchParams();
   const custId = searchParams.get("custid") || "";
+  const recId = searchParams.get("recid") || "";
   const navigate = useNavigate();
 
   console.log(custId);
@@ -17,7 +18,7 @@ const Customer = () => {
           </button>
 
       {/* Pass custid to CustomerDetails */}
-      <CustomerDetails custId={custId} />
+      <CustomerDetails custId={custId} recId={recId} />
 
       <style>{`
         .custnmwrp {

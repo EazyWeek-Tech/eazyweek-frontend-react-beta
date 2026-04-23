@@ -31,7 +31,7 @@ const getCenterCode = () => {
   }
 };
 
-const CustomerDetails = ({ custId }) => {
+const CustomerDetails = ({ custId, recId }) => {
   const [activeTab, setActiveTab] = useState("General");
   const [customerData, setCustomerData] = useState(null);
 
@@ -78,6 +78,7 @@ const CustomerDetails = ({ custId }) => {
           activeTab={activeTab}
           customer={customerData}
           custId={custId}
+          recId={recId}
         />
       </div>
     </div>

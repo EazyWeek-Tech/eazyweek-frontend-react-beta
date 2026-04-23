@@ -17,7 +17,8 @@ const PaymentBlock = ({
   invoiceItems = [],
   customer,
   appointmentID,
-  centerCode
+  centerCode,
+  recId: recIdFromProp = ""
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -27,6 +28,9 @@ const PaymentBlock = ({
   const custNameFromUrl = (searchParams.get('custname') || '').trim();
   const appointmentIdFromUrl = (searchParams.get('appointmentid') || appointmentID || '').trim();
   const isPaymentMadeFromUrl = (searchParams.get('isPaymentMade') || '').trim();
+  // recId: prefer prop (passed from parent who has it from customer select or URL), fallback to URL param
+  const recIdFromUrl = (searchParams.get('recid') || '').trim();
+  const recIdFromUrl_final = recIdFromProp || recIdFromUrl || customer?.recId || "";
 
   // ---------- session user (centerCode/createdBy) ----------
   const sessionUser = useMemo(() => {
@@ -55,6 +59,11 @@ const PaymentBlock = ({
   const [submittedInvoiceItems, setSubmittedInvoiceItems] = useState([]);
   const [submittedTotalAmount, setSubmittedTotalAmount] = useState(0);
 
+  // Loyalty balance state
+  const [loyaltyBalance, setLoyaltyBalance] = useState(null);
+  const [loyaltyBalanceLoading, setLoyaltyBalanceLoading] = useState(false);
+  const [centerRecId, setCenterRecId] = useState(0);
+
   // Local state from GetSelectedAppDetails API
   const [apiInvoiceItems, setApiInvoiceItems] = useState([]);
   const [apiCustomer, setApiCustomer] = useState(null);
@@ -69,6 +78,35 @@ const PaymentBlock = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillPaymentData]);
+
+  // ---------- Fetch loyalty balance when loyalty tab is active ----------
+  useEffect(() => {
+    if (activeTab !== 'loyalty' || !recIdFromUrl_final) return;
+    setLoyaltyBalanceLoading(true);
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
+      credentials: 'include',
+      headers: { 'Cache-Control': 'no-cache' },
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => setLoyaltyBalance(d))
+      .catch(e => console.warn('Loyalty balance fetch failed:', e))
+      .finally(() => setLoyaltyBalanceLoading(false));
+  }, [activeTab, recIdFromUrl_final]);
+
+  // ---------- Fetch center recId from LoadCenters ----------
+  useEffect(() => {
+    if (!sessionCenterCode) return;
+    fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => {
+        const centers = Array.isArray(data) ? data : [];
+        const match = centers.find(c =>
+          (c.code || '').toLowerCase() === sessionCenterCode.toLowerCase()
+        );
+        if (match?.recid) setCenterRecId(match.recid);
+      })
+      .catch(e => console.warn('LoadCenters failed:', e));
+  }, [sessionCenterCode]);
 
   // ---------- Helpers ----------
   const splitName = (full = "") => {
@@ -234,9 +272,14 @@ const PaymentBlock = ({
     }
 
     if (activeTab === 'loyalty') {
-      const { loyaltyType, points } = formData;
-      if (!loyaltyType || !points) {
-        setFormError('Please provide loyalty type and points.');
+      const redeemAmt = parseFloat(formData.redeemAmount || '');
+      if (!redeemAmt || redeemAmt <= 0) {
+        setFormError('Please enter the points amount to redeem.');
+        return false;
+      }
+      const available = loyaltyBalance?.availablePoints ?? 0;
+      if (redeemAmt > available) {
+        setFormError(`Cannot redeem ${redeemAmt} pts — only ${available} pts available.`);
         return false;
       }
     }
@@ -567,7 +610,16 @@ const PaymentBlock = ({
         setSubmittedInvoiceItems(effectiveInvoiceItems);
         setSubmittedTotalAmount(parsedTotalAmount);
 
-        setGeneratedInvoiceNumber(result.message || '');
+        const invoiceNum = result.message || '';
+        setGeneratedInvoiceNumber(invoiceNum);
+        if (recIdFromUrl_final) {
+          const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
+          if (loyaltyPayment) {
+            createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
+          } else {
+            createPointsTransaction('EARN', parsedTotalAmount, invoiceNum);
+          }
+        }
         setInvoiceSuccessPopup(true);
       } else {
         setToast({ message: result.message || 'Submission failed', type: 'error' });
@@ -575,6 +627,35 @@ const PaymentBlock = ({
     } catch (err) {
       console.error('Invoice submission error:', err);
       setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  // ---------- Points transaction helper ----------
+  const createPointsTransaction = async (transactionType, invoiceTotal, invoiceNumber) => {
+    if (!recIdFromUrl_final) return;
+    const now = new Date().toISOString();
+    try {
+      await fetch(`${API_BASE_URL}/api/v1/points/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: centerRecId || 0,
+          membershipId: recIdFromUrl_final,
+          programId: 0,
+          transactionType,
+          amount: invoiceTotal,
+          points: 0,
+          referenceId: 0,
+          description: `INV ${invoiceNumber}`,
+          expiryDate: now,
+          transactionDate: now,
+          status: '1',
+          pointsBalanceAfter: 0,
+        }),
+      });
+    } catch (err) {
+      console.warn('Points transaction failed (non-critical):', err);
     }
   };
 
@@ -675,18 +756,50 @@ const PaymentBlock = ({
 
           {activeTab === 'loyalty' && (
             <>
+              {/* Balance display */}
               <div className="frmdiv">
-                <label>Loyalty Type:</label>
-                <select id="loyaltyType" onChange={handleChange} value={formData.loyaltyType || ''}>
-                  <option value="">Select</option>
-                  <option>Reward Points</option>
-                  <option>Membership</option>
-                </select>
+                {loyaltyBalanceLoading ? (
+                  <div style={{ fontSize: 13, color: '#6e7b8f', padding: '8px 0' }}>Loading loyalty balance…</div>
+                ) : loyaltyBalance ? (
+                  <div style={{ marginBottom: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6e7b8f', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Loyalty Balance</div>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                      <div style={{display:'flex', gap: 20, alignItems:'center'}}>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: '#334b71', lineHeight: 1 }}>{loyaltyBalance.availablePoints?.toLocaleString() ?? '—'}</div>
+                        <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Available pts</div>
+                      </div>
+                     
+                    </div>
+                  </div>
+                ) : !recIdFromUrl_final ? (
+                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>⚠ Select a customer to view loyalty balance.</div>
+                ) : null}
               </div>
-              <div className="frmdiv">
-                <label>Points:</label>
-                <input type="text" id="points" value={formData.points || ''} onChange={handleChange} />
-              </div>
+
+              {/* Redeem input */}
+              {loyaltyBalance && (
+                <div className="frmdiv">
+                  <label>Points to Redeem:</label>
+                  <input
+                    type="number"
+                    id="redeemAmount"
+                    min="0"
+                    max={loyaltyBalance.availablePoints ?? 0}
+                    value={formData.redeemAmount || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleChange({ target: { id: 'redeemAmount', value: val } });
+                      setAmount(val || '0');
+                    }}
+                    placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
+                  />
+                  {formData.redeemAmount && parseFloat(formData.redeemAmount) > (loyaltyBalance.availablePoints ?? 0) && (
+                    <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
+                      Exceeds available points ({loyaltyBalance.availablePoints?.toLocaleString()})
+                    </span>
+                  )}
+                </div>
+              )}
             </>
           )}
 
