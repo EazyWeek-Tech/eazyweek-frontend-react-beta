@@ -294,13 +294,20 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
   return (
     <section className="lyl-card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <h2 className="lyl-card-title" style={{ margin: 0 }}>Tiers</h2>
-        <button
-          style={{ height: 34, padding: "0 14px", borderRadius: 9, border: "none", background: C.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
-          onClick={() => setModalTier(null)}
-        >
-          + Add Tier
-        </button>
+        <h2 className="lyl-card-title" style={{ margin: 0 }}>Tiers {tiers.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: C.axis, marginLeft: 6 }}>({tiers.length}/4)</span>}</h2>
+        {tiers.length < 4 && (
+          <button
+            style={{ height: 34, padding: "0 14px", borderRadius: 9, border: "none", background: C.primary, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            onClick={() => setModalTier(null)}
+          >
+            + Add Tier
+          </button>
+        )}
+        {tiers.length >= 4 && (
+          <span style={{ fontSize: 12, color: C.axis, background: "#eef2f7", padding: "4px 10px", borderRadius: 8, border: "1px solid #e5ebf3" }}>
+            Maximum 4 tiers reached
+          </span>
+        )}
       </div>
       <p className="lyl-muted">Manage earning tiers for this program</p>
 
