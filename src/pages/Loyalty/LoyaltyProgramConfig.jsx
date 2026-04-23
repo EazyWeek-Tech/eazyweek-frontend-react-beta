@@ -136,7 +136,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
       const eFrom = Number(t.fromAmount);
       const eTo = Number(t.toAmount);
       // Use <= so shared boundaries are also blocked (e.g. 100 can't start a new tier if existing ends at 100)
-      if (newFrom < eTo && newTo > eFrom) {
+      if (newFrom <= eTo && newTo > eFrom) {
         return `Range ${newFrom}–${newTo} overlaps with existing tier "${t.tierName}" (${eFrom}–${eTo}). Next tier should start from ${eTo + 1}`;
       }
     }
@@ -166,7 +166,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
       const boundaryConflict = (existingTiers ?? []).some(
         t => !(tier && t.tierId === tier.tierId) && Number(t.toAmount) === fromNum
       );
-      if (boundaryConflict) e.fromAmount = `${fromNum} is the end of an existing tier. Use ${fromNum + 1} as the start.`;
+      if (boundaryConflict) e.fromAmount = `${fromNum} is already used by an existing tier. Use ${fromNum + 1} as the start.`;
     }
     if (form.toAmount === "" || isNaN(Number(form.toAmount))) e.toAmount = "Required";
     else if (Number(form.toAmount) <= Number(form.fromAmount)) e.toAmount = "Must be greater than From Amount";
@@ -521,7 +521,8 @@ export default function LoyaltyProgramConfig() {
         </div>
         <div className="lyl-grid2">
           <Field label="Start Date *" error={showErr("startDate")}>
-            <input type="date" style={inputStyle(submitted && errors.startDate)} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input type="date" style={inputStyle(submitted && errors.startDate)} value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)} />
           </Field>
           <Field label="End Date" error={showErr("endDate")}>
             <input type="date" style={inputStyle(submitted && errors.endDate)} value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || undefined} />
