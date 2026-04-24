@@ -634,6 +634,9 @@ const PaymentBlock = ({
   const createPointsTransaction = async (transactionType, invoiceTotal, invoiceNumber) => {
     if (!recIdFromUrl_final) return;
     const now = new Date().toISOString();
+    // Extract trailing numeric part from invoice number e.g. "INV INVBright00144" → 144
+    const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
+    const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
     try {
       await fetch(`${API_BASE_URL}/api/v1/points/create`, {
         method: 'POST',
@@ -646,7 +649,7 @@ const PaymentBlock = ({
           transactionType,
           amount: invoiceTotal,
           points: 0,
-          referenceId: 0,
+          referenceId,
           description: `INV ${invoiceNumber}`,
           expiryDate: now,
           transactionDate: now,
@@ -761,14 +764,21 @@ const PaymentBlock = ({
                 {loyaltyBalanceLoading ? (
                   <div style={{ fontSize: 13, color: '#6e7b8f', padding: '8px 0' }}>Loading loyalty balance…</div>
                 ) : loyaltyBalance ? (
-                  <div style={{ marginBottom: 4 }}>
+                  <div style={{ background: '#f0f5ff', border: '1px solid #dce6f0', borderLeft: '4px solid #334b71', borderRadius: 8, padding: '10px 14px', marginBottom: 4 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#6e7b8f', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Loyalty Balance</div>
                     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                      <div style={{display:'flex', gap: 20, alignItems:'center'}}>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: '#334b71', lineHeight: 1 }}>{loyaltyBalance.availablePoints?.toLocaleString() ?? '—'}</div>
+                      <div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: '#334b71', lineHeight: 1 }}>{loyaltyBalance.availablePoints?.toLocaleString() ?? '—'}</div>
                         <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Available pts</div>
                       </div>
-                     
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#cc6b5c', lineHeight: 1 }}>{loyaltyBalance.redeemedPoints?.toLocaleString() ?? '—'}</div>
+                        <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Redeemed</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#8da0b8', lineHeight: 1 }}>{loyaltyBalance.expiredPoints?.toLocaleString() ?? '—'}</div>
+                        <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Expired</div>
+                      </div>
                     </div>
                   </div>
                 ) : !recIdFromUrl_final ? (

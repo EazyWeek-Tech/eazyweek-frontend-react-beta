@@ -27,8 +27,8 @@ const TabContent = ({ activeTab, customer, custId, recId }) => {
        case "Loyalty":
           return <LoyaltyTab custId={custId} recId={recId} />;
 
-    case "Invoices":
-      return <InvoiceTab custId={custId} />;
+      case "Invoices": 
+      return <InvoiceTab custId={custId} recId={recId} />;
         case "Cases":
       return <CaseTab custId={custId} />;
     default:
