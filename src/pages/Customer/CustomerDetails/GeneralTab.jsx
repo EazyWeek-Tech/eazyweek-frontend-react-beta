@@ -311,7 +311,8 @@ const GeneralTab = ({ customer }) => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    const val = type === "checkbox" ? (checked ? 1 : 0) : value;
+    const val = type === "checkbox" ? checked : value;
+
     setFormData((prev) => ({ ...prev, [name]: val }));
 
     if (name === "nationalityCode") {
@@ -414,6 +415,7 @@ const GeneralTab = ({ customer }) => {
       marketingLoyalPointSMSandEmailEnable: Number(formData.marketingLoyalPointSMSandEmailEnable || 0),
       blockGuestFromEditCustomerData:           Number(formData.blockGuestFromEditCustomerData           || 0),
       blockGuestFromOnlineAppointmentBooking:   Number(formData.blockGuestFromOnlineAppointmentBooking   || 0),
+      isLoyaltyEnrolled: !!formData.isLoyaltyEnrolled, 
     };
 
     try {
@@ -582,6 +584,21 @@ const GeneralTab = ({ customer }) => {
               <F name="tags" label="Tags">
                 {inp("tags")}
               </F>
+
+              <F name="isLoyaltyEnrolled" label="Loyalty Program" span2>
+  <label style={{ display: "flex", alignItems: "center", gap: 10, height: 38, cursor: "pointer" }}>
+    <input
+      type="checkbox"
+      name="isLoyaltyEnrolled"
+      checked={!!formData.isLoyaltyEnrolled}
+      onChange={handleChange}
+      style={{ width: 16, height: 16, accentColor: "#3E5D8A", cursor: "pointer" }}
+    />
+    <span style={{ fontSize: 13.5, color: "#1a1f2e", fontWeight: 500 }}>
+      Is customer part of loyalty program?
+    </span>
+  </label>
+</F>
 
             </div>
           </div>
