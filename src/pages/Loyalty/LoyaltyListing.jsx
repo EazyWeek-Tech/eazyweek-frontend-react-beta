@@ -112,6 +112,7 @@ export default function LoyaltyListing() {
           )}
           <button
             className="ll-btn ll-btn-primary"
+            style={{display:'none'}}
             onClick={() => navigate("/loyalty/config", { state: { program: null } })}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

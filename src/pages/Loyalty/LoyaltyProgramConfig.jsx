@@ -21,20 +21,27 @@ const safeJson = async (res, label) => {
 };
 
 const fetchCurrencies = async () => {
-  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS });
+  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS, credentials: 'include' });
   if (!res.ok) throw new Error(`Failed to load currencies (${res.status})`);
   return safeJson(res, "GET currency/search");
 };
 
-const fetchTiers = async (programId) => {
-  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/list/${programId}?activeOnly=false`, { headers: HEADERS });
-  if (!res.ok) throw new Error(`Failed to load tiers (${res.status})`);
-  return safeJson(res, "GET tier/list");
+const fetchTierById = async (tierId) => {
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier/${tierId}`, { headers: HEADERS, credentials: 'include' });
+  if (!res.ok) throw new Error(`Failed to load tier (${res.status})`);
+  return res.json();
 };
+
+const fetchTiers = async () => {
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier-list`, { headers: HEADERS, credentials: 'include' });
+  if (!res.ok) throw new Error(`Failed to load tiers (${res.status})`);
+  return safeJson(res, "GET get-tier-list");
+};
+
 
 const saveProgram = async (payload) => {
   const res = await fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
-    method: "POST", headers: HEADERS, body: JSON.stringify(payload),
+    method: "POST", headers: HEADERS, credentials: 'include', body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let msg = `Save failed (${res.status})`;
@@ -47,7 +54,7 @@ const saveProgram = async (payload) => {
 const fetchProgramByCode = async (programCode) => {
   const res = await fetch(
     `${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=10`,
-    { headers: HEADERS }
+    { headers: HEADERS, credentials: 'include' }
   );
   if (!res.ok) return null;
   try {
@@ -57,15 +64,22 @@ const fetchProgramByCode = async (programCode) => {
 };
 
 const saveTier = async (payload) => {
-  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier`, {
-    method: "POST", headers: HEADERS, body: JSON.stringify(payload),
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/create-tier`, {
+    method: "POST", headers: HEADERS, credentials: 'include', body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let msg = `Tier save failed (${res.status})`;
-    try { const b = await safeJson(res, "POST tier"); if (b?.message || b?.error) msg = b.message ?? b.error; } catch (e) { msg = e.message; }
+    try { const b = await safeJson(res, "POST create-tier"); if (b?.message || b?.error) msg = b.message ?? b.error; } catch (e) { msg = e.message; }
     throw new Error(msg);
   }
-  return safeJson(res, "POST tier").catch(() => null);
+  return safeJson(res, "POST create-tier").catch(() => null);
+};
+
+// ── Services API helper ──────────────────────────────────────────────────────
+const fetchServices = async () => {
+  const res = await fetch(`${API_BASE}/api/Master/LoadService`, { headers: HEADERS, credentials: 'include' });
+  if (!res.ok) return [];
+  try { const d = await res.json(); return Array.isArray(d) ? d : []; } catch { return []; }
 };
 
 // ── Tiny UI helpers ───────────────────────────────────────────────────────────
@@ -106,10 +120,16 @@ const Toast = ({ msg, type, onClose }) => {
 };
 
 // ── Tier form modal ───────────────────────────────────────────────────────────
-const EMPTY_TIER = { tierId: 0, tierName: "", tierLevel: "", fromAmount: "", toAmount: "", currencyId: "", expiryDays: "" };
+const EMPTY_TIER = {
+  tierId: 0, tierName: "", tierLevel: "", fromAmount: "", toAmount: "",
+  currencyId: "", expiryDays: "",
+  earningAmountSegment: "", earnPoints: "", redeemPoints: "", redeemAmount: "",
+  earningCategoryIds: [], redeemCategoryIds: [],
+};
 
 const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTiers, onClose, onSaved }) => {
   const defaultCurrencyId = tier ? String(tier.currencyId) : String(programCurrencyId ?? "");
+  const [services, setServices] = useState([]);
 
   const [form, setForm] = useState(tier ? {
     tierId: tier.tierId,
@@ -119,26 +139,40 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
     toAmount: String(tier.toAmount),
     currencyId: String(tier.currencyId),
     expiryDays: String(tier.expiryDays),
+    earningAmountSegment: String(tier.earningAmountSegment ?? ""),
+    earnPoints: String(tier.earnPoints ?? ""),
+    redeemPoints: String(tier.redeemPoints ?? ""),
+    redeemAmount: String(tier.redeemAmount ?? ""),
+    earningCategoryIds: tier.earningCategoryIds ?? [],
+    redeemCategoryIds: tier.redeemCategoryIds ?? [],
   } : { ...EMPTY_TIER, currencyId: defaultCurrencyId });
 
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  useEffect(() => { fetchServices().then(setServices); }, []);
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const toggleCat = useCallback((field, id) => {
+    setForm(f => {
+      const ids = f[field] ?? [];
+      return { ...f, [field]: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] };
+    });
+  }, []);
+
+  const toggleEarn = useCallback((id) => toggleCat("earningCategoryIds", id), [toggleCat]);
+  const toggleRedeem = useCallback((id) => toggleCat("redeemCategoryIds", id), [toggleCat]);
+
   const checkOverlap = (from, to) => {
-    const newFrom = Number(from);
-    const newTo = Number(to);
+    const newFrom = Number(from), newTo = Number(to);
     if (isNaN(newFrom) || isNaN(newTo)) return null;
     for (const t of (existingTiers ?? [])) {
       if (tier && t.tierId === tier.tierId) continue;
-      const eFrom = Number(t.fromAmount);
-      const eTo = Number(t.toAmount);
-      // Use <= so shared boundaries are also blocked (e.g. 100 can't start a new tier if existing ends at 100)
-      if (newFrom <= eTo && newTo > eFrom) {
-        return `Range ${newFrom}–${newTo} overlaps with existing tier "${t.tierName}" (${eFrom}–${eTo}). Next tier should start from ${eTo + 1}`;
-      }
+      const eFrom = Number(t.fromAmount), eTo = Number(t.toAmount);
+      if (newFrom <= eTo && newTo > eFrom)
+        return `Range ${newFrom}–${newTo} overlaps with "${t.tierName}" (${eFrom}–${eTo}). Start from ${eTo + 1}`;
     }
     return null;
   };
@@ -146,38 +180,38 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
   const errs = useMemo(() => {
     const e = {};
     if (!form.tierName.trim()) e.tierName = "Required";
-
-    // Tier Level: required + no duplicates
     if (!form.tierLevel || isNaN(Number(form.tierLevel))) {
       e.tierLevel = "Required";
     } else {
       const levelNum = Number(form.tierLevel);
-      const duplicate = (existingTiers ?? []).some(
-        t => Number(t.tierLevel) === levelNum && !(tier && t.tierId === tier.tierId)
-      );
-      if (duplicate) e.tierLevel = `Tier Level ${levelNum} already exists`;
+      const dup = (existingTiers ?? []).some(t => Number(t.tierLevel) === levelNum && !(tier && t.tierId === tier.tierId));
+      if (dup) e.tierLevel = `Tier Level ${levelNum} already exists`;
     }
-
     if (form.fromAmount === "" || isNaN(Number(form.fromAmount))) e.fromAmount = "Required";
     else if (Number(form.fromAmount) < 0) e.fromAmount = "Must be ≥ 0";
     else {
-      // Check if fromAmount equals an existing tier's toAmount — boundary overlap
       const fromNum = Number(form.fromAmount);
-      const boundaryConflict = (existingTiers ?? []).some(
-        t => !(tier && t.tierId === tier.tierId) && Number(t.toAmount) === fromNum
-      );
-      if (boundaryConflict) e.fromAmount = `${fromNum} is already used by an existing tier. Use ${fromNum + 1} as the start.`;
+      const boundary = (existingTiers ?? []).some(t => !(tier && t.tierId === tier.tierId) && Number(t.toAmount) === fromNum);
+      if (boundary) e.fromAmount = `${fromNum} is already used. Use ${fromNum + 1} as start.`;
     }
     if (form.toAmount === "" || isNaN(Number(form.toAmount))) e.toAmount = "Required";
-    else if (Number(form.toAmount) <= Number(form.fromAmount)) e.toAmount = "Must be greater than From Amount";
+    else if (Number(form.toAmount) <= Number(form.fromAmount)) e.toAmount = "Must be > From Amount";
     if (!form.currencyId) e.currencyId = "Required";
     if (!form.expiryDays || isNaN(Number(form.expiryDays))) e.expiryDays = "Required";
     else if (Number(form.expiryDays) <= 0) e.expiryDays = "Must be > 0";
-    // Overlap check
-    if (!e.fromAmount && !e.toAmount) {
-      const overlap = checkOverlap(form.fromAmount, form.toAmount);
-      if (overlap) e.fromAmount = overlap;
-    }
+    if (!e.fromAmount && !e.toAmount) { const ov = checkOverlap(form.fromAmount, form.toAmount); if (ov) e.fromAmount = ov; }
+    // Accrual
+    if (!form.earningAmountSegment || isNaN(Number(form.earningAmountSegment))) e.earningAmountSegment = "Required";
+    else if (Number(form.earningAmountSegment) <= 0) e.earningAmountSegment = "Must be > 0";
+    if (!form.earnPoints || isNaN(Number(form.earnPoints))) e.earnPoints = "Required";
+    else if (Number(form.earnPoints) <= 0) e.earnPoints = "Must be > 0";
+    if (!form.earningCategoryIds?.length) e.earningCategoryIds = "Select at least one service";
+    // Redemption
+    if (!form.redeemPoints || isNaN(Number(form.redeemPoints))) e.redeemPoints = "Required";
+    else if (Number(form.redeemPoints) <= 0) e.redeemPoints = "Must be > 0";
+    if (!form.redeemAmount || isNaN(Number(form.redeemAmount))) e.redeemAmount = "Required";
+    else if (Number(form.redeemAmount) <= 0) e.redeemAmount = "Must be > 0";
+    if (!form.redeemCategoryIds?.length) e.redeemCategoryIds = "Select at least one service";
     return e;
   }, [form, existingTiers, tier]);
 
@@ -186,42 +220,154 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
   const onSubmit = async () => {
     setSubmitted(true);
     if (Object.keys(errs).length) return;
-    setSaving(true);
-    setErr("");
+    setSaving(true); setErr("");
     try {
       await saveTier({
-        tierId: form.tierId ?? 0,
-        programId,
-        tierName: form.tierName.trim(),
-        tierLevel: Number(form.tierLevel),
-        fromAmount: Number(form.fromAmount),
-        toAmount: Number(form.toAmount),
-        currencyId: Number(form.currencyId),
-        expiryDays: Number(form.expiryDays),
+        TierId: form.tierId ?? 0,
+        ProgramId_fk: programId,
+        TierName: form.tierName.trim(),
+        TierLevel: Number(form.tierLevel),
+        FromAmount: Number(form.fromAmount),
+        ToAmount: Number(form.toAmount),
+        CurrencyId: Number(form.currencyId),
+        ExpiryDays: Number(form.expiryDays),
+        EarningAmountSegment: Number(form.earningAmountSegment),
+        EarnPoints: Number(form.earnPoints),
+        RedeemPoints: Number(form.redeemPoints),
+        RedeemAmount: Math.round(Number(form.redeemAmount)),
+        EarningCategoryIds: form.earningCategoryIds.map(Number),
+        RedeemCategoryIds: form.redeemCategoryIds.map(Number),
       });
       onSaved();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
   };
 
   const showErr = (k) => submitted ? errs[k] : undefined;
 
+  const ServiceSelect = React.memo(({ field, label, selectedIds, onToggle, error }) => {
+    const [search, setSearch] = useState("");
+    const [open, setOpen] = useState(false);
+
+    const filtered = useMemo(() =>
+      search.trim()
+        ? services.filter(s =>
+            s.serviceName?.toLowerCase().includes(search.toLowerCase()) ||
+            s.categoryName?.toLowerCase().includes(search.toLowerCase())
+          )
+        : services,
+      [search]
+    );
+    const selectedServices = useMemo(() =>
+      services.filter(s => selectedIds.includes(Number(s.recID))),
+      [selectedIds]
+    );
+
+    return (
+      <div style={{ gridColumn: "1 / -1" }}>
+        <label style={{ fontSize: 12, color: C.axis, fontWeight: 600, marginBottom: 6, display: "block" }}>{label} *</label>
+
+        {/* Trigger button */}
+        <div
+          onClick={() => setOpen(v => !v)}
+          style={{ height: 38, borderRadius: 8, padding: "0 12px", border: `1px solid ${error ? C.coral : "#d8dee8"}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontSize: 13, color: selectedIds.length ? C.primary : C.axis, fontWeight: selectedIds.length ? 600 : 400, userSelect: "none" }}>
+          <span>{selectedIds.length > 0 ? `${selectedIds.length} service${selectedIds.length > 1 ? "s" : ""} selected` : "Select services…"}</span>
+          <span style={{ fontSize: 11, color: C.axis }}>{open ? "▲" : "▼"}</span>
+        </div>
+
+        {/* Selected pills */}
+        {selectedServices.length > 0 && !open && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+            {selectedServices.map(s => (
+              <span key={s.recID} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 999, background: C.primary, color: "#fff", fontSize: 11, fontWeight: 600 }}>
+                {s.serviceName}
+                <button type="button" onClick={e => { e.stopPropagation(); onToggle(Number(s.recID)); }}
+                  style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.8 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Dropdown — only when open */}
+        {open && (
+          <div style={{ border: "1px solid #e5ebf3", borderRadius: 8, background: "#fff", marginTop: 4, boxShadow: "0 4px 16px rgba(0,0,0,0.10)" }}>
+            {/* Search */}
+            <div style={{ padding: "8px 10px", borderBottom: "1px solid #f0f4fa" }}>
+              <input
+                type="text"
+                placeholder="Search services…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                autoFocus
+                style={{ height: 32, borderRadius: 7, padding: "0 10px", border: "1px solid #d8dee8", outline: "none", width: "100%", boxSizing: "border-box", fontSize: 13, color: C.primary, fontFamily: "inherit" }}
+              />
+            </div>
+
+            {/* List */}
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              {filtered.length === 0 && (
+                <div style={{ padding: "10px 12px", color: C.axis, fontSize: 12 }}>No services found</div>
+              )}
+              {filtered.map(s => {
+                const id = Number(s.recID);
+                const isSelected = selectedIds.includes(id);
+                return (
+                  <div key={s.recID}
+                    onClick={() => onToggle(id)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", cursor: "pointer", background: isSelected ? "#f0f5ff" : "#fff", borderBottom: "1px solid #f4f7fb" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${isSelected ? C.primary : "#d8dee8"}`, background: isSelected ? C.primary : "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {isSelected && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.primary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.serviceName}</div>
+                      <div style={{ fontSize: 11, color: C.axis }}>{s.categoryName}{s.subCategoryName ? ` · ${s.subCategoryName}` : ""}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Done button */}
+            <div style={{ padding: "8px 10px", borderTop: "1px solid #f0f4fa", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setSearch(""); }}
+                style={{ height: 30, padding: "0 18px", borderRadius: 7, border: "none", background: C.primary, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && <span style={{ fontSize: 11, color: C.coral, marginTop: 4, display: "block" }}>{error}</span>}
+      </div>
+    );
+  });
+
+  const divider = (label) => (
+    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
+      <div style={{ flex: 1, height: 1, background: "#e5ebf3" }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: C.axis, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: "#e5ebf3" }} />
+    </div>
+  );
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 620, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", overflow: "hidden", margin: "auto" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5ebf3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 16, color: C.primary }}>{tier ? "Edit Tier" : "Add Tier"}</div>
-            <div style={{ fontSize: 12, color: C.axis, marginTop: 2 }}>{tier ? `Editing: ${tier.tierName}` : "Add a new tier to this program"}</div>
+            <div style={{ fontSize: 12, color: C.axis, marginTop: 2 }}>{tier ? `Editing: ${tier.tierName}` : "Configure tier details, accrual & redemption rules"}</div>
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e5ebf3", background: "#f4f7fb", cursor: "pointer", fontSize: 16, color: C.axis, display: "grid", placeItems: "center" }}>×</button>
         </div>
 
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, maxHeight: "75vh", overflowY: "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+
+            {/* ── Tier basics ── */}
+            {divider("Tier Details")}
             <Field label="Tier Name *" error={showErr("tierName")}>
               <input style={inputStyle(submitted && errs.tierName)} value={form.tierName} onChange={set("tierName")} placeholder="Tier name" />
             </Field>
@@ -229,33 +375,53 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
               <input style={inputStyle(submitted && errs.tierLevel)} value={form.tierLevel} onChange={set("tierLevel")} placeholder="Level number" inputMode="numeric" />
             </Field>
             <Field label="From Amount *" error={showErr("fromAmount")}>
-              <input style={inputStyle(submitted && errs.fromAmount)} value={form.fromAmount} onChange={set("fromAmount")} placeholder="Minimum amount" inputMode="decimal" />
+              <input style={inputStyle(submitted && errs.fromAmount)} value={form.fromAmount} onChange={set("fromAmount")} placeholder="Min amount" inputMode="decimal" />
             </Field>
             <Field label="To Amount *" error={showErr("toAmount")}>
-              <input style={inputStyle(submitted && errs.toAmount)} value={form.toAmount} onChange={set("toAmount")} placeholder="Maximum amount" inputMode="decimal" />
+              <input style={inputStyle(submitted && errs.toAmount)} value={form.toAmount} onChange={set("toAmount")} placeholder="Max amount" inputMode="decimal" />
             </Field>
             <Field label="Expiry Days *" error={showErr("expiryDays")}>
               <input style={inputStyle(submitted && errs.expiryDays)} value={form.expiryDays} onChange={set("expiryDays")} placeholder="Days until expiry" inputMode="numeric" />
             </Field>
             <Field label="Currency" error={showErr("currencyId")}>
-              <div style={{
-                height: 40, borderRadius: 10, padding: "0 12px",
-                border: "1px solid #e5ebf3", background: "#f4f7fb",
-                display: "flex", alignItems: "center", gap: 8,
-                color: C.primary, fontWeight: 600, fontSize: 14,
-              }}>
-                <span style={{ fontSize: 13, color: C.axis }}>
-                  {selectedCurrency
-                    ? `${selectedCurrency.currencyShortName} (${selectedCurrency.symbol})`
-                    : "—"}
-                </span>
-                <span style={{ marginLeft: "auto", fontSize: 11, color: C.axis, background: "#e5ebf3", padding: "2px 8px", borderRadius: 6 }}>
-                  from program
-                </span>
+              <div style={{ height: 40, borderRadius: 10, padding: "0 12px", border: "1px solid #e5ebf3", background: "#f4f7fb", display: "flex", alignItems: "center", gap: 8, color: C.primary, fontWeight: 600, fontSize: 14 }}>
+                <span style={{ fontSize: 13, color: C.axis }}>{selectedCurrency ? `${selectedCurrency.currencyShortName} (${selectedCurrency.symbol})` : "—"}</span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: C.axis, background: "#e5ebf3", padding: "2px 8px", borderRadius: 6 }}>from program</span>
               </div>
             </Field>
+
+            {/* ── Accrual ── */}
+            {divider("Accrual Rule")}
+            <Field label="Earning Amount Segment *" error={showErr("earningAmountSegment")}>
+              <input style={inputStyle(submitted && errs.earningAmountSegment)} value={form.earningAmountSegment} onChange={set("earningAmountSegment")} placeholder="e.g. 10 (per 10 spent)" inputMode="decimal" />
+            </Field>
+            <Field label="Points Earned *" error={showErr("earnPoints")}>
+              <input style={inputStyle(submitted && errs.earnPoints)} value={form.earnPoints} onChange={set("earnPoints")} placeholder="e.g. 1 point earned" inputMode="decimal" />
+            </Field>
+            {form.earningAmountSegment && form.earnPoints && (
+              <div style={{ gridColumn: "1 / -1", padding: "6px 10px", background: "#f0f5ff", borderRadius: 8, fontSize: 12, color: C.primary }}>
+                💡 For every <b>{form.earningAmountSegment}</b> spent, earn <b>{form.earnPoints}</b> point(s)
+              </div>
+            )}
+            <ServiceSelect field="earningCategoryIds" label="Earning Services" errKey="earningCategoryIds" selectedIds={form.earningCategoryIds ?? []} onToggle={toggleEarn} error={showErr("earningCategoryIds")} />
+
+            {/* ── Redemption ── */}
+            {divider("Redemption Rule")}
+            <Field label="Points to Redeem *" error={showErr("redeemPoints")}>
+              <input style={inputStyle(submitted && errs.redeemPoints)} value={form.redeemPoints} onChange={set("redeemPoints")} placeholder="e.g. 2 points" inputMode="decimal" />
+            </Field>
+            <Field label="Redemption Amount *" error={showErr("redeemAmount")}>
+              <input style={inputStyle(submitted && errs.redeemAmount)} value={form.redeemAmount} onChange={set("redeemAmount")} placeholder="e.g. 1 (SAR value)" inputMode="decimal" />
+            </Field>
+            {form.redeemPoints && form.redeemAmount && (
+              <div style={{ gridColumn: "1 / -1", padding: "6px 10px", background: "#f0f5ff", borderRadius: 8, fontSize: 12, color: C.primary }}>
+                💡 <b>{form.redeemPoints}</b> point(s) = <b>{form.redeemAmount}</b> in value
+              </div>
+            )}
+            <ServiceSelect field="redeemCategoryIds" label="Redemption Services" errKey="redeemCategoryIds" selectedIds={form.redeemCategoryIds ?? []} onToggle={toggleRedeem} error={showErr("redeemCategoryIds")} />
           </div>
-          {err && <div style={{ marginTop: 8, padding: "8px 12px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}>⚠ {err}</div>}
+
+          {err && <div style={{ marginTop: 12, padding: "8px 12px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}>⚠ {err}</div>}
         </div>
 
         <div style={{ padding: "12px 20px", borderTop: "1px solid #e5ebf3", display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -270,21 +436,40 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
 };
 
 // ── Tiers section ─────────────────────────────────────────────────────────────
-const TiersSection = ({ programId, currencies, programCurrencyId }) => {
+const TiersSection = ({ programId, currencies, programCurrencyId }) => {  // programId used by RulesPanel
   const [tiers, setTiers] = useState([]);
   const [tiersLoading, setTiersLoading] = useState(true);
   const [tiersError, setTiersError] = useState(null);
   const [modalTier, setModalTier] = useState(undefined);
+  const [editLoading, setEditLoading] = useState(false);
+  const [loadingTierId, setLoadingTierId] = useState(null);
 
   const loadTiers = useCallback(() => {
     setTiersLoading(true);
-    fetchTiers(programId)
-      .then(setTiers)
+    fetchTiers()
+      .then(data => setTiers(Array.isArray(data) ? data : []))
       .catch(e => setTiersError(e.message))
       .finally(() => setTiersLoading(false));
-  }, [programId]);
+  }, []);
 
   useEffect(() => { loadTiers(); }, [loadTiers]);
+
+  
+
+  const handleEditTier = async (tierId) => {
+    setLoadingTierId(tierId);
+    try {
+      const full = await fetchTierById(tierId);
+      setModalTier(full);
+    } catch (e) {
+      console.error("Failed to fetch tier details:", e);
+      // Fallback to list data if detail fetch fails
+      const fallback = tiers.find(t => t.tierId === tierId);
+      if (fallback) setModalTier(fallback);
+    } finally {
+      setLoadingTierId(null);
+    }
+  };
 
   const currencyLabel = (id) => {
     const c = currencies.find(c => String(c.currencyId) === String(id));
@@ -337,15 +522,20 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
             <div key={t.tierId} style={{ display: "grid", gridTemplateColumns: "1.5fr 0.7fr 1fr 1fr 0.8fr 1fr 0.6fr", padding: "11px 14px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: i < tiers.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
               <span style={{ fontWeight: 700, color: C.primary }}>{t.tierName}</span>
               <span style={{ background: "#eef2f7", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, color: C.primary, display: "inline-block" }}>Lv.{t.tierLevel}</span>
-              <span style={{ color: C.axis }}>{t.fromAmount?.toLocaleString()}</span>
-              <span style={{ color: C.axis }}>{t.toAmount?.toLocaleString()}</span>
-              <span style={{ color: C.axis }}>{t.expiryDays}d</span>
+              <span style={{ color: C.axis }}>{t.fromAmount?.toLocaleString() ?? "—"}</span>
+              <span style={{ color: C.axis }}>{t.toAmount?.toLocaleString() ?? "—"}</span>
+              <span style={{ color: C.axis }}>{t.expiryDays != null ? `${t.expiryDays}d` : "—"}</span>
               <span style={{ color: C.axis }}>{currencyLabel(t.currencyId)}</span>
               <span>
                 <button
-                  onClick={() => setModalTier(t)}
-                  style={{ height: 28, padding: "0 10px", borderRadius: 7, border: "1px solid #e5ebf3", background: "#fff", color: C.axis, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                >Edit</button>
+                  onClick={() => handleEditTier(t.tierId)}
+                  disabled={loadingTierId === t.tierId}
+                  style={{ height: 28, padding: "0 10px", borderRadius: 7, border: "1px solid #e5ebf3", background: "#fff", color: C.axis, fontSize: 12, fontWeight: 600, cursor: loadingTierId === t.tierId ? "not-allowed" : "pointer", opacity: loadingTierId === t.tierId ? 0.6 : 1, display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  {loadingTierId === t.tierId
+                    ? <><div style={{ width: 10, height: 10, borderRadius: "50%", border: "2px solid #e5ebf3", borderTopColor: C.primary, animation: "lyl-spin 0.8s linear infinite" }} />Loading</>
+                    : "Edit"}
+                </button>
               </span>
             </div>
           ))}
@@ -426,7 +616,7 @@ export default function LoyaltyProgramConfig() {
     setSaving(true);
     const payload = {
       programId: existingProgram?.programId ?? 0,
-      programCode: isUpdateMode ? programCode : "PENDING",
+      programCode: isUpdateMode ? programCode : `TEMP-${Date.now()}`,
       programName: programName.trim(),
       enrollmentType,
       status,
@@ -443,7 +633,7 @@ export default function LoyaltyProgramConfig() {
         let newProgramId = result?.programId ?? result?.data?.programId ?? 0;
         if (!newProgramId) {
           // Backend stores empty code — find by fetching list and matching programName + most recent
-          const listRes = await fetch(`${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=50`, { headers: HEADERS });
+          const listRes = await fetch(`${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=50`, { headers: HEADERS, credentials: 'include' });
           if (listRes.ok) {
             const listJson = await listRes.json();
             const matched = (listJson.data ?? [])
@@ -458,7 +648,7 @@ export default function LoyaltyProgramConfig() {
         // Also update the program code on the backend now that we have the programId
         if (newProgramId && autoCode) {
           fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
-            method: "POST", headers: HEADERS,
+            method: "POST", headers: HEADERS, credentials: 'include',
             body: JSON.stringify({ ...payload, programId: newProgramId, programCode: autoCode }),
           }).catch(() => {}); // fire-and-forget — non-critical
         }
