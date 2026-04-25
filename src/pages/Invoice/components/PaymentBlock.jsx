@@ -614,10 +614,11 @@ const PaymentBlock = ({
         setGeneratedInvoiceNumber(invoiceNum);
         if (recIdFromUrl_final) {
           const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
+          // Always EARN points on the full invoice total
+          await createPointsTransaction('EARN', parsedTotalAmount, invoiceNum);
+          // If loyalty points were also redeemed, record the REDEEMED transaction too
           if (loyaltyPayment) {
-            createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
-          } else {
-            createPointsTransaction('EARN', parsedTotalAmount, invoiceNum);
+            await createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
           }
         }
         setInvoiceSuccessPopup(true);
