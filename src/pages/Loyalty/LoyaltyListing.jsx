@@ -143,7 +143,7 @@ export default function LoyaltyListing() {
           <div className="ll-col">Enrollment</div>
           <div className="ll-col">Start Date</div>
           <div className="ll-col">End Date</div>
-          <div className="ll-col">Status</div>
+          {/* <div className="ll-col">Status</div> */}
           <div className="ll-col ll-col-actions">Actions</div>
         </div>
 
@@ -220,9 +220,9 @@ export default function LoyaltyListing() {
               <div className="ll-col ll-date">{fmt(p.endDate)}</div>
 
               {/* Status */}
-              <div className="ll-col">
+              {/* <div className="ll-col">
                 <Badge active={p.isActive} />
-              </div>
+              </div> */}
 
               {/* Actions */}
               <div className="ll-col ll-col-actions" onClick={e => e.stopPropagation()}>
