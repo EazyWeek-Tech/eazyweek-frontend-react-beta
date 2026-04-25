@@ -432,7 +432,9 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
       {!tiersLoading && tiers.length > 0 && (
         <div style={{ marginTop: 4, borderRadius: 10, overflow: "hidden", border: "1px solid #e5ebf3" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.7fr 1fr 1fr 0.8fr 1fr 0.6fr", padding: "9px 14px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 11, fontWeight: 700, color: C.axis, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            <span>Name</span><span>Level</span><span>From</span><span>To</span><span>Expiry</span><span>Currency</span><span></span>
+            <span>Name</span><span>Level</span><span>From</span><span>To</span>
+            {/* <span>Expiry</span> */}
+            <span>Currency</span><span></span>
           </div>
           {tiers.map((t, i) => (
             <div key={t.tierId} style={{ display: "grid", gridTemplateColumns: "1.5fr 0.7fr 1fr 1fr 0.8fr 1fr 0.6fr", padding: "11px 14px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: i < tiers.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
@@ -440,7 +442,7 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
               <span style={{  padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, color: C.primary, display: "inline-block" }}>{t.tierLevel}</span>
               <span style={{ color: C.axis }}>{t.fromAmount?.toLocaleString() ?? "—"}</span>
               <span style={{ color: C.axis }}>{t.toAmount?.toLocaleString() ?? "—"}</span>
-              <span style={{ color: C.axis }}>{t.expiryDays != null ? `${t.expiryDays}d` : "—"}</span>
+            {/*   <span style={{ color: C.axis }}>{t.expiryDays != null ? `${t.expiryDays}d` : "—"}</span> */}
               <span style={{ color: C.axis }}>{currencyLabel(t.currencyId)}</span>
               <span>
                 <button
