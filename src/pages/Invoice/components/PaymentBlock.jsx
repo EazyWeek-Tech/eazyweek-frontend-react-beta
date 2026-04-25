@@ -63,6 +63,9 @@ const PaymentBlock = ({
   const [loyaltyBalance, setLoyaltyBalance] = useState(null);
   const [loyaltyBalanceLoading, setLoyaltyBalanceLoading] = useState(false);
   const [centerRecId, setCenterRecId] = useState(0);
+  const [loyaltyPointsValue, setLoyaltyPointsValue] = useState(null); // SAR value from get-points
+  const [loyaltyPointsLoading, setLoyaltyPointsLoading] = useState(false);
+  const [loyaltyPointsError, setLoyaltyPointsError] = useState('');
 
   // Local state from GetSelectedAppDetails API
   const [apiInvoiceItems, setApiInvoiceItems] = useState([]);
@@ -81,7 +84,7 @@ const PaymentBlock = ({
 
   // ---------- Fetch loyalty balance when loyalty tab is active ----------
   useEffect(() => {
-    if (activeTab !== 'loyalty' || !recIdFromUrl_final) return;
+    if (activeTab !== 'loyalty' || !recIdFromUrl_final || !isLoyaltyEnrolled) return;
     setLoyaltyBalanceLoading(true);
     fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
       credentials: 'include',
@@ -221,6 +224,9 @@ const PaymentBlock = ({
     return mergeNonEmpty(apiCustomer || {}, customer || {});
   }, [apiCustomer, customer]);
 
+  // Derived from effective customer — must be after effectiveCustomer is defined
+  const isLoyaltyEnrolled = !!(effectiveCustomer?.isLoyaltyEnrolled ?? customer?.isLoyaltyEnrolled);
+
   // ---------- Effective items (enrich parent items from API by code/name) ----------
   const effectiveInvoiceItems = useMemo(() => {
     if (!invoiceItems?.length && apiInvoiceItems?.length) return apiInvoiceItems;
@@ -280,6 +286,10 @@ const PaymentBlock = ({
       const available = loyaltyBalance?.availablePoints ?? 0;
       if (redeemAmt > available) {
         setFormError(`Cannot redeem ${redeemAmt} pts — only ${available} pts available.`);
+        return false;
+      }
+      if (loyaltyPointsValue === null) {
+        setFormError('Please click "Get Value" to convert points to SAR before adding payment.');
         return false;
       }
     }
@@ -612,12 +622,17 @@ const PaymentBlock = ({
 
         const invoiceNum = result.message || '';
         setGeneratedInvoiceNumber(invoiceNum);
-        if (recIdFromUrl_final) {
+        if (recIdFromUrl_final && isLoyaltyEnrolled) {
           const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
+          // EARN on cash-only amount (exclude loyalty redemption portion)
+          const loyaltyAmount = loyaltyPayment ? loyaltyPayment.amount : 0;
+          const earnAmount = parsedTotalAmount - loyaltyAmount;
+          if (earnAmount > 0) {
+            await createPointsTransaction('EARN', earnAmount, invoiceNum);
+          }
+          // REDEEMED for the loyalty portion
           if (loyaltyPayment) {
-            createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
-          } else {
-            createPointsTransaction('EARN', parsedTotalAmount, invoiceNum);
+            await createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
           }
         }
         setInvoiceSuccessPopup(true);
@@ -674,6 +689,22 @@ const PaymentBlock = ({
         <div className="info" style={{ marginBottom: 8 }}>Loading appointment details…</div>
       )}
 
+      {/* Loyalty enrollment status badge */}
+      {effectiveCustomer && (
+        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isLoyaltyEnrolled ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e6f4ef', border: '1px solid #b3d9cc', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: '#2e7d5e' }}>
+              ★ Loyalty Member
+            </span>
+          ) : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f4f7fb', border: '1px solid #e5ebf3', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600, color: '#94a3b8' }}>
+              Not enrolled in loyalty program
+            </span>
+          )}
+          <span style={{ fontSize: 12, color: '#6e7b8f' }}>{effectiveCustomer.fullName || [effectiveCustomer.firstName, effectiveCustomer.lastName].filter(Boolean).join(' ')}</span>
+        </div>
+      )}
+
       <div className='outpymnt'>
         <div className="pymttabswrp">
           {paymentModes.map((mode) => (
@@ -684,6 +715,8 @@ const PaymentBlock = ({
                 setActiveTab(mode.key);
                 setFormError('');
                 setFormData({});
+                setLoyaltyPointsValue(null);
+                setLoyaltyPointsError('');
               }}
             >
               <img src={mode.icon} alt={mode.label} />
@@ -759,8 +792,15 @@ const PaymentBlock = ({
 
           {activeTab === 'loyalty' && (
             <>
+              {/* Not enrolled guard */}
+              {!isLoyaltyEnrolled && (
+                <div style={{ padding: '12px 14px', background: '#fdf3f3', border: '1px solid #f0c4c0', borderRadius: 8, color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>
+                  ⚠ This customer is not enrolled in the loyalty program. Loyalty payments are unavailable.
+                </div>
+              )}
+
               {/* Balance display */}
-              <div className="frmdiv">
+              {isLoyaltyEnrolled && <div className="frmdiv">
                 {loyaltyBalanceLoading ? (
                   <div style={{ fontSize: 13, color: '#6e7b8f', padding: '8px 0' }}>Loading loyalty balance…</div>
                 ) : loyaltyBalance ? (
@@ -784,31 +824,90 @@ const PaymentBlock = ({
                 ) : !recIdFromUrl_final ? (
                   <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>⚠ Select a customer to view loyalty balance.</div>
                 ) : null}
-              </div>
+              </div>}
 
-              {/* Redeem input */}
-              {loyaltyBalance && (
-                <div className="frmdiv">
-                  <label>Points to Redeem:</label>
-                  <input
-                    type="number"
-                    id="redeemAmount"
-                    min="0"
-                    max={loyaltyBalance.availablePoints ?? 0}
-                    value={formData.redeemAmount || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      handleChange({ target: { id: 'redeemAmount', value: val } });
-                      setAmount(val || '0');
-                    }}
-                    placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
-                  />
-                  {formData.redeemAmount && parseFloat(formData.redeemAmount) > (loyaltyBalance.availablePoints ?? 0) && (
-                    <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
-                      Exceeds available points ({loyaltyBalance.availablePoints?.toLocaleString()})
-                    </span>
+              {/* Points input + convert button */}
+              {isLoyaltyEnrolled && loyaltyBalance && (
+                <>
+                  <div className="frmdiv">
+                    <label>Points to Redeem:</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="number"
+                        id="redeemAmount"
+                        min="0"
+                        max={loyaltyBalance.availablePoints ?? 0}
+                        value={formData.redeemAmount || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleChange({ target: { id: 'redeemAmount', value: val } });
+                          // Reset converted value when points change
+                          setLoyaltyPointsValue(null);
+                          setLoyaltyPointsError('');
+                          setAmount('0');
+                        }}
+                        placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className="pribtnblue"
+                        style={{ whiteSpace: 'nowrap', padding: '0 12px', height: 38, fontSize: 13 }}
+                        disabled={loyaltyPointsLoading || !formData.redeemAmount || parseFloat(formData.redeemAmount) <= 0}
+                        onClick={async () => {
+                          const pts = parseFloat(formData.redeemAmount || '0');
+                          if (!pts || pts <= 0) return;
+                          if (pts > (loyaltyBalance.availablePoints ?? 0)) {
+                            setLoyaltyPointsError(`Exceeds available points (${loyaltyBalance.availablePoints?.toLocaleString()})`);
+                            return;
+                          }
+                          setLoyaltyPointsLoading(true);
+                          setLoyaltyPointsError('');
+                          setLoyaltyPointsValue(null);
+                          try {
+                            const res = await fetch(
+                              `${API_BASE_URL}/api/v1/points/get-points?customerId=${recIdFromUrl_final}&amount=${pts}&TransactionType=REDEEMED`,
+                              { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } }
+                            );
+                            if (!res.ok) throw new Error(`Failed (${res.status})`);
+                            const data = await res.json();
+                            // API returns a plain number e.g. 950
+                            const sarValue = typeof data === 'number' ? data : Number(data) || 0;
+                            setLoyaltyPointsValue(sarValue);
+                            setAmount(String(sarValue));
+                          } catch (e) {
+                            setLoyaltyPointsError('Failed to fetch point value. Try again.');
+                            console.error('get-points error:', e);
+                          } finally {
+                            setLoyaltyPointsLoading(false);
+                          }
+                        }}
+                      >
+                        {loyaltyPointsLoading ? 'Checking…' : 'Get Value'}
+                      </button>
+                    </div>
+                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > (loyaltyBalance.availablePoints ?? 0) && (
+                      <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
+                        Exceeds available points ({loyaltyBalance.availablePoints?.toLocaleString()})
+                      </span>
+                    )}
+                    {loyaltyPointsError && (
+                      <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>{loyaltyPointsError}</span>
+                    )}
+                  </div>
+
+                  {/* Show converted SAR value */}
+                  {loyaltyPointsValue !== null && (
+                    <div className="frmdiv">
+                      <div style={{ background: '#e6f4ef', border: '1px solid #b3d9cc', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 13, color: '#2e7d5e', fontWeight: 700 }}>
+                          ✓ {parseFloat(formData.redeemAmount).toLocaleString()} pts = <strong>{loyaltyPointsValue} SAR</strong>
+                        </span>
+                        <span style={{ fontSize: 11, color: '#6e7b8f' }}>— will be applied as payment</span>
+                      </div>
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </>
           )}
