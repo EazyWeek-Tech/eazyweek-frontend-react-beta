@@ -585,7 +585,8 @@ const GeneralTab = ({ customer }) => {
                 {inp("tags")}
               </F>
 
-              <F name="isLoyaltyEnrolled" label="Loyalty Program" span2>
+              <F name="isLoyaltyEnrolled" label="Customer request for Opting for Loyalty" span2>
+                
   <label style={{ display: "flex", alignItems: "center", gap: 10, height: 38, cursor: "pointer" }}>
     <input
       type="checkbox"
@@ -595,7 +596,7 @@ const GeneralTab = ({ customer }) => {
       style={{ width: 16, height: 16, accentColor: "#3E5D8A", cursor: "pointer" }}
     />
     <span style={{ fontSize: 13.5, color: "#1a1f2e", fontWeight: 500 }}>
-      Is customer part of loyalty program?
+      Opt for Loyalty
     </span>
   </label>
 </F>
