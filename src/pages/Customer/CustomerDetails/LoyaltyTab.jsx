@@ -27,9 +27,6 @@ const Spinner = () => (
 );
 
 const LoyaltyTab = ({ custId, recId }) => {
-    console.log("LoyaltyTab props:", { custId, recId }); // ← add this
-
-
   const [balance, setBalance] = useState(null);
   const [history, setHistory] = useState([]);
   const [page, setPage] = useState(1);
@@ -73,14 +70,14 @@ const LoyaltyTab = ({ custId, recId }) => {
     </div>
   );
 
-  const availPts   = balance?.availablePoints ?? 0;
-  const redeemedPts = balance?.redeemedPoints ?? 0;
-  const expiredPts  = balance?.expiredPoints  ?? 0;
+  const availPts    = balance?.availablePoints ?? 0;
+  const redeemedPts = balance?.redeemedPoints  ?? 0;
+  const expiredPts  = balance?.expiredPoints   ?? 0;
   const totalEarned = availPts + redeemedPts + expiredPts;
   const progressPct = totalEarned > 0 ? Math.min(availPts / Math.max(totalEarned, 1), 1) : 0;
 
   return (
-    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: "#334b71", maxWidth: 720, margin:"0 auto", padding: "20px 0" }}>
+    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: "#334b71", maxWidth: 920, margin: "0 auto", padding: "20px 0" }}>
 
       {error && (
         <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 10, padding: "12px 16px", color: "#cc6b5c", fontSize: 13, marginBottom: 16 }}>
@@ -160,29 +157,36 @@ const LoyaltyTab = ({ custId, recId }) => {
           <div style={{ padding: "32px 18px", textAlign: "center", color: "#6e7b8f", fontSize: 13 }}>No transaction history found.</div>
         ) : (
           <>
-            {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 0.7fr 0.9fr 1.6fr", padding: "9px 18px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 11, fontWeight: 700, color: "#6e7b8f", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              <span>Date</span><span>Type</span><span style={{ textAlign: "right" }}>Points</span><span style={{ textAlign: "right" }}>Balance after</span><span style={{ paddingLeft: 12 }}>Description</span>
+            {/* ── Table header — sequence: Date | Type | Invoice No | Points Earned on Invoice | Total Balance ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.6fr 1.1fr 1.4fr 1fr", padding: "9px 18px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 12, fontWeight: 700, color: "#6e7b8f", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span>Date</span>
+              <span>Type</span>
+              <span>Invoice No</span>
+              <span style={{ textAlign: "right" }}>Points Earned on Invoice</span>
+              <span style={{ textAlign: "right" }}>Total Balance</span>
             </div>
 
             {history.map((r, i) => {
               const ts = TYPE_STYLE[r.transactionType] ?? TYPE_STYLE.EARN;
               const isNeg = r.transactionType === "REDEEMED" || r.transactionType === "EXPIRED";
+              // Extract invoice number from description e.g. "INV INVBright00146" → "INVBright00146"
+              const descParts = (r.description || "").trim().split(/\s+/);
+              const invoiceNo = descParts.length > 1 ? descParts[descParts.length - 1] : (r.description || "—");
               return (
-                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 0.7fr 0.9fr 1.6fr", padding: "12px 18px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafbfe", borderBottom: i < history.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
-                  <span style={{ color: "#6e7b8f", fontSize: 12 }}>{fmtTime(r.transactionDate)}</span>
+                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 1.4fr 1.2fr 1fr", padding: "12px 18px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafbfe", borderBottom: i < history.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
+                  <span style={{ color: "#6e7b8f", fontSize: 14 }}>{fmtTime(r.transactionDate)}</span>
                   <span>
-                    <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>
+                    <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 13, fontWeight: 700, background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>
                       {ts.label}
                     </span>
                   </span>
+                  <span style={{ color: "#334b71", fontWeight: 600, fontSize: 14 }}>{invoiceNo}</span>
                   <span style={{ textAlign: "right", fontWeight: 700, color: isNeg ? "#cc6b5c" : "#2e7d5e" }}>
                     {isNeg ? "-" : "+"}{r.points.toLocaleString()}
                   </span>
                   <span style={{ textAlign: "right", fontWeight: 600, color: "#334b71" }}>
                     {r.pointsBalanceAfter.toLocaleString()}
                   </span>
-                  <span style={{ paddingLeft: 12, color: "#6e7b8f", fontSize: 12 }}>{r.description || "—"}</span>
                 </div>
               );
             })}
