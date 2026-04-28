@@ -161,6 +161,7 @@ export default function AuditSummaryReport() {
   const navigate = useNavigate();
   const sessionClinic = useMemo(() => getSessionClinic(), []);
 
+  const [dateRequired, setDateRequired] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [segmentCodes, setSegmentCodes] = useState([]);
@@ -228,8 +229,8 @@ export default function AuditSummaryReport() {
 
   const validate = () => {
     const e = {};
-    if (!fromDate) e.fromDate = "Required";
-    if (!toDate) e.toDate = "Required";
+    if (dateRequired && !fromDate) e.fromDate = "Required";
+    if (dateRequired && !toDate) e.toDate = "Required";
     if (fromDate && toDate && fromDate > toDate) e.toDate = "Must be after From Date";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -241,14 +242,14 @@ export default function AuditSummaryReport() {
     setLoading(true); setPage(1);
     try {
       const body = {
-        fromDate: `${fromDate}T00:00:00Z`,
-        toDate: `${toDate}T23:59:59Z`,
+        fromDate: fromDate ? `${fromDate}T00:00:00Z` : "1900-01-01T00:00:00Z",
+        toDate: toDate ? `${toDate}T23:59:59Z` : "2999-12-31T23:59:59Z",
         clinic: clinicCode || "",
         auditSegment: segmentCodes.join(","),
         auditor: auditorCodes.join(","),
         employee: employeeCode || "",
         auditSubSegment: "",
-        dateFlag: "1",
+        dateFlag: (dateRequired && fromDate && toDate) ? "1" : "0",
         isDigitalInTheList: "",
       };
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -295,19 +296,27 @@ export default function AuditSummaryReport() {
       </div>
 
       <div className="fc">
-        <div className="fc-sect">Date Range <span className="req">*</span> <span className="fc-note">— Submitted Date</span></div>
-        <div className="fg fg-2">
-          <div className="ff">
-            <label>From Date <span className="req">*</span></label>
-            <input type="date" value={fromDate} onChange={e => setFromDate(toISODateOnly(e.target.value))} className={errors.fromDate ? "fi fi-err" : "fi"} />
-            {errors.fromDate && <span className="ferr">{errors.fromDate}</span>}
-          </div>
-          <div className="ff">
-            <label>To Date <span className="req">*</span></label>
-            <input type="date" value={toDate} onChange={e => setToDate(toISODateOnly(e.target.value))} className={errors.toDate ? "fi fi-err" : "fi"} />
-            {errors.toDate && <span className="ferr">{errors.toDate}</span>}
-          </div>
+        <div className="dr-hd">
+          <label className="dr-chk-wrap">
+            <input type="checkbox" checked={dateRequired} onChange={e => { setDateRequired(e.target.checked); if (!e.target.checked) { setFromDate(""); setToDate(""); setErrors({}); } }} className="dr-chk" />
+            <span className="dr-chk-label">Filter by Date Range</span>
+          </label>
+          {dateRequired && <span className="fc-note">— Submitted Date</span>}
         </div>
+        {dateRequired && (
+          <div className="fg fg-2">
+            <div className="ff">
+              <label>From Date {dateRequired && <span className="req">*</span>}</label>
+              <input type="date" value={fromDate} onChange={e => setFromDate(toISODateOnly(e.target.value))} className={errors.fromDate ? "fi fi-err" : "fi"} />
+              {errors.fromDate && <span className="ferr">{errors.fromDate}</span>}
+            </div>
+            <div className="ff">
+              <label>To Date {dateRequired && <span className="req">*</span>}</label>
+              <input type="date" value={toDate} onChange={e => setToDate(toISODateOnly(e.target.value))} className={errors.toDate ? "fi fi-err" : "fi"} />
+              {errors.toDate && <span className="ferr">{errors.toDate}</span>}
+            </div>
+          </div>
+        )}
 
         <div className="fc-sect" style={{marginTop:18}}>Filters</div>
         <div className="fg fg-4">
@@ -387,14 +396,19 @@ export default function AuditSummaryReport() {
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
 
       <style jsx>{`
+        .rw { min-height:100vh;font-family:'Segoe UI',system-ui,sans-serif; padding:24px 28px 48px; }
         .rw-hd { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
-        .rw-ttl { font-size:22px; font-weight:800; color:#334b71; letter-spacing:-0.3px; }
+        .rw-ttl { font-size:22px; font-weight:800; color:#0b1f3a; letter-spacing:-0.3px; }
         .rw-bc { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; }
         .bc-lnk { color:#334b71; cursor:pointer; font-weight:600; } .bc-lnk:hover { text-decoration:underline; }
         .bc-sep { color:#c0c8d8; } .bc-cur { color:#8a94a6; }
         .rw-badge { background:#334b71; color:#fff; font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; }
 
         .fc { background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.03); padding:20px 24px; margin-bottom:16px; }
+        .dr-hd { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+        .dr-chk-wrap { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+        .dr-chk { width:16px; height:16px; accent-color:#334b71; cursor:pointer; }
+        .dr-chk-label { font-size:13px; font-weight:700; color:#334b71; }
         .fc-sect { font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#8a94a6; margin-bottom:12px; }
         .fc-note { text-transform:none; letter-spacing:0; font-weight:600; font-size:11px; }
         .req { color:#c0392b; }
@@ -418,7 +432,7 @@ export default function AuditSummaryReport() {
         .btn-xls:hover:not(:disabled) { background:#dde3ef; }
         .btn-xls:disabled { opacity:.5; cursor:not-allowed; }
         .btn-go { background:#334b71; color:#fff; border:none; border-radius:8px; padding:8px 24px; font-size:13px; font-weight:700; cursor:pointer; transition:background .15s; }
-        .btn-go:hover:not(:disabled) { background:#334b71; }
+        .btn-go:hover:not(:disabled) { background:#0b1f3a; }
         .btn-go:disabled { opacity:.65; cursor:not-allowed; }
 
         .tc { background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.03); overflow:hidden; }
