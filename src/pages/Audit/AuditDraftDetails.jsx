@@ -70,44 +70,23 @@ function sanitizeHtml(html) {
 }
 
 const isArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ""));
-
-/*
-  Score normalization from the API response.
-
-  The SP stores:
-    score = "1.000000"  → user picked Yes
-    score = ""          → either user picked No (score=0 sent, SP saved as blank)
-                          OR row was genuinely unanswered (score=-1 sent)
-
-  We use valuePresent to break the tie:
-    valuePresent = 1 → score was 1 (Yes)
-    valuePresent = 0 AND score blank AND totalScore = 0 → ambiguous; treat as unanswered (-1)
-
-  But a previously saved No (score=0) ALSO has valuePresent=0 and totalScore=0,
-  so we cannot reliably distinguish No from unanswered from the API alone.
-
-  The correct SP fix is to store score=0 distinctly from score=-1.
-  Until then, we treat ALL blank-score rows as unanswered (-1) on load,
-  forcing the user to re-confirm their No answers when editing a draft.
-  This is the safest behavior — it never wrongly marks something as answered.
-*/
 function normalizeScoreFromApi(scoreRaw, valuePresent) {
   const vp = Number(valuePresent);
   const n = isBlank(scoreRaw) ? NaN : Number(scoreRaw);
 
   if (Number.isFinite(n)) {
-    if (n >= 0.5) return 1;
-    if (n < 0)   return -1;
-    if (n === 0 && vp === 0)  return 0;
-    if (n === 0 && vp === -1) return -1;
-    if (n === 0 && vp !== 1)  return -1;
+    if (n >= 0.5) return 1;              // score=1,  vp=1  → Yes
+    if (n < 0)    return -1;             // score=-1, vp=-1 → Unanswered (new system)
+    if (n === 0 && vp === 1)  return 0;  // score=0,  vp=1  → No (old system explicit No)
+    if (n === 0 && vp === 0)  return -1; // score=0,  vp=0  → Unanswered (old system default)
+    if (n === 0 && vp === -1) return -1; // score=0,  vp=-1 → Unanswered (new system)
   }
 
+  // Fallback: score missing entirely
   if (vp === 1)  return 1;
-  if (vp === 0)  return 0;
+  if (vp === -1) return -1;
   return -1;
 }
-
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
   const { auditNo = "" } = useParams();
