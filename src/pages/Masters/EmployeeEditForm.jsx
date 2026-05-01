@@ -1,813 +1,405 @@
-"use client"
+import { useState, useEffect, useCallback } from "react";
+import { API_BASE_URL } from "../../config";
+import EmployeeSegmentMapping from "./EmployeeSegmentMapping";
 
-import { useState } from "react"
+const TOKEN = () => localStorage.getItem("token");
 
-const EmployeeEditForm = ({ employee, onBack }) => {
-  const [activeTab, setActiveTab] = useState("GENERAL INFORMATION")
-  const [formData, setFormData] = useState({
-    employeeCode: employee.employeeCode || "",
-    firstName: employee.firstName || "",
-    middleName: employee.middleName || "",
-    lastName: employee.lastName || "",
-    nickname: employee.nickname || "",
-    email: employee.email || "",
-    clinic: employee.primaryClinic || "",
-    job: employee.job || "",
-    username: employee.username || "",
-    mobilePhone: employee.mobileNo || "",
-    homePhone: employee.homePhone || "",
-    workPhone: employee.workPhone || "",
-    gender: employee.gender || "",
-    birthday: employee.birthday || "",
-    anniversary: employee.anniversary || "",
-    address1: employee.address1 || "",
-    address2: employee.address2 || "",
-    city: employee.city || "",
-    country: employee.country || "",
-    state: employee.state || "",
-    nationalityId: employee.nationalityId || "",
-    // Clinics and Roles data
-    primaryClinic: employee.primaryClinic || "",
-    primaryClinicRole: employee.job || "",
-  })
+// ✅ ALL sub-components defined OUTSIDE to prevent remount on every keystroke
+const InputRow = ({ label, name, value, onChange, type = "text", readOnly = false, placeholder = "" }) => (
+  <div style={s.row}>
+    <label style={s.label}>{label} :</label>
+    <input
+      style={{ ...s.input, background: readOnly ? "#e9ecef" : "#fff" }}
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      readOnly={readOnly}
+      placeholder={placeholder}
+    />
+  </div>
+);
 
-  const [otherClinics, setOtherClinics] = useState([
-    // Sample other clinics data
-    { id: 1, clinic: "Lines Clinics", role: "Part-time Nurse" },
-    { id: 2, clinic: "Maxime Clinics", role: "Consultant" },
-  ])
+const SelectRow = ({ label, name, value, onChange, children }) => (
+  <div style={s.row}>
+    <label style={s.label}>{label} :</label>
+    <select name={name} value={value} onChange={onChange} style={s.input}>
+      {children}
+    </select>
+  </div>
+);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+const SectionTitle = ({ children, marginTop = 0 }) => (
+  <div style={{ ...s.sectionTitle, marginTop }}>{children}</div>
+);
+
+const EmployeeEditForm = ({ employee, onBack, onSaved }) => {
+  const [activeTab, setActiveTab]     = useState("GENERAL");
+  const [clinics, setClinics]         = useState([]);
+  const [roles, setRoles]             = useState([]);
+  const [roleMapping, setRoleMapping] = useState([]);
+  const [saving, setSaving]           = useState(false);
+  const [toast, setToast]             = useState(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [showSegmentMapping, setShowSegmentMapping] = useState(false);
+  const [newClinic, setNewClinic]     = useState("");
+  const [newRole, setNewRole]         = useState("");
+  const [newPrimary, setNewPrimary]   = useState(false);
+  const [addingRole, setAddingRole]   = useState(false);
+
+  const [form, setForm] = useState({
+    RECID:         employee.RECID         || "",
+    EMPLOYEECODE:  employee.EMPLOYEECODE  || "",
+    FIRSTNAME:     employee.FIRSTNAME     || "",
+    MIDDLENAME:    employee.MIDDLENAME    || "",
+    LASTNAME:      employee.LASTNAME      || "",
+    NICKNAME:      employee.NICKNAME      || "",
+    EMAIL:         employee.EMAIL         || "",
+    CENTERCODE:    employee.CENTERCODE    || "",
+    JOB:           employee.JOB           || "",
+    USERNAME:      employee.USERNAME      || "",
+    MOBILEPHONE:   employee.MOBILEPHONE   || "",
+    HOMEPHONE:     employee.HOMEPHONE     || "",
+    WORKPHONE:     employee.WORKPHONE     || "",
+    GENDER:        employee.GENDER        || "",
+    BIRTHDAY:      employee.BIRTHDAY      ? new Date(employee.BIRTHDAY).toLocaleDateString("en-GB") : "",
+    ANNIVERSARY:   employee.ANNIVERSARY   ? new Date(employee.ANNIVERSARY).toLocaleDateString("en-GB") : "",
+    ADDRESS1:      employee.ADDRESS1      || "",
+    ADDRESS2:      employee.ADDRESS2      || "",
+    CITY:          employee.CITY          || "",
+    COUNTRY:       employee.COUNTRY       || "Saudi Arabia",
+    ASTATE:        employee.ASTATE        || "Ar Riya-d",
+    NATIONALITYID: employee.NATIONALITYID || "",
+  });
+
+  const showToast = (text, type = "success") => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // ✅ Stable handler — won't cause remounts
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+      headers: { Authorization: `Bearer ${TOKEN()}` },
+    }).then((r) => r.json()).then((j) => { if (j.success) setClinics(j.data); }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/employee/roles`, {
+      headers: { Authorization: `Bearer ${TOKEN()}` },
+    }).then((r) => r.json()).then((j) => { if (j.success) setRoles(j.data); }).catch(() => {});
+  }, []);
+
+  const fetchRoleMapping = useCallback(() => {
+    if (!employee.EMPLOYEECODE) return;
+    fetch(`${API_BASE_URL}/api/employee/${employee.EMPLOYEECODE}/role-mapping`, {
+      headers: { Authorization: `Bearer ${TOKEN()}` },
+    }).then((r) => r.json()).then((j) => { if (j.success) setRoleMapping(j.data); }).catch(() => {});
+  }, [employee.EMPLOYEECODE]);
+
+  useEffect(() => { fetchRoleMapping(); }, [fetchRoleMapping]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employee/${form.RECID}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Employee updated successfully");
+        setTimeout(() => { onSaved?.(); onBack(); }, 1000);
+      } else {
+        showToast(json.message || "Save failed", "error");
+      }
+    } catch { showToast("Save failed", "error"); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeactivate = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employee/${form.EMPLOYEECODE}/deactivate`, {
+        method: "PUT", headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      if (json.success) { showToast("Employee deactivated"); setTimeout(() => { onSaved?.(); onBack(); }, 1000); }
+      else showToast(json.message || "Failed", "error");
+    } catch { showToast("Failed to deactivate", "error"); }
+    finally { setConfirmDeactivate(false); }
+  };
+
+  const handleAddRoleMapping = async () => {
+    if (!newClinic || !newRole) return showToast("Select clinic and role", "error");
+    setAddingRole(true);
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const res = await fetch(`${API_BASE_URL}/api/employee/role-mapping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({
+          employeeCode: form.EMPLOYEECODE, centerCode: newClinic,
+          rCode: newRole, primaryClinic: newPrimary ? 1 : 0,
+          createdBy: user.employeeCode || "",
+        }),
+      });
+      const json = await res.json();
+      if (json.success) { showToast("Role mapping added"); setNewClinic(""); setNewRole(""); setNewPrimary(false); fetchRoleMapping(); }
+      else showToast(json.message || "Failed to add", "error");
+    } catch { showToast("Failed to add role mapping", "error"); }
+    finally { setAddingRole(false); }
+  };
+
+  const handleRemoveRoleMapping = async (recId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employee/role-mapping/${recId}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      if (json.success) { showToast("Role mapping removed"); fetchRoleMapping(); }
+      else showToast(json.message || "Failed to remove", "error");
+    } catch { showToast("Failed to remove", "error"); }
+  };
+
+  if (showSegmentMapping) {
+    return <EmployeeSegmentMapping employee={employee} onBack={() => setShowSegmentMapping(false)} />;
   }
 
-  const handleDeleteOtherClinic = (clinicId) => {
-    if (window.confirm("Are you sure you want to delete this clinic assignment?")) {
-      setOtherClinics((prev) => prev.filter((clinic) => clinic.id !== clinicId))
-    }
-  }
+  const JOBS      = ["","Nurse","Doctor","Manager","Receptionist","Call Centre Executive","CALLCENTEROFFICER","Owner","Therapist","Consultant"];
+  const COUNTRIES = ["Saudi Arabia","UAE","Kuwait","Bahrain","Qatar","Oman"];
+  const STATES    = ["Ar Riya-d","Makkah","Eastern Province","Madinah","Asir"];
 
-  const handleSave = () => {
-    console.log("Saving employee data:", formData)
-    console.log("Other clinics:", otherClinics)
-    alert("Employee data saved successfully!")
-  }
-
-  const handleCancel = () => {
-    onBack()
-  }
-
-  const handleDelete = () => {
-    if (window.confirm("Are you sure you want to delete this employee?")) {
-      console.log("Deleting employee:", employee.employeeCode)
-      alert("Employee deleted successfully!")
-      onBack()
-    }
-  }
+  const primaryMapping = roleMapping.find((r) => r.PRIMARYCLINIC === 1);
+  const otherMappings  = roleMapping.filter((r) => r.PRIMARYCLINIC !== 1);
 
   return (
-    <>
-      <style jsx>{`
-        .employee-edit-container {
-          
-          min-height: 100vh;
-        }
+    <div style={s.page}>
+      <div style={s.breadcrumb}>
+        <span style={s.breadLink} onClick={onBack}>Employee</span>
+        <span style={s.sep}> &gt; </span>
+        <span style={s.breadCurrent}>Edit Employee</span>
+      </div>
 
-        .breadcrumb {
-          margin-bottom: 10px;
-          font-size: 14px;
-          color: #6c757d;
-        }
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h1 style={s.title}>Edit Employee</h1>
+        <button style={s.segBtn} onClick={() => setShowSegmentMapping(true)}>Segment Mapping</button>
+      </div>
 
-        .breadcrumb-link {
-          color: #334B71;
-          text-decoration: none;
-          cursor: pointer;
-        }
-
-        .breadcrumb-link:hover {
-          text-decoration: underline;
-        }
-
-        .breadcrumb-separator {
-          margin: 0 5px;
-        }
-
-        .breadcrumb-current {
-          color: #6c757d;
-        }
-
-        .page-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 20px;
-          margin-top: 10px;
-        }
-
-        .form-container {
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-          overflow: hidden;
-        }
-
-        .tabs-container {
-          background-color: #f8f9fa;
-          border-bottom: 1px solid #dee2e6;
-          padding: 0;
-        }
-
-        .general-label {
-          padding: 15px 20px;
-          font-weight: 600;
-          color: #495057;
-          background-color: #e9ecef;
-          margin: 0;
-          font-size: 14px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .tabs {
-          display: flex;
-          margin: 0;
-          padding: 0;
-        }
-
-        .tab {
-          padding: 12px 20px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          color: #6c757d;
-          border-bottom: 3px solid transparent;
-          transition: all 0.3s ease;
-        }
-
-        .tab:hover {
-          background-color: #f8f9fa;
-          color: #495057;
-        }
-
-        .tab.active {
-          color: #334B71;
-          border-bottom-color: #334B71;
-          background-color: white;
-        }
-
-        .form-content {
-          padding: 30px;
-        }
-
-        .section-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #333;
-          margin-bottom: 20px;
-          padding: 10px;
-          color: #fff;
-          border-bottom: 2px solid #334B71;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .clinics-roles-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 30px;
-          text-align: center;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .form-label {
-          font-weight: 500;
-          color: #495057;
-          margin-bottom: 8px;
-          font-size: 14px;
-        }
-
-        .clinic-role-group {
-          display: flex;
-          align-items: center;
-          margin-bottom: 25px;
-          max-width: 600px;
-        }
-
-        .clinic-role-label {
-          font-weight: 500;
-          color: #495057;
-          font-size: 16px;
-          min-width: 180px;
-          text-align: right;
-          margin-right: 20px;
-        }
-
-        .form-input {
-          padding: 10px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          transition: border-color 0.3s ease, box-shadow 0.3s ease;
-          background-color: white;
-          flex: 1;
-        }
-
-        .form-input:focus {
-          outline: none;
-          border-color: #334B71;
-          box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-
-        .form-select {
-          padding: 10px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          background-color: white;
-          cursor: pointer;
-          transition: border-color 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .form-select:focus {
-          outline: none;
-          border-color: #334B71;
-          box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-
-        .others-clinic-section {
-          margin-top: 40px;
-        }
-
-        .others-clinic-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 20px;
-        }
-
-        .other-clinic-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 15px;
-          border: 1px solid #dee2e6;
-          border-radius: 4px;
-          margin-bottom: 10px;
-          background-color: #f8f9fa;
-        }
-
-        .clinic-info {
-          flex: 1;
-        }
-
-        .clinic-name {
-          font-weight: 500;
-          color: #333;
-          margin-bottom: 5px;
-        }
-
-        .clinic-role {
-          color: #6c757d;
-          font-size: 14px;
-        }
-
-        .delete-clinic-btn {
-          padding: 8px 16px;
-          background-color: #b94b56;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background-color 0.3s ease;
-        }
-
-        .delete-clinic-btn:hover {
-          background-color: #c82333;
-        }
-
-        .delete-section {
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 1px solid #dee2e6;
-        }
-
-        .delete-btn {
-          padding: 10px 20px;
-          background-color: #343a40;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background-color 0.3s ease;
-        }
-
-        .delete-btn:hover {
-          background-color: #23272b;
-        }
-
-        .file-upload-container {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .file-input {
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          background-color: #f8f9fa;
-        }
-
-        .upload-btn {
-          padding: 8px 16px;
-          background-color: #343a40;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background-color 0.3s ease;
-        }
-
-        .upload-btn:hover {
-          background-color: #23272b;
-        }
-
-        .action-buttons {
-          display: flex;
-          justify-content: center;
-          gap: 15px;
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #dee2e6;
-        }
-
-        .btn {
-          padding: 12px 30px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          min-width: 100px;
-        }
-
-        .btn-primary {
-          background-color: #334B71;
-          color: white;
-        }
-
-        .btn-primary:hover {
-          background-color: #334B71;
-          transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-          background-color: #6c757d;
-          color: white;
-        }
-
-        .btn-secondary:hover {
-          background-color: #545b62;
-          transform: translateY(-1px);
-        }
-
-        .btn-danger {
-          background-color: #b94b56;
-          color: white;
-        }
-
-        .btn-danger:hover {
-          background-color: #c82333;
-          transform: translateY(-1px);
-        }
-
-        @media (max-width: 768px) {
-          .employee-edit-container {
-            padding: 15px;
-          }
-
-          .form-content {
-            padding: 20px;
-          }
-
-          .form-grid {
-            grid-template-columns: 1fr;
-            gap: 15px;
-          }
-
-          .clinic-role-group {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
-          .clinic-role-label {
-            margin-bottom: 8px;
-            margin-right: 0;
-            text-align: left;
-            min-width: auto;
-          }
-
-          .tabs {
-            flex-direction: column;
-          }
-
-          .action-buttons {
-            flex-direction: column;
-            align-items: center;
-          }
-
-          .btn {
-            width: 100%;
-            max-width: 200px;
-          }
-
-          .other-clinic-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-          }
-        }
-      `}</style>
-
-      <div className="employee-edit-container">
-        {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <span className="breadcrumb-link" onClick={onBack}>
-            Employee
-          </span>
-          <span className="breadcrumb-separator"> &gt; </span>
-          <span className="breadcrumb-current">Edit Employee</span>
+      <div style={s.card}>
+        {/* Tabs */}
+        <div style={s.tabs}>
+          {["GENERAL", "CLINICS ROLES"].map((tab) => (
+            <button key={tab} style={{ ...s.tab, ...(activeTab === tab ? s.tabActive : {}) }} onClick={() => setActiveTab(tab)}>
+              {tab}
+            </button>
+          ))}
         </div>
 
-        {/* Page Title */}
-        <h1 className="page-title">Edit Employee</h1>
+        <div style={s.formContent}>
 
-        {/* Form Container */}
-        <div className="form-container">
-          {/* Tabs */}
-          <div className="tabs-container">
-            <div className="tabs">
-              <button
-                className={`tab ${activeTab === "GENERAL INFORMATION" ? "active" : ""}`}
-                onClick={() => setActiveTab("GENERAL INFORMATION")}
-              >
-                GENERAL INFORMATION
-              </button>
-              {/* <button
-                className={`tab ${activeTab === "CLINICS ROLES" ? "active" : ""}`}
-                onClick={() => setActiveTab("CLINICS ROLES")}
-              >
-                CLINICS ROLES
-              </button> */}
-            </div>
-          </div>
+          {/* ── GENERAL TAB ── */}
+          {activeTab === "GENERAL" && (
+            <>
+              <SectionTitle>PERSONAL INFO</SectionTitle>
+              <InputRow label="Employee Code" name="EMPLOYEECODE" value={form.EMPLOYEECODE} onChange={handleChange} readOnly />
+              <InputRow label="First Name"    name="FIRSTNAME"    value={form.FIRSTNAME}    onChange={handleChange} />
+              <InputRow label="Middle Name"   name="MIDDLENAME"   value={form.MIDDLENAME}   onChange={handleChange} />
+              <InputRow label="Last Name"     name="LASTNAME"     value={form.LASTNAME}     onChange={handleChange} />
+              <InputRow label="Nickname"      name="NICKNAME"     value={form.NICKNAME}     onChange={handleChange} />
+              <InputRow label="Email"         name="EMAIL"        value={form.EMAIL}        onChange={handleChange} type="email" />
 
-          {/* Form Content */}
-          <div className="form-content">
-            {activeTab === "GENERAL INFORMATION" && (
-              <>
-                {/* Personal Info Section */}
-                <div className="section-title">GENERAL INFORMATION</div>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Employee Code :</label>
-                    <input
-                      type="text"
-                      name="employeeCode"
-                      value={formData.employeeCode}
-                      onChange={handleInputChange}
-                      className="form-input"
-                      readOnly
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">First Name :</label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Middle Name :</label>
-                    <input
-                      type="text"
-                      name="middleName"
-                      value={formData.middleName}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Name :</label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nickname :</label>
-                    <input
-                      type="text"
-                      name="nickname"
-                      value={formData.nickname}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email :</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Clinic :</label>
-                    <select name="clinic" value={formData.clinic} onChange={handleInputChange} className="form-select">
-                      <option value="">Select Clinic</option>
-                      <option value="Bright Clinics">Bright Clinics</option>
-                      <option value="Lines Clinics">Lines Clinics</option>
-                      <option value="Maxime Clinics">Maxime Clinics</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Job :</label>
-                    <select name="job" value={formData.job} onChange={handleInputChange} className="form-select">
-                      <option value="">Select Job</option>
-                      <option value="Nurse">Nurse</option>
-                      <option value="Doctor">Doctor</option>
-                      <option value="Manager">Manager</option>
-                      <option value="Receptionist">Receptionist</option>
-                    </select>
-                  </div>
+              <SelectRow label="Clinic" name="CENTERCODE" value={form.CENTERCODE} onChange={handleChange}>
+                <option value="">Select one</option>
+                {clinics.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </SelectRow>
+
+              <SelectRow label="Job" name="JOB" value={form.JOB} onChange={handleChange}>
+                {JOBS.map((j) => <option key={j} value={j}>{j || "Select one"}</option>)}
+              </SelectRow>
+
+              <SectionTitle marginTop={24}>LOGIN INFO</SectionTitle>
+              <InputRow label="Username"     name="USERNAME"    value={form.USERNAME}    onChange={handleChange} />
+              <InputRow label="Mobile Phone" name="MOBILEPHONE" value={form.MOBILEPHONE} onChange={handleChange} />
+              <InputRow label="Home Phone"   name="HOMEPHONE"   value={form.HOMEPHONE}   onChange={handleChange} />
+              <InputRow label="Work Phone"   name="WORKPHONE"   value={form.WORKPHONE}   onChange={handleChange} />
+
+              <SelectRow label="Gender" name="GENDER" value={form.GENDER} onChange={handleChange}>
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </SelectRow>
+
+              <InputRow label="Birthday"    name="BIRTHDAY"    value={form.BIRTHDAY}    onChange={handleChange} placeholder="DD/MM/YYYY" />
+              <InputRow label="Anniversary" name="ANNIVERSARY" value={form.ANNIVERSARY} onChange={handleChange} placeholder="DD/MM/YYYY" />
+
+              <SectionTitle marginTop={24}>ADDRESS INFO</SectionTitle>
+              <InputRow label="Address 1"    name="ADDRESS1"      value={form.ADDRESS1}      onChange={handleChange} />
+              <InputRow label="Address 2"    name="ADDRESS2"      value={form.ADDRESS2}      onChange={handleChange} />
+              <InputRow label="City"         name="CITY"          value={form.CITY}          onChange={handleChange} />
+
+              <SelectRow label="Country" name="COUNTRY" value={form.COUNTRY} onChange={handleChange}>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </SelectRow>
+
+              <SelectRow label="State" name="ASTATE" value={form.ASTATE} onChange={handleChange}>
+                {STATES.map((st) => <option key={st} value={st}>{st}</option>)}
+              </SelectRow>
+
+              <InputRow label="Nationality ID" name="NATIONALITYID" value={form.NATIONALITYID} onChange={handleChange} />
+
+              <div style={s.row}>
+                <label style={s.label}>Attachment Upload :</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="file" style={{ ...s.input, padding: "5px 8px" }} />
+                  <button style={s.uploadBtn}>Upload</button>
                 </div>
+              </div>
+            </>
+          )}
 
-                {/* Login Info Section */}
-                <div className="section-title">LOGIN INFO</div>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Username :</label>
-                    <input
-                      type="text"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Mobile Phone :</label>
-                    <input
-                      type="text"
-                      name="mobilePhone"
-                      value={formData.mobilePhone}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Home Phone :</label>
-                    <input
-                      type="text"
-                      name="homePhone"
-                      value={formData.homePhone}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Work Phone :</label>
-                    <input
-                      type="text"
-                      name="workPhone"
-                      value={formData.workPhone}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Gender :</label>
-                    <select name="gender" value={formData.gender} onChange={handleInputChange} className="form-select">
-                      <option value="">Select Gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Birthday :</label>
-                    <input
-                      type="text"
-                      name="birthday"
-                      value={formData.birthday}
-                      onChange={handleInputChange}
-                      className="form-input"
-                      placeholder="DD/MM/YYYY"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Anniversary :</label>
-                    <input
-                      type="text"
-                      name="anniversary"
-                      value={formData.anniversary}
-                      onChange={handleInputChange}
-                      className="form-input"
-                      placeholder="DD/MM/YYYY"
-                    />
-                  </div>
-                </div>
+          {/* ── CLINICS ROLES TAB ── */}
+          {activeTab === "CLINICS ROLES" && (
+            <>
+              <h2 style={s.clinicsTitle}>Clinics and Roles</h2>
 
-                {/* Address Info Section */}
-                <div className="section-title">ADDRESS INFO</div>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Address 1 :</label>
-                    <input
-                      type="text"
-                      name="address1"
-                      value={formData.address1}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Address 2 :</label>
-                    <input
-                      type="text"
-                      name="address2"
-                      value={formData.address2}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">City :</label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Country :</label>
-                    <select
-                      name="country"
-                      value={formData.country}
-                      onChange={handleInputChange}
-                      className="form-select"
-                    >
-                      <option value="">Select Country</option>
-                      <option value="Saudi Arabia">Saudi Arabia</option>
-                      <option value="UAE">UAE</option>
-                      <option value="Kuwait">Kuwait</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">State :</label>
-                    <select name="state" value={formData.state} onChange={handleInputChange} className="form-select">
-                      <option value="">Select State</option>
-                      <option value="Ar Riya-d">Ar Riya-d</option>
-                      <option value="Makkah">Makkah</option>
-                      <option value="Eastern Province">Eastern Province</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nationality ID :</label>
-                    <input
-                      type="text"
-                      name="nationalityId"
-                      value={formData.nationalityId}
-                      onChange={handleInputChange}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Attachment Upload :</label>
-                    <div className="file-upload-container">
-                      <input type="file" className="file-input" />
-                      <button type="button" className="upload-btn">
-                        Upload
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+              <div style={s.row}>
+                <label style={s.label}>Primary Clinic :</label>
+                <input style={{ ...s.input, background: "#e9ecef" }} readOnly
+                  value={primaryMapping ? (clinics.find((c) => c.code === primaryMapping.CENTERCODE)?.name || primaryMapping.CENTERCODE) : ""} />
+              </div>
+              <div style={s.row}>
+                <label style={s.label}>Primary Clinic Role :</label>
+                <input style={{ ...s.input, background: "#e9ecef" }} readOnly value={primaryMapping?.RNAME || ""} />
+              </div>
 
-            {activeTab === "CLINICS ROLES" && (
-              <>
-                <div className="clinics-roles-title">Clinics and Roles</div>
+              <SectionTitle marginTop={24}>Others Clinic :</SectionTitle>
 
-                {/* Primary Clinic Section */}
-                <div className="clinic-role-group">
-                  <label className="clinic-role-label">Primary Clinic :</label>
-                  <input
-                    type="text"
-                    name="primaryClinic"
-                    value={formData.primaryClinic}
-                    onChange={handleInputChange}
-                    className="form-input"
-                    placeholder="Enter primary clinic"
-                  />
-                </div>
+              {otherMappings.length === 0 ? (
+                <p style={{ color: "#6c757d", fontStyle: "italic", marginLeft: 180 }}>No other clinic assignments.</p>
+              ) : (
+                <table style={s.table}>
+                  <thead>
+                    <tr>
+                      <th style={s.th}></th>
+                      <th style={s.th}>Clinic</th>
+                      <th style={s.th}>Role</th>
+                      <th style={s.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {otherMappings.map((m) => (
+                      <tr key={m.RECID}>
+                        <td style={s.td}><input type="checkbox" /></td>
+                        <td style={s.td}>{clinics.find((c) => c.code === m.CENTERCODE)?.name || m.CENTERCODE}</td>
+                        <td style={s.td}>{m.RNAME || m.RCODE}</td>
+                        <td style={s.td}>
+                          <button style={s.removeBtn} onClick={() => handleRemoveRoleMapping(m.RECID)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
 
-                <div className="clinic-role-group">
-                  <label className="clinic-role-label">Primary Clinic Role :</label>
-                  <input
-                    type="text"
-                    name="primaryClinicRole"
-                    value={formData.primaryClinicRole}
-                    onChange={handleInputChange}
-                    className="form-input"
-                    placeholder="Enter primary clinic role"
-                  />
-                </div>
-
-                {/* Others Clinic Section */}
-                <div className="others-clinic-section">
-                  <div className="others-clinic-title">Others Clinic :</div>
-
-                  {otherClinics.map((clinic) => (
-                    <div key={clinic.id} className="other-clinic-item">
-                      <div className="clinic-info">
-                        <div className="clinic-name">{clinic.clinic}</div>
-                        <div className="clinic-role">{clinic.role}</div>
-                      </div>
-                      <button className="delete-clinic-btn" onClick={() => handleDeleteOtherClinic(clinic.id)}>
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-
-                  {otherClinics.length === 0 && (
-                    <div style={{ color: "#6c757d", fontStyle: "italic", padding: "20px 0" }}>
-                      No other clinic assignments found.
-                    </div>
-                  )}
-
-                  <div className="delete-section">
-                    <button className="delete-btn">Delete</button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+              <SectionTitle marginTop={24}>Add Clinic Role :</SectionTitle>
+              <div style={s.row}>
+                <label style={s.label}>Clinic :</label>
+                <select value={newClinic} onChange={(e) => setNewClinic(e.target.value)} style={s.input}>
+                  <option value="">Select one</option>
+                  {clinics.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={s.row}>
+                <label style={s.label}>Role :</label>
+                <select value={newRole} onChange={(e) => setNewRole(e.target.value)} style={s.input}>
+                  <option value="">Select one</option>
+                  {roles.map((r) => <option key={r.RCODE} value={r.RCODE}>{r.RNAME}</option>)}
+                </select>
+              </div>
+              <div style={s.row}>
+                <label style={s.label}>Set as Primary :</label>
+                <input type="checkbox" checked={newPrimary} onChange={(e) => setNewPrimary(e.target.checked)} style={{ width: 16, height: 16 }} />
+              </div>
+              <div style={{ marginLeft: 180, marginTop: 8 }}>
+                <button style={s.addRoleBtn} onClick={handleAddRoleMapping} disabled={addingRole}>
+                  {addingRole ? "Adding..." : "+ Add"}
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Action Buttons */}
-          <div className="action-buttons">
-            <button className="btn btn-primary" onClick={handleSave}>
-              Save
-            </button>
-            <button className="btn btn-secondary" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button className="btn btn-danger" onClick={handleDelete}>
-              Delete
-            </button>
+          <div style={s.actions}>
+            <button style={s.saveBtn}   onClick={handleSave}                    disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+            <button style={s.cancelBtn} onClick={onBack}>Cancel</button>
+            <button style={s.deleteBtn} onClick={() => setConfirmDeactivate(true)}>Delete</button>
           </div>
         </div>
       </div>
-    </>
-  )
-}
 
-export default EmployeeEditForm
+      {/* Deactivate Modal */}
+      {confirmDeactivate && (
+        <div style={s.modalOverlay}>
+          <div style={s.modal}>
+            <p style={{ fontSize: 16, marginBottom: 20 }}>
+              Are you sure you want to deactivate <strong>{form.FIRSTNAME} {form.LASTNAME}</strong>?
+            </p>
+            <div style={s.modalActions}>
+              <button style={s.saveBtn}   onClick={handleDeactivate}>Yes, Deactivate</button>
+              <button style={s.cancelBtn} onClick={() => setConfirmDeactivate(false)}>No</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ ...s.toast, ...(toast.type === "error" ? s.toastError : s.toastSuccess) }}>{toast.text}</div>
+      )}
+    </div>
+  );
+};
+
+const s = {
+  page:        { padding: "24px", fontFamily: "Inter, sans-serif", maxWidth: 900, margin: "0 auto" },
+  breadcrumb:  { fontSize: 14, color: "#6c757d", marginBottom: 10 },
+  breadLink:   { color: "#334B71", cursor: "pointer" },
+  sep:         { margin: "0 6px" },
+  breadCurrent:{ color: "#6c757d" },
+  title:       { fontSize: 22, fontWeight: 600, color: "#333", margin: 0 },
+  segBtn:      { background: "#f0f4f8", border: "1px solid #d1d5db", color: "#334B71", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500 },
+  card:        { background: "#fff", borderRadius: 8, boxShadow: "0 2px 4px rgba(0,0,0,0.1)", overflow: "hidden" },
+  tabs:        { display: "flex", borderBottom: "1px solid #dee2e6", background: "#f8f9fa" },
+  tab:         { padding: "12px 24px", background: "none", border: "none", borderBottom: "3px solid transparent", cursor: "pointer", fontSize: 14, fontWeight: 500, color: "#6c757d" },
+  tabActive:   { color: "#334B71", borderBottomColor: "#334B71", background: "#fff" },
+  formContent: { padding: 30 },
+  sectionTitle:{ fontWeight: 700, fontSize: 14, color: "#333", borderBottom: "2px solid #334B71", paddingBottom: 6, marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.5px" },
+  clinicsTitle:{ fontSize: 18, fontWeight: 600, textAlign: "center", marginBottom: 28, color: "#333" },
+  row:         { display: "flex", alignItems: "center", marginBottom: 18 },
+  label:       { minWidth: 160, textAlign: "right", marginRight: 20, fontWeight: 500, color: "#495057", fontSize: 14 },
+  input:       { flex: 1, maxWidth: 400, padding: "8px 12px", border: "1px solid #ced4da", borderRadius: 4, fontSize: 14, outline: "none" },
+  uploadBtn:   { padding: "8px 16px", background: "#343a40", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 13 },
+  table:       { width: "100%", borderCollapse: "collapse", marginBottom: 20 },
+  th:          { padding: "12px 16px", textAlign: "left", fontWeight: 600, fontSize: 15, color: "#495057", borderBottom: "1px solid #dee2e6", background: "#f8f9fa" },
+  td:          { padding: "12px 16px", borderBottom: "1px solid #dee2e6", fontSize: 14, color: "#495057" },
+  removeBtn:   { padding: "6px 14px", background: "#b94b56", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 13 },
+  addRoleBtn:  { padding: "8px 20px", background: "#334B71", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14, fontWeight: 500 },
+  actions:     { display: "flex", justifyContent: "center", gap: 12, marginTop: 32, paddingTop: 20, borderTop: "1px solid #dee2e6" },
+  saveBtn:     { padding: "10px 28px", background: "#334B71", color: "#fff", border: "none", borderRadius: 4, fontSize: 14, fontWeight: 500, cursor: "pointer" },
+  cancelBtn:   { padding: "10px 28px", background: "#6c757d", color: "#fff", border: "none", borderRadius: 4, fontSize: 14, fontWeight: 500, cursor: "pointer" },
+  deleteBtn:   { padding: "10px 28px", background: "#b94b56", color: "#fff", border: "none", borderRadius: 4, fontSize: 14, fontWeight: 500, cursor: "pointer" },
+  modalOverlay:{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
+  modal:       { background: "#fff", borderRadius: 8, padding: 28, width: 380, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" },
+  modalActions:{ display: "flex", justifyContent: "center", gap: 12 },
+  toast:       { position: "fixed", bottom: 24, right: 24, padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" },
+  toastSuccess:{ background: "#ecfdf5", color: "#065f46", border: "1px solid #6ee7b7" },
+  toastError:  { background: "#fef2f2", color: "#991b1b", border: "1px solid #fca5a5" },
+};
+
+export default EmployeeEditForm;

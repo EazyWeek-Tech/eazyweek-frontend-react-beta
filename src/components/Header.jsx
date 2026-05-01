@@ -154,29 +154,32 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   /* -------------------- fetch centers -------------------- */
   useEffect(() => {
     const fetchClinics = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
-          method: "GET",
-          credentials: "include",
-          headers: headersFor("GET"),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const mapped = (Array.isArray(data) ? data : []).map((c) => ({
-          code: (c.centerCode || c.code || "").toString().trim(),
-          name: (c.centerName || c.name || "").toString().trim(),
-        }));
-        const noZoneOption = { code: NOZONE_UI_CODE, name: NOZONE_UI_NAME };
-        const finalList = [noZoneOption, ...mapped.filter((x) => x.code && x.name)];
-        setClinics(finalList);
-        const uiSessionCode = fromSessionCenterCode(sessionCenterCode);
-        const match = uiSessionCode ? finalList.find((c) => c.code === uiSessionCode) : null;
-        setSelectedClinic(match || finalList[0] || null);
-      } catch (err) {
-        console.error("Failed to load clinics", err);
-        showToast("Failed to load clinics", "error");
-      }
-    };
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    // Node returns { success: true, data: [...] }
+    const data = json.data || json; // handle both old and new response shape
+    const mapped = (Array.isArray(data) ? data : []).map((c) => ({
+      code: (c.centerCode || c.code || "").toString().trim(),
+      name: (c.centerName || c.name || "").toString().trim(),
+    }));
+    const noZoneOption = { code: NOZONE_UI_CODE, name: NOZONE_UI_NAME };
+    const finalList = [noZoneOption, ...mapped.filter((x) => x.code && x.name)];
+    setClinics(finalList);
+    const uiSessionCode = fromSessionCenterCode(sessionCenterCode);
+    const match = uiSessionCode ? finalList.find((c) => c.code === uiSessionCode) : null;
+    setSelectedClinic(match || finalList[0] || null);
+  } catch (err) {
+    console.error("Failed to load clinics", err);
+    showToast("Failed to load clinics", "error");
+  }
+};
     fetchClinics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCenterCode]);
@@ -196,26 +199,44 @@ const Header = ({ onToggleSidebar, onLogout }) => {
   const hardReload = () => window.location.reload();
 
   const handleClinicChange = async (clinic) => {
-    try {
-      if (!clinic?.code) return;
-      if (clinic.code === selectedClinic?.code) {
-        setDropdownOpen(false);
-        return;
-      }
-      setSelectedClinic(clinic);
-      setDropdownOpen(false);
-      clearCenterStickyKeys();
-      await setSessionToApi(clinic.code);
-      const newSession = await getSessionFromApi();
-      localStorage.setItem("userSession", JSON.stringify(newSession));
-      sessionStorage.setItem("userSession", JSON.stringify(newSession));
-      navigate("/dashboard", { replace: true });
-      hardReload();
-    } catch (e) {
-      console.error("Failed to update session on clinic change", e);
-      showToast("Failed to change clinic session", "error");
+  try {
+    if (!clinic?.code) return;
+    if (clinic.code === selectedClinic?.code) { setDropdownOpen(false); return; }
+
+    setSelectedClinic(clinic);
+    setDropdownOpen(false);
+    clearCenterStickyKeys();
+
+    // ✅ Re-issue token with new clinic role
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE_URL}/api/auth/switch-clinic`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ centerCode: clinic.code }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // Update token and user in storage
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
     }
-  };
+
+    await setSessionToApi(clinic.code);
+    const newSession = await getSessionFromApi();
+    localStorage.setItem("userSession", JSON.stringify(newSession));
+
+    navigate("/dashboard", { replace: true });
+    hardReload();
+
+  } catch (e) {
+    console.error("Failed to switch clinic", e);
+    showToast("Failed to change clinic", "error");
+  }
+};
 
   /* -------------------- logout -------------------- */
   const handleLogout = async (e) => {

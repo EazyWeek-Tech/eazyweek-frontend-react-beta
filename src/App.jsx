@@ -86,7 +86,8 @@ import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
 import OppUploader from "./pages/Opportunity/OppUploader";
 import OnDemandTriggers from "./pages/OnDemand/OnDemandTriggers";
 import ResetPassword from "./pages/ResetPassword"; 
-
+import FirstLoginModal from "./components/FirstLoginModal";
+import EmployeeSegmentMapping from "./pages/Masters/EmployeeSegmentMapping";
 
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
@@ -129,6 +130,8 @@ localStorage.setItem("user", JSON.stringify(ssoUser));
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showFirstLogin, setShowFirstLogin] = useState(false);
+
 
   // 🔹 UPDATED: use helper to initialize user (handles ?token=)
   const [user, setUser] = useState(getInitialUser);
@@ -204,6 +207,15 @@ localStorage.removeItem("remember");
       />
 
       {/*Add Routes WITH Sidebar + Header */}
+      {showFirstLogin && (
+  <FirstLoginModal
+    employeeCode={user.employeeCode}
+    onComplete={() => { setShowFirstLogin(false); navigate("/dashboard"); }}
+  />
+)}
+
+<Route path="/segmentaddform/:employeeCode" element={<SegmentAddForm />} />
+
       <Route
         path="/*"
         element={

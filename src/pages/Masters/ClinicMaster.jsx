@@ -1,260 +1,316 @@
-// ClinicMaster.jsx
-"use client";
-
 import { useState, useEffect } from "react";
-import DataTable from "react-data-table-component";
 import { API_BASE_URL } from "../../config";
 
+const TOKEN = () => localStorage.getItem("token");
+
 const ClinicMaster = () => {
-  const [clinicData, setClinicData] = useState([]);
-  const [filteredClinics, setFilteredClinics] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [clinicToDelete, setClinicToDelete] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [clinics, setClinics]       = useState([]);
+  const [filtered, setFiltered]     = useState([]);
+  const [search, setSearch]         = useState("");
+  const [loading, setLoading]       = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [confirm, setConfirm]       = useState(null);
+  const [toast, setToast]           = useState(null);
+  const [form, setForm]             = useState({ zone: "", code: "", name: "", address: "" });
 
-  useEffect(() => {
-    const fetchClinics = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-
-        const data = await response.json();
-        setClinicData(data);
-        setFilteredClinics(data);
-      } catch (err) {
-        setToast({ type: "error", message: "Failed to load clinics." });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClinics();
-  }, []);
-
-  useEffect(() => {
-    const filtered = clinicData.filter((clinic) =>
-      clinic.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.zone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.address.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredClinics(filtered);
-  }, [searchTerm, clinicData]);
-
-  const handleDeleteClick = (clinic) => {
-    setClinicToDelete(clinic);
-    setShowConfirmModal(true);
+  const showToast = (text, type = "success") => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
-  const confirmDelete = async () => {
+  const fetchClinics = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/ClinicRemove`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clinicToDelete),
+      const res = await fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
       });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setToast({ type: "success", message: "Clinic deleted successfully." });
-        setClinicData((prev) => prev.filter((c) => c.code !== clinicToDelete.code));
-      } else {
-        setToast({ type: "error", message: result.message || "Delete failed." });
+      const json = await res.json();
+      if (json.success) {
+        setClinics(json.data);
+        setFiltered(json.data);
       }
-    } catch (err) {
-      console.error("Error deleting clinic:", err);
-      setToast({ type: "error", message: "An error occurred." });
+    } catch {
+      showToast("Failed to load clinics", "error");
     } finally {
-      setShowConfirmModal(false);
-      setClinicToDelete(null);
+      setLoading(false);
     }
   };
 
- const columns = [
-  {
-    name: "Zone",
-    selector: (row) => row.zone,
-    sortable: true,
-    style: {
-      whiteSpace: 'nowrap',
-      width: '50px', // Set the width of the Zone column
-    },
-  },
-  {
-    name: "Code",
-    selector: (row) => row.code,
-    sortable: true,
-    style: {
-      whiteSpace: 'nowrap',
-      width: '50px', // Set the width of the Code column
-    },
-  },
-  {
-    name: "Name",
-    selector: (row) => row.name,
-    sortable: true,
-    style: {
-      whiteSpace: 'nowrap',
-      width: '150px', // Set the width of the Name column
-    },
-  },
-  {
-    name: "Address",
-    selector: (row) => row.address,
-    wrap: true,
-    style:{
-      width: '300px'
-    }
-  },
-  {
-    name: "Actions",
-    cell: (row) => (
-      <button className="delete-btn" onClick={() => handleDeleteClick(row)}>Delete</button>
-    ),
-    ignoreRowClick: true,
-    allowOverflow: true,
-    button: true,
-    style: {
-      width: '150px', // Set the width of the Actions column
-    },
-  },
-];
+  useEffect(() => { fetchClinics(); }, []);
 
+  useEffect(() => {
+    const s = search.toLowerCase();
+    setFiltered(
+      clinics.filter((c) =>
+        [c.name, c.code, c.zone, c.address].join(" ").toLowerCase().includes(s)
+      )
+    );
+  }, [search, clinics]);
+
+  const handleSave = async () => {
+    if (!form.code || !form.name) return showToast("Code and Name are required", "error");
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/master/ClinicInsert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Clinic added successfully");
+        setDrawerOpen(false);
+        setForm({ zone: "", code: "", name: "", address: "" });
+        fetchClinics();
+      } else {
+        showToast(json.message || "Failed to add clinic", "error");
+      }
+    } catch {
+      showToast("Error saving clinic", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (clinic) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/master/ClinicRemove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({ code: clinic.code }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Clinic removed successfully");
+        setClinics((prev) => prev.filter((c) => c.code !== clinic.code));
+      } else {
+        showToast(json.message || "Failed to remove clinic", "error");
+      }
+    } catch {
+      showToast("Error removing clinic", "error");
+    } finally {
+      setConfirm(null);
+    }
+  };
+
+  const ZONES = ["No Zone", "North", "South", "East", "West", "Entity"];
 
   return (
-    <div className="clinic-master-container">
-       {/* Breadcrumb */}
-      <div className="breadcrumb">
-        <a href="/dashboard" className="breadcrumb-link">
-          Dashboard
-        </a>
-        <span className="breadcrumb-separator"> &gt; </span>
-        <span className="breadcrumb-current">Manage Products</span>
+    <div style={s.page}>
+      {/* Header */}
+      <div style={s.pageHeader}>
+        <div>
+          <div style={s.breadcrumb}>
+            <a href="/dashboard" style={s.breadLink}>Dashboard</a>
+            <span style={s.breadSep}> › </span>
+            <span>Manage Clinics</span>
+          </div>
+          <h1 style={s.title}>Clinics</h1>
+          <p style={s.subtitle}>{filtered.length} clinic{filtered.length !== 1 ? "s" : ""}</p>
+        </div>
+        <button style={s.addBtn} onClick={() => setDrawerOpen(true)}>+ Add Clinic</button>
       </div>
-      <div className="header-section">
-        <h1 className="page-title">Manage Clinic</h1>
-        <button className="add-clinic-btn" onClick={() => setShowForm(true)}>Add Clinic</button>
+
+      {/* Search */}
+      <div style={{ position: "relative", maxWidth: 400, marginBottom: 16 }}>
+        <span style={s.searchIcon}>🔍</span>
+        <input
+          style={s.searchInput}
+          placeholder="Search by name, code, zone..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button style={s.clearBtn} onClick={() => setSearch("")}>✕</button>
+        )}
       </div>
 
-      <input
-        type="text"
-        placeholder="Search clinics..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="search-input"
-      />
+      {/* Table */}
+      <div style={s.card}>
+        {loading ? (
+          <div style={s.loader}>Loading clinics...</div>
+        ) : filtered.length === 0 ? (
+          <div style={s.loader}>No clinics found</div>
+        ) : (
+          <table style={s.table}>
+            <thead>
+              <tr>
+                {["Zone", "Code", "Name", "Address", ""].map((h) => (
+                  <th key={h} style={s.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.code} style={s.tr}>
+                  <td style={s.td}>
+                    <span style={s.zoneBadge}>{c.zone || "—"}</span>
+                  </td>
+                  <td style={s.td}>
+                    <span style={s.codeTag}>{c.code}</span>
+                  </td>
+                  <td style={{ ...s.td, fontWeight: 500 }}>{c.name}</td>
+                  <td style={{ ...s.td, color: "#6b7280", fontSize: 12, maxWidth: 280 }}>{c.address || "—"}</td>
+                  <td style={s.td}>
+                    <button
+                      style={s.deleteBtn}
+                      onClick={() => setConfirm(c)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredClinics}
-        progressPending={loading}
-        className="clinictbl cstmtable"
-        pagination
-        highlightOnHover
-      />
+      {/* Add Clinic Drawer */}
+      {drawerOpen && (
+        <>
+          <div style={s.overlay} onClick={() => setDrawerOpen(false)} />
+          <div style={s.drawer}>
+            <div style={s.drawerHeader}>
+              <div>
+                <h2 style={s.drawerTitle}>Add Clinic</h2>
+                <p style={s.drawerSub}>Fill in the details below</p>
+              </div>
+              <button style={s.closeBtn} onClick={() => setDrawerOpen(false)}>✕</button>
+            </div>
 
-      {toast && (
-        <div className={`toastmsg ${toast.type}`}>{toast.message}</div>
+            <div style={s.drawerBody}>
+              <div style={s.field}>
+                <label style={s.label}>Zone</label>
+                <select
+                  style={s.input}
+                  value={form.zone}
+                  onChange={(e) => setForm((f) => ({ ...f, zone: e.target.value }))}
+                >
+                  <option value="">Select zone</option>
+                  {ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+                </select>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Clinic Code *</label>
+                <input
+                  style={s.input}
+                  placeholder="e.g. Bright"
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                />
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Clinic Name *</label>
+                <input
+                  style={s.input}
+                  placeholder="e.g. Bright Clinics"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Address</label>
+                <textarea
+                  style={{ ...s.input, height: 80, resize: "vertical" }}
+                  placeholder="Full clinic address"
+                  value={form.address}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div style={s.drawerFooter}>
+              <button style={{ ...s.footerBtn, ...s.ghostBtn }} onClick={() => setDrawerOpen(false)}>
+                Cancel
+              </button>
+              <button style={{ ...s.footerBtn, ...s.primaryBtn }} onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save Clinic"}
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
-      {showConfirmModal && (
-        <div className="confirm-modal">
-          <div className="confirm-box">
-            <p>Are you sure you want to delete this clinic?</p>
-            <div className="modal-actions">
-              <button onClick={confirmDelete}>Yes</button>
-              <button onClick={() => setShowConfirmModal(false)}>No</button>
+      {/* Delete Confirm Modal */}
+      {confirm && (
+        <div style={s.modalOverlay}>
+          <div style={s.modal}>
+            <div style={s.modalIcon}>⚠️</div>
+            <h3 style={s.modalTitle}>Remove Clinic?</h3>
+            <p style={s.modalBody}>
+              Are you sure you want to remove <strong>{confirm.name}</strong> ({confirm.code})?
+              This action cannot be undone.
+            </p>
+            <div style={s.modalActions}>
+              <button style={{ ...s.footerBtn, ...s.ghostBtn }} onClick={() => setConfirm(null)}>Cancel</button>
+              <button style={{ ...s.footerBtn, ...s.dangerBtn }} onClick={() => handleDelete(confirm)}>
+                Yes, Remove
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      <style jsx="true">{`
-      .cstmtable{max-width: 900px;margin: 0 auto;}
-        .header-section {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        .add-clinic-btn {
-          padding: 10px 20px;
-          background: #334B71;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-        .search-input {
-          padding: 8px 12px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-          margin-bottom: 15px;
-        }
-        .delete-btn {
-          padding: 6px 12px;
-          background: #b94b56;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-
-        .modal-actions{display: flex; justify-content: center; gap:10px;margin: 20px 0 0;}
-        .confirm-modal {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-        .confirm-box {
-          background: white;
-          padding: 20px;
-          border-radius: 6px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
-          .confirm-box p{font-size: 16px; }
-        .modal-actions button {
-          margin: 10px 5px 0;
-          padding: 8px 14px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-        .toastmsg {
-          position: fixed;
-          bottom: 20px;
-          right: 20px;
-          padding: 12px 18px;
-          border-radius: 4px;
-          color: white;
-          z-index: 1001;
-        }
-        .toastmsg.success {
-          background: #28a745;
-        }
-        .toastmsg.error {
-          background: #b94b56;
-        }
-      `}</style>
+      {/* Toast */}
+      {toast && (
+        <div style={{ ...s.toast, ...(toast.type === "error" ? s.toastError : s.toastSuccess) }}>
+          {toast.text}
+        </div>
+      )}
     </div>
   );
+};
+
+const s = {
+  page: { padding: "24px", fontFamily: "Inter, sans-serif", maxWidth: 1000, margin: "0 auto" },
+  pageHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
+  breadcrumb: { fontSize: 12, color: "#9ca3af", marginBottom: 6 },
+  breadLink: { color: "#334B71", textDecoration: "none" },
+  breadSep: { margin: "0 6px" },
+  title: { fontSize: 24, fontWeight: 600, color: "#111827", margin: "0 0 4px" },
+  subtitle: { fontSize: 13, color: "#6b7280", margin: 0 },
+  addBtn: { background: "#334B71", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 500 },
+  searchIcon: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 },
+  searchInput: { width: "100%", padding: "9px 36px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" },
+  clearBtn: { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 14 },
+  card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" },
+  loader: { textAlign: "center", padding: 40, color: "#6b7280", fontSize: 14 },
+  table: { width: "100%", borderCollapse: "collapse" },
+  th: { padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" },
+  tr: { transition: "background 0.1s" },
+  td: { padding: "12px 16px", fontSize: 13, color: "#374151", borderBottom: "1px solid #f3f4f6" },
+  codeTag: { background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 500 },
+  zoneBadge: { background: "#f3f4f6", color: "#374151", padding: "2px 8px", borderRadius: 4, fontSize: 12 },
+  deleteBtn: { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 100 },
+  drawer: { position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: "#fff", zIndex: 101, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" },
+  drawerHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "20px 24px", borderBottom: "1px solid #e5e7eb" },
+  drawerTitle: { fontSize: 18, fontWeight: 600, color: "#111827", margin: 0 },
+  drawerSub: { fontSize: 12, color: "#6b7280", margin: "4px 0 0" },
+  closeBtn: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#9ca3af" },
+  drawerBody: { flex: 1, overflowY: "auto", padding: "20px 24px" },
+  field: { marginBottom: 16 },
+  label: { display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 6 },
+  input: { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" },
+  drawerFooter: { padding: "16px 24px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10 },
+  footerBtn: { height: 36, padding: "0 18px", borderRadius: 6, fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none" },
+  primaryBtn: { background: "#334B71", color: "#fff" },
+  ghostBtn: { background: "#fff", border: "1px solid #d1d5db", color: "#374151" },
+  dangerBtn: { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" },
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
+  modal: { background: "#fff", borderRadius: 12, padding: 28, width: 380, maxWidth: "90vw" },
+  modalIcon: { fontSize: 32, marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: 600, color: "#111827", margin: "0 0 8px" },
+  modalBody: { fontSize: 14, color: "#6b7280", lineHeight: 1.6, margin: "0 0 20px" },
+  modalActions: { display: "flex", justifyContent: "flex-end", gap: 10 },
+  toast: { position: "fixed", bottom: 24, right: 24, padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" },
+  toastSuccess: { background: "#ecfdf5", color: "#065f46", border: "1px solid #6ee7b7" },
+  toastError: { background: "#fef2f2", color: "#991b1b", border: "1px solid #fca5a5" },
 };
 
 export default ClinicMaster;

@@ -79,6 +79,8 @@ const Login = ({ onLoginSuccess }) => {
   }
 };
 
+
+
   const handleSubmit = async (e) => {
   e.preventDefault();
   setError(null);
@@ -119,7 +121,18 @@ const Login = ({ onLoginSuccess }) => {
     await getSessionFromApi();
 
     onLoginSuccess(user);
-    navigate("/dashboard", { replace: true });
+    // In Login.js handleSubmit, after onLoginSuccess(user):
+const isFirst = await fetch(`${API_BASE_URL}/api/employee/first-login-check?employeeCode=${user.employeeCode}`, {
+  headers: { Authorization: `Bearer ${token}` }
+}).then(r => r.json());
+
+if (isFirst.data?.isFirstLogin) {
+  // show FirstLoginModal before navigating
+  setShowFirstLoginModal(true); // add this state
+} else {
+  navigate("/dashboard", { replace: true });
+}
+    //navigate("/dashboard", { replace: true });
 
   } catch (err) {
     console.error(err);
