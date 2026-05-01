@@ -47,108 +47,87 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
-  // ✅ UPDATED: use employee's centerCode as LoginCode + TopCode
   const setSessionToApi = async ({ user }) => {
-    try {
-      // try common key variants safely
-      const centerCode =
-        user?.centerCode ||
-        user?.CenterCode ||
-        user?.center_code ||
-        user?.CENTERCODE ||
-        "";
+  try {
+    const centerCode =
+      user?.centerCode ||
+      user?.CenterCode ||
+      user?.center_code ||
+      user?.CENTERCODE ||
+      "";
 
-      if (!centerCode) {
-        console.warn(
-          "centerCode not found on employee login response user object. Falling back to empty strings."
-        );
-      }
+    const payload = {
+      LoginCode: centerCode,
+      TopCode: centerCode,
+      userID: user?.employeeCode || "", // ✅ changed from userId to employeeCode
+    };
 
-      const payload = {
-        LoginCode: centerCode, // ✅ centerCode instead of "Bright"
-        TopCode: centerCode,   // ✅ centerCode instead of "Bright"
-        userID: user?.userId,  // keep as-is (your API expects userID)
-      };
+    console.log("Session Set Payload:", payload);
 
-      console.log("Session Set Payload:", payload);
+    const response = await fetch(`${API_BASE_URL}/api/session/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
 
-      const response = await fetch(`${API_BASE_URL}/api/session/set`, {
-        method: "POST",
-        headers: headersFor("POST"),
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
+    if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
+    console.log("Session Set Response:", await response.text());
 
-      if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
-
-      console.log("Session Set API Response:", await response.text());
-    } catch (error) {
-      console.error("Error setting session:", error);
-    }
-  };
+  } catch (error) {
+    console.error("Error setting session:", error);
+  }
+};
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setUserInfo(null);
-    setLoading(true);
+  e.preventDefault();
+  setError(null);
+  setUserInfo(null);
+  setLoading(true);
 
-    if (!email || !password) {
-      setError("Email and password are required.");
+  if (!email || !password) {
+    setError("Email and password are required.");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: email, password }),
+    });
+
+    const data = await response.json();
+    console.log("Login API Response:", data);
+
+    if (!response.ok || !data.success) {
+      setError(data.message || "Invalid credentials.");
       setLoading(false);
       return;
     }
 
-    try {
-      // Use encoded credentials in URL to avoid issues with special characters
-      const loginUrl = `${API_BASE_URL}/api/Employees/Login/${encodeURIComponent(
-        email
-      )}/${encodeURIComponent(password)}`;
+    const { user, token } = data.data;
 
-      const response = await fetch(loginUrl, {
-        method: "GET",
-        credentials: "include",
-        headers: headersFor("GET"),
-      });
+    // Store token and user
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("remember", remember ? "1" : "0");
 
-      if (!response.ok) {
-        let text = "<no body>";
-        try {
-          text = await response.text();
-        } catch {}
-        console.error(`Login failed: ${response.status} ${response.statusText}`, text);
-        setError(`Login failed (${response.status}). Check console for server response.`);
-        setLoading(false);
-        return;
-      }
+    // Set session with centerCode (keeping existing session logic)
+    await setSessionToApi({ user });
+    await getSessionFromApi();
 
-      const data = await response.json();
-      console.log("Login API Response:", data);
+    onLoginSuccess(user);
+    navigate("/dashboard", { replace: true });
 
-      if (!data || data.length === 0) {
-        setError("Invalid credentials.");
-      } else {
-        const user = data[0];
-        setUserInfo(user);
-
-        localStorage.setItem("user", JSON.stringify(user));
-localStorage.setItem("remember", remember ? "1" : "0");
-
-
-        // ✅ Now set session with centerCode
-        await setSessionToApi({ user });
-        await getSessionFromApi();
-
-        onLoginSuccess(user);
-        navigate("/dashboard", { replace: true });
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Login error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Login error. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>
