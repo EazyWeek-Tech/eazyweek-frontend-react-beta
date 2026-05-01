@@ -5,6 +5,10 @@ import EmployeeCreateForm from "./EmployeeCreateForm";
 
 const TOKEN = () => localStorage.getItem("token");
 
+// Add at top of EmployeeMaster component
+const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+const isAdmin = currentUser?.role === "Admin";
+
 const EmployeeMaster = () => {
   const [employees, setEmployees]     = useState([]);
   const [total, setTotal]             = useState(0);
@@ -99,9 +103,11 @@ const EmployeeMaster = () => {
           <h1 style={s.title}>Employees</h1>
           <p style={s.subtitle}>{total} active employees</p>
         </div>
-        <button style={s.addBtn} onClick={() => setView("create")}>
-          + Add Employee
-        </button>
+{isAdmin && (
+  <button style={s.addBtn} onClick={() => setView("create")}>
+    + Add Employee
+  </button>
+)}
       </div>
 
       {/* Search */}
@@ -153,14 +159,13 @@ const EmployeeMaster = () => {
                   <td style={s.td}>{emp.CENTERCODE || "—"}</td>
                   <td style={s.td}>{emp.MOBILEPHONE || "—"}</td>
                   <td style={s.td}>{emp.EMAIL || "—"}</td>
-                  <td style={s.td}>
-                    <button
-                      style={s.editBtn}
-                      onClick={() => handleRowClick(emp)}
-                    >
-                      Edit →
-                    </button>
-                  </td>
+                 <td style={s.td}>
+  {isAdmin && (
+    <button style={s.editBtn} onClick={() => handleRowClick(emp)}>
+      Edit →
+    </button>
+  )}
+</td>
                 </tr>
               ))}
             </tbody>

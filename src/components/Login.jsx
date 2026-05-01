@@ -57,9 +57,9 @@ const Login = ({ onLoginSuccess }) => {
       "";
 
     const payload = {
-      LoginCode: centerCode,
-      TopCode: centerCode,
-      userID: user?.employeeCode || "", // ✅ changed from userId to employeeCode
+      LoginCode: centerCode,  // ✅ employee's centerCode
+      TopCode:   centerCode,  // ✅ same
+      userID:    user?.employeeCode || "",
     };
 
     console.log("Session Set Payload:", payload);
@@ -72,16 +72,14 @@ const Login = ({ onLoginSuccess }) => {
     });
 
     if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
-    console.log("Session Set Response:", await response.text());
-
   } catch (error) {
     console.error("Error setting session:", error);
   }
 };
 
+// Replace handleSubmit in Login.js with this:
 
-
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
   setError(null);
   setUserInfo(null);
@@ -94,6 +92,7 @@ const Login = ({ onLoginSuccess }) => {
   }
 
   try {
+    // 1. Login
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -111,28 +110,51 @@ const Login = ({ onLoginSuccess }) => {
 
     const { user, token } = data.data;
 
-    // Store token and user
+    // 2. Store token and user
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
     localStorage.setItem("remember", remember ? "1" : "0");
 
-    // Set session with centerCode (keeping existing session logic)
-    await setSessionToApi({ user });
-    await getSessionFromApi();
+    // 3. ✅ Set session using employee's centerCode as LoginCode + TopCode
+    const centerCode = user?.centerCode || "";
+    await fetch(`${API_BASE_URL}/api/session/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        LoginCode: centerCode,
+        TopCode:   centerCode,
+        userID:    user?.employeeCode || "",
+      }),
+      credentials: "include",
+    });
 
+    // 4. Get session confirmation
+    const sessionRes  = await fetch(`${API_BASE_URL}/api/session/get`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
+    });
+    const sessionData = await sessionRes.json();
+    localStorage.setItem("userSession", JSON.stringify(sessionData));
+
+    // 5. ✅ Check first login
+    try {
+      const firstLoginRes  = await fetch(
+        `${API_BASE_URL}/api/employee/first-login-check?employeeCode=${user.employeeCode}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const firstLoginJson = await firstLoginRes.json();
+      if (firstLoginJson.data?.isFirstLogin) {
+        localStorage.setItem("isFirstLogin", "true");
+        localStorage.setItem("firstLoginEmployeeCode", user.employeeCode);
+      }
+    } catch {
+      console.warn("First login check failed — skipping");
+    }
+
+    setUserInfo(user);
     onLoginSuccess(user);
-    // In Login.js handleSubmit, after onLoginSuccess(user):
-const isFirst = await fetch(`${API_BASE_URL}/api/employee/first-login-check?employeeCode=${user.employeeCode}`, {
-  headers: { Authorization: `Bearer ${token}` }
-}).then(r => r.json());
-
-if (isFirst.data?.isFirstLogin) {
-  // show FirstLoginModal before navigating
-  setShowFirstLoginModal(true); // add this state
-} else {
-  navigate("/dashboard", { replace: true });
-}
-    //navigate("/dashboard", { replace: true });
+    navigate("/dashboard", { replace: true });
 
   } catch (err) {
     console.error(err);

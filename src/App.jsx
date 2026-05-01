@@ -130,7 +130,12 @@ localStorage.setItem("user", JSON.stringify(ssoUser));
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showFirstLogin, setShowFirstLogin] = useState(false);
+ 
+  const [showFirstLogin, setShowFirstLogin] = useState(
+  () => localStorage.getItem("isFirstLogin") === "true"
+);
+const firstLoginCode = localStorage.getItem("firstLoginEmployeeCode") || "";
+
 
 
   // 🔹 UPDATED: use helper to initialize user (handles ?token=)
@@ -175,7 +180,18 @@ localStorage.removeItem("remember");
       </Routes>
     );
   }
-
+if (user && showFirstLogin) {
+  return (
+    <FirstLoginModal
+      employeeCode={firstLoginCode}
+      onComplete={() => {
+        localStorage.removeItem("isFirstLogin");
+        localStorage.removeItem("firstLoginEmployeeCode");
+        setShowFirstLogin(false);
+      }}
+    />
+  );
+}
   return (
     <Routes>
       {/* Add Routes WITHOUT Sidebar + Header */}
@@ -207,12 +223,9 @@ localStorage.removeItem("remember");
       />
 
       {/*Add Routes WITH Sidebar + Header */}
-      {showFirstLogin && (
-  <FirstLoginModal
-    employeeCode={user.employeeCode}
-    onComplete={() => { setShowFirstLogin(false); navigate("/dashboard"); }}
-  />
-)}
+      
+      
+      
 
 <Route path="/segmentaddform/:employeeCode" element={<SegmentAddForm />} />
 
