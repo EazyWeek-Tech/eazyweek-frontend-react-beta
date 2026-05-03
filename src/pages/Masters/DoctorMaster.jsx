@@ -1,295 +1,373 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import DataTable from "react-data-table-component";
+import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
 
+const TOKEN = () => localStorage.getItem("token");
+
 const DoctorMaster = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [doctorData, setDoctorData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [associatedClinic, setAssociatedClinic] = useState("");
-  const [toast, setToast] = useState(null);
+  const [doctors, setDoctors]     = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [clinics, setClinics]     = useState([]);
+  const [search, setSearch]       = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving]       = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [clinicOptions, setClinicOptions] = useState([]);
+  const [toast, setToast]         = useState(null);
+
+  const [form, setForm] = useState({
+    employeeCode: "",
+    associatedClinic: "",
+  });
+
+  const showToast = (text, type = "success") => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchDoctors = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/api/master/LoadDoctorMapping`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      if (json.success) setDoctors(json.data);
+    } catch { showToast("Failed to load practitioners", "error"); }
+    finally { setLoading(false); }
+  }, []);
+
+  // Load doctor employees — filtered by job title on backend
+  const fetchDoctorEmployees = useCallback(async () => {
+    try {
+      const res  = await fetch(`${API_BASE_URL}/api/employee/doctors`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      if (json.success) setEmployees(json.data);
+    } catch { console.error("Failed to load doctor employees"); }
+  }, []);
+
+  const fetchClinics = useCallback(async () => {
+    try {
+      const res  = await fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      if (json.success) setClinics(json.data);
+    } catch { console.error("Failed to load clinics"); }
+  }, []);
 
   useEffect(() => {
     fetchDoctors();
-    fetchEmployees();
+    fetchDoctorEmployees();
     fetchClinics();
+  }, [fetchDoctors, fetchDoctorEmployees, fetchClinics]);
+
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  const fetchDoctors = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/LoadDoctorMapping`, {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      setDoctorData(data);
-    } catch (err) {
-      setToast({ type: "error", message: "Failed to load data" });
-    } finally {
-      setLoading(false);
-    }
+  const openModal = () => {
+    setForm({ employeeCode: "", associatedClinic: "" });
+    setModalOpen(true);
   };
 
-  const fetchEmployees = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/Employees`, {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      setEmployeeOptions(data);
-    } catch (err) {
-      setToast({ type: "error", message: "Failed to load employees" });
-    }
-  };
+  const handleSave = async () => {
+    if (!form.employeeCode)      return showToast("Please select a doctor", "error");
+    if (!form.associatedClinic)  return showToast("Please select a clinic", "error");
 
-  const fetchClinics = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      setClinicOptions(data);
-    } catch (err) {
-      setToast({ type: "error", message: "Failed to load clinics" });
-    }
-  };
+    // Get name from selected employee
+    const emp = employees.find(
+      (e) => e.EMPLOYEECODE === form.employeeCode || e.CODE === form.employeeCode
+    );
 
-  const handleSubmit = async () => {
+    setSaving(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/DoctorMappingInsert`, {
+      const res  = await fetch(`${API_BASE_URL}/api/master/DoctorMappingInsert`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeCode, firstName, lastName, associatedClinic }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({
+          employeeCode:     form.employeeCode,
+          firstName:        emp?.FIRSTNAME || emp?.NAME?.split(" ")[0] || "",
+          lastName:         emp?.LASTNAME  || emp?.NAME?.split(" ").slice(1).join(" ") || "",
+          associatedClinic: form.associatedClinic,
+        }),
       });
-      const result = await response.json();
-      if (result.success) {
-        setToast({ type: "success", message: "Practitioner added successfully" });
-        setShowForm(false);
-        setEmployeeCode("");
-        setFirstName("");
-        setLastName("");
-        setAssociatedClinic("");
+      const json = await res.json();
+      if (json.success) {
+        showToast("Practitioner mapped successfully");
+        setModalOpen(false);
         fetchDoctors();
       } else {
-        setToast({ type: "error", message: result.message || "Add failed" });
+        showToast(json.message || "Failed to add", "error");
       }
-    } catch {
-      setToast({ type: "error", message: "An error occurred while saving" });
-    }
+    } catch { showToast("An error occurred", "error"); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (doctor) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/Master/DoctorMappingRemove`, {
+      const res  = await fetch(`${API_BASE_URL}/api/master/DoctorMappingRemove`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(doctor),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({ employeeCode: doctor.employeeCode }),
       });
-      const result = await response.json();
-      if (result.success) {
-        setToast({ type: "success", message: "Deleted successfully" });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Mapping removed successfully");
         fetchDoctors();
       } else {
-        setToast({ type: "error", message: result.message || "Delete failed" });
+        showToast(json.message || "Delete failed", "error");
       }
-    } catch {
-      setToast({ type: "error", message: "An error occurred during deletion" });
-    }
-    setConfirmDelete(null);
+    } catch { showToast("An error occurred", "error"); }
+    finally { setConfirmDelete(null); }
   };
 
-  const filteredDoctors = doctorData.filter(
-    (d) =>
-      d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.associatedClinic.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = doctors.filter((d) =>
+    [d.firstName, d.lastName, d.employeeCode, d.associatedClinic]
+      .join(" ").toLowerCase().includes(search.toLowerCase())
   );
-
-  const columns = [
-    { name: "Employee Code", selector: (row) => row.employeeCode, sortable: true },
-    { name: "First Name", selector: (row) => row.firstName },
-    { name: "Last Name", selector: (row) => row.lastName },
-    { name: "Clinic", selector: (row) => row.associatedClinic },
-    {
-      name: "Actions",
-      cell: (row) => (
-        <button onClick={() => setConfirmDelete(row)} className="delete-btn">
-          Delete
-        </button>
-      ),
-      ignoreRowClick: true
-    },
-  ];
 
   return (
-    <div className="doctor-master">
-      <div className="header-section">
-        <h1>Manage Doctor/Therapist</h1>
-        <button className="add-btn" onClick={() => setShowForm(true)}>Add Practitioner</button>
+    <div style={s.page}>
+      {/* Header */}
+      <div style={s.pageHeader}>
+        <div>
+          <div style={s.breadcrumb}>
+            <a href="/dashboard" style={s.breadLink}>Dashboard</a>
+            <span style={s.breadSep}> › </span>
+            <span>Manage Practitioners</span>
+          </div>
+          <h1 style={s.title}>Doctors / Therapists</h1>
+          <p style={s.subtitle}>{filtered.length} practitioner mapping{filtered.length !== 1 ? "s" : ""}</p>
+        </div>
+        <button style={s.addBtn} onClick={openModal}>+ Map Practitioner</button>
       </div>
 
-      <input
-        type="text"
-        placeholder="Search..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="search-box"
-      />
+      {/* Search */}
+      <div style={{ position: "relative", maxWidth: 400, marginBottom: 16 }}>
+        <span style={s.searchIcon}>🔍</span>
+        <input
+          style={s.searchInput}
+          placeholder="Search by name, code, clinic..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && <button style={s.clearBtn} onClick={() => setSearch("")}>✕</button>}
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredDoctors}
-        pagination
-        progressPending={loading}
-        highlightOnHover
-      />
+      {/* Table */}
+      <div style={s.card}>
+        {loading ? (
+          <div style={s.loader}>Loading practitioners...</div>
+        ) : filtered.length === 0 ? (
+          <div style={s.empty}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👨‍⚕️</div>
+            <p style={{ color: "#6b7280", fontSize: 14 }}>No practitioner mappings found</p>
+            <button style={s.addBtn} onClick={openModal}>+ Map First Practitioner</button>
+          </div>
+        ) : (
+          <table style={s.table}>
+            <thead>
+              <tr>
+                {["Employee Code", "First Name", "Last Name", "Associated Clinic", ""].map((h) => (
+                  <th key={h} style={s.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((d, i) => (
+                <tr key={i}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = ""}
+                >
+                  <td style={s.td}><span style={s.codeTag}>{d.employeeCode}</span></td>
+                  <td style={s.td}>{d.firstName}</td>
+                  <td style={s.td}>{d.lastName}</td>
+                  <td style={s.td}>{d.associatedClinic}</td>
+                  <td style={s.td}>
+                    <button style={s.deleteBtn} onClick={() => setConfirmDelete(d)}>Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-      {showForm && (
-        <div className="modal">
-          <div className="form-box">
-            <div>
-              <label>Employee Name:</label>
-              <select value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)}>
-                <option value="">&lt; - Select one - &gt;</option>
-                {employeeOptions.map((emp) => (
-                  <option key={emp.employeeCode} value={emp.employeeCode}>
-                    {emp.employeeName}
-                  </option>
-                ))}
-              </select>
+      {/* Add Modal Popup */}
+      {modalOpen && (
+        <div style={s.modalOverlay} onClick={() => setModalOpen(false)}>
+          <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div style={s.modalHeader}>
+              <div>
+                <h3 style={s.modalTitle}>Map Practitioner to Clinic</h3>
+                <p style={s.modalSub}>Select a doctor/therapist and assign them to a clinic</p>
+              </div>
+              <button style={s.closeBtn} onClick={() => setModalOpen(false)}>✕</button>
             </div>
-            <div>
-              <label>First Name:</label>
-              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+
+            {/* Modal Body */}
+            <div style={s.modalBody}>
+              {/* Doctor dropdown */}
+              <div style={s.field}>
+                <label style={s.label}>Doctor / Therapist</label>
+                <select
+                  name="employeeCode"
+                  value={form.employeeCode}
+                  onChange={handleChange}
+                  style={s.select}
+                >
+                  <option value="">— Select practitioner —</option>
+                  {employees.length === 0 ? (
+                    <option disabled>No doctors found</option>
+                  ) : (
+                    employees.map((emp) => (
+                      <option
+                        key={emp.EMPLOYEECODE || emp.CODE}
+                        value={emp.EMPLOYEECODE || emp.CODE}
+                      >
+                        {`${emp.FIRSTNAME || ""} ${emp.LASTNAME || ""}`.trim() || emp.NAME} — {emp.JOB}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {employees.length === 0 && (
+                  <p style={s.hint}>
+                    No employees found with doctor/therapist job titles.
+                    Assign job titles in Employee Master first.
+                  </p>
+                )}
+              </div>
+
+              {/* Selected employee preview */}
+              {form.employeeCode && (() => {
+                const emp = employees.find(
+                  (e) => (e.EMPLOYEECODE || e.CODE) === form.employeeCode
+                );
+                return emp ? (
+                  <div style={s.empPreview}>
+                    <div style={s.empPreviewName}>
+                      {`${emp.FIRSTNAME || ""} ${emp.LASTNAME || ""}`.trim() || emp.NAME}
+                    </div>
+                    <div style={s.empPreviewDetail}>{emp.EMPLOYEECODE || emp.CODE} · {emp.JOB}</div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Clinic dropdown */}
+              <div style={s.field}>
+                <label style={s.label}>Assign to Clinic</label>
+                <select
+                  name="associatedClinic"
+                  value={form.associatedClinic}
+                  onChange={handleChange}
+                  style={s.select}
+                >
+                  <option value="">— Select clinic —</option>
+                  {clinics.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={s.infoBox}>
+                ℹ️ One practitioner can be mapped to multiple clinics by adding them again with a different clinic.
+              </div>
             </div>
-            <div>
-              <label>Last Name:</label>
-              <input value={lastName} onChange={(e) => setLastName(e.target.value)} />
-            </div>
-            <div>
-              <label>Associated Clinic:</label>
-              <select value={associatedClinic} onChange={(e) => setAssociatedClinic(e.target.value)}>
-                <option value="">Select one</option>
-                {clinicOptions.map((clinic) => (
-                  <option key={clinic.code} value={clinic.code}>{clinic.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="button-group">
-              <button onClick={handleSubmit} className="add-btn">Save</button>
-              <button onClick={() => setShowForm(false)}>Back</button>
+
+            {/* Modal Footer */}
+            <div style={s.modalFooter}>
+              <button style={{ ...s.footerBtn, ...s.ghostBtn }} onClick={() => setModalOpen(false)}>
+                Cancel
+              </button>
+              <button style={{ ...s.footerBtn, ...s.primaryBtn }} onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Map Practitioner"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Delete Confirm Modal */}
       {confirmDelete && (
-        <div className="modal">
-          <div className="form-box">
-            <p className="cnfrmmsg">Are you sure you want to delete {confirmDelete.firstName}?</p>
-            <div className="button-group">
-              <button onClick={() => handleDelete(confirmDelete)} className="add-btn">Yes, Delete</button>
-              <button onClick={() => setConfirmDelete(null)}>Cancel</button>
+        <div style={s.modalOverlay} onClick={() => setConfirmDelete(null)}>
+          <div style={{ ...s.modal, maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+              <h3 style={s.modalTitle}>Remove Mapping?</h3>
+              <p style={{ fontSize: 14, color: "#6b7280", margin: "8px 0 20px", lineHeight: 1.6 }}>
+                Remove <strong>{confirmDelete.firstName} {confirmDelete.lastName}</strong> from{" "}
+                <strong>{confirmDelete.associatedClinic}</strong>?
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                <button style={{ ...s.footerBtn, ...s.ghostBtn }} onClick={() => setConfirmDelete(null)}>
+                  Cancel
+                </button>
+                <button style={{ ...s.footerBtn, ...s.dangerBtn }} onClick={() => handleDelete(confirmDelete)}>
+                  Yes, Remove
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Toast */}
       {toast && (
-        <div className={`toastmsg ${toast.type}`}>{toast.message}</div>
+        <div style={{ ...s.toast, ...(toast.type === "error" ? s.toastError : s.toastSuccess) }}>
+          {toast.text}
+        </div>
       )}
-
-      <style jsx>{`
-        .header-section {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-          .cnfrmmsg{ font-weight: 600; font-size: 16px;margin: 0 0 20px; }
-        .add-btn {
-          background: #334b71;
-          color: white;
-          padding: 8px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-        .search-box {
-          margin: 1rem 0;
-          padding: 0.5rem;
-          width: 300px;
-        }
-        .delete-btn {
-          background: #b94b56;
-          color: white;
-          border: none;
-          padding: 5px 10px;
-          border-radius: 4px;
-        }
-        .modal {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
-          height: 100vh;
-          background: rgba(0,0,0,0.4);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-           .form-box div label{margin: 0 0 10px; font-size: 14px; display: block;}
-        .form-box {
-          background: white;
-          padding: 20px;
-          border-radius: 8px;
-          min-width: 300px;
-        }
-        .form-box div {
-          margin-bottom: 12px;
-        }
-        .form-box input, .form-box select {
-          width: 100%;
-          padding: 6px;
-        }
-        .button-group {
-          display: flex;
-          gap: 10px;
-        }
-        .toastmsg {
-          position: fixed;
-          bottom: 1rem;
-          right: 1rem;
-          padding: 10px 20px;
-          border-radius: 4px;
-          color: white;
-        }
-        .toastmsg.success {
-          background: green;
-        }
-        .toastmsg.error {
-          background: red;
-        }
-      `}</style>
     </div>
   );
+};
+
+const s = {
+  page:          { padding: "24px", fontFamily: "Inter, sans-serif", maxWidth: 1000, margin: "0 auto" },
+  pageHeader:    { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
+  breadcrumb:    { fontSize: 12, color: "#9ca3af", marginBottom: 6 },
+  breadLink:     { color: "#334B71", textDecoration: "none" },
+  breadSep:      { margin: "0 6px" },
+  title:         { fontSize: 24, fontWeight: 600, color: "#111827", margin: "0 0 4px" },
+  subtitle:      { fontSize: 13, color: "#6b7280", margin: 0 },
+  addBtn:        { background: "#334B71", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 500 },
+  searchIcon:    { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 },
+  searchInput:   { width: "100%", padding: "9px 36px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" },
+  clearBtn:      { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 14 },
+  card:          { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" },
+  loader:        { textAlign: "center", padding: 40, color: "#6b7280", fontSize: 14 },
+  empty:         { textAlign: "center", padding: "48px 24px" },
+  table:         { width: "100%", borderCollapse: "collapse" },
+  th:            { padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" },
+  td:            { padding: "12px 16px", fontSize: 13, color: "#374151", borderBottom: "1px solid #f3f4f6" },
+  codeTag:       { background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 500 },
+  deleteBtn:     { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" },
+  modalOverlay:  { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 },
+  modal:         { background: "#fff", borderRadius: 14, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" },
+  modalHeader:   { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "20px 24px", borderBottom: "1px solid #e5e7eb" },
+  modalTitle:    { fontSize: 17, fontWeight: 600, color: "#111827", margin: 0 },
+  modalSub:      { fontSize: 12, color: "#6b7280", margin: "4px 0 0" },
+  closeBtn:      { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#9ca3af" },
+  modalBody:     { padding: "20px 24px" },
+  modalFooter:   { padding: "16px 24px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10 },
+  field:         { marginBottom: 16 },
+  label:         { display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" },
+  select:        { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", background: "#fff", cursor: "pointer" },
+  hint:          { fontSize: 12, color: "#ef4444", marginTop: 6 },
+  empPreview:    { background: "#f0f7ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", marginBottom: 16 },
+  empPreviewName:{ fontWeight: 600, fontSize: 14, color: "#1e40af" },
+  empPreviewDetail:{ fontSize: 12, color: "#3b82f6", marginTop: 2 },
+  infoBox:       { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#166534", marginTop: 4 },
+  footerBtn:     { height: 36, padding: "0 20px", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none" },
+  primaryBtn:    { background: "#334B71", color: "#fff" },
+  ghostBtn:      { background: "#fff", border: "1px solid #d1d5db", color: "#374151" },
+  dangerBtn:     { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" },
+  toast:         { position: "fixed", bottom: 24, right: 24, padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" },
+  toastSuccess:  { background: "#ecfdf5", color: "#065f46", border: "1px solid #6ee7b7" },
+  toastError:    { background: "#fef2f2", color: "#991b1b", border: "1px solid #fca5a5" },
 };
 
 export default DoctorMaster;
