@@ -2,118 +2,122 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../config";
-import Toast from "../../components/Toast";
 
-// Endpoints per-tab (match backend exactly)
-const URLS = {
-  general: `${API_BASE_URL}/api/Master/InsertServiceGeneral`,
-  pricing: `${API_BASE_URL}/api/Master/InsertServicePrice`,
-  bom: `${API_BASE_URL}/api/Master/InsertServiceBOM`,
-  practitioner: `${API_BASE_URL}/api/Master/InsertServicePractioner`, // spelling per backend
-  forms: `${API_BASE_URL}/api/Master/InsertServiceForms`,
-  formsNamesAPI: `${API_BASE_URL}/api/form/names`,
+const TOKEN = () => localStorage.getItem("token");
+
+// ── Auth fetch helpers ────────────────────────────────────────────────────────
+const fetchGET = async (url) => {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${TOKEN()}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json().catch(() => ({}));
+  return json.data ?? json;
 };
 
+const postJSON = async (url, body) => {
+  const res = await fetch(url, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+    body:    JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  const json = await res.json().catch(() => ({}));
+  return json.data ?? json;
+};
+
+// ── Endpoints ─────────────────────────────────────────────────────────────────
+const URLS = {
+  general:      `${API_BASE_URL}/api/Master/InsertServiceGeneral`,
+  pricing:      `${API_BASE_URL}/api/Master/InsertServicePrice`,
+  bom:          `${API_BASE_URL}/api/Master/InsertServiceBOM`,
+  practitioner: `${API_BASE_URL}/api/Master/InsertServicePractioner`,
+  forms:        `${API_BASE_URL}/api/Master/InsertServiceForms`,
+  formsNamesAPI:`${API_BASE_URL}/api/form/names`,
+};
+
+// ── Simple Toast ──────────────────────────────────────────────────────────────
+const Toast = ({ type, message, onClose }) => {
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, [onClose]);
+  const bg = type === "success" ? { background:"#ecfdf5", color:"#065f46", border:"1px solid #6ee7b7" }
+           : type === "error"   ? { background:"#fef2f2", color:"#991b1b", border:"1px solid #fca5a5" }
+           :                      { background:"#fffbeb", color:"#92400e", border:"1px solid #fde68a" };
+  return (
+    <div style={{ position:"fixed", bottom:24, right:24, padding:"10px 18px", borderRadius:10,
+      fontSize:13, fontWeight:600, zIndex:9999, boxShadow:"0 4px 14px rgba(0,0,0,0.12)", ...bg }}>
+      {message}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [activeTab, setActiveTab] = useState("General");
-  const tabs = [
-    "General",
-    "Pricing",
-    "BOM",
-    "Practitioner Mapping",
-    "Forms",
-    "Miscellaneous",
-  ];
+  const tabs = ["General","Pricing","BOM","Practitioner Mapping","Forms","Miscellaneous"];
 
-  // --- Toast ---
   const [toast, setToast] = useState(null);
+  const showToast = (message, type = "success") => setToast({ message, type });
 
-  // --- per-tab status: "unsaved" | "draft" | "saved"
   const [tabStatus, setTabStatus] = useState({
-    General: "unsaved",
-    Pricing: "unsaved",
-    BOM: "unsaved",
-    "Practitioner Mapping": "unsaved",
-    Forms: "unsaved",
-    Miscellaneous: "unsaved",
+    General:"unsaved", Pricing:"unsaved", BOM:"unsaved",
+    "Practitioner Mapping":"unsaved", Forms:"unsaved", Miscellaneous:"unsaved",
   });
-
-  // --- dirty flags for ● indicator on tabs
   const [dirty, setDirty] = useState({
-    General: false,
-    Pricing: false,
-    BOM: false,
-    "Practitioner Mapping": false,
-    Forms: false,
-    Miscellaneous: false,
+    General:false, Pricing:false, BOM:false,
+    "Practitioner Mapping":false, Forms:false, Miscellaneous:false,
   });
-
-  const markDirty = (tab) => setDirty((d) => (d[tab] ? d : { ...d, [tab]: true }));
+  const markDirty = (tab) => setDirty((d) => d[tab] ? d : { ...d, [tab]: true });
   const markSaved = (tab, state = "saved") => {
-    setDirty((d) => ({ ...d, [tab]: false }));
+    setDirty((d)  => ({ ...d, [tab]: false }));
     setTabStatus((s) => ({ ...s, [tab]: state }));
   };
 
-  // ---------- Utility ----------
   const toArray = (d) => (Array.isArray(d) ? d : d ? [d] : []);
 
-  // ---------------- state ----------------
+  // ── Form data ───────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    serviceCode: service?.code || "",
-    serviceName: service?.name || "",
+    serviceCode:     service?.code        || "",
+    serviceName:     service?.name        || "",
     arabicServiceName: service?.arabicName || "",
     serviceDescription: service?.description || "",
-    serviceCategory: service?.category || "",
+    serviceCategory:    service?.category    || "",
     serviceSubCategory: service?.subcategory || "",
     serviceSubSubCategory: service?.subSubcategory || "",
-    serviceTime: service?.time || " ",
+    serviceTime:     service?.time        || " ",
     allowIdealBOMConsumption: service?.allowIdealBOM || "No",
     allowBOMConsumptionWithIntervention: service?.allowBOMIntervention || "No",
-    allowLoyaltyAccrual: service?.allowLoyaltyAccrual || "No",
-    allowLoyaltyRedemption: service?.allowLoyaltyRedemption || "No",
+    allowLoyaltyAccrual:     service?.allowLoyaltyAccrual    || "No",
+    allowLoyaltyRedemption:  service?.allowLoyaltyRedemption || "No",
     additionalField1: service?.additionalField1 || "",
     additionalField2: service?.additionalField2 || "",
     additionalField3: service?.additionalField3 || "",
     additionalField4: service?.additionalField4 || "",
     additionalField5: service?.additionalField5 || "",
-    serviceStatus: service?.status || "Active",
-    pricingData:
-      service?.pricingData || [
-        { centerCode: "Bright", centerName: "Bright Clinics", price: "0", taxIncluded: "", taxPercent: "0", storeRelease: false },
-        { centerCode: "LNS", centerName: "Lines Clinics", price: "0", taxIncluded: "", taxPercent: "0", storeRelease: false },
-        { centerCode: "MXM", centerName: "Maxime Clinics", price: "0", taxIncluded: "", taxPercent: "0", storeRelease: false },
-        { centerCode: "INFENI", centerName: "Infeni Clinic", price: "0", taxIncluded: "", taxPercent: "0", storeRelease: false },
-        { centerCode: "Silk", centerName: "Silk Clinic", price: "0", taxIncluded: "", taxPercent: "0", storeRelease: false },
-      ],
+    serviceStatus:   service?.status || "Active",
+    pricingData: service?.pricingData || [
+      { centerCode:"Bright",  centerName:"Bright Clinics",  price:"0", taxIncluded:"", taxPercent:"0", storeRelease:false },
+      { centerCode:"LNS",     centerName:"Lines Clinics",   price:"0", taxIncluded:"", taxPercent:"0", storeRelease:false },
+      { centerCode:"MXM",     centerName:"Maxime Clinics",  price:"0", taxIncluded:"", taxPercent:"0", storeRelease:false },
+      { centerCode:"INFENI",  centerName:"Infeni Clinic",   price:"0", taxIncluded:"", taxPercent:"0", storeRelease:false },
+      { centerCode:"Silk",    centerName:"Silk Clinic",     price:"0", taxIncluded:"", taxPercent:"0", storeRelease:false },
+    ],
   });
 
-  // Mappings state
   const [doctorMappings, setDoctorMappings] = useState(service?.doctorMappings || []);
-  const [nurseMappings, setNurseMappings] = useState(service?.nurseMappings || []);
-  const [practitionerMapping, setPractitionerMapping] = useState({ leftClinic: "", doctor: "", rightClinic: "", nurses: "" });
+  const [nurseMappings,  setNurseMappings]  = useState(service?.nurseMappings  || []);
+  const [practitionerMapping, setPractitionerMapping] = useState({ leftClinic:"", doctor:"", rightClinic:"", nurses:"" });
 
   const [formsData, setFormsData] = useState(
     Array.isArray(service?.formsData)
-      ? service.formsData.map((f, idx) => ({ ...f, id: Date.now() + idx, selected: false, formId: f.formId || null }))
+      ? service.formsData.map((f,i) => ({ ...f, id:Date.now()+i, selected:false }))
       : service?.formsData
-      ? [{ ...service.formsData, id: Date.now(), selected: false, formId: service.formsData.formId || null }]
-      : [
-          {
-            stageForFormCompletion: "form-not-required",
-            blockFromProceeding: "Yes",
-            form: "",
-            formId: null,
-            id: Date.now(),
-            selected: false,
-          },
-        ]
+        ? [{ ...service.formsData, id:Date.now(), selected:false }]
+        : [{ stageForFormCompletion:"form-not-required", blockFromProceeding:"Yes", form:"", id:Date.now(), selected:false }]
   );
-
-  const [newForm, setNewForm] = useState({
-    stageForFormCompletion: "form-not-required",
-    blockFromProceeding: "Yes",
-    form: "",
-  });
+  const [newForm, setNewForm] = useState({ stageForFormCompletion:"form-not-required", blockFromProceeding:"Yes", form:"" });
 
   const [miscellaneousData, setMiscellaneousData] = useState({
     optionalField1: service?.miscellaneousData?.optionalField1 || "",
@@ -123,221 +127,119 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     optionalField5: service?.miscellaneousData?.optionalField5 || "",
   });
 
-  // ---------- BOM: search & options ----------
+  // ── BOM ─────────────────────────────────────────────────────────────────────
   const [searchConsumables, setSearchConsumables] = useState("s");
-  const [selectedConsumable, setSelectedConsumable] = useState(""); // stores code (e.g., "CON-00001")
-  const [consumableOpts, setConsumableOpts] = useState([{ name: "Select one", code: "0", value: null }]);
-  const [consumableLoad, setConsumableLoad] = useState(false);
-  const [consumableErr, setConsumableErr] = useState("");
-
+  const [selectedConsumable, setSelectedConsumable] = useState("");
+  const [consumableOpts, setConsumableOpts]         = useState([{ name:"Select one", code:"0" }]);
+  const [consumableLoad, setConsumableLoad]         = useState(false);
+  const [consumableErr, setConsumableErr]           = useState("");
   const [bomItems, setBomItems] = useState(Array.isArray(service?.bomItems) ? service.bomItems : []);
 
-
-  // ---------- Category GETs ----------
-  const [categories, setCategories] = useState([]); // [{categoryCode, categoryName}]
-  const [subCategories, setSubCategories] = useState([]);
+  // ── Categories ───────────────────────────────────────────────────────────────
+  const [categories,     setCategories]     = useState([]);
+  const [subCategories,  setSubCategories]  = useState([]);
   const [subSubCategories, setSubSubCategories] = useState([]);
-  const [catLoading, setCatLoading] = useState(false);
-  const [subLoading, setSubLoading] = useState(false);
-  const [ssLoading, setSsLoading] = useState(false);
-  const [catError, setCatError] = useState("");
-  const [subError, setSubError] = useState("");
-  const [ssError, setSsError] = useState("");
+  const [catLoading, setCatLoading]   = useState(false);
+  const [subLoading, setSubLoading]   = useState(false);
+  const [ssLoading,  setSsLoading]    = useState(false);
+  const [catError,   setCatError]     = useState("");
+  const [subError,   setSubError]     = useState("");
+  const [ssError,    setSsError]      = useState("");
 
-  // Load categories
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        setCatLoading(true);
-        setCatError("");
-        const res = await fetch(`${API_BASE_URL}/api/Master/ServiceCategory`, { credentials: "include" });
-        const data = await res.json().catch(() => []);
+        setCatLoading(true); setCatError("");
+        const data = await fetchGET(`${API_BASE_URL}/api/Master/ServiceCategory`);
         if (cancelled) return;
-        setCategories(
-          toArray(data).map((x) => ({
-            categoryCode: x.categoryCode ?? x.code ?? "",
-            categoryName: x.categoryName ?? x.name ?? "",
-          }))
-        );
-      } catch {
-        setCatError("Failed to load categories");
-      } finally {
-        setCatLoading(false);
-      }
+        setCategories(toArray(data).map((x) => ({
+          categoryCode: x.categoryCode ?? x.code ?? "",
+          categoryName: x.categoryName ?? x.name ?? "",
+        })));
+      } catch { setCatError("Failed to load categories"); }
+      finally { setCatLoading(false); }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  // Load sub categories when category changes
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const cat = formData.serviceCategory;
-      setSubCategories([]); setSubError(""); setSubLoading(false);
-      setSubSubCategories([]); setSsError(""); setSsLoading(false);
+      setSubCategories([]); setSubError(""); setSubSubCategories([]); setSsError("");
       if (!cat) return;
       try {
         setSubLoading(true);
-        const url = new URL(`${API_BASE_URL}/api/Master/ServiceSubCategory`);
-        url.searchParams.set("categoryCode", cat);
-        const res = await fetch(url, { credentials: "include" });
-        const data = await res.json().catch(() => []);
+        const data = await fetchGET(`${API_BASE_URL}/api/Master/ServiceSubCategory?categoryCode=${encodeURIComponent(cat)}`);
         if (cancelled) return;
-        setSubCategories(
-          toArray(data).map((x) => ({
-            categoryCode: x.categoryCode ?? "",
-            subCategoryCode: x.subCategoryCode ?? "",
-            subCategoryName: x.subCategoryName ?? "",
-          }))
-        );
-      } catch {
-        setSubError("Failed to load sub categories");
-      } finally {
-        setSubLoading(false);
-      }
+        setSubCategories(toArray(data).map((x) => ({
+          categoryCode:    x.categoryCode    ?? "",
+          subCategoryCode: x.subCategoryCode ?? "",
+          subCategoryName: x.subCategoryName ?? "",
+        })));
+      } catch { setSubError("Failed to load sub categories"); }
+      finally { setSubLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [formData.serviceCategory]);
 
-  // Load sub-sub categories when subcategory changes
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const cat = formData.serviceCategory;
       const sub = formData.serviceSubCategory;
-      setSubSubCategories([]); setSsError(""); setSsLoading(false);
+      setSubSubCategories([]); setSsError("");
       if (!cat || !sub) return;
       try {
         setSsLoading(true);
-        const url = new URL(`${API_BASE_URL}/api/Master/ServiceSubSubCategory`);
-        url.searchParams.set("categoryCode", cat);
-        url.searchParams.set("subCategoryCode", sub);
-        const res = await fetch(url, { credentials: "include" });
-        const data = await res.json().catch(() => []);
+        const data = await fetchGET(`${API_BASE_URL}/api/Master/ServiceSubSubCategory?categoryCode=${encodeURIComponent(cat)}&subCategoryCode=${encodeURIComponent(sub)}`);
         if (cancelled) return;
-        setSubSubCategories(
-          toArray(data).map((x, i) => {
-            const name = x.subSubCategoryName ?? "";
-            const raw = x.subSubCategoryCode ?? (name?.toUpperCase() === "NA" ? "NA" : name);
-            return {
-              categoryCode: x.categoryCode ?? cat,
-              subCategoryCode: x.subCategoryCode ?? sub,
-              subSubCategoryName: name,
-              subSubCategoryCode: `${cat}|${sub}|${name || i}`,
-              subSubCategoryCodeRaw: raw,
-            };
-          })
-        );
-      } catch {
-        setSsError("Failed to load sub sub categories");
-      } finally {
-        setSsLoading(false);
-      }
+        setSubSubCategories(toArray(data).map((x, i) => ({
+          subSubCategoryCode:    `${cat}|${sub}|${x.subSubCategoryName || i}`,
+          subSubCategoryCodeRaw: x.subSubCategoryCode ?? "",
+          subSubCategoryName:    x.subSubCategoryName ?? "",
+        })));
+      } catch { setSsError("Failed to load sub sub categories"); }
+      finally { setSsLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [formData.serviceCategory, formData.serviceSubCategory]);
 
-  // ---------- Clinics + practitioners (dynamic) ----------
-  const [clinics, setClinics] = useState([]); // [{code,name}]
+  // ── Clinics + Practitioners ──────────────────────────────────────────────────
+  const [clinics,     setClinics]     = useState([]);
   const [clinicLoading, setClinicLoading] = useState(false);
-  const [clinicError, setClinicError] = useState("");
-  const [leftPractitioners, setLeftPractitioners] = useState([]);
+  const [clinicError,   setClinicError]   = useState("");
+  const [leftPractitioners,  setLeftPractitioners]  = useState([]);
   const [rightPractitioners, setRightPractitioners] = useState([]);
-  const [leftLoad, setLeftLoad] = useState(false);
+  const [leftLoad,  setLeftLoad]  = useState(false);
   const [rightLoad, setRightLoad] = useState(false);
-  const [leftErr, setLeftErr] = useState("");
-  const [rightErr, setRightErr] = useState("");
-  const [docFilter, setDocFilter] = useState("");
+  const [leftErr,   setLeftErr]   = useState("");
+  const [rightErr,  setRightErr]  = useState("");
+  const [docFilter,   setDocFilter]   = useState("");
   const [nurseFilter, setNurseFilter] = useState("");
-  const [formnames,setFormnames] = useState([])
+  const [formnames,   setFormnames]   = useState([]);
 
   useEffect(() => {
-    const fetchData=async()=>{
-      try {
-        const response = await fetch(URLS?.formsNamesAPI, {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch services");
-
-        const data = await response.json();
-        setFormnames(data);
-      } catch (error) {
-          console.error("Error fetching services:", error);
-      }
-    }
-    fetchData()
-  }, []);
-
-  // Fetch existing forms and misc data for edit mode
-  useEffect(() => {
-    if (mode === "edit" && formData.serviceCode) {
-      const fetchFormsData = async () => {
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/serviceForm/all/${formData.serviceCode}`, {
-            method: "GET",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.forms && Array.isArray(data.forms)) {
-              setFormsData(data.forms.map((f, idx) => ({
-                id: Date.now() + idx,
-                selected: false,
-                form: f.formName,
-                stageForFormCompletion: f.formStageForCompletion,
-                blockFromProceeding: f.formBlockIfNotFilled,
-                formId: f.formId,
-              })));
-            }
-            if (data.misc) {
-              setMiscellaneousData({
-                optionalField1: data.misc.optionalField1 || "",
-                optionalField2: data.misc.optionalField2 || "",
-                optionalField3: data.misc.optionalField3 || "",
-                optionalField4: data.misc.optionalField4 || "",
-                optionalField5: data.misc.optionalField5 || "",
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching forms data:", error);
-        }
-      };
-      fetchFormsData();
-    }
-  }, [mode, formData.serviceCode]);
-
-  // Load clinics on mount
-  useEffect(() => {
-    let cancel = false;
     (async () => {
       try {
-        setClinicLoading(true);
-        setClinicError("");
-        const res = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
-        const data = await res.json().catch(() => []);
-        if (cancel) return;
-        const rows = toArray(data)
-          .map((x) => ({ code: x.code ?? "", name: x.name ?? "" }))
-          .filter((c) => c.code && c.name);
-        setClinics(rows);
-      } catch {
-        setClinicError("Failed to load clinics");
-      } finally {
-        setClinicLoading(false);
-      }
+        setClinicLoading(true); setClinicError("");
+        const data = await fetchGET(`${API_BASE_URL}/api/master/LoadCenters`);
+        setClinics(toArray(data).map((x) => ({ code: x.code ?? "", name: x.name ?? "" })).filter((c) => c.code && c.name));
+      } catch { setClinicError("Failed to load clinics"); }
+      finally { setClinicLoading(false); }
     })();
-    return () => { cancel = true; };
   }, []);
 
-  // Load practitioners when left clinic changes (doctors)
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await fetchGET(URLS.formsNamesAPI);
+        setFormnames(Array.isArray(data) ? data : []);
+      } catch { console.error("Failed to load form names"); }
+    })();
+  }, []);
+
   useEffect(() => {
     const center = practitionerMapping.leftClinic;
     if (!center) { setLeftPractitioners([]); setLeftErr(""); return; }
@@ -345,21 +247,15 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     (async () => {
       try {
         setLeftLoad(true); setLeftErr("");
-        const res = await fetch(`${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(center)}`, { credentials: "include" });
-        const data = await res.json().catch(() => []);
+        const data = await fetchGET(`${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(center)}`);
         if (cancel) return;
-        const rows = toArray(data)
-          .map((x) => ({ id: x.id ?? "", name: x.name ?? "" }))
-          .filter((p) => p.id && p.name);
-        setLeftPractitioners(rows);
-      } catch {
-        setLeftErr("Failed to load practitioners");
-      } finally { setLeftLoad(false); }
+        setLeftPractitioners(toArray(data).map((x) => ({ id: x.id ?? "", name: x.name ?? "" })).filter((p) => p.id && p.name));
+      } catch { setLeftErr("Failed to load practitioners"); }
+      finally { setLeftLoad(false); }
     })();
     return () => { cancel = true; };
   }, [practitionerMapping.leftClinic]);
 
-  // Load practitioners when right clinic changes (nurses)
   useEffect(() => {
     const center = practitionerMapping.rightClinic;
     if (!center) { setRightPractitioners([]); setRightErr(""); return; }
@@ -367,220 +263,135 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     (async () => {
       try {
         setRightLoad(true); setRightErr("");
-        const res = await fetch(`${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(center)}`, { credentials: "include" });
-        const data = await res.json().catch(() => []);
+        const data = await fetchGET(`${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(center)}`);
         if (cancel) return;
-        const rows = toArray(data)
-          .map((x) => ({ id: x.id ?? "", name: x.name ?? "" }))
-          .filter((p) => p.id && p.name);
-        setRightPractitioners(rows);
-      } catch {
-        setRightErr("Failed to load practitioners");
-      } finally { setRightLoad(false); }
+        setRightPractitioners(toArray(data).map((x) => ({ id: x.id ?? "", name: x.name ?? "" })).filter((p) => p.id && p.name));
+      } catch { setRightErr("Failed to load practitioners"); }
+      finally { setRightLoad(false); }
     })();
     return () => { cancel = true; };
   }, [practitionerMapping.rightClinic]);
 
-  // -------- handlers (with dirty tracking) --------
-  const handleCategoryChange = (e) => {
-    markDirty("General");
-    const value = e.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      serviceCategory: value,
-      serviceSubCategory: "",
-      serviceSubSubCategory: "",
-    }));
-  };
+  // Fetch existing forms for edit mode
+  useEffect(() => {
+    if (mode === "edit" && formData.serviceCode) {
+      (async () => {
+        try {
+          const data = await fetchGET(`${API_BASE_URL}/api/serviceForm/all/${formData.serviceCode}`);
+          if (data.forms && Array.isArray(data.forms)) {
+            setFormsData(data.forms.map((f, i) => ({
+              id: Date.now() + i, selected: false,
+              form: f.formName, stageForFormCompletion: f.formStageForCompletion,
+              blockFromProceeding: f.formBlockIfNotFilled, formId: f.formId,
+            })));
+          }
+          if (data.misc) setMiscellaneousData({ ...data.misc });
+        } catch { console.error("Failed to load forms data"); }
+      })();
+    }
+  }, [mode, formData.serviceCode]);
 
-  const handleSubCategoryChange = (e) => {
-    markDirty("General");
-    const value = e.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      serviceSubCategory: value,
-      serviceSubSubCategory: "",
-    }));
-  };
-
+  // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     markDirty(activeTab);
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleRadioChange = (name, value) => {
-    markDirty("General");
     setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  const handlePricingChange = (index, field, value) => {
+  const handleCategoryChange = (e) => {
+    markDirty("General");
+    setFormData((p) => ({ ...p, serviceCategory: e.target.value, serviceSubCategory: "", serviceSubSubCategory: "" }));
+  };
+  const handleSubCategoryChange = (e) => {
+    markDirty("General");
+    setFormData((p) => ({ ...p, serviceSubCategory: e.target.value, serviceSubSubCategory: "" }));
+  };
+  const handleRadioChange = (name, value) => { markDirty("General"); setFormData((p) => ({ ...p, [name]: value })); };
+  const handlePricingChange = (i, field, value) => {
     markDirty("Pricing");
-    setFormData((prev) => ({
-      ...prev,
-      pricingData: prev.pricingData.map((it, i) => (i === index ? { ...it, [field]: value } : it)),
-    }));
+    setFormData((p) => ({ ...p, pricingData: p.pricingData.map((it, idx) => idx === i ? { ...it, [field]: value } : it) }));
   };
-  const handlePricingCheckboxChange = (index, field) => {
+  const handlePricingCheckboxChange = (i, field) => {
     markDirty("Pricing");
-    setFormData((prev) => ({
-      ...prev,
-      pricingData: prev.pricingData.map((it, i) => (i === index ? { ...it, [field]: !it[field] } : it)),
-    }));
+    setFormData((p) => ({ ...p, pricingData: p.pricingData.map((it, idx) => idx === i ? { ...it, [field]: !it[field] } : it) }));
   };
+  const handlePractitionerMappingChange = (field, value) => { markDirty("Practitioner Mapping"); setPractitionerMapping((p) => ({ ...p, [field]: value })); };
+  const handleDoctorMappingSelection    = (id) => { markDirty("Practitioner Mapping"); setDoctorMappings((p) => p.map((m) => m.id === id ? { ...m, selected: !m.selected } : m)); };
+  const handleNurseMappingSelection     = (id) => { markDirty("Practitioner Mapping"); setNurseMappings((p)  => p.map((m) => m.id === id ? { ...m, selected: !m.selected } : m)); };
+  const handleFormSelection = (id) => { markDirty("Forms"); setFormsData((p) => p.map((f) => f.id === id ? { ...f, selected: !f.selected } : f)); };
+  const handleMiscellaneousDataChange = (field, value) => { markDirty("Miscellaneous"); setMiscellaneousData((p) => ({ ...p, [field]: value })); };
 
-  const handlePractitionerMappingChange = (field, value) => {
-    markDirty("Practitioner Mapping");
-    setPractitionerMapping((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleDoctorMappingSelection = (id) => {
-    markDirty("Practitioner Mapping");
-    setDoctorMappings((prev) => prev.map((m) => (m.id === id ? { ...m, selected: !m.selected } : m)));
-  };
-  const handleNurseMappingSelection = (id) => {
-    markDirty("Practitioner Mapping");
-    setNurseMappings((prev) => prev.map((m) => (m.id === id ? { ...m, selected: !m.selected } : m)));
-  };
-
-  // ----- BOM: API search + add -----
+  // ── BOM search ────────────────────────────────────────────────────────────────
   const handleSearchConsumables = async () => {
     try {
-      setConsumableErr("");
-      setConsumableLoad(true);
-      const url = new URL(`${API_BASE_URL}/api/Master/Service/SearchConsumables`);
-      url.searchParams.set("SearchValue", (searchConsumables ?? "").toString());
-      const res = await fetch(url.toString(), { method: "GET", credentials: "include" });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || `HTTP ${res.status}`);
-      }
-      const data = await res.json().catch(() => []);
+      setConsumableErr(""); setConsumableLoad(true);
+      const data = await fetchGET(`${API_BASE_URL}/api/Master/Service/SearchConsumables?SearchValue=${encodeURIComponent(searchConsumables || "")}`);
       const rows = toArray(data);
-      // Fallback to default "Select one" at top if not present
-      const normalized =
-        rows.length && rows[0]?.code === "0"
-          ? rows
-          : [{ name: "Select one", code: "0", value: null }, ...rows];
+      const normalized = rows.length && rows[0]?.code === "0" ? rows : [{ name:"Select one", code:"0" }, ...rows];
       setConsumableOpts(normalized);
-      if (!normalized.some(o => o.code === selectedConsumable)) {
-        setSelectedConsumable(""); // clear stale selection
-      }
-    } catch (e) {
-      console.error(e);
-      setConsumableErr("Failed to search consumables.");
-      setConsumableOpts([{ name: "Select one", code: "0", value: null }]);
-    } finally {
-      setConsumableLoad(false);
-    }
+      if (!normalized.some((o) => o.code === selectedConsumable)) setSelectedConsumable("");
+    } catch { setConsumableErr("Failed to search consumables."); setConsumableOpts([{ name:"Select one", code:"0" }]); }
+    finally { setConsumableLoad(false); }
   };
 
   const handleAddConsumable = () => {
-    if (!selectedConsumable || selectedConsumable === "0") {
-      alert("Please select a consumable to add");
-      return;
-    }
+    if (!selectedConsumable || selectedConsumable === "0") { showToast("Please select a consumable", "error"); return; }
     markDirty("BOM");
-    const picked = consumableOpts.find(o => o.code === selectedConsumable);
-    const name = picked?.name || selectedConsumable;
-    const code = selectedConsumable;
-
-    // prevent exact duplicate (same code)
-    const dup = bomItems.some(b => b.code === code);
-    if (dup) {
-      setToast({ type: "error", message: "This consumable is already in the BOM." });
-      return;
-    }
-
-    setBomItems(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        code,
-        name,
-        qty: "1.00",
-        uom: "",
-        selected: false
-      }
-    ]);
+    const picked = consumableOpts.find((o) => o.code === selectedConsumable);
+    if (bomItems.some((b) => b.code === selectedConsumable)) { showToast("This consumable is already in the BOM.", "error"); return; }
+    setBomItems((p) => [...p, { id:Date.now(), code:selectedConsumable, name:picked?.name || selectedConsumable, qty:"1.00", uom:"", selected:false }]);
     setSelectedConsumable("");
   };
 
-  const handleBOMItemSelection = (id) => {
-    markDirty("BOM");
-    setBomItems((prev) => prev.map((it) => (it.id === id ? { ...it, selected: !it.selected } : it)));
-  };
+  const handleBOMItemSelection = (id) => { markDirty("BOM"); setBomItems((p) => p.map((it) => it.id === id ? { ...it, selected: !it.selected } : it)); };
 
-  const handleFormSelection = (id) => { markDirty("Forms"); setFormsData((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f)); };
-
+  // ── Forms ─────────────────────────────────────────────────────────────────────
   const getFormId = async (formName) => {
-    const defUrl = `${API_BASE_URL}/api/form/by-name?name=${encodeURIComponent(formName)}`;
-    const defRes = await fetch(defUrl, {
-      method: "GET",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!defRes.ok) {
-      throw new Error(`Failed to fetch form definition for ${formName}: ${defRes.status}`);
-    }
-    const defData = await defRes.json();
-    const formId = defData.id;
-    if (!formId) {
-      throw new Error(`Form definition for ${formName} does not contain an id.`);
-    }
-    return formId;
+    const data = await fetchGET(`${API_BASE_URL}/api/form/by-name?name=${encodeURIComponent(formName)}`);
+    if (!data.id) throw new Error(`Form ${formName} has no id`);
+    return data.id;
   };
 
   const handleAddForm = async () => {
-    if (!newForm.form) {
-      setToast({ type: "error", message: "Please select a form to add." });
-      return;
-    }
+    if (!newForm.form) { showToast("Please select a form", "error"); return; }
     try {
       const formId = await getFormId(newForm.form);
       markDirty("Forms");
-      setFormsData((prev) => [...prev, { ...newForm, id: Date.now(), selected: false, formId }]);
-      setNewForm({ stageForFormCompletion: "form-not-required", blockFromProceeding: "Yes", form: "" });
-      console.log("FormData: ",formsData)
-    } catch (error) {
-      setToast({ type: "error", message: error.message });
-    }
+      setFormsData((p) => [...p, { ...newForm, id:Date.now(), selected:false, formId }]);
+      setNewForm({ stageForFormCompletion:"form-not-required", blockFromProceeding:"Yes", form:"" });
+    } catch (e) { showToast(e.message, "error"); }
   };
 
-  const handleRemoveForms = () => {
-    markDirty("Forms");
-    setFormsData((prev) => prev.filter((f) => !f.selected));
-  };
-  const handleMiscellaneousDataChange = (field, value) => { markDirty("Miscellaneous"); setMiscellaneousData((p) => ({ ...p, [field]: value })); };
+  const handleRemoveForms = () => { markDirty("Forms"); setFormsData((p) => p.filter((f) => !f.selected)); };
 
-  // ----------------- VALIDATION -----------------
+  // ── Validation ────────────────────────────────────────────────────────────────
   const validateGeneral = () => {
     const errs = [];
-    if (!formData.serviceCode?.trim()) errs.push("Service Code");
-    if (!formData.serviceName?.trim()) errs.push("Service Name");
-    if (!formData.serviceSubCategory?.trim()) errs.push("Service Sub Category");
-    if (!formData.serviceTime?.trim() || formData.serviceTime === " ") errs.push("Service Time (Mins)");
-    if (!formData.allowIdealBOMConsumption) errs.push("Allow Ideal BOM Consumption");
+    if (!formData.serviceCode?.trim())          errs.push("Service Code");
+    if (!formData.serviceName?.trim())          errs.push("Service Name");
+    if (!formData.serviceSubCategory?.trim())   errs.push("Service Sub Category");
+    if (!formData.serviceTime?.trim() || formData.serviceTime === " ") errs.push("Service Time");
+    if (!formData.allowIdealBOMConsumption)     errs.push("Allow Ideal BOM Consumption");
     if (!formData.allowBOMConsumptionWithIntervention) errs.push("Allow BOM Consumption with intervention");
     return errs;
   };
 
-  // ----------------- BUILD PAYLOADS -----------------
+  // ── Build payloads ────────────────────────────────────────────────────────────
   const buildGeneralPayload = (isDraft) => {
     const selectedSS = subSubCategories.find((s) => s.subSubCategoryCode === formData.serviceSubSubCategory);
     return {
-      serviceCode: formData.serviceCode || "",
-      serviceName: formData.serviceName || "",
+      serviceCode:     formData.serviceCode,
+      serviceName:     formData.serviceName,
       serviceArabicName: formData.arabicServiceName || "",
-      serviceDesc: formData.serviceDescription || "",
-      serviceCategoryCode: formData.serviceCategory || "",
-      serviceSubCategoryCode: formData.serviceSubCategory || "",
-      serviceSubSubCategoryCode: selectedSS?.subSubCategoryCodeRaw ?? "",
-      serviceTime: formData.serviceTime || "",
-      allowIdealBOMConsumption: formData.allowIdealBOMConsumption || "No",
+      serviceDesc:     formData.serviceDescription  || "",
+      serviceCategoryCode:      formData.serviceCategory       || "",
+      serviceSubCategoryCode:   formData.serviceSubCategory    || "",
+      serviceSubSubCategoryCode:selectedSS?.subSubCategoryCodeRaw ?? "",
+      serviceTime:     formData.serviceTime || "",
+      allowIdealBOMConsumption:                 formData.allowIdealBOMConsumption || "No",
       allowIdealBOMConsumptionWithIntervention: formData.allowBOMConsumptionWithIntervention || "No",
-      allowLoyalityAccurul: formData.allowLoyaltyAccrual || "No",
-      allowLoyalityRedemption: formData.allowLoyaltyRedemption || "No",
+      allowLoyalityAccurul:     formData.allowLoyaltyAccrual    || "No",
+      allowLoyalityRedemption:  formData.allowLoyaltyRedemption || "No",
       additionalField1: formData.additionalField1 || "",
       additionalField2: formData.additionalField2 || "",
       additionalField3: formData.additionalField3 || "",
@@ -593,47 +404,21 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const buildPricingPayload = (isDraft = 0) => ({
     serviceCode: formData.serviceCode || "",
     priceLines: formData.pricingData.map((p) => ({
-      serviceCode: formData.serviceCode || "",
-      price: Number(p.price || 0),
-      taxIncluded: (p.taxIncluded || "").toString(),
-      taxPercentage: Number(p.taxPercent || 0),
-      serviceRecID: 0,
-      storeRelease: p.storeRelease ? "Yes" : "No",
+      serviceCode:   formData.serviceCode || "",
+      price:         Number(p.price        || 0),
+      taxIncluded:   String(p.taxIncluded  || ""),
+      taxPercentage: Number(p.taxPercent   || 0),
+      serviceRecID:  0,
+      storeRelease:  p.storeRelease ? "Yes" : "No",
     })),
     isDraft,
   });
 
-  // BOM posts one item per request according to backend schema
-  const buildBOMItems = (isDraft = 0) =>
-    bomItems.map((b) => ({
-      serviceCode: formData.serviceCode || "",
-      productCode: b.code,
-      isDraft,
-    }));
-
-  // Practitioner posts one row per request (no clear draft flag supported)
-  const buildPractitionerRows = () => {
-    const doctorRows = doctorMappings.map((d) => ({
-      serviceCode: formData.serviceCode || "",
-      practionerType: "Doctor",
-      clinicCode: d.clinicCode,
-      doctorCode: d.doctorCode || d.id || "",
-    }));
-    const nurseRows = nurseMappings.map((n) => ({
-      serviceCode: formData.serviceCode || "",
-      practionerType: "Nurse",
-      clinicCode: n.clinicCode,
-      doctorCode: n.nurseCode || n.id || "", // API field name is doctorCode
-    }));
-    return [...doctorRows, ...nurseRows];
-  };
-
   const buildFormsPayload = (isDraft = 0) => ({
-    serviceCode: formData.serviceCode || "",
-    formStageForCompletion: formsData[0]?.stageForFormCompletion || "",
-    formBlockIfNotFilled: formsData[0]?.blockFromProceeding || "Yes",
-    form: formsData[0]?.form || "",
-    // misc fields ride along with Forms save
+    serviceCode:             formData.serviceCode || "",
+    formStageForCompletion:  formsData[0]?.stageForFormCompletion || "",
+    formBlockIfNotFilled:    formsData[0]?.blockFromProceeding    || "Yes",
+    form:                    formsData[0]?.form                   || "",
     field1: miscellaneousData.optionalField1 || "",
     field2: miscellaneousData.optionalField2 || "",
     field3: miscellaneousData.optionalField3 || "",
@@ -642,765 +427,513 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     isDraft,
   });
 
-  // ----------------- POST HELPERS -----------------
-  const postJSON = async (url, body) => {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
-    }
-    return res.json().catch(() => ({}));
-  };
-
-  // ----------------- SAVE / SUBMIT ACTIONS -----------------
-  // GENERAL
+  // ── Save/Submit actions ───────────────────────────────────────────────────────
   const onSaveGeneral = async (asDraft = true) => {
     const missing = validateGeneral();
-    if (missing.length) {
-      setToast({ type: "error", message: `Please fill required fields: ${missing.join(", ")}` });
-      return;
-    }
+    if (missing.length) { showToast(`Please fill: ${missing.join(", ")}`, "error"); return; }
     try {
       await postJSON(URLS.general, buildGeneralPayload(asDraft));
       markSaved("General", asDraft ? "draft" : "saved");
-      setToast({ type: "success", message: `General ${asDraft ? "saved as draft" : "submitted"} successfully.` });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to save/submit General: ${e.message}` });
-    }
+      showToast(`General ${asDraft ? "saved as draft" : "submitted"} successfully.`);
+    } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
 
-  // PRICING
   const onSavePricing = async () => {
-    try {
-      await postJSON(URLS.pricing, buildPricingPayload(1)); // draft
-      markSaved("Pricing", "draft");
-      setToast({ type: "success", message: "Pricing saved as draft." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to save Pricing (draft): ${e.message}` });
-    }
+    try { await postJSON(URLS.pricing, buildPricingPayload(1)); markSaved("Pricing","draft"); showToast("Pricing saved as draft."); }
+    catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
   const onSubmitPricing = async () => {
-    try {
-      await postJSON(URLS.pricing, buildPricingPayload(0)); // submit
-      markSaved("Pricing", "saved");
-      setToast({ type: "success", message: "Pricing submitted successfully." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to submit Pricing: ${e.message}` });
-    }
+    try { await postJSON(URLS.pricing, buildPricingPayload(0)); markSaved("Pricing","saved"); showToast("Pricing submitted."); }
+    catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
 
-  // BOM
   const onSaveBOM = async () => {
     try {
-      const rows = buildBOMItems(1); // draft
-      for (const row of rows) {
-        await postJSON(URLS.bom, row);
-      }
-      markSaved("BOM", "draft");
-      setToast({ type: "success", message: "BOM saved as draft." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to save BOM (draft): ${e.message}` });
-    }
+      for (const b of bomItems) await postJSON(URLS.bom, { serviceCode: formData.serviceCode, productCode: b.code, isDraft: 1 });
+      markSaved("BOM","draft"); showToast("BOM saved as draft.");
+    } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
   const onSubmitBOM = async () => {
     try {
-      const rows = buildBOMItems(0); // submit
-      for (const row of rows) {
-        await postJSON(URLS.bom, row);
-      }
-      markSaved("BOM", "saved");
-      setToast({ type: "success", message: "BOM submitted successfully." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: "Failed to submit BOM." });
-    }
+      for (const b of bomItems) await postJSON(URLS.bom, { serviceCode: formData.serviceCode, productCode: b.code, isDraft: 0 });
+      markSaved("BOM","saved"); showToast("BOM submitted.");
+    } catch (e) { showToast("Failed to submit BOM.", "error"); }
   };
 
-  // PRACTITIONERS
+  const buildPractitionerRows = () => [
+    ...doctorMappings.map((d) => ({ serviceCode: formData.serviceCode, practionerType:"Doctor", clinicCode: d.clinicCode, doctorCode: d.doctorCode || "" })),
+    ...nurseMappings.map((n)  => ({ serviceCode: formData.serviceCode, practionerType:"Nurses", clinicCode: n.clinicCode, doctorCode: n.nurseCode  || "" })),
+  ];
   const onSavePractitioners = async () => {
     try {
-      const rows = buildPractitionerRows();
-      for (const row of rows) {
-        await postJSON(URLS.practitioner, row); // no explicit isDraft in schema
-      }
-      markSaved("Practitioner Mapping", "draft");
-      setToast({ type: "success", message: "Practitioner mapping saved as draft." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to save Practitioner Mapping: ${e.message}` });
-    }
+      for (const row of buildPractitionerRows()) await postJSON(URLS.practitioner, row);
+      markSaved("Practitioner Mapping","draft"); showToast("Practitioner mapping saved as draft.");
+    } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
   const onSubmitPractitioners = async () => {
     try {
-      const rows = buildPractitionerRows();
-      for (const row of rows) {
-        await postJSON(URLS.practitioner, row);
-      }
-      markSaved("Practitioner Mapping", "saved");
-      setToast({ type: "success", message: "Practitioner mapping submitted successfully." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to submit Practitioner Mapping: ${e.message}` });
-    }
+      for (const row of buildPractitionerRows()) await postJSON(URLS.practitioner, row);
+      markSaved("Practitioner Mapping","saved"); showToast("Practitioner mapping submitted.");
+    } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
 
-  // FORMS (+ carries Misc fields)
   const onSaveForms = async () => {
     try {
-      // Collect forms with formIds
       const formsToSave = [];
       for (const f of formsData) {
         if (!f.form) continue;
-        let formId = f.formId;
-        if (!formId) {
-          formId = await getFormId(f.form);
-        }
-        formsToSave.push({
-          id: 0,
-          serviceId: formData.serviceCode,
-          formId: formId,
-          version: 1,
-          createdDate: new Date().toISOString(),
-          isActive: true,
-          formStageForCompletion: f.stageForFormCompletion,
-          formBlockIfNotFilled: f.blockFromProceeding,
-          isDraft: 1
-        });
+        const formId = f.formId || await getFormId(f.form);
+        formsToSave.push({ id:0, serviceId:formData.serviceCode, formId, version:1, createdDate:new Date().toISOString(), isActive:true, formStageForCompletion:f.stageForFormCompletion, formBlockIfNotFilled:f.blockFromProceeding, isDraft:1 });
       }
-
-      // Build payload with form, forms, and misc
-      const payload = {
-        form: formsToSave.length > 0 ? formsToSave[0] : {
-          id: 0,
-          serviceId: formData.serviceCode,
-          formId: 0,
-          version: 1,
-          createdDate: new Date().toISOString(),
-          isActive: true,
-          formStageForCompletion: "form-not-required",
-          formBlockIfNotFilled: "Yes",
-          isDraft: 1
-        },
+      await postJSON(`${API_BASE_URL}/api/serviceForm`, {
+        form: formsToSave[0] || { id:0, serviceId:formData.serviceCode, formId:0, version:1, createdDate:new Date().toISOString(), isActive:true, formStageForCompletion:"form-not-required", formBlockIfNotFilled:"Yes", isDraft:1 },
         forms: formsToSave,
-        misc: {
-          optionalField1: miscellaneousData.optionalField1 || "",
-          optionalField2: miscellaneousData.optionalField2 || "",
-          optionalField3: miscellaneousData.optionalField3 || "",
-          optionalField4: miscellaneousData.optionalField4 || "",
-          optionalField5: miscellaneousData.optionalField5 || "",
-        }
-      };
-
-      // Submit to the new API for draft
-      await postJSON(`${API_BASE_URL}/api/serviceForm`, payload);
-
-      markSaved("Forms", "draft");
-      setToast({ type: "success", message: "Forms settings saved as draft." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: "Failed to save Forms settings (draft)." });
-    }
+        misc: { ...miscellaneousData },
+      });
+      markSaved("Forms","draft"); showToast("Forms saved as draft.");
+    } catch (e) { showToast("Failed to save forms.", "error"); }
   };
+
   const onSubmitForms = async () => {
     try {
-      // Collect forms with formIds
       const formsToSave = [];
       for (const f of formsData) {
         if (!f.form) continue;
-        let formId = f.formId;
-        if (!formId) {
-          formId = await getFormId(f.form);
-        }
-        formsToSave.push({
-          id: 0,
-          serviceId: formData.serviceCode,
-          formId: formId,
-          version: 1,
-          createdDate: new Date().toISOString(),
-          isActive: true,
-          formStageForCompletion: f.stageForFormCompletion,
-          formBlockIfNotFilled: f.blockFromProceeding,
-          isDraft: 0
-        });
+        const formId = f.formId || await getFormId(f.form);
+        formsToSave.push({ id:0, serviceId:formData.serviceCode, formId, version:1, createdDate:new Date().toISOString(), isActive:true, formStageForCompletion:f.stageForFormCompletion, formBlockIfNotFilled:f.blockFromProceeding, isDraft:0 });
       }
-
-      // Build payload with form and forms
-      const payload = {
-        form: formsToSave.length > 0 ? formsToSave[0] : {
-          id: 0,
-          serviceId: formData.serviceCode,
-          formId: 0,
-          version: 1,
-          createdDate: new Date().toISOString(),
-          isActive: true,
-          formStageForCompletion: "form-not-required",
-          formBlockIfNotFilled: "Yes",
-          isDraft: 0
-        },
-        forms: formsToSave
-      };
-
-      // Submit forms in the new structure
       if (formsToSave.length > 0) {
-        await postJSON(`${API_BASE_URL}/api/serviceForm`, payload);
-      } else {
-        setToast({ type: "warning", message: "No forms to submit, submitting misc only." });
+        await postJSON(`${API_BASE_URL}/api/serviceForm`, { form:formsToSave[0], forms:formsToSave });
       }
-
-      // Submit misc fields via the old endpoint
       await postJSON(URLS.forms, buildFormsPayload(0));
+      markSaved("Forms","saved"); markSaved("Miscellaneous","saved");
+      showToast("Forms submitted.");
+    } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
+  };
 
-      // Mark both tabs as saved
-      markSaved("Forms", "saved");
-      markSaved("Miscellaneous", "saved");
-      setToast({ type: "success", message: "Forms (and Misc) submitted successfully." });
-    } catch (e) {
-      console.error(e);
-      setToast({ type: "error", message: `Failed to submit Forms: ${e.message}` });
+  const onSaveMisc          = () => { markSaved("Miscellaneous","draft"); showToast("Miscellaneous saved locally."); };
+  const onSubmitMiscViaForms = () => onSubmitForms();
+
+  // ── Time options ─────────────────────────────────────────────────────────────
+  const timeOptions = [
+    { value:" ", label:"< - Select one - >" },
+    { value:"10",  label:"10 mins"         }, { value:"20",  label:"20 mins" },
+    { value:"30",  label:"30 mins"         }, { value:"40",  label:"40 mins" },
+    { value:"50",  label:"50 mins"         }, { value:"1",   label:"1 hour"  },
+    { value:"110", label:"1 hr 10 mins"    }, { value:"120", label:"1 hr 20 mins" },
+    { value:"130", label:"1 hr 30 mins"    }, { value:"140", label:"1 hr 40 mins" },
+    { value:"150", label:"1 hr 50 mins"    }, { value:"2",   label:"2 hours" },
+    { value:"210", label:"2 hr 10 mins"    }, { value:"220", label:"2 hr 20 mins" },
+  ];
+
+  // ── Add Doctor/Nurse helper ───────────────────────────────────────────────────
+  const addPractitioner = (side) => {
+    const isDoctor = side === "doctor";
+    const practStr = isDoctor ? practitionerMapping.doctor : practitionerMapping.nurses;
+    const center   = isDoctor ? practitionerMapping.leftClinic : practitionerMapping.rightClinic;
+    if (!center || !practStr) return;
+    const [practCode, practName] = (practStr || "").split("|");
+    const clinicName = clinics.find((c) => c.code === center)?.name || center;
+    if (isDoctor) {
+      if (doctorMappings.some((m) => m.doctorCode === practCode && m.clinicCode === center)) { showToast("Doctor already mapped to this clinic.", "error"); return; }
+      markDirty("Practitioner Mapping");
+      setDoctorMappings((p) => [...p, { id:Date.now(), doctorCode:practCode, doctorName:practName, clinicCode:center, clinicName, selected:false }]);
+      setPractitionerMapping((p) => ({ ...p, doctor:"" }));
+    } else {
+      if (nurseMappings.some((m) => m.nurseCode === practCode && m.clinicCode === center)) { showToast("Nurse already mapped to this clinic.", "error"); return; }
+      markDirty("Practitioner Mapping");
+      setNurseMappings((p) => [...p, { id:Date.now(), nurseCode:practCode, nurseName:practName, clinicCode:center, clinicName, selected:false }]);
+      setPractitionerMapping((p) => ({ ...p, nurses:"" }));
     }
   };
 
-  // MISC (local only, plus submit via Forms)
-  const onSaveMisc = () => {
-    markSaved("Miscellaneous", "draft");
-    setToast({ type: "success", message: "Miscellaneous saved locally (included when you submit Forms)." });
-  };
-  const onSubmitMiscViaForms = async () => {
-    await onSubmitForms(); // reuse Forms submit since payload includes misc
-  };
+  const badgeColor = { saved:"#d1fae5", draft:"#fef3c7", unsaved:"#f3f4f6" };
+  const badgeText  = { saved:"#065f46",  draft:"#92400e", unsaved:"#374151" };
 
-  // ----------------- UI -----------------
-  const timeOptions = [
-    { value: " ", label: "< - Select one - >" },
-    { value: "10", label: "10mins" },
-    { value: "20", label: "20mins" },
-    { value: "30", label: "30mins" },
-    { value: "40", label: "40mins" },
-    { value: "50", label: "50mins" },
-    { value: "1", label: "1 hour" },
-    { value: "110", label: "1 hour 10mins" },
-    { value: "120", label: "1 hour 20mins" },
-    { value: "130", label: "1 hour 30mins" },
-    { value: "140", label: "1 hour 40mins" },
-    { value: "150", label: "1 hour 50mins" },
-    { value: "2", label: "2 hour" },
-    { value: "210", label: "2 hour 10mins" },
-    { value: "220", label: "2 hour 20mins" },
-  ];
-
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <style jsx>{`
-        .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
-        .page-title{font-size:24px;font-weight:600;color:#333;margin:0;}
-        .back-to-search-btn{padding:10px 20px;background:#343a40;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:500;}
-        .back-to-search-btn:hover{background:#23272b;}
-        .breadcrumb{margin-bottom:16px;font-size:14px;color:#6c757d;}
-        .breadcrumb-link{color:#334B71;text-decoration:none;cursor:pointer;}
-        .breadcrumb-link:hover{text-decoration:underline;}
-        .breadcrumb-separator{margin:0 8px;}
-        .helper-note{margin:8px 0 24px;background:#eef5ff;border:1px solid #d9e7ff;color:#264a86;padding:10px 12px;border-radius:6px;font-size:13px;}
-        .form-container{background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);overflow:hidden;}
-        .tabs-container{background:#fff;border-bottom:1px solid #dee2e6;padding:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
-        .tabs{display:flex;margin:0;padding:0;flex-wrap:wrap}
-        .tab{position:relative;padding:0;background:none;border:none;cursor:pointer;font-size:14px;font-weight:500;color:#6c757d;border-bottom:3px solid transparent;transition:all .3s;display:flex;align-items:center;gap:6px}
-        .tab:hover{background:#e9ecef;color:#495057;}
-        .tab.active{color:#334B71;border-bottom-color:#334B71;background:#fff;}
-        .dot{font-size:12px;line-height:12px}
-        .badge{font-size:11px;border:1px solid #ccc;border-radius:999px;padding:2px 8px;background:#fff;color:#333}
-        .badge.saved{border-color:#3fb950;color:#116329;background:#e9f6ec}
-        .badge.draft{border-color:#d29922;color:#8a6a00;background:#fff7db}
-        .badge.unsaved{border-color:#d0d7de;color:#57606a;background:#f6f8fa}
-        .status-container{padding:0 16px;display:flex;align-items:center;gap:8px}
-        .status-label{font-weight:500;color:#495057;font-size:14px;}
-        .status-input{padding:8px 12px;border:1px solid #ced4da;border-radius:4px;font-size:14px;background:#fff;min-width:120px;}
-        .form-content{padding:28px;}
-        .tab span.dot{display:none;}
-        .form-row{display:flex;margin-bottom:20px;align-items:flex-start;}
-        .form-label{font-weight:500;color:#495057;font-size:14px;min-width:200px;padding-top:10px;text-align:left;}
-        .form-input-container{flex:1;max-width:400px;}
-        .form-input,.form-select,.form-textarea{width:100%;padding:10px 12px;border:1px solid #ced4da;border-radius:4px;font-size:14px;background:#fff;}
-        .form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:#334B71;box-shadow:0 0 0 3px rgba(0,123,255,.1);}
-        .radio-group{display:flex;gap:20px;}
-        .radio-input{width:16px;height:16px;accent-color:#334B71;}
-        .req{color:crimson;margin-left:4px}
-        .tab-actions{display:flex;gap:10px;margin-top:10px}
-        .btn{padding:10px 18px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s;}
-        .btn-primary{background:#334B71;color:#fff;}
-        .btn-primary:hover{filter:brightness(.95)}
-        .btn-secondary{background:#343a40;color:#fff;}
-        .pricing-table-container{overflow-x:auto;border:1px solid #dee2e6;border-radius:4px;}
-        .pricing-table{width:100%;border-collapse:collapse;background:#fff;}
-        .pricing-table th{background:#f8f9fa;padding:12px;text-align:left;font-weight:600;color:#495057;border-bottom:1px solid #dee2e6;font-size:14px;}
-        .pricing-table td{padding:12px;border-bottom:1px solid #dee2e6;vertical-align:middle;}
-        .pricing-input{width:80px;padding:6px 8px;border:1px solid #ced4da;border-radius:4px;font-size:14px;text-align:center;}
-        .pricing-select{width:100px;padding:6px 8px;border:1px solid #ced4da;border-radius:4px;font-size:14px;background:#fff;}
-        .bom-title{font-size:16px;font-weight:600;color:#333;margin:20px 0;text-decoration:underline;}
-        .bom-table-container{border:1px solid #dee2e6;border-radius:4px;overflow:hidden;}
-        .bom-table{width:100%;border-collapse:collapse;background:#fff;}
-        .bom-table th{background:#f8f9fa;padding:12px;text-align:left;font-weight:600;color:#495057;border-bottom:1px solid #dee2e6;font-size:14px;}
-        .bom-table td{padding: 12px;}
-        .no-bom-items{padding:40px;text-align:center;color:#6c757d;font-style:italic;}
-        @media (max-width:768px){
-          .form-content{padding:18px;}
-          .form-row{flex-direction:column;align-items:flex-start;}
-          .form-label{min-width:auto;margin-bottom:8px;padding-top:0;}
-          .tabs-container{flex-direction:column;align-items:stretch;}
-        }
+      <style>{`
+        .sf-page { padding:24px; font-family:Inter,sans-serif; max-width:1100px; margin:0 auto; }
+        .sf-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+        .sf-title { font-size:22px; font-weight:600; color:#111827; margin:0 0 4px; }
+        .sf-back { padding:8px 18px; background:#334B71; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; }
+        .sf-card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); overflow:hidden; }
+        .sf-tabs { display:flex; border-bottom:1px solid #e5e7eb; background:#f9fafb; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+        .sf-tab { padding:12px 16px; background:none; border:none; border-bottom:3px solid transparent; cursor:pointer; font-size:13px; font-weight:500; color:#6b7280; display:flex; align-items:center; gap:5px; }
+        .sf-tab:hover { background:#f3f4f6; color:#374151; }
+        .sf-tab.active { color:#334B71; border-bottom-color:#334B71; background:#fff; }
+        .sf-status-wrap { padding:0 16px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+        .sf-badge { font-size:11px; padding:3px 10px; border-radius:999px; font-weight:600; }
+        .sf-body { padding:28px; }
+        .sf-section { font-size:12px; font-weight:700; color:#334B71; text-transform:uppercase; letter-spacing:.05em; border-bottom:2px solid #334B71; padding-bottom:6px; margin:20px 0 18px; }
+        .sf-row { display:flex; align-items:flex-start; margin-bottom:18px; }
+        .sf-lbl { min-width:220px; font-weight:500; color:#495057; font-size:14px; padding-top:10px; }
+        .sf-req { color:crimson; margin-left:3px; }
+        .sf-inp-wrap { flex:1; max-width:420px; }
+        .sf-inp,.sf-sel,.sf-ta { width:100%; padding:9px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px; background:#fff; box-sizing:border-box; }
+        .sf-inp:focus,.sf-sel:focus,.sf-ta:focus { outline:none; border-color:#334B71; box-shadow:0 0 0 3px rgba(51,75,113,.12); }
+        .sf-radio-grp { display:flex; gap:20px; padding-top:10px; }
+        .sf-actions { display:flex; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid #e5e7eb; }
+        .sf-btn { padding:9px 20px; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; }
+        .sf-btn.primary { background:#334B71; color:#fff; }
+        .sf-btn.secondary { background:#343a40; color:#fff; }
+        .sf-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .pt-tbl { width:100%; border-collapse:collapse; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
+        .pt-tbl th { background:#f9fafb; padding:11px 14px; text-align:left; font-size:12px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e5e7eb; }
+        .pt-tbl td { padding:10px 14px; border-bottom:1px solid #f3f4f6; font-size:13px; vertical-align:middle; }
+        .pt-inp { width:90px; padding:6px 8px; border:1px solid #ced4da; border-radius:4px; font-size:13px; text-align:center; }
+        .pt-sel { width:90px; padding:6px 8px; border:1px solid #ced4da; border-radius:4px; font-size:13px; background:#fff; }
+        .note-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; color:#1e40af; margin-bottom:20px; }
+        .pract-col { flex:1; }
+        .pract-cols { display:flex; gap:40px; }
+        @media(max-width:768px) { .sf-row{flex-direction:column;} .sf-lbl{min-width:auto;padding-top:0;margin-bottom:6px;} .pract-cols{flex-direction:column;} }
       `}</style>
 
-      <div className="service-form-container">
+      <div className="sf-page">
         {/* Header */}
-        <div className="page-header">
-          <h1 className="page-title">{mode === "edit" ? "Edit Service" : "Create Service"}</h1>
-          <button className="back-to-search-btn" onClick={() => onBack && onBack()}>Back To Search</button>
+        <div className="sf-hdr">
+          <div>
+            <div style={{ fontSize:12, color:"#9ca3af", marginBottom:6 }}>
+              <a href="/dashboard" style={{ color:"#334B71", textDecoration:"none" }}>Dashboard</a>
+              <span style={{ margin:"0 6px" }}> › </span>
+              <span style={{ cursor:"pointer", color:"#334B71" }} onClick={onBack}>Manage Service</span>
+              <span style={{ margin:"0 6px" }}> › </span>
+              <span>{mode === "edit" ? `Edit — ${formData.serviceCode}` : "Create New Service"}</span>
+            </div>
+            <h1 className="sf-title">{mode === "edit" ? "Edit Service" : "Create Service"}</h1>
+          </div>
+          <button className="sf-back" onClick={onBack}>← Back To List</button>
         </div>
 
-        {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <a href="/dashboard" className="breadcrumb-link">Dashboard</a>
-          <span className="breadcrumb-separator"> &gt; </span>
-          <span className="breadcrumb-link">Manage Service</span>
-          <span className="breadcrumb-separator"> &gt; </span>
-          <span className="breadcrumb-current">{mode === "edit" ? `Edit Service - ${formData.serviceCode}` : "Create New Service"}</span>
+        <div className="note-box">
+          <strong>Note:</strong> Each tab saves independently. Complete them in any order.
         </div>
 
-        {/* Independence note */}
-        <div className="helper-note">
-          <strong>Note:</strong> Tabs are <em>independent</em>. Each tab saves to its own endpoint and can be completed in any order.
-        </div>
-
-        <div className="form-container">
+        <div className="sf-card">
           {/* Tabs */}
-          <div className="tabs-container">
-            <div className="tabs">
+          <div className="sf-tabs">
+            <div style={{ display:"flex", flexWrap:"wrap" }}>
               {tabs.map((tab) => (
-                <button key={tab} className={`tab ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)} title={dirty[tab] ? "Unsaved changes" : ""}>
-                  {dirty[tab] && <span className="dot">●</span>}
-                  <span>{tab}</span>
+                <button key={tab} className={`sf-tab ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+                  {dirty[tab] && <span style={{ color:"#f59e0b" }}>●</span>}
+                  {tab}
                 </button>
               ))}
             </div>
-            <div className="status-container">
-              <span className={`badge ${tabStatus[activeTab]}`}>{tabStatus[activeTab]}</span>
-              <label className="status-label">Service Status :</label>
-              <input type="text" name="serviceStatus" value={formData.serviceStatus} onChange={handleInputChange} className="status-input" readOnly={mode === "create"} />
+            <div className="sf-status-wrap">
+              <span className="sf-badge" style={{ background: badgeColor[tabStatus[activeTab]], color: badgeText[tabStatus[activeTab]] }}>
+                {tabStatus[activeTab]}
+              </span>
+              <label style={{ fontSize:13, fontWeight:500, color:"#495057" }}>Status:</label>
+              <input className="sf-inp" style={{ width:110 }} name="serviceStatus" value={formData.serviceStatus} onChange={handleInputChange} readOnly={mode==="create"} />
             </div>
           </div>
 
-          {/* Content */}
-          <div className="form-content">
-            {/* GENERAL */}
+          <div className="sf-body">
+
+            {/* ── GENERAL ─────────────────────────────────────────────────────── */}
             {activeTab === "General" && (
               <>
-                <div className="form-row">
-                  <label className="form-label">Service Code <span className="req">*</span></label>
-                  <div className="form-input-container">
-                    <input required type="text" name="serviceCode" value={formData.serviceCode} onChange={handleInputChange} className="form-input" placeholder="Enter service code" />
+                <div className="sf-section">General Information</div>
+
+                {[
+                  { label:"Service Code",      name:"serviceCode",    req:true },
+                  { label:"Service Name",      name:"serviceName",    req:true },
+                  { label:"Arabic Name",       name:"arabicServiceName" },
+                  { label:"Description",       name:"serviceDescription", ta:true },
+                ].map(({ label, name, req, ta }) => (
+                  <div className="sf-row" key={name}>
+                    <label className="sf-lbl">{label} {req && <span className="sf-req">*</span>}</label>
+                    <div className="sf-inp-wrap">
+                      {ta
+                        ? <textarea className="sf-ta" name={name} value={formData[name]} onChange={handleInputChange} rows={3} />
+                        : <input   className="sf-inp" name={name} value={formData[name]} onChange={handleInputChange} />
+                      }
+                    </div>
                   </div>
-                </div>
-                <div className="form-row">
-                  <label className="form-label">Service Name <span className="req">*</span></label>
-                  <div className="form-input-container">
-                    <input required type="text" name="serviceName" value={formData.serviceName} onChange={handleInputChange} className="form-input" placeholder="Enter service name" />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label className="form-label">Arabic Service Name</label>
-                  <div className="form-input-container">
-                    <input type="text" name="arabicServiceName" value={formData.arabicServiceName} onChange={handleInputChange} className="form-input" placeholder="Enter Arabic service name" />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label className="form-label">Service Description</label>
-                  <div className="form-input-container">
-                    <textarea name="serviceDescription" value={formData.serviceDescription} onChange={handleInputChange} className="form-textarea" placeholder="Enter service description" />
-                  </div>
-                </div>
+                ))}
 
                 {/* Category */}
-                <div className="form-row">
-                  <label className="form-label">Service Category</label>
-                  <div className="form-input-container">
-                    <select name="serviceCategory" value={formData.serviceCategory} onChange={handleCategoryChange} className="form-select">
+                <div className="sf-row">
+                  <label className="sf-lbl">Service Category</label>
+                  <div className="sf-inp-wrap">
+                    <select className="sf-sel" name="serviceCategory" value={formData.serviceCategory} onChange={handleCategoryChange}>
                       <option value="">{catLoading ? "Loading..." : "Select Category"}</option>
-                      {categories.map((c) => (
-                        <option key={c.categoryCode} value={c.categoryCode}>{c.categoryName}</option>
-                      ))}
+                      {categories.map((c) => <option key={c.categoryCode} value={c.categoryCode}>{c.categoryName}</option>)}
                     </select>
-                    {catError && <div style={{ color: "crimson", marginTop: 6 }}>{catError}</div>}
+                    {catError && <div style={{ color:"crimson", marginTop:4, fontSize:12 }}>{catError}</div>}
                   </div>
                 </div>
 
-                {/* Sub Category */}
-                <div className="form-row">
-                  <label className="form-label">Service Sub Category <span className="req">*</span></label>
-                  <div className="form-input-container">
-                    <select required name="serviceSubCategory" value={formData.serviceSubCategory} onChange={handleSubCategoryChange} className="form-select" disabled={!formData.serviceCategory}>
+                <div className="sf-row">
+                  <label className="sf-lbl">Sub Category <span className="sf-req">*</span></label>
+                  <div className="sf-inp-wrap">
+                    <select className="sf-sel" name="serviceSubCategory" value={formData.serviceSubCategory} onChange={handleSubCategoryChange} disabled={!formData.serviceCategory}>
                       <option value="">{subLoading ? "Loading..." : "< - Select one - >"}</option>
-                      {subCategories.map((s) => (
-                        <option key={s.subCategoryCode} value={s.subCategoryCode}>{s.subCategoryName}</option>
-                      ))}
+                      {subCategories.map((s) => <option key={s.subCategoryCode} value={s.subCategoryCode}>{s.subCategoryName}</option>)}
                     </select>
-                    {subError && <div style={{ color: "crimson", marginTop: 6 }}>{subError}</div>}
+                    {subError && <div style={{ color:"crimson", marginTop:4, fontSize:12 }}>{subError}</div>}
                   </div>
                 </div>
 
-                {/* Sub Sub Category */}
-                <div className="form-row">
-                  <label className="form-label">Service Sub Sub Category</label>
-                  <div className="form-input-container">
-                    <select name="serviceSubSubCategory" value={formData.serviceSubSubCategory} onChange={handleInputChange} className="form-select" disabled={!formData.serviceCategory || !formData.serviceSubCategory}>
+                <div className="sf-row">
+                  <label className="sf-lbl">Sub Sub Category</label>
+                  <div className="sf-inp-wrap">
+                    <select className="sf-sel" name="serviceSubSubCategory" value={formData.serviceSubSubCategory} onChange={handleInputChange} disabled={!formData.serviceSubCategory}>
                       <option value="">{ssLoading ? "Loading..." : "< - Select one - >"}</option>
-                      {subSubCategories.map((s) => (
-                        <option key={s.subSubCategoryCode} value={s.subSubCategoryCode}>{s.subSubCategoryName}</option>
-                      ))}
+                      {subSubCategories.map((s) => <option key={s.subSubCategoryCode} value={s.subSubCategoryCode}>{s.subSubCategoryName}</option>)}
                     </select>
-                    {ssError && <div style={{ color: "crimson", marginTop: 6 }}>{ssError}</div>}
+                    {ssError && <div style={{ color:"crimson", marginTop:4, fontSize:12 }}>{ssError}</div>}
                   </div>
                 </div>
 
-                {/* Service Time */}
-                <div className="form-row">
-                  <label className="form-label">Service Time(Mins) <span className="req">*</span></label>
-                  <div className="form-input-container">
-                    <select required name="serviceTime" value={formData.serviceTime} onChange={handleInputChange} className="form-select">
-                      {timeOptions.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
+                <div className="sf-row">
+                  <label className="sf-lbl">Service Time <span className="sf-req">*</span></label>
+                  <div className="sf-inp-wrap">
+                    <select className="sf-sel" name="serviceTime" value={formData.serviceTime} onChange={handleInputChange}>
+                      {timeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
                 </div>
 
-                {/* Radios */}
                 {[
-                  ["Allow Ideal BOM Consumption", "allowIdealBOMConsumption", true],
-                  ["Allow BOM Consumption with intervention", "allowBOMConsumptionWithIntervention", true],
-                  ["Allow Loyalty Accrual", "allowLoyaltyAccrual", false],
-                  ["Allow Loyalty Redemption", "allowLoyaltyRedemption", false],
-                ].map(([label, key, required]) => (
-                  <div className="form-row" key={key}>
-                    <label className="form-label">{label} {required && <span className="req">*</span>}</label>
-                    <div className="form-input-container">
-                      <div className="radio-group">
-                        <label>
-                          <input required={required} type="radio" className="radio-input" name={key} value="Yes" checked={formData[key] === "Yes"} onChange={(e) => handleRadioChange(key, e.target.value)} /> Yes
-                        </label>
-                        <label>
-                          <input required={required} type="radio" className="radio-input" name={key} value="No" checked={formData[key] === "No"} onChange={(e) => handleRadioChange(key, e.target.value)} /> No
-                        </label>
+                  { label:"Allow Ideal BOM Consumption",        key:"allowIdealBOMConsumption",              req:true },
+                  { label:"Allow BOM with Intervention",        key:"allowBOMConsumptionWithIntervention",   req:true },
+                  { label:"Allow Loyalty Accrual",              key:"allowLoyaltyAccrual" },
+                  { label:"Allow Loyalty Redemption",           key:"allowLoyaltyRedemption" },
+                ].map(({ label, key, req }) => (
+                  <div className="sf-row" key={key}>
+                    <label className="sf-lbl">{label} {req && <span className="sf-req">*</span>}</label>
+                    <div className="sf-inp-wrap">
+                      <div className="sf-radio-grp">
+                        {["Yes","No"].map((v) => (
+                          <label key={v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" }}>
+                            <input type="radio" name={key} value={v} checked={formData[key] === v} onChange={(e) => handleRadioChange(key, e.target.value)} style={{ accentColor:"#334B71" }} />
+                            {v}
+                          </label>
+                        ))}
                       </div>
                     </div>
                   </div>
                 ))}
 
-                {/* Additional fields */}
-                {["additionalField1","additionalField2","additionalField3","additionalField4","additionalField5"].map((f,i)=>(
-                  <div className="form-row" key={f}>
-                    <label className="form-label">{`Additional Field ${i+1}`}</label>
-                    <div className="form-input-container">
-                      <input type="text" name={f} value={formData[f]} onChange={handleInputChange} className="form-input" placeholder={`Enter additional field ${i+1}`} />
+                <div className="sf-section">Additional Fields</div>
+                {[1,2,3,4,5].map((n) => (
+                  <div className="sf-row" key={n}>
+                    <label className="sf-lbl">Additional Field {n}</label>
+                    <div className="sf-inp-wrap">
+                      <input className="sf-inp" name={`additionalField${n}`} value={formData[`additionalField${n}`]} onChange={handleInputChange} />
                     </div>
                   </div>
                 ))}
 
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={() => onSaveGeneral(true)}>Save as Draft</button>
-                  <button className="btn btn-secondary" onClick={() => onSaveGeneral(false)}>Submit General</button>
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={() => onSaveGeneral(true)}>Save as Draft</button>
+                  <button className="sf-btn secondary" onClick={() => onSaveGeneral(false)}>Submit General</button>
                 </div>
               </>
             )}
 
-            {/* PRICING */}
+            {/* ── PRICING ──────────────────────────────────────────────────────── */}
             {activeTab === "Pricing" && (
               <>
-                <div className="pricing-table-container">
-                  <table className="pricing-table">
+                <div className="sf-section">Pricing per Clinic</div>
+                <div style={{ overflowX:"auto" }}>
+                  <table className="pt-tbl">
                     <thead>
                       <tr>
-                        <th>Center Code</th><th>Center Name</th><th>Price</th><th>Tax Included</th><th>Tax Percent</th><th>Store Release</th>
+                        <th>Center</th><th>Price</th><th>Tax Included</th><th>Tax %</th><th>Store Release</th>
                       </tr>
                     </thead>
                     <tbody>
                       {formData.pricingData.map((p, i) => (
                         <tr key={i}>
-                          <td>{p.centerCode}</td>
-                          <td>{p.centerName}</td>
-                          <td><input type="number" className="pricing-input" value={p.price} min="0" step="0.01" onChange={(e) => handlePricingChange(i, "price", e.target.value)} /></td>
+                          <td style={{ fontWeight:500 }}>{p.centerName || p.centerCode}</td>
+                          <td><input type="number" className="pt-inp" value={p.price}      min="0" step="0.01" onChange={(e) => handlePricingChange(i,"price",e.target.value)} /></td>
                           <td>
-                            <select className="pricing-select" value={p.taxIncluded} onChange={(e) => handlePricingChange(i, "taxIncluded", e.target.value)}>
+                            <select className="pt-sel" value={p.taxIncluded} onChange={(e) => handlePricingChange(i,"taxIncluded",e.target.value)}>
                               <option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option>
                             </select>
                           </td>
-                          <td><input type="number" className="pricing-input" value={p.taxPercent} min="0" max="100" step="0.01" onChange={(e) => handlePricingChange(i, "taxPercent", e.target.value)} /></td>
-                          <td><input type="checkbox" className="pricing-checkbox" checked={!!p.storeRelease} onChange={() => handlePricingCheckboxChange(i, "storeRelease")} /></td>
+                          <td><input type="number" className="pt-inp" value={p.taxPercent} min="0" max="100" step="0.01" onChange={(e) => handlePricingChange(i,"taxPercent",e.target.value)} /></td>
+                          <td style={{ textAlign:"center" }}><input type="checkbox" checked={!!p.storeRelease} onChange={() => handlePricingCheckboxChange(i,"storeRelease")} style={{ width:16, height:16, accentColor:"#334B71" }} /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={onSavePricing}>Save as Draft</button>
-                  <button className="btn btn-secondary" onClick={onSubmitPricing}>Submit Pricing</button>
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={onSavePricing}>Save as Draft</button>
+                  <button className="sf-btn secondary" onClick={onSubmitPricing}>Submit Pricing</button>
                 </div>
               </>
             )}
 
-            {/* BOM */}
+            {/* ── BOM ──────────────────────────────────────────────────────────── */}
             {activeTab === "BOM" && (
               <>
-                <div className="form-row">
-                  <label className="form-label">Search Consumables:</label>
-                  <div className="form-input-container" style={{ display: "flex", gap: 10 }}>
-                    <input
-                      className="form-input"
-                      value={searchConsumables}
-                      onChange={(e) => setSearchConsumables(e.target.value)}
-                      placeholder="Type a keyword (e.g., s, acne, mask)…"
-                    />
-                    <button type="button" className="btn btn-secondary" onClick={handleSearchConsumables}>
-                      {consumableLoad ? "Searching…" : "🔍"}
-                    </button>
+                <div className="sf-section">Bill of Materials</div>
+
+                <div className="sf-row">
+                  <label className="sf-lbl">Search Consumables</label>
+                  <div className="sf-inp-wrap" style={{ display:"flex", gap:8 }}>
+                    <input className="sf-inp" value={searchConsumables} onChange={(e) => setSearchConsumables(e.target.value)} placeholder="Type keyword..." style={{ flex:1 }} />
+                    <button className="sf-btn secondary" onClick={handleSearchConsumables} disabled={consumableLoad}>{consumableLoad ? "..." : "🔍"}</button>
                   </div>
                 </div>
-                {consumableErr && <div style={{ color: "crimson", margin: "6px 0 10px" }}>{consumableErr}</div>}
+                {consumableErr && <div style={{ color:"crimson", marginBottom:12, fontSize:13 }}>{consumableErr}</div>}
 
-                <div className="form-row">
-                  <label className="form-label">Consumables :</label>
-                  <div className="form-input-container" style={{ display: "flex", gap: 10 }}>
-                    <select
-                      className="form-select"
-                      value={selectedConsumable}
-                      onChange={(e) => setSelectedConsumable(e.target.value)}
-                    >
-                      {consumableOpts.map((o, idx) => (
-                        <option key={`${o.code}-${idx}`} value={o.code}>
-                          {o.name} {o.code && o.code !== "0" ? `(${o.code})` : ""}
-                        </option>
-                      ))}
+                <div className="sf-row">
+                  <label className="sf-lbl">Select Consumable</label>
+                  <div className="sf-inp-wrap" style={{ display:"flex", gap:8 }}>
+                    <select className="sf-sel" value={selectedConsumable} onChange={(e) => setSelectedConsumable(e.target.value)} style={{ flex:1 }}>
+                      {consumableOpts.map((o, i) => <option key={i} value={o.code}>{o.name}{o.code && o.code!=="0" ? ` (${o.code})` : ""}</option>)}
                     </select>
-                    <button type="button" className="btn btn-primary" onClick={handleAddConsumable}>Add</button>
+                    <button className="sf-btn primary" onClick={handleAddConsumable}>+ Add</button>
                   </div>
                 </div>
 
-                <h3 className="bom-title">Ideal of BOM</h3>
-                <div className="bom-table-container">
-                  <table className="bom-table">
-                    <thead>
-                      <tr><th style={{width:50}}></th><th>Consumable Code</th><th>Consumable Name</th><th>Qty</th><th>UOM</th></tr>
-                    </thead>
-                    <tbody>
-                      {bomItems.map((it) => (
-                        <tr key={it.id}>
-                          <td><input type="checkbox" checked={it.selected} onChange={() => handleBOMItemSelection(it.id)} /></td>
-                          <td>{it.code}</td><td>{it.name}</td><td>{it.qty}</td><td>{it.uom}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {bomItems.length === 0 && <div className="no-bom-items">No consumables added to BOM yet.</div>}
-                </div>
+                <div className="sf-section">Ideal BOM Items</div>
+                <table className="pt-tbl">
+                  <thead><tr><th style={{ width:50 }}></th><th>Code</th><th>Name</th><th>Qty</th><th>UOM</th></tr></thead>
+                  <tbody>
+                    {bomItems.map((it) => (
+                      <tr key={it.id}>
+                        <td><input type="checkbox" checked={it.selected} onChange={() => handleBOMItemSelection(it.id)} style={{ accentColor:"#334B71" }} /></td>
+                        <td>{it.code}</td><td>{it.name}</td><td>{it.qty}</td><td>{it.uom}</td>
+                      </tr>
+                    ))}
+                    {bomItems.length === 0 && <tr><td colSpan={5} style={{ padding:24, textAlign:"center", color:"#9ca3af", fontStyle:"italic" }}>No consumables added yet.</td></tr>}
+                  </tbody>
+                </table>
+                {bomItems.some((b) => b.selected) && (
+                  <button className="sf-btn secondary" style={{ marginTop:10 }} onClick={() => { markDirty("BOM"); setBomItems((p) => p.filter((b) => !b.selected)); }}>Remove Selected</button>
+                )}
 
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={onSaveBOM}>Save as Draft</button>
-                  <button className="btn btn-secondary" onClick={onSubmitBOM}>Submit BOM</button>
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={onSaveBOM}>Save as Draft</button>
+                  <button className="sf-btn secondary" onClick={onSubmitBOM}>Submit BOM</button>
                 </div>
               </>
             )}
 
-            {/* PRACTITIONER MAPPING */}
+            {/* ── PRACTITIONER MAPPING ─────────────────────────────────────────── */}
             {activeTab === "Practitioner Mapping" && (
               <>
-                <div style={{ display: "flex", gap: "60px", justifyContent: "space-between" }}>
-                  {/* Doctors column */}
-                  <div style={{ flex: 1 }}>
-                    <div className="form-row">
-                      <label className="form-label">Clinic :</label>
-                      <div className="form-input-container">
-                        <select className="form-select" value={practitionerMapping.leftClinic} onChange={(e) => handlePractitionerMappingChange("leftClinic", e.target.value)}>
+                <div className="sf-section">Practitioner Mapping</div>
+                <div className="pract-cols">
+                  {/* Doctors */}
+                  <div className="pract-col">
+                    <h3 style={{ fontSize:15, fontWeight:600, color:"#334B71", marginBottom:14 }}>Doctors</h3>
+                    <div className="sf-row">
+                      <label className="sf-lbl" style={{ minWidth:80 }}>Clinic</label>
+                      <div className="sf-inp-wrap">
+                        <select className="sf-sel" value={practitionerMapping.leftClinic} onChange={(e) => handlePractitionerMappingChange("leftClinic", e.target.value)}>
                           <option value="">{clinicLoading ? "Loading…" : "Select one"}</option>
-                          {clinics.map((c) => (
-                            <option key={c.code} value={c.code}>{c.name}</option>
-                          ))}
+                          {clinics.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
                         </select>
-                        {clinicError && <div style={{ color:"crimson", marginTop:6 }}>{clinicError}</div>}
                       </div>
                     </div>
-
-                    <div className="form-row">
-                      <label className="form-label">Doctor:</label>
-                      <div className="form-input-container" style={{ display: "flex", gap: 10 }}>
-                        <select className="form-select" value={practitionerMapping.doctor} onChange={(e) => handlePractitionerMappingChange("doctor", e.target.value)} style={{ flex: 1 }} disabled={!practitionerMapping.leftClinic}>
+                    <div className="sf-row">
+                      <label className="sf-lbl" style={{ minWidth:80 }}>Doctor</label>
+                      <div className="sf-inp-wrap" style={{ display:"flex", gap:8 }}>
+                        <select className="sf-sel" value={practitionerMapping.doctor} onChange={(e) => handlePractitionerMappingChange("doctor", e.target.value)} disabled={!practitionerMapping.leftClinic} style={{ flex:1 }}>
                           <option value="">{leftLoad ? "Loading…" : "< - Select one - >"}</option>
-                          {leftPractitioners.map((p) => (
-                            <option key={p.id} value={`${p.id}|${p.name}`}>{p.name}</option>
-                          ))}
+                          {leftPractitioners.map((p) => <option key={p.id} value={`${p.id}|${p.name}`}>{p.name}</option>)}
                         </select>
-                        <button type="button" className="btn btn-primary" disabled={!practitionerMapping.leftClinic || !practitionerMapping.doctor} onClick={() => {
-                          const [practCode, practName] = (practitionerMapping.doctor || "").split("|");
-                          const centerCode = practitionerMapping.leftClinic;
-                          if (!centerCode || !practCode) return;
-                          const clinicName = clinics.find(c => c.code === centerCode)?.name || centerCode;
-                          const dup = doctorMappings.some((m) => m.doctorCode === practCode && m.clinicCode === centerCode);
-                          if (dup) { setToast({ type: "error", message: "Doctor already mapped to this clinic." }); return; }
-                          markDirty("Practitioner Mapping");
-                          setDoctorMappings((prev) => [
-                            ...prev,
-                            { id: Date.now(), doctorCode: practCode, doctorName: practName, clinicCode: centerCode, clinicName, selected: false },
-                          ]);
-                          setPractitionerMapping((prev) => ({ ...prev, doctor: "" }));
-                        }}>Add</button>
-                      </div>
-                      {leftErr && <div style={{ color:"crimson", marginTop:6 }}>{leftErr}</div>}
-                    </div>
-
-                    {/* quick filter + remove */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "10px 0 6px" }}>
-                      <input placeholder="Filter doctors…" className="form-input" style={{ width: 200 }} value={docFilter} onChange={(e) => setDocFilter(e.target.value)} />
-                      <div>
-                        <span className="badge saved" style={{ marginRight: 8 }}>{doctorMappings.length} items</span>
-                        <button className="btn btn-secondary" onClick={() => { markDirty("Practitioner Mapping"); setDoctorMappings((prev) => prev.filter((m) => !m.selected)); }}>Remove selected</button>
+                        <button className="sf-btn primary" disabled={!practitionerMapping.leftClinic || !practitionerMapping.doctor} onClick={() => addPractitioner("doctor")}>+ Add</button>
                       </div>
                     </div>
+                    {leftErr && <div style={{ color:"crimson", fontSize:12 }}>{leftErr}</div>}
 
-                    <div style={{ marginTop: 6 }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #dee2e6" }}>
-                        <thead>
-                          <tr style={{ background: "#f8f9fa" }}>
-                            <th style={{ padding: 12, width: 50 }}></th>
-                            <th style={{ padding: 12, textAlign: "left" }}>Doctor Name</th>
-                            <th style={{ padding: 12, textAlign: "left" }}>Clinic Name</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {doctorMappings
-                            .filter((m) => !docFilter?.trim() ? true : (m.doctorName + " " + m.clinicName).toLowerCase().includes(docFilter.toLowerCase()))
-                            .map((m) => (
-                              <tr key={m.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                                <td style={{ padding: 12, textAlign: "center" }}>
-                                  <input type="checkbox" checked={m.selected} onChange={() => handleDoctorMappingSelection(m.id)} style={{ width: 16, height: 16, accentColor: "#334B71" }} />
-                                </td>
-                                <td style={{ padding: 12 }}>{m.doctorName}</td>
-                                <td style={{ padding: 12 }}>{m.clinicName}</td>
-                              </tr>
-                            ))}
-                          {doctorMappings.length === 0 && (
-                            <tr><td colSpan={3} style={{ padding: 16, color: "#6c757d", fontStyle: "italic" }}>No doctor mappings yet.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", margin:"10px 0 6px" }}>
+                      <input className="sf-inp" placeholder="Filter..." style={{ width:180 }} value={docFilter} onChange={(e) => setDocFilter(e.target.value)} />
+                      <button className="sf-btn secondary" style={{ fontSize:12, padding:"5px 12px" }}
+                        onClick={() => { markDirty("Practitioner Mapping"); setDoctorMappings((p) => p.filter((m) => !m.selected)); }}>
+                        Remove selected
+                      </button>
                     </div>
+                    <table className="pt-tbl">
+                      <thead><tr><th style={{ width:40 }}></th><th>Doctor</th><th>Clinic</th></tr></thead>
+                      <tbody>
+                        {doctorMappings
+                          .filter((m) => !docFilter || (m.doctorName + m.clinicName).toLowerCase().includes(docFilter.toLowerCase()))
+                          .map((m) => (
+                            <tr key={m.id}>
+                              <td><input type="checkbox" checked={m.selected} onChange={() => handleDoctorMappingSelection(m.id)} style={{ accentColor:"#334B71" }} /></td>
+                              <td>{m.doctorName}</td><td>{m.clinicName}</td>
+                            </tr>
+                          ))}
+                        {doctorMappings.length === 0 && <tr><td colSpan={3} style={{ padding:16, color:"#9ca3af", fontStyle:"italic" }}>No doctors mapped.</td></tr>}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Nurses column */}
-                  <div style={{ flex: 1 }}>
-                    <div className="form-row">
-                      <label className="form-label">Clinic :</label>
-                      <div className="form-input-container">
-                        <select className="form-select" value={practitionerMapping.rightClinic} onChange={(e) => handlePractitionerMappingChange("rightClinic", e.target.value)}>
+                  {/* Nurses */}
+                  <div className="pract-col">
+                    <h3 style={{ fontSize:15, fontWeight:600, color:"#334B71", marginBottom:14 }}>Nurses</h3>
+                    <div className="sf-row">
+                      <label className="sf-lbl" style={{ minWidth:80 }}>Clinic</label>
+                      <div className="sf-inp-wrap">
+                        <select className="sf-sel" value={practitionerMapping.rightClinic} onChange={(e) => handlePractitionerMappingChange("rightClinic", e.target.value)}>
                           <option value="">{clinicLoading ? "Loading…" : "Select one"}</option>
-                          {clinics.map((c) => (
-                            <option key={c.code} value={c.code}>{c.name}</option>
-                          ))}
+                          {clinics.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
                         </select>
-                        {clinicError && <div style={{ color:"crimson", marginTop:6 }}>{clinicError}</div>}
                       </div>
                     </div>
-
-                    <div className="form-row">
-                      <label className="form-label">Nurses:</label>
-                      <div className="form-input-container" style={{ display: "flex", gap: 10 }}>
-                        <select className="form-select" value={practitionerMapping.nurses} onChange={(e) => handlePractitionerMappingChange("nurses", e.target.value)} style={{ flex: 1 }} disabled={!practitionerMapping.rightClinic}>
+                    <div className="sf-row">
+                      <label className="sf-lbl" style={{ minWidth:80 }}>Nurse</label>
+                      <div className="sf-inp-wrap" style={{ display:"flex", gap:8 }}>
+                        <select className="sf-sel" value={practitionerMapping.nurses} onChange={(e) => handlePractitionerMappingChange("nurses", e.target.value)} disabled={!practitionerMapping.rightClinic} style={{ flex:1 }}>
                           <option value="">{rightLoad ? "Loading…" : "< - Select one - >"}</option>
-                          {rightPractitioners.map((p) => (
-                            <option key={p.id} value={`${p.id}|${p.name}`}>{p.name}</option>
-                          ))}
+                          {rightPractitioners.map((p) => <option key={p.id} value={`${p.id}|${p.name}`}>{p.name}</option>)}
                         </select>
-                        <button type="button" className="btn btn-primary" disabled={!practitionerMapping.rightClinic || !practitionerMapping.nurses} onClick={() => {
-                          const [practCode, practName] = (practitionerMapping.nurses || "").split("|");
-                          const centerCode = practitionerMapping.rightClinic;
-                          if (!centerCode || !practCode) return;
-                          const clinicName = clinics.find(c => c.code === centerCode)?.name || centerCode;
-                          const dup = nurseMappings.some((m) => m.nurseCode === practCode && m.clinicCode === centerCode);
-                          if (dup) { setToast({ type: "error", message: "Nurse already mapped to this clinic." }); return; }
-                          markDirty("Practitioner Mapping");
-                          setNurseMappings((prev) => [
-                            ...prev,
-                            { id: Date.now(), nurseCode: practCode, nurseName: practName, clinicCode: centerCode, clinicName, selected: false },
-                          ]);
-                          setPractitionerMapping((prev) => ({ ...prev, nurses: "" }));
-                        }}>Add</button>
-                      </div>
-                      {rightErr && <div style={{ color:"crimson", marginTop:6 }}>{rightErr}</div>}
-                    </div>
-
-                    {/* quick filter + remove */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "10px 0 6px" }}>
-                      <input placeholder="Filter nurses…" className="form-input" style={{ width: 200 }} value={nurseFilter} onChange={(e) => setNurseFilter(e.target.value)} />
-                      <div>
-                        <span className="badge saved" style={{ marginRight: 8 }}>{nurseMappings.length} items</span>
-                        <button className="btn btn-secondary" onClick={() => { markDirty("Practitioner Mapping"); setNurseMappings((prev) => prev.filter((m) => !m.selected)); }}>Remove selected</button>
+                        <button className="sf-btn primary" disabled={!practitionerMapping.rightClinic || !practitionerMapping.nurses} onClick={() => addPractitioner("nurse")}>+ Add</button>
                       </div>
                     </div>
+                    {rightErr && <div style={{ color:"crimson", fontSize:12 }}>{rightErr}</div>}
 
-                    <div style={{ marginTop: 6 }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #dee2e6" }}>
-                        <thead>
-                          <tr style={{ background: "#f8f9fa" }}>
-                            <th style={{ padding: 12, width: 50 }}></th>
-                            <th style={{ padding: 12, textAlign: "left" }}>Nurse Name</th>
-                            <th style={{ padding: 12, textAlign: "left" }}>Clinic Name</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nurseMappings
-                            .filter((m) => !nurseFilter?.trim() ? true : (m.nurseName + " " + m.clinicName).toLowerCase().includes(nurseFilter.toLowerCase()))
-                            .map((m) => (
-                              <tr key={m.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                                <td style={{ padding: 12, textAlign: "center" }}>
-                                  <input type="checkbox" checked={m.selected} onChange={() => handleNurseMappingSelection(m.id)} style={{ width: 16, height: 16, accentColor: "#334B71" }} />
-                                </td>
-                                <td style={{ padding: 12 }}>{m.nurseName}</td>
-                                <td style={{ padding: 12 }}>{m.clinicName}</td>
-                              </tr>
-                            ))}
-                          {nurseMappings.length === 0 && (
-                            <tr><td colSpan={3} style={{ padding: 16, color: "#6c757d", fontStyle: "italic" }}>No nurse mappings yet.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", margin:"10px 0 6px" }}>
+                      <input className="sf-inp" placeholder="Filter..." style={{ width:180 }} value={nurseFilter} onChange={(e) => setNurseFilter(e.target.value)} />
+                      <button className="sf-btn secondary" style={{ fontSize:12, padding:"5px 12px" }}
+                        onClick={() => { markDirty("Practitioner Mapping"); setNurseMappings((p) => p.filter((m) => !m.selected)); }}>
+                        Remove selected
+                      </button>
                     </div>
+                    <table className="pt-tbl">
+                      <thead><tr><th style={{ width:40 }}></th><th>Nurse</th><th>Clinic</th></tr></thead>
+                      <tbody>
+                        {nurseMappings
+                          .filter((m) => !nurseFilter || (m.nurseName + m.clinicName).toLowerCase().includes(nurseFilter.toLowerCase()))
+                          .map((m) => (
+                            <tr key={m.id}>
+                              <td><input type="checkbox" checked={m.selected} onChange={() => handleNurseMappingSelection(m.id)} style={{ accentColor:"#334B71" }} /></td>
+                              <td>{m.nurseName}</td><td>{m.clinicName}</td>
+                            </tr>
+                          ))}
+                        {nurseMappings.length === 0 && <tr><td colSpan={3} style={{ padding:16, color:"#9ca3af", fontStyle:"italic" }}>No nurses mapped.</td></tr>}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={onSavePractitioners}>Save as Draft</button>
-                  <button className="btn btn-secondary" onClick={onSubmitPractitioners}>Submit Practitioner Mapping</button>
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={onSavePractitioners}>Save as Draft</button>
+                  <button className="sf-btn secondary" onClick={onSubmitPractitioners}>Submit Practitioner Mapping</button>
                 </div>
               </>
             )}
 
-            {/* FORMS */}
+            {/* ── FORMS ────────────────────────────────────────────────────────── */}
             {activeTab === "Forms" && (
               <>
-                {/* Add New Form Section */}
-                <div className="form-row">
-                  <label className="form-label">Add New Form:</label>
-                  <div className="form-input-container">
-                    <select
-                      className="form-select"
-                      value={newForm.stageForFormCompletion}
-                      onChange={(e) => setNewForm((prev) => ({ ...prev, stageForFormCompletion: e.target.value }))}
-                    >
+                <div className="sf-section">Add Form</div>
+
+                <div className="sf-row">
+                  <label className="sf-lbl">Stage for Completion</label>
+                  <div className="sf-inp-wrap">
+                    <select className="sf-sel" value={newForm.stageForFormCompletion} onChange={(e) => setNewForm((p) => ({ ...p, stageForFormCompletion: e.target.value }))}>
                       <option value="form-not-required">Form not required</option>
                       <option value="before-service">Before Service</option>
                       <option value="during-service">During Service</option>
@@ -1408,144 +941,103 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                     </select>
                   </div>
                 </div>
-                    <div className="form-row" >
-                      <label className="form-label">Block from proceeding list if form not filled :</label>
-                        <div className="form-input-container">
-                          <div className="radio-group">
-                        <label><input
-                          type="radio"
-                          className="radio-input"
-                          name="newBlock"
-                          value="Yes"
-                          checked={newForm.blockFromProceeding === "Yes"}
-                          onChange={(e) => setNewForm((prev) => ({ ...prev, blockFromProceeding: e.target.value }))}
-                        /> Yes
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          className="radio-input"
-                          name="newBlock"
-                          value="No"
-                          checked={newForm.blockFromProceeding === "No"}
-                          onChange={(e) => setNewForm((prev) => ({ ...prev, blockFromProceeding: e.target.value }))}
-                        /> No
-                      </label>
+
+                <div className="sf-row">
+                  <label className="sf-lbl">Block from Proceeding</label>
+                  <div className="sf-inp-wrap">
+                    <div className="sf-radio-grp">
+                      {["Yes","No"].map((v) => (
+                        <label key={v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" }}>
+                          <input type="radio" value={v} checked={newForm.blockFromProceeding === v} onChange={(e) => setNewForm((p) => ({ ...p, blockFromProceeding: e.target.value }))} style={{ accentColor:"#334B71" }} />
+                          {v}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="form-row">
-                  <label className="form-label">Form :</label>
-                  <div className="form-input-container">
-                    <select
-                      className="form-select"
-                      value={newForm.form}
-                      onChange={(e) => setNewForm((prev) => ({ ...prev, form: e.target.value }))}
-                    >
+                <div className="sf-row">
+                  <label className="sf-lbl">Form</label>
+                  <div className="sf-inp-wrap" style={{ display:"flex", gap:8 }}>
+                    <select className="sf-sel" value={newForm.form} onChange={(e) => setNewForm((p) => ({ ...p, form: e.target.value }))} style={{ flex:1 }}>
                       <option value="">Select Form</option>
-                      {formnames.map((formname) => (
-                        <option key={formname} value={formname}>{formname}</option>
-                      ))}
+                      {formnames.map((f) => <option key={f} value={f}>{f}</option>)}
                     </select>
-                    </div>
-                    </div>
-                    <button type="button" className="btn btn-primary" onClick={handleAddForm}>Add Form</button>
-
-                {/* Forms Table */}
-                <div className="bom-table-container" style={{ marginTop: 20 }}>
-                  <table className="bom-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 50 }}></th>
-                        <th>Stage for Completion</th>
-                        <th>Block if Not Filled</th>
-                        <th>Form</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {formsData.filter(f => f.form).map((f) => (
-                        <tr key={f.id}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={f.selected}
-                              onChange={() => handleFormSelection(f.id)}
-                              style={{ width: 16, height: 16, accentColor: "#334B71" }}
-                            />
-                          </td>
-                          <td>{f.stageForFormCompletion}</td>
-                          <td>
-                            {f.blockFromProceeding === "Yes" ? "Yes" : "No"}
-                          </td>
-                          <td>
-                            {f.form}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {formsData.filter(f => f.form).length === 0 && <div className="no-bom-items">No forms added yet.</div>}
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                  <div>
-                    <span className="badge saved">{formsData.filter(f => f.form).length} forms</span>
+                    <button className="sf-btn primary" onClick={handleAddForm}>+ Add</button>
                   </div>
-                  <button className="btn btn-secondary" onClick={handleRemoveForms}>Remove Selected</button>
                 </div>
 
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={onSaveForms}>Save as Draft</button>
-                  <button className="btn btn-secondary" onClick={onSubmitForms}>Submit Forms</button>
+                <div className="sf-section">Added Forms</div>
+                <table className="pt-tbl">
+                  <thead><tr><th style={{ width:50 }}></th><th>Stage</th><th>Block</th><th>Form</th></tr></thead>
+                  <tbody>
+                    {formsData.filter((f) => f.form).map((f) => (
+                      <tr key={f.id}>
+                        <td><input type="checkbox" checked={f.selected} onChange={() => handleFormSelection(f.id)} style={{ accentColor:"#334B71" }} /></td>
+                        <td>{f.stageForFormCompletion}</td>
+                        <td>{f.blockFromProceeding}</td>
+                        <td>{f.form}</td>
+                      </tr>
+                    ))}
+                    {formsData.filter((f) => f.form).length === 0 && (
+                      <tr><td colSpan={4} style={{ padding:24, textAlign:"center", color:"#9ca3af", fontStyle:"italic" }}>No forms added yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+                {formsData.some((f) => f.selected) && (
+                  <button className="sf-btn secondary" style={{ marginTop:10 }} onClick={handleRemoveForms}>Remove Selected</button>
+                )}
+
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={onSaveForms}>Save as Draft</button>
+                  <button className="sf-btn secondary" onClick={onSubmitForms}>Submit Forms</button>
                 </div>
               </>
             )}
 
-            {/* MISC */}
+            {/* ── MISCELLANEOUS ────────────────────────────────────────────────── */}
             {activeTab === "Miscellaneous" && (
               <>
-                <div style={{ display: "flex", gap: "60px" }}>
-                  <div style={{ flex: 1 }}>
-                    {["optionalField1","optionalField2","optionalField3"].map((f,i)=>(
-                      <div className="form-row" key={f}>
-                        <label className="form-label">{`Optional Field ${i+1} :`}</label>
-                        <div className="form-input-container">
-                          <input className="form-input" value={miscellaneousData[f]} onChange={(e) => handleMiscellaneousDataChange(f, e.target.value)} placeholder={`Enter optional field ${i+1}`} />
+                <div className="sf-section">Optional Fields</div>
+                <div style={{ display:"flex", gap:40 }}>
+                  <div style={{ flex:1 }}>
+                    {[1,2,3].map((n) => (
+                      <div className="sf-row" key={n}>
+                        <label className="sf-lbl">Optional Field {n}</label>
+                        <div className="sf-inp-wrap">
+                          <input className="sf-inp" value={miscellaneousData[`optionalField${n}`]} onChange={(e) => handleMiscellaneousDataChange(`optionalField${n}`, e.target.value)} />
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    {["optionalField4","optionalField5"].map((f,i)=>(
-                      <div className="form-row" key={f}>
-                        <label className="form-label">{`Optional Field ${i+4} :`}</label>
-                        <div className="form-input-container">
-                          <input className="form-input" value={miscellaneousData[f]} onChange={(e) => handleMiscellaneousDataChange(f, e.target.value)} placeholder={`Enter optional field ${i+4}`} />
+                  <div style={{ flex:1 }}>
+                    {[4,5].map((n) => (
+                      <div className="sf-row" key={n}>
+                        <label className="sf-lbl">Optional Field {n}</label>
+                        <div className="sf-inp-wrap">
+                          <input className="sf-inp" value={miscellaneousData[`optionalField${n}`]} onChange={(e) => handleMiscellaneousDataChange(`optionalField${n}`, e.target.value)} />
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="helper-note" style={{ marginTop: 12 }}>
-                  <strong>FYI:</strong> Submitting <em>Forms</em> will also submit these Misc fields since they’re included in the Forms payload.
+                <div className="note-box" style={{ marginTop:16 }}>
+                  <strong>Note:</strong> These fields are submitted together with the Forms tab.
                 </div>
 
-                <div className="tab-actions">
-                  <button className="btn btn-primary" onClick={onSaveMisc}>Save (Local)</button>
-                  <button className="btn btn-secondary" onClick={onSubmitMiscViaForms}>Submit (via Forms)</button>
+                <div className="sf-actions">
+                  <button className="sf-btn primary"   onClick={onSaveMisc}>Save Locally</button>
+                  <button className="sf-btn secondary" onClick={onSubmitMiscViaForms}>Submit via Forms</button>
                 </div>
               </>
             )}
+
           </div>
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />
-      )}
+      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
     </>
   );
 };
