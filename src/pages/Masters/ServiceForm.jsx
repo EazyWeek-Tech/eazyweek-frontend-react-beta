@@ -839,7 +839,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                     <thead>
                       <tr>
                         <th style={s.th}>Center</th><th style={s.th}>Price</th>
-                        <th style={s.th}>Tax Included</th><th style={s.th}>Tax %</th><th style={s.th}>Store Release</th>
+                        <th style={s.th}>Tax Included</th><th style={s.th}>Tax %</th><th style={s.th}>Release to Centre</th>
                       </tr>
                     </thead>
                     <tbody>
