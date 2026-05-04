@@ -22,7 +22,7 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
   useEffect(() => { if (suggestions.length > 0) setOpen(true); }, [suggestions]);
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+    <div className="form-group" style={{ position: 'relative', flex: 1, minWidth: 180 }}>
       <div style={s.floatWrap}>
         <input
           style={{ ...s.inp, background: disabled ? '#f8fafc' : '#fff' }}
@@ -340,9 +340,9 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = {
   floatWrap:   { position: 'relative' },
-  inp:         { width: '100%', padding: '14px 12px 6px', border: '1px solid #ced4da', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', outline: 'none' },
-  floatLabel:  { position: 'absolute', left: 12, top: 11, fontSize: 14, color: '#9ca3af', pointerEvents: 'none', transition: 'all .15s' },
-  floatLabelUp:{ top: 3, fontSize: 10, color: '#334B71', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  inp:         { width: '100%', padding: '6px 10px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12, boxSizing: 'border-box', outline: 'none' },
+  floatLabel:  { position: 'absolute', left: 12, top: 9, fontSize: 12, color: '#777', pointerEvents: 'none', transition: 'all .15s' },
+  floatLabelUp:{ top: 3, fontSize: 10, color: '#777', fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.04em' },
   spinner:     { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 16 },
   dropdown:    { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: 220, overflowY: 'auto' },
   dropItem:    { padding: '9px 14px', cursor: 'pointer', fontSize: 13, color: '#111827', display: 'flex', flexDirection: 'column', gap: 2 },

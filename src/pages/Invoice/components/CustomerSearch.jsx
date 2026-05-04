@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../../config';
 
-const TOKEN = () => localStorage.getItem("token");
+const TOKEN = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
 const CustomerSearch = ({
   onCustomerSelect,
@@ -10,17 +11,15 @@ const CustomerSearch = ({
   number,
   nationalityStatus: nationalityFromProps,
 }) => {
-  const [searchText,        setSearchText]        = useState('');
-  const [suggestions,       setSuggestions]       = useState([]);
-  const [searching,         setSearching]         = useState(false);
-  const [showDropdown,      setShowDropdown]      = useState(false);
-  const [selectedCustomer,  setSelectedCustomer]  = useState(null);
-  const [nationalityStatus, setNationalityStatus] = useState(nationalityFromProps || '');
-
-  // Prefilled fields after selection
-  const [mobile, setMobile] = useState('');
-  const [email,  setEmail]  = useState('');
-  const [name,   setName]   = useState('');
+  const [searchText,       setSearchText]       = useState('');
+  const [suggestions,      setSuggestions]      = useState([]);
+  const [searching,        setSearching]        = useState(false);
+  const [showDropdown,     setShowDropdown]     = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [nationalityStatus,setNationalityStatus]= useState(nationalityFromProps || '');
+  const [mobile,           setMobile]           = useState('');
+  const [email,            setEmail]            = useState('');
+  const [name,             setName]             = useState('');
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -28,9 +27,9 @@ const CustomerSearch = ({
   // Prefill from props (appointment mode)
   useEffect(() => {
     if (fullName || emailId || number) {
-      setName(fullName || '');
-      setMobile(number  || '');
-      setEmail(emailId  || '');
+      setName(fullName     || '');
+      setMobile(number     || '');
+      setEmail(emailId     || '');
       setSearchText(fullName || '');
       if (nationalityFromProps) setNationalityStatus(nationalityFromProps);
     }
@@ -39,9 +38,8 @@ const CustomerSearch = ({
   // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target))
         setShowDropdown(false);
-      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -54,13 +52,13 @@ const CustomerSearch = ({
     } catch { return ''; }
   };
 
+  // ── Search handler ─────────────────────────────────────────────────────────
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchText(value);
     setShowDropdown(true);
     setSuggestions([]);
 
-    // Clear selection if user edits the search box
     if (selectedCustomer) {
       setSelectedCustomer(null);
       setMobile(''); setEmail(''); setName('');
@@ -76,7 +74,7 @@ const CustomerSearch = ({
       if (!centerCode) return;
       try {
         setSearching(true);
-        const res  = await fetch(
+        const res = await fetch(
           `${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(value.trim())}/${centerCode}`,
           { headers: { Authorization: `Bearer ${TOKEN()}` } }
         );
@@ -89,19 +87,33 @@ const CustomerSearch = ({
     }, 300);
   };
 
+  // ── Select handler ─────────────────────────────────────────────────────────
   const handleSelect = (cust) => {
-    const fullName   = `${cust.firstName || ''} ${cust.lastName || ''}`.trim();
-    const status     = cust.nationalityId === '84' || cust.nationalityId === 84 ? 'Citizen' : 'Expat';
+    const firstName = cust.firstName || cust.FIRST_NAME || '';
+    const lastName  = cust.lastName  || cust.LAST_NAME  || '';
+    const fullName  = [firstName, lastName].filter(Boolean).join(' ').trim() || cust.fullName || '';
+    const mobile    = cust.mobile    || cust.NUMBER     || cust.number       || cust.mobilePhone || '';
+    const email     = cust.email     || cust.EMAIL      || cust.emailId      || '';
+    const custId    = cust.custId    || cust.custid     || cust.CUSTID       || '';
+    const recId     = cust.recId     || cust.recid      || cust.RECID        || '';
+    const natId     = String(cust.nationalityId || cust.NATIONALITY_ID || '');
+    const status    = natId === '84' ? 'Citizen' : 'Expat';
 
     setSearchText(fullName);
     setName(fullName);
-    setMobile(cust.mobile || '');
-    setEmail(cust.email   || '');
+    setMobile(mobile);
+    setEmail(email);
     setNationalityStatus(status);
     setSuggestions([]);
     setShowDropdown(false);
 
-    const enriched = { ...cust, status, recId: cust.recId || cust.recid || '' };
+    const enriched = {
+      ...cust,
+      custId, custid: custId,
+      fullName, firstName, lastName,
+      mobile, number: mobile,
+      email, status, recId,
+    };
     setSelectedCustomer(enriched);
     onCustomerSelect?.(enriched);
   };
@@ -117,7 +129,7 @@ const CustomerSearch = ({
 
   return (
     <div className="cstsearch">
-      {/* Header row */}
+      {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:10 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
           <div className="sectttl">Customer Search</div>
@@ -137,7 +149,7 @@ const CustomerSearch = ({
         )}
       </div>
 
-      {/* Search box with dropdown */}
+      {/* Search box */}
       <div ref={wrapperRef} style={{ position:'relative', marginBottom:12 }}>
         <div style={{ position:'relative' }}>
           <input
@@ -156,20 +168,14 @@ const CustomerSearch = ({
               outline:'none',
             }}
           />
-          {/* Search / spinner icon */}
           <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'#9ca3af', pointerEvents:'none' }}>
             {searching ? '⟳' : isSelected ? '✓' : '🔍'}
           </span>
         </div>
 
-        {/* Dropdown */}
+        {/* Dropdown results */}
         {showDropdown && suggestions.length > 0 && !isSelected && (
-          <ul style={{
-            position:'absolute', top:'calc(100% + 4px)', left:0, right:0,
-            background:'#fff', border:'1px solid #e5e7eb', borderRadius:8,
-            boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:999,
-            listStyle:'none', margin:0, padding:'4px 0', maxHeight:240, overflowY:'auto',
-          }}>
+          <ul style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:999, listStyle:'none', margin:0, padding:'4px 0', maxHeight:240, overflowY:'auto' }}>
             {suggestions.map((cust, idx) => {
               const full = `${cust.firstName || ''} ${cust.lastName || ''}`.trim();
               return (
@@ -199,7 +205,7 @@ const CustomerSearch = ({
         )}
       </div>
 
-      {/* Prefilled fields — shown after selection */}
+      {/* Prefilled fields after selection */}
       {isSelected && (
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <ReadOnlyField label="Name"   value={name}   />
@@ -211,7 +217,6 @@ const CustomerSearch = ({
   );
 };
 
-// Defined outside to prevent re-mount
 const ReadOnlyField = ({ label, value }) => (
   <div style={{ flex:'1 1 160px', minWidth:140 }}>
     <div style={{ fontSize:11, fontWeight:600, color:'#6b7280', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
