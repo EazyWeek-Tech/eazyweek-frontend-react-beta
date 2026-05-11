@@ -29,11 +29,13 @@ const InvoicePage = () => {
   });
 
   const [searchParams] = useSearchParams();
-  const custidFromUrl = searchParams.get('custid');
-  const appointmentIdFromUrl = searchParams.get('appointmentid');
-  const custNameFromUrl = searchParams.get('custname');
-  const isPaidInUrl = searchParams.get('isPaymentMade') === '1';
-  const recIdFromUrl = searchParams.get('recid') || '';
+  const custidFromUrl       = searchParams.get('custid');
+  const appointmentIdFromUrl= searchParams.get('appointmentid');
+  const custNameFromUrl     = searchParams.get('custname');
+  const isPaidInUrl         = searchParams.get('isPaymentMade') === '1';
+  const recIdFromUrl        = searchParams.get('recid')      || '';
+  const lineCountFromUrl    = parseInt(searchParams.get('linecount') || '1', 10);
+  const appointmentDateFromUrl = searchParams.get('appointmentdate') || '';
 
 useEffect(() => {
   const loadCustomerAndItems = async () => {
@@ -42,32 +44,40 @@ useEffect(() => {
 
     if (appointmentIdFromUrl && custidFromUrl) {
       const payload = {
-        custID: custidFromUrl,
-        appointmentID: appointmentIdFromUrl,
-        centerCode: centerCode
+        custID:          custidFromUrl,
+        appointmentID:   appointmentIdFromUrl,
+        centerCode:      centerCode,
+        appointmentDate: appointmentDateFromUrl || new Date().toISOString().split("T")[0],
       };
       try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
         const response = await fetch(`${API_BASE_URL}/api/Appointment/GetSelectedAppDetails`, {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(payload)
         });
-        const result = await response.json();
+        const json = await response.json();
+        // Node wraps response in { success, data } — unwrap it
+        const result = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
         console.log("Appointment details result:", result);
 
-        if (Array.isArray(result) && result.length > 0) {
+        if (result.length > 0) {
+          // If linecount param says we expect more lines than returned, warn — fallback is in backend
+          if (lineCountFromUrl > result.length) {
+            console.warn(`Expected ${lineCountFromUrl} service lines but got ${result.length} — backend fallback should handle this`);
+          }
            const mappedItems = result.map((item) => ({
-            name: item.serviceName || '',
-            servicecode: item.serviceCode || '',
-            // If URL has isPaymentMade=1, make preloaded items free
-            price: isPaidInUrl ? 0 : (item.price || ''),
-            discount: 0,
-            taxpercent: item.taxPercent || 0,
-            citizentax: item.taxPercent || 0,
-            doctorId: item.doctorId || '',
-            _source: 'appointment',       // (optional) tag for debugging/visibility
-            _prepaid: isPaidInUrl ? 1 : 0 // (optional) internal marker
+            name:             item.serviceName  || "",
+            code:             item.serviceCode  || "",
+            servicecode:      item.serviceCode  || "",
+            type:             "service",
+            price:            isPaidInUrl ? 0 : parseFloat(item.price || 0),
+            discount:         0,
+            taxpercent:       parseFloat(item.taxPercent  || 0),
+            citizentax:       parseFloat(item.taxPercent  || 0),
+            practitionerCode: item.doctorId    || "",
+            practitionerName: item.doctorName  || "",
+            quantity:         1,
           }));
 
           setItems(mappedItems);
@@ -86,7 +96,7 @@ useEffect(() => {
             number: firstItem.number || "",
             email: firstItem.emailId || "",
             gender: firstItem.gender || "",
-            status: firstItem.nationality === "84" ? "Citizen" : "Expat",
+            status: String(firstItem.nationalityId || firstItem.nationality || "") === "84" ? "Citizen" : "Expat",
             recId: recIdFromUrl || firstItem.recId || "",
           });
 

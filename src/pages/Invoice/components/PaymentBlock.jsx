@@ -2,11 +2,18 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../../../config';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const TOKEN = () => localStorage.getItem("token");
-const authHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${TOKEN()}`,
-});
+const TOKEN = () => {
+  const t = localStorage.getItem("token") || sessionStorage.getItem("token");
+  if (!t) console.warn("[PaymentBlock] No token found in localStorage or sessionStorage");
+  return t;
+};
+const authHeaders = () => {
+  const t = TOKEN();
+  return {
+    "Content-Type": "application/json",
+    ...(t ? { Authorization: `Bearer ${t}` } : {}),
+  };
+};
 
 const paymentModes = [
   { label: 'Cash', icon: 'images/cash.svg', key: 'cash' },
@@ -155,7 +162,8 @@ const PaymentBlock = ({
 
   // ---------- Fetch Selected Appointment Details based on URL ----------
   useEffect(() => {
-    const shouldFetch = !!appointmentIdFromUrl && !!custIdFromUrl && !!sessionCenterCode;
+    // Skip if parent already supplied items — avoids duplicate fetch and false error toast
+    const shouldFetch = !!appointmentIdFromUrl && !!custIdFromUrl && !!sessionCenterCode && !invoiceItems?.length;
     if (!shouldFetch) return;
 
     const fetchDetails = async () => {
@@ -173,46 +181,48 @@ const PaymentBlock = ({
           body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const json = await res.json();
+        // Unwrap Node { success, data } envelope
+        const data = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
 
-        if (Array.isArray(data) && data.length > 0) {
+        if (data.length > 0) {
           const mappedItems = data.map((row, idx) => ({
-            lineNo: row.lineNo ?? idx + 1,
-            code: row.serviceCode || "",
-            name: row.serviceName || "",
-            type: "service",
-            price: Number(row.price ?? 0),
-            discount: Number(row.discount ?? 0),
-            taxpercent: Number(row.taxPercent ?? 0),
-            citizentax: Number(row.taxPercent ?? 0),
-            practitionerCode: row.doctorId || "",
-            practitionerName: row.doctorName || "",
-            quantity: Number(row.quantity ?? 1),
+            lineNo:           row.lineNo       ?? idx + 1,
+            code:             row.serviceCode  || "",
+            name:             row.serviceName  || "",
+            type:             "service",
+            price:            Number(row.price ?? 0),
+            discount:         Number(row.discount ?? 0),
+            taxpercent:       Number(row.taxPercent ?? 0),
+            citizentax:       Number(row.taxPercent ?? 0),
+            practitionerCode: row.doctorId     || "",
+            practitionerName: row.doctorName   || "",
+            quantity:         Number(row.quantity ?? 1),
+            appointmentId:    row.appointmentId || "",  // per-line REFERENCEID for invoice tracking
           }));
           setApiInvoiceItems(mappedItems);
 
-          // Customer fields
-          const firstFromApi = data[0]?.firstName || "";
-          const lastFromApi = data[0]?.lastName || "";
-          const fullFromApi = data[0]?.fullName || decodePlus(custNameFromUrl);
+          const d0 = data[0];
+          const fullFromApi = d0?.fullName || decodePlus(custNameFromUrl);
           const { firstName: splitFirst, lastName: splitLast } = splitName(fullFromApi);
-
           setApiCustomer({
-            custId: data[0]?.custId || custIdFromUrl || "",
-            fullName: fullFromApi || "",
-            firstName: firstFromApi || splitFirst,
-            lastName: lastFromApi || splitLast,
-            email: data[0]?.emailId || "",
-            mobile: data[0]?.number || "",
-            number: data[0]?.number || "",
-            status: "", // not provided by this API
+            custId:    d0?.custId   || custIdFromUrl || "",
+            fullName:  fullFromApi  || "",
+            firstName: d0?.firstName || splitFirst,
+            lastName:  d0?.lastName  || splitLast,
+            email:     d0?.emailId  || "",
+            mobile:    d0?.number   || "",
+            number:    d0?.number   || "",
+            status:    String(d0?.nationalityId || "") === "84" ? "Citizen" : "Expat",
           });
-        } else {
-          setToast({ type: 'error', message: 'Could not load appointment details.' });
         }
+        // Silently skip toast — parent (index.jsx) already handles this data
       } catch (err) {
-        console.error('GetSelectedAppDetails error:', err);
-        setToast({ type: 'error', message: 'Failed to fetch appointment details.' });
+        console.error('GetSelectedAppDetails error in PaymentBlock:', err);
+        // Only show toast if parent didn't already supply items
+        if (!invoiceItems?.length) {
+          setToast({ type: 'error', message: 'Failed to fetch appointment details.' });
+        }
       } finally {
         setLoadingAppDetails(false);
       }
@@ -556,6 +566,8 @@ const PaymentBlock = ({
     ];
 
     // Lines JSON (ensure itemCode & therapist fields)
+    // Each line carries its own appointmentId (= per-line REFERENCEID from CLINIC_BOOKAPPOINTMENT)
+    // so CLINIC_APPOINTMENT_INVOICE can match back to the correct appointment line
     const linesJson = effectiveInvoiceItems.map((item, index) => {
       const qty = Number(item.quantity ?? item.qty ?? 1);
       const price = parseFloat(item.price) || 0;
@@ -575,7 +587,8 @@ const PaymentBlock = ({
         taxamount: parseFloat(taxAmt.toFixed(2)),
         finalAmount: parseFloat(finalAmount.toFixed(2)),
         discountAmount: parseFloat(discount.toFixed(2)),
-        therapistCode: item.practitionerCode || item.therapistCode || "",
+        therapistCode:  item.practitionerCode || item.therapistCode || "",
+        appointmentID:  item.appointmentId    || item.appointmentID || appointmentIdFromUrl || "",
         therapistName: item.practitionerName || item.therapistName || "",
         quantity: qty
       };
@@ -591,8 +604,11 @@ const PaymentBlock = ({
       paymentDate: now
     }));
 
+    // Use the first paid line's appointmentId as header APPOINTMENTID
+    // This ensures the SP stores the correct appointment reference
+    const firstLineAppointmentId = linesJson[0]?.appointmentID || appointmentIdFromUrl || "";
     const payload = {
-      appointmentID: appointmentIdFromUrl || "",
+      appointmentID: firstLineAppointmentId,
       invoiceDate: now,
       centerCode: sessionCenterCode,
       createdBy,
@@ -603,9 +619,8 @@ const PaymentBlock = ({
       responseMessage: ""
     };
 
-    // Optional debug
-    // console.log("effectiveCustomer", effectiveCustomer);
-    // console.log("effectiveInvoiceItems", effectiveInvoiceItems);
+    // Debug: verify appointmentId is in each line
+    console.log("linesJson appointmentIDs:", linesJson.map(l => ({ item: l.itemCode, apptId: l.appointmentID })));
     // console.log("payload", payload);
 
     try {
@@ -672,7 +687,7 @@ const PaymentBlock = ({
         }),
       });
       */
-   /* } catch (err) {
+  /*  } catch (err) {
       console.warn('Points transaction failed (non-critical):', err);
     }
   }; */

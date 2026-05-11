@@ -346,6 +346,8 @@
                 text-align: center;
                 background: #f8f8f8;
                 color: #000;
+                font-size: 12px;
+                line-height: 16px;
                 position: sticky;
                 top: 0;
                 z-index: 10;
@@ -802,6 +804,8 @@
     background: #f8f8f8;
     color: #000;
     position: sticky;
+    font-size: 12px;
+    line-height: 16px;
     top: 0;
     z-index: 10;
 }
@@ -828,7 +832,7 @@
 .bckbtn{background: #334B71; color: #fff; text-decoration: none; font-size: 13px; display: flex; gap: 5px; cursor: pointer; padding: 5px; border-radius: 4px; align-items: center;}
 .invtopwrp .sectttl{display: flex;align-items: center;justify-content: space-between;}
 
-.totalpaidrow{display: flex; justify-content: flex-end;margin: 10px 0;  }
+.totalpaidrow{display: flex; justify-content: flex-end;margin: 20px 0 !important; font-size: 12px;  }
 
 .btnflxinv.actwrp{display: flex; justify-content: space-between;flex-direction: row;}
 

@@ -1,0 +1,601 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from "../../config";
+
+const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authGet  = async (url) => {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+  const json = await res.json();
+  return json.data ?? json;
+};
+const authPost = async (url, payload) => {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  return json.data ?? json;
+};
+const getUser = () => {
+  try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
+  catch { return {}; }
+};
+
+const Toast = ({ message, type = "info", onClose }) => {
+  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
+  return <div className={`toast ${type}`}>{message}</div>;
+};
+
+const AddNoteModal = ({ onClose, onSubmit }) => {
+  const [note, setNote] = useState("");
+  return (
+    <div className="popouter" id="addnote" style={{ display:"flex" }}>
+      <div className="popovrly"></div>
+      <div className="popin">
+        <div className="popuphdr">Add Note
+          <span className="clsbtn" onClick={onClose}><img src={`${import.meta.env.BASE_URL}images/clsic.svg`} alt="Close" /></span>
+        </div>
+        <div className="popfrm">
+          <div className="frmdiv">
+            <label>Add Note: <span className="rd">*</span></label>
+            <textarea placeholder="Enter your note..." value={note} onChange={e => setNote(e.target.value)} />
+          </div>
+          <div className="btnbar">
+            <input type="submit" className="prilnk" value="Add Note" onClick={() => { if (note.trim()) onSubmit(note); }} />
+            <input type="button" className="seclnk" value="Cancel" onClick={onClose} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Time helpers ──────────────────────────────────────────────────────────────
+const toMins = (t) => {
+  const [hp, mp] = t.split(":");
+  const [m, per] = mp.split(" ");
+  let h = parseInt(hp, 10);
+  if (per === "PM" && h !== 12) h += 12;
+  if (per === "AM" && h === 12) h -= 12;
+  return h * 60 + parseInt(m, 10);
+};
+const fromMins = (total) => {
+  const h = Math.floor(total / 60), m = total % 60;
+  const per = h >= 12 ? "PM" : "AM";
+  const dh  = h % 12 === 0 ? 12 : h % 12;
+  return `${dh}:${String(m).padStart(2,"0")} ${per}`;
+};
+const calcEnd = (start, dur) => fromMins(toMins(start) + parseInt(String(dur||0), 10));
+
+const TIME_SLOTS = [...Array(144)].map((_, i) => {
+  const mins = 600 + i * 5;
+  const h = Math.floor(mins/60), m = mins%60;
+  const per = h >= 12 ? "PM" : "AM";
+  const dh  = h % 12 === 0 ? 12 : h % 12;
+  return `${dh}:${String(m).padStart(2,"0")} ${per}`;
+});
+
+// ── Customer Form ─────────────────────────────────────────────────────────────
+const CustomerForm = ({ prefill, onChange }) => {
+  const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"" };
+  const [form,    setForm]    = useState(EMPTY);
+  const [mobSugg, setMobSugg] = useState([]);
+  const [nmSugg,  setNmSugg]  = useState([]);
+  const debounce   = useRef(null);
+  const prevCustid = useRef("__init__");
+
+  useEffect(() => {
+    if (!prefill) return;
+    const incomingId = prefill.custid || prefill.custId || "";
+    // Only reinitialize when a DIFFERENT customer is selected.
+    // This prevents the parent re-render loop that resets the form on every keystroke.
+    if (incomingId === prevCustid.current) return;
+    prevCustid.current = incomingId;
+    const next = {
+      number:    prefill.number    || prefill.mobile || "",
+      firstname: prefill.firstname || prefill.firstName || (prefill.name||"").split(" ")[0] || "",
+      lastname:  prefill.lastname  || prefill.lastName  || (prefill.name||"").split(" ").slice(1).join(" ") || "",
+      email:     prefill.email     || "",
+      gender:    prefill.gender    || "",
+      custid:    incomingId,
+    };
+    setForm(next);
+    // ⚠️ Do NOT call onChange here — it triggers setCustomerData in parent
+    //    → parent re-renders → new prefill prop → this effect fires again → form resets
+  }, [prefill]);
+
+  // Called only from user interactions — safely notifies parent
+  const sync = (updated) => { setForm(updated); onChange?.(updated); };
+
+  const fetchSugg = async (type, val) => {
+    const user = getUser();
+    if (!val || val.length < 2 || !user.centerCode) return;
+    try {
+      const data = await authGet(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(val)}/${user.centerCode}`);
+      const arr  = Array.isArray(data) ? data : [];
+      if (type === "number")    setMobSugg(arr.filter(i => (i.mobile||"").startsWith(val)));
+      if (type === "firstname") setNmSugg(arr.filter(i => (i.firstName||"").toLowerCase().includes(val.toLowerCase())));
+    } catch { if (type==="number") setMobSugg([]); else setNmSugg([]); }
+  };
+
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    if (id === "number") {
+      const digits = value.replace(/\D/g,"").slice(0,10);
+      sync({ ...form, number: digits });
+      if (digits.length >= 3) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("number", digits), 300); }
+      else setMobSugg([]);
+      return;
+    }
+    if (id === "firstname") {
+      sync({ ...form, firstname: value });
+      if (value.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("firstname", value), 300); }
+      else setNmSugg([]);
+      return;
+    }
+    sync({ ...form, [id]: value });
+  };
+
+  const selectSugg = (item) => {
+    const next = {
+      number: item.mobile||"", firstname: item.firstName||"", lastname: item.lastName||"",
+      email: item.email||"", gender: item.gender||"",
+      custid: item.custId||item.custid||item.id||"",
+    };
+    prevCustid.current = next.custid; // update ref so prefill effect doesn't reset
+    setForm(next); onChange?.(next);
+    setMobSugg([]); setNmSugg([]);
+  };
+
+  return (
+    <div className="bscdetwrp">
+      <div className="frmlgnd">Customer Details</div>
+      <form autoComplete="off">
+        <input type="hidden" id="custid" value={form.custid} />
+        <div className="form-group" style={{ position:"relative" }}>
+          <input type="text" id="number" placeholder=" " value={form.number} onChange={handleChange} maxLength={10} inputMode="numeric" />
+          <label htmlFor="number" className="frmlbl">Mobile Number</label>
+          {mobSugg.length > 0 && (
+            <ul className="suggestions">{mobSugg.map((i,idx) => (
+              <li key={idx} onClick={() => selectSugg(i)}>{i.firstName} – {i.mobile}</li>
+            ))}</ul>
+          )}
+        </div>
+        <div className="form-group" style={{ position:"relative" }}>
+          <input type="text" id="firstname" placeholder=" " value={form.firstname} onChange={handleChange} />
+          <label htmlFor="firstname" className="frmlbl">First Name</label>
+          {nmSugg.length > 0 && (
+            <ul className="suggestions">{nmSugg.map((i,idx) => (
+              <li key={idx} onClick={() => selectSugg(i)}>{i.firstName} – {i.mobile}</li>
+            ))}</ul>
+          )}
+        </div>
+        <div className="form-group">
+          <input type="text" id="lastname" placeholder=" " value={form.lastname} onChange={handleChange} />
+          <label htmlFor="lastname" className="frmlbl">Last Name</label>
+        </div>
+        <div className="form-group">
+          <input type="email" id="email" placeholder=" " value={form.email} onChange={handleChange} />
+          <label htmlFor="email" className="frmlbl">Email Address</label>
+        </div>
+        <div className="form-group radgrp">
+          <label className="frmlbl">Gender</label>
+          {["male","female"].map(g => (
+            <div className="rdbox" key={g}>
+              <input type="radio" id={`g_${g}`} name="gender" value={g}
+                checked={form.gender?.toLowerCase() === g}
+                onChange={e => sync({ ...form, gender: e.target.value })} />
+              <label htmlFor={`g_${g}`}>{g.charAt(0).toUpperCase()+g.slice(1)}</label>
+            </div>
+          ))}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// ── Service Request Form ───────────────────────────────────────────────────────
+const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, selectedDoctor, selectedTime }) => {
+  const INIT = { servicename:"", servicecode:"", preference:"any", practitioner:"", practitionerName:"",
+    startTime:"10:00 AM", duration:"5", endTime:"10:05 AM", room:"", note:"", equipment:"N/A" };
+
+  const [form,          setForm]          = useState(INIT);
+  const [errors,        setErrors]        = useState({});
+  const [svcSugg,       setSvcSugg]       = useState([]);
+  const [practitioners, setPractitioners] = useState([]);
+  const [rooms,         setRooms]         = useState([]);
+  const [showNote,      setShowNote]      = useState(false);
+  const debounce = useRef(null);
+
+  useEffect(() => {
+    const user = getUser();
+    if (!user.centerCode) return;
+    authGet(`${API_BASE_URL}/api/Master/LoadRoom/${user.centerCode}`)
+      .then(d => setRooms(Array.isArray(d) ? d : []))
+      .catch(() => setRooms([]));
+  }, []);
+
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
+      if (initialData.servicecode) fetchPractitioners(initialData.servicecode, initialData.practitioner);
+    } else {
+      // selectedTime comes from double-clicking a time slot on the grid — preselect it
+      const start = selectedTime || lastEndTime || "10:00 AM";
+      const defaultDur = "5";
+      // selectedDoctor may be {id, name} object or plain string from older code paths
+      const doctorId   = selectedDoctor?.id   || (typeof selectedDoctor === "string" ? "" : "");
+      const doctorName = selectedDoctor?.name || (typeof selectedDoctor === "string" ? selectedDoctor : "");
+      setForm({
+        ...INIT,
+        startTime:        start,
+        endTime:          calcEnd(start, defaultDur),
+        duration:         defaultDur,
+        practitioner:     doctorId,
+        practitionerName: doctorName,
+      });
+      setPractitioners([]);
+    }
+  }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
+
+  const fetchPractitioners = async (serviceCode, preselect) => {
+    const user = getUser();
+    try {
+      const data = await authGet(`${API_BASE_URL}/api/Master/GetPractionerByServiceCode/${encodeURIComponent(serviceCode)}/${user.centerCode||""}`);
+      setPractitioners(Array.isArray(data) ? data : []);
+      if (preselect) setForm(p => ({ ...p, practitioner: preselect }));
+    } catch { setPractitioners([]); }
+  };
+
+  const handleServiceChange = (e) => {
+    const val = e.target.value;
+    setForm(p => ({ ...p, servicename: val }));
+    clearTimeout(debounce.current);
+    if (val.length < 2) { setSvcSugg([]); return; }
+    debounce.current = setTimeout(async () => {
+      const user = getUser();
+      try {
+        const data = await authGet(`${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val)}/${user.centerCode||""}`);
+        setSvcSugg(Array.isArray(data) ? data : []);
+      } catch { setSvcSugg([]); }
+    }, 300);
+  };
+
+  const handleServiceSelect = async (svc) => {
+    const dur = String(svc.serviceInTime || svc.servicetime || "5");
+    setForm(p => ({
+      ...p, servicename: svc.serviceName||"", servicecode: svc.serviceCode||"",
+      practitioner: "", duration: dur, endTime: calcEnd(p.startTime, dur),
+    }));
+    setSvcSugg([]);
+    if (svc.serviceCode) await fetchPractitioners(svc.serviceCode);
+  };
+
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    if (id === "room") {
+      const rm = rooms.find(r => (r.RoomNo??r.roomNo) === value || String(r.id) === String(value));
+      setForm(p => ({ ...p, room: value, equipment: rm?.Equipment ?? rm?.equipment ?? "N/A", roomDisplay: rm?.RoomNo ?? rm?.roomNo ?? value }));
+    } else {
+      setForm(p => ({ ...p, [id]: value }));
+    }
+  };
+
+  const handleStartChange = (e) => {
+    const val = e.target.value;
+    setForm(p => ({ ...p, startTime: val, endTime: calcEnd(val, p.duration) }));
+  };
+
+  const handleDurChange = (e) => {
+    const val = e.target.value;
+    setForm(p => ({ ...p, duration: val, endTime: calcEnd(p.startTime, val) }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.servicename) { setErrors({ servicename: "Service is required." }); return; }
+    if (!form.practitioner) { setErrors({ practitioner: "Please select a practitioner." }); return; }
+    setErrors({});
+    const pract = practitioners.find(p => String(p.id) === String(form.practitioner));
+    onAddService?.({
+      servicename: form.servicename, servicecode: form.servicecode,
+      preference: form.preference.charAt(0).toUpperCase() + form.preference.slice(1),
+      practitioner: form.practitioner, practitionerName: pract?.name || form.practitionerName || "",
+      amount: 100, start: form.startTime, end: form.endTime,
+      duration: `${form.duration} mins`, note: form.note,
+      equipment: form.equipment, room: form.room,
+    });
+  };
+
+  const durOpts = (() => { const o=[]; for(let i=5;i<=720;i+=5) o.push(i); return o; })();
+
+  return (
+    <>
+      <div className="srvwrp">
+        <div className="frmlgnd">Requesting Services</div>
+        <form onSubmit={handleSubmit}>
+          {/* Service autocomplete */}
+          <div className="form-group">
+            <input type="text" id="servicename" placeholder=" " value={form.servicename} onChange={handleServiceChange} />
+            <label htmlFor="servicename" className="frmlbl">Service</label>
+            {errors.servicename && <div className="error">{errors.servicename}</div>}
+            {svcSugg.length > 0 && (
+              <ul className="suggestions">{svcSugg.map((s,i) => (
+                <li key={i} onClick={() => handleServiceSelect(s)}>{s.serviceName}</li>
+              ))}</ul>
+            )}
+          </div>
+
+          {/* Preference */}
+          <div className="form-group radgrp">
+            <label>Preference</label>
+            {["any","male","female"].map(v => (
+              <div className="rdbox" key={v}>
+                <input type="radio" id={`pref_${v}`} name="preference" value={v}
+                  checked={form.preference === v} onChange={e => setForm(p => ({ ...p, preference: e.target.value }))} />
+                <label htmlFor={`pref_${v}`}>{v.charAt(0).toUpperCase()+v.slice(1)}</label>
+              </div>
+            ))}
+          </div>
+
+          {/* Practitioner */}
+          <div className="form-group slctgrp">
+            <label>Practitioner:</label>
+            <select id="practitioner" className="pract" value={form.practitioner} onChange={handleChange}>
+              <option value="">Select Practitioner</option>
+              {practitioners.map((p,i) => <option key={i} value={p.id}>{p.name}</option>)}
+            </select>
+            {errors.practitioner && <div className="error">{errors.practitioner}</div>}
+          </div>
+
+          {/* Start Time */}
+          <div className="form-group slctgrp">
+            <label>Start Time:</label>
+            <select id="startTime" value={form.startTime} onChange={handleStartChange}>
+              {TIME_SLOTS.map((t,i) => <option key={i} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          {/* Duration */}
+          <div className="form-group slctgrp">
+            <label>Duration:</label>
+            <select id="duration" value={form.duration} onChange={handleDurChange}>
+              {durOpts.map(m => <option key={m} value={m}>{m} mins</option>)}
+            </select>
+          </div>
+
+          {/* End Time (readonly) */}
+          <div className="form-group">
+            <input type="text" id="endtm" placeholder=" " value={form.endTime} readOnly />
+            <label htmlFor="endtm" className="frmlbl">End Time</label>
+          </div>
+
+          {/* Room + Note + Add */}
+          <div className="lstfrmsect">
+            <div className="form-group slctgrp rmslct">
+              <label>Room:</label>
+              <select id="room" value={form.room} onChange={handleChange}>
+                <option value="">Select Room</option>
+                {rooms.map((r,i) => <option key={i} value={r.id}>{r.roomNo??r.RoomNo}</option>)}
+              </select>
+            </div>
+            <span className="notebtn tooltip" data-tooltip="Add Note" onClick={() => setShowNote(true)}>
+              <img src={`${import.meta.env.BASE_URL}images/notes.svg`} alt="Note" />
+            </span>
+            <button className="lnkbtn" type="submit">
+              <img src={`${import.meta.env.BASE_URL}images/addservice.svg`} alt="Add" /> Add Service
+            </button>
+          </div>
+        </form>
+      </div>
+      {showNote && (
+        <AddNoteModal onClose={() => setShowNote(false)}
+          onSubmit={note => { setForm(p => ({ ...p, note })); setShowNote(false); }} />
+      )}
+    </>
+  );
+};
+
+// ── Service List ──────────────────────────────────────────────────────────────
+const ServiceList = ({ data = [], onDelete }) => (
+  <div className="service-list srvlist">
+    <h4 className="frmlgnd">Booked Services</h4>
+    {data.length === 0 ? <div className="noadded">No services added.</div> : (
+      <div className="srctblwrp">
+        <table className="srvctbl">
+          <thead><tr>
+            <th width="300">Service</th><th>Practitioner</th><th>Equipment</th>
+            <th width="90">Start</th><th width="90">End</th><th>Duration</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            {data.map((entry, idx) => (
+              <tr key={idx}>
+                <td>{entry.service.servicename}</td>
+                <td>{entry.service.practitionerName || entry.service.practitioner || "—"}</td>
+                <td>{entry.service.equipment || "N/A"}</td>
+                <td>{entry.service.start}</td>
+                <td>{entry.service.end}</td>
+                <td>{entry.service.duration}</td>
+                <td>
+                  <button className="tblbtn delete" onClick={() => onDelete(idx)}>
+                    <img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
+// ── Appointment Drawer (main export) ──────────────────────────────────────────
+const AppointmentDrawer = ({
+  isOpen, onClose, timeSlot, doctor, customer,
+  editAppointment, selectedDate, onRefreshAppointments,
+}) => {
+  const drawerRef    = useRef(null);
+  const [height,     setHeight]     = useState(433);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resetKey,   setResetKey]   = useState(Date.now());
+
+  // State managed here (was ServiceBookingContainer)
+  const [customerData, setCustomerData] = useState(null);
+  const [serviceList,  setServiceList]  = useState([]);
+  const [lastEndTime,  setLastEndTime]  = useState("10:00 AM");
+  const [editingIdx,   setEditingIdx]   = useState(null);
+  const [editingSvc,   setEditingSvc]   = useState(null);
+  const [toast,        setToast]        = useState(null);
+  const [submitting,   setSubmitting]   = useState(false);
+  // One referenceId per booking session — shared across all service lines
+  const [bookingRefId, setBookingRefId] = useState(() => crypto.randomUUID());
+
+  useEffect(() => {
+    if (drawerRef.current) {
+      if (isOpen) { drawerRef.current.classList.add("expand"); setResetKey(Date.now()); }
+      else drawerRef.current.classList.remove("expand");
+    }
+  }, [isOpen]);
+
+  // Resize
+  useEffect(() => {
+    const onMove = (e) => { if (!isResizing) return; const n = window.innerHeight - e.clientY; setHeight(Math.min(Math.max(n,300), window.innerHeight-50)); };
+    const onUp   = () => setIsResizing(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [isResizing]);
+
+  // Reset when open
+  useEffect(() => {
+    if (!isOpen) return;
+    setServiceList([]); setEditingIdx(null); setEditingSvc(null); setLastEndTime("10:00 AM");
+    setBookingRefId(crypto.randomUUID()); // fresh ID for each new booking session
+    const data = editAppointment || customer;
+    if (data) {
+      setCustomerData({
+        name:      data.fullName || `${data.firstName||""} ${data.lastName||""}`.trim(),
+        number:    data.number   || data.mobile || "",
+        email:     data.email    || "",
+        gender:    data.gender   || "",
+        custid:    data.custid   || data.custId || "",
+        firstname: data.firstName || (data.fullName||"").split(" ")[0] || "",
+        lastname:  data.lastName  || (data.fullName||"").split(" ").slice(1).join(" ") || "",
+      });
+      if (editAppointment?.serviceName) {
+        const svc = {
+          servicename: editAppointment.serviceName, servicecode: editAppointment.serviceCode,
+          practitioner: editAppointment.doctorId||"", startTime: editAppointment.startTime||"10:00 AM",
+          duration: (editAppointment.duration||"5").replace(" mins",""),
+          endTime: editAppointment.endTime||"", room: editAppointment.room||"",
+          note: editAppointment.notes||"", preference:"any", equipment:"N/A",
+        };
+        setEditingSvc(svc);
+      }
+    } else { setCustomerData(null); }
+  }, [isOpen, editAppointment, customer]);
+
+  const handleAddService = useCallback((svcData) => {
+    if (!customerData) { setToast({ message:"Customer data missing.", type:"error" }); return; }
+    const entry = { customer: { ...customerData }, service: { ...svcData } };
+    if (editingIdx !== null) {
+      setServiceList(p => { const u=[...p]; u[editingIdx]=entry; return u; });
+      setEditingIdx(null); setEditingSvc(null);
+    } else {
+      setServiceList(p => [...p, entry]);
+    }
+    setLastEndTime(svcData.end);
+    setResetKey(Date.now());
+  }, [customerData, editingIdx]);
+
+  const handleSubmit = async () => {
+    if (submitting) return;  // prevent double submission
+    if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
+    setSubmitting(true);
+    const user = getUser();
+    // Always generate fresh referenceId on submit — reusing a UUID that hit an error
+    // causes "Duplicate entry" on retry since SP already stored the first attempt partially
+    const freshRefId = crypto.randomUUID();
+    setBookingRefId(freshRefId); // update state so sidebar/invoice can reference it
+    const payload = {
+      custID:          customerData.custid || "",
+      appointmentDate: selectedDate,
+      userId:          user.userId || user.employeeCode || "",
+      centerCode:      user.centerCode || "",
+      referenceId:     freshRefId,
+      saveAppointment: serviceList.map((e, i) => ({
+        startTime:   e.service.start,
+        endTime:     e.service.end,
+        duration:    e.service.duration,
+        lineNo:      String(i+1),
+        serviceCode: e.service.servicecode,
+        practioner:  e.service.practitioner,
+        preference:  e.service.preference,
+        notes:       e.service.note,
+        amount:      String(e.service.amount||"100"),
+        room:        e.service.room,
+      })),
+    };
+    try {
+      const result = await authPost(`${API_BASE_URL}/api/Appointment/SaveAppointment`, payload);
+      if (result?.success !== false) {
+        setToast({ message:"Appointment saved!", type:"success" });
+        setServiceList([]); setCustomerData(null);
+        setBookingRefId(crypto.randomUUID());
+        onRefreshAppointments?.();
+        setTimeout(() => onClose?.(), 1200);
+      } else {
+        const msg = result.message || "Submission failed.";
+        // If duplicate, it means a previous partial attempt left a stale record.
+        // The fresh UUID we generate here will be used on the next click automatically.
+        if (msg.toLowerCase().includes("duplicate")) {
+          setToast({ message: "Previous attempt already saved. Please check the grid or try again.", type:"warning" });
+          onRefreshAppointments?.(); // refresh grid — appointment may already be there
+        } else {
+          setToast({ message: msg, type:"error" });
+        }
+      }
+    } catch (e) { setToast({ message: e.message, type:"error" }); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <>
+      {isOpen && (
+        <div style={{ position:"fixed", bottom:`${height}px`, width:"100%", height:"10px", cursor:"ns-resize", zIndex:1000 }}
+          onMouseDown={() => setIsResizing(true)} />
+      )}
+      <div ref={drawerRef} className={`appointdrwr ${isOpen?"expand":""}`} style={{ height:`${height}px` }}>
+        <div className="apptfrm flxwrp">
+          <div className="clpse" onClick={onClose}>
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#000">
+              <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
+            </svg>
+          </div>
+
+          <div className="apptfrmflx">
+            <CustomerForm key={`cf-${resetKey}`} prefill={customerData} onChange={setCustomerData} />
+            <ServiceRequestForm key={`sf-${resetKey}`}
+              onAddService={handleAddService} resetKey={resetKey}
+              initialData={editingSvc} lastEndTime={lastEndTime}
+              selectedDoctor={doctor} selectedTime={timeSlot} />
+            <ServiceList data={serviceList} onDelete={i => setServiceList(p => p.filter((_,idx) => idx !== i))} />
+          </div>
+
+          <div style={{ marginTop:"10px", display:"flex", gap:"15px", justifyContent:"center", borderTop:"1px solid #ccc", paddingTop:"10px" }}>
+            <button className="submitbtn editbtn" onClick={handleSubmit} disabled={submitting}
+              style={{ opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}>
+              {submitting ? "Saving…" : "Save Appointment"}
+            </button>
+            <button className="restbtn" onClick={onClose}>Cancel</button>
+            <button className="restbtn" onClick={() => { setServiceList([]); setCustomerData(null); setResetKey(Date.now()); }}>Reset</button>
+          </div>
+        </div>
+      </div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </>
+  );
+};
+
+export default AppointmentDrawer;
