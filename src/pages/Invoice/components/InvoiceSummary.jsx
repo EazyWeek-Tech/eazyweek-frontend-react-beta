@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import ManualDiscountPopup from './ManualDiscountPopup';
 import PriceOverridePopup from './PriceOverridePopup';
@@ -17,7 +16,8 @@ const InvoiceSummary = ({
   onRecallCartById,
   suspendedCarts,
   isFinalized,
-  onApplyPriceOverride
+  onApplyPriceOverride,
+  onRecallInvoice
 }) => {
   const [toast, setToast] = useState(null);
   const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
@@ -100,6 +100,13 @@ const InvoiceSummary = ({
           <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button>
           <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>
           <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>
+
+          <button
+            className="pribtnblue"
+            onClick={onRecallInvoice}
+          >
+            Recall Invoice
+          </button>
 
           {suspendedCarts.length > 0 && (
             <select className="recallselect" onChange={handleRecallChange} defaultValue="">

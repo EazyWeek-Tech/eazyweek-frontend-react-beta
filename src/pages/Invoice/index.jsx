@@ -10,6 +10,7 @@ import PaymentBlock from './components/PaymentBlock';
 import CategoryTabs from './components/CategoryTabs';
 import InvoiceTable from './components/InvoiceTable';
 import Toast from './components/Toast';
+import SalesReturn from './SalesReturn';
 import './styles/InvoicePage.css';
 
 const InvoicePage = () => {
@@ -20,6 +21,7 @@ const InvoicePage = () => {
   const [suspendedCarts, setSuspendedCarts] = useState([]);
   const [isFinalized, setIsFinalized] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showReturn, setShowReturn] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
  const [formTnput, setFormTnput] = useState({
@@ -47,7 +49,7 @@ useEffect(() => {
         custID:          custidFromUrl,
         appointmentID:   appointmentIdFromUrl,
         centerCode:      centerCode,
-        appointmentDate: appointmentDateFromUrl || new Date().toISOString().split("T")[0],
+        appointmentDate: appointmentDateFromUrl || "",  // repo will look up date if empty
       };
       try {
         const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -78,6 +80,8 @@ useEffect(() => {
             practitionerCode: item.doctorId    || "",
             practitionerName: item.doctorName  || "",
             quantity:         1,
+            // Pass per-line REFERENCEID so invoice stores correct APPOINTMENTID per service
+            appointmentId:    item.appointmentId || "",
           }));
 
           setItems(mappedItems);
@@ -255,6 +259,7 @@ useEffect(() => {
             <InvoiceSummary
               showPopup={showPopup}
               setShowPopup={setShowPopup}
+              onRecallInvoice={() => setShowReturn(true)}
               onManualDiscount={handleManualDiscount}
               onClearCart={handleClearCart}
               onSuspendCart={handleSuspendCart}
@@ -318,6 +323,10 @@ useEffect(() => {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {showReturn && (
+        <SalesReturn onClose={() => setShowReturn(false)} />
       )}
     </div>
   );
