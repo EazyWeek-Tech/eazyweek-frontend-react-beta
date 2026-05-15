@@ -31,11 +31,31 @@ const CATEGORIES = [
 ];
 
 const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
-  const [services,   setServices]   = useState([]);
-  const [activeTab,  setActiveTab]  = useState("services");
-  const [activeCat,  setActiveCat]  = useState(CATEGORIES[0].id);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [svcLoading, setSvcLoading] = useState(false);
+  const [services,      setServices]      = useState([]);
+  const [activeTab,     setActiveTab]     = useState("services");
+  const [activeCat,     setActiveCat]     = useState(CATEGORIES[0].id);
+  const [searchTerm,    setSearchTerm]    = useState("");
+  const [svcLoading,    setSvcLoading]    = useState(false);
+  const [quickPackages, setQuickPackages] = useState([]);
+  const [pkgLoading,    setPkgLoading]    = useState(false);
+
+  // ── Load Quick Cart packages on mount ────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      setPkgLoading(true);
+      try {
+        const u    = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+        const res  = await fetch(
+          `${API_BASE_URL}/api/Package/List?status=Active&centerCode=${encodeURIComponent(u.centerCode||"")}`,
+          { headers: { Authorization: `Bearer ${TOKEN()}` } }
+        );
+        const json = await res.json();
+        const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setQuickPackages(data.filter(p => p.ADDTOQUICKCART));
+      } catch { setQuickPackages([]); }
+      finally { setPkgLoading(false); }
+    })();
+  }, []);
 
   // ── Load services when category or tab changes ────────────────────────────
   useEffect(() => {
@@ -113,6 +133,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
               className={`maintab ${activeTab === "packages" ? "active" : ""}`}
               onClick={() => setActiveTab("packages")}
             >Packages</button>
+
           </div>
 
           <div className="subtabs">
@@ -154,8 +175,53 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
                 )}
               </div>
             ) : (
+              /* ── Packages tab — Quick Cart items shown here ── */
               <div className="ctlistwrp">
-                <div className="notext">Packages coming soon.</div>
+                {/* Quick Cart label */}
+                <div style={{ padding: "6px 10px 4px", fontSize: 11, fontWeight: 700, color: "#94a3b8",
+                  textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #f1f5f9",
+                  marginBottom: 4 }}>
+                  Quick Cart
+                </div>
+
+                {pkgLoading ? (
+                  <div className="notext">Loading packages…</div>
+                ) : quickPackages.length === 0 ? (
+                  <div className="notext">No packages in Quick Cart.<br />
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>Add packages via Master → Package Master → Quick Cart toggle</span>
+                  </div>
+                ) : (
+                  quickPackages
+                    .filter(p => !searchTerm || p.PACKAGENAME?.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((pkg, idx) => (
+                      <div className="ctflx" key={idx}
+                        onClick={() => {
+                          const cid = customer?.custid || customer?.custId || customer?.id || "";
+                          if (!cid) { showErrToast?.("Please select a customer before adding a package."); return; }
+                          onAddItem?.({
+                            name:       pkg.PACKAGENAME,
+                            code:       pkg.PACKAGECODE,
+                            servicecode:pkg.PACKAGECODE,
+                            type:       "package",
+                            price:      parseFloat(pkg.SELLINGPRICE) || 0,
+                            discount:   0,
+                            taxpercent: parseFloat(pkg.TAXPERCENT)   || 0,
+                            citizentax: parseFloat(pkg.TAXPERCENT)   || 0,
+                            taxincluded:pkg.TAXINCLUDED || "No",
+                          });
+                          showToast?.(`${truncate(pkg.PACKAGENAME)} added`);
+                        }}>
+                        <div className="ctlft ctcell" title={pkg.PACKAGENAME}>
+                          {truncate(pkg.PACKAGENAME)}
+                        </div>
+                        {parseFloat(pkg.SELLINGPRICE) > 0 && (
+                          <div className="ctrgt ctcell" style={{ fontSize: 12, fontWeight: 700, color: "#334B71", whiteSpace: "nowrap" }}>
+                            {parseFloat(pkg.SELLINGPRICE).toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
               </div>
             )}
           </div>

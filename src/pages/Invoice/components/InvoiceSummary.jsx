@@ -17,7 +17,8 @@ const InvoiceSummary = ({
   suspendedCarts,
   isFinalized,
   onApplyPriceOverride,
-  onRecallInvoice
+  onRecallInvoice,
+  onCheckPackageBalance
 }) => {
   const [toast, setToast] = useState(null);
   const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
@@ -106,6 +107,15 @@ const InvoiceSummary = ({
             onClick={onRecallInvoice}
           >
             Recall Invoice
+          </button>
+
+          <button
+            className="pribtnblue"
+            onClick={onCheckPackageBalance}
+            disabled={isFinalized}
+            style={{ background: "#2e7d5e" }}
+          >
+            Check Package Balance
           </button>
 
           {suspendedCarts.length > 0 && (

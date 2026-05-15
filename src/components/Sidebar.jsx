@@ -90,6 +90,7 @@ const Sidebar = ({ collapsed }) => {
         { name: "Item Category Mapping", path: "/masters/item-category-mapping" },
         { name: "Purchase Category", path: "/masters/purchase-category" },
         { name: "Purchase Category Mapping", path: "/masters/purchase-category-mapping" },
+        { name: "Packages", path:'/masters/packages'}
       ],
     },
     

@@ -18,20 +18,20 @@ const CreditNoteTab = ({ custId }) => {
   const [page,    setPage]    = useState(1);
   const perPage = 10;
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!custId) return;
-    (async () => {
-      setLoading(true); setError("");
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/SalesReturn/CreditNotes/${custId}`, {
-          headers: { Authorization: `Bearer ${TOKEN()}` },
-        });
-        const json = await res.json();
-        setData(Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []);
-      } catch { setError("Failed to load credit notes."); }
-      finally { setLoading(false); }
-    })();
-  }, [custId]);
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/SalesReturn/CreditNotes/${custId}`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      const json = await res.json();
+      setData(Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []);
+    } catch { setError("Failed to load credit notes."); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadData(); }, [custId]);
 
   const totalPages    = Math.ceil(data.length / perPage);
   const currentItems  = data.slice((page-1)*perPage, page*perPage);
@@ -60,6 +60,10 @@ const CreditNoteTab = ({ custId }) => {
           <h2 className="cn-title">Credit Notes</h2>
           <p className="cn-sub">Issued credit notes for this customer</p>
         </div>
+        <button onClick={loadData}
+          style={{ height:36, padding:"0 16px", background:"#334b71", color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+          ↺ Refresh
+        </button>
       </div>
 
       {loading ? (

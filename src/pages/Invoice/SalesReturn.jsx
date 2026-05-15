@@ -206,8 +206,13 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
     checkedLines.forEach(lineNo => {
       const line = data.lines.find(l => l.lineNo === lineNo);
       const { qtyReturned, amtReturned } = selected[lineNo];
-      if (!qtyReturned || isNaN(qtyReturned) || parseInt(qtyReturned) <= 0)
-        errs[`${lineNo}_qtyReturned`] = "Enter valid whole number qty.";
+      const qtyNum = parseInt(qtyReturned);
+    if (!qtyReturned || qtyReturned === "")
+        errs[`${lineNo}_qtyReturned`] = "Qty to Return is required.";
+    else if (String(qtyReturned).includes("."))
+        errs[`${lineNo}_qtyReturned`] = "Whole numbers only — decimal values not allowed.";
+    else if (isNaN(qtyNum) || qtyNum < 1)
+        errs[`${lineNo}_qtyReturned`] = "Qty to Return must be at least 1.";
       else if (parseInt(qtyReturned) > line.availableQty)
         errs[`${lineNo}_qtyReturned`] = `Max ${line.availableQty}`;
       else if (!Number.isInteger(Number(qtyReturned)))
@@ -225,6 +230,10 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 
   const handleNext = () => {
     if (!validate()) return;
+    // SR-037: check all lines are disabled (fully returned)
+    const allReturned = data.lines.every(l => l.availableQty <= 0);
+    if (allReturned) { setErrors({ lines: "All items on this invoice have already been returned." }); return; }
+
     const returnLines = Object.keys(selected).map(lineNo => {
       const line = data.lines.find(l => l.lineNo === Number(lineNo));
       return {
@@ -339,9 +348,15 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
   const isBalanced  = Math.abs(remaining) < 0.01;
 
   const handleFinalize = () => {
-    if (!isBalanced) { setError(`Total entered (${fmt(entered)}) must equal Amount to Return (${fmt(totalReturn)})`); return; }
+    if (!isBalanced) {
+      if (entered < totalReturn)
+        setError(`Total entered (SAR ${fmt(entered)}) is short by SAR ${fmt(totalReturn - entered)}. Must equal Amount to Return (SAR ${fmt(totalReturn)}).`);
+      else
+        setError(`Total entered (SAR ${fmt(entered)}) exceeds Amount to Return (SAR ${fmt(totalReturn)}) by SAR ${fmt(entered - totalReturn)}.`);
+      return;
+    }
     const methods = METHODS.filter(m => parseFloat(amounts[m]) > 0).map(m => ({ method: m, amount: parseFloat(amounts[m]) }));
-    if (!methods.length) { setError("Enter at least one refund amount."); return; }
+    if (!methods.length) { setError("Please enter refund amount in at least one payment method."); return; }
     onFinalize(methods);
   };
 

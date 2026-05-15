@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../../../config';
+// CreditNoteRedemption modal removed — CN selection is now inline in tab content
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const TOKEN = () => {
@@ -16,12 +17,13 @@ const authHeaders = () => {
 };
 
 const paymentModes = [
-  { label: 'Cash', icon: 'images/cash.svg', key: 'cash' },
-  { label: 'Credit/Debit', icon: 'images/cardimg.svg', key: 'credit' },
-  { label: 'Check', icon: 'images/checkbook.svg', key: 'check' },
-  { label: 'Advance', icon: 'images/advance.svg', key: 'advance' },
-  { label: 'Loyalty', icon: 'images/loyalty.svg', key: 'loyalty' },
-  { label: 'Other', icon: 'images/other.svg', key: 'other' }
+  { label: 'Cash',               icon: 'images/cash.svg',      key: 'cash'        },
+  { label: 'Credit/Debit',       icon: 'images/cardimg.svg',   key: 'credit'      },
+  { label: 'Check',              icon: 'images/checkbook.svg', key: 'check'       },
+  { label: 'Advance',            icon: 'images/advance.svg',   key: 'advance'     },
+  { label: 'Credit Note',        icon: 'images/advance.svg',   key: 'creditnote'  },
+  { label: 'Loyalty',            icon: 'images/loyalty.svg',   key: 'loyalty'     },
+  { label: 'Other',              icon: 'images/other.svg',     key: 'other'       },
 ];
 
 const PaymentBlock = ({
@@ -31,7 +33,9 @@ const PaymentBlock = ({
   customer,
   appointmentID,
   centerCode,
-  recId: recIdFromProp = ""
+  recId: recIdFromProp = "",
+  packageRedemption = null,   // { recId, packageCode, packageName, purchaseInvoiceNum, purchaseDate, serviceCode, serviceName }
+  onRedemptionComplete = null,
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -68,7 +72,12 @@ const PaymentBlock = ({
   const [invoiceSuccessPopup, setInvoiceSuccessPopup] = useState(false);
   const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
   const [lastGeneratedInvoiceHtml, setLastGeneratedInvoiceHtml] = useState('');
-  const [submittedPayments, setSubmittedPayments] = useState([]);
+  const [submittedPayments,   setSubmittedPayments]   = useState([]);
+  const [appliedCreditNotes,  setAppliedCreditNotes]  = useState([]);
+  const [availableCNs,        setAvailableCNs]        = useState([]);
+  const [cnLoading,           setCnLoading]           = useState(false);
+  const [selectedCN,          setSelectedCN]          = useState(null);
+  const [cnAmount,            setCnAmount]            = useState('');
   const [submittedInvoiceItems, setSubmittedInvoiceItems] = useState([]);
   const [submittedTotalAmount, setSubmittedTotalAmount] = useState(0);
 
@@ -96,17 +105,18 @@ const PaymentBlock = ({
   }, [prefillPaymentData]);
 
   // ---------- Fetch loyalty balance — disabled until loyalty module is ready ----------
-  /* useEffect(() => {
-    if (activeTab !== 'loyalty' || !recIdFromUrl_final || !isLoyaltyEnrolled) return;
-    setLoyaltyBalanceLoading(true);
-    // fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, { // LOYALTY TODO
-      headers: { 'Cache-Control': 'no-cache' },
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(d => setLoyaltyBalance(d))
-      .catch(e => console.warn('Loyalty balance fetch failed:', e))
-      .finally(() => setLoyaltyBalanceLoading(false));
-  }, [activeTab, recIdFromUrl_final]); */
+  // LOYALTY TODO: uncomment when loyalty module is ready
+  // useEffect(() => {
+  //   if (activeTab !== 'loyalty' || !recIdFromUrl_final || !isLoyaltyEnrolled) return;
+  //   setLoyaltyBalanceLoading(true);
+  //   fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
+  //     headers: { 'Cache-Control': 'no-cache' },
+  //   })
+  //     .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  //     .then(d => setLoyaltyBalance(d))
+  //     .catch(e => console.warn('Loyalty balance fetch failed:', e))
+  //     .finally(() => setLoyaltyBalanceLoading(false));
+  // }, [activeTab, recIdFromUrl_final]);
 
   // ---------- Fetch center recId from LoadCenters ----------
   useEffect(() => {
@@ -153,12 +163,32 @@ const PaymentBlock = ({
     }
   };
 
+  // ---------- Load available credit notes when CN tab activated ----------
+  useEffect(() => {
+    const custId = effectiveCustomer?.custId || custIdFromUrl;
+    if (activeTab !== 'creditnote' || !custId) return;
+    setCnLoading(true);
+    fetch(`${API_BASE_URL}/api/SalesReturn/AvailableCreditNotes/${custId}`, {
+      headers: authHeaders()
+    })
+      .then(r => r.json())
+      .then(j => {
+        const list = Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : [];
+        setAvailableCNs(list);
+        setSelectedCN(null);
+        setCnAmount('');
+      })
+      .catch(() => setAvailableCNs([]))
+      .finally(() => setCnLoading(false));
+  }, [activeTab, custIdFromUrl]);
+
   // ---------- Recompute remaining amount on payments change ----------
   useEffect(() => {
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
     const remaining = Math.max(0, parsedTotalAmount - totalPaid);
     setAmount(remaining.toString());
-  }, [payments, parsedTotalAmount, activeTab]);
+  }, [payments, parsedTotalAmount, activeTab, appliedCreditNotes]);
 
   // ---------- Fetch Selected Appointment Details based on URL ----------
   useEffect(() => {
@@ -508,8 +538,15 @@ const PaymentBlock = ({
   };
 
   const handleDelete = (id) => {
+    const removedPayment  = payments.find(p => p.id === id);
     const updatedPayments = payments.filter(p => p.id !== id);
     setPayments(updatedPayments);
+    // Restore the removed amount back into the input field
+    if (removedPayment) {
+      const totalAfter = updatedPayments.reduce((s, p) => s + p.amount, 0)
+                       + appliedCreditNotes.reduce((s, cn) => s + cn.amount, 0);
+      setAmount((Math.max(0, parsedTotalAmount - totalAfter)).toString());
+    }
   };
 
   const getPaymentModeKey = (label) => {
@@ -518,10 +555,11 @@ const PaymentBlock = ({
   };
 
   const handleSubmitInvoice = async () => {
-    if (payments.length === 0) {
+    if (payments.length === 0 && appliedCreditNotes.length === 0) {
       setFormError('Please add at least one payment method.');
       return;
     }
+    setFormError('');
 
     /* if (!appointmentIdFromUrl) {
       setFormError('Missing appointment ID in URL.');
@@ -594,15 +632,29 @@ const PaymentBlock = ({
       };
     });
 
-    const paymentJson = payments.map((p, index) => ({
-      lineNo: index + 1,
-      paymentMode: getPaymentModeKey(p.mode),
-      paymentName: p.mode,
-      cardNumber: p.cardNumber || "",
-      totalAmount: parsedTotalAmount,
-      paidAmount: p.amount,
-      paymentDate: now
+    // Build paymentJson — includes both regular payments AND applied Credit Notes
+    const cnPayments = appliedCreditNotes.map((cn, i) => ({
+      lineNo:       payments.length + i + 1,
+      paymentMode:  0,
+      paymentName:  `Credit Note - ${cn.creditNoteNum}`,
+      cardNumber:   cn.creditNoteNum,   // store CN number in cardNumber field for reference
+      totalAmount:  parsedTotalAmount,
+      paidAmount:   cn.amount,
+      paymentDate:  now,
     }));
+
+    const paymentJson = [
+      ...payments.map((p, index) => ({
+        lineNo:      index + 1,
+        paymentMode: getPaymentModeKey(p.mode),
+        paymentName: p.mode,
+        cardNumber:  p.cardNumber || "",
+        totalAmount: parsedTotalAmount,
+        paidAmount:  p.amount,
+        paymentDate: now,
+      })),
+      ...cnPayments,
+    ];
 
     // Use the first paid line's appointmentId as header APPOINTMENTID
     // This ensures the SP stores the correct appointment reference
@@ -650,6 +702,33 @@ const PaymentBlock = ({
         }
         */
         setInvoiceSuccessPopup(true);
+
+        // ── Redeem applied Credit Notes → updates BALANCE in CLINIC_CREDIT_NOTES ──
+        if (appliedCreditNotes.length > 0 && invoiceNum) {
+          const custId = effectiveCustomer?.custId || custIdFromUrl || "";
+          for (const cn of appliedCreditNotes) {
+            try {
+              const cnRes = await fetch(`${API_BASE_URL}/api/SalesReturn/RedeemCreditNote`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                  custId,
+                  creditNoteNum: cn.creditNoteNum,
+                  redeemAmount:  cn.amount,
+                  invoiceNum,
+                }),
+              });
+              const cnJson = await cnRes.json();
+              if (!cnJson.success) {
+                console.warn(`CN ${cn.creditNoteNum} redeem failed:`, cnJson.message);
+              }
+            } catch (e) {
+              console.warn(`CN ${cn.creditNoteNum} redeem error:`, e.message);
+            }
+          }
+          setAppliedCreditNotes([]); // clear after successful redemption
+        }
+
       } else {
         setToast({ message: result.message || 'Submission failed', type: 'error' });
       }
@@ -660,40 +739,39 @@ const PaymentBlock = ({
   };
 
   // ---------- Points transaction helper — disabled until loyalty module is ready ----------
-  /* const createPointsTransaction = async (transactionType, invoiceTotal, invoiceNumber) => {
-    if (!recIdFromUrl_final) return;
-    const now = new Date().toISOString();
-    // Extract trailing numeric part from invoice number e.g. "INV INVBright00144" → 144
-    const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
-    const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
-    try {
-      /* TODO: loyalty points/create — enable when loyalty module ready
-      // await fetch(`${API_BASE_URL}/api/v1/points/create`, { // LOYALTY TODO
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: centerRecId || 0,
-          membershipId: recIdFromUrl_final,
-          programId: 0,
-          transactionType,
-          amount: invoiceTotal,
-          points: 0,
-          referenceId,
-          description: `INV ${invoiceNumber}`,
-          expiryDate: now,
-          transactionDate: now,
-          status: '1',
-          pointsBalanceAfter: 0,
-        }),
-      });
-      */
-  /*  } catch (err) {
-      console.warn('Points transaction failed (non-critical):', err);
-    }
-  }; */
+  // LOYALTY TODO: uncomment when loyalty module is ready
+  // const createPointsTransaction = async (transactionType, invoiceTotal, invoiceNumber) => {
+  //   if (!recIdFromUrl_final) return;
+  //   const now = new Date().toISOString();
+  //   const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
+  //   const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
+  //   try {
+  //     await fetch(`${API_BASE_URL}/api/v1/points/create`, {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({
+  //         customerId: centerRecId || 0,
+  //         membershipId: recIdFromUrl_final,
+  //         programId: 0,
+  //         transactionType,
+  //         amount: invoiceTotal,
+  //         points: 0,
+  //         referenceId,
+  //         description: `INV ${invoiceNumber}`,
+  //         expiryDate: now,
+  //         transactionDate: now,
+  //         status: '1',
+  //         pointsBalanceAfter: 0,
+  //       }),
+  //     });
+  //   } catch (err) {
+  //     console.warn('Points transaction failed (non-critical):', err);
+  //   }
+  // };
 
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const isCompleteEnabled = totalPaid === parsedTotalAmount;
+  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
+  const isCompleteEnabled = Math.abs(totalPaid - parsedTotalAmount) < 0.01;
   const change = Math.max(0, parseFloat(amount || 0) - (parsedTotalAmount - totalPaid));
 
   return (
@@ -725,7 +803,7 @@ const PaymentBlock = ({
           {paymentModes.map((mode) => (
             <div
               key={mode.key}
-              className={`pymnttab ${activeTab === mode.key ? 'activetab' : ''}`}
+              className={`pymnttab ${activeTab === mode.key ? 'activetab' : ''} ${mode.key === 'creditnote' && appliedCreditNotes.length > 0 ? 'activetab' : ''}`}
               onClick={() => {
                 setActiveTab(mode.key);
                 setFormError('');
@@ -879,24 +957,23 @@ const PaymentBlock = ({
                           setLoyaltyPointsLoading(true);
                           setLoyaltyPointsError('');
                           setLoyaltyPointsValue(null);
-                          /* TODO: get-points API — enable when loyalty module is ready
-                          try {
-                            const res = await fetch(
-                            /* TODO: get-points API
-                              // `${API_BASE_URL}/api/v1/points/get-points?...` // LOYALTY TODO
-                              { headers: { ...authHeaders(), 'Cache-Control': 'no-cache' } }
-                            );
-                            if (!res.ok) throw new Error(`Failed (${res.status})`);
-                            const data = await res.json();
-                            const sarValue = typeof data === 'number' ? data : Number(data) || 0;
-                            setLoyaltyPointsValue(sarValue);
-                            setAmount(String(sarValue));
-                          } catch (e) {
-                            setLoyaltyPointsError('Failed to fetch point value. Try again.');
-                            console.error('get-points error:', e);
-                          } finally {
-                            setLoyaltyPointsLoading(false);
-                          } */
+                          // LOYALTY TODO: enable when loyalty module is ready
+                          // try {
+                          //   const res = await fetch(
+                          //     `${API_BASE_URL}/api/v1/points/get-points?...`,
+                          //     { headers: { ...authHeaders(), 'Cache-Control': 'no-cache' } }
+                          //   );
+                          //   if (!res.ok) throw new Error(`Failed (${res.status})`);
+                          //   const data = await res.json();
+                          //   const sarValue = typeof data === 'number' ? data : Number(data) || 0;
+                          //   setLoyaltyPointsValue(sarValue);
+                          //   setAmount(String(sarValue));
+                          // } catch (e) {
+                          //   setLoyaltyPointsError('Failed to fetch point value. Try again.');
+                          // } finally {
+                          //   setLoyaltyPointsLoading(false);
+                          // }
+                          setLoyaltyPointsLoading(false); // remove when loyalty enabled
                         }}
                       >
                         {loyaltyPointsLoading ? 'Checking…' : 'Get Value'}
@@ -928,14 +1005,94 @@ const PaymentBlock = ({
             </>
           )}
 
-          <div className="frmdiv">
-            <label>Change:</label>
-            <input type="text" readOnly value={change.toFixed(2)} className="rdonly" />
-          </div>
+          {activeTab !== 'creditnote' && (
+            <div className="frmdiv">
+              <label>Change:</label>
+              <input type="text" readOnly value={change.toFixed(2)} className="rdonly" />
+            </div>
+          )}
+
+          {/* ── Credit Note inline tab content ── */}
+          {activeTab === 'creditnote' && (
+            <div style={{ padding: '4px 0' }}>
+              {cnLoading ? (
+                <div style={{ color: '#64748b', fontSize: 13, padding: '8px 0' }}>Loading credit notes…</div>
+              ) : availableCNs.length === 0 ? (
+                <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0', textAlign: 'center' }}>
+                  No valid credit notes available for this customer.
+                </div>
+              ) : (
+                <>
+                  {availableCNs.map((cn) => (
+                    <div key={cn.creditNoteNum}
+                      onClick={() => {
+                        setSelectedCN(cn);
+                        const remaining = Math.max(0, parsedTotalAmount - payments.reduce((s,p)=>s+p.amount,0) - appliedCreditNotes.reduce((s,c)=>s+c.amount,0));
+                        setCnAmount(String(Math.min(cn.balance, remaining).toFixed(2)));
+                      }}
+                      style={{
+                        border: `1.5px solid ${selectedCN?.creditNoteNum === cn.creditNoteNum ? '#334b71' : '#e2e8f0'}`,
+                        borderRadius: 8, padding: '8px 12px', marginBottom: 8, cursor: 'pointer',
+                        background: selectedCN?.creditNoteNum === cn.creditNoteNum ? '#f0f4fa' : '#fff',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#334b71' }}>{cn.creditNoteNum}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          Expires: {cn.expiryDate ? new Date(cn.expiryDate).toLocaleDateString('en-GB') : '—'}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: '#2e7d5e' }}>
+                        SAR {Number(cn.balance).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+
+                  {selectedCN && (
+                    <div className="frmdiv" style={{ marginTop: 8 }}>
+                      <label>Redeem Amount (max SAR {Number(selectedCN.balance).toFixed(2)}):</label>
+                      <input
+                        type="number" min={0.01} max={selectedCN.balance} step={0.01}
+                        value={cnAmount}
+                        onChange={e => setCnAmount(e.target.value)}
+                        style={{ border: '1.5px solid #334b71' }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {formError && <div className="error">{formError}</div>}
           <div className="frmdiv">
-            <button className="pribtnblue" onClick={handleAddPayment}>Add Payment</button>
+            {activeTab === 'creditnote' ? (
+              <button className="pribtnblue"
+                disabled={!selectedCN || !cnAmount || parseFloat(cnAmount) <= 0}
+                style={{ opacity: (!selectedCN || !cnAmount) ? 0.5 : 1 }}
+                onClick={() => {
+                  const amt = parseFloat(cnAmount);
+                  if (!selectedCN) { setFormError('Please select a credit note.'); return; }
+                  if (!amt || amt <= 0) { setFormError('Enter a valid redemption amount.'); return; }
+                  if (amt > selectedCN.balance) { setFormError(`Amount exceeds CN balance (SAR ${selectedCN.balance.toFixed(2)}).`); return; }
+                  const remaining = Math.max(0, parsedTotalAmount - payments.reduce((s,p)=>s+p.amount,0) - appliedCreditNotes.reduce((s,c)=>s+c.amount,0));
+                  if (amt > remaining + 0.01) { setFormError(`Amount exceeds remaining balance (SAR ${remaining.toFixed(2)}).`); return; }
+                  setAppliedCreditNotes(prev => {
+                    const exists = prev.findIndex(p => p.creditNoteNum === selectedCN.creditNoteNum);
+                    const entry  = { creditNoteNum: selectedCN.creditNoteNum, recId: selectedCN.recId, amount: amt, balance: selectedCN.balance };
+                    if (exists >= 0) { const u=[...prev]; u[exists]=entry; return u; }
+                    return [...prev, entry];
+                  });
+                  setFormError('');
+                  setSelectedCN(null);
+                  setCnAmount('');
+                  setActiveTab('cash'); // switch back to cash tab after applying
+                }}>
+                Apply Credit Note
+              </button>
+            ) : (
+              <button className="pribtnblue" onClick={handleAddPayment}>Add Payment</button>
+            )}
           </div>
         </div>
       </div>
@@ -954,20 +1111,43 @@ const PaymentBlock = ({
               </tr>
             </thead>
             <tbody>
-              {payments.length > 0 ? (
-                payments.map((p, index) => (
-                  <tr key={p.id}>
-                    <td>{index + 1}</td>
-                    <td>{p.mode}</td>
-                    <td>{p.amount.toFixed(2)}</td>
-                    <td>{p.date}</td>
-                    <td>
-                      <button onClick={() => handleDelete(p.id)} className="removeln">
-                        <img src="images/rmove.svg" alt="Delete" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+              {(payments.length > 0 || appliedCreditNotes.length > 0) ? (
+                <>
+                  {payments.map((p, index) => (
+                    <tr key={p.id}>
+                      <td>{index + 1}</td>
+                      <td>{p.mode}</td>
+                      <td>{p.amount.toFixed(2)}</td>
+                      <td>{p.date}</td>
+                      <td>
+                        <button onClick={() => handleDelete(p.id)} className="removeln">
+                          <img src="images/rmove.svg" alt="Delete" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {appliedCreditNotes.map((cn, i) => (
+                    <tr key={`cn-${cn.creditNoteNum}`} style={{ background: '#f0faf5' }}>
+                      <td>{payments.length + i + 1}</td>
+                      <td>
+                        <span style={{ color: '#2e7d5e', fontWeight: 700 }}>📄 {cn.creditNoteNum}</span>
+                      </td>
+                      <td>{cn.amount.toFixed(2)}</td>
+                      <td>{new Date().toLocaleDateString('en-GB')}</td>
+                      <td>
+                        <button className="removeln" onClick={() => {
+                          const updated = appliedCreditNotes.filter((_,j) => j !== i);
+                          setAppliedCreditNotes(updated);
+                          const totalAfter = payments.reduce((s,p)=>s+p.amount,0)
+                                           + updated.reduce((s,c)=>s+c.amount,0);
+                          setAmount((Math.max(0, parsedTotalAmount - totalAfter)).toString());
+                        }}>
+                          <img src="images/rmove.svg" alt="Delete" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ) : (
                 <tr>
                   <td colSpan="5" style={{ textAlign: 'center', padding: '10px' }}>
@@ -985,7 +1165,7 @@ const PaymentBlock = ({
         </div>
       </div>
 
-      {payments.length > 0 && (
+      {(payments.length > 0 || appliedCreditNotes.length > 0) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
           <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled}>
             Complete Invoice
@@ -996,6 +1176,8 @@ const PaymentBlock = ({
       {toast && (
         <div className={`toast ${toast.type}`}>{toast.message}</div>
       )}
+
+
 
       {invoiceSuccessPopup && (
         <div className="popouter active smallinvoicepopup">

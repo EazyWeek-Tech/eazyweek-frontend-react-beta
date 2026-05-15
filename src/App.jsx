@@ -88,6 +88,7 @@ import OnDemandTriggers from "./pages/OnDemand/OnDemandTriggers";
 import ResetPassword from "./pages/ResetPassword"; 
 import FirstLoginModal from "./components/FirstLoginModal";
 import EmployeeSegmentMapping from "./pages/Masters/EmployeeSegmentMapping";
+import PackageMaster from "./pages/Masters/PackageMaster";
 
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
@@ -255,6 +256,13 @@ if (user && showFirstLogin) {
                     path="/opportunity/customers"
                     element={<AddLeadCustomerList />}
                   />
+
+                   <Route
+                    path="/masters/packages"
+                    element={<PackageMaster />}
+                  />
+
+
                   <Route path="/on-demand" element={<OnDemandTriggers />} />
                   <Route
   path="/manuallead/:oppCode"

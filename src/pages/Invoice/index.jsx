@@ -11,6 +11,7 @@ import CategoryTabs from './components/CategoryTabs';
 import InvoiceTable from './components/InvoiceTable';
 import Toast from './components/Toast';
 import SalesReturn from './SalesReturn';
+import PackageBalanceChecker from './components/PackageBalanceChecker';
 import './styles/InvoicePage.css';
 
 const InvoicePage = () => {
@@ -21,7 +22,9 @@ const InvoicePage = () => {
   const [suspendedCarts, setSuspendedCarts] = useState([]);
   const [isFinalized, setIsFinalized] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showReturn, setShowReturn] = useState(false);
+  const [showReturn,       setShowReturn]       = useState(false);
+  const [showPkgBalance,   setShowPkgBalance]   = useState(false);
+  const [packageRedemption,setPackageRedemption] = useState(null); // { recId, packageCode, packageName, purchaseInvoiceNum, purchaseDate }
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
  const [formTnput, setFormTnput] = useState({
@@ -189,6 +192,19 @@ useEffect(() => {
 
   const handleClearCart = () => setItems([]);
 
+  // Called when user confirms a package redemption from the balance checker
+  const handlePackageRedeem = ({ packageInfo, serviceCode }) => {
+    setPackageRedemption(packageInfo); // store for PaymentBlock to use
+    // Set the matching service line to price 0 (redeemed via package)
+    setItems(prev => prev.map(item =>
+      (item.code === serviceCode || item.servicecode === serviceCode)
+        ? { ...item, price: 0, discount: 0, _redeemed: true, _packageCode: packageInfo.packageCode }
+        : item
+    ));
+    setShowPkgBalance(false);
+    setToast({ message: `Package ${packageInfo.packageCode} applied — service set to SAR 0`, type: "success" });
+  };
+
   const handleApplyPriceOverride = (updatedItems) => setItems(updatedItems);
 
   const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
@@ -260,6 +276,7 @@ useEffect(() => {
               showPopup={showPopup}
               setShowPopup={setShowPopup}
               onRecallInvoice={() => setShowReturn(true)}
+              onCheckPackageBalance={() => setShowPkgBalance(true)}
               onManualDiscount={handleManualDiscount}
               onClearCart={handleClearCart}
               onSuspendCart={handleSuspendCart}
@@ -312,6 +329,8 @@ useEffect(() => {
               invoiceItems={items}
               customer={selectedCustomer}
               recId={selectedCustomer?.recId || recIdFromUrl || ""}
+              packageRedemption={packageRedemption}
+              onRedemptionComplete={() => setPackageRedemption(null)}
             />
           </aside>
         </div>
@@ -327,6 +346,15 @@ useEffect(() => {
 
       {showReturn && (
         <SalesReturn onClose={() => setShowReturn(false)} />
+      )}
+
+      {showPkgBalance && (
+        <PackageBalanceChecker
+          customer={selectedCustomer}
+          items={items}
+          onRedeem={handlePackageRedeem}
+          onClose={() => setShowPkgBalance(false)}
+        />
       )}
     </div>
   );
