@@ -251,8 +251,8 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {} }) =>
     if (!Number.isInteger(qty) || qty <= 0 || String(qtyStr).includes("."))
       { setErr("Quantity must be a whole positive number. Decimals are not permitted."); return; }
     setErr("");
-    const code = isSvc ? (sel.serviceCode||sel.SERVICECODE) : (sel.productCode||sel.PRODUCTCODE);
-    const name = isSvc ? (sel.serviceName||sel.SERVICENAME) : (sel.productName||sel.PRODUCTNAME);
+    const code = isSvc ? (sel.serviceCode||sel.SERVICECODE||sel.code||'') : (sel.productCode||sel.PRODUCTCODE||sel.code||'');
+    const name = isSvc ? (sel.serviceName||sel.SERVICENAME||sel.name||'') : (sel.productName||sel.PRODUCTNAME||sel.name||'');
     setForm(p => ({ ...p, items:[...(p.items||[]), { itemType:type, itemCode:code, itemName:name, quantity:qty }] }));
     setErr("");
     // Clear items-level error from validation since user just added one
@@ -410,6 +410,11 @@ const ValidityTab = ({ form, setForm, errors }) => (
         onChange={e=>setForm(p=>({...p,expiryTenure:e.target.value}))}
         disabled={form.neverExpires} placeholder={form.neverExpires ? "N/A — Never Expires" : "e.g. 365"} />
     </Field>
+    {form.neverExpires && form.gracePeriod && (
+      <div style={{ padding:'8px 12px', background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:8, fontSize:12, color:'#92400e', marginBottom:8 }}>
+        ⚠ Grace Period has no effect when package Never Expires.
+      </div>
+    )}
     <Toggle value={form.gracePeriod} onChange={()=>setForm(p=>({...p,gracePeriod:!p.gracePeriod,graceTenure:""}))}
       label="Allow Grace Beyond Expiry" />
     <Field label="Grace Tenure (Days)" error={errors.graceTenure}>
@@ -478,8 +483,10 @@ const PackageMaster = () => {
 
   useEffect(()=>{ if(view==="list") loadList(); },[view,search,status]);
 
+  const [formDirty, setFormDirty] = useState(false);
+
   const openCreate = () => {
-    setSaveAttempted(false);
+    setSaveAttempted(false); setFormDirty(false);
     const u = getUser();
     // Pre-populate pricing rows from user's centres — for now one row for current centre
     const pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false }];
@@ -488,7 +495,7 @@ const PackageMaster = () => {
   };
 
   const openEdit = async (code) => {
-    setSaveAttempted(false);
+    setSaveAttempted(false); setFormDirty(false);
     try {
       const data = await authGet(`${API_BASE_URL}/api/Package/${code}`);
       setForm({
@@ -649,6 +656,7 @@ const PackageMaster = () => {
         return;
       }
       showToast(result?.message || (isSubmit ? "Package submitted and released!" : "Package saved as draft!"));
+      setFormDirty(false);
       setView("list");
     } catch(err) {
       parseApiError(err.message || "An unexpected error occurred.");
@@ -781,7 +789,7 @@ const PackageMaster = () => {
       </div>
 
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300 }}>
-        {activeTab===0 && <GeneralTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} />}
+        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} />}
         {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} />}
         {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===3 && <ValidityTab    form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}

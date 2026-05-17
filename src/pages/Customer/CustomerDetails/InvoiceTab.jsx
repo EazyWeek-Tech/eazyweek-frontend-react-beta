@@ -35,16 +35,39 @@ const InvoicesTab = ({ custId, recId }) => {
         const data = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
         const allInvoices = data;
         // Show only Sales invoices in the table
-        setInvoiceData(allInvoices.filter(i => !i.transType || i.transType === "Sales"));
-        // Build set of original invoice nums that have been returned
-        // Return invoices store original inv num in appointmentId field
+        const parseInvDate = (d) => {
+          if (!d) return 0;
+          // Handle DD/MM/YYYY format
+          if (typeof d === "string" && d.includes("/")) {
+            const [day, mon, yr] = d.split("/");
+            return new Date(`${yr}-${mon}-${day}`).getTime();
+          }
+          return new Date(d).getTime();
+        };
+        const salesInvoices = allInvoices
+          .filter(i => !i.transType || i.transType === "Sales" || i.transType === "Return")
+          .sort((a, b) => {
+            // Primary: date descending
+            const dateDiff = parseInvDate(b.invoiceDate) - parseInvDate(a.invoiceDate);
+            if (dateDiff !== 0) return dateDiff;
+            // Secondary: invoice number suffix descending (e.g. INVBright00349 > INVBright00348)
+            const numA = parseInt((a.invoiceNum || "").replace(/\D/g, "")) || 0;
+            const numB = parseInt((b.invoiceNum || "").replace(/\D/g, "")) || 0;
+            return numB - numA;
+          });
+        setInvoiceData(salesInvoices);
+        // Track which invoices have return transactions against them
+        // We store them as a Map: invoiceNum -> 'full' | 'partial'
+        // The SalesReturn modal handles the actual line-level partial detection
+        // Here we just know IF there's any return — modal shows remaining returnable lines
         const returnedSet = new Set(
           allInvoices
             .filter(i => i.transType === "Return")
             .map(i => i.appointmentId || i.appointmentID || "")
             .filter(Boolean)
         );
-        setReturnedInvoices(returnedSet);
+        // Mark as partial (not fully returned) unless no lines remain
+        setReturnedInvoices(new Set()); // never fully block — let modal handle it
       } catch { setError("An error occurred while fetching invoices"); }
       finally { setLoading(false); }
     })();
@@ -119,7 +142,7 @@ const InvoicesTab = ({ custId, recId }) => {
             <table className="inv-table">
               <thead>
                 <tr>
-                  <th>Invoice No</th><th>Date</th>
+                  <th>Invoice No</th><th>Date</th><th>Type</th>
                   <th className="num">Amount</th><th className="num">Tax</th><th className="num">Rounding</th>
                   <th>Payment</th><th>Action</th>
                 </tr>
@@ -131,21 +154,29 @@ const InvoicesTab = ({ custId, recId }) => {
                   <tr key={idx} className="inv-row">
                     <td><Link to={`/invoice-details/${item.invoiceNum}`} className="inv-link">{item.invoiceNum}</Link></td>
                     <td className="inv-date">{item.invoiceDate}</td>
+                    <td>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "3px 10px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: item.transType === "Return" ? "#fde8e8" : "#e6f4ef",
+                        color:      item.transType === "Return" ? "#b91c1c"  : "#2e7d5e",
+                        border:     item.transType === "Return" ? "1px solid #f0c4c0" : "1px solid #b3d9cc",
+                      }}>
+                        {item.transType === "Return" ? "Return" : "Sale"}
+                      </span>
+                    </td>
                     <td className="num inv-amount">{fmt(item.amount)}</td>
                     <td className="num inv-muted">{fmt(item.tax)}</td>
                     <td className="num inv-muted">{fmt(item.roundingOff)}</td>
                     <td><span className="inv-mode">{item.paymentMode}</span></td>
                     <td>
-                      {returnedInvoices.has(item.invoiceNum) ? (
-                        <span style={{ fontSize:11, fontWeight:700, color:"#b91c1c", background:"#fde8e8", border:"1px solid #f0c4c0", borderRadius:6, padding:"4px 10px" }}>
-                          Returned
-                        </span>
-                      ) : (
-                        <button onClick={() => setShowReturn(true)}
-                          style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>
-                          Return
-                        </button>
-                      )}
+                      <button onClick={() => setShowReturn(true)}
+                        style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>
+                        Return
+                      </button>
                     </td>
                   </tr>
                 ))}

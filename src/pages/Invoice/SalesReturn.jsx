@@ -49,19 +49,8 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
         }
         const arr = Array.isArray(data) ? data : [];
         setResults(arr);
-        // Also fetch return invoices to know which originals are already returned
-        try {
-          const allData = await authGet(
-            `${API_BASE_URL}/api/SalesReturn/SearchInvoices?searchBy=customerNo&searchValue=${encodeURIComponent(custId || "")}&includeReturns=true`
-          );
-          const returned = new Set(
-            (Array.isArray(allData) ? allData : [])
-              .filter(i => i.transType === "Return")
-              .map(i => i.appointmentId || "")
-              .filter(Boolean)
-          );
-          setReturnedSet(returned);
-        } catch { /* non-critical */ }
+        // returnedSet now comes from fullyReturned flag in results — no extra call needed
+        // partialReturn flag also available per invoice
       } catch { setResults([]); }
       finally { setLoading(false); }
     })();
@@ -135,20 +124,27 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
                       <td style={{ padding: "10px 12px" }}>{inv.custNo}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{fmt(inv.sumTotal)}</td>
                       <td style={{ padding: "10px 12px" }}>
-                        <span style={{ display: "inline-flex", gap: 8 }}>
+                        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                           <button onClick={() => onSelect(inv, "view")}
                             style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6, background: "#fff", color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
                             View
                           </button>
-                          {returnedSet.has(inv.invoiceNum) ? (
+                          {inv.fullyReturned ? (
                             <span style={{ padding:"4px 10px", fontSize:11, fontWeight:700, color:"#b91c1c", background:"#fde8e8", border:"1px solid #f0c4c0", borderRadius:6 }}>
                               Returned
                             </span>
                           ) : (
-                            <button onClick={() => onSelect(inv, "return")}
-                              style={{ padding: "4px 12px", border: "none", borderRadius: 6, background: "#334b71", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
-                              Return
-                            </button>
+                            <>
+                              {inv.partialReturn && (
+                                <span style={{ padding:"3px 8px", fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fcd34d", borderRadius:6 }}>
+                                  Partial
+                                </span>
+                              )}
+                              <button onClick={() => onSelect(inv, "return")}
+                                style={{ padding: "4px 12px", border: "none", borderRadius: 6, background: "#334b71", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                                Return
+                              </button>
+                            </>
                           )}
                         </span>
                       </td>
@@ -217,12 +213,15 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
         errs[`${lineNo}_qtyReturned`] = `Max ${line.availableQty}`;
       else if (!Number.isInteger(Number(qtyReturned)))
         errs[`${lineNo}_qtyReturned`] = "Whole numbers only.";
-      if (!amtReturned || isNaN(amtReturned) || parseFloat(amtReturned) <= 0)
-        errs[`${lineNo}_amtReturned`] = "Enter valid amount.";
-      else if (parseFloat(amtReturned) > line.availableAmt)
-        errs[`${lineNo}_amtReturned`] = `Max ${line.availableAmt.toFixed(2)}`;
-      else if (parseFloat(amtReturned) < 0)
-        errs[`${lineNo}_amtReturned`] = "Cannot be negative.";
+      // Skip amount validation for package-redeemed lines — amount is always 0
+      if (!line.isPackageRedeemed) {
+        if (!amtReturned || isNaN(amtReturned) || parseFloat(amtReturned) <= 0)
+          errs[`${lineNo}_amtReturned`] = "Enter valid amount.";
+        else if (parseFloat(amtReturned) > line.availableAmt)
+          errs[`${lineNo}_amtReturned`] = `Max ${line.availableAmt.toFixed(2)}`;
+        else if (parseFloat(amtReturned) < 0)
+          errs[`${lineNo}_amtReturned`] = "Cannot be negative.";
+      }
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -242,8 +241,9 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
         itemName:     line.itemName,
         itemType:     line.itemType,
         qtyReturned:  parseInt(selected[lineNo].qtyReturned),
-        amtReturned:  parseFloat(selected[lineNo].amtReturned),
-        salesAmount:  parseFloat(selected[lineNo].amtReturned), // simplified
+        amtReturned:  line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
+        salesAmount:  line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
+        isPackageRedeemed: line.isPackageRedeemed || false,
         taxAmount:    0,
       };
     });
@@ -304,10 +304,12 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
                     {isChecked ? (
                       <>
                         <input type="number" min={0.01} max={line.availableAmt} step={0.01}
-                          value={selected[line.lineNo]?.amtReturned || ""}
-                          onChange={e => update(line.lineNo, "amtReturned", e.target.value)}
-                          style={{ width: 100, padding: "4px 6px", border: `1.5px solid ${errors[`${line.lineNo}_amtReturned`] ? "#b91c1c" : "#e2e8f0"}`, borderRadius: 6, fontSize: 13 }} />
-                        {errors[`${line.lineNo}_amtReturned`] && <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_amtReturned`]}</div>}
+                          value={line.isPackageRedeemed ? "0" : (selected[line.lineNo]?.amtReturned || "")}
+                          onChange={e => !line.isPackageRedeemed && update(line.lineNo, "amtReturned", e.target.value)}
+                          readOnly={line.isPackageRedeemed}
+                          style={{ width: 100, padding: "4px 6px", border: `1.5px solid ${errors[`${line.lineNo}_amtReturned`] ? "#b91c1c" : "#e2e8f0"}`, borderRadius: 6, fontSize: 13, background: line.isPackageRedeemed ? "#f1f5f9" : "#fff" }} />
+                        {line.isPackageRedeemed && <div style={{ color: "#2e7d5e", fontSize: 11, marginTop: 2 }}>📦 Package session — will be restored</div>}
+                        {!line.isPackageRedeemed && errors[`${line.lineNo}_amtReturned`] && <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_amtReturned`]}</div>}
                       </>
                     ) : <span style={{ color: "#cbd5e1" }}>—</span>}
                   </td>
@@ -338,7 +340,7 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 };
 
 // ── STEP 5 — Refund Payment Method ───────────────────────────────────────────
-const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loading }) => {
+const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loading, hasPackageLines }) => {
   const METHODS = ["Cash", "Card", "Bank Transfer", "Cheque", "Credit Note"];
   const [amounts, setAmounts] = useState({});
   const [error,   setError]   = useState("");
@@ -346,6 +348,27 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
   const entered     = METHODS.reduce((s, m) => s + (parseFloat(amounts[m]) || 0), 0);
   const remaining   = parseFloat((totalReturn - entered).toFixed(2));
   const isBalanced  = Math.abs(remaining) < 0.01;
+
+  // Zero-total: package redemption return — skip payment step entirely
+  if (totalReturn <= 0) return (
+    <div style={{ padding: 24, textAlign: "center" }}>
+      <div style={{ fontSize: 44, marginBottom: 12 }}>📦</div>
+      <div style={{ fontWeight: 700, fontSize: 16, color: "#334b71", marginBottom: 8 }}>
+        Package Session Return
+      </div>
+      <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24, lineHeight: 1.6 }}>
+        This service was covered by a package redemption.<br />
+        No cash refund is required — the session will be restored to the customer's package balance.
+      </div>
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        <button className="pribtnblue" onClick={() => onFinalize([])} disabled={loading}
+          style={{ minWidth: 200 }}>
+          {loading ? "Processing…" : "✓ Confirm Return & Restore Session"}
+        </button>
+        <button className="seclnk" onClick={onBack}>← Back</button>
+      </div>
+    </div>
+  );
 
   const handleFinalize = () => {
     if (!isBalanced) {
@@ -426,7 +449,9 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
     expiryDate.setFullYear(expiryDate.getFullYear() + 1);
 
     const fmt = (d) => d.toLocaleDateString("en-GB"); // DD/MM/YYYY
-    const totalReturn = returnData?.totalReturn || 0;
+    // Extract only the Credit Note portion — not the full return amount
+    const cnMethod    = returnData?.refundMethods?.find(m => m.method === 'Credit Note');
+    const cnAmount    = cnMethod ? parseFloat(cnMethod.amount) : (returnData?.totalReturn || 0);
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
       <title>Credit Note — ${creditNoteNum}</title>
@@ -468,7 +493,7 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
         <div class="cn-value">
           <div style="font-size:13px;color:#64748b;margin-bottom:6px">Credit Note Value</div>
           <span class="cn-currency">SAR </span>
-          <span class="cn-amount">${Number(totalReturn).toFixed(2)}</span>
+          <span class="cn-amount">${Number(cnAmount).toFixed(2)}</span>
         </div>
 
         <div class="cn-validity">
@@ -639,6 +664,8 @@ const SalesReturn = ({ onClose, custId }) => {
       };
       const res = await authPost(`${API_BASE_URL}/api/SalesReturn/Process`, payload);
       setResult(res);
+      // Store refundMethods in returnData so ReturnSuccess can extract CN amount
+      setReturnData(prev => ({ ...prev, refundMethods }));
       setStep("done");
     } catch (e) { setError(e.message || "Failed to process return."); }
     finally { setProcessing(false); }
@@ -679,6 +706,7 @@ const SalesReturn = ({ onClose, custId }) => {
               onBack={() => setStep("items")}
               onCancel={onClose}
               loading={processing}
+              hasPackageLines={returnData.returnLines?.some(l => l.isPackageRedeemed)}
             />
           )}
           {step === "done" && result && (

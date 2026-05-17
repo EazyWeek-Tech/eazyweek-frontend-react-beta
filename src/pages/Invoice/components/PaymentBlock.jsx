@@ -555,7 +555,7 @@ const PaymentBlock = ({
   };
 
   const handleSubmitInvoice = async () => {
-    if (payments.length === 0 && appliedCreditNotes.length === 0) {
+    if (!isZeroTotal && payments.length === 0 && appliedCreditNotes.length === 0) {
       setFormError('Please add at least one payment method.');
       return;
     }
@@ -643,18 +643,39 @@ const PaymentBlock = ({
       paymentDate:  now,
     }));
 
-    const paymentJson = [
-      ...payments.map((p, index) => ({
-        lineNo:      index + 1,
-        paymentMode: getPaymentModeKey(p.mode),
-        paymentName: p.mode,
-        cardNumber:  p.cardNumber || "",
-        totalAmount: parsedTotalAmount,
-        paidAmount:  p.amount,
-        paymentDate: now,
-      })),
-      ...cnPayments,
-    ];
+    const regularPayments = payments.map((p, index) => ({
+      lineNo:      index + 1,
+      paymentMode: getPaymentModeKey(p.mode),
+      paymentName: p.mode,
+      cardNumber:  p.cardNumber || "",
+      totalAmount: parsedTotalAmount,
+      paidAmount:  p.amount,
+      paymentDate: now,
+    }));
+
+    // SP requires at least one payment line — for zero-total (package redemption),
+    // send a SAR 0 "Package Redemption" entry so SP doesn't reject the payload
+    // PR-012/013/014/015: Store package redemption details in payment record
+    // paymentName = 'Advance Redemption', cardNumber encodes packageCode|purchaseInvoice|purchaseDate
+    const zeroPayment = (isZeroTotal && regularPayments.length === 0 && cnPayments.length === 0)
+      ? [{
+          lineNo:      1,
+          paymentMode: 0,
+          paymentName: "Advance Redemption",
+          cardNumber:  [
+            packageRedemption?.packageCode        || "",
+            packageRedemption?.purchaseInvoiceNum || "",
+            packageRedemption?.purchaseDate
+              ? new Date(packageRedemption.purchaseDate).toISOString().split("T")[0]
+              : "",
+          ].join("|"),
+          totalAmount: 0,
+          paidAmount:  0,
+          paymentDate: now,
+        }]
+      : [];
+
+    const paymentJson = [...regularPayments, ...cnPayments, ...zeroPayment];
 
     // Use the first paid line's appointmentId as header APPOINTMENTID
     // This ensures the SP stores the correct appointment reference
@@ -702,6 +723,63 @@ const PaymentBlock = ({
         }
         */
         setInvoiceSuccessPopup(true);
+
+        // ── Package Redemption → decrements BALANCEQTY in CLINIC_CUSTOMER_PACKAGES ──
+        if (packageRedemption && invoiceNum) {
+          try {
+            const custId = effectiveCustomer?.custId || custIdFromUrl || "";
+            await fetch(`${API_BASE_URL}/api/Package/Redeem`, {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                custId,
+                centerCode:           sessionCenterCode,
+                packageRecId:         packageRedemption.recId,
+                packageCode:          packageRedemption.packageCode,
+                serviceCode:          packageRedemption.serviceCode  || "",
+                serviceName:          packageRedemption.serviceName  || "",
+                redemptionInvoiceNum: invoiceNum,
+              }),
+            });
+            onRedemptionComplete?.();
+          } catch (e) {
+            console.warn("Package redeem failed:", e.message);
+          }
+        }
+
+        // ── Record Package Purchases → creates CLINIC_CUSTOMER_PACKAGES rows ──
+        const packageItems = effectiveInvoiceItems.filter(i =>
+          (i.type === 'package') || (i.itemType === 'package')
+        );
+        if (packageItems.length > 0 && invoiceNum) {
+          const custId     = effectiveCustomer?.custId || custIdFromUrl || "";
+          const centerCode = sessionCenterCode || "";
+          for (const pkg of packageItems) {
+            const packageCode = pkg.code || pkg.servicecode || pkg.itemCode || "";
+            if (!packageCode) continue;
+            try {
+              const pkgRes = await fetch(`${API_BASE_URL}/api/Package/RecordPurchase`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                  custId,
+                  centerCode,
+                  invoiceNum,
+                  invoiceDate: now,
+                  packageCode,
+                }),
+              });
+              const pkgJson = await pkgRes.json();
+              if (!pkgJson.success) {
+                console.warn(`Package ${packageCode} RecordPurchase failed:`, pkgJson.message);
+              } else {
+                console.log(`Package ${packageCode} recorded. Balance Qty: ${pkgJson.data?.balanceQty}`);
+              }
+            } catch (e) {
+              console.warn(`Package ${packageCode} RecordPurchase error:`, e.message);
+            }
+          }
+        }
 
         // ── Redeem applied Credit Notes → updates BALANCE in CLINIC_CREDIT_NOTES ──
         if (appliedCreditNotes.length > 0 && invoiceNum) {
@@ -771,7 +849,9 @@ const PaymentBlock = ({
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
                + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
-  const isCompleteEnabled = Math.abs(totalPaid - parsedTotalAmount) < 0.01;
+  // isZeroTotal: only meaningful when items exist and package redemption made it zero
+  const isZeroTotal       = parsedTotalAmount <= 0 && !!packageRedemption;
+  const isCompleteEnabled = isZeroTotal || Math.abs(totalPaid - parsedTotalAmount) < 0.01;
   const change = Math.max(0, parseFloat(amount || 0) - (parsedTotalAmount - totalPaid));
 
   return (
@@ -1012,7 +1092,15 @@ const PaymentBlock = ({
             </div>
           )}
 
-          {/* ── Credit Note inline tab content ── */}
+          {/* Zero-total banner — shown when package redemption covers full amount */}
+      {isZeroTotal && (
+        <div style={{ margin:"10px 0", padding:"10px 14px", background:"#e6f4ef",
+          border:"1px solid #b3d9cc", borderRadius:8, fontSize:13, color:"#2e7d5e", fontWeight:600 }}>
+          ✓ Full amount covered by package redemption — no payment required.
+        </div>
+      )}
+
+      {/* ── Credit Note inline tab content ── */}
           {activeTab === 'creditnote' && (
             <div style={{ padding: '4px 0' }}>
               {cnLoading ? (
@@ -1165,7 +1253,7 @@ const PaymentBlock = ({
         </div>
       </div>
 
-      {(payments.length > 0 || appliedCreditNotes.length > 0) && (
+      {(payments.length > 0 || appliedCreditNotes.length > 0 || (isZeroTotal && packageRedemption)) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
           <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled}>
             Complete Invoice

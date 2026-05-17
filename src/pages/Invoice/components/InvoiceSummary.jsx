@@ -18,7 +18,8 @@ const InvoiceSummary = ({
   isFinalized,
   onApplyPriceOverride,
   onRecallInvoice,
-  onCheckPackageBalance
+  onCheckPackageBalance,
+  disablePackageBalance = false,
 }) => {
   const [toast, setToast] = useState(null);
   const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
@@ -99,11 +100,10 @@ const InvoiceSummary = ({
           />
 
           <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button>
-          <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>
           <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>
 
           <button
-            className="pribtnblue"
+            className="coralbtnblue"
             onClick={onRecallInvoice}
           >
             Recall Invoice
@@ -112,8 +112,9 @@ const InvoiceSummary = ({
           <button
             className="pribtnblue"
             onClick={onCheckPackageBalance}
-            disabled={isFinalized}
-            style={{ background: "#2e7d5e" }}
+            disabled={isFinalized || disablePackageBalance}
+            title={disablePackageBalance ? "Not available when purchasing a package" : "Check Available Package Balance"}
+            style={{ background: "#2e7d5e", opacity: disablePackageBalance ? 0.45 : 1, cursor: disablePackageBalance ? 'not-allowed' : 'pointer' }}
           >
             Check Package Balance
           </button>

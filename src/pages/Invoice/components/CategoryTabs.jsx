@@ -51,7 +51,8 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
         );
         const json = await res.json();
         const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-        setQuickPackages(data.filter(p => p.ADDTOQUICKCART));
+        // PM-033/034: Only show packages released to this centre AND in Quick Cart
+        setQuickPackages(data.filter(p => p.ADDTOQUICKCART && p.RELEASEDTOCENTRE));
       } catch { setQuickPackages([]); }
       finally { setPkgLoading(false); }
     })();
@@ -165,11 +166,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
                       <div className="ctlft ctcell" title={item.serviceName}>
                         {truncate(item.serviceName)}
                       </div>
-                      {item.price > 0 && (
-                        <div className="ctrgt ctcell" style={{ fontSize: 12, fontWeight: 700, color: "#334B71", whiteSpace: "nowrap" }}>
-                          {parseFloat(item.price).toFixed(2)}
-                        </div>
-                      )}
+
                     </div>
                   ))
                 )}
@@ -177,14 +174,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
             ) : (
               /* ── Packages tab — Quick Cart items shown here ── */
               <div className="ctlistwrp">
-                {/* Quick Cart label */}
-                <div style={{ padding: "6px 10px 4px", fontSize: 11, fontWeight: 700, color: "#94a3b8",
-                  textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #f1f5f9",
-                  marginBottom: 4 }}>
-                  Quick Cart
-                </div>
-
-                {pkgLoading ? (
+{pkgLoading ? (
                   <div className="notext">Loading packages…</div>
                 ) : quickPackages.length === 0 ? (
                   <div className="notext">No packages in Quick Cart.<br />
@@ -214,11 +204,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
                         <div className="ctlft ctcell" title={pkg.PACKAGENAME}>
                           {truncate(pkg.PACKAGENAME)}
                         </div>
-                        {parseFloat(pkg.SELLINGPRICE) > 0 && (
-                          <div className="ctrgt ctcell" style={{ fontSize: 12, fontWeight: 700, color: "#334B71", whiteSpace: "nowrap" }}>
-                            {parseFloat(pkg.SELLINGPRICE).toFixed(2)}
-                          </div>
-                        )}
+
                       </div>
                     ))
                 )}

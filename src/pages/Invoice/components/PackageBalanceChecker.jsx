@@ -28,23 +28,47 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
   useEffect(() => {
     if (!custId || !centerCode) { setLoading(false); return; }
     (async () => {
+      // Debug: log all items to trace type values
+      console.log("[PackageBalanceChecker] items received:", items.map(i => ({
+        code: i.code || i.servicecode || i.itemCode,
+        type: i.type,
+        itemType: i.itemType,
+        name: i.name || i.itemName,
+      })));
+
+      // Only check service-type items — products are consumed at purchase, never redeemable
+      // Exclude: explicit product type, OR code starting with PRO- (product code pattern)
+      const serviceItems = items.filter(i => {
+        if (i._redeemed) return false;
+        const code = i.code || i.servicecode || i.itemCode || "";
+        const type = (i.type || i.itemType || "").toLowerCase();
+        if (type === 'product') return false;          // explicit product type
+        if (code.toUpperCase().startsWith('PRO-')) return false; // product code pattern
+        if (type === 'package') return false;          // packages not redeemable this way
+        return true; // service or unknown — check it
+      });
+
+      if (serviceItems.length === 0) {
+        setResults([]);
+        setLoading(false);
+        return;
+      }
+
       const checks = await Promise.all(
-        items
-          .filter(i => !i._redeemed) // skip already-redeemed lines
-          .map(async (item) => {
-            const code = item.code || item.servicecode || item.itemCode || "";
-            if (!code) return null;
-            try {
-              const res = await authPost(`${API_BASE_URL}/api/Package/CheckBalance`, {
-                custId, serviceCode: code,
-              });
-              return {
-                serviceCode: code,
-                serviceName: item.name || item.itemName || "",
-                packageInfo: res.found ? res : null,
-              };
-            } catch { return null; }
-          })
+        serviceItems.map(async (item) => {
+          const code = item.code || item.servicecode || item.itemCode || "";
+          if (!code) return null;
+          try {
+            const res = await authPost(`${API_BASE_URL}/api/Package/CheckBalance`, {
+              custId, serviceCode: code,
+            });
+            return {
+              serviceCode: code,
+              serviceName: item.name || item.itemName || "",
+              packageInfo: res.found ? res : null,
+            };
+          } catch { return null; }
+        })
       );
       setResults(checks.filter(Boolean));
       setLoading(false);
@@ -111,7 +135,7 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
               {/* No balance */}
               {none.length > 0 && (
                 <div style={{ marginTop:12, padding:"10px 14px", background:"#f8fafc", borderRadius:8, fontSize:12, color:"#94a3b8" }}>
-                  <strong>No balance</strong> for: {none.map(r => r.serviceName).join(", ")}
+                  <strong>No package balance</strong> for: {none.map(r => r.serviceName).join(", ")} — normal payment applies.
                 </div>
               )}
 

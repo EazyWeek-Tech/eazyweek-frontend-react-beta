@@ -22,33 +22,32 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
   useEffect(() => { if (suggestions.length > 0) setOpen(true); }, [suggestions]);
 
   return (
-    <div className="form-group" style={{ position: 'relative', flex: 1, minWidth: 180 }}>
-      <div style={s.floatWrap}>
-        <input
-          style={{ ...s.inp, background: disabled ? '#f8fafc' : '#fff' }}
-          type="text"
-          placeholder=" "
-          value={value}
-          disabled={disabled}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
-          autoComplete="off"
-        />
-        <label style={{ ...s.floatLabel, ...(value ? s.floatLabelUp : {}) }}>{label}</label>
-        {loading && <span style={s.spinner}>⟳</span>}
-      </div>
+    <div ref={wrapRef} className="form-group" style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+      <input
+        className="frminp"
+        type="text"
+        placeholder={label}
+        value={value}
+        disabled={disabled}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+        autoComplete="off"
+        style={{ background: disabled ? '#f8fafc' : '#fff' }}
+      />
+      <label className="frmlbl">{label}</label>
+      {loading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 16 }}>⟳</span>}
 
       {open && suggestions.length > 0 && (
-        <ul style={s.dropdown}>
+        <ul style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: 220, overflowY: 'auto' }}>
           {suggestions.map((item, idx) => (
             <li key={idx}
               onMouseDown={() => { onSelect(item); setOpen(false); }}
-              style={s.dropItem}
+              style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 13, color: '#111827', display: 'flex', flexDirection: 'column', gap: 2 }}
               onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
               onMouseLeave={e => e.currentTarget.style.background = '#fff'}
             >
               <span>{item._label}</span>
-              {item._sub && <span style={s.dropSub}>{item._sub}</span>}
+              {item._sub && <span style={{ fontSize: 11, color: '#9ca3af' }}>{item._sub}</span>}
             </li>
           ))}
         </ul>
@@ -57,23 +56,29 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
   );
 };
 
-// ── SimpleAutocomplete for package / product (existing behaviour) ─────────────
+// ── SimpleAutocomplete for package / product ──────────────────────────────────
 const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fieldFocused }) => (
   <div className="form-group" style={{ position: 'relative' }}>
     <input
       type="text"
-      placeholder=" "
+      placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
       id={field}
       value={value}
       onChange={e => onChange(field, e.target.value)}
+      className="frminp"
     />
     <label htmlFor={field} className="frmlbl">
       {field.charAt(0).toUpperCase() + field.slice(1)}
     </label>
     {suggestions.length > 0 && fieldFocused === field && (
-      <ul className="suggestion-list">
+      <ul style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: 220, overflowY: 'auto' }}>
         {suggestions.map((item, idx) => (
-          <li key={idx} onClick={() => onSelect(item)}>
+          <li key={idx}
+            onMouseDown={() => onSelect(item)}
+            style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 13, color: '#111827' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+            onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+          >
             {item.packageName || item.productName || item.name}
           </li>
         ))}
@@ -85,32 +90,28 @@ const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fie
 // ─────────────────────────────────────────────────────────────────────────────
 const InvoiceForm = ({ onAddItem, customer, showToast }) => {
 
-  // ── Service autocomplete ───────────────────────────────────────────────────
-  const [serviceText,       setServiceText]       = useState('');
-  const [serviceSuggestions,setServiceSuggestions]= useState([]);
-  const [serviceLoading,    setServiceLoading]    = useState(false);
-  const [selectedService,   setSelectedService]   = useState(null);
+  const [serviceText,        setServiceText]        = useState('');
+  const [serviceSuggestions, setServiceSuggestions] = useState([]);
+  const [serviceLoading,     setServiceLoading]     = useState(false);
+  const [selectedService,    setSelectedService]    = useState(null);
 
-  // ── Practitioner autocomplete ──────────────────────────────────────────────
-  const [practText,         setPractText]         = useState('');
-  const [practSuggestions,  setPractSuggestions]  = useState([]);
-  const [selectedPract,     setSelectedPract]     = useState(null);
-  const [allPractitioners,  setAllPractitioners]  = useState([]);
+  const [practText,          setPractText]          = useState('');
+  const [practSuggestions,   setPractSuggestions]   = useState([]);
+  const [selectedPract,      setSelectedPract]      = useState(null);
+  const [allPractitioners,   setAllPractitioners]   = useState([]);
 
-  // ── Package / Product (legacy autocomplete) ────────────────────────────────
-  const [packageText,       setPackageText]       = useState('');
-  const [productText,       setProductText]       = useState('');
-  const [legacySuggestions, setLegacySuggestions] = useState([]);
-  const [legacyFocused,     setLegacyFocused]     = useState(null);
-  const [selectedLegacy,    setSelectedLegacy]    = useState(null);
+  const [packageText,        setPackageText]        = useState('');
+  const [productText,        setProductText]        = useState('');
+  const [legacySuggestions,  setLegacySuggestions]  = useState([]);
+  const [legacyFocused,      setLegacyFocused]      = useState(null);
+  const [selectedLegacy,     setSelectedLegacy]     = useState(null);
 
-  // ── Gift card ──────────────────────────────────────────────────────────────
-  const [giftcard,          setGiftcard]          = useState('');
+  const [giftcard,           setGiftcard]           = useState('');
 
   const serviceDebounce = useRef(null);
   const practDebounce   = useRef(null);
 
-  // ── Load all practitioners for center on mount ─────────────────────────────
+  // Load practitioners on mount
   useEffect(() => {
     const centerCode = getCenterCode();
     if (!centerCode) return;
@@ -122,7 +123,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
       .catch(() => setAllPractitioners([]));
   }, []);
 
-  // ── Service search ─────────────────────────────────────────────────────────
+  // Service search
   const handleServiceChange = useCallback((value) => {
     setServiceText(value);
     setSelectedService(null);
@@ -154,7 +155,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     setServiceSuggestions([]);
   }, []);
 
-  // ── Practitioner search (client-side filter) ───────────────────────────────
+  // Practitioner search
   const handlePractChange = useCallback((value) => {
     setPractText(value);
     setSelectedPract(null);
@@ -177,7 +178,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     setPractSuggestions([]);
   }, []);
 
-  // ── Package / Product legacy search ───────────────────────────────────────
+  // Package / Product search
   const handleLegacyChange = async (field, value) => {
     if (field === 'package') setPackageText(value);
     if (field === 'product') setProductText(value);
@@ -205,12 +206,11 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     setSelectedLegacy(item);
   };
 
-  // ── Add to invoice ─────────────────────────────────────────────────────────
+  // Add to invoice
   const handleAdd = () => {
     const custId = customer?.custid || customer?.custId || customer?.fullName;
     if (!custId) { showToast?.("Please select a customer before adding."); return; }
 
-    // Service + practitioner path
     if (selectedService || serviceText) {
       if (!selectedService) { showToast?.("Please select a service from the dropdown."); return; }
       if (!selectedPract)   { showToast?.("Please select a practitioner."); return; }
@@ -232,7 +232,6 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
       return;
     }
 
-    // Package / product path (legacy)
     if (selectedLegacy) {
       if (!selectedPract) { showToast?.("Please select a practitioner."); return; }
 
@@ -263,24 +262,15 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     <form className="invform">
       <div className="frmwrpinv">
 
-        {/* ── Service autocomplete (new) ── */}
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <AutocompleteInput
-            label="Service"
-            value={serviceText}
-            onChange={handleServiceChange}
-            onSelect={handleServiceSelect}
-            suggestions={serviceSuggestions}
-            loading={serviceLoading}
-          />
-          {selectedService && (
-            <div style={s.priceBadge}>
-              Price: <strong>{parseFloat(selectedService.price ?? 0).toFixed(2)}</strong>
-            </div>
-          )}
-        </div>
+        <AutocompleteInput
+          label="Service"
+          value={serviceText}
+          onChange={handleServiceChange}
+          onSelect={handleServiceSelect}
+          suggestions={serviceSuggestions}
+          loading={serviceLoading}
+        />
 
-        {/* ── Package (legacy) ── */}
         <SimpleAutocomplete
           field="package"
           value={packageText}
@@ -290,7 +280,6 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
           fieldFocused={legacyFocused}
         />
 
-        {/* ── Product (legacy) ── */}
         <SimpleAutocomplete
           field="product"
           value={productText}
@@ -300,54 +289,35 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
           fieldFocused={legacyFocused}
         />
 
-        {/* ── Practitioner autocomplete (new) ── */}
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <AutocompleteInput
-            label="Practitioner"
-            value={practText}
-            onChange={handlePractChange}
-            onSelect={handlePractSelect}
-            suggestions={practSuggestions}
-            loading={false}
-            disabled={allPractitioners.length === 0}
-          />
-        </div>
+        <AutocompleteInput
+          label="Practitioner"
+          value={practText}
+          onChange={handlePractChange}
+          onSelect={handlePractSelect}
+          suggestions={practSuggestions}
+          loading={false}
+          disabled={allPractitioners.length === 0}
+        />
 
-        {/* ── Gift Card (legacy) ── */}
         <div className="form-group">
           <input
             type="text"
-            placeholder=" "
+            placeholder="Gift Card"
             id="giftcard"
             value={giftcard}
             onChange={e => setGiftcard(e.target.value)}
+            className="frminp"
           />
           <label htmlFor="giftcard" className="frmlbl">Gift Card</label>
         </div>
 
-        {/* ── Add button ── */}
         <div className="form-group frmbtngrp">
-          <button type="button" className="addbtn" onClick={handleAdd}>
-            Add
-          </button>
+          <button type="button" className="addbtn" onClick={handleAdd}>Add</button>
         </div>
 
       </div>
     </form>
   );
-};
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-const s = {
-  floatWrap:   { position: 'relative' },
-  inp:         { width: '100%', padding: '6px 10px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12, boxSizing: 'border-box', outline: 'none' },
-  floatLabel:  { position: 'absolute', left: 12, top: 9, fontSize: 12, color: '#777', pointerEvents: 'none', transition: 'all .15s' },
-  floatLabelUp:{ top: 3, fontSize: 10, color: '#777', fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  spinner:     { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 16 },
-  dropdown:    { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: 220, overflowY: 'auto' },
-  dropItem:    { padding: '9px 14px', cursor: 'pointer', fontSize: 13, color: '#111827', display: 'flex', flexDirection: 'column', gap: 2 },
-  dropSub:     { fontSize: 11, color: '#9ca3af' },
-  priceBadge:  { marginTop: 4, fontSize: 12, color: '#065f46', background: '#f0fdf4', border: '1px solid #6ee7b7', borderRadius: 6, padding: '3px 8px', display: 'inline-block' },
 };
 
 export default InvoiceForm;

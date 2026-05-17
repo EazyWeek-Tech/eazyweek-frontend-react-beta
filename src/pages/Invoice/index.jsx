@@ -277,6 +277,7 @@ useEffect(() => {
               setShowPopup={setShowPopup}
               onRecallInvoice={() => setShowReturn(true)}
               onCheckPackageBalance={() => setShowPkgBalance(true)}
+              disablePackageBalance={items.some(i => i.type === 'package' || i.itemType === 'package')}
               onManualDiscount={handleManualDiscount}
               onClearCart={handleClearCart}
               onSuspendCart={handleSuspendCart}
