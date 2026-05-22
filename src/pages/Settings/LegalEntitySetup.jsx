@@ -263,9 +263,12 @@ export default function LegalEntitySetup() {
             <div key={tab}
               className={`le-tab ${activeTab===tab?"active":""} ${!existing && tab!=="General"?"disabled":""}`}
               onClick={() => (existing || tab==="General") && setActiveTab(tab)}>
-              {tab==="General"?"🏢 General":tab==="Address"?"📍 Address":tab==="Contact"?"📞 Contact":
-               tab==="Logo"?"🖼 Logo":tab==="Tax"?"🧾 Tax":tab==="Setup"?"⚙ Setup":""}
-              {" "}{tab}
+              {tab==="General"?"🏢 General":
+               tab==="Address"?"📍 Address":
+               tab==="Contact"?"📞 Contact":
+               tab==="Logo"?"🖼 Logo":
+               tab==="Tax"?"🧾 Tax":
+               tab==="Setup"?"⚙ Setup":tab}
             </div>
           ))}
         </div>

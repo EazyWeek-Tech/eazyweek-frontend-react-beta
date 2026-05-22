@@ -136,6 +136,7 @@ const Sidebar = ({ collapsed }) => {
         { name: "Loyalty", path: "/loyalty" },
         { name: "Membership", path: "/membership" },
         { name: "Legal Entity", path: "/settings/legal-entity" },
+         { name: "Centre Setup", path: "/settings/centre-setup" },
         { name: "Discount", path: "/discounts" }
       ],
     },
