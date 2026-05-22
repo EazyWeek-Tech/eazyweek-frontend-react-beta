@@ -12,6 +12,7 @@ import InvoiceTable from './components/InvoiceTable';
 import Toast from './components/Toast';
 import SalesReturn from './SalesReturn';
 import PackageBalanceChecker from './components/PackageBalanceChecker';
+import PromotionModal       from './components/PromotionModal';
 import './styles/InvoicePage.css';
 
 const InvoicePage = () => {
@@ -24,6 +25,8 @@ const InvoicePage = () => {
   const [toast, setToast] = useState(null);
   const [showReturn,       setShowReturn]       = useState(false);
   const [showPkgBalance,   setShowPkgBalance]   = useState(false);
+  const [showPromotion,    setShowPromotion]    = useState(false);
+  const [appliedPromotions,setAppliedPromotions]= useState([]);
   const [packageRedemption,setPackageRedemption] = useState(null); // { recId, packageCode, packageName, purchaseInvoiceNum, purchaseDate }
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
@@ -145,8 +148,9 @@ useEffect(() => {
   const handleDiscountChange = (index, value) => {
     const updatedItems = [...items];
     updatedItems[index].discount = value;
+    updatedItems[index]._manualDiscount = parseFloat(value) > 0;
     setItems(updatedItems);
-  };
+};
 
   const handleRemove = (index) => {
     setItems(items.filter((_, idx) => idx !== index));
@@ -161,9 +165,13 @@ useEffect(() => {
     setFormResetKey(prev => prev + 1);
   };
 
-  const handleManualDiscount = (updatedItems) => {
-    setItems(updatedItems);
-  };
+ const handleManualDiscount = (updatedItems) => {
+    const tagged = updatedItems.map(item => ({
+        ...item,
+        _manualDiscount: parseFloat(item.discount) > 0,
+    }));
+    setItems(tagged);
+};
 
   const handleSuspendCart = () => {
     if (items.length === 0) return;
@@ -191,6 +199,31 @@ useEffect(() => {
   };
 
   const handleClearCart = () => setItems([]);
+
+  const handleRemoveManualDiscount = (idx) => {
+    // Remove manual discount from a specific item only
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      return { ...item, discount: 0, _manualDiscount: false };
+    }));
+  };
+
+  const handleRemovePromotion = () => {
+    // Remove item-level promotion from all items — restore original prices
+    setItems(prev => prev.map(item => {
+      if (!item._promotionId) return item;
+      return { ...item, discount: 0, _promotionId: undefined, _promotionName: undefined };
+    }));
+    setAppliedPromotions(prev => prev.filter(p => p.applicationLevel !== "Item Level"));
+  };
+
+  const handlePromotionApply = (result) => {
+    // Update items with promotion discounts
+    if (result.updatedItems?.length) setItems(result.updatedItems);
+    // Store applied promotions for saving after invoice
+    if (result.applied?.length) setAppliedPromotions(prev => [...prev, ...result.applied]);
+    setShowPromotion(false);
+  };
 
   // Called when user confirms a package redemption from the balance checker
   const handlePackageRedeem = ({ packageInfo, serviceCode }) => {
@@ -265,18 +298,22 @@ useEffect(() => {
               </div>
             </div>
 
-            <InvoiceTable
-              items={items}
-              onRemove={handleRemove}
-              readOnlyInputs={true}
-              customer={selectedCustomer}
-            />
+           <InvoiceTable
+  items={items}
+  onRemove={handleRemove}
+  readOnlyInputs={true}
+  customer={selectedCustomer}
+  appliedPromotions={appliedPromotions}
+  onRemovePromotion={handleRemovePromotion}
+  onRemoveManualDiscount={handleRemoveManualDiscount} 
+/>
 
             <InvoiceSummary
               showPopup={showPopup}
               setShowPopup={setShowPopup}
               onRecallInvoice={() => setShowReturn(true)}
               onCheckPackageBalance={() => setShowPkgBalance(true)}
+              onPromotion={() => setShowPromotion(true)}
               disablePackageBalance={items.some(i => i.type === 'package' || i.itemType === 'package')}
               onManualDiscount={handleManualDiscount}
               onClearCart={handleClearCart}
@@ -331,6 +368,9 @@ useEffect(() => {
               customer={selectedCustomer}
               recId={selectedCustomer?.recId || recIdFromUrl || ""}
               packageRedemption={packageRedemption}
+              appliedPromotions={appliedPromotions}
+              onRemovePromotion={handleRemovePromotion}
+              onRemoveManualDiscount={handleRemoveManualDiscount}
               onRedemptionComplete={() => setPackageRedemption(null)}
             />
           </aside>
@@ -347,6 +387,14 @@ useEffect(() => {
 
       {showReturn && (
         <SalesReturn onClose={() => setShowReturn(false)} />
+      )}
+
+      {showPromotion && (
+        <PromotionModal
+          items={items}
+          onApply={handlePromotionApply}
+          onClose={() => setShowPromotion(false)}
+        />
       )}
 
       {showPkgBalance && (

@@ -27,6 +27,7 @@ const paymentModes = [
 ];
 
 const PaymentBlock = ({
+  appliedPromotions = [],
   totalAmount = 0,
   prefillPaymentData,
   invoiceItems = [],

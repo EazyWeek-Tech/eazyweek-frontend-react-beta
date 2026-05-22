@@ -315,6 +315,8 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
           <button type="button" className="addbtn" onClick={handleAdd}>Add</button>
         </div>
 
+        
+
       </div>
     </form>
   );

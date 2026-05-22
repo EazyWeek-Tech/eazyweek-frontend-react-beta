@@ -20,6 +20,7 @@ const InvoiceSummary = ({
   onRecallInvoice,
   onCheckPackageBalance,
   disablePackageBalance = false,
+  onPromotion,
 }) => {
   const [toast, setToast] = useState(null);
   const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
@@ -100,13 +101,23 @@ const InvoiceSummary = ({
           />
 
           <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button>
+          <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>
           <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>
 
           <button
-            className="coralbtnblue"
+            className="pribtnblue"
             onClick={onRecallInvoice}
           >
             Recall Invoice
+          </button>
+
+          <button
+            className="pribtnblue"
+            onClick={onPromotion}
+            disabled={isFinalized}
+            style={{ background:"#6d4c9e" }}
+          >
+            Promotion
           </button>
 
           <button
@@ -131,7 +142,7 @@ const InvoiceSummary = ({
           )}
         </div>
 
-        <button className="pribtnblue tooltip" onClick={handleClearCartClick} disabled={isFinalized} data-tooltip="Clear Cart" data-tooltip-pos="down">
+        <button className="pribtnblue tooltip" onClick={handleClearCartClick} disabled={isFinalized} data-tooltip="Clear Cart" data-tooltip-pos="down" style={{ 'height':30 }}>
           <img src={`${import.meta.env.BASE_URL}images/shoppingcrt.svg`} alt="Clear Cart" width={16} />
         </button>
       </div>

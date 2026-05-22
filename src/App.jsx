@@ -89,6 +89,7 @@ import ResetPassword from "./pages/ResetPassword";
 import FirstLoginModal from "./components/FirstLoginModal";
 import EmployeeSegmentMapping from "./pages/Masters/EmployeeSegmentMapping";
 import PackageMaster from "./pages/Masters/PackageMaster";
+import LegalEntitySetup from "./pages/Settings/LegalEntitySetup";
 
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
@@ -308,6 +309,9 @@ if (user && showFirstLogin) {
                     element={<DoctorMaster />}
                   />
                   <Route path="/masters/clinic" element={<ClinicMaster />} />
+
+                  <Route path="/settings/legal-entity" element={<LegalEntitySetup />} />
+
                   <Route
                     path="/masters/department"
                     element={<DepartmentMaster />}

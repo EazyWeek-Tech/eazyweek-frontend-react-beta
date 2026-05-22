@@ -389,7 +389,7 @@
                 width: 45px;
             }
 
-            .delbtn {
+            .actbtncell .delbtn {
                 border: none;
                 background: none;
                 color: #fff;
