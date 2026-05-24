@@ -135,6 +135,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
               onClick={() => setActiveTab("packages")}
             >Packages</button>
 
+
           </div>
 
           <div className="subtabs">

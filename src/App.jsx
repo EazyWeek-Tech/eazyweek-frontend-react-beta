@@ -75,7 +75,6 @@ import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesCon
 import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
-import FormList from "./pages/EMR/AdvanceFormBuilder/FormList";
 import DispositionMappingList from "./pages/Opportunity/DispositionMappingList";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
@@ -91,7 +90,10 @@ import EmployeeSegmentMapping from "./pages/Masters/EmployeeSegmentMapping";
 import PackageMaster from "./pages/Masters/PackageMaster";
 import LegalEntitySetup from "./pages/Settings/LegalEntitySetup";
 import CentreSetup from "./pages/Settings/CentreSetup";
-
+import OrgHierarchy from "./pages/Settings/OrgHierarchy";
+import ZoneSetup from "./pages/Settings/ZoneSetup";
+import FormBuilder from "./pages/EMR/FormBuilder";
+import FormList from "./pages/EMR/FormList";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -272,6 +274,9 @@ if (user && showFirstLogin) {
   
 />
 
+<Route path="/emr/forms"           element={<FormList />} />
+<Route path="/emr/builder/:formCode" element={<FormBuilder />} />
+
 <Route path="/opportunity/external/:fromDate/:toDate/:oppCode" element={<ExternalLeadsTable />} />
 
 
@@ -314,6 +319,10 @@ if (user && showFirstLogin) {
                   <Route path="/settings/legal-entity" element={<LegalEntitySetup />} />
 
                   <Route path="/settings/centre-setup" element={<CentreSetup />} />
+
+                   <Route path="/settings/zone-setup" element={<ZoneSetup />} />
+
+                  <Route path="/settings/org-setup" element={<OrgHierarchy />} />
 
                   <Route
                     path="/masters/department"
@@ -436,10 +445,7 @@ if (user && showFirstLogin) {
                   />
 
                   {/* Mapped Forms / Custom Forms */}
-                  <Route
-                    path="/mapped-forms/list-forms"
-                    element={<FormList />}
-                  />
+                  
                   <Route
                     path="/consent-form/laser-session-consent"
                     element={<LaserSessionCF />}

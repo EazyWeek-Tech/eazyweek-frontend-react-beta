@@ -3,6 +3,8 @@ import { Link, useNavigate, Routes, Route } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import AppointmentDrawer from "./AppointmentDrawer";
 import InvoicePage from "../Invoice";
+import { useEMRForms } from "./useEMRForms";
+import FormFillModal from "./FormFillModal";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -128,6 +130,9 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
   const [toast,  setToast]  = useState(null);
   const [loading,setLoading]= useState(false);
 
+  // ── EMR Forms hook ────────────────────────────────────────────────────────
+  const { checkAndShowForms, showModal, modalProps } = useEMRForms();
+
   const user        = useMemo(() => getUser(), []);
   const centerCode  = user.centerCode || "";
   const apptId      = appointment?.appointmentId;
@@ -177,13 +182,32 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
     } catch { setToast({ message: "Error updating appointment.", type: "error" }); }
   };
 
-  const handleStatusChange = (e) => {
+  const handleStatusChange = async (e) => {
     const newStatus = e.target.value;
     if (isRestricted && (newStatus === "Cancelled" || newStatus === "No Show")) {
-      setToast({ message: "Cannot cancel/no-show after checked in or active.", type: "error" }); return;
+      setToast({ message: "Cannot cancel/no-show after checked in or active.", type: "error" });
+      return;
     }
+
+    // EMR: Check mandatory forms before Active / Completed
+    if (newStatus === "Active" || newStatus === "Completed") {
+      const toStatus    = newStatus === "Active" ? "Start" : "Completed";
+      const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
+      const canProceed  = await checkAndShowForms({
+        appointmentId: apptId,
+        serviceCode,
+        custId:     appt?.custId || "",
+        centerCode,
+        toStatus,
+      });
+      if (!canProceed) return;
+    }
+
     setStatus(newStatus);
-    sendStatusUpdate({ appointmentId: apptId, status: newStatus, operation: "STATUSUPDATE", centerCode, lineNo: apptLineNo }, newStatus);
+    sendStatusUpdate(
+      { appointmentId: apptId, status: newStatus, operation: "STATUSUPDATE", centerCode, lineNo: apptLineNo },
+      newStatus
+    );
   };
 
   const handleDelete = () => {
@@ -268,8 +292,8 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
               {[
                 { icon:"Datentime.svg", label:"Date & Time", val:`${appt?.startTime||""} - ${appt?.endTime||""}` },
                 { icon:"services.svg",  label:"Services",
-                val: (appt?.allLines || [appt]).map(l => l?.serviceName).filter(Boolean).join(", ") || "—" },
-                { icon:"noteslist.svg", label:"Notes",       val: appt?.notes       || "—" },
+                  val: (appt?.allLines || [appt]).map(l => l?.serviceName).filter(Boolean).join(", ") || "—" },
+                { icon:"noteslist.svg", label:"Notes", val: appt?.notes || "—" },
               ].map(({ icon, label, val }) => (
                 <div className="dtntime" key={label}>
                   <div className="icondiv"><img src={`${import.meta.env.BASE_URL}images/${icon}`} alt={label} /></div>
@@ -294,7 +318,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Treatment Form
             </button>
           </div>
-          {/* Disable Make Payment only if ALL service lines for this booking are paid */}
           {(appt?.allLines || [appt]).every(l => Number(l?.isPaymentMade) === 1) ? (
             <div className="pndpay" style={{ opacity: 0.5, cursor: "not-allowed", pointerEvents: "none" }}>
               <span className="stimg">
@@ -305,15 +328,14 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
             <button onClick={() => {
               const a = appt||appointment||{};
               const q = new URLSearchParams();
-              if(a.custId)       q.append("custid",         a.custId);
-              if(a.fullName)     q.append("custname",       a.fullName);
-              if(a.number)       q.append("number",         a.number);
-              if(a.appointmentId)q.append("appointmentid",  a.appointmentId);
+              if(a.custId)        q.append("custid",          a.custId);
+              if(a.fullName)      q.append("custname",        a.fullName);
+              if(a.number)        q.append("number",          a.number);
+              if(a.appointmentId) q.append("appointmentid",   a.appointmentId);
               if(a.isPaymentMade!=null) q.append("isPaymentMade", a.isPaymentMade);
-              // appointmentdate + custid = the two keys used to fetch ALL services for this patient today
               const apptDate = a.appointmentDate
                 ? new Date(a.appointmentDate).toISOString().split("T")[0]
-                : selectedDate;
+                : new Date().toISOString().split("T")[0];
               q.append("appointmentdate", apptDate);
               navigate(`/invoice?${q.toString()}`);
             }} className="pndpay">
@@ -322,7 +344,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           )}
         </div>
       </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* EMR: FormFillModal — shown when mandatory forms required before status change */}
+      {showModal && modalProps && <FormFillModal {...modalProps} />}
     </div>
   );
 };
@@ -364,19 +390,19 @@ const FilterHeader = ({ countsOverride = {} }) => {
 
 // ── Scheduler Grid ─────────────────────────────────────────────────────────────
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
-  const [isDrawerOpen,       setIsDrawerOpen]       = useState(false);
-  const [selectedCustomer,   setSelectedCustomer]   = useState(null);
-  const [selectedTimeSlot,   setSelectedTimeSlot]   = useState(null);
-  const [selectedDoctor,     setSelectedDoctor]     = useState(null);
-  const [doctors,            setDoctors]            = useState([]);
-  const [appointments,       setAppointments]       = useState([]);
-  const [selectedAppointment,setSelectedAppointment]= useState(null);
-  const [editData,           setEditData]           = useState(null);
-  const [isSidebarOpen,      setIsSidebarOpen]      = useState(false);
-  const [searchTerm,         setSearchTerm]         = useState("");
-  const [suggestions,        setSuggestions]        = useState([]);
-  const [showAddCustomer,    setShowAddCustomer]    = useState(false);
-  const [selectedDate,       setSelectedDate]       = useState(() => new Date().toISOString().split("T")[0]);
+  const [isDrawerOpen,        setIsDrawerOpen]       = useState(false);
+  const [selectedCustomer,    setSelectedCustomer]   = useState(null);
+  const [selectedTimeSlot,    setSelectedTimeSlot]   = useState(null);
+  const [selectedDoctor,      setSelectedDoctor]     = useState(null);
+  const [doctors,             setDoctors]            = useState([]);
+  const [appointments,        setAppointments]       = useState([]);
+  const [selectedAppointment, setSelectedAppointment]= useState(null);
+  const [editData,            setEditData]           = useState(null);
+  const [isSidebarOpen,       setIsSidebarOpen]      = useState(false);
+  const [searchTerm,          setSearchTerm]         = useState("");
+  const [suggestions,         setSuggestions]        = useState([]);
+  const [showAddCustomer,     setShowAddCustomer]    = useState(false);
+  const [selectedDate,        setSelectedDate]       = useState(() => new Date().toISOString().split("T")[0]);
   const suggestRef = useRef(null);
 
   const user = useMemo(() => getUser(), []);
@@ -392,8 +418,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const fetchDoctors = async () => {
     try {
       const data = await authGet(`${API_BASE_URL}/api/Master/LoadAllPractioner/${user.centerCode||""}`);
-      // Store full {id, name} objects so grid can match by doctorId (reliable)
-      // not just by name string (fragile — name formatting differs between SPs)
       setDoctors(Array.isArray(data) ? data.map(d => ({ id: d.id || d.code || "", name: d.name || "" })) : []);
     } catch (e) { console.error(e); }
   };
@@ -443,8 +467,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     appointments.forEach(a => {
       const nt = normalizeTime(a.starttime);
       if (!nt) return;
-      // Match by id first (reliable), fall back to name normalization
-      const matchById   = doc.id   && (a.doctorId   || a.doctorId)   && doc.id   === (a.doctorId || a.doctorId);
+      const matchById   = doc.id && (a.doctorId || a.doctorid) && doc.id === (a.doctorId || a.doctorid);
       const matchByName = normDoc(doc.name || doc) === normDoc(a.doctorname || a.doctorName);
       if (!matchById && !matchByName) return;
       timeCounts[nt] = (timeCounts[nt] || 0) + 1;
@@ -456,7 +479,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const renderAppointments = (time, doctor) => {
     const filtered = appointments.filter(a => {
       if (normalizeTime(a.starttime) !== normalizeTime(time)) return false;
-      // Match by doctorId first (reliable), fall back to name
       const docId = a.doctorId || a.doctorid || "";
       if (doctor.id && docId) return doctor.id === docId;
       return normDoc(doctor.name || doctor) === normDoc(a.doctorname || a.doctorName);
@@ -477,11 +499,10 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
               <div className="apptype"><strong>{appt.serviceName||"N/A"}</strong></div>
               {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
               <span className="expopup" onClick={() => {
-          // Find all lines for this booking (same appointmentId = same referenceId)
-          const allLines = appointments.filter(a => a.appointmentId === appt.appointmentId);
-          setSelectedAppointment({ ...appt, allLines });
-          setIsSidebarOpen(true);
-        }}>
+                const allLines = appointments.filter(a => a.appointmentId === appt.appointmentId);
+                setSelectedAppointment({ ...appt, allLines });
+                setIsSidebarOpen(true);
+              }}>
                 <img src={`${import.meta.env.BASE_URL}images/expand.svg`} alt="Expand" />
               </span>
             </div>
@@ -493,7 +514,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
 
   return (
     <section className="calsection">
-      {/* Header */}
       <header className="appthdr">
         <div className="flx-spcbt">
           <div className="backbtnapp">
@@ -515,7 +535,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             <span className="apptstgs tooltip" data-tooltip="Add Customer" onClick={() => setShowAddCustomer(true)}>
               <img src={`${import.meta.env.BASE_URL}images/addcustwhite.svg`} alt="Add Customer" />
             </span>
-            {/* Search */}
             <div className="search-container" style={{ position:"relative" }}>
               <input type="text" placeholder="Search..." value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); fetchSuggestions(e.target.value); }} />
@@ -541,7 +560,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
 
       <FilterHeader countsOverride={countsOverride} />
 
-      {/* Grid */}
       <div className="msttbl">
         <div className="lfthrdiv">
           <div className="lftcol sticky-header">
@@ -575,7 +593,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         </div>
       </div>
 
-      {/* Sidebar */}
       {isSidebarOpen && selectedAppointment && (
         <AppointmentDetailsSide
           appointment={selectedAppointment}
@@ -583,8 +600,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
           onEdit={appt => {
             setEditData({ ...appt });
             setSelectedTimeSlot(appt.starttime);
-            // Find matching doctor object by id or name for the drawer
-            const docObj = doctors.find(d => d.id === (appt.doctorId || appt.doctorId)) 
+            const docObj = doctors.find(d => d.id === (appt.doctorId || appt.doctorid))
                         || doctors.find(d => normDoc(d.name||d) === normDoc(appt.doctorname||appt.doctorName))
                         || { id: appt.doctorId || "", name: appt.doctorname || appt.doctorName || "" };
             setSelectedDoctor(docObj);
@@ -598,7 +614,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         />
       )}
 
-      {/* Drawer */}
       {isDrawerOpen && (
         <AppointmentDrawer
           isOpen={isDrawerOpen}
@@ -612,7 +627,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         />
       )}
 
-      {/* Add Customer Modal */}
       {showAddCustomer && (
         <AddCustomerModal
           onClose={() => setShowAddCustomer(false)}
@@ -623,7 +637,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   );
 };
 
-// ── Root Appointment page ──────────────────────────────────────────────────────
+// ── Root ───────────────────────────────────────────────────────────────────────
 const Appointment = () => {
   const [newCustomerData, setNewCustomerData] = useState(null);
   return (

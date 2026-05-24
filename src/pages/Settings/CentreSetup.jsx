@@ -341,6 +341,9 @@ export default function CentreSetup() {
                         <input type="file" ref={fileRef} accept=".png,.jpg,.jpeg,.svg" style={{ display:"none" }}
                           onChange={e => {
                             const file = e.target.files[0]; if (!file) return;
+                            const allowed = ["image/jpeg","image/png","image/gif","image/svg+xml","image/webp"];
+                            if (!allowed.includes(file.type)) { showToast("Unsupported format. Upload JPG, PNG, GIF, SVG or WebP.","error"); e.target.value=""; return; }
+                            if (file.size > 5*1024*1024) { showToast("File exceeds 5MB limit.","error"); e.target.value=""; return; }
                             const reader = new FileReader();
                             reader.onload = ev => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); };
                             reader.readAsDataURL(file);

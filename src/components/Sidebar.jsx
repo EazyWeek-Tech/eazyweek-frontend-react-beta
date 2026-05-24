@@ -97,7 +97,7 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "Mapped Forms",
       icon: "bx-file-blank",
-      submenu: [{ name: "List Forms", path: "/mapped-forms/list-forms" }],
+      submenu: [{ name: "List Forms", path: "/emr/forms" }],
     },
     
 // ,{ name: "Injectable Consent", path: "/consent-form/injectable-treatment-consent" },
@@ -116,7 +116,7 @@ const Sidebar = ({ collapsed }) => {
       submenu:[
     // { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
     // { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
-    { name:"Create Form", path:"/custom-forms/general-form"},
+    { name:"Create Form", path:"/emr/builder/:formCode"},
       ]
     },
     {
@@ -137,6 +137,8 @@ const Sidebar = ({ collapsed }) => {
         { name: "Membership", path: "/membership" },
         { name: "Legal Entity", path: "/settings/legal-entity" },
          { name: "Centre Setup", path: "/settings/centre-setup" },
+         { name: "Zone Setup", path: "/settings/zone-setup" },
+          { name: "Organization Hierarchy", path: "/settings/org-setup" },
         { name: "Discount", path: "/discounts" }
       ],
     },

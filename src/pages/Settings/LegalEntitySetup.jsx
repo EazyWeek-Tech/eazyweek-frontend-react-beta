@@ -135,10 +135,22 @@ export default function LegalEntitySetup() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const allowed = ["image/jpeg","image/png","image/gif","image/svg+xml","image/webp"];
+    if (!allowed.includes(file.type)) {
+      showToast("Unsupported file format. Please upload JPG, PNG, GIF, SVG or WebP.", "error");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("File size exceeds 5MB limit. Please upload a smaller image.", "error");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); };
     reader.readAsDataURL(file);
   };
+
 
   const handleSaveLogo = async () => {
     setSaving(true);

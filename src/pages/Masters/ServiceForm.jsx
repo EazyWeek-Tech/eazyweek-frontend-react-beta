@@ -18,7 +18,15 @@ const postJSON = async (url, body) => {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) { const text = await res.text(); throw new Error(text || `HTTP ${res.status}`); }
+  if (!res.ok) {
+    try {
+      const errJson = await res.json();
+      throw new Error(errJson.message || errJson.error || `HTTP ${res.status}`);
+    } catch (jsonErr) {
+      if (jsonErr.message && !jsonErr.message.startsWith("HTTP")) throw jsonErr;
+      throw new Error(`HTTP ${res.status}`);
+    }
+  }
   const json = await res.json().catch(() => ({}));
   return json.data ?? json;
 };
@@ -48,7 +56,7 @@ const Toast = ({ type, message, onClose }) => {
 
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [activeTab, setActiveTab] = useState("General");
-  const tabs = ["General","Pricing","BOM","Practitioner Mapping","Forms","Miscellaneous"];
+  const tabs = ["General","Pricing","BOM","Practitioner Mapping","Forms","Miscellaneous","EMR Forms"];
 
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "success") => setToast({ message, type });
@@ -61,6 +69,56 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     General:false, Pricing:false, BOM:false,
     "Practitioner Mapping":false, Forms:false, Miscellaneous:false,
   });
+  const loadEMRForms = async () => {
+    if (emrFormsLoaded) return;
+    try {
+      const [mappedRes, activeRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/EMR/Service/${encodeURIComponent(formData.serviceCode || formData.code || "")}/Forms`,
+          { headers:{ Authorization:`Bearer ${TOKEN()}` } }).then(r=>r.json()),
+        fetch(`${API_BASE_URL}/api/EMR/Forms/Active`,
+          { headers:{ Authorization:`Bearer ${TOKEN()}` } }).then(r=>r.json()),
+      ]);
+      setEmrForms(Array.isArray(mappedRes.data) ? mappedRes.data : []);
+      const allForms = Array.isArray(activeRes.data) ? activeRes.data : [];
+      setActiveForms(allForms.filter(f => f.formType !== 'Customer'));
+      setEmrFormsLoaded(true);
+    } catch(e) { console.error("EMR forms load error:", e); }
+  };
+
+  const handleSaveEMRForms = async () => {
+    try {
+      const res = await postJSON(`${API_BASE_URL}/api/EMR/Service/Forms/Save`, {
+        serviceCode: formData.serviceCode || formData.code || "",
+        forms: emrForms,
+      });
+      if (!res.success) throw new Error(res.message);
+      showToast("Forms saved successfully.");
+    } catch(e) { showToast(e.message || "Failed to save forms.", "error"); }
+  };
+
+  const addEMRForm = () => {
+    if (emrForms.length >= 11) { showToast("Maximum 11 forms per service.", "error"); return; }
+    setEmrForms(p => [...p, {
+      formCode:    activeForms[0]?.formCode  || "",
+      formName:    activeForms[0]?.formName  || "",
+      whenToFill:  "Before Service Starts",
+      isMandatory: true,
+    }]);
+  };
+
+  const updateEMRForm = (idx, field, val) => {
+    setEmrForms(p => p.map((f, i) => {
+      if (i !== idx) return f;
+      if (field === "formCode") {
+        const found = activeForms.find(a => a.formCode === val);
+        return { ...f, formCode: val, formName: found?.formName || val };
+      }
+      return { ...f, [field]: val };
+    }));
+  };
+
+  const removeEMRForm = (idx) => setEmrForms(p => p.filter((_, i) => i !== idx));
+
   const markDirty = (tab) => setDirty((d) => d[tab] ? d : { ...d, [tab]: true });
   const markSaved = (tab, state = "saved") => {
     setDirty((d)  => ({ ...d, [tab]: false }));
@@ -70,6 +128,9 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const toArray = (d) => (Array.isArray(d) ? d : d ? [d] : []);
 
   // ── Form data ───────────────────────────────────────────────────────────────
+  const [emrForms,       setEmrForms]       = useState([]);  // mapped EMR forms
+  const [activeForms,    setActiveForms]    = useState([]);  // available EMR forms
+  const [emrFormsLoaded, setEmrFormsLoaded] = useState(false);
   const [formData, setFormData] = useState({
     serviceCode:        service?.code        || "",
     serviceName:        service?.name        || "",
@@ -83,6 +144,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     allowBOMConsumptionWithIntervention: service?.allowBOMIntervention|| "No",
     allowLoyaltyAccrual:                 service?.allowLoyaltyAccrual || "No",
     allowLoyaltyRedemption:              service?.allowLoyaltyRedemption || "No",
+    addToQuickCart:                      service?.addToQuickCart             || "No",
     additionalField1: service?.additionalField1 || "",
     additionalField2: service?.additionalField2 || "",
     additionalField3: service?.additionalField3 || "",
@@ -372,7 +434,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     setFormsData((p) => p.map((f) => f.id === id ? { ...f, selected: !f.selected } : f));
   };
   const handleMiscellaneousDataChange = (field, value) => {
-    markDirty("Miscellaneous");
+    markDirty("Miscellaneous", "Forms");
     setMiscellaneousData((p) => ({ ...p, [field]: value }));
   };
 
@@ -464,12 +526,14 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       allowIdealBOMConsumptionWithIntervention: formData.allowBOMConsumptionWithIntervention || "No",
       allowLoyalityAccurul:    formData.allowLoyaltyAccrual    || "No",
       allowLoyalityRedemption: formData.allowLoyaltyRedemption || "No",
+      addToQuickCart: formData.addToQuickCart || "No",
       additionalField1: formData.additionalField1 || "",
       additionalField2: formData.additionalField2 || "",
       additionalField3: formData.additionalField3 || "",
       additionalField4: formData.additionalField4 || "",
       additionalField5: formData.additionalField5 || "",
       isDraft: isDraft ? 1 : 0,
+      isEdit:  mode === "edit",
     };
   };
 
@@ -477,6 +541,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     serviceCode: formData.serviceCode || "",
     priceLines: formData.pricingData.map((p) => ({
       serviceCode:   formData.serviceCode || "",
+      centerCode:    p.centerCode         || "",
       price:         Number(p.price       || 0),
       taxIncluded:   String(p.taxIncluded || ""),
       taxPercentage: Number(p.taxPercent  || 0),
@@ -555,10 +620,10 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     catch (e) { showToast("Failed to save forms.", "error"); }
   };
   const onSubmitForms = async () => {
-    try { await postJSON(URLS.forms, buildFormsPayload(0)); markSaved("Forms","saved"); markSaved("Miscellaneous","saved"); showToast("Forms submitted."); }
+    try { await postJSON(URLS.forms, buildFormsPayload(0)); markSaved("Forms","saved"); markSaved("Miscellaneous", "Forms","saved"); showToast("Forms submitted."); }
     catch (e) { showToast(`Failed: ${e.message}`, "error"); }
   };
-  const onSaveMisc           = () => { markSaved("Miscellaneous","draft"); showToast("Miscellaneous saved locally."); };
+  const onSaveMisc           = () => { markSaved("Miscellaneous", "Forms","draft"); showToast("Miscellaneous saved locally."); };
   const onSubmitMiscViaForms = () => onSubmitForms();
 
   const timeOptions = [
@@ -719,7 +784,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
           <div className="sf-tabs">
             <div style={{ display:"flex", flexWrap:"wrap" }}>
               {tabs.map((tab) => (
-                <button key={tab} className={`sf-tab ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+                <button key={tab} className={`sf-tab ${activeTab === tab ? "active" : ""}`} onClick={() => { setActiveTab(tab); if (tab === "EMR Forms") loadEMRForms(); }}>
                   {dirty[tab] && <span style={{ color:"#f59e0b", fontSize:10 }}>●</span>}
                   {tab}
                 </button>
@@ -800,6 +865,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   { label:"Allow BOM with Intervention",        key:"allowBOMConsumptionWithIntervention",   req:true },
                   { label:"Allow Loyalty Accrual",             key:"allowLoyaltyAccrual" },
                   { label:"Allow Loyalty Redemption",          key:"allowLoyaltyRedemption" },
+                  { label:"Add to Quick Cart",                 key:"addToQuickCart" },
                 ].map(({ label, key, req }) => (
                   <div style={s.row} key={key}>
                     <label style={s.lbl}>{label} {req && <span style={{ color:"crimson" }}>*</span>}</label>
@@ -852,7 +918,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                               <option value="">Select</option><option>Yes</option><option>No</option>
                             </select>
                           </td>
-                          <td style={s.td}><input type="number" style={{ ...s.inp, width:80, textAlign:"center" }} value={p.taxPercent} min="0" max="100" step="0.01" onChange={(e) => handlePricingChange(i,"taxPercent",e.target.value)} /></td>
+                          <td style={s.td}><input type="number" style={{ ...s.inp, width:80, textAlign:"center", background: p.taxIncluded==="Yes" ? "#f1f5f9" : "#fff" }} value={p.taxPercent} min="0" max="100" step="0.01" disabled={p.taxIncluded==="Yes"} onChange={(e) => handlePricingChange(i,"taxPercent",e.target.value)} /></td>
                           <td style={{ ...s.td, textAlign:"center" }}><input type="checkbox" checked={!!p.storeRelease} onChange={() => handlePricingCheckboxChange(i,"storeRelease")} style={{ width:16, height:16, accentColor:"#334B71" }} /></td>
                         </tr>
                       ))}
@@ -990,6 +1056,85 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             )}
 
             {/* ── MISCELLANEOUS ─────────────────────────────────────────────── */}
+
+            {activeTab === "EMR Forms" && (
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}>📋 EMR Forms</div>
+                  <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>
+                    Map consent/treatment forms to this service. Max 11 forms.
+                  </div>
+                </div>
+                <button onClick={addEMRForm}
+                  style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:8,
+                    padding:"8px 16px", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                  + Add Form
+                </button>
+              </div>
+
+              {emrForms.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"40px 0", color:"#94a3b8",
+                  border:"2px dashed #e7ecf4", borderRadius:10 }}>
+                  <div style={{ fontSize:28, marginBottom:8 }}>📋</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#334b71", marginBottom:4 }}>No forms mapped</div>
+                  <div style={{ fontSize:12 }}>Click "+ Add Form" to link a consent or treatment form.</div>
+                </div>
+              ) : (
+                emrForms.map((f, idx) => (
+                  <div key={idx} style={{ border:"1px solid #e7ecf4", borderRadius:10, padding:14,
+                    marginBottom:10, display:"grid",
+                    gridTemplateColumns:"2fr 1fr auto auto", gap:10, alignItems:"center" }}>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", marginBottom:4 }}>FORM</div>
+                      <select value={f.formCode}
+                        onChange={e => updateEMRForm(idx, "formCode", e.target.value)}
+                        style={{ width:"100%", border:"1px solid #e7ecf4", borderRadius:8,
+                          padding:"8px 10px", fontSize:12, outline:"none" }}>
+                        <option value="">Select form…</option>
+                        {activeForms.map(a => (
+                          <option key={a.formCode} value={a.formCode}>{a.formName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", marginBottom:4 }}>WHEN TO FILL</div>
+                      <select value={f.whenToFill}
+                        onChange={e => updateEMRForm(idx, "whenToFill", e.target.value)}
+                        style={{ width:"100%", border:"1px solid #e7ecf4", borderRadius:8,
+                          padding:"8px 10px", fontSize:12, outline:"none" }}>
+                        <option value="Before Service Starts">Before Service Starts</option>
+                        <option value="After Service Starts">After Service Starts</option>
+                      </select>
+                    </div>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", marginBottom:4 }}>MANDATORY</div>
+                      <div style={{ width:40, height:22, borderRadius:22,
+                        background:f.isMandatory?"#334b71":"#d3dbe8",
+                        position:"relative", cursor:"pointer" }}
+                        onClick={() => updateEMRForm(idx, "isMandatory", !f.isMandatory)}>
+                        <div style={{ width:16, height:16, background:"#fff", borderRadius:"50%",
+                          position:"absolute", top:3, left:f.isMandatory?21:3,
+                          transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,.25)" }} />
+                      </div>
+                    </div>
+                    <button onClick={() => removeEMRForm(idx)}
+                      style={{ background:"none", border:"none", cursor:"pointer",
+                        color:"#b91c1c", fontSize:20, padding:"0 4px" }}>×</button>
+                  </div>
+                ))
+              )}
+
+              <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16 }}>
+                <button onClick={handleSaveEMRForms}
+                  style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:8,
+                    padding:"10px 20px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
+                  💾 Save Forms
+                </button>
+              </div>
+            </div>
+            )}
+
             {activeTab === "Miscellaneous" && (
               <>
                 <div style={s.section}>Optional Fields</div>
