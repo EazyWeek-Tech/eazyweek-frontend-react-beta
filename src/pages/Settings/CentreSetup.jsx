@@ -57,7 +57,7 @@ export default function CentreSetup() {
     allowMultiPayment:true, allowMultiPractitioner:true,
     allowPkgServiceBilling:true, allowPkgSvcPrdBilling:true,
     returnWindowDays:30,
-    allowReturnPackages:true, allowReturnServices:true, allowReturnProducts:true,
+    allowSalesReturn:true, allowReturnPackages:true, allowReturnServices:true, allowReturnProducts:true,
     roomMandatory:false, equipmentMandatory:false, allowOverbooking:false,
   });
   const [general, setGeneral] = useState({ displayName:"", leCode:"" });
@@ -461,23 +461,48 @@ export default function CentreSetup() {
                     {/* Sales Return */}
                     <div className="card-inner">
                       <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>↩ Sales Return Configurations</div>
-                      <div className="field" style={{ marginBottom:16, maxWidth:260 }}>
-                        <label>Return validity in days from purchase *</label>
-                        <input type="number" min={1} value={setup.returnWindowDays}
-                          onChange={e => setSetup(p => ({ ...p, returnWindowDays: e.target.value }))}
-                          placeholder="e.g. 30" />
+                      <Toggle value={setup.allowSalesReturn}
+                        onChange={() => setSetup(p => ({
+                          ...p,
+                          allowSalesReturn: !p.allowSalesReturn,
+                          ...(!p.allowSalesReturn ? {} : { allowReturnPackages:false, allowReturnServices:false, allowReturnProducts:false })
+                        }))}
+                        label="Allow Sales Return" sub="Master toggle — disables all return options when off" />
+                      <div style={{ opacity: setup.allowSalesReturn ? 1 : 0.4, pointerEvents: setup.allowSalesReturn ? "auto" : "none", marginTop:12 }}>
+                        <div className="field" style={{ marginBottom:16, maxWidth:260 }}>
+                          <label>Return validity in days from purchase *</label>
+                          <input type="number" min={1} value={setup.returnWindowDays}
+                            onChange={e => setSetup(p => ({ ...p, returnWindowDays: e.target.value }))}
+                            placeholder="e.g. 30" disabled={!setup.allowSalesReturn} />
+                        </div>
+                        <Toggle value={setup.allowReturnPackages} onChange={() => setSetup(p=>({...p,allowReturnPackages:!p.allowReturnPackages}))}
+                          label="Allow return of packages" sub="" />
+                        <Toggle value={setup.allowReturnServices} onChange={() => setSetup(p=>({...p,allowReturnServices:!p.allowReturnServices}))}
+                          label="Allow return of services" sub="" />
+                        <Toggle value={setup.allowReturnProducts} onChange={() => setSetup(p=>({...p,allowReturnProducts:!p.allowReturnProducts}))}
+                          label="Allow return of products" sub="" />
                       </div>
-                      <Toggle value={setup.allowReturnPackages} onChange={() => setSetup(p=>({...p,allowReturnPackages:!p.allowReturnPackages}))}
-                        label="Allow return of packages" sub="" />
-                      <Toggle value={setup.allowReturnServices} onChange={() => setSetup(p=>({...p,allowReturnServices:!p.allowReturnServices}))}
-                        label="Allow return of services" sub="" />
-                      <Toggle value={setup.allowReturnProducts} onChange={() => setSetup(p=>({...p,allowReturnProducts:!p.allowReturnProducts}))}
-                        label="Allow return of products" sub="" />
                     </div>
 
                     {/* Appointment */}
                     <div className="card-inner">
                       <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>📅 Appointment Configurations</div>
+                      <Toggle value={setup.allowOnlineBooking} onChange={() => setSetup(p=>({...p,allowOnlineBooking:!p.allowOnlineBooking}))}
+                        label="Allow Online Booking" sub="Customers can book appointments online" />
+                      <Toggle value={setup.allowCancellation}
+                        onChange={() => setSetup(p => ({
+                          ...p, allowCancellation: !p.allowCancellation,
+                          ...(!p.allowCancellation ? {} : { cancellationWindowHours: 24 })
+                        }))}
+                        label="Allow Cancellation" sub="Customers can cancel appointments" />
+                      {setup.allowCancellation && (
+                        <div className="field" style={{ marginBottom:16, maxWidth:260, marginLeft:16 }}>
+                          <label>Cancellation window (hours before appointment)</label>
+                          <input type="number" min={0} value={setup.cancellationWindowHours}
+                            onChange={e => setSetup(p => ({ ...p, cancellationWindowHours: e.target.value }))}
+                            placeholder="e.g. 24" />
+                        </div>
+                      )}
                       <Toggle value={setup.roomMandatory}      onChange={() => setSetup(p=>({...p,roomMandatory:!p.roomMandatory}))}
                         label="Room selection mandatory for appointment booking" sub="" />
                       <Toggle value={setup.equipmentMandatory} onChange={() => setSetup(p=>({...p,equipmentMandatory:!p.equipmentMandatory}))}

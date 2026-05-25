@@ -24,32 +24,35 @@ export default function ZoneSetup() {
   const [toast,           setToast]           = useState(null);
   const [showForm,        setShowForm]        = useState(false);
   const [confirmDelete,   setConfirmDelete]   = useState(null);
+  const [centrePicker,    setCentrePicker]    = useState("");   // ZN-38: controlled select reset
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
   const loadZones = async () => {
     setLoading(true);
     try {
-      const [zs, le] = await Promise.all([
-        authGet(`${API_BASE_URL}/api/Settings/Zone/List`),
-        authGet(`${API_BASE_URL}/api/Settings/LegalEntity`),
-      ]);
-      setZones(Array.isArray(zs) ? zs : []);
+      // Fetch LE first to get leCode, then fetch zones with it
+      const le = await authGet(`${API_BASE_URL}/api/Settings/LegalEntity`);
+      const leCode = le?.leCode || "";
       if (le?.leCode) {
         setLegalEntities([le]);
         setForm(p => ({ ...p, leCode: le.leCode }));
       }
+      const zs = await authGet(`${API_BASE_URL}/api/Settings/Zone/List?leCode=${leCode}`);
+      setZones(Array.isArray(zs) ? zs : []);
     } finally { setLoading(false); }
   };
 
   useEffect(() => { loadZones(); }, []);
 
-  // Load available centres when leCode or selected zone changes
+  // ZN-43: track whether form is "settled" before fetching available centres
+  const [formReady, setFormReady] = useState(false);
+
   useEffect(() => {
-    if (!form.leCode) return;
+    if (!form.leCode || !formReady) return;
     authGet(`${API_BASE_URL}/api/Settings/Zone/AvailableCentres?leCode=${form.leCode}&excludeZone=${encodeURIComponent(form.zoneName || "")}`)
       .then(data => setAvailableCentres(Array.isArray(data) ? data : []));
-  }, [form.leCode, form.zoneName]);
+  }, [form.leCode, form.zoneName, formReady]);
 
   const handleNew = () => {
     setSelected(null);
@@ -58,17 +61,24 @@ export default function ZoneSetup() {
     setMappedCentres([]);
     setSaveAttempted(false);
     setErrors({});
+    setCentrePicker("");
+    setFormReady(false);
     setShowForm(true);
+    // ZN-43: defer formReady so effect fires once form is fully settled
+    setTimeout(() => setFormReady(true), 0);
   };
 
   const handleEdit = async (zoneCode) => {
+    setFormReady(false);   // ZN-43: pause effect until form is settled
     setSelected(zoneCode);
     const data = await authGet(`${API_BASE_URL}/api/Settings/Zone/${zoneCode}`);
     setForm({ zoneCode: data.zoneCode, zoneName: data.zoneName, displayName: data.displayName, leCode: data.leCode });
     setMappedCentres(data.centres || []);
     setSaveAttempted(false);
     setErrors({});
+    setCentrePicker("");
     setShowForm(true);
+    setTimeout(() => setFormReady(true), 0);
   };
 
   const addCentre = (centre) => {
@@ -222,7 +232,7 @@ export default function ZoneSetup() {
                 <div className="field">
                   <label>Zone Code * <span style={{ color:"#94a3b8", fontWeight:400 }}>(exactly 4 chars)</span></label>
                   <input value={F("zoneCode")} maxLength={4} readOnly={!!selected}
-                    onChange={e => !selected && setForm(p => ({ ...p, zoneCode: e.target.value.toUpperCase() }))}
+                    onChange={e => !selected && setForm(p => ({ ...p, zoneCode: e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase() }))}
                     style={{ background:selected?"#f8fafc":"#fff", borderColor:saveAttempted&&errors.zoneCode?"#b91c1c":undefined }}
                     placeholder="e.g. NRTH" />
                   {saveAttempted && errors.zoneCode && <span className="err">{errors.zoneCode}</span>}
@@ -256,11 +266,13 @@ export default function ZoneSetup() {
               {/* Dropdown to add centre */}
               <div style={{ display:"flex", gap:10, marginBottom:12 }}>
                 <select style={{ flex:1, border:"1px solid #e7ecf4", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none" }}
-                  defaultValue=""
+                  value={centrePicker}
                   onChange={e => {
-                    const centre = availableCentres.find(c => c.centerCode === e.target.value);
+                    const val = e.target.value;
+                    if (!val) return;
+                    const centre = availableCentres.find(c => c.centerCode === val);
                     if (centre) addCentre(centre);
-                    e.target.value = "";
+                    setCentrePicker("");  // ZN-38: reset to placeholder
                   }}>
                   <option value="">+ Add Centre…</option>
                   {unmapped.map(c => (

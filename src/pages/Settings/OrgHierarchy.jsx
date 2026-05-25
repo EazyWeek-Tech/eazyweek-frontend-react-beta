@@ -108,7 +108,7 @@ export default function OrgHierarchy() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      <div style={{ maxWidth:"95%", margin:"0 auto", padding:"28px 20px 60px" }}>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 20px 60px" }}>
 
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
@@ -154,15 +154,16 @@ export default function OrgHierarchy() {
               {/* Connector from LE down */}
               <VLine height={20} />
 
-              {/* Horizontal spread */}
-              <div style={{ position:"relative" }}>
-                {allTopLevel.length > 1 && (
-                  <div style={{ position:"absolute", top:0, left:"calc(50% / " + allTopLevel.length + ")", right:"calc(50% / " + allTopLevel.length + ")", height:2, background:"#c8d5e8" }} />
-                )}
-                <div style={{ display:"flex", justifyContent:"center", gap:32, flexWrap:"wrap", position:"relative" }}>
+              {/* Horizontal spread — HR-19 fix: border-based T-join per column */}
+              <div style={{ display:"flex", justifyContent:"center", gap:0, flexWrap:"wrap" }}>
                   {/* Zones */}
-                  {data.zones.map(z => (
-                    <div key={z.zoneCode} style={{ display:"flex", flexDirection:"column", alignItems:"center", minWidth:140 }}>
+                  {data.zones.map((z, i) => (
+                    <div key={z.zoneCode} style={{
+                      display:"flex", flexDirection:"column", alignItems:"center", minWidth:140,
+                      // T-join: top border on each column, except flush ends become half-borders
+                      borderTop: allTopLevel.length > 1 ? "2px solid #c8d5e8" : "none",
+                      margin:"0 16px",
+                    }}>
                       <VLine height={20} />
                       <ZoneNode name={z.zoneName} />
                       {z.centres.length > 0 && (
@@ -186,12 +187,15 @@ export default function OrgHierarchy() {
 
                   {/* Direct centres */}
                   {data.directCentres.map(c => (
-                    <div key={c.centerCode} style={{ display:"flex", flexDirection:"column", alignItems:"center", minWidth:140 }}>
+                    <div key={c.centerCode} style={{
+                      display:"flex", flexDirection:"column", alignItems:"center", minWidth:140,
+                      borderTop: allTopLevel.length > 1 ? "2px solid #c8d5e8" : "none",
+                      margin:"0 16px",
+                    }}>
                       <VLine height={20} />
                       <CentreNode name={c.centreName} direct={true} />
                     </div>
                   ))}
-                </div>
               </div>
             </>
           )}
