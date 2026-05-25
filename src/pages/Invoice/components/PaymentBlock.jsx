@@ -89,6 +89,7 @@ const PaymentBlock = ({
   const [loyaltyPointsValue, setLoyaltyPointsValue] = useState(null); // SAR value from get-points
   const [loyaltyPointsLoading, setLoyaltyPointsLoading] = useState(false);
   const [loyaltyPointsError, setLoyaltyPointsError] = useState('');
+  const [centreLogo,          setCentreLogo]          = useState('');  // from CentreSettings
 
   // Local state from GetSelectedAppDetails API
   const [apiInvoiceItems, setApiInvoiceItems] = useState([]);
@@ -104,6 +105,18 @@ const PaymentBlock = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillPaymentData]);
+
+  // ---------- Fetch centre logo + settings ----------------------------------------
+  useEffect(() => {
+    if (!sessionCenterCode) return;
+    fetch(`${API_BASE_URL}/api/Invoice/CentreSettings/${sessionCenterCode}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const cfg = d?.data ?? d;
+        if (cfg?.logoUrl) setCentreLogo(cfg.logoUrl);
+      })
+      .catch(() => {}); // fail silently — logo is cosmetic
+  }, [sessionCenterCode]);
 
   // ---------- Fetch loyalty balance — disabled until loyalty module is ready ----------
   // LOYALTY TODO: uncomment when loyalty module is ready
@@ -421,7 +434,7 @@ const PaymentBlock = ({
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="width: 33%; text-align: left; vertical-align: middle;">
-                    <img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />
+                    {centreLogo ? (<img src={centreLogo} alt="Logo" style="max-height: 180px;" />) : (<img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />)}
                   </td>
                   <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
                     Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
