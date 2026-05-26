@@ -138,6 +138,7 @@ export default function FormBuilder() {
   const [mode,        setMode]        = useState("build");  // build | preview | conditions
   const [previewSize, setPreviewSize] = useState("desktop");
   const [saving,      setSaving]      = useState(false);
+  const [isDirty,     setIsDirty]     = useState(false);  // true when unsaved changes exist
   const [loading,     setLoading]     = useState(true);
   const [toast,       setToast]       = useState(null);
   const [groupOpen,   setGroupOpen]   = useState({ Input:true, Choice:true, Special:true, Content:false, Layout:false, Logic:false });
@@ -164,10 +165,10 @@ export default function FormBuilder() {
   const selectedComp = components.find(c => c.componentId === selectedId);
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
-  const handleDragStart = ({ active }) => {
+  const handleDragStart = useCallback(({ active }) => {
     setActiveId(active.id);
     setSelectedId(null);
-  };
+  }, []);
 
   const handleDragEnd = useCallback(({ active, over }) => {
     setActiveId(null);
@@ -176,46 +177,58 @@ export default function FormBuilder() {
     const isPalette = active.data.current?.isPalette;
 
     if (isPalette) {
-      // Drop from palette → add new component
       const compType = active.data.current.componentType;
-      const newComp  = {
-        componentId:   uuid(),
-        componentType: compType,
-        label:         COMPONENT_TYPES.find(c => c.type === compType)?.label || compType,
-        isMandatory:   false,
-        sortOrder:     components.length,
-        config:        _defaultConfig(compType),
-        parentId:      null,
-      };
-      const overIndex = components.findIndex(c => c.componentId === over.id);
-      if (overIndex >= 0) {
-        const newComps = [...components];
-        newComps.splice(overIndex, 0, newComp);
-        setComponents(newComps);
-      } else {
-        setComponents(p => [...p, newComp]);
-      }
-      setSelectedId(newComp.componentId);
+      const newId    = uuid();  // generate once, reuse in both closures
+
+      setComponents(prev => {
+        const newComp = {
+          componentId:   newId,
+          componentType: compType,
+          label:         COMPONENT_TYPES.find(c => c.type === compType)?.label || compType,
+          isMandatory:   false,
+          sortOrder:     prev.length,
+          config:        _defaultConfig(compType),
+          parentId:      null,
+        };
+        const overIndex = prev.findIndex(c => c.componentId === over.id);
+        if (overIndex >= 0) {
+          const next = [...prev];
+          next.splice(overIndex, 0, newComp);
+          return next;
+        }
+        return [...prev, newComp];
+      });
+      setSelectedId(newId);
+      setIsDirty(true);
     } else {
-      // Reorder existing
       if (active.id !== over.id) {
-        const oldIndex = components.findIndex(c => c.componentId === active.id);
-        const newIndex = components.findIndex(c => c.componentId === over.id);
-        if (oldIndex !== -1 && newIndex !== -1)
-          setComponents(arrayMove(components, oldIndex, newIndex));
+        setComponents(prev => {
+          const oldIndex = prev.findIndex(c => c.componentId === active.id);
+          const newIndex = prev.findIndex(c => c.componentId === over.id);
+          if (oldIndex !== -1 && newIndex !== -1)
+            return arrayMove(prev, oldIndex, newIndex);
+          return prev;
+        });
       }
     }
-  }, [components]);
+  }, []);  // stable — functional updaters mean no dependency on [components]
 
-  const handleDeleteComponent = (id) => {
+  const handleCloseEditor = useCallback(() => setSelectedId(null), []);
+
+  const handleDeleteComponent = useCallback((id) => {
     setComponents(p => p.filter(c => c.componentId !== id));
     setConditions(p => p.filter(c => c.triggerCompId !== id && c.targetCompId !== id));
-    if (selectedId === id) setSelectedId(null);
-  };
+    setSelectedId(p => p === id ? null : p);
+    setIsDirty(true);
+  }, []);
 
-  const handleUpdateComponent = (updated) => {
+  // Stable reference — uses functional updater, no deps needed
+  // This is the KEY fix: previously this was recreated on every render, causing
+  // ComponentEditor to lose focus after each keystroke
+  const handleUpdateComponent = useCallback((updated) => {
     setComponents(p => p.map(c => c.componentId === updated.componentId ? updated : c));
-  };
+    setIsDirty(true);
+  }, []);  // ← [] means this function reference never changes → editor never remounts
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async (status) => {
@@ -239,6 +252,7 @@ export default function FormBuilder() {
       });
       if (!condRes.success) throw new Error(condRes.message);
 
+      setIsDirty(false);
       showToast(status === "Active" ? "Form published and Active." : "Form saved.");
       if (status) setForm(p => ({ ...p, status }));
     } catch (e) { showToast(e.message, "error"); }
@@ -288,7 +302,18 @@ export default function FormBuilder() {
       {/* Toolbar */}
       <div className="fb-toolbar">
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button className="sec-btn" style={{ padding:"7px 12px" }} onClick={() => navigate("/emr/forms")}>← Back</button>
+          <button className="sec-btn" style={{ padding:"7px 12px" }}
+            onClick={() => {
+              if (isDirty) {
+                const ok = window.confirm(
+                  "You have unsaved changes.\n\nClick OK to discard and go back, or Cancel to stay and save."
+                );
+                if (!ok) return;
+              }
+              navigate("/emr/forms");
+            }}>
+            ← Back
+          </button>
           <div>
             <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}>{form.formName}</div>
             <div style={{ fontSize:11, color:"#94a3b8" }}>{form.formCode} · {form.formType}</div>
@@ -318,8 +343,13 @@ export default function FormBuilder() {
             </span>
           )}
           <span style={{ fontSize:12, color:"#94a3b8" }}>{components.length} components</span>
-          <button className="sec-btn" onClick={() => handleSave()} disabled={saving}>
-            {saving ? "Saving…" : "Save Draft"}
+          <button className="sec-btn"
+            onClick={async () => {
+              await handleSave();
+              navigate("/emr/forms");
+            }}
+            disabled={saving}>
+            {saving ? "Saving…" : "Save & Close"}
           </button>
           <button className="pub-btn" onClick={() => handleSave("Active")} disabled={saving}>
             {saving ? "…" : "✓ Publish"}
@@ -426,26 +456,6 @@ export default function FormBuilder() {
               )}
             </div>
 
-            {/* ── Right Panel — Component Editor ── */}
-            {mode === "build" && selectedComp && (
-              <div className="fb-editor">
-                <ComponentEditor
-                  component={selectedComp}
-                  onChange={handleUpdateComponent}
-                  onClose={() => setSelectedId(null)}
-                />
-              </div>
-            )}
-
-            {mode === "build" && !selectedComp && (
-              <div className="fb-editor" style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <div style={{ textAlign:"center", color:"#94a3b8", padding:20 }}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>👆</div>
-                  <div style={{ fontSize:13, fontWeight:600 }}>Click a component to edit its properties</div>
-                </div>
-              </div>
-            )}
-
           </SortableContext>
 
           {/* Drag overlay */}
@@ -460,6 +470,32 @@ export default function FormBuilder() {
             )}
           </DragOverlay>
         </DndContext>
+
+        {/* ── Right Panel — Component Editor ──────────────────────────────────
+            IMPORTANT: kept OUTSIDE DndContext intentionally.
+            dnd-kit's PointerSensor attaches global pointer listeners that
+            steal focus from inputs on every re-render when the editor is
+            inside the DnD tree. Placing it outside fixes the one-letter bug. */}
+        {mode === "build" && selectedComp && (
+          <div className="fb-editor">
+            <ComponentEditor
+              key={selectedId}
+              component={selectedComp}
+              onChange={handleUpdateComponent}
+              onClose={handleCloseEditor}
+            />
+          </div>
+        )}
+
+        {mode === "build" && !selectedComp && (
+          <div className="fb-editor" style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ textAlign:"center", color:"#94a3b8", padding:20 }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>👆</div>
+              <div style={{ fontSize:13, fontWeight:600 }}>Click a component to edit its properties</div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

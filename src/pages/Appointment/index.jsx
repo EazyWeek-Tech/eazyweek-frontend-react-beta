@@ -199,6 +199,13 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
         custId:     appt?.custId || "",
         centerCode,
         toStatus,
+        macroContext: {                              // EMR-FB-019: context for macro field pre-fill
+          customerName:     appt?.fullName         || "",
+          serviceName:      appt?.serviceName      || "",
+          centreName:       user?.centerName       || "",
+          practitionerName: appt?.therapistName    || "",
+          appointmentDate:  appt?.startDate        || new Date().toISOString(),
+        },
       });
       if (!canProceed) return;
     }
@@ -354,6 +361,69 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
 };
 
 // ── Filter Header ──────────────────────────────────────────────────────────────
+
+// ── EMR Form Status Badge — EMR-AF-010/011/012 ────────────────────────────────
+const STATUS_STYLE = {
+  "All Complete":    { bg:"#dcfce7", color:"#166534", icon:"✅" },
+  "Partially Filled":{ bg:"#fef9c3", color:"#854F0B", icon:"🟡" },
+  "Not Started":     { bg:"#f1f5f9", color:"#64748b", icon:"📋" },
+};
+
+const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
+  const [status, setStatus] = React.useState(null);
+  const [forms,  setForms]  = React.useState([]);
+  const [showTip,setShowTip]= React.useState(false);
+  const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+  React.useEffect(() => {
+    if (!appointmentId || !serviceCode) return;
+    fetch(
+      `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/FormStatus?serviceCode=${encodeURIComponent(serviceCode)}`,
+      { headers: { Authorization: `Bearer ${TOKEN()}` } }
+    ).then(r => r.ok ? r.json() : null)
+     .then(d => {
+       const data = d?.data ?? d;
+       if (data?.overall && data.overall !== "No Forms") {
+         setStatus(data.overall);
+         setForms(data.forms || []);
+       }
+     }).catch(() => {});
+  }, [appointmentId, serviceCode]);
+
+  if (!status) return null;
+  const style = STATUS_STYLE[status] || STATUS_STYLE["Not Started"];
+
+  return (
+    <div style={{ position:"relative", display:"inline-block" }}
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}>
+      <div style={{ background:style.bg, color:style.color, borderRadius:99,
+        padding:"1px 7px", fontSize:10, fontWeight:700, cursor:"default",
+        display:"flex", alignItems:"center", gap:3, marginTop:2 }}>
+        {style.icon} {status}
+      </div>
+      {showTip && forms.length > 0 && (
+        <div style={{ position:"absolute", top:"100%", left:0, marginTop:4,
+          background:"#fff", border:"1px solid #e7ecf4", borderRadius:8,
+          padding:"8px 12px", zIndex:100, minWidth:220,
+          boxShadow:"0 4px 12px rgba(0,0,0,.1)" }}>
+          {forms.map(f => (
+            <div key={f.formCode}
+              style={{ fontSize:11, display:"flex", justifyContent:"space-between",
+                alignItems:"center", padding:"3px 0", borderBottom:"0.5px solid #f1f5f9" }}>
+              <span style={{ color:"#334b71", fontWeight:500 }}>{f.formName}</span>
+              <span style={{ color: f.status==="Completed" ? "#166534" : "#94a3b8",
+                fontSize:10, fontWeight:700, marginLeft:8 }}>
+                {f.status === "Completed" ? "✅ Done" : "⏳ Pending"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FilterHeader = ({ countsOverride = {} }) => {
   const val = (k) => typeof countsOverride[k] === "number" ? countsOverride[k] : 0;
   const items = [
@@ -497,6 +567,11 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                 <div className={`aptst ${sc}`}><span></span>{appt.status||"Booked"}</div>
               </div>
               <div className="apptype"><strong>{appt.serviceName||"N/A"}</strong></div>
+              {/* EMR-AF-010/011/012: Form fill status badge */}
+              <EMRStatusBadge
+                appointmentId={appt.appointmentId}
+                serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
+              />
               {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
               <span className="expopup" onClick={() => {
                 const allLines = appointments.filter(a => a.appointmentId === appt.appointmentId);

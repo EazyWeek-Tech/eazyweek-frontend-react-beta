@@ -40,10 +40,12 @@ export default function ComponentPreview({ component, compact = false }) {
       return <div><Label /><input readOnly type="date" style={inp} /></div>;
 
     case "time":
-      return <div><Label /><input readOnly type="time" style={inp} /></div>;
+      return <div><Label /><input readOnly type="time" style={inp}
+        min={config.min || undefined} max={config.max || undefined} /></div>;
 
     case "datetime":
-      return <div><Label /><input readOnly type="datetime-local" style={inp} /></div>;
+      return <div><Label /><input readOnly type="datetime-local" style={inp}
+        min={config.min || undefined} max={config.max || undefined} /></div>;
 
     case "dropdown":
       return (

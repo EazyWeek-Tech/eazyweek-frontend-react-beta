@@ -24,6 +24,7 @@ export const useEMRForms = () => {
 
   const checkAndShowForms = useCallback(async ({
     appointmentId, serviceCode, custId, centerCode, toStatus,
+    macroContext = {},   // EMR-FB-019: { customerName, serviceName, centreName, practitionerName, appointmentDate }
   }) => {
     if (!["Start", "Completed"].includes(toStatus)) return true;
 
@@ -39,7 +40,7 @@ export const useEMRForms = () => {
       return new Promise((res) => {
         setResolve(() => res);
         const whenToFill = toStatus === "Start" ? "Before Service Starts" : "After Service Starts";
-        setModalProps({ appointmentId, serviceCode, custId, centerCode, whenToFill });
+        setModalProps({ appointmentId, serviceCode, custId, centerCode, whenToFill, macroContext });
       });
     } catch {
       return true; // fail open
