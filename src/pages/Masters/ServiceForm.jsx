@@ -56,18 +56,18 @@ const Toast = ({ type, message, onClose }) => {
 
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const [activeTab, setActiveTab] = useState("General");
-  const tabs = ["General","Pricing","BOM","Practitioner Mapping","Forms","Miscellaneous","EMR Forms"];
+  const tabs = ["General","Pricing","BOM","Practitioner Mapping","Miscellaneous","EMR Forms"];
 
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "success") => setToast({ message, type });
 
   const [tabStatus, setTabStatus] = useState({
     General:"unsaved", Pricing:"unsaved", BOM:"unsaved",
-    "Practitioner Mapping":"unsaved", Forms:"unsaved", Miscellaneous:"unsaved",
+    "Practitioner Mapping":"unsaved", Miscellaneous:"unsaved",
   });
   const [dirty, setDirty] = useState({
     General:false, Pricing:false, BOM:false,
-    "Practitioner Mapping":false, Forms:false, Miscellaneous:false,
+    "Practitioner Mapping":false, Miscellaneous:false,
   });
   const loadEMRForms = async () => {
     if (emrFormsLoaded) return;
@@ -994,66 +994,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             )}
 
             {/* ── FORMS ─────────────────────────────────────────────────────── */}
-            {activeTab === "Forms" && (
-              <>
-                <div style={s.section}>Add Form</div>
-                <div style={s.row}>
-                  <label style={s.lbl}>Stage for Completion</label>
-                  <div style={s.inp_wrap}>
-                    <select style={s.sel} value={newForm.stageForFormCompletion} onChange={(e) => setNewForm((p) => ({ ...p, stageForFormCompletion:e.target.value }))}>
-                      <option value="form-not-required">Form not required</option>
-                      <option value="before-service">Before Service</option>
-                      <option value="during-service">During Service</option>
-                      <option value="after-service">After Service</option>
-                    </select>
-                  </div>
-                </div>
-                <div style={s.row}>
-                  <label style={s.lbl}>Block from Proceeding</label>
-                  <div style={s.inp_wrap}>
-                    <div style={{ display:"flex", gap:20, paddingTop:10 }}>
-                      {["Yes","No"].map((v) => (
-                        <label key={v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:14 }}>
-                          <input type="radio" value={v} checked={newForm.blockFromProceeding === v} onChange={(e) => setNewForm((p) => ({ ...p, blockFromProceeding:e.target.value }))} style={{ accentColor:"#334B71" }} /> {v}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div style={s.row}>
-                  <label style={s.lbl}>Form Name</label>
-                  <div style={{ ...s.inp_wrap, display:"flex", gap:8 }}>
-                    <input style={{ ...s.inp, flex:1 }} placeholder="Enter form name..." value={newForm.form} onChange={(e) => setNewForm((p) => ({ ...p, form:e.target.value }))} />
-                    <button style={s.btnPrimary} onClick={handleAddForm}>+ Add</button>
-                  </div>
-                </div>
-
-                <div style={s.section}>Added Forms</div>
-                <table style={s.tbl}>
-                  <thead><tr><th style={s.th} width={50}></th><th style={s.th}>Stage</th><th style={s.th}>Block</th><th style={s.th}>Form</th></tr></thead>
-                  <tbody>
-                    {formsData.filter((f) => f.form).map((f) => (
-                      <tr key={f.id}>
-                        <td style={s.td}><input type="checkbox" checked={f.selected} onChange={() => handleFormSelection(f.id)} style={{ accentColor:"#334B71" }} /></td>
-                        <td style={s.td}>{f.stageForFormCompletion}</td>
-                        <td style={s.td}>{f.blockFromProceeding}</td>
-                        <td style={s.td}>{f.form}</td>
-                      </tr>
-                    ))}
-                    {formsData.filter((f) => f.form).length === 0 && (
-                      <tr><td colSpan={4} style={{ padding:24, textAlign:"center", color:"#9ca3af", fontStyle:"italic" }}>No forms added yet.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-                {formsData.some((f) => f.selected) && (
-                  <button style={{ ...s.btnDanger, marginTop:10 }} onClick={handleRemoveForms}>Remove Selected</button>
-                )}
-                <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={onSaveForms}>Save as Draft</button>
-                  <button style={s.btnSecondary} onClick={onSubmitForms}>Submit Forms</button>
-                </div>
-              </>
-            )}
+            {/* Forms tab removed — use EMR Forms tab for form mapping */}
 
             {/* ── MISCELLANEOUS ─────────────────────────────────────────────── */}
 

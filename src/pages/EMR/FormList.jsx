@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../../config";
+import { API_BASE_URL } from "../../../config";
 
 const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet = async (url) => {
@@ -47,32 +47,47 @@ export default function FormList() {
                f.formCode?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCreate = async () => {
+  // FC-009: Draft save — Form Name only required
+  // Publish — Form Code + Form Name + Form Type all required
+  const doCreate = async (asDraft) => {
     const e = {};
-    if (!newForm.formCode?.trim())           e.formCode = "Form Code is required.";
-    if (newForm.formCode?.length !== 4)      e.formCode = "Form Code must be exactly 4 characters.";
-    if (!newForm.formName?.trim())           e.formName = "Form Name is required.";
-    if (!newForm.formType)                   e.formType = "Form Type is required.";
+    if (!newForm.formName?.trim()) e.formName = "Form Name is required.";
+
+    if (!asDraft) {
+      // Publish requires all fields
+      if (!newForm.formCode?.trim())      e.formCode = "Form Code is required.";
+      if (newForm.formCode?.length !== 4) e.formCode = "Form Code must be exactly 4 characters.";
+      if (!newForm.formType)              e.formType = "Form Type is required.";
+    }
+
     setErrors(e);
     if (Object.keys(e).length) return;
+
+    // For draft: auto-generate a temp formCode if not provided
+    const formCode = newForm.formCode?.trim()
+      ? newForm.formCode.trim().toUpperCase()
+      : "D" + Date.now().toString().slice(-3);  // e.g. D123 — unique temp draft code
 
     setCreating(true);
     try {
       const res = await authPost(`${API_BASE_URL}/api/EMR/Forms/Create`, {
-        formCode: newForm.formCode.trim().toUpperCase(),
+        formCode: formCode,
         formName: newForm.formName.trim(),
-        formType: newForm.formType,
-        status:   "Active",
+        formType: newForm.formType || "Consent/Treatment",
+        status:   asDraft ? "Draft" : "Active",
       });
       if (!res.success) throw new Error(res.message);
-      showToast(res.message || "Form created.");
+      showToast(asDraft ? "Form saved as draft." : (res.message || "Form created."));
       setShowCreate(false);
       setNewForm({ formCode:"", formName:"", formType:"Consent/Treatment" });
-      // Navigate directly to builder
-      navigate(`/emr/builder/${res.data?.formCode || newForm.formCode.toUpperCase()}`);
+      // Navigate to builder in both cases
+      navigate(`/emr/builder/${res.data?.formCode || formCode}`);
     } catch (err) { showToast(err.message, "error"); }
     finally { setCreating(false); }
   };
+
+  const handleSaveDraft = () => doCreate(true);
+  const handleCreate    = () => doCreate(false);
 
   const typeColor = (t) => t === "Consent/Treatment"
     ? { bg:"#e9edf5", color:"#334b71" }
@@ -103,7 +118,7 @@ export default function FormList() {
         .field input:focus, .field select:focus { border-color:#334b71; }
         .err { color:#b91c1c; font-size:11px; margin-top:2px; }
         .overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:9999; }
-        .modal { background:#fff; border-radius:14px; padding:28px; max-width:440px; width:90%; z-index:10001;}
+        .modal { background:#fff; border-radius:14px; padding:28px; max-width:440px; width:90%; }
       `}</style>
 
       <div className="fl-wrap">
@@ -192,12 +207,20 @@ export default function FormList() {
             <div style={{ fontSize:13, color:"#64748b", marginBottom:20 }}>Form Type is locked after creation.</div>
 
             <div className="field">
-              <label>Form Code * <span style={{ color:"#94a3b8", fontWeight:400 }}>(exactly 4 characters)</span></label>
+              <label>
+                Form Code
+                <span style={{ color:"#94a3b8", fontWeight:400, marginLeft:4 }}>
+                  (exactly 4 characters — required to publish)
+                </span>
+              </label>
               <input value={newForm.formCode} maxLength={4}
                 onChange={e => setNewForm(p => ({ ...p, formCode: e.target.value.toUpperCase() }))}
                 placeholder="e.g. EMR1"
                 style={{ borderColor: errors.formCode ? "#b91c1c" : undefined }} />
               {errors.formCode && <span className="err">{errors.formCode}</span>}
+              <span style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>
+                Leave blank to save as draft — a temporary code will be assigned.
+              </span>
             </div>
 
             <div className="field">
@@ -219,8 +242,12 @@ export default function FormList() {
               {errors.formType && <span className="err">{errors.formType}</span>}
             </div>
 
-            <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:8 }}>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:8, flexWrap:"wrap" }}>
               <button className="ghost-btn" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button className="ghost-btn" onClick={handleSaveDraft} disabled={creating}
+                style={{ borderColor:"#c8d5e8", color:"#334b71" }}>
+                {creating ? "Saving…" : "Save as Draft"}
+              </button>
               <button className="pri-btn" onClick={handleCreate} disabled={creating}>
                 {creating ? "Creating…" : "Create & Build →"}
               </button>

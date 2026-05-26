@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE_URL } from "../../../config";
-import FormFillModal from "../../Appointment/FormFillModal";
+import FormFillModal from "./FormFillModal";
 
 const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet = async (url) => {
@@ -151,7 +151,7 @@ const ImageCompare = ({ images, onClose }) => {
 };
 
 // ─── Submission Viewer Modal ───────────────────────────────────────────────────
-const SubmissionViewer = ({ submissionId, onClose }) => {
+const SubmissionViewer = ({ submissionId, onClose, autoPrint = false }) => {
   const [data,    setData]    = useState(null);
   const [formDef, setFormDef] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -165,6 +165,15 @@ const SubmissionViewer = ({ submissionId, onClose }) => {
       })
       .finally(() => setLoading(false));
   }, [submissionId]);
+
+  // C360-005: auto-print after content finishes loading
+  useEffect(() => {
+    if (autoPrint && !loading && formDef) {
+      // Small frame delay so React flushes the render before print dialog opens
+      const id = requestAnimationFrame(() => window.print());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [autoPrint, loading, formDef]);
 
   const renderValue = (comp, val) => {
     if (val === undefined || val === null || val === "") return <span style={{ color:"#94a3b8" }}>—</span>;
@@ -257,6 +266,7 @@ const CustomerFormHistory = () => {
   const [err,         setErr]         = useState("");
   const [activeTab,   setActiveTab]   = useState("submissions");
   const [viewSub,     setViewSub]     = useState(null);   // submissionId to view
+  const [printSub,    setPrintSub]    = useState(null);   // submissionId to print (auto-prints on open)
   const [showCompare, setShowCompare] = useState(false);
 
   // Edit / Fill Customer Form state
@@ -426,7 +436,7 @@ const CustomerFormHistory = () => {
                           <td style={tdStyle}>
                             <ActionBtn label="View"  onClick={() => setViewSub(s.submissionId)} />
                             <ActionBtn label="🖨 Print" variant="print"
-                              onClick={() => { setViewSub(s.submissionId); setTimeout(() => window.print(), 600); }} />
+                              onClick={() => setPrintSub(s.submissionId)} />
                           </td>
                         </tr>
                       );
@@ -524,7 +534,7 @@ const CustomerFormHistory = () => {
                         <td style={tdStyle}>
                           <ActionBtn label="View"  onClick={() => setViewSub(cf.recId)} />
                           <ActionBtn label="🖨 Print" variant="print"
-                            onClick={() => { setViewSub(cf.recId); setTimeout(() => window.print(), 600); }} />
+                            onClick={() => setPrintSub(cf.recId)} />
                           {/* Edit only allowed on latest version — FRD Rule 17 */}
                           {cf.isLatest && (
                             <ActionBtn label="Edit" variant="edit"
@@ -569,8 +579,17 @@ const CustomerFormHistory = () => {
         </>
       )}
 
-      {/* Submission Viewer */}
+      {/* Submission Viewer — View mode */}
       {viewSub && <SubmissionViewer submissionId={viewSub} onClose={() => setViewSub(null)} />}
+
+      {/* Submission Viewer — Print mode (auto-prints after load) */}
+      {printSub && (
+        <SubmissionViewer
+          submissionId={printSub}
+          autoPrint={true}
+          onClose={() => setPrintSub(null)}
+        />
+      )}
 
       {/* Image Compare */}
       {showCompare && (data?.images?.length || 0) > 0 && (
