@@ -140,7 +140,13 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors }) => {
       </Field>
 
       <div style={{ gridColumn:"1/-1", marginTop:8, paddingTop:12, borderTop:"1px solid #f1f5f9" }}>
-        <Toggle value={form.addToQuickCart}     onChange={()=>setForm(p=>({...p,addToQuickCart:!p.addToQuickCart}))}     label="Add to Quick Cart (max 10)" />
+        <Toggle value={form.addToQuickCart}     onChange={()=>setForm(p=>({...p,addToQuickCart:!p.addToQuickCart}))}     label="Add to Quick Cart (max 10 active)" />
+        {errors.addToQuickCart && (
+          <div style={{ marginTop:6, padding:"8px 12px", background:"#fdf3f3", border:"1px solid #f0c4c0",
+            borderRadius:8, fontSize:12, color:"#b91c1c", fontWeight:600 }}>
+            🛒 {errors.addToQuickCart}
+          </div>
+        )}
         <Toggle value={form.allowTransfer}      onChange={()=>setForm(p=>({...p,allowTransfer:!p.allowTransfer}))}       label="Allow Package Transfer" />
         <Toggle value={form.allowLoyaltyAccrue} onChange={()=>setForm(p=>({...p,allowLoyaltyAccrue:!p.allowLoyaltyAccrue}))} label="Allow Loyalty Accrual" />
         <Toggle value={form.allowLoyaltyRedeem} onChange={()=>setForm(p=>({...p,allowLoyaltyRedeem:!p.allowLoyaltyRedeem}))} label="Allow Loyalty Redemption" />
@@ -461,6 +467,8 @@ const PackageMaster = () => {
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState("");
   const [loading,   setLoading]   = useState(false);
+  // Derived: count of Active packages in Quick Cart
+  const quickCartCount = packages.filter(p => p.ADDTOQUICKCART && p.STATUS === "Active").length;
   const [editCode,  setEditCode]  = useState(null);
   const [form,      setForm]      = useState(EMPTY);
   const [activeTab, setActiveTab] = useState(0);
@@ -623,7 +631,7 @@ const PackageMaster = () => {
       else if (part.includes("Sub-Category"))    e.subCategory  = part;
       else if (part.includes("Expiry Tenure"))   e.expiryTenure = part;
       else if (part.includes("Grace Tenure"))    e.graceTenure  = part;
-      else if (part.includes("Quick Cart"))      e.packageCode  = part; // show near top
+      else if (part.includes("Quick Cart"))      e.addToQuickCart = part;
     });
     if (Object.keys(e).length > 0) {
       setErrors(prev => ({ ...prev, ...e }));
@@ -673,7 +681,16 @@ const PackageMaster = () => {
     <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
+          <span style={{ background: quickCartCount >= 10 ? "#fdf3f3" : "#e6f4ef",
+            color: quickCartCount >= 10 ? "#b91c1c" : "#2e7d5e",
+            border: `1px solid ${quickCartCount >= 10 ? "#f0c4c0" : "#b3d9cc"}`,
+            borderRadius:999, padding:"3px 12px", fontSize:12, fontWeight:700 }}
+            title="Quick Cart: packages shown in Quick Cart for purchase">
+            🛒 Quick Cart: {quickCartCount}/10
+          </span>
+        </div>
         <button onClick={openCreate} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ Create New Package</button>
       </div>
       <div style={{ display:"flex", gap:10, marginBottom:18 }}>
@@ -691,7 +708,7 @@ const PackageMaster = () => {
         <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead><tr style={{ background:"#f1f5f9" }}>
-              {["Package Code","Package Name","Category","Sub-Category","Centres","Status","Actions"].map(h=>(
+              {["Package Code","Package Name","Category","Sub-Category","Centres","Quick Cart","Status","Actions"].map(h=>(
                 <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
               ))}
             </tr></thead>
@@ -707,6 +724,13 @@ const PackageMaster = () => {
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.CATEGORY}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.SUBCATEGORY}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{pkg.CENTRES||"—"}</td>
+                  <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                    {pkg.ADDTOQUICKCART
+                      ? <span style={{ background:"#e6f4ef", color:"#2e7d5e", border:"1px solid #b3d9cc",
+                          borderRadius:999, padding:"2px 10px", fontSize:11, fontWeight:700 }}>✓ Yes</span>
+                      : <span style={{ color:"#94a3b8", fontSize:12 }}>—</span>
+                    }
+                  </td>
                   <td style={{ padding:"12px 14px" }}>{statusBadge(pkg.STATUS)}</td>
                   <td style={{ padding:"12px 14px" }}>
                     <button onClick={()=>openEdit(pkg.PACKAGECODE)} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>Edit</button>
