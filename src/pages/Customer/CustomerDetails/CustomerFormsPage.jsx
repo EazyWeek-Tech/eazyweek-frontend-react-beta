@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE_URL } from "../../../config";
-import FormFillModal from "./FormFillModal";
+import FormFillModal from "../../Appointment/FormFillModal";
 
 const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet = async (url) => {

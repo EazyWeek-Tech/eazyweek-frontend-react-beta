@@ -11,6 +11,12 @@ const authPost = async (url, body) => {
   return r.json();
 };
 
+const authGet = async (url) => {
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+  const j = await r.json();
+  return j.data ?? j;
+};
+
 // ─── useEMRForms ──────────────────────────────────────────────────────────────
 // Returns:
 //   checkAndShowForms({ appointmentId, serviceCode, custId, centerCode, toStatus })
@@ -29,6 +35,37 @@ export const useEMRForms = () => {
     if (!["Start", "Completed"].includes(toStatus)) return true;
 
     try {
+      // ── Step 1: On Start, check if this is the customer's first visit ──────
+      // If first visit AND a Customer Form exists → show it first before consent forms
+      if (toStatus === "Start" && custId && centerCode) {
+        const apptForms = await authGet(
+          `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/Forms` +
+          `?serviceCode=${encodeURIComponent(serviceCode)}&custId=${encodeURIComponent(custId)}`
+        );
+
+        if (apptForms?.isFirstVisit && apptForms?.customerForm) {
+          // Show Customer Form — wait for completion before proceeding
+          const customerFormFilled = await new Promise((resolve) => {
+            setResolve(() => resolve);
+            setModalProps({
+              appointmentId,
+              serviceCode,
+              custId,
+              centerCode,
+              whenToFill:        null,         // Customer Form has no whenToFill
+              isCustomerFormEdit: false,
+              existingRecId:     null,          // new fill — not an edit
+              formCodeOverride:  apptForms.customerForm.formCode,
+              macroContext,
+            });
+          });
+
+          // If practitioner closed without filling → block the status change
+          if (!customerFormFilled) return false;
+        }
+      }
+
+      // ── Step 2: Check consent/treatment form gates ─────────────────────────
       const res = await authPost(`${API_BASE_URL}/api/EMR/Appointment/CheckStatusChange`, {
         appointmentId, serviceCode, toStatus,
       });

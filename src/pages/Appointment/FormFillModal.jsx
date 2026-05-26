@@ -641,8 +641,10 @@ export default function FormFillModal({
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
 
-      if (isCustomerFormEdit) {
-        // C360 edit: submit a new version via /api/EMR/CustomerForm/Submit
+      // Customer Form: either C360 edit OR first-visit from appointment flow
+      // Detected by: isCustomerFormEdit flag (C360) OR formCodeOverride present with no whenToFill (appointment)
+      const isCustomerFormSubmit = isCustomerFormEdit || (formCodeOverride && !whenToFill);
+      if (isCustomerFormSubmit) {
         const res = await authPost(`${API_BASE_URL}/api/EMR/Forms/SubmitCustomer`, {
           formCode:    currentForm.formCode,
           custId,
