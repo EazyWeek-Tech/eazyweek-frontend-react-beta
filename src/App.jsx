@@ -149,10 +149,17 @@ const firstLoginCode = localStorage.getItem("firstLoginEmployeeCode") || "";
   const navigate = useNavigate();
 
   const handleLoginSuccess = (user) => {
-    setUser(user);
-    navigate("/dashboard", { replace: true }); // redirect after normal login
-  };
+  setUser(user);
 
+  // Read flag set synchronously by Login.jsx before calling this
+  const isFirst = localStorage.getItem("isFirstLogin") === "true";
+  if (isFirst) {
+    setShowFirstLogin(true);  // modal renders immediately
+    return;                   // don't navigate
+  }
+
+  navigate("/dashboard", { replace: true });
+};
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => !prev);
   };

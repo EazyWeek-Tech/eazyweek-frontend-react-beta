@@ -16,9 +16,6 @@ const Login = ({ onLoginSuccess }) => {
     "Content-Type": "application/json",
   };
 
-  // helper that returns headers suitable for the method. We keep the canonical
-  // object intact but omit Content-Type for GET requests to avoid preflight/CORS
-  // issues while still storing the canonical header shape in the file.
   const headersFor = (method = "GET") => {
     if (String(method).toUpperCase() === "GET") {
       const { ["Content-Type"]: _, ...rest } = commonHeaders;
@@ -34,135 +31,131 @@ const Login = ({ onLoginSuccess }) => {
         credentials: "include",
         headers: headersFor("GET"),
       });
-
       if (!response.ok) throw new Error("Failed to fetch session info");
-
       const data = await response.json();
-      console.log("Session GET Response:", data);
-
       localStorage.setItem("userSession", JSON.stringify(data));
-
     } catch (error) {
       console.error("Error fetching session:", error);
     }
   };
 
   const setSessionToApi = async ({ user }) => {
-  try {
-    const centerCode =
-      user?.centerCode ||
-      user?.CenterCode ||
-      user?.center_code ||
-      user?.CENTERCODE ||
-      "";
+    try {
+      const centerCode = user?.centerCode || user?.CenterCode || user?.center_code || user?.CENTERCODE || "";
+      const payload = {
+        LoginCode: centerCode,
+        TopCode:   centerCode,
+        userID:    user?.employeeCode || "",
+      };
+      const response = await fetch(`${API_BASE_URL}/api/session/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
+    } catch (error) {
+      console.error("Error setting session:", error);
+    }
+  };
 
-    const payload = {
-      LoginCode: centerCode,  // ✅ employee's centerCode
-      TopCode:   centerCode,  // ✅ same
-      userID:    user?.employeeCode || "",
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setUserInfo(null);
+    setLoading(true);
 
-    console.log("Session Set Payload:", payload);
-
-    const response = await fetch(`${API_BASE_URL}/api/session/set`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      credentials: "include",
-    });
-
-    if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
-  } catch (error) {
-    console.error("Error setting session:", error);
-  }
-};
-
-// Replace handleSubmit in Login.js with this:
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError(null);
-  setUserInfo(null);
-  setLoading(true);
-
-  if (!email || !password) {
-    setError("Email and password are required.");
-    setLoading(false);
-    return;
-  }
-
-  try {
-    // 1. Login
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: email, password }),
-    });
-
-    const data = await response.json();
-    console.log("Login API Response:", data);
-
-    if (!response.ok || !data.success) {
-      setError(data.message || "Invalid credentials.");
+    if (!email || !password) {
+      setError("Email and password are required.");
       setLoading(false);
       return;
     }
 
-    const { user, token } = data.data;
-
-    // 2. Store token and user
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("remember", remember ? "1" : "0");
-
-    // 3. ✅ Set session using employee's centerCode as LoginCode + TopCode
-    const centerCode = user?.centerCode || "";
-    await fetch(`${API_BASE_URL}/api/session/set`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        LoginCode: centerCode,
-        TopCode:   centerCode,
-        userID:    user?.employeeCode || "",
-      }),
-      credentials: "include",
-    });
-
-    // 4. Get session confirmation
-    const sessionRes  = await fetch(`${API_BASE_URL}/api/session/get`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: "include",
-    });
-    const sessionData = await sessionRes.json();
-    localStorage.setItem("userSession", JSON.stringify(sessionData));
-
-    // 5. ✅ Check first login
     try {
-      const firstLoginRes  = await fetch(
-        `${API_BASE_URL}/api/employee/first-login-check?employeeCode=${user.employeeCode}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const firstLoginJson = await firstLoginRes.json();
-      if (firstLoginJson.data?.isFirstLogin) {
+      // 1. Login
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email, password }),
+      });
+
+      const data = await response.json();
+      console.log("Login API Response:", data);
+
+      if (!response.ok || !data.success) {
+        setError(data.message || "Invalid credentials.");
+        setLoading(false);
+        return;
+      }
+
+      const { user, token } = data.data;
+
+      // 2. Store token and user
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("remember", remember ? "1" : "0");
+
+      // 3. Set session
+      const centerCode = user?.centerCode || "";
+      await fetch(`${API_BASE_URL}/api/session/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          LoginCode: centerCode,
+          TopCode:   centerCode,
+          userID:    user?.employeeCode || "",
+        }),
+        credentials: "include",
+      });
+
+      // 4. Get session confirmation
+      const sessionRes  = await fetch(`${API_BASE_URL}/api/session/get`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      const sessionData = await sessionRes.json();
+      localStorage.setItem("userSession", JSON.stringify(sessionData));
+
+      // 5. Check first login
+      let isFirstLogin = false;
+      try {
+        const firstLoginRes  = await fetch(
+          `${API_BASE_URL}/api/employee/first-login-check?employeeCode=${encodeURIComponent(user.employeeCode || "")}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const firstLoginJson = await firstLoginRes.json();
+        isFirstLogin = !!(firstLoginJson?.data?.isFirstLogin || firstLoginJson?.isFirstLogin);
+      } catch {
+        console.warn("First login check failed — skipping");
+      }
+
+      setUserInfo(user);
+
+      if (isFirstLogin && user.employeeCode) {
+        // Store flags for App.jsx to read
         localStorage.setItem("isFirstLogin", "true");
         localStorage.setItem("firstLoginEmployeeCode", user.employeeCode);
+        // Call onLoginSuccess to set the user in App state,
+        // which will trigger showFirstLogin = true and render the modal
+        onLoginSuccess(user);
+        // Do NOT navigate — App.jsx will show the modal instead of dashboard
+        return;
       }
-    } catch {
-      console.warn("First login check failed — skipping");
+
+      // Normal login — clear any stale first login flags
+      localStorage.removeItem("isFirstLogin");
+      localStorage.removeItem("firstLoginEmployeeCode");
+      onLoginSuccess(user);
+      navigate("/dashboard", { replace: true });
+
+    } catch (err) {
+      console.error(err);
+      setError("Login error. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setUserInfo(user);
-    onLoginSuccess(user);
-    navigate("/dashboard", { replace: true });
-
-  } catch (err) {
-    console.error(err);
-    setError("Login error. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <>

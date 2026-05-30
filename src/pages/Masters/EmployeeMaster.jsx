@@ -1,237 +1,236 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
-import EmployeeEditForm from "./EmployeeEditForm";
-import EmployeeCreateForm from "./EmployeeCreateForm";
+import EmployeeForm from "./EmployeeForm";
 
-const TOKEN = () => localStorage.getItem("token");
+const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authGet = async (url) => {
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+  const j = await r.json(); return j.data ?? j;
+};
 
-// Add at top of EmployeeMaster component
-const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-const isAdmin = currentUser?.role === "Admin";
+const statusBadge = (status) => {
+  const cfg = {
+    Active:     { bg:"#e6f4ef", color:"#2e7d5e", border:"#b3d9cc" },
+    Draft:      { bg:"#fef9e7", color:"#854F0B", border:"#f5d78b" },
+    Terminated: { bg:"#fdf3f3", color:"#b91c1c", border:"#f0c4c0" },
+  }[status] || { bg:"#f1f5f9", color:"#475569", border:"#e2e8f0" };
+  return (
+    <span style={{ display:"inline-block", padding:"2px 10px", borderRadius:999, fontSize:11,
+      fontWeight:700, background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.border}` }}>
+      {status || "—"}
+    </span>
+  );
+};
 
 const EmployeeMaster = () => {
-  const [employees, setEmployees]     = useState([]);
-  const [total, setTotal]             = useState(0);
-  const [page, setPage]               = useState(1);
-  const [search, setSearch]           = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [loading, setLoading]         = useState(true);
-  const [toast, setToast]             = useState(null);
-  const [view, setView]               = useState("list"); // list | edit | create
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [total,     setTotal]     = useState(0);
+  const [page,      setPage]      = useState(1);
+  const [loading,   setLoading]   = useState(true);
+  const [search,    setSearch]    = useState("");
+  const [status,    setStatus]    = useState("");
+  const [view,      setView]      = useState("list"); // list | create | edit
+  const [editCode,  setEditCode]  = useState(null);
+  const [toast,     setToast]     = useState(null);
 
-  const LIMIT = 20;
+  const LIMIT      = 10;
+  const totalPages = Math.ceil(total / LIMIT);
 
-  const showToast = (text, type = "success") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 3000);
+  // Determine if current user is Admin and at LE level
+  const user      = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  const role      = (user.role || user.userRole || user.securityRole || "").toLowerCase().replace(/\s/g,"");
+  const isAdmin   = role === "admin" || role === "manager";
+  // EM-002/003: Create button only at Legal Entity level
+  // At LE level: legalEntityCode exists and matches centerCode (user logged in at LE, not a branch)
+  // OR: the backend entity check (CZONE='Entity') — we use same proxy as list view
+  const leCode    = user.leCode || user.legalEntityCode || "";
+  const ccCode    = user.centerCode || "";
+  // isEntityLevel: centerCode is the LE code (not a branch centre)
+  // — when leCode and centerCode are different, user is at a centre
+  // — when leCode equals centerCode OR centerCode is the LE code, user is at entity level
+  const isEntityLevel = !ccCode || !leCode || ccCode === leCode || leCode === ccCode;
+  const canCreate = isAdmin && isEntityLevel;
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchEmployees = useCallback(async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, limit: LIMIT });
-      if (search) params.append("search", search);
-      const res = await fetch(`${API_BASE_URL}/api/employee?${params}`, {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      });
-      const json = await res.json();
-      if (json.success) {
-        setEmployees(json.data);
-        setTotal(json.pagination?.total || 0);
-      }
-    } catch {
-      showToast("Failed to load employees", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search]);
+      const params = new URLSearchParams({ search, status, page, limit: LIMIT });
+      const res    = await authGet(`${API_BASE_URL}/api/employee/List?${params}`);
+      // res is { data: [...], total, page, limit }
+      const rows = Array.isArray(res) ? res : (res?.data || []);
+      setEmployees(rows);
+      setTotal(res?.total || rows.length);
+    } catch { showToast("Failed to load employees.", "error"); }
+    finally  { setLoading(false); }
+  }, [search, status, page]);
 
-  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => { loadList(); }, [loadList]);
 
   // Debounce search
+  const [searchInput, setSearchInput] = useState("");
   useEffect(() => {
     const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 400);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const handleRowClick = (emp) => {
-    setSelectedEmployee(emp);
-    setView("edit");
-  };
+  // Also reset page when status filter changes
+  useEffect(() => { setPage(1); }, [status]);
 
-  const handleBackToList = () => {
-    setSelectedEmployee(null);
-    setView("list");
-    fetchEmployees();
-  };
-
-  const totalPages = Math.ceil(total / LIMIT);
-
-  // ── Edit view ──────────────────────────────────────────────────────────────
-  if (view === "edit" && selectedEmployee) {
+  if (view === "create" || view === "edit") {
     return (
-      <EmployeeEditForm
-        employee={selectedEmployee}
-        onBack={handleBackToList}
-        onSaved={handleBackToList}
+      <EmployeeForm
+        employeeCode={view === "edit" ? editCode : null}
+        isAdmin={isAdmin}
+        isEntityLevel={isEntityLevel}
+        onBack={() => { setView("list"); setEditCode(null); loadList(); }}
+        onSaved={() => { setView("list"); setEditCode(null); loadList(); showToast("Employee saved successfully."); }}
       />
     );
   }
 
-  // ── Create view ───────────────────────────────────────────────────────────
-  if (view === "create") {
-    return (
-      <EmployeeCreateForm
-        onBack={handleBackToList}
-        onSaved={handleBackToList}
-      />
-    );
-  }
-
-  // ── List view ─────────────────────────────────────────────────────────────
   return (
-    <div style={s.page}>
-      {/* Header */}
-      <div style={s.pageHeader}>
-        <div>
-          <div style={s.breadcrumb}>
-            <a href="/dashboard" style={s.breadLink}>Dashboard</a>
-            <span style={s.breadSep}> › </span>
-            <span>Manage Employees</span>
-          </div>
-          <h1 style={s.title}>Employees</h1>
-          <p style={s.subtitle}>{total} active employees</p>
+    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+      {toast && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3",
+          border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`,
+          color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>
+          {toast.msg}
         </div>
-{isAdmin && (
-  <button style={s.addBtn} onClick={() => setView("create")}>
-    + Add Employee
-  </button>
-)}
+      )}
+
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:11, color:"#94a3b8", marginBottom:4 }}>
+            Dashboard › Masters › Employees
+          </div>
+          <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Employees</h2>
+        </div>
+        {canCreate && (
+          <button onClick={() => setView("create")}
+            style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:10,
+              padding:"10px 20px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            + Create New Employee
+          </button>
+        )}
       </div>
 
-      {/* Search */}
-      <div style={{ position: "relative", maxWidth: 400, marginBottom: 16 }}>
-        <span style={s.searchIcon}>🔍</span>
-        <input
-          style={s.searchInput}
-          placeholder="Search by name, code, email, mobile..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-        />
-        {searchInput && (
-          <button style={s.clearBtn} onClick={() => setSearchInput("")}>✕</button>
-        )}
+      {/* Filters */}
+      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+        <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+          placeholder="Search by code, name or email…"
+          style={{ flex:1, height:38, padding:"0 14px", border:"1.5px solid #e2e8f0",
+            borderRadius:10, fontSize:13, outline:"none" }} />
+        <select value={status} onChange={e => setStatus(e.target.value)}
+          style={{ height:38, padding:"0 12px", border:"1.5px solid #e2e8f0",
+            borderRadius:10, fontSize:13, background:"#fff" }}>
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Draft">Draft</option>
+          <option value="Terminated">Terminated</option>
+        </select>
       </div>
 
       {/* Table */}
-      <div style={s.card}>
-        {loading ? (
-          <div style={s.loader}>Loading employees...</div>
-        ) : employees.length === 0 ? (
-          <div style={s.loader}>No employees found</div>
-        ) : (
-          <table style={s.table}>
-            <thead>
-              <tr>
-                {["Code", "Name", "Role", "Center", "Mobile", "Email", ""].map((h) => (
-                  <th key={h} style={s.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((emp) => (
-                <tr
-                  key={emp.RECID}
-                  style={s.tr}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = ""}
-                >
-                  <td style={s.td}>
-                    <span style={s.codeTag}>{emp.EMPLOYEECODE}</span>
-                  </td>
-                  <td style={s.td}>
-                    {`${emp.FIRSTNAME || ""} ${emp.LASTNAME || ""}`.trim()}
-                  </td>
-                  <td style={s.td}>
-                    <span style={s.roleBadge}>{emp.ROLE || emp.JOB || "—"}</span>
-                  </td>
-                  <td style={s.td}>{emp.CENTERCODE || "—"}</td>
-                  <td style={s.td}>{emp.MOBILEPHONE || "—"}</td>
-                  <td style={s.td}>{emp.EMAIL || "—"}</td>
-                 <td style={s.td}>
-  {isAdmin && (
-    <button style={s.editBtn} onClick={() => handleRowClick(emp)}>
-      Edit →
-    </button>
-  )}
-</td>
-                </tr>
+      <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:"#f1f5f9" }}>
+              {["Employee Code","First Name","Last Name","Job","Primary Centre","Status",""].map(h => (
+                <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700,
+                  fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0",
+                  textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
               ))}
-            </tbody>
-          </table>
-        )}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>Loading…</td></tr>
+            ) : employees.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>No employees found.</td></tr>
+            ) : employees.map(emp => (
+              <tr key={emp.EMPLOYEECODE}
+                style={{ borderBottom:"1px solid #f1f5f9", cursor:"pointer" }}
+                onMouseEnter={e => e.currentTarget.style.background="#f8faff"}
+                onMouseLeave={e => e.currentTarget.style.background=""}>
+                <td style={{ padding:"12px 14px", fontWeight:700, color:"#334b71" }}>
+                  {emp.EMPLOYEECODE}
+                </td>
+                <td style={{ padding:"12px 14px" }}>{emp.FIRSTNAME || "—"}</td>
+                <td style={{ padding:"12px 14px" }}>{emp.LASTNAME  || "—"}</td>
+                <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.JOB || "—"}</td>
+                <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.PRIMARYCENTRE || "—"}</td>
+                <td style={{ padding:"12px 14px" }}>{statusBadge(emp.STATUS)}</td>
+                <td style={{ padding:"12px 14px" }}>
+                  <button
+                    onClick={() => { setEditCode(emp.EMPLOYEECODE); setView("edit"); }}
+                    style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6,
+                      background:"#fff", color:"#334b71", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                    {isAdmin ? "Edit" : "View"} →
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={s.pagination}>
-          <button
-            style={s.pageBtn}
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ← Prev
-          </button>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>
-            Page {page} of {totalPages}
-          </span>
-          <button
-            style={s.pageBtn}
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next →
-          </button>
-        </div>
-      )}
+        <div style={{ display:"flex", justifyContent:"center", alignItems:"center",
+          gap:8, marginTop:16 }}>
+          <button onClick={() => setPage(1)} disabled={page === 1}
+            style={pgBtn(page === 1)}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+            style={pgBtn(page === 1)}>‹ Prev</button>
 
-      {/* Toast */}
-      {toast && (
-        <div style={{ ...s.toast, ...(toast.type === "error" ? s.toastError : s.toastSuccess) }}>
-          {toast.text}
+          {/* Page number buttons */}
+          {Array.from({ length: totalPages }, (_,i) => i+1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+            .reduce((acc, p, idx, arr) => {
+              if (idx > 0 && p - arr[idx-1] > 1) acc.push("...");
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, i) => p === "..." ? (
+              <span key={`dots-${i}`} style={{ fontSize:13, color:"#94a3b8", padding:"0 4px" }}>…</span>
+            ) : (
+              <button key={p} onClick={() => setPage(p)}
+                style={{ ...pgBtn(false),
+                  background: p === page ? "#334b71" : "#fff",
+                  color: p === page ? "#fff" : "#334b71",
+                  fontWeight: p === page ? 700 : 400,
+                  border: `1px solid ${p === page ? "#334b71" : "#e2e8f0"}`,
+                }}>
+                {p}
+              </button>
+            ))
+          }
+
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+            style={pgBtn(page === totalPages)}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+            style={pgBtn(page === totalPages)}>»</button>
+
+          <span style={{ fontSize:12, color:"#94a3b8", marginLeft:8 }}>
+            {((page-1)*LIMIT)+1}–{Math.min(page*LIMIT, total)} of {total} employees
+          </span>
         </div>
       )}
     </div>
   );
 };
 
-const s = {
-  page: { padding: "24px", fontFamily: "Inter, sans-serif", maxWidth: 1200, margin: "0 auto" },
-  pageHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
-  breadcrumb: { fontSize: 12, color: "#9ca3af", marginBottom: 6 },
-  breadLink: { color: "#334B71", textDecoration: "none" },
-  breadSep: { margin: "0 6px" },
-  title: { fontSize: 24, fontWeight: 600, color: "#111827", margin: "0 0 4px" },
-  subtitle: { fontSize: 13, color: "#6b7280", margin: 0 },
-  addBtn: { background: "#334B71", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" },
-  searchIcon: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 },
-  searchInput: { width: "100%", padding: "9px 36px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" },
-  clearBtn: { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 14 },
-  card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" },
-  loader: { textAlign: "center", padding: 40, color: "#6b7280", fontSize: 14 },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" },
-  tr: { cursor: "pointer", transition: "background 0.1s" },
-  td: { padding: "12px 16px", fontSize: 13, color: "#374151", borderBottom: "1px solid #f3f4f6" },
-  codeTag: { background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 500 },
-  roleBadge: { background: "#f3f4f6", color: "#374151", padding: "2px 8px", borderRadius: 4, fontSize: 12 },
-  editBtn: { background: "#334B71", color: "#fff", border: "none", borderRadius: 6, padding: "5px 14px", fontSize: 12, cursor: "pointer", fontWeight: 500 },
-  pagination: { display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 16 },
-  pageBtn: { background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", color: "#374151" },
-  toast: { position: "fixed", bottom: 24, right: 24, padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 14px rgba(0,0,0,0.12)" },
-  toastSuccess: { background: "#ecfdf5", color: "#065f46", border: "1px solid #6ee7b7" },
-  toastError: { background: "#fef2f2", color: "#991b1b", border: "1px solid #fca5a5" },
-};
+const pgBtn = (disabled) => ({
+  padding:"6px 12px", borderRadius:7, border:"1px solid #e2e8f0",
+  background:"#fff", color: disabled ? "#c8d5e8" : "#334b71",
+  cursor: disabled ? "not-allowed" : "pointer", fontSize:13, fontWeight:500,
+});
 
 export default EmployeeMaster;
