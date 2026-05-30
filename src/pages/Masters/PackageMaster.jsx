@@ -135,8 +135,8 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors }) => {
         </select>
       </Field>
 
-      <Field label="Tag (from Tag Master)">
-        <Input value={form.tag} onChange={e => setForm(p=>({...p,tag:e.target.value}))} placeholder="Select from Tag Master" />
+      <Field label="Tag">
+        <TagDropdown value={form.tag} onChange={val => { setForm(p=>({...p,tag:val})); setFormDirty(true); }} />
       </Field>
 
       <div style={{ gridColumn:"1/-1", marginTop:8, paddingTop:12, borderTop:"1px solid #f1f5f9" }}>
@@ -455,6 +455,36 @@ const EMPTY = {
 };
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+
+// ── TagDropdown — sourced from Tag Master (PM-014) ───────────────────────────
+const TagDropdown = ({ value, onChange }) => {
+  const [tags,    setTags]    = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    fetch(`${API_BASE_URL}/api/master/Tags`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(j => {
+        const data = Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : [];
+        setTags(data);
+      })
+      .catch(() => setTags([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <select value={value || ""} onChange={e => onChange(e.target.value)}
+      style={{ width:"100%", height:38, padding:"0 12px", border:"1.5px solid #e2e8f0",
+        borderRadius:8, fontSize:13, background:"#fff", color: value ? "#0f172a" : "#94a3b8" }}>
+      <option value="">{loading ? "Loading tags…" : "Select tag…"}</option>
+      {tags.map(t => (
+        <option key={t.code || t.name} value={t.name || t.code}>{t.name || t.code}</option>
+      ))}
+    </select>
+  );
+};
+
 const PackageMaster = () => {
   const [view,      setView]      = useState("list");
   const [packages,  setPackages]  = useState([]);
@@ -485,11 +515,32 @@ const PackageMaster = () => {
 
   const [formDirty, setFormDirty] = useState(false);
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setSaveAttempted(false); setFormDirty(false);
     const u = getUser();
-    // Pre-populate pricing rows from user's centres — for now one row for current centre
-    const pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false }];
+    // PM-029: Auto-populate ALL active centres of the Legal Entity in the pricing grid
+    let pricing = [];
+    try {
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+      const res   = await fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json  = await res.json();
+      const centres = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+      pricing = centres.map(cc => ({
+        centerCode:      cc.code || cc.CENTERCODE || "",
+        centerName:      cc.name || cc.CNAME || cc.CENTERNAME || cc.code || "",
+        price:           "",
+        taxIncluded:     "No",
+        taxPercent:      "",
+        releasedToCentre: false,
+      }));
+    } catch { /* fallback to current centre */ }
+
+    if (!pricing.length) {
+      pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false }];
+    }
+
     setForm({...EMPTY, pricing});
     setEditCode(null); setActiveTab(0); setErrors({}); setView("form");
   };
@@ -540,17 +591,23 @@ const PackageMaster = () => {
   const validate = (isSubmit) => {
     const e = {};
 
-    // ── Tab 0: General ────────────────────────────────────────────────────
-    if (!form.packageCode?.trim())
-      e.packageCode = "Package Code is required.";
-    else if (!/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
-      e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
+    // ── Tab 0: General — mandatory only on Submit (PM-043: Save allows partial data) ──
+    if (isSubmit) {
+      if (!form.packageCode?.trim())
+        e.packageCode = "Package Code is required.";
+      else if (!/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
+        e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
 
-    if (!form.packageName?.trim())
-      e.packageName = "Package Name is required.";
+      if (!form.packageName?.trim())
+        e.packageName = "Package Name is required.";
 
-    if (!form.category?.trim())
-      e.category = "Category is required.";
+      if (!form.category?.trim())
+        e.category = "Category is required.";
+    } else {
+      // Save (draft) — only validate packageCode format if it's been entered
+      if (form.packageCode?.trim() && !/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
+        e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
+    }
 
     if (isSubmit && !form.subCategory?.trim())
       e.subCategory = "Sub-Category is required before submitting.";
@@ -617,7 +674,8 @@ const PackageMaster = () => {
     const parts = msg.split(" | ");
     const e     = {};
     parts.forEach(part => {
-      if      (part.includes("Package Code"))    e.packageCode  = part;
+      if      (part.includes("Duplicate Package Code")) e.packageCode = part;  // PM-010
+      else if (part.includes("Package Code"))    e.packageCode  = part;
       else if (part.includes("Package Name"))    e.packageName  = part;
       else if (part.includes("Category") && !part.includes("Sub")) e.category = part;
       else if (part.includes("Sub-Category"))    e.subCategory  = part;
@@ -744,7 +802,14 @@ const PackageMaster = () => {
           <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>
             {editCode ? `Edit Package — ${editCode}` : "Create New Package"}
           </h2>
-          <button onClick={()=>setView("list")} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
+          <button
+            onClick={() => {
+              if (formDirty) {
+                if (!window.confirm("You have unsaved changes. Leave without saving?")) return;
+              }
+              setView("list");
+            }}
+            style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
             ← Back to List
           </button>
         </div>
