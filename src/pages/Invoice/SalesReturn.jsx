@@ -342,12 +342,22 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 // ── STEP 5 — Refund Payment Method ───────────────────────────────────────────
 const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loading, hasPackageLines }) => {
   const METHODS = ["Cash", "Card", "Bank Transfer", "Cheque", "Credit Note"];
-  const [amounts, setAmounts] = useState({});
-  const [error,   setError]   = useState("");
 
-  const entered     = METHODS.reduce((s, m) => s + (parseFloat(amounts[m]) || 0), 0);
-  const remaining   = parseFloat((totalReturn - entered).toFixed(2));
-  const isBalanced  = Math.abs(remaining) < 0.01;
+  // Reference field config per method
+  const REFERENCE_CONFIG = {
+    "Card":          { label: "Card Last 4 Digits", placeholder: "e.g. 1234",       type: "text",   maxLen: 4,  required: true  },
+    "Cheque":        { label: "Cheque Number",       placeholder: "e.g. CHQ-00123",  type: "text",   maxLen: 30, required: true  },
+    "Bank Transfer": { label: "Bank Reference No.",  placeholder: "e.g. TXN123456",  type: "text",   maxLen: 50, required: true  },
+  };
+
+  const [amounts,    setAmounts]    = useState({});
+  const [references, setReferences] = useState({});  // method → reference string
+  const [refErrors,  setRefErrors]  = useState({});
+  const [error,      setError]      = useState("");
+
+  const entered    = METHODS.reduce((s, m) => s + (parseFloat(amounts[m]) || 0), 0);
+  const remaining  = parseFloat((totalReturn - entered).toFixed(2));
+  const isBalanced = Math.abs(remaining) < 0.01;
 
   // Zero-total: package redemption return — skip payment step entirely
   if (totalReturn <= 0) return (
@@ -371,6 +381,8 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
   );
 
   const handleFinalize = () => {
+    setError(""); setRefErrors({});
+
     if (!isBalanced) {
       if (entered < totalReturn)
         setError(`Total entered (SAR ${fmt(entered)}) is short by SAR ${fmt(totalReturn - entered)}. Must equal Amount to Return (SAR ${fmt(totalReturn)}).`);
@@ -378,17 +390,35 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
         setError(`Total entered (SAR ${fmt(entered)}) exceeds Amount to Return (SAR ${fmt(totalReturn)}) by SAR ${fmt(entered - totalReturn)}.`);
       return;
     }
-    const methods = METHODS.filter(m => parseFloat(amounts[m]) > 0).map(m => ({ method: m, amount: parseFloat(amounts[m]) }));
+
+    const methods = METHODS.filter(m => parseFloat(amounts[m]) > 0)
+      .map(m => ({ method: m, amount: parseFloat(amounts[m]), reference: references[m] || "" }));
+
     if (!methods.length) { setError("Please enter refund amount in at least one payment method."); return; }
+
+    // Validate references for methods that require them
+    const errs = {};
+    methods.forEach(({ method }) => {
+      const cfg = REFERENCE_CONFIG[method];
+      if (cfg?.required && !references[method]?.trim()) {
+        errs[method] = `${cfg.label} is required for ${method} refunds.`;
+      }
+    });
+
+    if (Object.keys(errs).length) { setRefErrors(errs); return; }
+
     onFinalize(methods);
   };
 
   return (
     <div>
-      <div style={{ background: "#e6f4ef", border: "1px solid #b3d9cc", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {/* Total banner */}
+      <div style={{ background: "#e6f4ef", border: "1px solid #b3d9cc", borderRadius: 10,
+        padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, color: "#2e7d5e", fontSize: 15 }}>Total Amount to Return</span>
         <span style={{ fontWeight: 800, fontSize: 22, color: "#2e7d5e" }}>SAR {fmt(totalReturn)}</span>
       </div>
+
       <h4 style={{ marginBottom: 14, fontSize: 14, color: "#334b71" }}>Select the payment method for refund</h4>
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -396,38 +426,97 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
           <tr style={{ background: "#f1f5f9" }}>
             <th style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>Payment Method</th>
             <th style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontSize: 12, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>Amount (SAR)</th>
+            <th style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>Reference Details</th>
           </tr>
         </thead>
         <tbody>
-          {METHODS.map(m => (
-            <tr key={m} style={{ borderBottom: "1px solid #f1f5f9" }}>
-              <td style={{ padding: "10px 14px", fontWeight: 600 }}>{m}</td>
-              <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                <input type="number" min={0} step={0.01} placeholder="0.00"
-                  value={amounts[m] || ""}
-                  onChange={e => { setAmounts(p => ({ ...p, [m]: e.target.value })); setError(""); }}
-                  style={{ width: 130, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, textAlign: "right" }} />
-              </td>
-            </tr>
-          ))}
+          {METHODS.map(m => {
+            const amt     = parseFloat(amounts[m]) || 0;
+            const hasAmt  = amt > 0;
+            const cfg     = REFERENCE_CONFIG[m];
+            return (
+              <tr key={m} style={{ borderBottom: "1px solid #f1f5f9", verticalAlign: "top" }}>
+                {/* Method name */}
+                <td style={{ padding: "12px 14px", fontWeight: 600 }}>{m}</td>
+
+                {/* Amount input */}
+                <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                  <input type="number" min={0} step={0.01} placeholder="0.00"
+                    value={amounts[m] || ""}
+                    onChange={e => { setAmounts(p => ({ ...p, [m]: e.target.value })); setError(""); }}
+                    style={{ width: 130, padding: "6px 10px", border: "1.5px solid #e2e8f0",
+                      borderRadius: 8, fontSize: 14, textAlign: "right" }} />
+                </td>
+
+                {/* Reference field — only for Card, Cheque, Bank Transfer when amount > 0 */}
+                <td style={{ padding: "12px 14px" }}>
+                  {cfg && hasAmt ? (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
+                        {cfg.label} <span style={{ color: "#b91c1c" }}>*</span>
+                      </div>
+                      <input
+                        type={cfg.type}
+                        placeholder={cfg.placeholder}
+                        maxLength={cfg.maxLen}
+                        value={references[m] || ""}
+                        onChange={e => {
+                          setReferences(p => ({ ...p, [m]: e.target.value }));
+                          setRefErrors(p => { const ne = {...p}; delete ne[m]; return ne; });
+                        }}
+                        style={{ width: "100%", padding: "6px 10px",
+                          border: `1.5px solid ${refErrors[m] ? "#b91c1c" : "#e2e8f0"}`,
+                          borderRadius: 8, fontSize: 13 }}
+                      />
+                      {refErrors[m] && (
+                        <div style={{ color: "#b91c1c", fontSize: 11, marginTop: 3 }}>{refErrors[m]}</div>
+                      )}
+                      {/* Card: show masked preview */}
+                      {m === "Card" && references[m]?.length === 4 && (
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                          Card ending in **** {references[m]}
+                        </div>
+                      )}
+                    </div>
+                  ) : cfg && !hasAmt ? (
+                    <span style={{ fontSize: 12, color: "#cbd5e1" }}>Enter amount first</span>
+                  ) : (
+                    <span style={{ color: "#cbd5e1" }}>—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+
+          {/* Total entered row */}
           <tr style={{ background: "#f8fafc", fontWeight: 800 }}>
             <td style={{ padding: "12px 14px", color: isBalanced ? "#2e7d5e" : "#b91c1c" }}>Total Entered</td>
-            <td style={{ padding: "12px 14px", textAlign: "right", color: isBalanced ? "#2e7d5e" : "#b91c1c", fontSize: 16 }}>SAR {fmt(entered)}</td>
+            <td style={{ padding: "12px 14px", textAlign: "right", color: isBalanced ? "#2e7d5e" : "#b91c1c", fontSize: 16 }}>
+              SAR {fmt(entered)}
+            </td>
+            <td />
           </tr>
+
+          {/* Remaining indicator */}
           {!isBalanced && entered > 0 && (
             <tr>
-              <td colSpan={2} style={{ padding: "6px 14px", color: "#b91c1c", fontSize: 12 }}>
-                {remaining > 0 ? `Still ${fmt(remaining)} short` : `${fmt(Math.abs(remaining))} over the return amount`}
+              <td colSpan={3} style={{ padding: "6px 14px", color: "#b91c1c", fontSize: 12 }}>
+                {remaining > 0
+                  ? `Still SAR ${fmt(remaining)} short`
+                  : `SAR ${fmt(Math.abs(remaining))} over the return amount`}
               </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      {error && <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>}
+      {error && (
+        <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>
+      )}
 
       <div className="btnbar" style={{ marginTop: 20 }}>
-        <button className="pribtnblue" onClick={handleFinalize} disabled={!isBalanced || loading}
+        <button className="pribtnblue" onClick={handleFinalize}
+          disabled={!isBalanced || loading}
           style={{ opacity: (!isBalanced || loading) ? 0.6 : 1, cursor: (!isBalanced || loading) ? "not-allowed" : "pointer" }}>
           {loading ? "Processing…" : "Finalize Return"}
         </button>
