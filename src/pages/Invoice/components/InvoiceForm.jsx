@@ -35,8 +35,9 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
         style={{ background: disabled ? '#f8fafc' : '#fff' }}
       />
       <label className="frmlbl">{label}</label>
-      {loading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 16 }}>⟳</span>}
-
+      {loading && (
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 16 }}>⟳</span>
+      )}
       {open && suggestions.length > 0 && (
         <ul style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 999, listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: 220, overflowY: 'auto' }}>
           {suggestions.map((item, idx) => (
@@ -56,7 +57,7 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
   );
 };
 
-// ── SimpleAutocomplete for package / product ──────────────────────────────────
+// ── SimpleAutocomplete for product only ──────────────────────────────────────
 const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fieldFocused }) => (
   <div className="form-group" style={{ position: 'relative' }}>
     <input
@@ -79,7 +80,7 @@ const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fie
             onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
           >
-            {item.packageName || item.productName || item.name}
+            {item.productName || item.name}
           </li>
         ))}
       </ul>
@@ -88,27 +89,36 @@ const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fie
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-const InvoiceForm = ({ onAddItem, customer, showToast }) => {
+const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [] }) => {
 
+  // ── Service ───────────────────────────────────────────────────────────────
   const [serviceText,        setServiceText]        = useState('');
   const [serviceSuggestions, setServiceSuggestions] = useState([]);
   const [serviceLoading,     setServiceLoading]     = useState(false);
   const [selectedService,    setSelectedService]    = useState(null);
 
+  // ── Package (now uses same AutocompleteInput as service) ─────────────────
+  const [packageText,        setPackageText]        = useState('');
+  const [packageSuggestions, setPackageSuggestions] = useState([]);
+  const [packageLoading,     setPackageLoading]     = useState(false);
+  const [selectedPackage,    setSelectedPackage]    = useState(null);
+
+  // ── Product ───────────────────────────────────────────────────────────────
+  const [productText,        setProductText]        = useState('');
+  const [productSuggestions, setProductSuggestions] = useState([]);
+  const [productFocused,     setProductFocused]     = useState(false);
+  const [selectedProduct,    setSelectedProduct]    = useState(null);
+
+  // ── Practitioner ──────────────────────────────────────────────────────────
   const [practText,          setPractText]          = useState('');
   const [practSuggestions,   setPractSuggestions]   = useState([]);
   const [selectedPract,      setSelectedPract]      = useState(null);
   const [allPractitioners,   setAllPractitioners]   = useState([]);
 
-  const [packageText,        setPackageText]        = useState('');
-  const [productText,        setProductText]        = useState('');
-  const [legacySuggestions,  setLegacySuggestions]  = useState([]);
-  const [legacyFocused,      setLegacyFocused]      = useState(null);
-  const [selectedLegacy,     setSelectedLegacy]     = useState(null);
-
   const [giftcard,           setGiftcard]           = useState('');
 
   const serviceDebounce = useRef(null);
+  const packageDebounce = useRef(null);
   const practDebounce   = useRef(null);
 
   // Load practitioners on mount
@@ -123,10 +133,12 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
       .catch(() => setAllPractitioners([]));
   }, []);
 
-  // Service search
+  // ── Service search ────────────────────────────────────────────────────────
   const handleServiceChange = useCallback((value) => {
     setServiceText(value);
     setSelectedService(null);
+    // Clear package if service is being typed
+    if (value) { setPackageText(''); setSelectedPackage(null); setProductText(''); setSelectedProduct(null); }
     if (serviceDebounce.current) clearTimeout(serviceDebounce.current);
     if (!value || value.trim().length < 2) { setServiceSuggestions([]); return; }
 
@@ -142,7 +154,9 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
         setServiceSuggestions(list.map(item => ({
           ...item,
           _label: item.serviceName || item.name || '',
-          _sub:   item.serviceCode ? `Code: ${item.serviceCode}` : '',
+          _sub:   item.serviceCode
+            ? `Code: ${item.serviceCode}${item.price > 0 ? ` · SAR ${parseFloat(item.price).toFixed(2)}` : ''}`
+            : '',
         })));
       } catch { setServiceSuggestions([]); }
       finally { setServiceLoading(false); }
@@ -155,7 +169,42 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     setServiceSuggestions([]);
   }, []);
 
-  // Practitioner search
+  // ── Package search ────────────────────────────────────────────────────────
+  const handlePackageChange = useCallback((value) => {
+    setPackageText(value);
+    setSelectedPackage(null);
+    // Clear service/product if package is being typed
+    if (value) { setServiceText(''); setSelectedService(null); setProductText(''); setSelectedProduct(null); }
+    if (packageDebounce.current) clearTimeout(packageDebounce.current);
+    if (!value || value.trim().length < 2) { setPackageSuggestions([]); return; }
+
+    packageDebounce.current = setTimeout(async () => {
+      const centerCode = getCenterCode();
+      try {
+        setPackageLoading(true);
+        const json = await authFetch(
+          `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(value.trim())}/${centerCode}`
+        );
+        const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setPackageSuggestions(list.map(item => ({
+          ...item,
+          _label: item.packageName || '',
+          _sub:   item.packageCode
+            ? `Code: ${item.packageCode}${item.price > 0 ? ` · SAR ${parseFloat(item.price).toFixed(2)}` : ''}`
+            : '',
+        })));
+      } catch { setPackageSuggestions([]); }
+      finally { setPackageLoading(false); }
+    }, 300);
+  }, []);
+
+  const handlePackageSelect = useCallback((item) => {
+    setPackageText(item.packageName || item._label || '');
+    setSelectedPackage(item);
+    setPackageSuggestions([]);
+  }, []);
+
+  // ── Practitioner search ───────────────────────────────────────────────────
   const handlePractChange = useCallback((value) => {
     setPractText(value);
     setSelectedPract(null);
@@ -178,43 +227,40 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
     setPractSuggestions([]);
   }, []);
 
-  // Package / Product search
-  const handleLegacyChange = async (field, value) => {
-    if (field === 'package') setPackageText(value);
-    if (field === 'product') setProductText(value);
-    setLegacyFocused(field);
-    setSelectedLegacy(null);
+  // ── Product search ────────────────────────────────────────────────────────
+  const handleProductChange = async (field, value) => {
+    setProductText(value);
+    setProductFocused(true);
+    setSelectedProduct(null);
+    if (value) { setServiceText(''); setSelectedService(null); setPackageText(''); setSelectedPackage(null); }
 
     const centerCode = getCenterCode();
-    if (!value || value.trim().length < 2 || !centerCode) { setLegacySuggestions([]); return; }
-
+    if (!value || value.trim().length < 2 || !centerCode) { setProductSuggestions([]); return; }
     try {
-      const base = field === 'package'
-        ? `${API_BASE_URL}/api/Master/GetPackageByName`
-        : `${API_BASE_URL}/api/Master/GetProductByName`;
-      const json = await authFetch(`${base}/${encodeURIComponent(value.trim())}/${centerCode}`);
+      const json = await authFetch(
+        `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(value.trim())}/${centerCode}`
+      );
       const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-      setLegacySuggestions(list.map(item => ({ ...item, type: field })));
-    } catch { setLegacySuggestions([]); }
+      setProductSuggestions(list.map(item => ({ ...item, type: 'product' })));
+    } catch { setProductSuggestions([]); }
   };
 
-  const handleLegacySelect = (item) => {
-    if (item.type === 'package') { setPackageText(item.packageName || item.name || ''); setProductText(''); }
-    if (item.type === 'product') { setProductText(item.productName || item.name || ''); setPackageText(''); }
-    setLegacySuggestions([]);
-    setLegacyFocused(null);
-    setSelectedLegacy(item);
+  const handleProductSelect = (item) => {
+    setProductText(item.productName || item.name || '');
+    setProductSuggestions([]);
+    setProductFocused(false);
+    setSelectedProduct(item);
   };
 
-  // Add to invoice
+  // ── Add to invoice ────────────────────────────────────────────────────────
   const handleAdd = () => {
     const custId = customer?.custid || customer?.custId || customer?.fullName;
     if (!custId) { showToast?.("Please select a customer before adding."); return; }
 
-    if (selectedService || serviceText) {
+    // Service
+    if (serviceText) {
       if (!selectedService) { showToast?.("Please select a service from the dropdown."); return; }
       if (!selectedPract)   { showToast?.("Please select a practitioner."); return; }
-
       onAddItem?.({
         name:             selectedService.serviceName || selectedService.name || '',
         code:             selectedService.serviceCode || selectedService.code || '',
@@ -226,36 +272,69 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
         practitionerName: selectedPract.fullName || practText,
         practitionerCode: selectedPract.practitionerCode || selectedPract.id || '',
       });
-
       setServiceText(''); setSelectedService(null); setServiceSuggestions([]);
       setPractText('');   setSelectedPract(null);   setPractSuggestions([]);
       return;
     }
 
-    if (selectedLegacy) {
-      if (!selectedPract) { showToast?.("Please select a practitioner."); return; }
-
-      let name = '', code = '';
-      if (selectedLegacy.type === 'package') { name = selectedLegacy.packageName || ''; code = selectedLegacy.packageCode || ''; }
-      if (selectedLegacy.type === 'product') { name = selectedLegacy.productName || ''; code = selectedLegacy.productCode || ''; }
-
+    // Package
+    if (packageText) {
+      if (!selectedPackage) { showToast?.("Please select a package from the dropdown."); return; }
+      if (!selectedPract)   { showToast?.("Please select a practitioner."); return; }
       onAddItem?.({
-        name, code, type: selectedLegacy.type,
-        price:            parseFloat(selectedLegacy.price || selectedLegacy.packageValue || 0),
+        name:             selectedPackage.packageName || '',
+        code:             selectedPackage.packageCode || '',
+        type:             'package',
+        itemType:         'package',
+        price:            parseFloat(selectedPackage.price ?? 0),
         discount:         0,
-        taxpercent:       selectedLegacy.taxPercent ?? '0.00',
-        citizentax:       selectedLegacy.taxPercent ?? '0.00',
+        taxpercent:       selectedPackage.taxPercent ?? '0.00',
+        citizentax:       selectedPackage.taxPercent ?? '0.00',
         practitionerName: selectedPract.fullName || practText,
         practitionerCode: selectedPract.practitionerCode || selectedPract.id || '',
       });
+      setPackageText(''); setSelectedPackage(null); setPackageSuggestions([]);
+      setPractText('');   setSelectedPract(null);   setPractSuggestions([]);
+      return;
+    }
 
-      setPackageText(''); setProductText(''); setSelectedLegacy(null); setLegacySuggestions([]);
-      setPractText('');   setSelectedPract(null); setPractSuggestions([]);
+    // Product
+    if (productText) {
+      if (!selectedProduct) { showToast?.("Please select a product from the dropdown."); return; }
+      onAddItem?.({
+        name:             selectedProduct.productName || selectedProduct.name || '',
+        code:             selectedProduct.productCode || '',
+        type:             'product',
+        price:            parseFloat(selectedProduct.price || selectedProduct.packageValue || 0),
+        discount:         0,
+        taxpercent:       selectedProduct.taxPercent ?? '0.00',
+        citizentax:       selectedProduct.taxPercent ?? '0.00',
+        practitionerName: selectedPract?.fullName || practText || '',
+        practitionerCode: selectedPract?.practitionerCode || selectedPract?.id || '',
+      });
+      setProductText(''); setSelectedProduct(null); setProductSuggestions([]);
+      setPractText('');   setSelectedPract(null);   setPractSuggestions([]);
       setGiftcard('');
       return;
     }
 
     showToast?.("Please select a service, package, or product.");
+  };
+
+  // ── Clear cart ────────────────────────────────────────────────────────────
+  const handleClearCart = () => {
+    if (items.length === 0) { showToast?.("Cart is already empty."); return; }
+    if (window.confirm("Void this transaction? All items in the cart will be removed.")) {
+      // Clear all form fields
+      setServiceText(''); setSelectedService(null); setServiceSuggestions([]);
+      setPackageText('');  setSelectedPackage(null);  setPackageSuggestions([]);
+      setProductText('');  setSelectedProduct(null);  setProductSuggestions([]);
+      setPractText('');    setSelectedPract(null);     setPractSuggestions([]);
+      setGiftcard('');
+      // Clear the cart in parent
+      onClearCart?.();
+      showToast?.("Transaction voided.");
+    }
   };
 
   return (
@@ -271,22 +350,24 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
           loading={serviceLoading}
         />
 
-        <SimpleAutocomplete
-          field="package"
+        {/* Package — now uses AutocompleteInput with debounced API search */}
+        <AutocompleteInput
+          label="Package"
           value={packageText}
-          onChange={handleLegacyChange}
-          onSelect={handleLegacySelect}
-          suggestions={legacySuggestions}
-          fieldFocused={legacyFocused}
+          onChange={handlePackageChange}
+          onSelect={handlePackageSelect}
+          suggestions={packageSuggestions}
+          loading={packageLoading}
         />
 
+        {/* Product — retains SimpleAutocomplete */}
         <SimpleAutocomplete
           field="product"
           value={productText}
-          onChange={handleLegacyChange}
-          onSelect={handleLegacySelect}
-          suggestions={legacySuggestions}
-          fieldFocused={legacyFocused}
+          onChange={handleProductChange}
+          onSelect={handleProductSelect}
+          suggestions={productSuggestions}
+          fieldFocused={productFocused ? "product" : null}
         />
 
         <AutocompleteInput
@@ -315,7 +396,17 @@ const InvoiceForm = ({ onAddItem, customer, showToast }) => {
           <button type="button" className="addbtn" onClick={handleAdd}>Add</button>
         </div>
 
-        
+        {/* Void Transaction button */}
+        <div className="form-group frmbtngrp">
+          <button
+            type="button"
+            className="pribtnblue"
+            onClick={handleClearCart}
+            style={{ height: 30, background: "#dc2626", padding: "0 14px", fontSize: 13, fontWeight: 700 }}
+          >
+            Void Transaction
+          </button>
+        </div>
 
       </div>
     </form>

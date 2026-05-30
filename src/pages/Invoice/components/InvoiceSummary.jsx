@@ -41,11 +41,6 @@ const InvoiceSummary = ({
     }
   };
 
-  const handleClearCartClick = () => {
-    onClearCart();
-    setToast({ message: 'Cart cleared.', type: 'info' });
-  };
-
   const handleSuspendCartClick = () => {
     if (items.length === 0) {
       setToast({ message: 'Cart is empty. Nothing to suspend.', type: 'warning' });
@@ -100,9 +95,10 @@ const InvoiceSummary = ({
             items={items}
           />
 
-          <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button>
-          <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>
-          <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>
+          {/* Hidden for now — will be enabled later */}
+          {/* <button className="pribtnblue" disabled={isFinalized}>Issue Loyalty Card</button> */}
+          {/* <button className="pribtnblue" disabled={isFinalized}>Apply Package</button>       */}
+          {/* <button className="pribtnblue" disabled={isFinalized}>Coupon Code</button>         */}
 
           <button
             className="pribtnblue"
@@ -115,7 +111,7 @@ const InvoiceSummary = ({
             className="pribtnblue"
             onClick={onPromotion}
             disabled={isFinalized}
-            style={{ background:"#6d4c9e" }}
+            style={{ background: "#6d4c9e" }}
           >
             Promotion
           </button>
@@ -142,9 +138,7 @@ const InvoiceSummary = ({
           )}
         </div>
 
-        <button className="pribtnblue tooltip" onClick={handleClearCartClick} disabled={isFinalized} data-tooltip="Clear Cart" data-tooltip-pos="down" style={{ 'height':30 }}>
-          <img src={`${import.meta.env.BASE_URL}images/shoppingcrt.svg`} alt="Clear Cart" width={16} />
-        </button>
+        {/* Clear Cart button removed — moved to InvoiceForm */}
       </div>
 
       {toast && (

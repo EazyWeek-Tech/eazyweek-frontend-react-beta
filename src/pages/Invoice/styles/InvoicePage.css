@@ -308,9 +308,6 @@
                 align-items: center;
             }
 
-             .frmwrpinv .form-group {
-                min-width: 120px;
-            }
 
             .addbtn {
                 background: #334B71;
@@ -333,8 +330,8 @@
 
             .invtable {
                 margin: 0 0 10px 0;
-                max-height: 358px;
-                min-height: 358px;
+                max-height: 345px;
+                min-height: 345px;
                 border: 1px solid #ccc;
                 overflow-y: auto;
     border-radius: 4px;
@@ -540,12 +537,14 @@
                 }
 
                 .ctflx {
-                    width: 32%;
+                    width: 49%;
                     background: #c66752;
                     text-align: center;
                     cursor: pointer;
                     border-radius: 5px;
-                    font-size: 12px; line-height: 16px; color: #fff;
+                    font-size: 11px;
+                    font-weight: 600;
+                    line-height: 16px; color: #fff;
                 }
 
                 .ctlft {
@@ -553,7 +552,8 @@
                 }
 
                 .ctcell {
-                    padding: 5px;
+                    padding: 5px 2px;
+                    white-space: nowrap;
                 }
 
                 .ctrgt {
@@ -568,7 +568,7 @@
                 }
 
                 .ctlistwrp {
-                    max-height: 130px;
+                    max-height: 95px;
                     overflow-y: auto;
                     display: flex;
                     flex-wrap: wrap;
@@ -587,7 +587,7 @@
                     display: flex;
                     gap: 2px;
                     flex-direction: column;
-                    width: 235px;
+                    width: 225px;
                 }
 
                 .tabwrpdiv{width: 530px;padding: 0 10px;}
@@ -608,7 +608,7 @@
                 box-shadow: 1px 1px 4px #ccc;}
 
                 .pymnttab {
-                    padding: 10px 18px;
+                    padding: 8px 10px;
                     background: #ebebeb;
                     align-items: center;
                     border-radius: 4px 4px 0 0;
@@ -616,7 +616,8 @@
                     display: flex;
                     flex-direction: row;
                     gap: 10px;
-                    font-size: 13px;
+                    font-weight: 600;
+                    font-size: 12px;
                     box-shadow: 2px 2px 2px #ccc;
                 }
 
@@ -850,9 +851,9 @@
 
 .btnflxinv.actwrp{display: flex; justify-content: space-between;flex-direction: row;}
 
-.pymntlintbl{max-height: 120px;
+.pymntlintbl{max-height: 100px;
     overflow-y: auto;
-    min-height: 120px;
+    min-height: 100px;
     border: 1px solid #CCC;}
 
     .outpymnt{display: flex;}

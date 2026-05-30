@@ -22,7 +22,6 @@ const getCenterCode = () => {
 const truncate = (str = "", max = 35) =>
   str.length > max ? str.slice(0, max) + "…" : str;
 
-// ── Hardcoded categories ──────────────────────────────────────────────────────
 const CATEGORIES = [
   { id: "CC04",  label: "Antiageing Services", icon: "images/antiage.svg" },
   { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
@@ -36,29 +35,29 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
   const [activeCat,     setActiveCat]     = useState(CATEGORIES[0].id);
   const [searchTerm,    setSearchTerm]    = useState("");
   const [svcLoading,    setSvcLoading]    = useState(false);
-  const [quickPackages, setQuickPackages] = useState([]);
+  const [allPackages,   setAllPackages]   = useState([]);   // all Quick Cart packages
   const [pkgLoading,    setPkgLoading]    = useState(false);
 
-  // ── Load Quick Cart packages on mount ────────────────────────────────────
+  // ── Load Quick Cart packages once on mount ────────────────────────────────
   useEffect(() => {
     (async () => {
       setPkgLoading(true);
       try {
         const u    = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
         const res  = await fetch(
-          `${API_BASE_URL}/api/Package/List?status=Active&centerCode=${encodeURIComponent(u.centerCode||"")}`,
+          `${API_BASE_URL}/api/Package/List?status=Active&centerCode=${encodeURIComponent(u.centerCode || "")}`,
           { headers: { Authorization: `Bearer ${TOKEN()}` } }
         );
         const json = await res.json();
         const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-        // PM-033/034: Only show packages released to this centre AND in Quick Cart
-        setQuickPackages(data.filter(p => p.ADDTOQUICKCART && p.RELEASEDTOCENTRE));
-      } catch { setQuickPackages([]); }
+        // Only packages released to this centre AND marked for Quick Cart
+        setAllPackages(data.filter(p => p.ADDTOQUICKCART && p.RELEASEDTOCENTRE));
+      } catch { setAllPackages([]); }
       finally { setPkgLoading(false); }
     })();
   }, []);
 
-  // ── Load services when category or tab changes ────────────────────────────
+  // ── Load services when category changes ──────────────────────────────────
   useEffect(() => {
     if (activeTab !== "services") return;
     (async () => {
@@ -79,13 +78,17 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
     })();
   }, [activeCat, activeTab]);
 
+  // ── Filter packages by active category (uses CATEGORYCODE column) ─────────
+  const filteredPackages = allPackages.filter(p => {
+    const matchesCat    = p.CATEGORYCODE === activeCat;
+    const matchesSearch = !searchTerm || (p.PACKAGENAME || "").toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
   // ── Add service to cart ───────────────────────────────────────────────────
   const handleAddService = (item) => {
     const cid = customer?.custid || customer?.custId || customer?.custID || customer?.id || "";
-    if (!cid) {
-      showErrToast?.("Please select a customer before adding a service.");
-      return;
-    }
+    if (!cid) { showErrToast?.("Please select a customer before adding a service."); return; }
     onAddItem?.({
       name:       item.serviceName,
       code:       item.serviceCode,
@@ -98,7 +101,26 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
     showToast?.(`${truncate(item.serviceName)} added`);
   };
 
-  const filtered = services.filter((s) =>
+  // ── Add package to cart ───────────────────────────────────────────────────
+  const handleAddPackage = (pkg) => {
+    const cid = customer?.custid || customer?.custId || customer?.id || "";
+    if (!cid) { showErrToast?.("Please select a customer before adding a package."); return; }
+    onAddItem?.({
+      name:        pkg.PACKAGENAME,
+      code:        pkg.PACKAGECODE,
+      servicecode: pkg.PACKAGECODE,
+      type:        "package",
+      itemType:    "package",
+      price:       parseFloat(pkg.SELLINGPRICE) || 0,
+      discount:    0,
+      taxpercent:  parseFloat(pkg.TAXPERCENT)   || 0,
+      citizentax:  parseFloat(pkg.TAXPERCENT)   || 0,
+      taxincluded: pkg.TAXINCLUDED || "No",
+    });
+    showToast?.(`${truncate(pkg.PACKAGENAME)} added`);
+  };
+
+  const filteredServices = services.filter(s =>
     (s.serviceName || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -122,7 +144,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
           ))}
         </div>
 
-        {/* Right — services panel */}
+        {/* Right — content panel */}
         <div className="tabwrpdiv">
           {/* Services / Packages toggle */}
           <div className="horizontal-tabs">
@@ -134,8 +156,6 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
               className={`maintab ${activeTab === "packages" ? "active" : ""}`}
               onClick={() => setActiveTab("packages")}
             >Packages</button>
-
-
           </div>
 
           <div className="subtabs">
@@ -143,71 +163,53 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
             <div className="servhead" style={{ margin: "10px 0" }}>
               <input
                 type="text"
-                placeholder={`Search ${activeTab}...`}
+                placeholder={`Search ${activeTab}…`}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 style={{ padding: "6px 10px", width: "100%", borderRadius: "6px", border: "1px solid #ccc" }}
               />
             </div>
 
-            {/* List */}
-            {activeTab === "services" ? (
+            {/* Services list */}
+            {activeTab === "services" && (
               <div className="ctlistwrp">
                 {svcLoading ? (
                   <div className="notext">Loading…</div>
-                ) : filtered.length === 0 ? (
+                ) : filteredServices.length === 0 ? (
                   <div className="notext">No services found</div>
                 ) : (
-                  filtered.map((item, idx) => (
-                    <div
-                      className="ctflx"
-                      key={idx}
-                      onClick={() => handleAddService(item)}
-                    >
+                  filteredServices.map((item, idx) => (
+                    <div className="ctflx" key={idx} onClick={() => handleAddService(item)}>
                       <div className="ctlft ctcell" title={item.serviceName}>
                         {truncate(item.serviceName)}
                       </div>
-
                     </div>
                   ))
                 )}
               </div>
-            ) : (
-              /* ── Packages tab — Quick Cart items shown here ── */
+            )}
+
+            {/* Packages list — filtered by activeCat via CATEGORYCODE */}
+            {activeTab === "packages" && (
               <div className="ctlistwrp">
-{pkgLoading ? (
+                {pkgLoading ? (
                   <div className="notext">Loading packages…</div>
-                ) : quickPackages.length === 0 ? (
-                  <div className="notext">No packages in Quick Cart.<br />
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>Add packages via Master → Package Master → Quick Cart toggle</span>
+                ) : filteredPackages.length === 0 ? (
+                  <div className="notext">
+                    No packages in this category.
+                    <br />
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                      Packages must be in Quick Cart and released to this centre.
+                    </span>
                   </div>
                 ) : (
-                  quickPackages
-                    .filter(p => !searchTerm || p.PACKAGENAME?.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map((pkg, idx) => (
-                      <div className="ctflx" key={idx}
-                        onClick={() => {
-                          const cid = customer?.custid || customer?.custId || customer?.id || "";
-                          if (!cid) { showErrToast?.("Please select a customer before adding a package."); return; }
-                          onAddItem?.({
-                            name:       pkg.PACKAGENAME,
-                            code:       pkg.PACKAGECODE,
-                            servicecode:pkg.PACKAGECODE,
-                            type:       "package",
-                            price:      parseFloat(pkg.SELLINGPRICE) || 0,
-                            discount:   0,
-                            taxpercent: parseFloat(pkg.TAXPERCENT)   || 0,
-                            citizentax: parseFloat(pkg.TAXPERCENT)   || 0,
-                            taxincluded:pkg.TAXINCLUDED || "No",
-                          });
-                          showToast?.(`${truncate(pkg.PACKAGENAME)} added`);
-                        }}>
-                        <div className="ctlft ctcell" title={pkg.PACKAGENAME}>
-                          {truncate(pkg.PACKAGENAME)}
-                        </div>
-
+                  filteredPackages.map((pkg, idx) => (
+                    <div className="ctflx" key={idx} onClick={() => handleAddPackage(pkg)}>
+                      <div className="ctlft ctcell" title={pkg.PACKAGENAME}>
+                        {truncate(pkg.PACKAGENAME)}
                       </div>
-                    ))
+                    </div>
+                  ))
                 )}
               </div>
             )}

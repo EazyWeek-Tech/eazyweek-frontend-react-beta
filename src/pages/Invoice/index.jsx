@@ -294,6 +294,9 @@ useEffect(() => {
                   servicename={formTnput.name}
               servicecode={formTnput.servicecode}
               doctorId={formTnput.doctorId}
+
+               onClearCart={handleClearCart}
+  items={items}
                 />
               </div>
             </div>
