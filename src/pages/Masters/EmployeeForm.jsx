@@ -24,10 +24,7 @@ const COUNTRY_CODES = [
   { code:"+91",  label:"🇮🇳 +91"  }, { code:"+44",  label:"🇬🇧 +44"  },
   { code:"+1",   label:"🇺🇸 +1"   }, { code:"+20",  label:"🇪🇬 +20"  },
 ];
-const NATIONALITIES   = ["Saudi Arabian","Emirati","Kuwaiti","Bahraini","Qatari","Omani","Egyptian","Indian","Pakistani","Filipino","British","American","Other"];
-const NATIONALITY_IDS = { default: ["Passport","National ID","Residency ID","Iqama"] };
-const ROLES_LIST      = ["Admin","Manager","Receptionist","Practitioner","Staff"];
-const JOBS_LIST       = ["Doctor","Nurse","Therapist","Consultant","Manager","Receptionist","Call Centre Officer","Coordinator","Owner","Other"];
+// Roles loaded from CLINIC_ROLE via API
 
 // ── Reusable field components ──────────────────────────────────────────────────
 const F = ({ label, required, error, hint, children }) => (
@@ -58,15 +55,19 @@ const Sel = ({ value, onChange, disabled, children }) => (
   </select>
 );
 
-const PhoneRow = ({ ccVal, ccChange, numVal, numChange, disabled }) => (
-  <div style={{ display:"flex", gap:8 }}>
-    <select value={ccVal||""} onChange={ccChange} disabled={disabled}
-      style={{ width:110, padding:"9px 8px", border:"1.5px solid #e2e8f0", borderRadius:8,
-        fontSize:12, background: disabled?"#f8fafc":"#fff" }}>
-      <option value="">Code</option>
-      {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-    </select>
-    <Inp value={numVal} onChange={numChange} disabled={disabled} placeholder="Phone number" />
+const PhoneRow = ({ ccVal, ccChange, numVal, numChange, disabled, onValidate, error }) => (
+  <div>
+    <div style={{ display:"flex", gap:8 }}>
+      <select value={ccVal||""} onChange={ccChange} disabled={disabled}
+        style={{ width:110, padding:"9px 8px", border:"1.5px solid #e2e8f0", borderRadius:8,
+          fontSize:12, background: disabled?"#f8fafc":"#fff" }}>
+        <option value="">Code</option>
+        {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+      </select>
+      <Inp value={numVal} onChange={numChange} disabled={disabled} placeholder="Phone number"
+        onBlur={() => onValidate && onValidate(ccVal, numVal)} />
+    </div>
+    {error && <div style={{ fontSize:11, color:"#b91c1c", marginTop:3 }}>{error}</div>}
   </div>
 );
 
@@ -106,20 +107,48 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
   const [saving,  setSaving]  = useState(null); // null | "save" | "submit"
   const [loading, setLoading] = useState(isEdit);
   const [toast,   setToast]   = useState(null);
-  const [centres, setCentres] = useState([]);
-  const [isDirty, setIsDirty] = useState(false);
+  const [centres,      setCentres]      = useState([]);
+  const [nationalities,setNationalities] = useState([]);
+  const [idTypes,      setIdTypes]       = useState([]);
+  const [jobs,         setJobs]          = useState([]);
+  const [cities,       setCities]        = useState([]);
+  const [roles,        setRoles]         = useState([]);
+  const [isDirty,      setIsDirty]       = useState(false);
 
   const showToast = (msg, type="success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Load centres
+  // Load master data on mount
   useEffect(() => {
     authGet(`${API_BASE_URL}/api/master/LoadCenters`)
       .then(d => setCentres(Array.isArray(d) ? d : []))
       .catch(() => {});
+    authGet(`${API_BASE_URL}/api/master/Nationality`)
+      .then(d => setNationalities(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    authGet(`${API_BASE_URL}/api/master/Jobs`)
+      .then(d => setJobs(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    authGet(`${API_BASE_URL}/api/master/Cities`)
+      .then(d => setCities(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    authGet(`${API_BASE_URL}/api/master/Roles`)
+      .then(d => setRoles(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, []);
+
+  // Load ID types when nationality changes (EM-037)
+  useEffect(() => {
+    if (!form.nationality) { setIdTypes([]); return; }
+    // Find the nationality code from loaded list
+    const nat = nationalities.find(n => n.name === form.nationality);
+    const code = nat?.code || "";
+    authGet(`${API_BASE_URL}/api/master/NationalityIdTypes?nationalityCode=${encodeURIComponent(code)}`)
+      .then(d => setIdTypes(Array.isArray(d) ? d : []))
+      .catch(() => setIdTypes([]));
+  }, [form.nationality, nationalities]);
 
   // Load employee data for edit
   useEffect(() => {
@@ -170,6 +199,41 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
     setIsDirty(true);
     setErrors(p => ({ ...p, [field]: undefined }));
   }, []);
+
+  // Phone validation via API (EM-031)
+  const validatePhoneField = async (field, countryCode, number) => {
+    if (!countryCode || !number) return;
+    try {
+      const res = await authPost(`${API_BASE_URL}/api/master/ValidatePhone`,
+        { countryCode, number });
+      if (!res.data?.valid) {
+        setErrors(p => ({ ...p, [field]: res.data?.message || res.message }));
+      }
+    } catch { /* fail silently */ }
+  };
+
+  // ID document validation via API (EM-038)
+  const validateIdField = async (idType, idNumber) => {
+    if (!idType || !idNumber) return;
+    try {
+      const res = await authPost(`${API_BASE_URL}/api/master/ValidateIdentityDoc`,
+        { idType, idNumber });
+      if (!res.data?.valid) {
+        setErrors(p => ({ ...p, nationalityId: res.data?.message || res.message }));
+      }
+    } catch { /* fail silently */ }
+  };
+
+  // City auto-fetch → State + Country (EM-041/042)
+  const handleCityChange = async (cityCode) => {
+    set("city", cityCode);
+    if (!cityCode) return;
+    try {
+      const res = await authGet(`${API_BASE_URL}/api/master/Cities/${encodeURIComponent(cityCode)}`);
+      if (res?.state)   set("state",   res.state);
+      if (res?.country) set("country", res.country);
+    } catch { /* fail silently */ }
+  };
 
   // Employment History helpers
   const addHistoryRow  = () => { setForm(p => ({ ...p, history: [...p.history, { centreCode:"", startDate:"", endDate:"", job:"" }] })); setIsDirty(true); };
@@ -416,19 +480,27 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
             <F label="Nationality" required error={errors.nationality}>
               <Sel value={form.nationality} onChange={e => { set("nationality",e.target.value); set("nationalityIdType",""); }} disabled={!isAdmin}>
                 <option value="">Select nationality</option>
-                {NATIONALITIES.map(n => <option key={n}>{n}</option>)}
+                {nationalities.length > 0
+                  ? nationalities.map(n => <option key={n.code} value={n.name}>{n.name}</option>)
+                  : <option disabled>Loading...</option>
+                }
               </Sel>
             </F>
-            <F label="Nationality ID Type" required error={errors.nationalityIdType}>
-              <Sel value={form.nationalityIdType} onChange={e => set("nationalityIdType",e.target.value)} disabled={!isAdmin}>
+            <F label="Nationality ID Type" required error={errors.nationalityIdType}
+              hint={!form.nationality ? "Select Nationality first" : undefined}>
+              <Sel value={form.nationalityIdType} onChange={e => set("nationalityIdType",e.target.value)}
+                disabled={!isAdmin || !form.nationality}>
                 <option value="">Select type</option>
-                {(NATIONALITY_IDS[form.nationality] || NATIONALITY_IDS.default).map(t => <option key={t}>{t}</option>)}
+                {idTypes.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
               </Sel>
             </F>
           </Grid3>
           <div style={{ maxWidth:320 }}>
             <F label="Nationality ID" required error={errors.nationalityId}>
-              <Inp value={form.nationalityId} onChange={e => set("nationalityId",e.target.value)} disabled={!isAdmin} placeholder="ID number" />
+              <Inp value={form.nationalityId}
+                onChange={e => set("nationalityId",e.target.value)}
+                disabled={!isAdmin} placeholder="ID number"
+                onBlur={() => validateIdField(form.nationalityIdType, form.nationalityId)} />
             </F>
           </div>
 
@@ -450,7 +522,9 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
               <PhoneRow
                 ccVal={form.mobileCountryCode} ccChange={e => set("mobileCountryCode",e.target.value)}
                 numVal={form.mobilePhone}       numChange={e => set("mobilePhone",e.target.value)}
-                disabled={false}  /* mobile — both admin and non-admin can edit */
+                disabled={false}
+                onValidate={(cc,num) => validatePhoneField("mobilePhone", cc, num)}
+                error={errors.mobilePhone}
               />
             </F>
             <F label="Work Phone">
@@ -458,6 +532,8 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
                 ccVal={form.workCountryCode} ccChange={e => set("workCountryCode",e.target.value)}
                 numVal={form.workPhone}       numChange={e => set("workPhone",e.target.value)}
                 disabled={false}
+                onValidate={(cc,num) => validatePhoneField("workPhone", cc, num)}
+                error={errors.workPhone}
               />
             </F>
           </Grid3>
@@ -470,8 +546,13 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
             <F label="Address Line 2">
               <Inp value={form.address2} onChange={e => set("address2",e.target.value)} disabled={!isAdmin} />
             </F>
-            <F label="City">
-              <Inp value={form.city} onChange={e => set("city",e.target.value)} disabled={!isAdmin} />
+            <F label="City" hint="Selecting a city auto-fills State and Country">
+              <Sel value={form.city} onChange={e => handleCityChange(e.target.value)} disabled={!isAdmin}>
+                <option value="">Select or type city</option>
+                {cities && cities.map(ci => (
+                  <option key={ci.code} value={ci.code}>{ci.city}, {ci.country}</option>
+                ))}
+              </Sel>
             </F>
           </Grid3>
           <Grid3>
@@ -496,7 +577,10 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
             <F label="Job" required error={errors.job}>
               <Sel value={form.job} onChange={e => set("job",e.target.value)} disabled={!isAdmin}>
                 <option value="">Select job</option>
-                {JOBS_LIST.map(j => <option key={j}>{j}</option>)}
+                {jobs.length > 0
+                  ? jobs.map(j => <option key={j.name} value={j.name}>{j.name}</option>)
+                  : <option disabled>Loading...</option>
+                }
               </Sel>
             </F>
             <F label="Employment Start Date" required error={errors.employmentStartDate}
@@ -572,7 +656,7 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
                     <td style={{ padding:"8px 12px" }}>
                       <Sel value={h.job} onChange={e => setHistoryRow(i,"job",e.target.value)} disabled={!isAdmin}>
                         <option value="">Select job</option>
-                        {JOBS_LIST.map(j => <option key={j}>{j}</option>)}
+                        {jobs.map(j => <option key={j.name} value={j.name}>{j.name}</option>)}
                       </Sel>
                     </td>
                     <td style={{ padding:"8px 12px" }}>
@@ -632,7 +716,7 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
                     <td style={{ padding:"8px 12px" }}>
                       <Sel value={r.role} onChange={e => setRoleRow(i,"role",e.target.value)} disabled={!isAdmin}>
                         <option value="">Select role</option>
-                        {ROLES_LIST.map(rl => <option key={rl}>{rl}</option>)}
+                        {roles.map(rl => <option key={rl.code} value={rl.name}>{rl.name}</option>)}
                       </Sel>
                     </td>
                     <td style={{ padding:"8px 12px" }}>
