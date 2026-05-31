@@ -48,27 +48,7 @@ const Toggle = ({ value, onChange, label, disabled }) => (
 );
 
 // ── TAB 1: GENERAL ────────────────────────────────────────────────────────────
-const GeneralTab = ({ form, setForm, errors, isEdit, setErrors }) => {
-
-
-
-  // ── Access rights ─────────────────────────────────────────────────────────
-  // isEntityLevel and role come directly from the JWT user object
-  // canWrite = Admin role AND at entity level
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
-      const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
-    } catch {
-      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
-    }
-  })();
-  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
-
+const GeneralTab = ({ form, setForm, errors, isEdit, setErrors, isAdmin = true }) => {
   const [categories,    setCategories]    = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [catLoading,    setCatLoading]    = useState(false);
@@ -155,8 +135,8 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors }) => {
         </select>
       </Field>
 
-      <Field label="Tag">
-        <TagDropdown value={form.tag} onChange={val => { setForm(p=>({...p,tag:val})); setFormDirty(true); }} />
+      <Field label="Tag (from Tag Master)">
+        <Input value={form.tag} onChange={e => setForm(p=>({...p,tag:e.target.value}))} placeholder="Select from Tag Master" />
       </Field>
 
       <div style={{ gridColumn:"1/-1", marginTop:8, paddingTop:12, borderTop:"1px solid #f1f5f9" }}>
@@ -222,7 +202,7 @@ const Autocomplete = ({ displayVal, onType, sugg, onSelect, onAdd, qty, onQty, d
 };
 
 // ── TAB 2: COMBINATION ────────────────────────────────────────────────────────
-const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {} }) => {
+const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAdmin = true }) => {
   const [svcSearch,  setSvcSearch]  = useState("");
   const [svcSugg,    setSvcSugg]    = useState([]);
   const [selSvc,     setSelSvc]     = useState(null);
@@ -295,13 +275,6 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {} }) =>
 
   return (
     <div>
-      {!isAdmin && (
-        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
-          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Only Admins at entity level can make changes.
-        </div>
-      )}
-
       <Field label="Package Consists Of" required>
         <Select value={form.packageConsistsOf||"Services"} onChange={e=>setForm(p=>({...p,packageConsistsOf:e.target.value}))}
           options={["Services","Products","Services & Products"]} />
@@ -482,37 +455,22 @@ const EMPTY = {
 };
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
-
-// ── TagDropdown — sourced from Tag Master (PM-014) ───────────────────────────
-const TagDropdown = ({ value, onChange }) => {
-  const [tags,    setTags]    = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-    fetch(`${API_BASE_URL}/api/master/Tags`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(j => {
-        const data = Array.isArray(j.data) ? j.data : Array.isArray(j) ? j : [];
-        setTags(data);
-      })
-      .catch(() => setTags([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <select value={value || ""} onChange={e => onChange(e.target.value)}
-      style={{ width:"100%", height:38, padding:"0 12px", border:"1.5px solid #e2e8f0",
-        borderRadius:8, fontSize:13, background:"#fff", color: value ? "#0f172a" : "#94a3b8" }}>
-      <option value="">{loading ? "Loading tags…" : "Select tag…"}</option>
-      {tags.map(t => (
-        <option key={t.code || t.name} value={t.name || t.code}>{t.name || t.code}</option>
-      ))}
-    </select>
-  );
-};
-
 const PackageMaster = () => {
+  // ── Access rights ─────────────────────────────────────────────────────────
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [view,      setView]      = useState("list");
   const [packages,  setPackages]  = useState([]);
   const [search,    setSearch]    = useState("");
@@ -533,6 +491,7 @@ const PackageMaster = () => {
     try {
       const u = getUser();
       const centerCode = u.centerCode || "";
+      const leCode     = u.legalEntityCode || u.leCode || centerCode;
       const data = await authGet(`${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(search)}&status=${status}&centerCode=${encodeURIComponent(centerCode)}`);
       setPackages(Array.isArray(data) ? data : []);
     } catch { showToast("Failed to load packages","error"); }
@@ -546,29 +505,26 @@ const PackageMaster = () => {
   const openCreate = async () => {
     setSaveAttempted(false); setFormDirty(false);
     const u = getUser();
-    // PM-029: Auto-populate ALL active centres of the Legal Entity in the pricing grid
     let pricing = [];
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-      const res   = await fetch(`${API_BASE_URL}/api/master/LoadCenters`, {
+      const res   = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const json  = await res.json();
-      const centres = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-      pricing = centres.map(cc => ({
-        centerCode:      cc.code || cc.CENTERCODE || "",
-        centerName:      cc.name || cc.CNAME || cc.CENTERNAME || cc.code || "",
-        price:           "",
-        taxIncluded:     "No",
-        taxPercent:      "",
-        releasedToCentre: false,
+      const hier  = json.data ?? json;
+      const allCentres = [
+        // Entity row excluded from pricing — packages are released to branch centres only
+        ...(hier.zones  || []).flatMap(z => z.clinics.map(c => ({ code: c.code, name: c.name }))),
+      ];
+      pricing = allCentres.map(cc => ({
+        centerCode: cc.code || "", centerName: cc.name || cc.code || "",
+        price: "", taxIncluded: "No", taxPercent: "", releasedToCentre: false,
       }));
-    } catch { /* fallback to current centre */ }
-
+    } catch {}
     if (!pricing.length) {
       pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false }];
     }
-
     setForm({...EMPTY, pricing});
     setEditCode(null); setActiveTab(0); setErrors({}); setView("form");
   };
@@ -619,23 +575,17 @@ const PackageMaster = () => {
   const validate = (isSubmit) => {
     const e = {};
 
-    // ── Tab 0: General — mandatory only on Submit (PM-043: Save allows partial data) ──
-    if (isSubmit) {
-      if (!form.packageCode?.trim())
-        e.packageCode = "Package Code is required.";
-      else if (!/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
-        e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
+    // ── Tab 0: General ────────────────────────────────────────────────────
+    if (!form.packageCode?.trim())
+      e.packageCode = "Package Code is required.";
+    else if (!/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
+      e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
 
-      if (!form.packageName?.trim())
-        e.packageName = "Package Name is required.";
+    if (!form.packageName?.trim())
+      e.packageName = "Package Name is required.";
 
-      if (!form.category?.trim())
-        e.category = "Category is required.";
-    } else {
-      // Save (draft) — only validate packageCode format if it's been entered
-      if (form.packageCode?.trim() && !/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
-        e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
-    }
+    if (!form.category?.trim())
+      e.category = "Category is required.";
 
     if (isSubmit && !form.subCategory?.trim())
       e.subCategory = "Sub-Category is required before submitting.";
@@ -702,8 +652,7 @@ const PackageMaster = () => {
     const parts = msg.split(" | ");
     const e     = {};
     parts.forEach(part => {
-      if      (part.includes("Duplicate Package Code")) e.packageCode = part;  // PM-010
-      else if (part.includes("Package Code"))    e.packageCode  = part;
+      if      (part.includes("Package Code"))    e.packageCode  = part;
       else if (part.includes("Package Name"))    e.packageName  = part;
       else if (part.includes("Category") && !part.includes("Sub")) e.category = part;
       else if (part.includes("Sub-Category"))    e.subCategory  = part;
@@ -759,23 +708,8 @@ const PackageMaster = () => {
     <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <div>
-          <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
-          {/* Quick Cart badge — count from API (Active packages only) */}
-          {packages.length > 0 && (() => {
-            const activeQCCount = packages.filter(p => p.ADDTOQUICKCART && p.STATUS === 'Active').length;
-            const isOver = activeQCCount > 10;
-            return (
-              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:999, marginTop:4, display:"inline-block",
-                background: isOver ? "#fdf3f3" : "#e6f4ef",
-                color:      isOver ? "#b91c1c" : "#2e7d5e",
-                border: `1px solid ${isOver ? "#f0c4c0" : "#b3d9cc"}` }}>
-                🛒 Quick Cart: {activeQCCount}/10 {isOver ? "⚠ Over limit" : ""}
-              </span>
-            );
-          })()}
-        </div>
-        <button onClick={openCreate} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ Create New Package</button>
+        <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
+        {canCreate && <button onClick={openCreate} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ Create New Package</button>}
       </div>
       <div style={{ display:"flex", gap:10, marginBottom:18 }}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by code or name…"
@@ -810,7 +744,7 @@ const PackageMaster = () => {
                   <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{pkg.CENTRES||"—"}</td>
                   <td style={{ padding:"12px 14px" }}>{statusBadge(pkg.STATUS)}</td>
                   <td style={{ padding:"12px 14px" }}>
-                    <button onClick={()=>openEdit(pkg.PACKAGECODE)} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>Edit</button>
+                    <button onClick={()=>canEdit && openEdit(pkg.PACKAGECODE)} disabled={!canEdit} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background: canEdit?"#fff":"#f1f5f9", color: canEdit?"#334b71":"#94a3b8", fontWeight:700, cursor: canEdit?"pointer":"not-allowed", fontSize:12 }}>{canEdit ? "Edit" : "View"}</button>
                   </td>
                 </tr>
               ))}
@@ -830,14 +764,7 @@ const PackageMaster = () => {
           <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>
             {editCode ? `Edit Package — ${editCode}` : "Create New Package"}
           </h2>
-          <button
-            onClick={() => {
-              if (formDirty) {
-                if (!window.confirm("You have unsaved changes. Leave without saving?")) return;
-              }
-              setView("list");
-            }}
-            style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
+          <button onClick={()=>setView("list")} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
             ← Back to List
           </button>
         </div>
@@ -897,8 +824,8 @@ const PackageMaster = () => {
       </div>
 
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300 }}>
-        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} />}
-        {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} />}
+        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={isAdmin} />}
+        {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={isAdmin} />}
         {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===3 && <ValidityTab    form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===4 && <MiscTab        form={form} setForm={setForm} />}
