@@ -55,6 +55,23 @@ const Toast = ({ type, message, onClose }) => {
 };
 
 const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canWrite:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canWrite } = _rights;
+
+
   const [activeTab, setActiveTab] = useState("General");
   const tabs = ["General","Pricing","BOM","Practitioner Mapping","Miscellaneous","EMR Forms"];
 
@@ -661,6 +678,12 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
 
     return (
       <div style={{ flex:1 }}>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can save changes.
+        </div>
+      )}
         <h3 style={{ fontSize:15, fontWeight:600, color:"#334B71", marginBottom:14, borderBottom:"1px solid #e5e7eb", paddingBottom:8 }}>
           {title}
         </h3>
@@ -890,8 +913,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                 ))}
 
                 <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={() => onSaveGeneral(true)}>Save as Draft</button>
-                  <button style={s.btnSecondary} onClick={() => onSaveGeneral(false)}>Submit General</button>
+                  <button style={s.btnPrimary}   onClick={() => onSaveGeneral(true)} disabled={!canWrite}>Save as Draft</button>
+                  <button style={s.btnSecondary} onClick={() => onSaveGeneral(false)} disabled={!canWrite}>Submit General</button>
                 </div>
               </>
             )}
@@ -926,8 +949,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   </table>
                 </div>
                 <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={onSavePricing}>Save as Draft</button>
-                  <button style={s.btnSecondary} onClick={onSubmitPricing}>Submit Pricing</button>
+                  <button style={s.btnPrimary}   onClick={onSavePricing} disabled={!canWrite}>Save as Draft</button>
+                  <button style={s.btnSecondary} onClick={onSubmitPricing} disabled={!canWrite}>Submit Pricing</button>
                 </div>
               </>
             )}
@@ -950,7 +973,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                     <select style={{ ...s.sel, flex:1 }} value={selectedConsumable} onChange={(e) => setSelectedConsumable(e.target.value)}>
                       {consumableOpts.map((o, i) => <option key={i} value={o.code}>{o.name}{o.code && o.code!=="0" ? ` (${o.code})` : ""}</option>)}
                     </select>
-                    <button style={s.btnPrimary} onClick={handleAddConsumable}>+ Add</button>
+                    <button style={s.btnPrimary} onClick={handleAddConsumable} disabled={!canWrite}>+ Add</button>
                   </div>
                 </div>
 
@@ -971,8 +994,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   <button style={{ ...s.btnDanger, marginTop:10 }} onClick={() => { markDirty("BOM"); setBomItems((p) => p.filter((b) => !b.selected)); }}>Remove Selected</button>
                 )}
                 <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={onSaveBOM}>Save as Draft</button>
-                  <button style={s.btnSecondary} onClick={onSubmitBOM}>Submit BOM</button>
+                  <button style={s.btnPrimary}   onClick={onSaveBOM} disabled={!canWrite}>Save as Draft</button>
+                  <button style={s.btnSecondary} onClick={onSubmitBOM} disabled={!canWrite}>Submit BOM</button>
                 </div>
               </>
             )}
@@ -987,8 +1010,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   <PractitionerColumn side="nurse"  />
                 </div>
                 <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={onSavePractitioners}>Save as Draft</button>
-                  <button style={s.btnSecondary} onClick={onSubmitPractitioners}>Submit Practitioner Mapping</button>
+                  <button style={s.btnPrimary}   onClick={onSavePractitioners} disabled={!canWrite}>Save as Draft</button>
+                  <button style={s.btnSecondary} onClick={onSubmitPractitioners} disabled={!canWrite}>Submit Practitioner Mapping</button>
                 </div>
               </>
             )}
@@ -1067,7 +1090,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
               )}
 
               <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16 }}>
-                <button onClick={handleSaveEMRForms}
+                <button onClick={handleSaveEMRForms} disabled={!canWrite}
                   style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:8,
                     padding:"10px 20px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
                   💾 Save Forms
@@ -1101,8 +1124,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                   <strong>Note:</strong> These fields are submitted together with the Forms tab.
                 </div>
                 <div style={s.actions}>
-                  <button style={s.btnPrimary}   onClick={onSaveMisc}>Save Locally</button>
-                  <button style={s.btnSecondary} onClick={onSubmitMiscViaForms}>Submit via Forms</button>
+                  <button style={s.btnPrimary}   onClick={onSaveMisc} disabled={!canWrite}>Save Locally</button>
+                  <button style={s.btnSecondary} onClick={onSubmitMiscViaForms} disabled={!canWrite}>Submit via Forms</button>
                 </div>
               </>
             )}

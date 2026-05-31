@@ -8,6 +8,22 @@ import { API_BASE_URL } from "../../config";
 const TOKEN = () => localStorage.getItem("token");
 
 const ServiceMaster = () => {
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [serviceData, setServiceData]                   = useState([]);
   const [searchTerm, setSearchTerm]                     = useState("");
   const [entriesPerPage, setEntriesPerPage]             = useState(10);
@@ -202,8 +218,8 @@ const ServiceMaster = () => {
     {
       name: "Action",
       cell: (row) => (
-        <button className="act-btn edit" onClick={() => handleEdit(row)}>
-          {detailsLoading ? "…" : "✏️ Edit"}
+        <button className={canEdit ? "act-btn edit" : "act-btn"} onClick={() => handleEdit(row)} style={{ opacity: canEdit ? 1 : 0.7 }}>
+          {detailsLoading ? "…" : (canEdit ? "✏️ Edit" : "👁 View")}
         </button>
       ),
       ignoreRowClick: true, allowOverflow: true, button: true,
@@ -226,9 +242,15 @@ const ServiceMaster = () => {
           <h1 className="page-title">Services</h1>
           <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredServices.length} services</p>
         </div>
-        <button className="create-btn" onClick={handleCreateNew}>+ Create New Service</button>
+        {canCreate && <button className="create-btn" onClick={handleCreateNew}>+ Create New Service</button>}
       </div>
 
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
       <DataTable
         columns={columns}
         data={filteredServices}
