@@ -23,6 +23,28 @@ const BLANK_FORM = {
 };
 
 const CustomerMaster = () => {
+
+
+
+
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  // isEntityLevel and role come directly from the JWT user object
+  // canWrite = Admin role AND at entity level
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [customers,         setCustomers]         = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [searchTerm,        setSearchTerm]        = useState("");
@@ -148,6 +170,13 @@ const CustomerMaster = () => {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={styles.page}>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
+
       <style>{`
         .lds-ring{display:inline-block;position:relative;width:56px;height:56px}
         .lds-ring div{box-sizing:border-box;display:block;position:absolute;width:42px;height:42px;margin:7px;border:4px solid #334B71;border-radius:50%;animation:lds-ring 1.2s linear infinite;border-color:#334B71 transparent transparent transparent}
@@ -160,7 +189,7 @@ const CustomerMaster = () => {
       {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>Manage Customers</h1>
-        <button style={styles.createBtn} onClick={handleOpenCreate}>+ New Customer</button>
+        {canCreate && <button style={styles.createBtn} onClick={handleOpenCreate}>+ New Customer</button>}
       </div>
 
       {/* Search */}

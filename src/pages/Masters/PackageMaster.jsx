@@ -49,6 +49,26 @@ const Toggle = ({ value, onChange, label, disabled }) => (
 
 // ── TAB 1: GENERAL ────────────────────────────────────────────────────────────
 const GeneralTab = ({ form, setForm, errors, isEdit, setErrors }) => {
+
+
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  // isEntityLevel and role come directly from the JWT user object
+  // canWrite = Admin role AND at entity level
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [categories,    setCategories]    = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [catLoading,    setCatLoading]    = useState(false);
@@ -275,6 +295,13 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {} }) =>
 
   return (
     <div>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
+
       <Field label="Package Consists Of" required>
         <Select value={form.packageConsistsOf||"Services"} onChange={e=>setForm(p=>({...p,packageConsistsOf:e.target.value}))}
           options={["Services","Products","Services & Products"]} />
@@ -505,7 +532,8 @@ const PackageMaster = () => {
     setLoading(true);
     try {
       const u = getUser();
-      const data = await authGet(`${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(search)}&status=${status}`);
+      const centerCode = u.centerCode || "";
+      const data = await authGet(`${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(search)}&status=${status}&centerCode=${encodeURIComponent(centerCode)}`);
       setPackages(Array.isArray(data) ? data : []);
     } catch { showToast("Failed to load packages","error"); }
     finally { setLoading(false); }

@@ -23,6 +23,26 @@ const statusBadge = (status) => {
 };
 
 const EmployeeMaster = () => {
+
+
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  // isEntityLevel and role come directly from the JWT user object
+  // canWrite = Admin role AND at entity level
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [employees, setEmployees] = useState([]);
   const [total,     setTotal]     = useState(0);
   const [page,      setPage]      = useState(1);
@@ -36,20 +56,10 @@ const EmployeeMaster = () => {
   const LIMIT      = 10;
   const totalPages = Math.ceil(total / LIMIT);
 
-  // Determine if current user is Admin and at LE level
-  const user      = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-  const role      = (user.role || user.userRole || user.securityRole || "").toLowerCase().replace(/\s/g,"");
-  const isAdmin   = role === "admin" || role === "manager";
+
   // EM-002/003: Create button only at Legal Entity level
   // At LE level: legalEntityCode exists and matches centerCode (user logged in at LE, not a branch)
-  // OR: the backend entity check (CZONE='Entity') — we use same proxy as list view
-  const leCode    = user.leCode || user.legalEntityCode || "";
-  const ccCode    = user.centerCode || "";
-  // isEntityLevel: centerCode is the LE code (not a branch centre)
-  // — when leCode and centerCode are different, user is at a centre
-  // — when leCode equals centerCode OR centerCode is the LE code, user is at entity level
-  const isEntityLevel = !ccCode || !leCode || ccCode === leCode || leCode === ccCode;
-  const canCreate = isAdmin && isEntityLevel;
+
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -95,6 +105,13 @@ const EmployeeMaster = () => {
 
   return (
     <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
+
       {toast && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3",

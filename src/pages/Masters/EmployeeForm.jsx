@@ -87,8 +87,24 @@ const Section = ({ title }) => (
 );
 
 // ── Main Form ─────────────────────────────────────────────────────────────────
-const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onSaved }) => {
+const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEntityLevelProp, onBack, onSaved }) => {
   const isEdit = !!employeeCode;
+
+  // Always re-derive rights from localStorage — don't rely solely on prop
+  // (guards against stale prop values or direct URL access)
+  const _selfRights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      return { isAdmin, isEntityLevel };
+    } catch { return { isAdmin: false, isEntityLevel: false }; }
+  })();
+
+  // Use self-derived if prop not explicitly passed, otherwise take the more permissive
+  const isAdmin       = isAdminProp       === true ? true : _selfRights.isAdmin;
+  const isEntityLevel = isEntityLevelProp === true ? true : _selfRights.isEntityLevel;
 
   const BLANK = {
     employeeCode:"", title:"", firstName:"", middleName:"", lastName:"",
@@ -107,7 +123,8 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
   const [saving,  setSaving]  = useState(null); // null | "save" | "submit"
   const [loading, setLoading] = useState(isEdit);
   const [toast,   setToast]   = useState(null);
-  const [centres,      setCentres]      = useState([]);
+  const [centres,      setCentres]      = useState([]);  // all: entity + branches
+  const [branchCentres,setBranchCentres] = useState([]);  // branches only (for Employment History)
   const [nationalities,setNationalities] = useState([]);
   const [idTypes,      setIdTypes]       = useState([]);
   const [jobs,         setJobs]          = useState([]);
@@ -122,9 +139,23 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
 
   // Load master data on mount
   useEffect(() => {
-    authGet(`${API_BASE_URL}/api/master/LoadCenters`)
-      .then(d => setCentres(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    // Load all centres including entity level
+    authGet(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`)
+      .then(d => {
+        const entity   = d.entity   ? [{ code: d.entity.code,   name: d.entity.name   }] : [];
+        const branches = (d.zones || []).flatMap(z => z.clinics.map(c => ({ code: c.code, name: c.name })));
+        setCentres([...entity, ...branches]);     // Roles tab: entity + branches
+        setBranchCentres(branches);               // Employment History tab: branches only
+      })
+      .catch(() => {
+        authGet(`${API_BASE_URL}/api/master/LoadCenters`)
+          .then(d => {
+            const list = Array.isArray(d) ? d : [];
+            setCentres(list);
+            setBranchCentres(list);
+          })
+          .catch(() => {});
+      });
     authGet(`${API_BASE_URL}/api/master/Nationality`)
       .then(d => setNationalities(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -168,10 +199,31 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
           nationalityIdType:   d.NATIONALITYIDTYPE || "",
           nationalityId:       d.NATIONALITYID     || "",
           email:               d.EMAIL             || "",
-          mobileCountryCode:   d.MOBILECOUNTRYCODE || "+966",
-          mobilePhone:         d.MOBILEPHONE       || "",
-          workCountryCode:     d.WORKCOUNTRYCODE   || "",
-          workPhone:           d.WORKPHONE         || "",
+          // Parse phone: if MOBILEPHONE already contains country code prefix, split it out
+          mobileCountryCode: (() => {
+            if (d.MOBILECOUNTRYCODE) return d.MOBILECOUNTRYCODE;
+            const ph = d.MOBILEPHONE || "";
+            const m = ph.match(/^(\+\d{1,4})\s(.+)$/);
+            return m ? m[1] : "+966";
+          })(),
+          mobilePhone: (() => {
+            if (d.MOBILECOUNTRYCODE) return d.MOBILEPHONE || "";
+            const ph = d.MOBILEPHONE || "";
+            const m = ph.match(/^(\+\d{1,4})\s(.+)$/);
+            return m ? m[2] : ph;
+          })(),
+          workCountryCode: (() => {
+            if (d.WORKCOUNTRYCODE) return d.WORKCOUNTRYCODE;
+            const ph = d.WORKPHONE || "";
+            const m = ph.match(/^(\+\d{1,4})\s(.+)$/);
+            return m ? m[1] : "";
+          })(),
+          workPhone: (() => {
+            if (d.WORKCOUNTRYCODE) return d.WORKPHONE || "";
+            const ph = d.WORKPHONE || "";
+            const m = ph.match(/^(\+\d{1,4})\s(.+)$/);
+            return m ? m[2] : ph;
+          })(),
           address1:            d.ADDRESS1          || "",
           address2:            d.ADDRESS2          || "",
           city:                d.CITY              || "",
@@ -186,7 +238,7 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
             endDate: h.ENDDATE?.split("T")[0] || "", job: h.JOB || "",
           })),
           roles: (d.roles || []).map(r => ({
-            id: r.RECID, centreCode: r.CENTERCODE, role: r.ROLE,
+            id: r.RECID, centreCode: r.CENTERCODE, role: r.ROLE, primaryClinic: !!r.PRIMARYCLINIC,
           })),
         });
       })
@@ -260,7 +312,7 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
   };
 
   // Roles helpers
-  const addRoleRow  = () => { setForm(p => ({ ...p, roles: [...p.roles, { centreCode:"", role:"" }] })); setIsDirty(true); };
+  const addRoleRow  = () => { setForm(p => ({ ...p, roles: [...p.roles, { centreCode:"", role:"", primaryClinic: false }] })); setIsDirty(true); };
   const delRoleRow  = (i) => { setForm(p => ({ ...p, roles: p.roles.filter((_,idx)=>idx!==i) })); setIsDirty(true); };
   const setRoleRow  = (i, field, val) => {
     setForm(p => { const r = [...p.roles]; r[i] = { ...r[i], [field]: val }; return { ...p, roles: r }; });
@@ -635,7 +687,7 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
                     <td style={{ padding:"8px 12px" }}>
                       <Sel value={h.centreCode} onChange={e => setHistoryRow(i,"centreCode",e.target.value)} disabled={!isAdmin}>
                         <option value="">Select centre</option>
-                        {centres.map(c => <option key={c.code||c.CENTERCODE} value={c.code||c.CENTERCODE}>
+                        {branchCentres.map(c => <option key={c.code||c.CENTERCODE} value={c.code||c.CENTERCODE}>
                           {c.name||c.CENTERNAME||c.code}
                         </option>)}
                       </Sel>
@@ -696,9 +748,9 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
             <table style={{ width:"100%", borderCollapse:"collapse" }}>
               <thead>
                 <tr style={{ background:"#f1f5f9" }}>
-                  {["Centre","Role",""].map(h => (
-                    <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontSize:11, fontWeight:700,
-                      color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase" }}>{h}</th>
+                  {["Centre","Role","Primary Clinic",""].map(h => (
+                    <th key={h} style={{ padding:"9px 12px", textAlign: h === "Primary Clinic" ? "center" : "left",
+                      fontSize:11, fontWeight:700, color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -718,6 +770,28 @@ const EmployeeForm = ({ employeeCode, isAdmin, isEntityLevel = true, onBack, onS
                         <option value="">Select role</option>
                         {roles.map(rl => <option key={rl.code} value={rl.name}>{rl.name}</option>)}
                       </Sel>
+                    </td>
+                    {/* Primary Clinic — radio button, only one can be primary */}
+                    <td style={{ padding:"8px 12px", textAlign:"center" }}>
+                      <input
+                        type="radio"
+                        name="primaryClinic"
+                        checked={!!r.primaryClinic}
+                        disabled={!isAdmin}
+                        onChange={() => {
+                          if (!isAdmin) return;
+                          // Set this row as primary, unset all others
+                          setForm(p => ({
+                            ...p,
+                            roles: p.roles.map((row, idx) => ({
+                              ...row,
+                              primaryClinic: idx === i,
+                            })),
+                          }));
+                          setIsDirty(true);
+                        }}
+                        style={{ width:16, height:16, cursor: isAdmin ? "pointer" : "default" }}
+                      />
                     </td>
                     <td style={{ padding:"8px 12px" }}>
                       {isAdmin && (

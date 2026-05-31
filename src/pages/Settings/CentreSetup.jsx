@@ -33,6 +33,28 @@ const Toggle = ({ value, onChange, label, sub }) => (
 );
 
 export default function CentreSetup() {
+
+
+
+
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  // isEntityLevel and role come directly from the JWT user object
+  // canWrite = Admin role AND at entity level
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [centres,      setCentres]      = useState([]);
   const [selected,     setSelected]     = useState(null); // centerCode
   const [data,         setData]         = useState(null);
@@ -132,6 +154,13 @@ export default function CentreSetup() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
+
       <style>{`
         .cs-wrap { max-width:1100px; margin:0 auto; padding:28px 20px 60px; display:grid; grid-template-columns:240px 1fr; gap:20px; }
         .cs-sidebar { background:#fff; border:1px solid #e7ecf4; border-radius:12px; padding:16px; height:fit-content; }

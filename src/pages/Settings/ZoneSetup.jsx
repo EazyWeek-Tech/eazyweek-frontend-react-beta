@@ -11,6 +11,28 @@ const authDel  = async (url)       => { const r = await fetch(url, { method:"DEL
 const EMPTY_FORM = { zoneCode:"", zoneName:"", displayName:"", leCode:"" };
 
 export default function ZoneSetup() {
+
+
+
+
+
+  // ── Access rights ─────────────────────────────────────────────────────────
+  // isEntityLevel and role come directly from the JWT user object
+  // canWrite = Admin role AND at entity level
+  const _rights = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const isAdmin       = role === "admin";
+      const isEntityLevel = u.isEntityLevel === true;
+      const canWrite      = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+    } catch {
+      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
+    }
+  })();
+  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+
   const [zones,           setZones]           = useState([]);
   const [selected,        setSelected]        = useState(null);  // zoneCode for edit
   const [form,            setForm]            = useState(EMPTY_FORM);
@@ -135,6 +157,13 @@ export default function ZoneSetup() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
+      {!isAdmin && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
+          👁 View Only — Only Admins at entity level can make changes.
+        </div>
+      )}
+
       <style>{`
         .zs-wrap { max-width:1000px; margin:0 auto; padding:28px 20px 60px; }
         .zs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
@@ -202,7 +231,7 @@ export default function ZoneSetup() {
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <button className="ghost-btn" style={{ padding:"7px 14px", fontSize:12 }} onClick={() => handleEdit(z.zoneCode)}>Edit</button>
+                <button className="ghost-btn" style={{ padding:"7px 14px", fontSize:12 }} onClick={()=>{ if(canEdit) handleEdit(z.zoneCode); }}>Edit</button>
                 <button className="danger-btn" onClick={() => setConfirmDelete(z)}>Delete</button>
               </div>
             </div>
@@ -306,7 +335,7 @@ export default function ZoneSetup() {
             {/* Actions */}
             <div style={{ display:"flex", gap:12, justifyContent:"flex-end" }}>
               <button className="ghost-btn" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="primary-btn" onClick={handleSave} disabled={saving}>
+              <button className="primary-btn" onClick={() => { if(!canEdit) return; handleSave(); }} disabled={saving}>
                 {saving ? "Saving…" : `💾 ${selected ? "Update Zone" : "Save Zone"}`}
               </button>
             </div>
@@ -325,7 +354,7 @@ export default function ZoneSetup() {
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
                 <button className="ghost-btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
                 <button style={{ background:"#b91c1c", color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13, cursor:"pointer" }}
-                  onClick={() => handleDelete(confirmDelete.zoneCode)}>
+                  onClick={()=>{ if(canDelete) handleDelete(confirmDelete.zoneCode); }}>
                   Yes, Delete
                 </button>
               </div>
