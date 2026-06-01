@@ -2,6 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+
+
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const norm = (s) => (s ?? "").toString().trim();
 
@@ -175,9 +183,9 @@ export default function AuditDetailedReport() {
     (async () => {
       try {
         const [segR, audR, clinR] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
         ]);
         setSegments((Array.isArray(segR) ? segR : []).map(x => ({ value: norm(x.code)||norm(x.name), label: norm(x.name)||norm(x.code) })));
         setAuditors((Array.isArray(audR) ? audR : []).map(x => ({ value: x.code ?? x.employeeCode ?? "", label: x.name ?? x.employeeName ?? "" })).filter(a => a.value));
@@ -237,16 +245,32 @@ export default function AuditDetailedReport() {
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditDetailedReport`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const text = await r.text();
-      let arr; try { arr = text ? JSON.parse(text) : []; } catch { arr = []; }
-      if (!Array.isArray(arr)) arr = arr ? [arr] : [];
-      if (auditMonths.length) arr = arr.filter(x => auditMonths.includes(norm(x.auditMonth ?? "").split("/")[0]));
-      if (auditYears.length) arr = arr.filter(x => auditYears.includes((norm(x.auditMonth ?? "").split("/")[1]) || ""));
+      let _json; try { _json = text ? JSON.parse(text) : []; } catch { _json = []; }
+      const _data = _json?.data ?? _json;
+      let arr = Array.isArray(_data) ? _data : _data ? [_data] : [];
+      const toMonthAbbr = (m) => {
+        const s = (m || "").trim().toLowerCase();
+        const map = { january:"Jan", february:"Feb", march:"Mar", april:"Apr", may:"May",
+          june:"Jun", july:"Jul", august:"Aug", september:"Sep", october:"Oct",
+          november:"Nov", december:"Dec",
+          jan:"Jan", feb:"Feb", mar:"Mar", apr:"Apr", jun:"Jun", jul:"Jul",
+          aug:"Aug", sep:"Sep", oct:"Oct", nov:"Nov", dec:"Dec" };
+        return map[s] || m;
+      };
+      if (auditMonths.length) arr = arr.filter(x => auditMonths.includes(toMonthAbbr(x.auditMonth)));
+      if (auditYears.length) arr = arr.filter(x => auditYears.includes(String(x.auditYear ?? "")));
 
       const normalized = arr.map((x, i) => ({
-        key: x.auditNo || `r${i}`, auditNo: x.auditNo ?? "", monthYear: x.auditMonth ?? "",
+        key: `${x.auditNo || i}_${i}`, auditNo: x.auditNo ?? "",
+        monthYear: [x.auditMonth, x.auditYear].filter(Boolean).join(" / "),
         auditDate: x.auditDate ?? "", employeeId: x.employeeCode ?? "", employeeName: x.employeeName ?? "",
-        clinic: x.clinicName ?? "", segment: x.auditSegment ?? "", subSegment: x.auditSubSegment ?? x.subSegment ?? "",
-        score: x.auditScore ?? "", auditor: x.auditorName ?? "", createdDate: x.createdDate ?? "", submittedDate: x.submittedDate ?? "",
+        clinic: x.clinicName ?? "", segment: x.auditSegment ?? "",
+        subSegment: x.subSegment ?? x.auditSubSegment ?? "",
+        criteria: x.criteria ?? "", weightage: x.weightage ?? "",
+        criteriaScore: x.score != null ? String(x.score) : "",
+        totalScore: x.totalScore != null ? x.totalScore : "",
+        score: x.auditScore ?? "",
+        auditor: x.auditorName ?? "", createdDate: x.createdDate ?? "", submittedDate: x.submittedDate ?? "",
       }));
 
       setRows(normalized);
@@ -259,7 +283,7 @@ export default function AuditDetailedReport() {
 
   const exportExcel = () => {
     if (!rows.length) return;
-    const cols = [["Audit No","auditNo"],["Month/Year","monthYear"],["Audit Date","auditDate"],["Employee ID","employeeId"],["Employee Name","employeeName"],["Clinic","clinic"],["Segment","segment"],["Sub Segment","subSegment"],["Score","score"],["Auditor","auditor"],["Created","createdDate"],["Submitted","submittedDate"]];
+    const cols = [["Audit No","auditNo"],["Month/Year","monthYear"],["Audit Date","auditDate"],["Employee ID","employeeId"],["Employee Name","employeeName"],["Clinic","clinic"],["Segment","segment"],["Sub Segment","subSegment"],["Criteria","criteria"],["Weight","weightage"],["Criteria Score","criteriaScore"],["Gross Score","score"],["Auditor","auditor"],["Created","createdDate"],["Submitted","submittedDate"]];
     const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const thStyle = `style="background:#334b71;color:#fff;font-weight:bold;border:1px solid #ccc;padding:6px 10px;font-size:12px;"`;
     const tdStyle = `style="border:1px solid #e5e7eb;padding:5px 10px;font-size:12px;mso-number-format:'\\@';"`;
@@ -354,11 +378,12 @@ export default function AuditDetailedReport() {
             <thead><tr>
               <th>Audit No</th><th>Month / Year</th><th>Audit Date</th><th>Employee ID</th>
               <th>Employee Name</th><th>Clinic</th><th>Segment</th><th>Sub Segment</th>
-              <th>Score</th><th>Auditor</th><th>Created</th><th>Submitted</th>
+              <th>Criteria</th><th>Weight</th><th>Score</th><th>Gross</th>
+              <th>Auditor</th><th>Created</th><th>Submitted</th>
             </tr></thead>
             <tbody>
-              {loading && <tr><td colSpan={12} className="ts"><span className="sp"/>&nbsp;Loading…</td></tr>}
-              {!loading && !pageRows.length && <tr><td colSpan={12} className="ts">{searched ? "No records found." : "Set filters and click Search."}</td></tr>}
+              {loading && <tr><td colSpan={15} className="ts"><span className="sp"/>&nbsp;Loading…</td></tr>}
+              {!loading && !pageRows.length && <tr><td colSpan={15} className="ts">{searched ? "No records found." : "Set filters and click Search."}</td></tr>}
               {!loading && pageRows.map((r,i) => (
                 <tr key={`${r.key}-${i}`} className={i%2===0?"":"ta"}>
                   <td><button className="lnk" onClick={() => navigate(`/audit/view/${encodeURIComponent(r.auditNo)}`)}>{r.auditNo}</button></td>
@@ -367,6 +392,11 @@ export default function AuditDetailedReport() {
                   <td>{r.employeeName}</td><td>{r.clinic}</td>
                   <td><span className="sp-seg">{r.segment}</span></td>
                   <td><span className="sp-sub">{r.subSegment}</span></td>
+                  <td style={{maxWidth:280,whiteSpace:"normal"}} dangerouslySetInnerHTML={{__html: r.criteria || "—"}} />
+                  <td style={{textAlign:"center"}}>{r.weightage}</td>
+                  <td><span className={r.criteriaScore === "1" ? "score-yes" : r.criteriaScore === "0" ? "score-no" : "score-na"}>
+                    {r.criteriaScore === "1" ? "Yes" : r.criteriaScore === "0" ? "No" : "—"}
+                  </span></td>
                   <td><strong>{r.score}</strong></td>
                   <td>{r.auditor}</td><td>{r.createdDate}</td><td>{r.submittedDate}</td>
                 </tr>
@@ -432,7 +462,7 @@ export default function AuditDetailedReport() {
 
         .tc { background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.03); overflow:hidden; }
         .tw { overflow-x:auto; }
-        .tbl { width:100%; border-collapse:collapse; min-width:1200px; }
+        .tbl { width:100%; border-collapse:collapse; min-width:1600px; }
         .tbl thead tr { background:#334b71; }
         .tbl th { padding:11px 14px; text-align:left; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#fff; white-space:nowrap; }
         .tbl tbody tr { border-bottom:1px solid #f3f4f6; transition:background .1s; }
@@ -445,6 +475,9 @@ export default function AuditDetailedReport() {
         .lnk { background:none; border:none; color:#334b71; font-weight:700; cursor:pointer; font-size:13px; padding:0; }
         .lnk:hover { text-decoration:underline; }
         .ec { font-family:monospace; font-size:12px; color:#6b7a8d; }
+        .score-yes { background:#e8f5e9; color:#138a36; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; }
+        .score-no { background:#fdecea; color:#c0392b; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; }
+        .score-na { background:#f0f2f5; color:#8a94a6; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; }
         .sp-seg { background:#eef2fa; color:#334b71; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
         .sp-sub { background:#f0f7ee; color:#2d6a4f; font-size:11px; font-weight:600; padding:3px 8px; border-radius:6px; }
 

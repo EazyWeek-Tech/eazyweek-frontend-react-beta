@@ -180,9 +180,9 @@ export default function AuditSummaryReport() {
     (async () => {
       try {
         const [segR, audR, clinR] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).then(j => j?.data ?? j).catch(() => []),
         ]);
         setSegments((Array.isArray(segR) ? segR : []).map(x => ({ value: norm(x.code)||norm(x.name), label: norm(x.name)||norm(x.code) })));
         setAuditors((Array.isArray(audR) ? audR : []).map(x => ({ value: x.code ?? x.employeeCode ?? "", label: x.name ?? x.employeeName ?? "" })).filter(a => a.value));
@@ -241,12 +241,23 @@ export default function AuditSummaryReport() {
       };
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      let arr = await r.json().catch(() => []);
+      const _raw_arr = await r.json().catch(() => []); let arr = _raw_arr?.data ?? _raw_arr;
       if (!Array.isArray(arr)) arr = arr ? [arr] : [];
-      if (auditMonths.length) arr = arr.filter(x => auditMonths.includes(norm(x.auditMonth ?? "").split("/")[0]));
-      if (auditYears.length) arr = arr.filter(x => auditYears.includes((norm(x.auditMonth ?? "").split("/")[1]) || ""));
+      // Normalize month name to 3-letter abbreviation for comparison
+      const toMonthAbbr = (m) => {
+        const s = (m || "").trim().toLowerCase();
+        const map = { january:"Jan", february:"Feb", march:"Mar", april:"Apr", may:"May",
+          june:"Jun", july:"Jul", august:"Aug", september:"Sep", october:"Oct",
+          november:"Nov", december:"Dec",
+          jan:"Jan", feb:"Feb", mar:"Mar", apr:"Apr", jun:"Jun", jul:"Jul",
+          aug:"Aug", sep:"Sep", oct:"Oct", nov:"Nov", dec:"Dec" };
+        return map[s] || m;
+      };
+      if (auditMonths.length) arr = arr.filter(x => auditMonths.includes(toMonthAbbr(x.auditMonth)));
+      if (auditYears.length) arr = arr.filter(x => auditYears.includes(String(x.auditYear ?? "")));
       setRows(arr.map((x, i) => ({
-        key: x.auditNo || `r${i}`, auditNo: x.auditNo ?? "", monthYear: x.auditMonth ?? "",
+        key: x.auditNo || `r${i}`, auditNo: x.auditNo ?? "",
+        monthYear: [x.auditMonth, x.auditYear].filter(Boolean).join(" / "),
         auditDate: x.auditDate ?? "", employeeId: x.employeeCode ?? "", employeeName: x.employeeName ?? "",
         clinic: x.clinicName ?? "", segment: x.auditSegment ?? "", score: x.auditScore ?? "",
         auditor: x.auditorName ?? "", createdDate: x.createdDate ?? "", submittedDate: x.submittedDate ?? "",
