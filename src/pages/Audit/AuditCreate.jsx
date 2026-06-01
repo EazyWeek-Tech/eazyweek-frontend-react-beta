@@ -1,8 +1,29 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const authGet = (url) => fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json());
+const authPost = (url, body) => fetch(url, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) }).then(r => r.json());
+
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+// ─── Audit Rights ─────────────────────────────────────────────────────────────
+// canWrite:       centre-level AND roleCode === SQ001
+// isEntityLevel:  user logged in at entity level (view-only for all clinics)
+const getAuditRights = () => {
+  const u = getUser();
+  const roleCode      = (u.roleCode || "").trim().toUpperCase();
+  const isEntityLevel = u.isEntityLevel === true;
+  const canWrite      = !isEntityLevel && roleCode === "SQ001";
+  return { canWrite, isEntityLevel, roleCode };
+};
+
+
+
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -32,26 +53,8 @@ const toMonthNumber = (m) => {
 
 const toMidnightUtc = (isoDate) => `${isoDate}T00:00:00.000Z`;
 
-const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-const pickTopCode = (o) => norm(o?.topCode ?? o?.loginCode ?? o?.centerCode ?? "");
-const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
 
-function getSessionObj() {
-  if (typeof window === "undefined") return {};
-  const globals = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
-  if (globals && typeof globals === "object" && Object.keys(globals).length) return globals;
-  const keys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
-  for (const storage of [window.localStorage, window.sessionStorage]) {
-    if (!storage) continue;
-    for (const k of keys) {
-      const raw = storage.getItem(k);
-      if (!raw) continue;
-      const parsed = tryParseJSON(raw);
-      if (parsed && typeof parsed === "object") return parsed;
-    }
-  }
-  return {};
-}
+
 
 const Field = ({ label, children }) => (
   <div className="field">
@@ -62,6 +65,28 @@ const Field = ({ label, children }) => (
 
 export default function AuditCreate() {
   const navigate = useNavigate();
+  const { canWrite, isEntityLevel } = getAuditRights();
+
+  // Access guard — view-only users and entity-level users cannot create
+  if (!canWrite) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        minHeight:"60vh", gap:16, fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+        <div style={{ fontSize:48 }}>🔒</div>
+        <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>Access Restricted</div>
+        <div style={{ fontSize:14, color:"#64748b", textAlign:"center", maxWidth:380 }}>
+          {isEntityLevel
+            ? "Audits can only be created at clinic level. Please switch to a clinic to create audits."
+            : "Only employees with the Service Quality Reviewer role (SQ001) can create audits."}
+        </div>
+        <button onClick={() => navigate(-1)}
+          style={{ marginTop:8, background:"#334b71", color:"#fff", border:"none",
+            borderRadius:8, padding:"10px 24px", fontWeight:700, cursor:"pointer" }}>
+          Go Back
+        </button>
+      </div>
+    );
+  }
   const { state } = useLocation();
 
   const [segments, setSegments] = useState([]);
@@ -73,8 +98,7 @@ export default function AuditCreate() {
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
 
-  const sessionObj = useMemo(() => getSessionObj(), []);
-  const sessionTopCodeRef = useMemo(() => pickTopCode(sessionObj), [sessionObj]);
+
 
   const [clinicCode, setClinicCode] = useState(state?.clinicCode || "");
   const [month, setMonth] = useState(() => toMonthNumber(state?.month));
@@ -108,10 +132,11 @@ export default function AuditCreate() {
     (async () => {
       try {
         setLoadingSeg(true);
-        const r = await fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { credentials: "include" });
+        const r = await fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
-        const list = (Array.isArray(d) ? d : [d]).filter(Boolean).map((s) => ({ code: norm(s.code), name: norm(s.name) }));
+        const json = await r.json();
+        const d = json?.data ?? json;
+        const list = (Array.isArray(d) ? d : d ? [d] : []).filter(Boolean).map((s) => ({ code: norm(s.code), name: norm(s.name) }));
         setSegments(list);
         if (segmentCode || segmentName) {
           const match = list.find((s) => norm(s.code) === norm(segmentCode)) || list.find((s) => norm(s.name) === norm(segmentCode));
@@ -128,12 +153,13 @@ export default function AuditCreate() {
         setLoadingOpts(true);
         let centers = [];
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" });
+          const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
           const payload = await r.json();
-          centers = Array.isArray(payload) ? payload : payload ? [payload] : [];
+          const pdata = payload?.data ?? payload;
+          centers = Array.isArray(pdata) ? pdata : pdata ? [pdata] : [];
         } catch { centers = []; }
         setClinics(centers);
-        const sessTop = sessionTopCodeRef;
+        const sessTop = getCenterCode();
         if (sessTop) {
           const match = centers.find((c) => norm(c.code).toLowerCase() === norm(sessTop).toLowerCase());
           setClinicCode(match ? match.code : sessTop);
@@ -143,7 +169,7 @@ export default function AuditCreate() {
       } catch (e) { showToast("Failed to load form options"); }
       finally { setLoadingOpts(false); }
     })();
-  }, [API_BASE_URL, sessionTopCodeRef]);
+  }, [API_BASE_URL]);
 
   useEffect(() => {
     if (!isDigitalSeg || !clinicCode) return;
@@ -152,13 +178,15 @@ export default function AuditCreate() {
     (async () => {
       try {
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDoctor/${seg}?centerCode=${cc}`, { credentials: "include" });
-          const d = await r.json();
+          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDoctor/${seg}?centerCode=${cc}`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+          const dj = await r.json();
+          const d = dj?.data ?? dj;
           setDoctors(Array.isArray(d) ? d : d ? [d] : []);
         } catch { setDoctors([]); }
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDepartment`, { credentials: "include" });
-          const d = await r.json();
+          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationDepartment`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+          const dj = await r.json();
+          const d = dj?.data ?? dj;
           setDepartments(Array.isArray(d) ? d : d ? [d] : []);
         } catch { setDepartments([]); }
       } catch { showToast("Failed to load Digital options"); }
@@ -174,9 +202,10 @@ export default function AuditCreate() {
     (async () => {
       try {
         setLoadingOpts(true);
-        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${seg}?centerCode=${cc}`, { credentials: "include" });
+        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${seg}?centerCode=${cc}`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
+        const raw = await r.json();
+        const d = raw?.data ?? raw;
         const list = (Array.isArray(d) ? d : d ? [d] : []).map((x) => ({ employeeCode: x.code ?? x.employeeCode ?? "", employeeName: x.name ?? x.employeeName ?? "" })).filter((e) => e.employeeCode || e.employeeName);
         setEmployees(list);
       } catch { setEmployees([]); showToast("Failed to load employees"); }
@@ -192,17 +221,18 @@ export default function AuditCreate() {
       const shapes = [`${auditDateISO}T00:00:00`, auditDateISO, `${auditDateISO}T00:00:00Z`];
       for (const AuditDate of shapes) {
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${encodeURIComponent(AuditDate)}`, { credentials: "include", headers: { Accept: "application/json" } });
+          const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationManager/${encodeURIComponent(AuditDate)}`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
           if (r.status === 404) break;
           if (r.ok) {
-            const d = await r.json();
+            const dj = await r.json();
+            const d = dj?.data ?? dj;
             const list = (Array.isArray(d) ? d : d ? [d] : []).map((m) => ({ code: m.code ?? m.employeeCode ?? "", name: m.name ?? m.employeeName ?? "" })).filter((x) => x.code || x.name);
             setManagers(list); return;
           }
         } catch {}
       }
       try {
-        const rEmp = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationEmployee/${seg}?centerCode=${cc}`, { credentials: "include", headers: { Accept: "application/json" } });
+        const rEmp = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditCreationEmployee/${seg}?centerCode=${cc}`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
         if (rEmp.ok) {
           const d = await rEmp.json();
           setManagers((Array.isArray(d) ? d : d ? [d] : []).map((x) => ({ code: x.code ?? "", name: x.name ?? "" })).filter((x) => x.code || x.name));
@@ -224,7 +254,7 @@ export default function AuditCreate() {
 
   async function duplicateCheck(payload) {
     try {
-      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreationDupicateCheck`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreationDupicateCheck`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${TOKEN()}` }, body: JSON.stringify(payload) });
       if (r.ok) return await r.json();
       throw new Error(`HTTP ${r.status}`);
     } catch { showToast("Duplicate check failed. Please try again."); return null; }

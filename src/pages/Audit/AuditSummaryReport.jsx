@@ -1,8 +1,14 @@
-"use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const norm = (s) => (s ?? "").toString().trim();
@@ -25,26 +31,8 @@ function todayLocalISO() {
 }
 
 const tryJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-const pickCode = (o) => norm(o?.topCode ?? o?.loginCode ?? o?.centerCode ?? o?.tCenterCode ?? "");
 const pickName = (o) => norm(o?.centerName ?? o?.clinicName ?? "");
 
-function getSessionClinic() {
-  if (typeof window === "undefined") return { code: "", name: "" };
-  const g = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
-  const fromGlobal = pickCode(g);
-  if (fromGlobal) return { code: fromGlobal, name: pickName(g) };
-  const priorityKeys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
-  for (const storage of [window.localStorage, window.sessionStorage]) {
-    if (!storage) continue;
-    for (const k of priorityKeys) {
-      const raw = storage.getItem(k);
-      if (!raw) continue;
-      const p = tryJSON(raw);
-      if (p && typeof p === "object") { const c = pickCode(p); const n = pickName(p); if (c) return { code: c, name: n }; }
-    }
-  }
-  return { code: "", name: "" };
-}
 
 function getYearOptions() {
   const cur = new Date().getFullYear();
@@ -159,7 +147,6 @@ function SearchableDropdown({ options, value, onChange, placeholder = "Select", 
 
 export default function AuditSummaryReport() {
   const navigate = useNavigate();
-  const sessionClinic = useMemo(() => getSessionClinic(), []);
 
   const [dateRequired, setDateRequired] = useState(false);
   const [fromDate, setFromDate] = useState("");
@@ -170,7 +157,7 @@ export default function AuditSummaryReport() {
   const [auditMonths, setAuditMonths] = useState([]);
   const [auditYears, setAuditYears] = useState([]);
 
-  const [clinicDisplayName, setClinicDisplayName] = useState(sessionClinic.name || sessionClinic.code || "");
+  const [clinicDisplayName, setClinicDisplayName] = useState({ code: getCenterCode(), name: (getUser().centerName || "") }.name || { code: getCenterCode(), name: (getUser().centerName || "") }.code || "");
   const [segments, setSegments] = useState([]);
   const [auditors, setAuditors] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -186,21 +173,21 @@ export default function AuditSummaryReport() {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = useMemo(() => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE), [rows, page]);
 
-  const clinicCode = sessionClinic.code;
-  const clinicLabel = clinicDisplayName || sessionClinic.code || "—";
+  const clinicCode = { code: getCenterCode(), name: (getUser().centerName || "") }.code;
+  const clinicLabel = clinicDisplayName || { code: getCenterCode(), name: (getUser().centerName || "") }.code || "—";
 
   useEffect(() => {
     (async () => {
       try {
         const [segR, audR, clinR] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { credentials: "include" }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { credentials: "include" }).then(r => r.json()).catch(() => []),
-          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include" }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/AuditSegment`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Audit/LoadAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
+          fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.json()).catch(() => []),
         ]);
         setSegments((Array.isArray(segR) ? segR : []).map(x => ({ value: norm(x.code)||norm(x.name), label: norm(x.name)||norm(x.code) })));
         setAuditors((Array.isArray(audR) ? audR : []).map(x => ({ value: x.code ?? x.employeeCode ?? "", label: x.name ?? x.employeeName ?? "" })).filter(a => a.value));
         const clinList = Array.isArray(clinR) ? clinR : [];
-        const code = sessionClinic.code;
+        const code = { code: getCenterCode(), name: (getUser().centerName || "") }.code;
         if (code) {
           const match = clinList.find(c => norm(c.code).toLowerCase() === norm(code).toLowerCase());
           if (match) setClinicDisplayName(match.name ?? match.centerName ?? code);
@@ -214,7 +201,7 @@ export default function AuditSummaryReport() {
     (async () => {
       if (!segmentCodes.length) { setEmployees([]); setEmployeeCode(""); return; }
       const results = await Promise.all(
-        segmentCodes.map(seg => fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`, { credentials: "include" }).then(r => r.ok ? r.json() : []).catch(() => []))
+        segmentCodes.map(seg => fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.ok ? r.json() : []).catch(() => []))
       );
       const seen = new Set(); const mapped = [];
       for (const x of results.flat()) {
@@ -252,7 +239,7 @@ export default function AuditSummaryReport() {
         dateFlag: (dateRequired && fromDate && toDate) ? "1" : "0",
         isDigitalInTheList: "",
       };
-      const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       let arr = await r.json().catch(() => []);
       if (!Array.isArray(arr)) arr = arr ? [arr] : [];

@@ -1,12 +1,31 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import DataTable from "react-data-table-component";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+// ─── Audit Rights ─────────────────────────────────────────────────────────────
+// canWrite:       centre-level AND roleCode === SQ001
+// isEntityLevel:  user logged in at entity level (view-only for all clinics)
+const getAuditRights = () => {
+  const u = getUser();
+  const roleCode      = (u.roleCode || "").trim().toUpperCase();
+  const isEntityLevel = u.isEntityLevel === true;
+  const canWrite      = !isEntityLevel && roleCode === "SQ001";
+  return { canWrite, isEntityLevel, roleCode };
+};
+
+
+
+
 const AuditCreateDashboard = () => {
   const navigate = useNavigate();
+  const { canWrite, isEntityLevel } = getAuditRights();
 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,17 +35,26 @@ const AuditCreateDashboard = () => {
   // --- helper to normalize API response ---
   const normalize = (list) =>
     list.map((r) => ({
-      auditNo: r.auditNo ?? "",
-      auditMonthYear: r.auditMonth ?? "",
-      auditDate: r.auditDate ?? "",
-      employeeId: r.employeeCode ?? "",
-      employeeName: r.employeeName ?? "",
-      clinic: r.clinicName ?? "",
-      auditSegment: r.auditSegment ?? "",
-      auditScore: r.auditScore ?? "",
-      auditor: r.auditorName ?? "",
-      createdDate: r.createdDate ?? "",
-      createdDateRaw: r.createdDateRaw ?? r.createdDate ?? "",
+      auditNo:       r.auditNo      || r.AUDITNO      || "",
+      auditMonthYear:r.auditMonth   || r.AUDITMONTH   || "",
+      auditDate:     r.auditDate    || r.AUDITDATE     || "",
+      employeeId:    r.employeeCode || r.EMPLOYEECODE  || "",
+      employeeName:  r.employeeName || r.EMPLOYEE      || "",
+      clinic:        r.clinicName   || r.CNAME         || "",
+      auditSegment:  r.auditSegment || r.AUDITSEGMENT  || "",
+      auditScore:    r.auditScore   ?? r["Audit Score"] ?? "",
+      auditor:       r.auditorName  || r.AuditorName   || r.AUDITOR || "",
+      createdDate:   r.createdDate  || r.CREATEDDATE   || "",
+      createdDateRaw: (() => {
+        const d = r.createdDate || r.CREATEDDATE || "";
+        const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
+      })(),
+      createdDateISO: (() => {
+        const d = r.createdDate || r.CREATEDDATE || "";
+        const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        return m ? `${m[3]}-${m[2]}-${m[1]}` : d;
+      })(),
       statusText: "Draft",
       _raw: r,
     }));
@@ -37,16 +65,14 @@ const AuditCreateDashboard = () => {
       try {
         let res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: null,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+          body: JSON.stringify({}),
         });
 
         if (!res.ok && (res.status === 404 || res.status === 405)) {
           res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits`, {
             method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
             body: JSON.stringify({ viewForOthers: "1" }),
           });
         }
@@ -54,16 +80,20 @@ const AuditCreateDashboard = () => {
         if (!res.ok && (res.status === 404 || res.status === 405)) {
           res = await fetch(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {
             method: "GET",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
           });
         }
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : data ? [data] : [];
-        setRows(normalize(list));
+        const json = await res.json();
+        const data = json?.data ?? json;
+        const raw = Array.isArray(data) ? data : data ? [data] : [];
+        // Accept rows with any of: auditNo, AUDITNO, auditno
+        const list = raw.filter(r => r && (r.auditNo || r.AUDITNO || r.auditno));
+        // Normalize handles both camelCase (from our repo) and UPPERCASE (from old SP)
+        setRows(normalize(list.length ? list : raw.filter(Boolean)));
+        console.log("[AuditDashboard] loaded", raw.length, "rows →", list.length, "after filter");
       } catch (err) {
         console.error("Failed to load audits:", err);
         setRows([]);
@@ -104,6 +134,7 @@ const AuditCreateDashboard = () => {
       `/audit/${encodeURIComponent(row.auditNo)}`
       + `?clinic=${encodeURIComponent(row.clinic || "")}`
       + `&employee=${encodeURIComponent(row.employeeId || "")}`
+      + `&empCode=${encodeURIComponent(row.employeeId || "")}`
       + `&employeeName=${encodeURIComponent(row.employeeName || "")}`
       + `&auditor=${encodeURIComponent(row.auditor || "")}`;
     navigate(url);
@@ -150,18 +181,21 @@ const AuditCreateDashboard = () => {
       selector: (row) => row.createdDate,
       sortable: true,
       sortFunction: (a, b) => {
-        // Parse DD/MM/YYYY format returned by the SP (convert(nvarchar,date,103))
         const parse = (s) => {
           if (!s) return 0;
-          // Handle DD/MM/YYYY
           const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
           if (m) return new Date(`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`).getTime();
-          // Handle ISO or other formats
           const d = new Date(s);
           return isNaN(d) ? 0 : d.getTime();
         };
         return parse(a.createdDate) - parse(b.createdDate);
       },
+    },
+    {
+      id: "createdDateISO",
+      name: "",
+      selector: (row) => row.createdDateISO,
+      omit: true,
     },
     {
       id: "statusText",
@@ -219,7 +253,7 @@ const AuditCreateDashboard = () => {
         </div>
 
         <div className="actions">
-          <button className="pribtn" onClick={() => navigate("/audit/create")}>New Audit</button>
+          {canWrite && <button className="pribtn" onClick={() => navigate("/audit/create")}>New Audit</button>}
           <button className="pribtn" onClick={exportCSV}>Export</button>
         </div>
       </div>
@@ -260,8 +294,9 @@ const AuditCreateDashboard = () => {
         highlightOnHover
         dense={false}
         persistTableHead
-        defaultSortFieldId="createdDate"
+        defaultSortFieldId="createdDateISO"
         defaultSortAsc={false}
+        noDataComponent={<div style={{padding:24,color:"#94a3b8"}}>No audit drafts found.</div>}
       />
 
       <style jsx>{`

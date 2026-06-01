@@ -1,8 +1,14 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+
 
 const norm = (s) => (s ?? "").toString().trim();
 const decodePlus = (s) => (s ? s.replace(/\+/g, " ") : s);
@@ -20,7 +26,7 @@ const toDMY = (iso) => {
 
 const toMidnightUtc = (iso) => (iso ? `${iso}T00:00:00.000Z` : "");
 const parseWeight = (w) => { if (!w) return 0; const m = String(w).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : 0; };
-const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
+const encodeValuePresent = (s) => (s === 0 || s === 1 ? "1" : "0"); // 1=answered(Yes/No), 0=unanswered
 
 const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
 const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
@@ -125,9 +131,10 @@ export default function AuditForm() {
     if (!code) return;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { credentials: "include", headers: { Accept: "application/json" } });
+        const r = await fetch(`${API_BASE_URL}/api/Master/LoadCenters`, { headers: { Authorization: `Bearer ${TOKEN()}`, Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const payload = await r.json();
+        const pj = await r.json();
+        const payload = pj?.data ?? pj;
         const centers = Array.isArray(payload) ? payload : payload ? [payload] : [];
         const match = centers.find((c) => norm(c.code) === code);
         if (!cancelled) { setClinicDisplayName(match?.name || ""); setClinicDisplayCode(code); }
@@ -137,19 +144,22 @@ export default function AuditForm() {
   }, [API_BASE_URL, clinicCodeQS, clinicNameQS, sessionClinic.code, sessionClinic.name]);
 
   useEffect(() => {
-    if (!segment) return;
+    if (!segment) { console.warn("[AuditForm] segment is empty — criteria fetch skipped"); return; }
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${encodeURIComponent(segment)}`, { credentials: "include", headers: { Accept: "application/json" } });
+        console.log("[AuditForm] fetching criteria for segment:", segment);
+        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSegmentCriteria/${encodeURIComponent(segment)}`, { headers: { Authorization: `Bearer ${TOKEN()}`, Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
+        const json = await r.json();
+        const data = json?.data ?? json;
         const list = Array.isArray(data) ? data : data ? [data] : [];
+        console.log("[AuditForm] criteria loaded:", list.length, "items");
         const initScores = {};
         for (const row of list) { if (row?.criteriaCode) initScores[row.criteriaCode] = -1; }
         setScores(initScores);
         setCriteria(list);
-      } catch { showToast("Failed to load audit criteria"); }
+      } catch (e) { console.error("[AuditForm] criteria fetch error:", e); showToast("Failed to load audit criteria"); }
       finally { setLoading(false); }
     })();
   }, [segment, API_BASE_URL]);
@@ -164,9 +174,10 @@ export default function AuditForm() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(segment)}`, { credentials: "include", headers: { Accept: "application/json" } });
+        const r = await fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(segment)}`, { headers: { Authorization: `Bearer ${TOKEN()}`, Accept: "application/json" } });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const list = await r.json();
+        const lj = await r.json();
+        const list = lj?.data ?? lj;
         const arr = Array.isArray(list) ? list : list ? [list] : [];
         const targetCode = norm(employeeCode).toUpperCase();
         const found = arr.find((e) => norm(e.code ?? e.employeeCode ?? "").toUpperCase() === targetCode);
@@ -213,7 +224,7 @@ export default function AuditForm() {
   const postAuditCreation = async (payload) => {
     setSaving(true);
     try {
-      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.responseMessage || `Save failed (HTTP ${r.status})`);
       return data;

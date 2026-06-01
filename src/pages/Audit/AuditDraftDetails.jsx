@@ -1,8 +1,26 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").trim(); };
+const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
+
+// ─── Audit Rights ─────────────────────────────────────────────────────────────
+// canWrite:       centre-level AND roleCode === SQ001
+// isEntityLevel:  user logged in at entity level (view-only for all clinics)
+const getAuditRights = () => {
+  const u = getUser();
+  const roleCode      = (u.roleCode || "").trim().toUpperCase();
+  const isEntityLevel = u.isEntityLevel === true;
+  const canWrite      = !isEntityLevel && roleCode === "SQ001";
+  return { canWrite, isEntityLevel, roleCode };
+};
+
+
+
 
 const txt = (v) => (v == null ? "" : String(v));
 const norm = (s) => (s ?? "").toString().trim();
@@ -17,29 +35,9 @@ const dmyToIso = (dmy) => {
 
 const toMidnightUtc = (iso) => (iso ? `${iso}T00:00:00.000Z` : "");
 const parseWeight = (w) => { if (!w) return 0; const m = String(w).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : 0; };
-const encodeValuePresent = (s) => (s === 1 ? "1" : "0");
+const encodeValuePresent = (s) => (s === 0 || s === 1 ? "1" : "0"); // 1=answered(Yes/No), 0=unanswered
 
-const tryParseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-const pickUserId = (o) => norm(o?.userID ?? o?.userId ?? o?.employeeCode ?? o?.empCode ?? "");
 
-function getSessionUserId() {
-  if (typeof window === "undefined") return "";
-  const globalObj = window.__SESSION__ || window.__USER__ || window.__APP__ || {};
-  const fromGlobal = pickUserId(globalObj);
-  if (fromGlobal) return fromGlobal;
-  const keys = ["userSession", "user", "session", "auth", "currentUser", "loggedInUser"];
-  for (const storage of [window.localStorage, window.sessionStorage]) {
-    if (!storage) continue;
-    for (const k of keys) {
-      const raw = storage.getItem(k);
-      if (!raw) continue;
-      const parsed = tryParseJSON(raw);
-      const id = parsed ? pickUserId(parsed) : norm(raw);
-      if (id) return id;
-    }
-  }
-  return "";
-}
 
 const normalizeName = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
 const pickEmpCode = (emp) => norm(emp?.empCode ?? emp?.employeeCode ?? emp?.code ?? "");
@@ -89,6 +87,7 @@ function normalizeScoreFromApi(scoreRaw, valuePresent) {
 }
 export default function AuditDraftDetails() {
   const navigate = useNavigate();
+  const { canWrite, isEntityLevel } = getAuditRights();
   const { auditNo = "" } = useParams();
   const [searchParams] = useSearchParams();
 
@@ -97,7 +96,7 @@ export default function AuditDraftDetails() {
   const employeeCodeFromUrl = searchParams.get("empCode") || searchParams.get("employee") || "";
   const auditorFromUrl = searchParams.get("auditor") || "";
 
-  const [auditorCode, setAuditorCode] = useState(() => getSessionUserId() || auditorFromUrl || "");
+  const [auditorCode, setAuditorCode] = useState(() => getUserId() || auditorFromUrl || "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [header, setHeader] = useState(null);
@@ -118,7 +117,7 @@ export default function AuditDraftDetails() {
   const progressPct = rows.length > 0 ? Math.round((answeredCount / rows.length) * 100) : 0;
 
   useEffect(() => {
-    const onStorage = () => { const id = getSessionUserId(); if (id && id !== auditorCode) setAuditorCode(id); };
+    const onStorage = () => { const id = getUserId(); if (id && id !== auditorCode) setAuditorCode(id); };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [auditorCode]);
@@ -131,16 +130,16 @@ export default function AuditDraftDetails() {
       try {
         const res = await fetch(
           `${API_BASE_URL}/api/Audit/GetAuditDraftDetails/${encodeURIComponent(String(auditNo || "").trim())}`,
-          { method: "POST", credentials: "include", headers: { Accept: "application/json" } }
+          { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, Accept: "application/json" } }
         );
         if (!res.ok) { const t = await res.text().catch(() => ""); lastErr = `HTTP ${res.status}${t ? ` · ${t.slice(0,180)}` : ""}`; }
-        else { const text = await res.text(); data = text ? JSON.parse(text) : []; }
+        else { const text = await res.text(); const json = text ? JSON.parse(text) : []; data = json?.data ?? json; }
       } catch (e) { lastErr = e?.message || "Network error"; }
 
       if (!data) { if (!cancelled) { setError(lastErr || "Failed to load audit details"); setLoading(false); } return; }
 
       try {
-        const list = Array.isArray(data) ? data : [data].filter(Boolean);
+        const list = Array.isArray(data) ? data.filter(Boolean) : data ? [data] : [];
         const h0 = list[0] ?? {};
         const H = {
           auditNo,
@@ -148,7 +147,7 @@ export default function AuditDraftDetails() {
           employeeName: txt(h0.employeeName ?? h0.employee ?? h0.EmployeeName ?? h0.Employee ?? ""),
           clinicName: clinicFromUrl,
           auditorName: auditorFromUrl,
-          auditSegment: txt(h0.audtiSegment || h0.auditSegment || ""),
+          auditSegment: txt(h0.auditSegment || h0.audtiSegment || ""),
           auditMonth: txt(h0.auditMonth),
           auditDateDMY: txt(h0.auditDate),
           auditYear: txt(h0.auditYear ?? h0.AUDITYEAR ?? ""),
@@ -187,7 +186,7 @@ export default function AuditDraftDetails() {
         const targetName = normalizeName(employeeNameFromUrl || H.employeeName);
         if (!targetName) return;
         try {
-          const r = await fetch(`${API_BASE_URL}/api/Employees`, { credentials: "include", headers: { Accept: "application/json" } });
+          const r = await fetch(`${API_BASE_URL}/api/employee/List`, { headers: { Authorization: `Bearer ${TOKEN()}`, Accept: "application/json" } });
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           const arr = await r.json();
           const nameOf = (e) => e?.employeeName ?? e?.name ?? e?.fullName ?? e?.empName;
@@ -249,7 +248,7 @@ export default function AuditDraftDetails() {
   const postAuditCreation = async (payload) => {
     setSaving(true);
     try {
-      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreation`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.responseMessage || `Save failed (HTTP ${r.status})`);
       return data;
@@ -365,11 +364,13 @@ export default function AuditDraftDetails() {
                             <div className="score-toggle">
                               <button
                                 className={`toggle-btn toggle-yes${s === 1 ? " active" : ""}`}
-                                onClick={() => setScores((p) => ({ ...p, [code]: s === 1 ? -1 : 1 }))}
+                                onClick={() => canWrite && setScores((p) => ({ ...p, [code]: s === 1 ? -1 : 1 }))}
+                                disabled={!canWrite}
                               >Yes</button>
                               <button
                                 className={`toggle-btn toggle-no${s === 0 ? " active" : ""}`}
-                                onClick={() => setScores((p) => ({ ...p, [code]: s === 0 ? -1 : 0 }))}
+                                onClick={() => canWrite && setScores((p) => ({ ...p, [code]: s === 0 ? -1 : 0 }))}
+                                disabled={!canWrite}
                               >No</button>
                             </div>
                           </td>
@@ -399,12 +400,21 @@ export default function AuditDraftDetails() {
                 </div>
                 <div className="footer-actions">
                   <button className="btn-outline" onClick={() => navigate(-1)}>Back</button>
-                  <button className="btn-ghost" onClick={() => onSaveOrSubmit(true)} disabled={saving || rows.length === 0}>
-                    {saving ? "Saving..." : "Save Draft"}
-                  </button>
-                  <button className="btn-primary" onClick={() => onSaveOrSubmit(false)} disabled={saving || rows.length === 0}>
-                    {saving ? "Submitting..." : `Submit (${answeredCount}/${rows.length})`}
-                  </button>
+                  {canWrite && (
+                    <>
+                      <button className="btn-ghost" onClick={() => onSaveOrSubmit(true)} disabled={saving || rows.length === 0}>
+                        {saving ? "Saving..." : "Save Draft"}
+                      </button>
+                      <button className="btn-primary" onClick={() => onSaveOrSubmit(false)} disabled={saving || rows.length === 0}>
+                        {saving ? "Submitting..." : `Submit (${answeredCount}/${rows.length})`}
+                      </button>
+                    </>
+                  )}
+                  {!canWrite && (
+                    <span style={{ fontSize:13, color:"#8a94a6", fontStyle:"italic" }}>
+                      👁 View only
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
