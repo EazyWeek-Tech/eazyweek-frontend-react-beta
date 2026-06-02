@@ -100,7 +100,7 @@ const NotesTab = ({ custId }) => {
             ["showOnCheckin", "Show during check-in"],
             ["showOnBooking", "Show when booking Appointment"],
             ["showOnPayment", "Show when taking payment"],
-            ["isPrivate",     "Private"],
+            ["isPrivate",     "Keep Hidden"],
           ].map(([key, label]) => (
             <label key={key} className="note-opt-label">
               <input type="checkbox" checked={options[key]}
@@ -127,10 +127,10 @@ const NotesTab = ({ custId }) => {
             <table className="notes-table">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Date Created</th>
                   <th>Note</th>
+                  <th>Note Type</th>
                   <th>Service</th>
-                  <th>Status</th>
                   <th>Added By</th>
                   <th>Centre</th>
                 </tr>
@@ -140,10 +140,24 @@ const NotesTab = ({ custId }) => {
                   <tr><td colSpan={6} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No notes available.</td></tr>
                 ) : pageRows.map((n, i) => (
                   <tr key={n.recId || i}>
-                    <td style={{ whiteSpace: "nowrap" }}>{n.date ? new Date(n.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {n.createdDate
+                        ? new Date(n.createdDate).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
+                        : n.date
+                        ? new Date(n.date).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
+                        : "—"}
+                    </td>
                     <td style={{ maxWidth: 360, whiteSpace: "normal", lineHeight: 1.5 }}>{n.notes}</td>
+                    <td>
+                      {n.showOnHistory  ? <span className="note-type-badge">Guest History</span> : null}
+                      {n.showOnCheckin  ? <span className="note-type-badge">Check-in</span>      : null}
+                      {n.showOnBooking  ? <span className="note-type-badge">Booking</span>       : null}
+                      {n.showOnPayment  ? <span className="note-type-badge">Payment</span>       : null}
+                      {n.isPrivate      ? <span className="note-type-badge note-private">Keep Hidden</span> : null}
+                      {!n.showOnHistory && !n.showOnCheckin && !n.showOnBooking && !n.showOnPayment && !n.isPrivate
+                        ? <span style={{ color:"#94a3b8" }}>General</span> : null}
+                    </td>
                     <td>{n.serviceCode || "—"}</td>
-                    <td>{n.status || "—"}</td>
                     <td>{n.createdBy || "—"}</td>
                     <td>{n.centerCode || "—"}</td>
                   </tr>
@@ -223,6 +237,8 @@ const NotesTab = ({ custId }) => {
           z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
         .notes-toast-success { background: #16a34a; }
         .notes-toast-error   { background: #dc2626; }
+        .note-type-badge { display:inline-block; background:#eef2fa; color:#334B71; font-size:11px; font-weight:700; padding:2px 7px; border-radius:4px; margin:1px 2px; }
+        .note-private { background:#fef3c7; color:#92400e; }
       `}</style>
     </div>
   );

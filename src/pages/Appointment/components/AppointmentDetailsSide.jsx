@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Toast from "./Toast";
 import { API_BASE_URL } from "../../../config";
 import { FormPreview } from "../../EMR/AdvanceFormBuilder/FormPreview";
+import { useCustomerNotes } from "../../Customer360/CustomerNotePopup";
 
 // Form Selection Modal Component
 const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, title }) => {
@@ -19,16 +20,9 @@ const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, tit
         credentials: "include",
       })
         .then((res) => res.json())
-        .then((data) => {
-          setSelectedFormConfig(data);
-        })
-        .catch((error) => {
-          console.error("Error fetching form config:", error);
-          setSelectedFormConfig(null);
-        })
-        .finally(() => {
-          setLoadingFormConfig(false);
-        });
+        .then((data) => { setSelectedFormConfig(data); })
+        .catch((error) => { console.error("Error fetching form config:", error); setSelectedFormConfig(null); })
+        .finally(() => { setLoadingFormConfig(false); });
     }
   }, [forms, selectedFormIndex]);
 
@@ -37,66 +31,35 @@ const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, tit
   const parsedSchema = selectedFormConfig?.schemaJson ? JSON.parse(selectedFormConfig.schemaJson) : null;
 
   return (
-    <div
-      className="modal-overlay"
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000,
-      }}
-    >
-      <div
-        className="modal-content"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          maxWidth: '800px',
-          width: '90%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-        }}
-      >
+    <div className="modal-overlay" onClick={onClose}
+      style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%',
+        backgroundColor:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center',
+        alignItems:'center', zIndex:1000 }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}
+        style={{ backgroundColor:'white', padding:'20px', borderRadius:'8px',
+          maxWidth:'800px', width:'90%', maxHeight:'90vh', overflowY:'auto' }}>
         <h3>{title}</h3>
         {loading ? (
           <p>Loading forms...</p>
         ) : forms.length > 0 ? (
           <>
-            <div style={{ marginBottom: '20px' }}>
-              <nav role="tablist" style={{ display: 'flex', borderBottom: '1px solid #dee2e6', overflowX: 'auto' }}>
+            <div style={{ marginBottom:'20px' }}>
+              <nav role="tablist" style={{ display:'flex', borderBottom:'1px solid #dee2e6', overflowX:'auto' }}>
                 {forms.map((form, index) => (
-                  <button
-                    key={form.id}
-                    role="tab"
-                    aria-selected={selectedFormIndex === index}
+                  <button key={form.id} role="tab" aria-selected={selectedFormIndex === index}
                     onClick={() => setSelectedFormIndex(index)}
-                    style={{
-                      padding: '10px 15px',
+                    style={{ padding:'10px 15px',
                       backgroundColor: selectedFormIndex === index ? '#007bff' : 'transparent',
                       color: selectedFormIndex === index ? 'white' : '#007bff',
-                      border: 'none',
-                      borderBottom: selectedFormIndex === index ? '2px solid #007bff' : 'none',
-                      cursor: 'pointer',
-                      fontWeight: selectedFormIndex === index ? 'bold' : 'normal',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
+                      border:'none', borderBottom: selectedFormIndex === index ? '2px solid #007bff' : 'none',
+                      cursor:'pointer', fontWeight: selectedFormIndex === index ? 'bold' : 'normal',
+                      whiteSpace:'nowrap', flexShrink:0 }}>
                     {form.formName}
                   </button>
                 ))}
               </nav>
             </div>
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom:'20px' }}>
               {loadingFormConfig ? (
                 <p>Loading form preview...</p>
               ) : parsedSchema ? (
@@ -105,31 +68,10 @@ const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, tit
                 <p>No preview available.</p>
               )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'end' }}>
-              {/* <button
-                onClick={() => onSelectForm(forms[selectedFormIndex])}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
-                Select Form
-              </button> */}
-              <button
-                onClick={onClose}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
+            <div style={{ display:'flex', justifyContent:'end' }}>
+              <button onClick={onClose}
+                style={{ padding:'10px 20px', backgroundColor:'#6c757d', color:'white',
+                  border:'none', borderRadius:'4px', cursor:'pointer' }}>
                 Close
               </button>
             </div>
@@ -142,60 +84,42 @@ const FormSelectionModal = ({ isOpen, onClose, forms, loading, onSelectForm, tit
   );
 };
 
-// ---------- helpers ----------
-// const norm = (v) => String(v ?? "").trim().toLowerCase();
-
-const AppointmentDetailsSide = ({
-  appointment,
-  onClose,
-  onEdit,
-  onRefresh,
-  onStatusUpdated,
-}) => {
+const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onStatusUpdated }) => {
   const navigate = useNavigate();
 
-  // Keep a fresh copy for status/isPaymentMade/etc.
   const [apptDetails, setApptDetails] = useState(appointment || null);
   const [status, setStatus] = useState(appointment?.status || "Booked");
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [consentModalOpen, setConsentModalOpen] = useState(false);
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
-
   const [consentForms, setConsentForms] = useState([]);
   const [loadingConsentForms, setLoadingConsentForms] = useState(false);
   const [treatmentForms, setTreatmentForms] = useState([]);
   const [loadingTreatmentForms, setLoadingTreatmentForms] = useState(false);
 
-  // Service display should come from the appointment directly (no API)
+  // ── Check-in notes popup ─────────────────────────────────────────────────
+  const { NotePopup: CheckinNotePopup, checkNotes: checkCheckinNotes } = useCustomerNotes();
+
   const serviceDisplay = appointment?.serviceName || "—";
 
-  const BASE_STATUSES = [
-    "Booked",
-    "Confirmed",
-    "Checked In",
-    "Active",
-    "Completed",
-    "Cancelled",
-    "No Show",
-  ];
-  const RESTRICTED_FROM_NO_SHOW_CANCEL = ["Checked In", "Active", "Completed"];
+  const BASE_STATUSES = ["Booked","Confirmed","Checked In","Active","Completed","Cancelled","No Show"];
+  const RESTRICTED_FROM_NO_SHOW_CANCEL = ["Checked In","Active","Completed"];
   const isRestrictedNow = RESTRICTED_FROM_NO_SHOW_CANCEL.includes(status);
   const VISIBLE_STATUSES = BASE_STATUSES.filter(
     (s) => !(isRestrictedNow && (s === "Cancelled" || s === "No Show"))
   );
 
   const centerCode = useMemo(() => {
-    const stored =
-      sessionStorage.getItem("user") || localStorage.getItem("user");
+    const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
     return stored ? JSON.parse(stored).centerCode : "";
   }, []);
 
-  const apptId = appointment?.appointmentId;
+  const apptId    = appointment?.appointmentId;
   const apptLineNo = appointment?.lineNo;
 
   const apptDateISO = useMemo(() => {
-    const raw = appointment?.appointmentDate; // "YYYY-MM-DDTHH:mm:ss"
+    const raw = appointment?.appointmentDate;
     if (raw && typeof raw === "string") {
       const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
       if (m) return m[1];
@@ -204,84 +128,56 @@ const AppointmentDetailsSide = ({
   }, [appointment?.appointmentDate]);
 
   const postJson = async (url, payload) => {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
     const res = await fetch(url, {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`POST ${url} failed`);
     return await res.json();
   };
 
-  // Hydrate latest appointment row for that day (status/isPaymentMade)
+  // Hydrate latest appointment row for that day
   useEffect(() => {
     let cancelled = false;
     const loadLatest = async () => {
       if (!apptId || !centerCode || !apptDateISO) return;
       try {
         setLoading(true);
-        const payload = {
-          appointmentdate: apptDateISO,
-          searchtext: "",
-          centerCode,
-        };
-        const list = await postJson(
-          `${API_BASE_URL}/api/Appointment/GetAppDetails`,
-          payload
-        );
-        const fresh = Array.isArray(list)
-          ? list.find((r) => r.appointmentId === apptId)
-          : null;
+        const list = await postJson(`${API_BASE_URL}/api/Appointment/GetAppDetails`,
+          { appointmentdate: apptDateISO, searchtext: "", centerCode });
+        const fresh = Array.isArray(list) ? list.find((r) => r.appointmentId === apptId) : null;
         if (!cancelled && fresh) {
-          const merged = {
-            ...appointment,
-            ...fresh,
-            starttime: fresh.startTime,
-            doctorname: fresh.doctorName,
-            isPaymentMade:
-              fresh.isPaymentMade ?? appointment?.isPaymentMade ?? 0,
-          };
+          const merged = { ...appointment, ...fresh, starttime: fresh.startTime,
+            doctorname: fresh.doctorName, isPaymentMade: fresh.isPaymentMade ?? appointment?.isPaymentMade ?? 0 };
           setApptDetails(merged);
           if (merged.status && merged.status !== status) setStatus(merged.status);
         }
-      } catch (e) {
-        console.error("GetAppDetails error:", e);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch (e) { console.error("GetAppDetails error:", e); }
+      finally { if (!cancelled) setLoading(false); }
     };
     loadLatest();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apptId, apptDateISO, centerCode]);
 
   const sendStatusUpdate = async (payload, newStatusForUpdate) => {
     try {
-      const result = await postJson(
-        `${API_BASE_URL}/api/Appointment/AppOperation`,
-        payload
-      );
+      const result = await postJson(`${API_BASE_URL}/api/Appointment/AppOperation`, payload);
       if (result?.success) {
         setToast({ message: "Appointment updated successfully!", type: "success" });
-
-        // Update local copy immediately
-        setApptDetails((prev) =>
-          prev ? { ...prev, status: newStatusForUpdate } : prev
-        );
-
-        // Notify scheduler so header counts refresh instantly
+        setApptDetails((prev) => prev ? { ...prev, status: newStatusForUpdate } : prev);
         onStatusUpdated?.(apptId, newStatusForUpdate);
-
-        // Optional: refetch in the parent
         onRefresh?.();
+
+        // ── Fire check-in notes popup when status → Checked In ─────────────
+        if (newStatusForUpdate === "Checked In") {
+          const custId = apptDetails?.custId || appointment?.custId;
+          if (custId) await checkCheckinNotes(custId, "checkin");
+        }
       } else {
-        setToast({
-          message: result?.message || "Update failed. Please try again.",
-          type: "error",
-        });
+        setToast({ message: result?.message || "Update failed. Please try again.", type: "error" });
       }
     } catch (error) {
       console.error("Status update error:", error);
@@ -291,33 +187,14 @@ const AppointmentDetailsSide = ({
 
   const handleStatusChange = (e) => {
     const newStatus = e.target.value;
-
-    // Prevent moving to Cancelled / No Show after in-progress states
-    if (
-      RESTRICTED_FROM_NO_SHOW_CANCEL.includes(status) &&
-      (newStatus === "Cancelled" || newStatus === "No Show")
-    ) {
-      setToast({
-        message:
-          "You can't mark this appointment as Cancelled/No Show after it is Checked In/Active/Completed.",
-        type: "error",
-      });
+    if (RESTRICTED_FROM_NO_SHOW_CANCEL.includes(status) && (newStatus === "Cancelled" || newStatus === "No Show")) {
+      setToast({ message: "You can't mark this appointment as Cancelled/No Show after it is Checked In/Active/Completed.", type: "error" });
       return;
     }
-
     setStatus(newStatus);
-
-    const payload = {
-      appointmentId: apptId,
-      status: newStatus,
-      operation: "STATUSUPDATE",
-      centerCode: centerCode,
-      lineNo: apptLineNo,
-    };
-    sendStatusUpdate(payload, newStatus);
+    sendStatusUpdate({ appointmentId: apptId, status: newStatus, operation: "STATUSUPDATE", centerCode, lineNo: apptLineNo }, newStatus);
   };
 
-  // ----- Navigation helpers (kept from your original) -----
   const buildQuery = (a) => {
     const q = new URLSearchParams();
     if (a?.custId) q.append("custid", a.custId);
@@ -332,9 +209,7 @@ const AppointmentDetailsSide = ({
     if (a.custId) q.append("custid", a.custId);
     if (a.fullName) q.append("custname", a.fullName);
     if (a.appointmentId) q.append("appointmentid", a.appointmentId);
-    if (a.isPaymentMade !== undefined && a.isPaymentMade !== null) {
-      q.append("isPaymentMade", a.isPaymentMade);
-    }
+    if (a.isPaymentMade !== undefined && a.isPaymentMade !== null) q.append("isPaymentMade", a.isPaymentMade);
     navigate(`/invoice?${q.toString()}`);
   };
 
@@ -347,153 +222,76 @@ const AppointmentDetailsSide = ({
     navigate(`/customer?${q.toString()}`);
   };
 
-  // const goToConsultationConsentPage = () => {
-  //   const a = apptDetails || appointment || {};
-  //   const q = new URLSearchParams();
-  //   if (a.custId) q.append("custid", a.custId);
-  //   if (a.fullName) q.append("custname", a.fullName);
-  //   if (a.appointmentId) q.append("appointmentid", a.appointmentId);
-  //   navigate(`/consultation?${q.toString()}`);
-  // };
-
   const goToMedicalHistoryPage = () => {
     const a = apptDetails || appointment || {};
-    const q = new URLSearchParams();
-    if (a.custId) q.append("custid", a.custId);
-    if (a.fullName) q.append("custname", a.fullName);
-    if (a.appointmentId) q.append("appointmentid", a.appointmentId);
-
-    navigate(`/history?${q.toString()}`);
+    navigate(`/history?${buildQuery(a)}`);
   };
 
+  const goToConsent   = () => setConsentModalOpen(true);
+  const goToTreatment = () => setTreatmentModalOpen(true);
 
-
-
-
-  const goToConsent = () => {
-    setConsentModalOpen(true);
-  };
-
-
-  const goToTreatment = () => {
-    setTreatmentModalOpen(true);
-  };
-
-  // Fetch consent forms when modal opens (filter by name including 'consent')
+  // Fetch consent forms when modal opens
   useEffect(() => {
-    if (consentModalOpen) {
-      const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
-      if (serviceId) {
-        setLoadingConsentForms(true);
-        fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
-          method: "GET",
-          credentials: "include",
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            const filtered = (data || []).filter(form => form.formName && form.formName.toLowerCase().includes('consent'));
-            console.log("Filtered consent forms:", filtered);
-            setConsentForms(filtered);
-          })
-          .catch((error) => {
-            console.error("Error fetching consent forms:", error);
-            setConsentForms([]);
-          })
-          .finally(() => {
-            setLoadingConsentForms(false);
-          });
-      } else {
-        setConsentForms([]);
-        setLoadingConsentForms(false);
-      }
-    }
+    if (!consentModalOpen) return;
+    const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
+    if (!serviceId) { setConsentForms([]); setLoadingConsentForms(false); return; }
+    setLoadingConsentForms(true);
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => setConsentForms((data || []).filter(f => f.formName?.toLowerCase().includes('consent'))))
+      .catch(() => setConsentForms([]))
+      .finally(() => setLoadingConsentForms(false));
   }, [consentModalOpen, apptDetails?.serviceCode, appointment?.serviceCode]);
 
-  // Fetch treatment forms when modal opens (filter by name including 'treatment')
+  // Fetch treatment forms when modal opens
   useEffect(() => {
-    if (treatmentModalOpen) {
-      const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
-      if (serviceId) {
-        setLoadingTreatmentForms(true);
-        fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
-          method: "GET",
-          credentials: "include",
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            const filtered = (data || []).filter(form => form.formName && form.formName.toLowerCase().includes('treatment'));
-            setTreatmentForms(filtered);
-          })
-          .catch((error) => {
-            console.error("Error fetching treatment forms:", error);
-            setTreatmentForms([]);
-          })
-          .finally(() => {
-            setLoadingTreatmentForms(false);
-          });
-      } else {
-        setTreatmentForms([]);
-        setLoadingTreatmentForms(false);
-      }
-    }
+    if (!treatmentModalOpen) return;
+    const serviceId = apptDetails?.serviceCode || appointment?.serviceCode;
+    if (!serviceId) { setTreatmentForms([]); setLoadingTreatmentForms(false); return; }
+    setLoadingTreatmentForms(true);
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    fetch(`${API_BASE_URL}/api/serviceForm/all/${serviceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => setTreatmentForms((data || []).filter(f => f.formName?.toLowerCase().includes('treatment'))))
+      .catch(() => setTreatmentForms([]))
+      .finally(() => setLoadingTreatmentForms(false));
   }, [treatmentModalOpen, apptDetails?.serviceCode, appointment?.serviceCode]);
 
   const handleSelectConsentForm = (form) => {
     const a = apptDetails || appointment || {};
-    const query = buildQuery(a);
-    navigate(`/generalform?formId=${form.formId}&${query}`);
+    navigate(`/generalform?formId=${form.formId}&${buildQuery(a)}`);
     setConsentModalOpen(false);
   };
 
-  // const handleSelectTreatmentForm = (form) => {
-  //   const a = apptDetails || appointment || {};
-  //   const query = buildQuery(a);
-  //   navigate(`/generalform?formId=${form.formId}&${query}`);
-  //   setTreatmentModalOpen(false);
-  // };
-
   const handleDeleteAppointment = () => {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
-    const payload = {
-      appointmentId: apptId,
-      status: "",
-      operation: "DELETE",
-      centerCode: centerCode,
-      lineNo: apptLineNo,
-    };
-    postJson(`${API_BASE_URL}/api/Appointment/AppOperation`, payload)
+    postJson(`${API_BASE_URL}/api/Appointment/AppOperation`,
+      { appointmentId: apptId, status: "", operation: "DELETE", centerCode, lineNo: apptLineNo })
       .then(() => {
         setToast({ message: "Appointment deleted successfully!", type: "success" });
         onRefresh?.();
-        setTimeout(() => {
-          onClose?.();
-        }, 2000);
+        setTimeout(() => onClose?.(), 2000);
       })
-      .catch(() =>
-        setToast({ message: "Delete failed. Please try again.", type: "error" })
-      );
+      .catch(() => setToast({ message: "Delete failed. Please try again.", type: "error" }));
   };
 
   const handleEditClick = () => {
     if (!onEdit) return;
     const nameParts = (apptDetails?.fullName || "").split(" ");
-    const firstName = nameParts.slice(0, -1).join(" ") || nameParts[0] || "";
-    const lastName = nameParts.slice(-1).join(" ") || "";
-    onEdit({ ...(apptDetails || appointment), firstName, lastName });
+    onEdit({ ...(apptDetails || appointment), firstName: nameParts.slice(0,-1).join(" ") || nameParts[0] || "", lastName: nameParts.slice(-1).join(" ") || "" });
     onClose?.();
   };
 
-  // ---------- UI ----------
   return (
-    <div className={`smdiv expand`}>
+    <div className="smdiv expand">
       <div className="resizable" id="resizableDiv">
         <div className="rightcls" onClick={onClose}>
-          <img
-            src={`${import.meta.env.BASE_URL}images/dblrigh.svg`}
-            alt="Close"
-            width="16"
-            height="16"
-          />
+          <img src={`${import.meta.env.BASE_URL}images/dblrigh.svg`} alt="Close" width="16" height="16" />
         </div>
 
         <div className="apptcdet custdiv">
@@ -505,16 +303,8 @@ const AppointmentDetailsSide = ({
               <div className="cstid">{apptDetails?.custId || "—"}</div>
             </h3>
           </div>
-
           <div className="cdtprof">
-            <a
-              href="#"
-              className="cstlnk"
-              onClick={(e) => {
-                e.preventDefault();
-                goToCustomerPage();
-              }}
-            >
+            <a href="#" className="cstlnk" onClick={e => { e.preventDefault(); goToCustomerPage(); }}>
               <img src={`${import.meta.env.BASE_URL}images/custome.svg`} width="16" alt="Customer Profile" />
               Customer Profile
             </a>
@@ -526,14 +316,10 @@ const AppointmentDetailsSide = ({
             <h2 className="dethead">Appointment Details</h2>
             <div className="acticons">
               <button className="edit tooltip" data-tooltip="Edit Appointment" data-tooltip-pos="top" onClick={handleEditClick}>
-                <span className="stimg">
-                  <img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Edit" />
-                </span>
+                <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Edit" /></span>
               </button>
               <button className="delete tooltip" data-tooltip="Delete Appointment" data-tooltip-pos="left" onClick={handleDeleteAppointment}>
-                <span className="stimg">
-                  <img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" />
-                </span>
+                <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" /></span>
               </button>
             </div>
           </div>
@@ -542,66 +328,40 @@ const AppointmentDetailsSide = ({
             <div className="form-group slctgrp">
               <label>Status</label>
               <select id="stSelect" value={status} onChange={handleStatusChange} disabled={loading}>
-                {VISIBLE_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {VISIBLE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
-             
             </div>
-
-            {/* ✅ Payment — preserved (Paid / Partially Paid badge) */}
-              {Number(apptDetails?.isPaymentMade) > 0 && (
-                <div className=" ">
-                  <div className="detaildiv pytmd">
-                    <div className="appdtlbl">Payment:</div>
-                    <div className="appdtval">
-                      {Number(apptDetails.isPaymentMade) === 1
-                        ? "Paid"
-                        : "Partially Paid"}
-                    </div>
-                  </div>
-                </div>
-              )}
+            {Number(apptDetails?.isPaymentMade) > 0 && (
+              <div className="detaildiv pytmd">
+                <div className="appdtlbl">Payment:</div>
+                <div className="appdtval">{Number(apptDetails.isPaymentMade) === 1 ? "Paid" : "Partially Paid"}</div>
+              </div>
+            )}
           </div>
 
           <div className="medhistdiv">
             <div className="aptdetailwrp">
               <div className="dtntime">
-                <div className="icondiv">
-                  <img src={`${import.meta.env.BASE_URL}images/Datentime.svg`} alt="Date and Time" />
-                </div>
+                <div className="icondiv"><img src={`${import.meta.env.BASE_URL}images/Datentime.svg`} alt="Date and Time" /></div>
                 <div className="detaildiv">
                   <div className="appdtlbl">Date & Time</div>
-                  <div className="appdtval">
-                    {apptDetails?.startTime || ""} - {apptDetails?.endTime || ""}
-                  </div>
+                  <div className="appdtval">{apptDetails?.startTime || ""} - {apptDetails?.endTime || ""}</div>
                 </div>
               </div>
-
               <div className="dtntime">
-                <div className="icondiv">
-                  <img src={`${import.meta.env.BASE_URL}images/services.svg`} alt="Services" />
-                </div>
+                <div className="icondiv"><img src={`${import.meta.env.BASE_URL}images/services.svg`} alt="Services" /></div>
                 <div className="detaildiv">
                   <div className="appdtlbl">Services</div>
-                  <div className="appdtval">
-                    {serviceDisplay}
-                  </div>
+                  <div className="appdtval">{serviceDisplay}</div>
                 </div>
               </div>
-
-              {/* ✅ Notes — preserved */}
               <div className="dtntime">
-                <div className="icondiv">
-                  <img src={`${import.meta.env.BASE_URL}images/noteslist.svg`} alt="Notes" />
-                </div>
+                <div className="icondiv"><img src={`${import.meta.env.BASE_URL}images/noteslist.svg`} alt="Notes" /></div>
                 <div className="detaildiv">
                   <div className="appdtlbl">Notes</div>
                   <div className="appdtval">{apptDetails?.notes || "—"}</div>
                 </div>
               </div>
-
-              
             </div>
           </div>
         </div>
@@ -610,61 +370,34 @@ const AppointmentDetailsSide = ({
           <div className="hdflx">
             <h2 className="dethead">Appointment Execution</h2>
           </div>
-
-          <button onClick={goToMedicalHistoryPage} className="cstlnk" style={{ width: "100%" }}>
-            <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" />
-            Medical History
+          <button onClick={goToMedicalHistoryPage} className="cstlnk" style={{ width:"100%" }}>
+            <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="Medical History" /> Medical History
           </button>
-
           <div className="apptcdet">
-            {/* Consent — code-based route */}
             <button onClick={goToConsent} className="cstlnk">
-              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" />
-              Consent  Form
+              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Consent Forms" /> Consent Form
             </button>
-
-            {/* Treatment — code-based route */}
             <button onClick={goToTreatment} className="cstlnk">
-              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Treatment Forms" />
-              Treatment Form
+              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="Treatment Forms" /> Treatment Form
             </button>
           </div>
-
-          {/* Payment CTA — preserved */}
           <button onClick={goToPaymentPage} className="pndpay">
             <span className="stimg">
-              <img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="Make Payment" />
-              Make Payment
+              <img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="Make Payment" /> Make Payment
             </span>
           </button>
         </div>
       </div>
 
-      <FormSelectionModal
-        isOpen={consentModalOpen}
-        onClose={() => setConsentModalOpen(false)}
-        forms={consentForms}
-        loading={loadingConsentForms}
-        onSelectForm={handleSelectConsentForm}
-        title=""
-      />
+      <FormSelectionModal isOpen={consentModalOpen} onClose={() => setConsentModalOpen(false)}
+        forms={consentForms} loading={loadingConsentForms} onSelectForm={handleSelectConsentForm} title="" />
+      <FormSelectionModal isOpen={treatmentModalOpen} onClose={() => setTreatmentModalOpen(false)}
+        forms={treatmentForms} loading={loadingTreatmentForms} title="" />
 
-      <FormSelectionModal
-        isOpen={treatmentModalOpen}
-        onClose={() => setTreatmentModalOpen(false)}
-        forms={treatmentForms}
-        loading={loadingTreatmentForms}
-        // onSelectForm={handleSelectTreatmentForm}
-        title=""
-      />
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {/* Customer Notes popup — fires when appointment status → Checked In */}
+      {CheckinNotePopup}
     </div>
   );
 };

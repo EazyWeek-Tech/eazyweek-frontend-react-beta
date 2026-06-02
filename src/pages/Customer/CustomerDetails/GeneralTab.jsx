@@ -198,6 +198,15 @@ const GeneralTab = ({ customer }) => {
       <style>{CSS}</style>
       <form className="gt-wrap" onSubmit={handleSubmit} noValidate>
 
+        {/* ── Back button ────────────────────────────────────────────────── */}
+        <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
+          <button type="button" className="gt-btn gt-btn-sec"
+            onClick={() => window.history.back()}
+            style={{ display:"flex", alignItems:"center", gap:6 }}>
+            ← Back
+          </button>
+        </div>
+
         {/* ── Personal Info ──────────────────────────────────────────────── */}
         <Card icon="👤" title="Personal Info">
           <div className="gt-grid">
@@ -213,6 +222,9 @@ const GeneralTab = ({ customer }) => {
             </F>
             <F label="Last Name" required error={errors.lastName}>
               <Inp name="lastName" value={form.lastName} onChange={handleChange} />
+            </F>
+            <F label="Preferred Name">
+              <Inp name="preferredName" value={form.preferredName} onChange={handleChange} />
             </F>
             <F label="Email">
               <Inp name="email" type="email" value={form.email} onChange={handleChange} />
@@ -251,9 +263,9 @@ const GeneralTab = ({ customer }) => {
             <F label="Language">
               <Sel name="language" value={form.language} onChange={handleChange} options={languages} />
             </F>
-
-
-
+            <F label="Referred By">
+              <Inp name="refBy" value={form.refBy} onChange={handleChange} />
+            </F>
 
           </div>
 

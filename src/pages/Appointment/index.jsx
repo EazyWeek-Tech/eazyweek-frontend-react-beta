@@ -5,6 +5,7 @@ import AppointmentDrawer from "./AppointmentDrawer";
 import InvoicePage from "../Invoice";
 import { useEMRForms } from "./useEMRForms";
 import FormFillModal from "./FormFillModal";
+import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -52,13 +53,11 @@ const getStatusClass = (s) => {
   }
 };
 
-// ── Toast ──────────────────────────────────────────────────────────────────────
 const Toast = ({ message, type = "info", onClose }) => {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return <div className={`toast ${type}`}>{message}</div>;
 };
 
-// ── AddCustomerModal ───────────────────────────────────────────────────────────
 const AddCustomerModal = ({ onClose, onCustomerAdded }) => {
   const [form, setForm] = useState({ firstName:"", lastName:"", mobile:"", email:"", gender:"" });
   const [saving, setSaving] = useState(false);
@@ -133,6 +132,9 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
   // ── EMR Forms hook ────────────────────────────────────────────────────────
   const { checkAndShowForms, showModal, modalProps } = useEMRForms();
 
+  // ── Customer Notes — check-in alert ──────────────────────────────────────
+  const { NotePopup: CheckinNotePopup, checkNotes: checkCheckinNotes } = useCustomerNotes();
+
   const user        = useMemo(() => getUser(), []);
   const centerCode  = user.centerCode || "";
   const apptId      = appointment?.appointmentId;
@@ -148,7 +150,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
   const isRestricted  = RESTRICTED.includes(status);
   const VISIBLE       = BASE_STATUSES.filter(s => !(isRestricted && (s === "Cancelled" || s === "No Show")));
 
-  // Hydrate latest status from API
   useEffect(() => {
     if (!apptId || !centerCode || !apptDateISO) return;
     let cancelled = false;
@@ -178,6 +179,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
         setAppt(prev => prev ? { ...prev, status: newStatus } : prev);
         onStatusUpdated?.(apptId, newStatus);
         onRefresh?.();
+        // ── Fire check-in notes popup ─────────────────────────────────────
+        if (newStatus === "Checked In") {
+          const custId = appt?.custId || appointment?.custId;
+          console.log("[index.jsx] Checked In — firing notes for custId:", custId);
+          if (custId) await checkCheckinNotes(custId, "checkin");
+        }
       } else setToast({ message: result?.message || "Update failed.", type: "error" });
     } catch { setToast({ message: "Error updating appointment.", type: "error" }); }
   };
@@ -188,18 +195,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
       setToast({ message: "Cannot cancel/no-show after checked in or active.", type: "error" });
       return;
     }
-
-    // EMR: Check mandatory forms before Active / Completed
     if (newStatus === "Active" || newStatus === "Completed") {
       const toStatus    = newStatus === "Active" ? "Start" : "Completed";
       const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
       const canProceed  = await checkAndShowForms({
-        appointmentId: apptId,
-        serviceCode,
-        custId:     appt?.custId || "",
-        centerCode,
-        toStatus,
-        macroContext: {                              // EMR-FB-019: context for macro field pre-fill
+        appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode, toStatus,
+        macroContext: {
           customerName:     appt?.fullName         || "",
           serviceName:      appt?.serviceName      || "",
           centreName:       user?.centerName       || "",
@@ -209,7 +210,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
       });
       if (!canProceed) return;
     }
-
     setStatus(newStatus);
     sendStatusUpdate(
       { appointmentId: apptId, status: newStatus, operation: "STATUSUPDATE", centerCode, lineNo: apptLineNo },
@@ -248,7 +248,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           <img src={`${import.meta.env.BASE_URL}images/dblrigh.svg`} alt="Close" width="16" />
         </div>
 
-        {/* Customer info */}
         <div className="apptcdet custdiv">
           <div className="csttopdiv">
             <img src={`${import.meta.env.BASE_URL}images/usericon.png`} width="30" alt="User" />
@@ -265,7 +264,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           </div>
         </div>
 
-        {/* Details */}
         <div className="apptblk">
           <div className="hdflx">
             <h2 className="dethead">Appointment Details</h2>
@@ -311,7 +309,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           </div>
         </div>
 
-        {/* Execution */}
         <div className="apptactdiv">
           <h2 className="dethead">Appointment Execution</h2>
           <button onClick={() => goTo("/history")} className="cstlnk" style={{ width:"100%" }}>
@@ -353,16 +350,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
-      {/* EMR: FormFillModal — shown when mandatory forms required before status change */}
       {showModal && modalProps && <FormFillModal {...modalProps} />}
+      {CheckinNotePopup}
     </div>
   );
 };
 
-// ── Filter Header ──────────────────────────────────────────────────────────────
-
-// ── EMR Form Status Badge — EMR-AF-010/011/012 ────────────────────────────────
 const STATUS_STYLE = {
   "All Complete":    { bg:"#dcfce7", color:"#166534", icon:"✅" },
   "Partially Filled":{ bg:"#fef9c3", color:"#854F0B", icon:"🟡" },
@@ -395,8 +388,7 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
 
   return (
     <div style={{ position:"relative", display:"inline-block" }}
-      onMouseEnter={() => setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}>
+      onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
       <div style={{ background:style.bg, color:style.color, borderRadius:99,
         padding:"1px 7px", fontSize:10, fontWeight:700, cursor:"default",
         display:"flex", alignItems:"center", gap:3, marginTop:2 }}>
@@ -405,15 +397,12 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
       {showTip && forms.length > 0 && (
         <div style={{ position:"absolute", top:"100%", left:0, marginTop:4,
           background:"#fff", border:"1px solid #e7ecf4", borderRadius:8,
-          padding:"8px 12px", zIndex:100, minWidth:220,
-          boxShadow:"0 4px 12px rgba(0,0,0,.1)" }}>
+          padding:"8px 12px", zIndex:100, minWidth:220, boxShadow:"0 4px 12px rgba(0,0,0,.1)" }}>
           {forms.map(f => (
-            <div key={f.formCode}
-              style={{ fontSize:11, display:"flex", justifyContent:"space-between",
-                alignItems:"center", padding:"3px 0", borderBottom:"0.5px solid #f1f5f9" }}>
+            <div key={f.formCode} style={{ fontSize:11, display:"flex", justifyContent:"space-between",
+              alignItems:"center", padding:"3px 0", borderBottom:"0.5px solid #f1f5f9" }}>
               <span style={{ color:"#334b71", fontWeight:500 }}>{f.formName}</span>
-              <span style={{ color: f.status==="Completed" ? "#166534" : "#94a3b8",
-                fontSize:10, fontWeight:700, marginLeft:8 }}>
+              <span style={{ color: f.status==="Completed" ? "#166534" : "#94a3b8", fontSize:10, fontWeight:700, marginLeft:8 }}>
                 {f.status === "Completed" ? "✅ Done" : "⏳ Pending"}
               </span>
             </div>
@@ -458,7 +447,6 @@ const FilterHeader = ({ countsOverride = {} }) => {
   );
 };
 
-// ── Scheduler Grid ─────────────────────────────────────────────────────────────
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const [isDrawerOpen,        setIsDrawerOpen]       = useState(false);
   const [selectedCustomer,    setSelectedCustomer]   = useState(null);
@@ -567,7 +555,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                 <div className={`aptst ${sc}`}><span></span>{appt.status||"Booked"}</div>
               </div>
               <div className="apptype"><strong>{appt.serviceName||"N/A"}</strong></div>
-              {/* EMR-AF-010/011/012: Form fill status badge */}
               <EMRStatusBadge
                 appointmentId={appt.appointmentId}
                 serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
@@ -712,7 +699,6 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   );
 };
 
-// ── Root ───────────────────────────────────────────────────────────────────────
 const Appointment = () => {
   const [newCustomerData, setNewCustomerData] = useState(null);
   return (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import { useCustomerNotes } from "../../pages/Customer/CustomerDetails/CustomerNotePopup";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet  = async (url) => {
@@ -50,7 +51,6 @@ const AddNoteModal = ({ onClose, onSubmit }) => {
   );
 };
 
-// ── Time helpers ──────────────────────────────────────────────────────────────
 const toMins = (t) => {
   const [hp, mp] = t.split(":");
   const [m, per] = mp.split(" ");
@@ -75,7 +75,6 @@ const TIME_SLOTS = [...Array(144)].map((_, i) => {
   return `${dh}:${String(m).padStart(2,"0")} ${per}`;
 });
 
-// ── Customer Form ─────────────────────────────────────────────────────────────
 const CustomerForm = ({ prefill, onChange }) => {
   const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"" };
   const [form,    setForm]    = useState(EMPTY);
@@ -87,8 +86,6 @@ const CustomerForm = ({ prefill, onChange }) => {
   useEffect(() => {
     if (!prefill) return;
     const incomingId = prefill.custid || prefill.custId || "";
-    // Only reinitialize when a DIFFERENT customer is selected.
-    // This prevents the parent re-render loop that resets the form on every keystroke.
     if (incomingId === prevCustid.current) return;
     prevCustid.current = incomingId;
     const next = {
@@ -100,11 +97,8 @@ const CustomerForm = ({ prefill, onChange }) => {
       custid:    incomingId,
     };
     setForm(next);
-    // ⚠️ Do NOT call onChange here — it triggers setCustomerData in parent
-    //    → parent re-renders → new prefill prop → this effect fires again → form resets
   }, [prefill]);
 
-  // Called only from user interactions — safely notifies parent
   const sync = (updated) => { setForm(updated); onChange?.(updated); };
 
   const fetchSugg = async (type, val) => {
@@ -142,7 +136,7 @@ const CustomerForm = ({ prefill, onChange }) => {
       email: item.email||"", gender: item.gender||"",
       custid: item.custId||item.custid||item.id||"",
     };
-    prevCustid.current = next.custid; // update ref so prefill effect doesn't reset
+    prevCustid.current = next.custid;
     setForm(next); onChange?.(next);
     setMobSugg([]); setNmSugg([]);
   };
@@ -194,7 +188,6 @@ const CustomerForm = ({ prefill, onChange }) => {
   );
 };
 
-// ── Service Request Form ───────────────────────────────────────────────────────
 const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, selectedDoctor, selectedTime }) => {
   const INIT = { servicename:"", servicecode:"", preference:"any", practitioner:"", practitionerName:"",
     startTime:"10:00 AM", duration:"5", endTime:"10:05 AM", room:"", note:"", equipment:"N/A" };
@@ -220,20 +213,12 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       setForm(initialData);
       if (initialData.servicecode) fetchPractitioners(initialData.servicecode, initialData.practitioner);
     } else {
-      // selectedTime comes from double-clicking a time slot on the grid — preselect it
       const start = selectedTime || lastEndTime || "10:00 AM";
       const defaultDur = "5";
-      // selectedDoctor may be {id, name} object or plain string from older code paths
       const doctorId   = selectedDoctor?.id   || (typeof selectedDoctor === "string" ? "" : "");
       const doctorName = selectedDoctor?.name || (typeof selectedDoctor === "string" ? selectedDoctor : "");
-      setForm({
-        ...INIT,
-        startTime:        start,
-        endTime:          calcEnd(start, defaultDur),
-        duration:         defaultDur,
-        practitioner:     doctorId,
-        practitionerName: doctorName,
-      });
+      setForm({ ...INIT, startTime: start, endTime: calcEnd(start, defaultDur),
+        duration: defaultDur, practitioner: doctorId, practitionerName: doctorName });
       setPractitioners([]);
     }
   }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
@@ -263,10 +248,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
 
   const handleServiceSelect = async (svc) => {
     const dur = String(svc.serviceInTime || svc.servicetime || "5");
-    setForm(p => ({
-      ...p, servicename: svc.serviceName||"", servicecode: svc.serviceCode||"",
-      practitioner: "", duration: dur, endTime: calcEnd(p.startTime, dur),
-    }));
+    setForm(p => ({ ...p, servicename: svc.serviceName||"", servicecode: svc.serviceCode||"",
+      practitioner: "", duration: dur, endTime: calcEnd(p.startTime, dur) }));
     setSvcSugg([]);
     if (svc.serviceCode) await fetchPractitioners(svc.serviceCode);
   };
@@ -276,20 +259,11 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     if (id === "room") {
       const rm = rooms.find(r => (r.RoomNo??r.roomNo) === value || String(r.id) === String(value));
       setForm(p => ({ ...p, room: value, equipment: rm?.Equipment ?? rm?.equipment ?? "N/A", roomDisplay: rm?.RoomNo ?? rm?.roomNo ?? value }));
-    } else {
-      setForm(p => ({ ...p, [id]: value }));
-    }
+    } else { setForm(p => ({ ...p, [id]: value })); }
   };
 
-  const handleStartChange = (e) => {
-    const val = e.target.value;
-    setForm(p => ({ ...p, startTime: val, endTime: calcEnd(val, p.duration) }));
-  };
-
-  const handleDurChange = (e) => {
-    const val = e.target.value;
-    setForm(p => ({ ...p, duration: val, endTime: calcEnd(p.startTime, val) }));
-  };
+  const handleStartChange = (e) => { const val = e.target.value; setForm(p => ({ ...p, startTime: val, endTime: calcEnd(val, p.duration) })); };
+  const handleDurChange = (e) => { const val = e.target.value; setForm(p => ({ ...p, duration: val, endTime: calcEnd(p.startTime, val) })); };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -302,8 +276,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       preference: form.preference.charAt(0).toUpperCase() + form.preference.slice(1),
       practitioner: form.practitioner, practitionerName: pract?.name || form.practitionerName || "",
       amount: 100, start: form.startTime, end: form.endTime,
-      duration: `${form.duration} mins`, note: form.note,
-      equipment: form.equipment, room: form.room,
+      duration: `${form.duration} mins`, note: form.note, equipment: form.equipment, room: form.room,
     });
   };
 
@@ -314,7 +287,6 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       <div className="srvwrp">
         <div className="frmlgnd">Requesting Services</div>
         <form onSubmit={handleSubmit}>
-          {/* Service autocomplete */}
           <div className="form-group">
             <input type="text" id="servicename" placeholder=" " value={form.servicename} onChange={handleServiceChange} />
             <label htmlFor="servicename" className="frmlbl">Service</label>
@@ -325,8 +297,6 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
               ))}</ul>
             )}
           </div>
-
-          {/* Preference */}
           <div className="form-group radgrp">
             <label>Preference</label>
             {["any","male","female"].map(v => (
@@ -337,8 +307,6 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
               </div>
             ))}
           </div>
-
-          {/* Practitioner */}
           <div className="form-group slctgrp">
             <label>Practitioner:</label>
             <select id="practitioner" className="pract" value={form.practitioner} onChange={handleChange}>
@@ -347,30 +315,22 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             </select>
             {errors.practitioner && <div className="error">{errors.practitioner}</div>}
           </div>
-
-          {/* Start Time */}
           <div className="form-group slctgrp">
             <label>Start Time:</label>
             <select id="startTime" value={form.startTime} onChange={handleStartChange}>
               {TIME_SLOTS.map((t,i) => <option key={i} value={t}>{t}</option>)}
             </select>
           </div>
-
-          {/* Duration */}
           <div className="form-group slctgrp">
             <label>Duration:</label>
             <select id="duration" value={form.duration} onChange={handleDurChange}>
               {durOpts.map(m => <option key={m} value={m}>{m} mins</option>)}
             </select>
           </div>
-
-          {/* End Time (readonly) */}
           <div className="form-group">
             <input type="text" id="endtm" placeholder=" " value={form.endTime} readOnly />
             <label htmlFor="endtm" className="frmlbl">End Time</label>
           </div>
-
-          {/* Room + Note + Add */}
           <div className="lstfrmsect">
             <div className="form-group slctgrp rmslct">
               <label>Room:</label>
@@ -396,7 +356,6 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   );
 };
 
-// ── Service List ──────────────────────────────────────────────────────────────
 const ServiceList = ({ data = [], onDelete }) => (
   <div className="service-list srvlist">
     <h4 className="frmlgnd">Booked Services</h4>
@@ -430,7 +389,7 @@ const ServiceList = ({ data = [], onDelete }) => (
   </div>
 );
 
-// ── Appointment Drawer (main export) ──────────────────────────────────────────
+// ── Appointment Drawer ─────────────────────────────────────────────────────────
 const AppointmentDrawer = ({
   isOpen, onClose, timeSlot, doctor, customer,
   editAppointment, selectedDate, onRefreshAppointments,
@@ -440,7 +399,6 @@ const AppointmentDrawer = ({
   const [isResizing, setIsResizing] = useState(false);
   const [resetKey,   setResetKey]   = useState(Date.now());
 
-  // State managed here (was ServiceBookingContainer)
   const [customerData, setCustomerData] = useState(null);
   const [serviceList,  setServiceList]  = useState([]);
   const [lastEndTime,  setLastEndTime]  = useState("10:00 AM");
@@ -448,8 +406,10 @@ const AppointmentDrawer = ({
   const [editingSvc,   setEditingSvc]   = useState(null);
   const [toast,        setToast]        = useState(null);
   const [submitting,   setSubmitting]   = useState(false);
-  // One referenceId per booking session — shared across all service lines
   const [bookingRefId, setBookingRefId] = useState(() => crypto.randomUUID());
+
+  // ── Booking notes popup ──────────────────────────────────────────────────
+  const { NotePopup: BookingNotePopup, checkNotes: checkBookingNotes } = useCustomerNotes();
 
   useEffect(() => {
     if (drawerRef.current) {
@@ -458,7 +418,6 @@ const AppointmentDrawer = ({
     }
   }, [isOpen]);
 
-  // Resize
   useEffect(() => {
     const onMove = (e) => { if (!isResizing) return; const n = window.innerHeight - e.clientY; setHeight(Math.min(Math.max(n,300), window.innerHeight-50)); };
     const onUp   = () => setIsResizing(false);
@@ -467,11 +426,10 @@ const AppointmentDrawer = ({
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, [isResizing]);
 
-  // Reset when open
   useEffect(() => {
     if (!isOpen) return;
     setServiceList([]); setEditingIdx(null); setEditingSvc(null); setLastEndTime("10:00 AM");
-    setBookingRefId(crypto.randomUUID()); // fresh ID for each new booking session
+    setBookingRefId(crypto.randomUUID());
     const data = editAppointment || customer;
     if (data) {
       setCustomerData({
@@ -510,14 +468,12 @@ const AppointmentDrawer = ({
   }, [customerData, editingIdx]);
 
   const handleSubmit = async () => {
-    if (submitting) return;  // prevent double submission
+    if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
     setSubmitting(true);
     const user = getUser();
-    // Always generate fresh referenceId on submit — reusing a UUID that hit an error
-    // causes "Duplicate entry" on retry since SP already stored the first attempt partially
     const freshRefId = crypto.randomUUID();
-    setBookingRefId(freshRefId); // update state so sidebar/invoice can reference it
+    setBookingRefId(freshRefId);
     const payload = {
       custID:          customerData.custid || "",
       appointmentDate: selectedDate,
@@ -541,17 +497,21 @@ const AppointmentDrawer = ({
       const result = await authPost(`${API_BASE_URL}/api/Appointment/SaveAppointment`, payload);
       if (result?.success !== false) {
         setToast({ message:"Appointment saved!", type:"success" });
+
+        // ── Fire booking notes popup after successful save ─────────────────
+        if (customerData.custid) {
+          await checkBookingNotes(customerData.custid, "booking");
+        }
+
         setServiceList([]); setCustomerData(null);
         setBookingRefId(crypto.randomUUID());
         onRefreshAppointments?.();
         setTimeout(() => onClose?.(), 1200);
       } else {
         const msg = result.message || "Submission failed.";
-        // If duplicate, it means a previous partial attempt left a stale record.
-        // The fresh UUID we generate here will be used on the next click automatically.
         if (msg.toLowerCase().includes("duplicate")) {
           setToast({ message: "Previous attempt already saved. Please check the grid or try again.", type:"warning" });
-          onRefreshAppointments?.(); // refresh grid — appointment may already be there
+          onRefreshAppointments?.();
         } else {
           setToast({ message: msg, type:"error" });
         }
@@ -593,7 +553,11 @@ const AppointmentDrawer = ({
           </div>
         </div>
       </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Customer Notes popup — fires after appointment is booked */}
+      {BookingNotePopup}
     </>
   );
 };
