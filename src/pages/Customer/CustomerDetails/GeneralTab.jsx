@@ -61,7 +61,7 @@ const GeneralTab = ({ customer }) => {
   const [nationalities, setNationalities] = useState([]);
   const [countries, setCountries]         = useState([]);
   const [states, setStates]               = useState([]);
-  const [languages, setLanguages]         = useState([]);
+  const [languages] = useState([{ value: 1, label: "English" }, { value: 2, label: "Arabic" }]);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -78,7 +78,7 @@ const GeneralTab = ({ customer }) => {
     fetch(`${API_BASE_URL}/api/Master/Nationality`, { headers: authHeaders() })
       .then(r => r.json()).then(j => {
         const d = j?.data ?? j;
-        if (Array.isArray(d)) setNationalities(d.map(n => ({ value: n.nationalityId ?? n.id, label: n.nationalityName ?? n.name ?? n.NATIONALITY_NAME })));
+        if (Array.isArray(d)) setNationalities(d.map(n => ({ value: n.id ?? n.nationalityId, label: n.name ?? n.nationalityName ?? n.NATIONALITY_NAME })));
       }).catch(() => {});
 
     fetch(`${API_BASE_URL}/api/Master/LoadCountry`, { headers: authHeaders() })
@@ -87,11 +87,7 @@ const GeneralTab = ({ customer }) => {
         if (Array.isArray(d)) setCountries(d.map(c => ({ value: c.countryId ?? c.id, label: c.countryName ?? c.name ?? c.COUNTRY_NAME })));
       }).catch(() => {});
 
-    fetch(`${API_BASE_URL}/api/Master/LoadLanguage`, { headers: authHeaders() })
-      .then(r => r.json()).then(j => {
-        const d = j?.data ?? j;
-        if (Array.isArray(d)) setLanguages(d.map(l => ({ value: l.languageId ?? l.id, label: l.languageName ?? l.name ?? l.LANGUAGE_NAME })));
-      }).catch(() => {});
+
   }, []);
 
   // Load states when country changes
@@ -108,7 +104,10 @@ const GeneralTab = ({ customer }) => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    set(name, type === "checkbox" ? checked : value);
+    const coerced = (name === "nationalityCode" || name === "countryCode" || name === "stateCode" || name === "language")
+      ? (value === "" ? 0 : Number(value))
+      : type === "checkbox" ? checked : value;
+    set(name, coerced);
     if (errors[name]) setErrors(p => ({ ...p, [name]: "" }));
   };
 
@@ -154,7 +153,7 @@ const GeneralTab = ({ customer }) => {
       address2:                String(form.address2         || ""),
       city:                    String(form.city             || ""),
       zipCode:                 String(form.zipCode          || ""),
-      nationalityCode:         Number(form.nationalityCode  || 0),
+      nationalityCode:         Number(form.nationalityCode  || 0) || 0,
       nationalityId:           String(form.nationalityId    || ""),
       countryCode:             Number(form.countryCode      || 0),
       stateCode:               Number(form.stateCode        || 0),
@@ -292,7 +291,7 @@ const GeneralTab = ({ customer }) => {
               <Inp name="zipCode" value={form.zipCode} onChange={handleChange} />
             </F>
             <F label="Nationality" required error={errors.nationalityCode}>
-              <Sel name="nationalityCode" value={form.nationalityCode}
+              <Sel name="nationalityCode" value={Number(form.nationalityCode) || ""}
                 onChange={handleChange} options={nationalities} />
             </F>
             <F label="Nationality ID / Iqama">
