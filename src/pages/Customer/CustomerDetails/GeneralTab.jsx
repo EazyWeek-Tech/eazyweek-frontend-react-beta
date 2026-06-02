@@ -251,18 +251,10 @@ const GeneralTab = ({ customer }) => {
             <F label="Language">
               <Sel name="language" value={form.language} onChange={handleChange} options={languages} />
             </F>
-            <F label="Referral">
-              <Inp name="referal" value={form.referal} onChange={handleChange} />
-            </F>
-            <F label="Primary Employee">
-              <Inp name="primaryEmployee" value={form.primaryEmployee} onChange={handleChange} />
-            </F>
-            <F label="Username">
-              <Inp name="userName" value={form.userName} onChange={handleChange} />
-            </F>
-            <F label="Tags">
-              <Inp name="tags" value={form.tags} onChange={handleChange} />
-            </F>
+
+
+
+
           </div>
 
           <div className="gt-divider" />
@@ -270,8 +262,8 @@ const GeneralTab = ({ customer }) => {
           {/* Preferences checkboxes */}
           <div className="gt-chk-grid">
             {chk("isLoyaltyEnrolled",       "Opt for Loyalty")}
-            {chk("isOnlineBookingBlocked",  "Block Online Booking")}
-            {chk("canEditPersonalInfo",     "Allow Guest to Edit Personal Info")}
+
+
           </div>
         </Card>
 
