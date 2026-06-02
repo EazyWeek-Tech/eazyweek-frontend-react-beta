@@ -299,6 +299,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
         .clinic-row { padding: 8px 14px 8px 24px; font-size: 13px; color: #374151; cursor: pointer; }
         .clinic-row:hover { background: #f4f6fa; }
         .clinic-row.active { background: #e8f0fe; font-weight: 600; color: #334b71; }
+        .modal{z-index: 99;}
 
         .arrow { font-size: 11px; color: #94a3b8; }
         .menu-divider { height: 1px; background: #e5e7eb; margin: 4px 0; pointer-events: none; }
