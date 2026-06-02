@@ -4,63 +4,43 @@ import TabContent from "./TabContent";
 import { API_BASE_URL } from "../../../config";
 
 const tabs = [
-  "General",
-  "Appointment",
-  "Invoices",
-  "Loyalty",
-  "Packages",
-  "Forms",
-  "Cases",
-  "Credit Memo",
-  "Notes",
+  "General", "Appointment", "Invoices", "Loyalty",
+  "Packages", "Forms", "Cases", "Credit Memo", "Notes",
 ];
 
-// ✅ Read centerCode from the user object saved in localStorage at login
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
 const getCenterCode = () => {
   try {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    return (
-      user?.centerCode ||
-      user?.CenterCode ||
-      user?.center_code ||
-      user?.CENTERCODE ||
-      ""
-    );
-  } catch {
-    return "";
-  }
+    return user?.centerCode || user?.CenterCode || user?.center_code || user?.CENTERCODE || "";
+  } catch { return ""; }
 };
 
 const CustomerDetails = ({ custId, recId }) => {
-  const [activeTab, setActiveTab] = useState("General");
+  const [activeTab, setActiveTab]     = useState("General");
   const [customerData, setCustomerData] = useState(null);
 
   const centerCode = getCenterCode();
 
   useEffect(() => {
+    if (!custId) return;
     const fetchCustomer = async () => {
-      if (!custId) return;
       try {
-        const response = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+        const res = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // ✅ FIX: pass centerCode so SpFetchCustomerDetails WHERE clause matches
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN()}`,
+          },
           body: JSON.stringify({ custID: custId, centerCode }),
-          credentials: "include",
         });
 
-        const text = await response.text();
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || `API Error ${res.status}`);
 
-        if (!response.ok) {
-          console.error("FetchCustomerDetails failed:", text);
-          throw new Error(`API Error: ${text}`);
-        }
-
-        const data = JSON.parse(text);
-        console.log("Customer Data:", data);
-
-        // ✅ Ensure centerCode is always set on the customer object
-        //    so GeneralTab payload includes it even if SP didn't return it
+        // Unwrap envelope { success, data } and ensure centerCode is set
+        const data = json?.data ?? json;
         setCustomerData({ ...data, centerCode: data.centerCode || centerCode });
       } catch (err) {
         console.error("Failed to fetch customer details:", err);

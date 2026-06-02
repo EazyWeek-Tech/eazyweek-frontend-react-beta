@@ -159,7 +159,11 @@ export default function AuditDetailedReport() {
   const [auditMonths, setAuditMonths] = useState([]);
   const [auditYears, setAuditYears] = useState([]);
 
-  const [clinicDisplayName, setClinicDisplayName] = useState((getUser().centerName || "") || getCenterCode() || "");
+  const _cc = getCenterCode();
+  const [isEntityLevel, setIsEntityLevel] = useState(false);
+  const [clinicDisplayName, setClinicDisplayName] = useState(getUser().centerName || _cc || "");
+  const [clinicOptions, setClinicOptions] = useState([]);
+  const [selectedClinics, setSelectedClinics] = useState([]);
   const [segments, setSegments] = useState([]);
   const [auditors, setAuditors] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -190,10 +194,20 @@ export default function AuditDetailedReport() {
         setSegments((Array.isArray(segR) ? segR : []).map(x => ({ value: norm(x.code)||norm(x.name), label: norm(x.name)||norm(x.code) })));
         setAuditors((Array.isArray(audR) ? audR : []).map(x => ({ value: x.code ?? x.employeeCode ?? "", label: x.name ?? x.employeeName ?? "" })).filter(a => a.value));
         const clinList = Array.isArray(clinR) ? clinR : [];
-        const code = getCenterCode();
+        const code = getCenterCode().trim();
         if (code) {
-          const match = clinList.find(c => norm(c.code).toLowerCase() === norm(code).toLowerCase());
-          if (match) setClinicDisplayName(match.name ?? match.centerName ?? code);
+          const match = clinList.find(c => norm(c.code).trim().toLowerCase() === code.toLowerCase());
+          if (match) {
+            setClinicDisplayName(match.name ?? match.centerName ?? code);
+            if ((match.czone || match.CZONE || "").trim() === "Entity") {
+              setIsEntityLevel(true);
+              const branches = clinList
+                .filter(c => (c.czone || c.CZONE || "").trim() !== "Entity")
+                .map(c => ({ value: norm(c.code), label: norm(c.name || c.centerName || c.code) }))
+                .filter(c => c.value);
+              setClinicOptions(branches);
+            }
+          }
         }
       } catch { showToast("Failed to load filter options"); }
     })();
@@ -234,7 +248,9 @@ export default function AuditDetailedReport() {
       const body = {
         fromDate: fromDate ? `${fromDate}T00:00:00Z` : "1900-01-01T00:00:00Z",
         toDate: toDate ? `${toDate}T23:59:59Z` : "2999-12-31T23:59:59Z",
-        clinic: clinicCode || "",
+        clinic: isEntityLevel
+          ? (selectedClinics.length ? selectedClinics.join(",") : "")  // empty = all clinics
+          : clinicCode || "",
         auditSegment: segmentCodes.join(","),
         auditor: auditorCodes.join(","),
         employee: employeeCode || "",
@@ -296,7 +312,7 @@ export default function AuditDetailedReport() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const reset = () => { setFromDate(""); setToDate(""); setSegmentCodes([]); setSubSegment(""); setAuditorCodes([]); setEmployeeCode(""); setAuditMonths([]); setAuditYears([]); setRows([]); setSubSegments([]); setSearched(false); setErrors({}); };
+  const reset = () => { setFromDate(""); setToDate(""); setSegmentCodes([]); setSubSegment(""); setAuditorCodes([]); setEmployeeCode(""); setAuditMonths([]); setAuditYears([]); setSelectedClinics([]); setRows([]); setSubSegments([]); setSearched(false); setErrors({}); };
 
   return (
     <div className="rw">
@@ -335,7 +351,18 @@ export default function AuditDetailedReport() {
         <div className="fg fg-4">
           <div className="ff">
             <label>Clinic</label>
-            <input className="fi fi-ro" value={clinicLabel} readOnly />
+            {isEntityLevel ? (
+              <SearchableDropdown
+                options={clinicOptions}
+                value={selectedClinics}
+                onChange={setSelectedClinics}
+                multiple
+                placeholder="All clinics"
+                clearable={true}
+              />
+            ) : (
+              <input className="fi fi-ro" value={clinicLabel} readOnly />
+            )}
           </div>
           <div className="ff">
             <label>Audit Segment</label>
