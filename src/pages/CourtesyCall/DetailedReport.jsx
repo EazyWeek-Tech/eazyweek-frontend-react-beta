@@ -1,9 +1,15 @@
-"use client"
-
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import Select from "react-select"
 import "./DetailedReport.css"
 import { API_BASE_URL } from "../../config"
+import Toast from "../../components/Toast"
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => (getUser().centerCode || "").trim();
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+
 
 // --- helpers ---
 const ymd = (d) => {
@@ -20,6 +26,7 @@ const INVISIBLE_FROM_DEFAULT = "1999-01-01"
 const INVISIBLE_TO_DEFAULT   = ymd(new Date()) // today
 
 const DetailedReport = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({
     fromDate: "",                  // UI stays empty unless user picks
     toDate: "",
@@ -38,6 +45,7 @@ const DetailedReport = () => {
   const [showResults, setShowResults] = useState(false)
   const [auditorOptions, setAuditorOptions] = useState([])
   const [therapistOptions, setTherapistOptions] = useState([])
+  const [toast, setToast] = useState(null)
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
@@ -108,39 +116,14 @@ const DetailedReport = () => {
   }
   // ------------------------------------------
 
-  // Helper: pull centerCode from session/local storage
-  const getCenterCode = () => {
-    const tryStores = [sessionStorage, localStorage]
-    for (const store of tryStores) {
-      const raw = store.getItem("user")
-      if (!raw) continue
-      try {
-        const u = JSON.parse(raw)
-        const code =
-          u?.centerCode ||
-          u?.center?.code ||
-          u?.center?.centerCode ||
-          u?.branchCode ||
-          u?.centerId ||
-          u?.centerID ||
-          ""
-        if (code && String(code).trim()) return String(code).trim()
-      } catch { /* ignore */ }
-    }
-    return ""
-  }
-
   // Load Therapist/Doctors options from API using centerCode
   useEffect(() => {
     const centerCode = getCenterCode()
-    if (!centerCode) {
-      console.warn("centerCode not found in session/local storage; therapist list will be empty.")
-      return
-    }
+    if (!centerCode) return
     const loadPractitioners = async () => {
       try {
         const url = `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
-        const res = await fetch(url, { credentials: "include" })
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } })
         const data = await res.json()
         const list = Array.isArray(data) ? data : (data ? [data] : [])
         const options = list
@@ -189,11 +172,11 @@ const DetailedReport = () => {
 
       const response = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyDetailReport`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       })
-      const data = await response.json()
+      const json = await response.json()
+      const data = json?.data ?? json
 
       if (Array.isArray(data)) {
         const normalized = data.map(normalizeRow)
@@ -201,11 +184,11 @@ const DetailedReport = () => {
         setTotalRecords(normalized.length)
         setShowResults(true)
       } else {
-        alert("Unexpected response format.")
+        setToast({ type: "error", message: "Unexpected response format." })
       }
     } catch (error) {
       console.error("Error fetching report data:", error)
-      alert("Failed to fetch report data.")
+      setToast({ type: "error", message: "Failed to fetch report data." })
     }
   }
 
@@ -214,8 +197,7 @@ const DetailedReport = () => {
     const fetchAuditors = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors`, {
-          method: "GET",
-          credentials: "include",
+          headers: { Authorization: `Bearer ${TOKEN()}` },
         })
         const data = await res.json()
         if (Array.isArray(data)) {
@@ -232,7 +214,7 @@ const DetailedReport = () => {
 
   const handleExport = () => {
     if (reportData.length === 0) {
-      alert("No data to export. Please generate a report first.")
+  if (reportData.length === 0) { setToast({ type: "error", message: "No data to export." }); return; }
       return
     }
     const headers = [
@@ -294,7 +276,7 @@ const DetailedReport = () => {
   }
 
   const handleReferenceClick = (referenceId) => {
-    console.log("Clicked reference ID:", referenceId)
+    navigate(`/courtesy-call/details?referenceID=${referenceId}`)
   }
 
   // Select options (status uses numeric codes)
@@ -515,6 +497,7 @@ const DetailedReport = () => {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </>
   )
 }

@@ -3,6 +3,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import Toast from "../../components/Toast";
 
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => (getUser().centerCode || "").trim();
+const getEmployeeCode = () => { const u = getUser(); return (u.employeeCode || u.userId || "").trim(); };
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+
+
 const CourtesyCallDetails = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -13,7 +20,7 @@ const CourtesyCallDetails = () => {
   const [services, setServices] = useState([]); // For "Customer Complaint for Service"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [sessionUserId, setSessionUserId] = useState(""); // from /api/session/get
+  const sessionUserId = getEmployeeCode();
 
   // Keep strings for API fields, except we keep agentRating in UI as number | ""
   const [formData, setFormData] = useState({
@@ -64,45 +71,21 @@ const CourtesyCallDetails = () => {
   useEffect(() => {
     if (!referenceID) return;
     (async () => {
-      await fetchSessionUserId();
       await fetchDetails();
       await fetchServices();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referenceID]);
 
-  const fetchSessionUserId = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/session/get`, {
-        credentials: "include",
-      });
-      const data = await res.json().catch(() => ({}));
-      const id =
-        data?.userId ||
-        data?.userID ||
-        data?.UserID ||
-        data?.user?.id ||
-        data?.session?.userId ||
-        "";
-      if (id) {
-        setSessionUserId(String(id));
-        setFormData((prev) => ({ ...prev, createdBy: String(id) }));
-      }
-    } catch {
-      /* fallback to "system" */
-    }
-  };
-
-  const fetchDetails = async () => {
+const fetchDetails = async () => {
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/Courtesy/LoadCourtesyDetails/${referenceID}`,
-        { credentials: "include" }
+        { headers: { Authorization: `Bearer ${TOKEN()}` } }
       );
-      const data = await res.json();
-
+      const json = await res.json();
+      const data = json?.data ?? json;
       setDetails(data);
-
       setFormData((prev) => ({
         ...prev,
         referenceID: data.referenceID || referenceID,
@@ -129,7 +112,7 @@ const CourtesyCallDetails = () => {
         customerFeedback: (data.complaintDetails ?? "").toString().trim(),
 
         isDraft: 0,
-        createdBy: sessionUserId || prev.createdBy || "system",
+        createdBy: getEmployeeCode() || "system",
       }));
     } catch (err) {
       console.error("Failed to fetch details", err);
@@ -140,9 +123,10 @@ const CourtesyCallDetails = () => {
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/Courtesy/LoadCourtesyServices/${referenceID}`,
-        { credentials: "include" }
+        { headers: { Authorization: `Bearer ${TOKEN()}` } }
       );
-      const data = await res.json();
+      const json = await res.json();
+      const data = json?.data ?? json;
       const list = Array.isArray(data) ? data : [];
       setServices(list);
 
@@ -199,12 +183,12 @@ const CourtesyCallDetails = () => {
         `${API_BASE_URL}/api/Courtesy/CourtesyDetailsInsert`,
         {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify(payload),
         }
       );
-      const data = await res.json();
+      const json = await res.json();
+      const data = json?.data ?? json;
 
       if (data?.success) {
         navigate(-1); // back on success

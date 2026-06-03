@@ -6,6 +6,7 @@ import InvoicePage from "../Invoice";
 import { useEMRForms } from "./useEMRForms";
 import FormFillModal from "./FormFillModal";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
+import { CustomerFormPanel } from "../Masters/CustomerMaster";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -56,69 +57,6 @@ const getStatusClass = (s) => {
 const Toast = ({ message, type = "info", onClose }) => {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return <div className={`toast ${type}`}>{message}</div>;
-};
-
-const AddCustomerModal = ({ onClose, onCustomerAdded }) => {
-  const [form, setForm] = useState({ firstName:"", lastName:"", mobile:"", email:"", gender:"" });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handleSave = async () => {
-    if (!form.firstName || !form.mobile) { setErr("First name and mobile are required."); return; }
-    setSaving(true);
-    try {
-      const user = getUser();
-      await authPost(`${API_BASE_URL}/api/Appointment/CreateCustomer`, {
-        firstName: form.firstName, lastName: form.lastName,
-        mobile: form.mobile, email: form.email, gender: form.gender,
-        centerCode: user.centerCode || "", phoneCode: "966",
-      });
-      onCustomerAdded?.({ name: `${form.firstName} ${form.lastName}`, ...form });
-      onClose();
-    } catch (e) { setErr(e.message); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className="popouter" style={{ display:"flex" }}>
-      <div className="popovrly" onClick={onClose}></div>
-      <div className="popin">
-        <div className="popuphdr">
-          Add Customer
-          <span className="clsbtn" onClick={onClose}>
-            <img src={`${import.meta.env.BASE_URL}images/clsic.svg`} alt="Close" />
-          </span>
-        </div>
-        <div className="popfrm">
-          {["firstName","lastName","mobile","email"].map((f) => (
-            <div className="form-group" key={f}>
-              <input type="text" id={f} placeholder=" " value={form[f]}
-                onChange={e => setForm(p => ({ ...p, [f]: e.target.value }))} />
-              <label htmlFor={f} className="frmlbl">
-                {f === "firstName" ? "First Name" : f === "lastName" ? "Last Name" : f.charAt(0).toUpperCase() + f.slice(1)}
-              </label>
-            </div>
-          ))}
-          <div className="form-group radgrp">
-            <label className="frmlbl">Gender</label>
-            {["Male","Female"].map(g => (
-              <div className="rdbox" key={g}>
-                <input type="radio" id={`g_${g}`} name="gender" value={g.toLowerCase()}
-                  checked={form.gender === g.toLowerCase()}
-                  onChange={e => setForm(p => ({ ...p, gender: e.target.value }))} />
-                <label htmlFor={`g_${g}`}>{g}</label>
-              </div>
-            ))}
-          </div>
-          {err && <div className="error">{err}</div>}
-          <div className="btnbar">
-            <button className="prilnk" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-            <button className="seclnk" onClick={onClose}>Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // ── Appointment Details Sidebar ────────────────────────────────────────────────
@@ -184,6 +122,20 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           const custId = appt?.custId || appointment?.custId;
           console.log("[index.jsx] Checked In — firing notes for custId:", custId);
           if (custId) await checkCheckinNotes(custId, "checkin");
+        }
+
+        // ── Generate courtesy call when appointment is Completed ──────────
+        if (newStatus === "Completed") {
+          // appointmentId here is the UUID that maps to CLINIC_BOOKAPPOINTMENT
+          // The repo will look up the REFERENCEID (group ID) from this
+          const groupId = appt?.appointmentId || appointment?.appointmentId || apptId;
+          console.log("[index.jsx] Completed — generating courtesy call for:", groupId);
+          if (groupId) {
+            authPost(`${API_BASE_URL}/api/Courtesy/GenerateCourtesyCalls`, {
+              appointmentGroupId: groupId,
+            }).then(r => console.log("[CourtesyCall] result:", r))
+              .catch(e => console.warn("[CourtesyCall] generation failed:", e.message));
+          }
         }
       } else setToast({ message: result?.message || "Update failed.", type: "error" });
     } catch { setToast({ message: "Error updating appointment.", type: "error" }); }
@@ -690,10 +642,30 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       )}
 
       {showAddCustomer && (
-        <AddCustomerModal
-          onClose={() => setShowAddCustomer(false)}
-          onCustomerAdded={cust => { setSelectedCustomer(cust); setShowAddCustomer(false); }}
-        />
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1200, display:"flex", justifyContent:"flex-end" }}
+          onClick={() => setShowAddCustomer(false)}>
+          <div style={{ width:500, background:"#fff", display:"flex", flexDirection:"column", height:"100vh", boxShadow:"-4px 0 24px rgba(0,0,0,0.18)", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <CustomerFormPanel
+              onClose={() => setShowAddCustomer(false)}
+              onSaved={(data) => {
+                const custId = data?.custId || data?.customerId || "";
+                if (custId) {
+                  setSelectedCustomer({
+                    custId,
+                    custid:    custId,
+                    firstName: data?.firstName || "",
+                    lastName:  data?.lastName  || "",
+                    mobile:    data?.mobile    || data?.mobilePhone || "",
+                    name:      `${data?.firstName || ""} ${data?.lastName || ""}`.trim(),
+                  });
+                  setIsDrawerOpen(true);
+                }
+                setShowAddCustomer(false);
+              }}
+            />
+          </div>
+        </div>
       )}
     </section>
   );

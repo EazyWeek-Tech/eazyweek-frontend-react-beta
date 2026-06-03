@@ -13,7 +13,7 @@ const authPost = async (url, body) => {
 };
 
 const FORM_TYPES = ["Consent/Treatment", "Customer"];
-const STATUSES   = ["Active", "Inactive"];
+const STATUSES   = ["Active", "Draft", "Inactive"];
 
 export default function FormList() {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function FormList() {
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filterType, setFilterType] = useState("");
-  const [filterStat, setFilterStat] = useState("Active");
+  const [filterStat, setFilterStat] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [creating,   setCreating]   = useState(false);
   const [toast,      setToast]      = useState(null);
@@ -93,9 +93,11 @@ export default function FormList() {
     ? { bg:"#e9edf5", color:"#334b71" }
     : { bg:"#e6f4ef", color:"#2e7d5e" };
 
-  const statColor = (s) => s === "Active"
-    ? { bg:"#dcfce7", color:"#166534" }
-    : { bg:"#f1f5f9", color:"#64748b" };
+  const statColor = (s) => {
+    if (s === "Active")   return { bg:"#dcfce7", color:"#166534" };
+    if (s === "Draft")    return { bg:"#fef3c7", color:"#92400e" };
+    return { bg:"#f1f5f9", color:"#64748b" };
+  };
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh" }}>

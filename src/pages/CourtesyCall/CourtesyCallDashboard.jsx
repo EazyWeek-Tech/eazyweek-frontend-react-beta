@@ -1,10 +1,15 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import "./CourtesyCallDashboard.css"
 import { API_BASE_URL } from "../../config"
 import { useNavigate } from "react-router-dom"
 import Toast from "../../components/Toast"
+
+const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
+const getCenterCode = () => (getUser().centerCode || "").trim();
+const getEmployeeCode = () => { const u = getUser(); return (u.employeeCode || u.userId || "").trim(); };
+const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+
 
 const CourtesyCallDashboard = () => {
   const [courtesyCallData, setCourtesyCallData] = useState([])
@@ -88,16 +93,13 @@ const CourtesyCallDashboard = () => {
 
     const res = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify(payload),
     });
 
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-
-    if (Array.isArray(data)) setCourtesyCallData(data);
-    else setCourtesyCallData([]);
+    const json = await res.json();
+    const data = json?.data ?? json;
+    setCourtesyCallData(Array.isArray(data) ? data : []);
   } catch (error) {
     console.error("Failed to fetch courtesy call data:", error);
     setCourtesyCallData([]);
@@ -125,7 +127,7 @@ const CourtesyCallDashboard = () => {
     const loadAuditors = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors`, {
-          credentials: "include",
+          headers: { Authorization: `Bearer ${TOKEN()}` },
         })
         const data = await res.json()
         if (Array.isArray(data)) setAuditors(data)
@@ -141,13 +143,9 @@ const CourtesyCallDashboard = () => {
   }
 
   const handleReferenceIdClick = (item) => {
-    if (item.status?.toLowerCase() === "completed" || item.status === "2") {
-      setToast({ type: "info", message: "The call is already completed." })
-    } else {
-      navigate(`/courtesy-call/details?referenceID=${item.referenceID}`, {
-        state: { data: item },
-      })
-    }
+    navigate(`/courtesy-call/details?referenceID=${item.referenceID}`, {
+      state: { data: item },
+    })
   }
 
   const handleSearch = (e) => setSearchTerm(e.target.value)
@@ -310,11 +308,11 @@ const CourtesyCallDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {courtesyCallData.length === 0 ? (
+              {currentData.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="no-data">No data available</td>
+                  <td colSpan="8" className="no-data">{loading ? "Loading..." : "No data available"}</td>
                 </tr>
-              ) : currentData.length > 0 ? (
+              ) : (
                 currentData.map((item, index) => (
                   <tr key={index}>
                     <td>
@@ -335,10 +333,6 @@ const CourtesyCallDashboard = () => {
                     <td>{item.auditorName || "Unassigned"}</td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="8" className="no-data">No data available</td>
-                </tr>
               )}
             </tbody>
           </table>
