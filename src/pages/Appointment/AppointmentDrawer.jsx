@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
-import { useCustomerNotes } from "../../pages/Customer/CustomerDetails/CustomerNotePopup";
+import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet  = async (url) => {
@@ -247,9 +247,22 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   };
 
   const handleServiceSelect = async (svc) => {
-    const dur = String(svc.serviceInTime || svc.servicetime || "5");
-    setForm(p => ({ ...p, servicename: svc.serviceName||"", servicecode: svc.serviceCode||"",
-      practitioner: "", duration: dur, endTime: calcEnd(p.startTime, dur) }));
+    // serviceTime field from GetServiceByName (SERVICEINTIME column)
+    // serviceTime is the field returned by GetServiceByName (= SERVICEINTIME in DB)
+    const rawDur = svc.serviceTime ?? svc.serviceInTime ?? svc.servicetime ??
+                   svc.duration ?? svc.serviceDuration ?? svc.inTime ?? 5;
+    // Parse to integer minutes — strip non-numeric chars if string like "60 mins"
+    const parsedMins = parseInt(String(rawDur).replace(/\D/g, ""), 10) || 5;
+    // Round UP to nearest 5 (durOpts only contains multiples of 5)
+    const dur = String(Math.ceil(parsedMins / 5) * 5);
+    setForm(p => ({
+      ...p,
+      servicename:  svc.serviceName  || "",
+      servicecode:  svc.serviceCode  || "",
+      practitioner: "",
+      duration:     dur,
+      endTime:      calcEnd(p.startTime, dur),
+    }));
     setSvcSugg([]);
     if (svc.serviceCode) await fetchPractitioners(svc.serviceCode);
   };

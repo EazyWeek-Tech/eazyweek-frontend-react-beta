@@ -8,7 +8,9 @@ const authPost = async (url, body) => {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
     body: JSON.stringify(body),
   });
-  return r.json();
+  const j = await r.json();
+  // Unwrap { success, data } envelope
+  return j?.data !== undefined ? j.data : j;
 };
 
 const authGet = async (url) => {
@@ -46,7 +48,7 @@ export const useEMRForms = () => {
         if (apptForms?.isFirstVisit && apptForms?.customerForm) {
           // Show Customer Form — wait for completion before proceeding
           const customerFormFilled = await new Promise((resolve) => {
-            setResolve(() => resolve);
+            setResolve({ fn: resolve });
             setModalProps({
               appointmentId,
               serviceCode,
@@ -70,12 +72,13 @@ export const useEMRForms = () => {
         appointmentId, serviceCode, toStatus,
       });
 
-      const { canProceed } = res?.data || {};
+      // authPost already unwraps data, so res = { canProceed, missing }
+      const { canProceed } = res || {};
       if (canProceed !== false) return true;
 
       // Need forms — show modal via promise
       return new Promise((res) => {
-        setResolve(() => res);
+        setResolve({ fn: res });
         const whenToFill = toStatus === "Start" ? "Before Service Starts" : "After Service Starts";
         setModalProps({ appointmentId, serviceCode, custId, centerCode, whenToFill, macroContext });
       });
@@ -86,12 +89,12 @@ export const useEMRForms = () => {
 
   const handleComplete = useCallback(() => {
     setModalProps(null);
-    if (resolve) { resolve(true); setResolve(null); }
+    if (resolve?.fn) { resolve.fn(true); setResolve(null); }
   }, [resolve]);
 
   const handleClose = useCallback(() => {
     setModalProps(null);
-    if (resolve) { resolve(false); setResolve(null); }
+    if (resolve?.fn) { resolve.fn(false); setResolve(null); }
   }, [resolve]);
 
   return {

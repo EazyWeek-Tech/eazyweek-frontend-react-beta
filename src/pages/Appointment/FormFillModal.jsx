@@ -47,7 +47,9 @@ const compressImage = (file) => new Promise((resolve) => {
 const authGet  = async (url) => { const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } }); const j = await r.json(); return j.data ?? j; };
 const authPost = async (url, body) => {
   const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) });
-  return r.json();
+  const j = await r.json();
+  // Unwrap { success, data } envelope
+  return j?.data !== undefined ? { ...j, ...j.data } : j;
 };
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
@@ -582,6 +584,21 @@ export default function FormFillModal({
       return;
     }
 
+    // ── Customer Form path (formCodeOverride set, no whenToFill) ────────────
+    // This is the first-visit customer form — load it directly by formCode
+    if (formCodeOverride && !whenToFill) {
+      const loadCustomer = async () => {
+        const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
+        const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
+        setForms([syntheticForm]);
+        setFormDef(def);
+        setValues({});
+      };
+      loadCustomer().finally(() => setLoading(false));
+      return;
+    }
+
+    // ── Service forms path (consent/treatment) ───────────────────────────────
     const params = new URLSearchParams({ serviceCode, custId });
     authGet(`${API_BASE_URL}/api/EMR/Appointment/${appointmentId}/Forms?${params}`)
       .then(data => {

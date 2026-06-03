@@ -110,15 +110,15 @@ const Sidebar = ({ collapsed }) => {
     //   ],
 
     // },
-    {
-      label:"Personalised Form Creator",
-      icon:"bx-customize",
-      submenu:[
+    //{
+      //label:"Personalised Form Creator",
+      //icon:"bx-customize",
+      //submenu:[
     // { name:"Advanced Form Builder", path:"/custom-forms/form-builder"},
     // { name:"Advanced Form Builder Preview", path:"/custom-forms/form-builder/preview"},
-    { name:"Create Form", path:"/emr/builder/:formCode"},
-      ]
-    },
+   // { name:"Create Form", path:"/emr/builder/:formCode"},
+    //  ]
+   // },
     {
       label: "On Demand",
       icon: "bx-cloud-download",
