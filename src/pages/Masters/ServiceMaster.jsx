@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import DataTable from "react-data-table-component";
 import ServiceForm from "./ServiceForm";
 import { API_BASE_URL } from "../../config";
@@ -9,7 +9,6 @@ const TOKEN = () => localStorage.getItem("token");
 
 const ServiceMaster = () => {
 
-  // ── Access rights ─────────────────────────────────────────────────────────
   const _rights = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -35,26 +34,33 @@ const ServiceMaster = () => {
   const [formMode, setFormMode]                         = useState("create");
   const [detailsLoading, setDetailsLoading]             = useState(false);
 
-  useEffect(() => {
-    const fetchServiceData = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/Master/LoadService`, {
-          headers: { Authorization: `Bearer ${TOKEN()}` },
-        });
-        if (!response.ok) throw new Error("Failed to fetch services");
-        const json = await response.json();
-        // Node returns { success, data } — handle both shapes
-        const data = json.data || json;
-        setServiceData(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error("Error fetching services:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchServiceData();
+  const fetchServiceData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/Master/LoadService`, {
+        headers: { Authorization: `Bearer ${TOKEN()}` },
+      });
+      if (!response.ok) throw new Error("Failed to fetch services");
+      const json = await response.json();
+      const data = json.data || json;
+      // Sort: most recently updated/created first
+      const list = Array.isArray(data) ? data : [];
+      list.sort((a, b) => {
+        const ta = a.updatedAt || a.createdAt || a.MODIFIEDDATE || a.CREATEDDATE || "";
+        const tb = b.updatedAt || b.createdAt || b.MODIFIEDDATE || b.CREATEDDATE || "";
+        if (ta && tb) return new Date(tb) - new Date(ta);
+        // Fallback: put newly-seen codes at top by RECID descending
+        return (b.recID || b.RECID || 0) - (a.recID || a.RECID || 0);
+      });
+      setServiceData(list);
+    } catch (error) {
+      console.error("Error fetching services:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchServiceData(); }, [fetchServiceData]);
 
   const filteredServices = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -196,9 +202,13 @@ const ServiceMaster = () => {
     }
   };
 
-  const handleBackFromForm = () => {
+  const handleBackFromForm = (shouldRefresh = false) => {
     setShowForm(false);
     setSelectedServiceForEdit(null);
+    if (shouldRefresh) {
+      // Small delay so the DB write completes before we re-fetch
+      setTimeout(() => fetchServiceData(), 400);
+    }
   };
 
   const columns = [
@@ -218,8 +228,8 @@ const ServiceMaster = () => {
     {
       name: "Action",
       cell: (row) => (
-        <button className={canEdit ? "act-btn edit" : "act-btn"} onClick={() => handleEdit(row)} style={{ opacity: canEdit ? 1 : 0.7 }}>
-          {detailsLoading ? "…" : (canEdit ? "✏️ Edit" : "👁 View")}
+        <button className="act-btn edit" onClick={() => handleEdit(row)}>
+          {detailsLoading ? "…" : "✏️ Edit"}
         </button>
       ),
       ignoreRowClick: true, allowOverflow: true, button: true,
@@ -242,15 +252,16 @@ const ServiceMaster = () => {
           <h1 className="page-title">Services</h1>
           <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredServices.length} services</p>
         </div>
-        {canCreate && <button className="create-btn" onClick={handleCreateNew}>+ Create New Service</button>}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={() => fetchServiceData()}
+            style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4",
+              borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
+            ↻ Refresh
+          </button>
+          {canCreate && <button className="create-btn" onClick={handleCreateNew}>+ Create New Service</button>}
+        </div>
       </div>
 
-      {!isAdmin && (
-        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
-          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Only Admins at entity level can make changes.
-        </div>
-      )}
       <DataTable
         columns={columns}
         data={filteredServices}
