@@ -206,284 +206,280 @@ const fetchDetails = async () => {
 
   return (
     <>
-      <div className="cc-wrapper">
+      <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", padding:"28px 24px 60px" }}>
         <style>{`
-          .cc-breadcrumb { font-size: 14px; margin-bottom: 20px; color: #666; }
-          .cc-header { display: flex; flex-wrap: wrap; gap: 40px; justify-content: space-between; font-size: 15px; margin: 30px 0; }
-          .cc-header div { min-width: 327px; max-width: 327px; }
-          .cc-section-label { font-weight: bold; margin: 30px 0 15px; display: inline-block; padding: 6px 12px; background: #e2e2e2; border-radius: 4px; font-size: 14px; }
-          .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px 30px; align-items: start; margin: 12px 0 0; }
-          .cc-group { display: flex; flex-direction: column; }
-          .cc-group label { margin-bottom: 12px; font-weight: 600; color: #333; font-size: 14px; }
-          .cc-group select, .cc-group textarea { padding: 8px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
-          textarea { resize: vertical; min-height: 80px; }
-          .cc-actions { margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap; }
-          .cc-actions button { padding: 10px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; color: white; }
-          .cc-btn-save { background-color: #334b71; }
-          .cc-btn-submit { background-color: #334b71; }
-          .cc-btn-back { background-color: #6c757d; }
-          .cc-group span { font-size: 15px; display: inline-block; margin: 0 0 5px; font-weight: 400; }
-          .cc-header strong { font-weight: 700; }
-          @media (max-width: 768px) { .cc-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+          .cd-inp { width:100%; padding:9px 12px; border:1px solid #e7ecf4; border-radius:8px;
+            font-size:13px; color:#334B71; font-family:Lato,sans-serif; background:#fff;
+            outline:none; box-sizing:border-box; }
+          .cd-inp:focus { border-color:#334B71; box-shadow:0 0 0 3px rgba(51,75,113,.1); }
+          .cd-inp:disabled { background:#f8fafc; color:#94a3b8; cursor:not-allowed; }
+          select.cd-inp { cursor:pointer; }
+          textarea.cd-inp { min-height:90px; resize:vertical; direction:auto; }
+          .cd-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+            letter-spacing:.04em; margin-bottom:6px; display:block; }
+          .cd-card { background:#fff; border:1px solid #e7ecf4; border-radius:12px;
+            padding:20px 24px; margin-bottom:16px; }
+          .cd-sec-title { font-size:11px; font-weight:800; color:#334B71; text-transform:uppercase;
+            letter-spacing:.06em; padding-bottom:10px; margin-bottom:16px;
+            border-bottom:2px solid #334B71; }
+          .cd-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+          .cd-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+          .cd-info-row { display:flex; flex-wrap:wrap; gap:0; }
+          .cd-info-cell { flex:1; min-width:180px; padding:10px 16px; border-right:1px solid #f1f5f9; }
+          .cd-info-cell:last-child { border-right:none; }
+          .cd-info-key { font-size:11px; color:#94a3b8; font-weight:700; text-transform:uppercase;
+            letter-spacing:.04em; margin-bottom:4px; }
+          .cd-info-val { font-size:14px; color:#071D49; font-weight:600; }
+          .cd-btn { border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:700;
+            cursor:pointer; font-family:Lato,sans-serif; transition:opacity .15s; }
+          .cd-btn:disabled { opacity:.55; cursor:not-allowed; }
+          .cd-btn-pri { background:#334B71; color:#fff; }
+          .cd-btn-pri:hover:not(:disabled) { background:#071D49; }
+          .cd-btn-sec { background:#f1f5f9; color:#334B71; border:1px solid #e7ecf4; }
+          .cd-btn-sec:hover:not(:disabled) { background:#e7ecf4; }
+          @media(max-width:640px){ .cd-grid{grid-template-columns:1fr;} .cd-grid-2{grid-template-columns:1fr;} }
         `}</style>
 
-        <div className="breadcrumb">
-          <span
-            className="breadcrumb-link"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(-1);
-            }}
-          >
-            Courtesy Call
-          </span>
-          <span className="breadcrumb-separator"> &gt; </span>
-          <span className="breadcrumb-current">Courtesy Call Details</span>
+        {/* Breadcrumb */}
+        <div style={{ fontSize:12, color:"#94a3b8", marginBottom:16 }}>
+          <span style={{ color:"#334B71", cursor:"pointer", fontWeight:600 }}
+            onClick={() => navigate(-1)}>Courtesy Call</span>
+          <span style={{ margin:"0 6px" }}>›</span>
+          <span>Details</span>
         </div>
 
-        <br />
-        <h1 className="page-title">Details: {referenceID}</h1>
+        {/* Page header */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <div>
+            <h1 style={{ fontSize:22, fontWeight:800, color:"#071D49", margin:0 }}>{referenceID}</h1>
+            <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>Courtesy Call Details</div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>← Back</button>
+            <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(1)} disabled={loading}>
+              {loading ? "Saving…" : "Save"}
+            </button>
+            <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(2)} disabled={loading}>
+              {loading ? "Submitting…" : "Submit"}
+            </button>
+          </div>
+        </div>
 
+        {/* Customer Info Card */}
         {details && (
-          <div className="cc-header">
-            <div className="cc-hd-cell">
-              <strong>Reference ID:</strong> {details.referenceID}
+          <div className="cd-card" style={{ padding:0, overflow:"hidden" }}>
+            <div className="cd-info-row">
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Reference ID</div>
+                <div className="cd-info-val">{details.referenceID || "—"}</div>
+              </div>
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Appointment Date</div>
+                <div className="cd-info-val">{details.appointmentDate || "—"}</div>
+              </div>
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Customer Name</div>
+                <div className="cd-info-val" style={{ direction:"auto" }}>{details.custName || "—"}</div>
+              </div>
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Mobile No</div>
+                <div className="cd-info-val">{details.mobileNo || "—"}</div>
+              </div>
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Category</div>
+                <div className="cd-info-val">{details.category || "—"}</div>
+              </div>
+              <div className="cd-info-cell">
+                <div className="cd-info-key">Sub Category</div>
+                <div className="cd-info-val">{details.subCategory || "—"}</div>
+              </div>
             </div>
-            <div className="cc-hd-cell">
-              <strong>Appointment Date:</strong> {details.appointmentDate}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Customer Name:</strong> {details.custName}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Mobile No:</strong> {details.mobileNo}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Services:</strong> {details.servies}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Category:</strong> {details.category}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Sub Category:</strong> {details.subCategory}
-            </div>
-            <div className="cc-hd-cell">
-              <strong>Therapist/ Doctors:</strong> {details.therapist}
-            </div>
+
+            {/* Services grid */}
+            {services.filter(s => s.value !== "0").length > 0 && (
+              <div style={{ borderTop:"1px solid #f1f5f9", padding:"12px 0 0" }}>
+                <div style={{ padding:"0 16px 8px", fontSize:11, fontWeight:800, color:"#334B71",
+                  textTransform:"uppercase", letterSpacing:".04em" }}>Services</div>
+                <div style={{ maxHeight:160, overflowY:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                    <thead>
+                      <tr style={{ background:"#f8fafc" }}>
+                        <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:700,
+                          color:"#334B71", fontSize:11, textTransform:"uppercase", letterSpacing:".04em",
+                          borderBottom:"1px solid #f1f5f9" }}>Service Name</th>
+                        <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:700,
+                          color:"#334B71", fontSize:11, textTransform:"uppercase", letterSpacing:".04em",
+                          borderBottom:"1px solid #f1f5f9" }}>Doctor / Therapist</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {services.filter(s => s.value !== "0").map((s, i) => (
+                        <tr key={i} style={{ borderBottom:"1px solid #f8fafc" }}>
+                          <td style={{ padding:"8px 16px", color:"#334B71" }}>{s.label || s.serviceName || "—"}</td>
+                          <td style={{ padding:"8px 16px", color:"#64748b" }}>{s.doctorName || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="cc-section-label">Before Call Parameters :</div>
-        <div className="cc-grid">
-          <div className="cc-group">
-            <label>
-              Customer Type: <span>{details?.customerType}</span>
-            </label>
-          </div>
-
-          <div className="cc-group">
-            <label>Future Appointment Taken:</label>
-            <select
-              value={formData.futureAppointmentTaken}
-              onChange={(e) =>
-                handleChange("futureAppointmentTaken", e.target.value)
-              }
-              disabled={loading}
-            >
-              <option value="0">Select</option>
-              <option value="1">Yes</option>
-              <option value="2">No</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="cc-section-label">After Call Parameters :</div>
-        <div className="cc-grid">
-          <div className="cc-group">
-            <label>Google Review:</label>
-            <select
-              value={formData.googleReview}
-              onChange={(e) => handleChange("googleReview", e.target.value)}
-              disabled={loading}
-            >
-              <option value="0">Select</option>
-              <option value="1">Yes</option>
-              <option value="2">No</option>
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Received Post Care Communication:</label>
-            <select
-              value={formData.receivedPostCareCmmunication}
-              onChange={(e) =>
-                handleChange("receivedPostCareCmmunication", e.target.value)
-              }
-              disabled={loading}
-            >
-              <option value="0">Select</option>
-              <option value="1">Yes</option>
-              <option value="2">No</option>
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Received Invoice:</label>
-            <select
-              value={formData.receivedInvoice}
-              onChange={(e) => handleChange("receivedInvoice", e.target.value)}
-              disabled={loading}
-            >
-              <option value="0">Select</option>
-              <option value="1">Yes</option>
-              <option value="2">No</option>
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Customer Feedback:</label>
-            <select
-              value={formData.customerFeedback}
-              onChange={(e) => handleChange("customerFeedback", e.target.value)}
-              disabled={loading}
-            >
-              <option value=""></option>
-              <option value="Satisfied client">Satisfied client</option>
-              <option value="Price Conscious">Price Conscious</option>
-              <option value="Process related complaints">Process related complaints</option>
-              <option value="Infrastructure">Infrastructure</option>
-              <option value="Adverse reaction of service">Adverse reaction of service</option>
-              <option value="Waiting Time">Waiting Time</option>
-              <option value="Not satisfied with employee">Not satisfied with employee</option>
-              <option value="Not satisfied with service experience">Not satisfied with service experience</option>
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Overall Satisfied ?</label>
-            <select
-              value={formData.overallSatisfied}
-              onChange={(e) => handleChange("overallSatisfied", e.target.value)}
-              disabled={loading}
-            >
-              <option value="0">Select</option>
-              <option value="1">Yes</option>
-              <option value="2">No</option>
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Experience Rating (1–5):</label>
-            <select
-              value={formData.experienceRating}
-              onChange={(e) => handleChange("experienceRating", e.target.value)}
-              disabled={loading}
-            >
-              <option value="">Select</option>
-              {["1", "2", "3", "4", "5"].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Call Center Agent Rating (1–5):</label>
-            <select
-              value={formData.agentRating === "" ? "" : Number(formData.agentRating)}
-              onChange={(e) =>
-                handleChange(
-                  "agentRating",
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
-              disabled={loading}
-            >
-              <option value="">Select</option>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="cc-group">
-            <label>Customer Complaint for Service:</label>
-            <select
-              value={formData.customerComplaintforService}
-              onChange={(e) =>
-                handleChange("customerComplaintforService", e.target.value)
-              }
-              disabled={loading}
-            >
-              {services.length === 0 ? (
-                <option value="">Loading...</option>
-              ) : (
-                <>
-                  {!services.some((s) => String(s?.value) === "0") && (
-                    <option value="">Select</option>
-                  )}
-                  {services.map((s, idx) => (
-                    <option key={`${s.value}-${idx}`} value={String(s.value)}>
-                      {(s.name ?? "").trim() || ""}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
+        {/* Before Call Parameters */}
+        <div className="cd-card">
+          <div className="cd-sec-title">Before Call Parameters</div>
+          <div className="cd-grid">
+            <div>
+              <span className="cd-label">Customer Type</span>
+              <div style={{ padding:"9px 12px", background:"#f8fafc", border:"1px solid #e7ecf4",
+                borderRadius:8, fontSize:13, color:"#334B71", fontWeight:600 }}>
+                {details?.customerType || "—"}
+              </div>
+            </div>
+            <div>
+              <label className="cd-label">Future Appointment Taken</label>
+              <select className="cd-inp" value={formData.futureAppointmentTaken} disabled={loading}
+                onChange={e => handleChange("futureAppointmentTaken", e.target.value)}>
+                <option value="0">Select</option>
+                <option value="1">Yes</option>
+                <option value="2">No</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="cc-grid">
-          <div className="cc-group">
-            <label>Customer Remarks:</label>
-            <textarea
-              value={formData.customerComplaintRemarks}
-              onChange={(e) =>
-                handleChange("customerComplaintRemarks", e.target.value)
-              }
-              placeholder="ملاحظات العميل سواء جيدة أو سيئة"
-              disabled={loading}
-            />
+        {/* After Call Parameters */}
+        <div className="cd-card">
+          <div className="cd-sec-title">After Call Parameters</div>
+          <div className="cd-grid">
+            <div>
+              <label className="cd-label">Google Review</label>
+              <select className="cd-inp" value={formData.googleReview} disabled={loading}
+                onChange={e => handleChange("googleReview", e.target.value)}>
+                <option value="0">Select</option>
+                <option value="1">Yes</option>
+                <option value="2">No</option>
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Received Post Care Communication</label>
+              <select className="cd-inp" value={formData.receivedPostCareCmmunication} disabled={loading}
+                onChange={e => handleChange("receivedPostCareCmmunication", e.target.value)}>
+                <option value="0">Select</option>
+                <option value="1">Yes</option>
+                <option value="2">No</option>
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Received Invoice</label>
+              <select className="cd-inp" value={formData.receivedInvoice} disabled={loading}
+                onChange={e => handleChange("receivedInvoice", e.target.value)}>
+                <option value="0">Select</option>
+                <option value="1">Yes</option>
+                <option value="2">No</option>
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Customer Feedback</label>
+              <select className="cd-inp" value={formData.customerFeedback} disabled={loading}
+                onChange={e => handleChange("customerFeedback", e.target.value)}>
+                <option value="">Select</option>
+                <option>Satisfied client</option>
+                <option>Price Conscious</option>
+                <option>Process related complaints</option>
+                <option>Infrastructure</option>
+                <option>Adverse reaction of service</option>
+                <option>Waiting Time</option>
+                <option>Not satisfied with employee</option>
+                <option>Not satisfied with service experience</option>
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Overall Satisfied</label>
+              <select className="cd-inp" value={formData.overallSatisfied} disabled={loading}
+                onChange={e => handleChange("overallSatisfied", e.target.value)}>
+                <option value="0">Select</option>
+                <option value="1">Yes</option>
+                <option value="2">No</option>
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Experience Rating (1–5)</label>
+              <select className="cd-inp" value={formData.experienceRating} disabled={loading}
+                onChange={e => handleChange("experienceRating", e.target.value)}>
+                <option value="">Select</option>
+                {["1","2","3","4","5"].map(s => <option key={s} value={s}>{s} ★</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Call Center Agent Rating (1–5)</label>
+              <select className="cd-inp"
+                value={formData.agentRating === "" ? "" : Number(formData.agentRating)}
+                disabled={loading}
+                onChange={e => handleChange("agentRating", e.target.value === "" ? "" : Number(e.target.value))}>
+                <option value="">Select</option>
+                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} ★</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="cd-label">Customer Complaint for Service</label>
+              <select className="cd-inp" value={formData.customerComplaintforService} disabled={loading}
+                onChange={e => handleChange("customerComplaintforService", e.target.value)}>
+                {services.length === 0 ? (
+                  <option value="">Loading...</option>
+                ) : (
+                  <>
+                    {!services.some(s => String(s?.value) === "0") && <option value="">Select</option>}
+                    {services.map((s, idx) => (
+                      <option key={`${s.value}-${idx}`} value={String(s.value)}>
+                        {(s.name ?? "").trim() || ""}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
           </div>
 
-          <div className="cc-group">
-            <label>Agent Decision:</label>
-            <textarea
-              value={formData.agentdecision}
-              onChange={(e) => handleChange("agentdecision", e.target.value)}
-              placeholder="قرارك والدخل المحسبي من ذلك العميل بخصوص الملاحظة"
-              disabled={loading}
-            />
+          {/* Remarks — full width row */}
+          <div className="cd-grid-2" style={{ marginTop:16 }}>
+            <div>
+              <label className="cd-label">Customer Remarks</label>
+              <textarea className="cd-inp" value={formData.customerComplaintRemarks} disabled={loading}
+                placeholder="ملاحظات العميل سواء جيدة أو سيئة"
+                onChange={e => handleChange("customerComplaintRemarks", e.target.value)} />
+            </div>
+            <div>
+              <label className="cd-label">Agent Decision</label>
+              <textarea className="cd-inp" value={formData.agentdecision} disabled={loading}
+                placeholder="قرارك والدخل المحسبي من ذلك العميل بخصوص الملاحظة"
+                onChange={e => handleChange("agentdecision", e.target.value)} />
+            </div>
           </div>
         </div>
 
-        <div className="cc-actions">
-          <button className="cc-btn-save" onClick={() => handleSubmit(1)} disabled={loading}>
-            Save
+        {/* Action buttons — bottom */}
+        <div style={{ display:"flex", gap:10, paddingTop:4 }}>
+          <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(1)} disabled={loading}>
+            {loading ? "Saving…" : "Save"}
           </button>
-          <button className="cc-btn-submit" onClick={() => handleSubmit(2)} disabled={loading}>
-            Submit
+          <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(2)} disabled={loading}>
+            {loading ? "Submitting…" : "Submit"}
           </button>
-          <button className="cc-btn-back" onClick={() => navigate(-1)} disabled={loading}>
-            Back
-          </button>
+          <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>Back</button>
         </div>
 
-        {toast && (
-          <Toast
-            type={toast.type}
-            message={toast.message}
-            onClose={() => setToast(null)}
-          />
-        )}
+        {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
       </div>
 
       {loading && (
-        <div className="loader-wrapper">
-          <div className="loader"></div>
+        <div style={{ position:"fixed", inset:0, background:"rgba(255,255,255,.6)", zIndex:9999,
+          display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ width:40, height:40, border:"4px solid #334B71",
+            borderTopColor:"transparent", borderRadius:"50%", animation:"spin .8s linear infinite" }} />
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
     </>
