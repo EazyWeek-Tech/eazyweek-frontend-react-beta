@@ -585,16 +585,19 @@ export default function FormFillModal({
     }
 
     // ── Customer Form path (formCodeOverride set, no whenToFill) ────────────
-    // This is the first-visit customer form — load it directly by formCode
     if (formCodeOverride && !whenToFill) {
       const loadCustomer = async () => {
         const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
+        console.log("[FormFillModal] Customer form def:", def?.formCode, "components:", def?.components?.length);
+        if (!def || !def.formCode) throw new Error(`Form ${formCodeOverride} not found or inactive`);
         const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
         setForms([syntheticForm]);
         setFormDef(def);
         setValues({});
       };
-      loadCustomer().finally(() => setLoading(false));
+      loadCustomer()
+        .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
+        .finally(() => setLoading(false));
       return;
     }
 
@@ -644,6 +647,12 @@ export default function FormFillModal({
     for (const comp of formDef.components || []) {
       if (!comp.isMandatory) continue;
       const val = values[comp.componentId];
+      // Signature: must have actual drawn data (not just empty string)
+      if (comp.componentType === "signature") {
+        const empty = !val || (typeof val === "string" && (val.trim() === "" || val === "data:,"));
+        if (empty) e[comp.componentId] = "Signature is required.";
+        continue;
+      }
       const empty = val === undefined || val === null || val === "" ||
         (Array.isArray(val) && val.length === 0);
       if (empty) e[comp.componentId] = "This field is required.";

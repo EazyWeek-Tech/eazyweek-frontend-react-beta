@@ -483,6 +483,34 @@ const AppointmentDrawer = ({
   const handleSubmit = async () => {
     if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
+
+    // APPT_030: Block booking in past date/time
+    const today = new Date().toISOString().split("T")[0];
+    if (selectedDate < today) {
+      setToast({ message: "Cannot book an appointment in the past.", type: "error" });
+      return;
+    }
+    if (selectedDate === today) {
+      // Check if any service start time is in the past
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const pastService = serviceList.find(e => {
+        const t = e.service.start;
+        if (!t) return false;
+        // Convert "10:30 AM" to minutes
+        const [hp, mp] = t.split(":");
+        const [m, per] = mp.split(" ");
+        let h = parseInt(hp, 10);
+        if (per === "PM" && h !== 12) h += 12;
+        if (per === "AM" && h === 12) h = 0;
+        return (h * 60 + parseInt(m, 10)) < nowMins;
+      });
+      if (pastService) {
+        setToast({ message: `Start time "${pastService.service.start}" is in the past.`, type: "error" });
+        return;
+      }
+    }
+
     setSubmitting(true);
     const user = getUser();
     const freshRefId = crypto.randomUUID();

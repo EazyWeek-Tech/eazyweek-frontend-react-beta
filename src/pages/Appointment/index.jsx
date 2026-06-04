@@ -263,14 +263,54 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
 
         <div className="apptactdiv">
           <h2 className="dethead">Appointment Execution</h2>
-          <button onClick={() => goTo("/history")} className="cstlnk" style={{ width:"100%" }}>
+          {/* Medical History — opens Customer Form in edit mode (first visit) or read-only */}
+          <button onClick={async () => {
+            const custId = appt?.custId || appointment?.custId || "";
+            const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
+            // Show customer form (medical history) via EMR modal
+            await checkAndShowForms({
+              appointmentId: apptId,
+              serviceCode,
+              custId,
+              centerCode,
+              toStatus: "Start",   // triggers customer form + Before forms
+              macroContext: {
+                customerName: appt?.fullName || "",
+                serviceName:  appt?.serviceName || "",
+                centreName:   user?.centerName || "",
+              },
+            });
+          }} className="cstlnk" style={{ width:"100%" }}>
             <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="" /> Medical History
           </button>
           <div className="apptcdet">
-            <button onClick={() => goTo("/consent")} className="cstlnk">
+            {/* Consent Form — open FormFillModal directly for this service's consent forms */}
+            <button onClick={async () => {
+              const custId = appt?.custId || appointment?.custId || "";
+              const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
+              await checkAndShowForms({
+                appointmentId: apptId,
+                serviceCode,
+                custId,
+                centerCode,
+                toStatus: "Start",
+                macroContext: { customerName: appt?.fullName || "" },
+              });
+            }} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Consent Form
             </button>
-            <button onClick={() => goTo("/treatment")} className="cstlnk">
+            <button onClick={async () => {
+              const custId = appt?.custId || appointment?.custId || "";
+              const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
+              await checkAndShowForms({
+                appointmentId: apptId,
+                serviceCode,
+                custId,
+                centerCode,
+                toStatus: "Completed",  // After Service = treatment forms
+                macroContext: { customerName: appt?.fullName || "" },
+              });
+            }} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Treatment Form
             </button>
           </div>
