@@ -60,7 +60,7 @@ const Toast = ({ message, type = "info", onClose }) => {
 };
 
 // ── Appointment Details Sidebar ────────────────────────────────────────────────
-const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onStatusUpdated }) => {
+const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, onRefresh, onStatusUpdated }) => {
   const navigate = useNavigate();
   const [appt,   setAppt]   = useState(appointment || null);
   const [status, setStatus] = useState(appointment?.status || "Booked");
@@ -124,12 +124,24 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
           if (custId) await checkCheckinNotes(custId, "checkin");
         }
 
-        // ── Generate courtesy call when appointment is Completed ──────────
+        // ── On Completed: mark all EMR forms as complete + generate courtesy call
         if (newStatus === "Completed") {
-          // appointmentId here is the UUID that maps to CLINIC_BOOKAPPOINTMENT
-          // The repo will look up the REFERENCEID (group ID) from this
+          const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
+          const custId      = appt?.custId || appointment?.custId || "";
+
+          // Mark any unfilled forms as auto-completed so badge shows "All Complete"
+          if (apptId && serviceCode) {
+            authPost(`${API_BASE_URL}/api/EMR/Appointment/MarkFormsComplete`, {
+              appointmentId: apptId,
+              serviceCode,
+              custId,
+              centerCode,
+            }).then(r => console.log("[EMR] MarkFormsComplete:", r))
+              .catch(e => console.warn("[EMR] MarkFormsComplete failed:", e.message));
+          }
+
+          // Generate courtesy call
           const groupId = appt?.appointmentId || appointment?.appointmentId || apptId;
-          console.log("[index.jsx] Completed — generating courtesy call for:", groupId);
           if (groupId) {
             authPost(`${API_BASE_URL}/api/Courtesy/GenerateCourtesyCalls`, {
               appointmentGroupId: groupId,
@@ -223,6 +235,17 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
               <button className="edit tooltip" data-tooltip="Edit" onClick={handleEdit}>
                 <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Edit" /></span>
               </button>
+              {/* Reschedule — only for non-completed/non-active statuses */}
+              {!["Completed","Active","Checked In"].includes(status) && onReschedule && (
+                <button className="edit tooltip" data-tooltip="Reschedule"
+                  onClick={() => { onReschedule?.(appt || appointment); onClose?.(); }}
+                  style={{ marginLeft:2 }}>
+                  <span className="stimg">
+                    <img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Reschedule" />
+                    <span style={{ fontSize:9, marginLeft:2, color:"#fff" }}>↺</span>
+                  </span>
+                </button>
+              )}
               <button className="delete tooltip" data-tooltip="Delete" onClick={handleDelete}>
                 <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" /></span>
               </button>
@@ -263,54 +286,14 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onRefresh, onSta
 
         <div className="apptactdiv">
           <h2 className="dethead">Appointment Execution</h2>
-          {/* Medical History — opens Customer Form in edit mode (first visit) or read-only */}
-          <button onClick={async () => {
-            const custId = appt?.custId || appointment?.custId || "";
-            const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
-            // Show customer form (medical history) via EMR modal
-            await checkAndShowForms({
-              appointmentId: apptId,
-              serviceCode,
-              custId,
-              centerCode,
-              toStatus: "Start",   // triggers customer form + Before forms
-              macroContext: {
-                customerName: appt?.fullName || "",
-                serviceName:  appt?.serviceName || "",
-                centreName:   user?.centerName || "",
-              },
-            });
-          }} className="cstlnk" style={{ width:"100%" }}>
+          <button onClick={() => goTo("/history")} className="cstlnk" style={{ width:"100%" }}>
             <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="" /> Medical History
           </button>
           <div className="apptcdet">
-            {/* Consent Form — open FormFillModal directly for this service's consent forms */}
-            <button onClick={async () => {
-              const custId = appt?.custId || appointment?.custId || "";
-              const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
-              await checkAndShowForms({
-                appointmentId: apptId,
-                serviceCode,
-                custId,
-                centerCode,
-                toStatus: "Start",
-                macroContext: { customerName: appt?.fullName || "" },
-              });
-            }} className="cstlnk">
+            <button onClick={() => goTo("/consent")} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Consent Form
             </button>
-            <button onClick={async () => {
-              const custId = appt?.custId || appointment?.custId || "";
-              const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
-              await checkAndShowForms({
-                appointmentId: apptId,
-                serviceCode,
-                custId,
-                centerCode,
-                toStatus: "Completed",  // After Service = treatment forms
-                macroContext: { customerName: appt?.fullName || "" },
-              });
-            }} className="cstlnk">
+            <button onClick={() => goTo("/treatment")} className="cstlnk">
               <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Treatment Form
             </button>
           </div>
@@ -405,7 +388,7 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
   );
 };
 
-const FilterHeader = ({ countsOverride = {} }) => {
+const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }) => {
   const val = (k) => typeof countsOverride[k] === "number" ? countsOverride[k] : 0;
   const items = [
     { key:"Completed",     icon:"completed.svg",   label:"Completed"      },
@@ -416,26 +399,35 @@ const FilterHeader = ({ countsOverride = {} }) => {
     { key:"Booked",        icon:"booked.svg",       label:"Booked"         },
   ];
   return (
-    <header className="fltrhdr">
-      <div className="fltroptflx">
-        <div className="viewfilter">
-          <span className="viewrm viewtb">Rooms</span>
-          <span className="viewdoc viewtb active">Practitioners</span>
-        </div>
-        <div className="vwextrabtns">
-          <div className="apptstatus">
-            {items.map(({ key, icon, label }) => (
-              <div key={key} className={`${key.toLowerCase()} statcell`}>
-                <div className="stimg">
-                  <img src={`${import.meta.env.BASE_URL}images/${icon}`} alt={label} />{label}
-                </div>
-                <div className="statno">{val(key)}</div>
-              </div>
-            ))}
+    <div className="fltroptflx">
+      <div className="viewfilter">
+        <span className="viewrm viewtb">Rooms</span>
+        <span className="viewdoc viewtb active">Practitioners</span>
+      </div>
+      <div className="vwextrabtns">
+        <div className="apptstatus">
+          {/* All pill */}
+          <div
+            className={`statcell${activeFilter === "" ? " filter-active" : ""}`}
+            style={{ cursor:"pointer" }}
+            onClick={() => onFilterChange?.("")}>
+            <div className="stimg" style={{ paddingLeft:12, paddingRight:12 }}>All</div>
+            <div className="statno">{Object.values(countsOverride).reduce((a,b)=>a+(typeof b==="number"?b:0),0)}</div>
           </div>
+          {items.map(({ key, icon, label }) => (
+            <div key={key}
+              className={`${key.toLowerCase()} statcell${activeFilter === key ? " filter-active" : ""}`}
+              style={{ cursor:"pointer" }}
+              onClick={() => onFilterChange?.(activeFilter === key ? "" : key)}>
+              <div className="stimg">
+                <img src={`${import.meta.env.BASE_URL}images/${icon}`} alt={label} />{label}
+              </div>
+              <div className="statno">{val(key)}</div>
+            </div>
+          ))}
         </div>
       </div>
-    </header>
+    </div>
   );
 };
 
@@ -453,9 +445,25 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const [suggestions,         setSuggestions]        = useState([]);
   const [showAddCustomer,     setShowAddCustomer]    = useState(false);
   const [selectedDate,        setSelectedDate]       = useState(() => new Date().toISOString().split("T")[0]);
+  const [activeFilter,        setActiveFilter]       = useState(""); // "" = All
   const suggestRef = useRef(null);
 
   const user = useMemo(() => getUser(), []);
+
+  // ── Doctor-only access ──────────────────────────────────────────────────
+  // If the logged-in user is a practitioner/doctor, restrict the grid to
+  // show only their own appointments.
+  const loggedInRole = (
+    user.role || user.userRole || user.securityRole || ""
+  ).toLowerCase().replace(/\s/g, "");
+
+  // The logged-in user's employee code
+  const loggedInDoctorCode = user.employeeCode || user.practitionerCode || user.code || "";
+
+  // isDoctorRole = true when the logged-in employeeCode exists in the
+  // practitioners list loaded for this centre.
+  // This is set after fetchDoctors resolves — default false until then.
+  const [isDoctorRole, setIsDoctorRole] = useState(false);
 
   const timeSlots = useMemo(() => [...Array(145)].map((_, i) => {
     const base = new Date("1970-01-01T10:00:00");
@@ -468,7 +476,25 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const fetchDoctors = async () => {
     try {
       const data = await authGet(`${API_BASE_URL}/api/Master/LoadAllPractioner/${user.centerCode||""}`);
-      setDoctors(Array.isArray(data) ? data.map(d => ({ id: d.id || d.code || "", name: d.name || "" })) : []);
+      const all = Array.isArray(data)
+        ? data.map(d => ({ id: d.id || d.code || "", name: d.name || "" }))
+        : [];
+
+      // Check if the logged-in employeeCode exists in the practitioners list.
+      // This is the most reliable way — no role/job guessing needed.
+      const selfInList = loggedInDoctorCode
+        ? all.find(d => d.id === loggedInDoctorCode)
+        : null;
+
+      if (selfInList) {
+        // Logged-in user IS a practitioner → show only their column
+        setIsDoctorRole(true);
+        setDoctors([selfInList]);
+      } else {
+        // Receptionist / admin → show all practitioners
+        setIsDoctorRole(false);
+        setDoctors(all);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -526,42 +552,404 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     return max * 80 + (max - 1) * 5 + 10;
   }), [doctors, appointments]);
 
-  const renderAppointments = (time, doctor) => {
-    const filtered = appointments.filter(a => {
-      if (normalizeTime(a.starttime) !== normalizeTime(time)) return false;
-      const docId = a.doctorId || a.doctorid || "";
-      if (doctor.id && docId) return doctor.id === docId;
-      return normDoc(doctor.name || doctor) === normDoc(a.doctorname || a.doctorName);
-    });
+  // ── View mode: "doctor" = doctors top, time left (vertical span)
+  //              "time"   = time top, doctor left (horizontal span)
+  const [viewMode, setViewMode] = useState("doctor"); // default: doctor view
+
+  // Convert "10:00 AM" → minutes since midnight
+  const toMins = (t) => {
+    const h24 = convertTo24(String(t || "").trim());
+    if (!h24) return 0;
+    const [h, m] = h24.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  // Get duration in minutes from appointment — prefers startTime/endTime diff, falls back to duration field
+  const getDurMins = (appt) => {
+    const st = appt.starttime || appt.startTime || "";
+    const et = appt.endtime   || appt.endTime   || "";
+    if (st && et) {
+      const diff = toMins(et) - toMins(st);
+      if (diff > 0) return diff;
+    }
+    // Fall back to duration field ("30 mins", "30", etc.)
+    const raw = parseInt((appt.duration || "30").replace(/[^0-9]/g, ""), 10) || 30;
+    return raw;
+  };
+
+  // Slot height/width in px (one 5-min slot = SLOT_PX)
+  const SLOT_PX = 20;
+
+  // Shared appointment card content
+  const ApptCard = ({ appt, onOpen }) => {
+    const sc = getStatusClass(appt.status);
     return (
-      <div style={{ display:"flex", flexDirection:"column", gap:"5px" }}>
-        {filtered.map(appt => {
-          const dur = parseInt((appt.duration||"5").replace(/\D/g,""),10) || 5;
-          const sc  = getStatusClass(appt.status);
-          const ec  = dur === 5 ? "smllappt" : dur === 10 ? "medappt" : "";
-          return (
-            <div key={`${appt.appointmentId}-${appt.startTime}`}
-              className={`appcell ${sc} ${ec}`} style={{ width:`${dur*14}px`, minWidth:"50px" }}>
-              <div className="ptflx">
-                <div className="ptnm">{appt.fullName}</div>
-                <div className={`aptst ${sc}`}><span></span>{appt.status||"Booked"}</div>
-              </div>
-              <div className="apptype"><strong>{appt.serviceName||"N/A"}</strong></div>
-              <EMRStatusBadge
-                appointmentId={appt.appointmentId}
-                serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
-              />
-              {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
-              <span className="expopup" onClick={() => {
-                const allLines = appointments.filter(a => a.appointmentId === appt.appointmentId);
-                setSelectedAppointment({ ...appt, allLines });
-                setIsSidebarOpen(true);
-              }}>
-                <img src={`${import.meta.env.BASE_URL}images/expand.svg`} alt="Expand" />
-              </span>
-            </div>
-          );
-        })}
+      <div className={`appcell-v2 ${sc}`} onClick={onOpen}>
+        <div className="av2-name">{appt.fullName}</div>
+        <div className="av2-svc">{appt.serviceName || "—"}</div>
+        <div className={`aptst ${sc}`} style={{marginTop:2}}>
+          <span/>{appt.status || "Booked"}
+        </div>
+        <EMRStatusBadge
+          appointmentId={appt.appointmentId}
+          serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
+        />
+        {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
+      </div>
+    );
+  };
+
+  const openSidebar = (appt) => {
+    const allLines = appointments.filter(a => a.appointmentId === appt.appointmentId);
+    setSelectedAppointment({ ...appt, allLines });
+    setIsSidebarOpen(true);
+  };
+
+  // ── Filtered appointments for grid display ───────────────────────────────
+  const filteredAppointments = useMemo(() => {
+    if (!activeFilter) return appointments;
+    if (activeFilter === "PaymentPending")
+      return appointments.filter(a => Number(a.isPaymentMade) === 0);
+    return appointments.filter(a =>
+      (a.status || "").toLowerCase() === activeFilter.toLowerCase()
+    );
+  }, [appointments, activeFilter]);
+
+  // ── DOCTOR VIEW ─────────────────────────────────────────────────────────
+  // Rows = doctors (left sticky), Cols = time slots (top sticky)
+  // Each cell = one 5-min slot. Appointments are rendered as ABSOLUTELY
+  // POSITIONED blocks inside a relative container so multiple appointments
+  // at the same start time (overbooking) all appear side by side.
+  //
+  // Layout per cell: position:relative container spanning the full row height.
+  // Each appointment block is positioned: left = startSlot * SLOT_W, width = dur/5 * SLOT_W.
+  // We render ONE cell per doctor row (spanning ALL time slots) and place
+  // appointments inside it absolutely.
+
+  const SLOT_W = 60; // px per 5-min slot in Doctor View
+
+  // Pre-compute appointments per doctor for DoctorView
+  const apptsByDoctor = useMemo(() => {
+    const map = {};
+    doctors.forEach((doc, di) => {
+      map[di] = filteredAppointments.filter(a => {
+        const docId = a.doctorId || a.doctorid || "";
+        if (doc.id && docId) return doc.id === docId;
+        return normDoc(doc.name || doc) === normDoc(a.doctorname || a.doctorName);
+      });
+    });
+    return map;
+  }, [doctors, filteredAppointments]);
+
+  const DoctorView = () => (
+    <div className="grid-outer">
+      <table className="cal-table" style={{ tableLayout:"fixed" }}>
+        <thead>
+          <tr>
+            <th className="corner-cell">
+              <span className="corner-doc">Doctor</span>
+              <span className="corner-time">Time →</span>
+            </th>
+            {timeSlots.map((t, i) => (
+              <th key={i} className="time-header-cell" style={{ width:SLOT_W, minWidth:SLOT_W }}>{t}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {doctors.map((doc, di) => {
+            const docAppts = apptsByDoctor[di] || [];
+            // Total width = all slots
+            const totalW = timeSlots.length * SLOT_W;
+            // Row height = max stacked cards × CARD_H, min 64px
+                    const CARD_H_ROW = 80;
+                    const maxStack = docAppts.length > 0
+                      ? Math.max(...timeSlots.map((_, si) => {
+                          const slotMins = toMins(timeSlots[si]);
+                          return docAppts.filter(a => {
+                            const s = toMins(a.starttime || a.startTime);
+                            const e = s + getDurMins(a);
+                            return s <= slotMins && slotMins < e;
+                          }).length;
+                        }))
+                      : 0;
+                    const rowH = Math.max(64, maxStack * CARD_H_ROW + 4);
+
+            return (
+              <tr key={di} className="doc-row">
+                <td className="doc-label-cell" style={{ height:rowH }}>{doc.name || doc}</td>
+                {/* Single td spanning ALL time columns — appointments rendered inside absolutely */}
+                <td colSpan={timeSlots.length}
+                  style={{ position:"relative", padding:0, height:rowH, verticalAlign:"top" }}
+                  onDoubleClick={e => {
+                    // Calculate which time slot was clicked
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const slotIdx = Math.floor(clickX / SLOT_W);
+                    const slotTime = timeSlots[Math.max(0, Math.min(slotIdx, timeSlots.length - 1))];
+                    setSelectedTimeSlot(slotTime);
+                    setSelectedDoctor(doc);
+                    setEditData(null);
+                    setIsDrawerOpen(true);
+                  }}>
+
+                  {/* Time grid lines */}
+                  <div style={{ position:"absolute", inset:0, display:"flex", pointerEvents:"none" }}>
+                    {timeSlots.map((_, i) => (
+                      <div key={i} style={{
+                        width:SLOT_W, flexShrink:0,
+                        borderRight:`1px solid ${i % 12 === 11 ? "#c8d5e8" : "#E9EDF5"}`,
+                        height:"100%",
+                        background: i % 12 === 0 ? "rgba(51,75,113,.03)" : "transparent"
+                      }} />
+                    ))}
+                  </div>
+
+                  {/* Appointment blocks — stacked vertically when overlapping */}
+                  {(() => {
+                    if (!docAppts.length) return null;
+
+                    // Group overlapping appointments into lanes
+                    // Sort by start time
+                    const sorted = [...docAppts].sort((a, b) =>
+                      toMins(a.starttime || a.startTime) - toMins(b.starttime || b.startTime)
+                    );
+
+                    // Assign lane (row within the cell) to each appointment
+                    const lanes = []; // lanes[i] = end time (mins) of last appt in lane i
+                    const apptLane = sorted.map(appt => {
+                      const startMins = toMins(appt.starttime || appt.startTime);
+                      const endMins   = startMins + getDurMins(appt);
+                      // Find first free lane
+                      let lane = lanes.findIndex(laneEnd => laneEnd <= startMins);
+                      if (lane === -1) { lane = lanes.length; lanes.push(endMins); }
+                      else lanes[lane] = endMins;
+                      return lane;
+                    });
+
+                    const totalLanes = Math.max(1, lanes.length);
+                    const laneH = Math.max(28, Math.floor(60 / totalLanes)); // height per lane
+
+                    // Stack appointments vertically — each takes full width
+                    // Group by start slot so overlapping ones stack on top of each other
+                    const CARD_H = 80; // height per stacked card
+                    const baseMins = toMins(timeSlots[0]);
+
+                    return sorted.map((appt, idx) => {
+                      const startMins = toMins(appt.starttime || appt.startTime);
+                      const dur       = getDurMins(appt);
+                      const span      = Math.max(1, Math.round(dur / 5));
+                      const slotIdx   = Math.round((startMins - baseMins) / 5);
+                      if (slotIdx < 0) return null;
+
+                      const leftPx  = slotIdx * SLOT_W;
+                      const widthPx = span * SLOT_W - 3;
+                      // Stack: each card sits below the previous one at the same slot
+                      const topPx   = apptLane[idx] * CARD_H + 2;
+                      const height  = CARD_H - 4;
+                      const sc      = getStatusClass(appt.status);
+
+                      return (
+                        <div key={appt.appointmentId + idx}
+                          className={`appcell-v2 ${sc}`}
+                          onClick={() => openSidebar(appt)}
+                          style={{
+                            position:"absolute",
+                            left:leftPx, top:topPx,
+                            width:widthPx, height,
+                            minHeight:"unset", minWidth:"unset",
+                            padding:"5px 8px",
+                            overflow:"hidden", zIndex:2,
+                          }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                            <div className="av2-name" style={{ fontSize:11, fontWeight:700 }}>{appt.fullName}</div>
+                            <div className={`aptst ${sc}`} style={{ fontSize:9, padding:"1px 5px", flexShrink:0, marginLeft:4 }}>
+                              <span/>{appt.status || "Booked"}
+                            </div>
+                          </div>
+                          <div className="av2-svc" style={{ fontSize:10, marginTop:2 }}>{appt.serviceName}</div>
+                          <EMRStatusBadge
+                            appointmentId={appt.appointmentId}
+                            serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
+                          />
+                          {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
+                        </div>
+                      );
+                    });
+                  })()}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  // ── TIME VIEW ───────────────────────────────────────────────────────────
+  // Rows = time slots (left sticky), Cols = doctors (top sticky)
+  // Each column = one doctor. Appointments rendered as absolutely positioned
+  // blocks within a single tall <td> per doctor, so overbooking works.
+
+  const SLOT_H = 36; // px per 5-min row (matches .time-row height)
+
+  // Pre-compute appointments per doctor for TimeView
+  const apptsByDoctorTV = useMemo(() => {
+    const map = {};
+    doctors.forEach((doc, di) => {
+      map[di] = filteredAppointments.filter(a => {
+        const docId = a.doctorId || a.doctorid || "";
+        if (doc.id && docId) return doc.id === docId;
+        return normDoc(doc.name || doc) === normDoc(a.doctorname || a.doctorName);
+      });
+    });
+    return map;
+  }, [doctors, filteredAppointments]);
+
+  const TimeView = () => {
+    const totalH = timeSlots.length * SLOT_H;
+    const baseMins = toMins(timeSlots[0]);
+
+    return (
+      <div className="grid-outer">
+        <table className="cal-table">
+          <thead>
+            <tr>
+              <th className="corner-cell">
+                <span className="corner-doc">Time</span>
+                <span className="corner-time">Doctor →</span>
+              </th>
+              {doctors.map((doc, di) => (
+                <th key={di} className="doc-header-cell">
+                  <div className="doc-name">{doc.name || doc}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Single row containing one tall cell per doctor */}
+            <tr>
+              {/* Time label column — one cell per slot (actual rows for alignment) */}
+              <td style={{ padding:0, verticalAlign:"top", position:"sticky", left:0, zIndex:20, background:"#fff" }}>
+                {timeSlots.map((t, i) => (
+                  <div key={i} style={{
+                    height:SLOT_H, display:"flex", alignItems:"flex-end", justifyContent:"center",
+                    borderBottom:"1px solid #E9EDF5", borderRight:"2px solid #c8d5e8",
+                    fontSize:10, fontWeight:500, color:"#64748b", padding:"0 8px 4px",
+                    background:"#fff", minWidth:100, width:100,
+                  }}>{t}</div>
+                ))}
+              </td>
+
+              {/* One tall cell per doctor */}
+              {doctors.map((doc, di) => {
+                const docAppts = apptsByDoctorTV[di] || [];
+
+                // Assign lanes for overlapping appointments
+                const sorted = [...docAppts].sort((a, b) =>
+                  toMins(a.starttime || a.startTime) - toMins(b.starttime || b.startTime)
+                );
+                const lanes = [];
+                const apptLane = sorted.map(appt => {
+                  const startMins = toMins(appt.starttime || appt.startTime);
+                  const endMins   = startMins + getDurMins(appt);
+                  let lane = lanes.findIndex(e => e <= startMins);
+                  if (lane === -1) { lane = lanes.length; lanes.push(endMins); }
+                  else lanes[lane] = endMins;
+                  return lane;
+                });
+                const totalLanes = Math.max(1, lanes.length);
+                const laneW = totalLanes > 1 ? `${Math.floor(100 / totalLanes)}%` : "100%";
+
+                return (
+                  <td key={di}
+                    style={{ position:"relative", padding:0, verticalAlign:"top",
+                      height:totalH, width:160, minWidth:160,
+                      borderRight:"1px solid #E9EDF5" }}
+                    onDoubleClick={e => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickY   = e.clientY - rect.top;
+                      const slotIdx  = Math.floor(clickY / SLOT_H);
+                      const slotTime = timeSlots[Math.max(0, Math.min(slotIdx, timeSlots.length - 1))];
+                      setSelectedTimeSlot(slotTime);
+                      setSelectedDoctor(doc);
+                      setEditData(null);
+                      setIsDrawerOpen(true);
+                    }}>
+
+                    {/* Horizontal grid lines */}
+                    <div style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
+                      {timeSlots.map((_, i) => (
+                        <div key={i} style={{
+                          height:SLOT_H,
+                          borderBottom:`1px solid ${i % 12 === 11 ? "#c8d5e8" : "#E9EDF5"}`,
+                          background: i % 12 === 0 ? "rgba(51,75,113,.03)" : "transparent",
+                        }} />
+                      ))}
+                    </div>
+
+                    {/* Appointment blocks */}
+                    {sorted.map((appt, idx) => {
+                      const startMins = toMins(appt.starttime || appt.startTime);
+                      const dur       = getDurMins(appt);
+                      const endMins   = startMins + dur;
+                      const heightPx  = Math.max(SLOT_H - 4, Math.round(dur / 5) * SLOT_H - 4);
+
+                      // Find how many earlier appointments overlap with this one
+                      const overlapCount = sorted.slice(0, idx).filter(prev => {
+                        const pStart = toMins(prev.starttime || prev.startTime);
+                        const pEnd   = pStart + getDurMins(prev);
+                        return pStart < endMins && pEnd > startMins; // true overlap
+                      }).length;
+
+                      // Position at actual time — only offset sideways width if overlapping
+                      const baseTop  = Math.round((startMins - baseMins) / 5) * SLOT_H + 2;
+                      const colW     = totalLanes > 1 ? 100 / totalLanes : 100;
+                      // If truly overlapping, split width; otherwise full width
+                      const hasOverlap = sorted.some((other, oi) => {
+                        if (oi === idx) return false;
+                        const oStart = toMins(other.starttime || other.startTime);
+                        const oEnd   = oStart + getDurMins(other);
+                        return oStart < endMins && oEnd > startMins;
+                      });
+                      const cardLeft  = hasOverlap ? `${apptLane[idx] * colW}%` : "0";
+                      const cardWidth = hasOverlap ? `calc(${colW}% - 2px)` : "calc(100% - 2px)";
+                      const sc        = getStatusClass(appt.status);
+
+                      return (
+                        <div key={appt.appointmentId + idx}
+                          className={`appcell-v2 ${sc}`}
+                          onClick={() => openSidebar(appt)}
+                          style={{
+                            position:"absolute",
+                            top:baseTop,
+                            left:cardLeft,
+                            width:cardWidth,
+                            height:heightPx,
+                            minHeight:"unset", minWidth:"unset",
+                            padding:"5px 8px",
+                            overflow:"hidden", zIndex:2,
+                          }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                            <div className="av2-name" style={{ fontSize:11, fontWeight:700 }}>{appt.fullName}</div>
+                            <div className={`aptst ${sc}`} style={{ fontSize:9, padding:"1px 5px", flexShrink:0, marginLeft:4 }}>
+                              <span/>{appt.status || "Booked"}
+                            </div>
+                          </div>
+                          {heightPx > 40 && <div className="av2-svc" style={{ fontSize:10, marginTop:2 }}>{appt.serviceName}</div>}
+                          <EMRStatusBadge
+                            appointmentId={appt.appointmentId}
+                            serviceCode={appt.serviceCode || appt.allLines?.[0]?.serviceCode || ""}
+                          />
+                          {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
+                        </div>
+                      );
+                    })}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -583,12 +971,26 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             <Link to="/dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
               <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="24" alt="Home" />
             </Link>
-            <div className="apptimg tooltip" data-tooltip="Add Appointment" onClick={() => { setSelectedCustomer(null); setIsDrawerOpen(true); }}>
-              <img src={`${import.meta.env.BASE_URL}images/addappt.svg`} alt="Add" />
-            </div>
-            <span className="apptstgs tooltip" data-tooltip="Add Customer" onClick={() => setShowAddCustomer(true)}>
-              <img src={`${import.meta.env.BASE_URL}images/addcustwhite.svg`} alt="Add Customer" />
-            </span>
+            {/* Only show add buttons for non-doctor roles */}
+            {!isDoctorRole && (
+              <>
+                <div className="apptimg tooltip" data-tooltip="Add Appointment" onClick={() => { setSelectedCustomer(null); setIsDrawerOpen(true); }}>
+                  <img src={`${import.meta.env.BASE_URL}images/addappt.svg`} alt="Add" />
+                </div>
+                <span className="apptstgs tooltip" data-tooltip="Add Customer" onClick={() => setShowAddCustomer(true)}>
+                  <img src={`${import.meta.env.BASE_URL}images/addcustwhite.svg`} alt="Add Customer" />
+                </span>
+              </>
+            )}
+            {isDoctorRole && (
+              <span style={{
+                fontSize:11, fontWeight:700, color:"#fff",
+                background:"rgba(255,255,255,.2)", border:"1px solid rgba(255,255,255,.3)",
+                borderRadius:6, padding:"4px 10px", whiteSpace:"nowrap"
+              }}>
+                My Appointments
+              </span>
+            )}
             <div className="search-container" style={{ position:"relative" }}>
               <input type="text" placeholder="Search..." value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); fetchSuggestions(e.target.value); }} />
@@ -612,40 +1014,53 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         </div>
       </header>
 
-      <FilterHeader countsOverride={countsOverride} />
-
-      <div className="msttbl">
-        <div className="lfthrdiv">
-          <div className="lftcol sticky-header">
-            <div className="lftmin lgndiv">
-              <div className="lgndth"><div className="vertxt">Doctors</div><div className="hrtxt">Time</div></div>
-            </div>
-          </div>
-          <div className="lftcol sticky-header">
-            <div className="lftmin">
-              {doctors.map((doc, idx) => (
-                <div key={idx} className="lfttm tblcell" style={{ height:`${doctorHeights[idx]}px` }}>
-                  {doc.name || doc}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="rgtcol">
-          {timeSlots.map((time, rowIdx) => (
-            <div className="cldrrow" key={rowIdx}>
-              <div className="cldrttl clnctm sticky-time">{time}</div>
-              {doctors.map((doc, colIdx) => (
-                <div key={colIdx} className="cldrcol clncoff"
-                  onDoubleClick={() => { setSelectedTimeSlot(time); setSelectedDoctor(doc); setEditData(null); setIsDrawerOpen(true); }}
-                  style={{ height:`${doctorHeights[colIdx]}px`, display:"flex", flexDirection:"column", position:"relative" }}>
-                  {renderAppointments(time, doc)}
-                </div>
-              ))}
-            </div>
-          ))}
+      {/* Filter header + view toggle */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"8px 16px", background:"#fff", borderBottom:"1px solid #E9EDF5",
+        position:"sticky", top:"56px", zIndex:90,
+        boxShadow:"0 1px 4px rgba(0,0,0,.04)" }}>
+        <FilterHeader countsOverride={countsOverride} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+        {/* View mode toggle */}
+        <div style={{ display:"flex", border:"1px solid #c8d5e8", borderRadius:8, overflow:"hidden", flexShrink:0 }}>
+          <button
+            onClick={() => setViewMode("doctor")}
+            style={{ padding:"7px 14px", border:"none", cursor:"pointer", fontSize:12,
+              fontWeight:700, fontFamily:"Lato,sans-serif",
+              background: viewMode === "doctor" ? "#334B71" : "#f4f6fa",
+              color:       viewMode === "doctor" ? "#fff"    : "#334B71",
+              display:"flex", alignItems:"center", gap:5, transition:"background .15s" }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="0" y="0" width="4" height="14" rx="1"
+                fill={viewMode==="doctor"?"#fff":"#334B71"} opacity=".9"/>
+              <rect x="5" y="0" width="9" height="6" rx="1"
+                fill={viewMode==="doctor"?"#fff":"#334B71"} opacity=".6"/>
+              <rect x="5" y="8" width="9" height="6" rx="1"
+                fill={viewMode==="doctor"?"#fff":"#334B71"} opacity=".6"/>
+            </svg>
+            Doctor View
+          </button>
+          <button
+            onClick={() => setViewMode("time")}
+            style={{ padding:"7px 14px", border:"none", cursor:"pointer", fontSize:12,
+              fontWeight:700, fontFamily:"Lato,sans-serif",
+              background: viewMode === "time" ? "#334B71" : "#f4f6fa",
+              color:       viewMode === "time" ? "#fff"   : "#334B71",
+              display:"flex", alignItems:"center", gap:5, transition:"background .15s" }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="0" y="0" width="14" height="4" rx="1"
+                fill={viewMode==="time"?"#fff":"#334B71"} opacity=".9"/>
+              <rect x="0" y="5" width="6" height="9" rx="1"
+                fill={viewMode==="time"?"#fff":"#334B71"} opacity=".6"/>
+              <rect x="8" y="5" width="6" height="9" rx="1"
+                fill={viewMode==="time"?"#fff":"#334B71"} opacity=".6"/>
+            </svg>
+            Time View
+          </button>
         </div>
       </div>
+
+      {/* View toggle + grid */}
+      {viewMode === "doctor" ? <DoctorView /> : <TimeView />}
 
       {isSidebarOpen && selectedAppointment && (
         <AppointmentDetailsSide
@@ -654,6 +1069,17 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
           onEdit={appt => {
             setEditData({ ...appt });
             setSelectedTimeSlot(appt.starttime);
+            const docObj = doctors.find(d => d.id === (appt.doctorId || appt.doctorid))
+                        || doctors.find(d => normDoc(d.name||d) === normDoc(appt.doctorname||appt.doctorName))
+                        || { id: appt.doctorId || "", name: appt.doctorname || appt.doctorName || "" };
+            setSelectedDoctor(docObj);
+            setSelectedAppointment(null); setIsSidebarOpen(false); setIsDrawerOpen(true);
+          }}
+          onReschedule={appt => {
+            // Reschedule: pre-fill service/customer but let user pick new date+time
+            // isReschedule flag tells the drawer to show date picker prominently
+            setEditData({ ...appt, isReschedule: true });
+            setSelectedTimeSlot(null);   // clear time so user picks new slot
             const docObj = doctors.find(d => d.id === (appt.doctorId || appt.doctorid))
                         || doctors.find(d => normDoc(d.name||d) === normDoc(appt.doctorname||appt.doctorName))
                         || { id: appt.doctorId || "", name: appt.doctorname || appt.doctorName || "" };

@@ -174,14 +174,16 @@ const CustomerForm = ({ prefill, onChange }) => {
         </div>
         <div className="form-group radgrp">
           <label className="frmlbl">Gender</label>
-          {["male","female"].map(g => (
-            <div className="rdbox" key={g}>
-              <input type="radio" id={`g_${g}`} name="gender" value={g}
-                checked={form.gender?.toLowerCase() === g}
-                onChange={e => sync({ ...form, gender: e.target.value })} />
-              <label htmlFor={`g_${g}`}>{g.charAt(0).toUpperCase()+g.slice(1)}</label>
-            </div>
-          ))}
+          <div className="rdopts">
+            {["male","female"].map(g => (
+              <div className="rdbox" key={g}>
+                <input type="radio" id={`g_${g}`} name="gender" value={g}
+                  checked={form.gender?.toLowerCase() === g}
+                  onChange={e => sync({ ...form, gender: e.target.value })} />
+                <label htmlFor={`g_${g}`}>{g.charAt(0).toUpperCase()+g.slice(1)}</label>
+              </div>
+            ))}
+          </div>
         </div>
       </form>
     </div>
@@ -311,14 +313,16 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             )}
           </div>
           <div className="form-group radgrp">
-            <label>Preference</label>
-            {["any","male","female"].map(v => (
-              <div className="rdbox" key={v}>
-                <input type="radio" id={`pref_${v}`} name="preference" value={v}
-                  checked={form.preference === v} onChange={e => setForm(p => ({ ...p, preference: e.target.value }))} />
-                <label htmlFor={`pref_${v}`}>{v.charAt(0).toUpperCase()+v.slice(1)}</label>
-              </div>
-            ))}
+            <label className="frmlbl">Preference</label>
+            <div className="rdopts">
+              {["any","male","female"].map(v => (
+                <div className="rdbox" key={v}>
+                  <input type="radio" id={`pref_${v}`} name="preference" value={v}
+                    checked={form.preference === v} onChange={e => setForm(p => ({ ...p, preference: e.target.value }))} />
+                  <label htmlFor={`pref_${v}`}>{v.charAt(0).toUpperCase()+v.slice(1)}</label>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="form-group slctgrp">
             <label>Practitioner:</label>
@@ -409,6 +413,9 @@ const AppointmentDrawer = ({
 }) => {
   const drawerRef    = useRef(null);
   const [height,     setHeight]     = useState(433);
+  const [rescheduleDate, setRescheduleDate] = useState(
+    () => new Date().toISOString().split("T")[0]
+  );
   const [isResizing, setIsResizing] = useState(false);
   const [resetKey,   setResetKey]   = useState(Date.now());
 
@@ -485,39 +492,72 @@ const AppointmentDrawer = ({
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
 
     // APPT_030: Block booking in past date/time
+    const bookingDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
     const today = new Date().toISOString().split("T")[0];
-    if (selectedDate < today) {
-      setToast({ message: "Cannot book an appointment in the past.", type: "error" });
+    if (bookingDate < today) {
+      setToast({ message:"Cannot book an appointment in the past.", type:"error" });
       return;
-    }
-    if (selectedDate === today) {
-      // Check if any service start time is in the past
-      const now = new Date();
-      const nowMins = now.getHours() * 60 + now.getMinutes();
-      const pastService = serviceList.find(e => {
-        const t = e.service.start;
-        if (!t) return false;
-        // Convert "10:30 AM" to minutes
-        const [hp, mp] = t.split(":");
-        const [m, per] = mp.split(" ");
-        let h = parseInt(hp, 10);
-        if (per === "PM" && h !== 12) h += 12;
-        if (per === "AM" && h === 12) h = 0;
-        return (h * 60 + parseInt(m, 10)) < nowMins;
-      });
-      if (pastService) {
-        setToast({ message: `Start time "${pastService.service.start}" is in the past.`, type: "error" });
-        return;
-      }
     }
 
     setSubmitting(true);
+
     const user = getUser();
+
+    // ── Reschedule: UPDATE the existing appointment rows — no new entry ─────
+    if (editAppointment?.isReschedule && editAppointment?.appointmentId) {
+      try {
+        const lines = serviceList.map((e, i) => ({
+          lineNo:    e.service.lineNo || String(i + 1),
+          startTime: e.service.start,
+          endTime:   e.service.end,
+          duration:  e.service.duration,
+          practioner:e.service.practitioner,
+          room:      e.service.room || "",
+        }));
+        // Use SaveAppointment route (avoids separate rate-limited endpoint)
+        // existingAppointmentId triggers UPDATE path in the repo
+        const result = await authPost(
+          `${API_BASE_URL}/api/Appointment/SaveAppointment`,
+          {
+            existingAppointmentId: editAppointment.appointmentId,
+            appointmentDate:       bookingDate,
+            centerCode:            user.centerCode || "",
+            custID:                customerData?.custid || "",
+            userId:                user.userId || user.employeeCode || "",
+            saveAppointment:       lines.map(l => ({
+              startTime:   l.startTime,
+              endTime:     l.endTime,
+              duration:    l.duration,
+              lineNo:      l.lineNo,
+              practioner:  l.practioner,
+              room:        l.room || "",
+              serviceCode: "",
+              preference:  "",
+              notes:       "",
+              amount:      "0",
+            })),
+          }
+        );
+        if (result?.success !== false) {
+          setToast({ message: "Appointment rescheduled!", type: "success" });
+          onRefreshAppointments?.();
+          setTimeout(() => onClose?.(), 1200);
+        } else {
+          setToast({ message: result?.message || "Reschedule failed.", type: "error" });
+        }
+      } catch (e) {
+        setToast({ message: e.message || "Reschedule failed.", type: "error" });
+      } finally {
+        setSubmitting(false);
+      }
+      return; // don't fall through to SaveAppointment
+    }
+
     const freshRefId = crypto.randomUUID();
     setBookingRefId(freshRefId);
     const payload = {
       custID:          customerData.custid || "",
-      appointmentDate: selectedDate,
+      appointmentDate: bookingDate,
       userId:          user.userId || user.employeeCode || "",
       centerCode:      user.centerCode || "",
       referenceId:     freshRefId,
@@ -574,6 +614,20 @@ const AppointmentDrawer = ({
               <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
             </svg>
           </div>
+          {/* Reschedule banner */}
+          {editAppointment?.isReschedule && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 20px",
+              background:"#fffbeb", borderBottom:"1px solid #fde68a" }}>
+              <span style={{ fontSize:13, fontWeight:700, color:"#92400e" }}>
+                ↺ Rescheduling appointment — select new date and time below
+              </span>
+              <input type="date" value={rescheduleDate}
+                onChange={e => setRescheduleDate(e.target.value)}
+                style={{ padding:"5px 10px", border:"1px solid #fde68a", borderRadius:6,
+                  fontSize:13, fontFamily:"Lato,sans-serif", background:"#fff", cursor:"pointer" }}
+              />
+            </div>
+          )}
 
           <div className="apptfrmflx">
             <CustomerForm key={`cf-${resetKey}`} prefill={customerData} onChange={setCustomerData} />
@@ -584,9 +638,8 @@ const AppointmentDrawer = ({
             <ServiceList data={serviceList} onDelete={i => setServiceList(p => p.filter((_,idx) => idx !== i))} />
           </div>
 
-          <div style={{ marginTop:"10px", display:"flex", gap:"15px", justifyContent:"center", borderTop:"1px solid #ccc", paddingTop:"10px" }}>
-            <button className="submitbtn editbtn" onClick={handleSubmit} disabled={submitting}
-              style={{ opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}>
+          <div className="drwr-actions">
+            <button className="submitbtn editbtn" onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Saving…" : "Save Appointment"}
             </button>
             <button className="restbtn" onClick={onClose}>Cancel</button>
