@@ -232,23 +232,18 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           <div className="hdflx">
             <h2 className="dethead">Appointment Details</h2>
             <div className="acticons">
-              <button className="edit tooltip" data-tooltip="Edit" onClick={handleEdit}>
-                <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Edit" /></span>
-              </button>
+             
               {/* Reschedule — only for non-completed/non-active statuses */}
               {!["Completed","Active","Checked In"].includes(status) && onReschedule && (
-                <button className="edit tooltip" data-tooltip="Reschedule"
+                <button className="edit " data-tooltip="Reschedule"
                   onClick={() => { onReschedule?.(appt || appointment); onClose?.(); }}
                   style={{ marginLeft:2 }}>
-                  <span className="stimg">
-                    <img src={`${import.meta.env.BASE_URL}images/edtwht.svg`} alt="Reschedule" />
-                    <span style={{ fontSize:9, marginLeft:2, color:"#fff" }}>↺</span>
-                  </span>
+                    Reschedule
                 </button>
               )}
-              <button className="delete tooltip" data-tooltip="Delete" onClick={handleDelete}>
-                <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" /></span>
-              </button>
+              <button className="delete " data-tooltip="Delete" onClick={handleDelete}>
+                Delete
+                </button>
             </div>
           </div>
 
