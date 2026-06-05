@@ -32,9 +32,12 @@ const Toggle = ({ value, onChange, label, sub }) => (
   </div>
 );
 
-// ── Create Centre Form ────────────────────────────────────────────────────────
+
+// ── Create Centre Form — defined OUTSIDE CentreSetup to prevent focus loss ──
+// If defined inside CentreSetup, React remounts it on every parent re-render
+// causing the input to lose focus after each keystroke.
 function CreateCentreForm({ onSaved, onCancel }) {
-  const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const authPost = async (url, payload) => {
     const r = await fetch(url, {
       method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` },
@@ -45,37 +48,34 @@ function CreateCentreForm({ onSaved, onCancel }) {
     return j.data ?? j;
   };
 
-  const [form, setForm] = React.useState({
-    centerCode:"", centreName:"", displayName:"", leCode:"", timezone:"", currency:"",
-  });
-  const [saving, setSaving] = React.useState(false);
-  const [errors, setErrors] = React.useState([]);
+  const [form,   setForm]   = useState({ centerCode:"", centreName:"", displayName:"", leCode:"", timezone:"", currency:"" });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState([]);
 
   const handleSave = async () => {
     const errs = [];
-    if (!form.centerCode.trim())    errs.push("Centre Code is required.");
-    if (!form.centreName.trim())    errs.push("Centre Name is required.");
-    if (!form.displayName.trim())   errs.push("Display Name is required.");
+    if (!form.centerCode.trim())  errs.push("Centre Code is required.");
+    if (!form.centreName.trim())  errs.push("Centre Name is required.");
+    if (!form.displayName.trim()) errs.push("Display Name is required.");
     if (errs.length) { setErrors(errs); return; }
     setSaving(true);
     try {
       await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveGeneral`, form);
       onSaved(form.centerCode.trim().toUpperCase());
-    } catch (e) {
-      setErrors([e.message]);
-    } finally { setSaving(false); }
+    } catch (e) { setErrors([e.message]); }
+    finally { setSaving(false); }
   };
 
-  const field = (label, key, placeholder, required) => (
+  const Field = ({ label, name, placeholder, required }) => (
     <div style={{ marginBottom:12 }}>
       <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#64748b",
         textTransform:"uppercase", letterSpacing:".04em", marginBottom:4 }}>
         {label}{required && " *"}
       </label>
-      <input value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+      <input value={form[name]} onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
         placeholder={placeholder}
         style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:6,
-          fontSize:13, fontFamily:"Lato,sans-serif", outline:"none" }} />
+          fontSize:13, fontFamily:"Lato,sans-serif", outline:"none", boxSizing:"border-box" }} />
     </div>
   );
 
@@ -88,26 +88,22 @@ function CreateCentreForm({ onSaved, onCancel }) {
           <div style={{ fontSize:12, color:"#94a3b8" }}>Fill in the details to set up a new centre</div>
         </div>
       </div>
-
       {errors.length > 0 && (
         <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8,
           padding:"10px 14px", marginBottom:16, fontSize:13, color:"#b91c1c" }}>
           {errors.map((e,i) => <div key={i}>• {e}</div>)}
         </div>
       )}
-
-      {field("Centre Code", "centerCode", "e.g. BRIG (max 10 chars)", true)}
-      {field("Centre Name", "centreName", "e.g. Bright Clinics (max 60 chars)", true)}
-      {field("Display Name", "displayName", "e.g. Bright (max 20 chars)", true)}
-      {field("Legal Entity Code", "leCode", "e.g. TEST", false)}
-      {field("Timezone", "timezone", "e.g. Asia/Dubai", false)}
-      {field("Currency", "currency", "e.g. AED", false)}
-
+      <Field label="Centre Code"       name="centerCode"  placeholder="e.g. GLOW (max 10 chars)" required />
+      <Field label="Centre Name"       name="centreName"  placeholder="e.g. Glow Clinic (max 60 chars)" required />
+      <Field label="Display Name"      name="displayName" placeholder="e.g. Glow (max 20 chars)" required />
+      <Field label="Legal Entity Code" name="leCode"      placeholder="e.g. TEST" />
+      <Field label="Timezone"          name="timezone"    placeholder="e.g. Asia/Dubai" />
+      <Field label="Currency"          name="currency"    placeholder="e.g. AED" />
       <div style={{ display:"flex", gap:10, marginTop:8 }}>
         <button onClick={handleSave} disabled={saving}
           style={{ padding:"9px 24px", background:"#334b71", color:"#fff", border:"none",
-            borderRadius:6, fontWeight:700, fontSize:13, cursor:"pointer",
-            opacity: saving ? 0.6 : 1 }}>
+            borderRadius:6, fontWeight:700, fontSize:13, cursor:"pointer", opacity:saving?0.6:1 }}>
           {saving ? "Saving…" : "Create Centre"}
         </button>
         <button onClick={onCancel}
@@ -132,10 +128,10 @@ export default function CentreSetup() {
   const _rights = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
       const ALLOWED_ROLES = ["admin","productteam"];
       const isAdmin       = ALLOWED_ROLES.includes(role);
-      const isEntityLevel = u.isEntityLevel === true || isAdmin; // default true for admin/productteam
+      const isEntityLevel = u.isEntityLevel === true || isAdmin;
       const canWrite      = isAdmin;
       return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
     } catch {
@@ -145,7 +141,6 @@ export default function CentreSetup() {
   const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
 
   const [centres,      setCentres]      = useState([]);
-  const [isCreating,   setIsCreating]   = useState(false);
   const [selected,     setSelected]     = useState(null); // centerCode
   const [data,         setData]         = useState(null);
   const [activeTab,    setActiveTab]    = useState("General");
@@ -153,6 +148,7 @@ export default function CentreSetup() {
   const [saving,       setSaving]       = useState(false);
   const [toast,        setToast]        = useState(null);
   const [legalEntities,setLegalEntities]= useState([]);
+  const [isCreating,   setIsCreating]   = useState(false);
 
   // Tab states
   const [contacts,     setContacts]     = useState([]);
@@ -249,22 +245,6 @@ export default function CentreSetup() {
   const setPrimary = (idx) => setContacts(p => p.map((c, i) => ({ ...c, isPrimary: i === idx })));
   const availableTaxTypes = Object.values(TAX_TYPES[taxCountry] ? { [taxCountry]: TAX_TYPES[taxCountry] } : TAX_TYPES).flat();
 
-
-  // ── Access Guard ─────────────────────────────────────────────────────────────
-  if (!isAdmin) return (
-    <div style={{
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12,
-    }}>
-      <div style={{ fontSize:48 }}>🔒</div>
-      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
-      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:380 }}>
-        You do not have permission to access this page.<br/>
-        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users only.
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
       {!isAdmin && (
@@ -308,13 +288,9 @@ export default function CentreSetup() {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <h3 style={{ margin:0 }}>🏥 Centres</h3>
             {canCreate && (
-              <button
-                onClick={() => { setSelected(null); setData(null); setIsCreating(true); }}
-                style={{
-                  background:"#334b71", color:"#fff", border:"none", borderRadius:6,
-                  padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer",
-                  display:"flex", alignItems:"center", gap:4,
-                }}>
+              <button onClick={() => { setSelected(null); setData(null); setIsCreating(true); }}
+                style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:6,
+                  padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
                 + New
               </button>
             )}
