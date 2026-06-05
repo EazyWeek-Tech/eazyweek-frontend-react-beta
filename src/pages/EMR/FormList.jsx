@@ -3,6 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+const getUser = () => {
+  try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
+  catch { return {}; }
+};
+
+// Only Admin/ProductTeam users at entity level can create or delete forms
+const getFormRights = () => {
+  const u    = getUser();
+  const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
+  const ALLOWED = ["admin", "productteam"];
+  const isAdmin       = ALLOWED.includes(role);
+  const isEntityLevel = u.isEntityLevel === true || isAdmin; // default true for admin roles
+  const canManage     = isAdmin && isEntityLevel;
+  return { isAdmin, canCreate: canManage, canDelete: canManage };
+};
 const authGet = async (url) => {
   const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
   const j = await r.json(); return j.data ?? j;
@@ -11,9 +27,13 @@ const authPost = async (url, body) => {
   const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body: JSON.stringify(body) });
   return r.json();
 };
+const authDelete = async (url) => {
+  const r = await fetch(url, { method:"DELETE", headers:{ Authorization:`Bearer ${TOKEN()}` } });
+  const j = await r.json(); return j;
+};
 
 const FORM_TYPES = ["Consent/Treatment", "Customer"];
-const STATUSES   = ["Active", "Draft", "Inactive"];
+const STATUSES   = ["Active", "Inactive"];
 
 export default function FormList() {
   const navigate = useNavigate();
@@ -21,12 +41,15 @@ export default function FormList() {
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filterType, setFilterType] = useState("");
-  const [filterStat, setFilterStat] = useState("");
+  const [filterStat, setFilterStat] = useState("Active");
   const [showCreate, setShowCreate] = useState(false);
   const [creating,   setCreating]   = useState(false);
   const [toast,      setToast]      = useState(null);
   const [newForm,    setNewForm]    = useState({ formCode:"", formName:"", formType:"Consent/Treatment" });
   const [errors,     setErrors]     = useState({});
+  const [deleting,   setDeleting]   = useState(null); // formCode being deleted
+
+  const { canCreate, canDelete } = getFormRights();
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
@@ -41,6 +64,25 @@ export default function FormList() {
   };
 
   useEffect(() => { load(); }, [filterType, filterStat]);
+
+  const handleDelete = async (e, formCode, formName) => {
+    e.stopPropagation(); // prevent row click navigating to builder
+    if (!window.confirm(`Delete form "${formName}" (${formCode})? This cannot be undone.`)) return;
+    setDeleting(formCode);
+    try {
+      const res = await authDelete(`${API_BASE_URL}/api/EMR/Forms/${formCode}`);
+      if (res.success !== false) {
+        showToast(`Form "${formName}" deleted.`, "success");
+        load(); // refresh list
+      } else {
+        showToast(res.message || "Delete failed.", "error");
+      }
+    } catch {
+      showToast("Delete failed.", "error");
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const filtered = forms.filter(f =>
     !search || f.formName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -93,11 +135,9 @@ export default function FormList() {
     ? { bg:"#e9edf5", color:"#334b71" }
     : { bg:"#e6f4ef", color:"#2e7d5e" };
 
-  const statColor = (s) => {
-    if (s === "Active")   return { bg:"#dcfce7", color:"#166534" };
-    if (s === "Draft")    return { bg:"#fef3c7", color:"#92400e" };
-    return { bg:"#f1f5f9", color:"#64748b" };
-  };
+  const statColor = (s) => s === "Active"
+    ? { bg:"#dcfce7", color:"#166534" }
+    : { bg:"#f1f5f9", color:"#64748b" };
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh" }}>
@@ -130,7 +170,9 @@ export default function FormList() {
             <div className="fl-title">📋 EMR Forms</div>
             <div className="fl-sub">Create and manage electronic medical record forms</div>
           </div>
-          <button className="pri-btn" onClick={() => setShowCreate(true)}>+ Create Form</button>
+          {canCreate && (
+            <button className="pri-btn" onClick={() => setShowCreate(true)}>+ Create Form</button>
+          )}
         </div>
 
         {/* Toast */}
@@ -193,6 +235,20 @@ export default function FormList() {
                 <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                   <span className="badge" style={{ background:tc.bg, color:tc.color }}>{f.formType}</span>
                   <span className="badge" style={{ background:sc.bg, color:sc.color }}>{f.status}</span>
+                  {canDelete && (
+                    <button
+                      onClick={(e) => handleDelete(e, f.formCode, f.formName)}
+                      disabled={deleting === f.formCode}
+                      title="Delete form"
+                      style={{
+                        background:"#fef2f2", border:"1px solid #fecaca", borderRadius:6,
+                        padding:"4px 8px", cursor:"pointer", fontSize:14, color:"#dc2626",
+                        opacity: deleting === f.formCode ? 0.5 : 1,
+                        flexShrink:0, lineHeight:1,
+                      }}>
+                      {deleting === f.formCode ? "…" : "🗑"}
+                    </button>
+                  )}
                   <span style={{ fontSize:18, color:"#94a3b8" }}>›</span>
                 </div>
               </div>
