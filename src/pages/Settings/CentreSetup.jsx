@@ -33,6 +33,28 @@ const Toggle = ({ value, onChange, label, sub }) => (
 );
 
 
+// ── FormField — module-level so React never remounts it on parent re-render ──
+// IMPORTANT: Never define input components inside another component's render.
+// Defining them inside causes React to see a new component type on every render,
+// unmounting the input and losing focus after each keystroke.
+function FormField({ label, value, onChange, placeholder, required, type }) {
+  return (
+    <div style={{ marginBottom:12 }}>
+      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#64748b",
+        textTransform:"uppercase", letterSpacing:".04em", marginBottom:4 }}>
+        {label}{required && " *"}
+      </label>
+      <input
+        type={type || "text"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:6,
+          fontSize:13, fontFamily:"Lato,sans-serif", outline:"none", boxSizing:"border-box" }} />
+    </div>
+  );
+}
+
 // ── Create Centre Form — defined OUTSIDE CentreSetup to prevent focus loss ──
 // If defined inside CentreSetup, React remounts it on every parent re-render
 // causing the input to lose focus after each keystroke.
@@ -75,18 +97,7 @@ function CreateCentreForm({ onSaved, onCancel }) {
     finally { setSaving(false); }
   };
 
-  const Field = ({ label, name, placeholder, required }) => (
-    <div style={{ marginBottom:12 }}>
-      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#64748b",
-        textTransform:"uppercase", letterSpacing:".04em", marginBottom:4 }}>
-        {label}{required && " *"}
-      </label>
-      <input value={form[name]} onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
-        placeholder={placeholder}
-        style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:6,
-          fontSize:13, fontFamily:"Lato,sans-serif", outline:"none", boxSizing:"border-box" }} />
-    </div>
-  );
+
 
   return (
     <div style={{ padding:32, maxWidth:520 }}>
@@ -103,10 +114,10 @@ function CreateCentreForm({ onSaved, onCancel }) {
           {errors.map((e,i) => <div key={i}>• {e}</div>)}
         </div>
       )}
-      <Field label="Centre Code"       name="centerCode"  placeholder="e.g. GLOW (exactly 4 chars)" required />
-      <Field label="Centre Name"       name="centreName"  placeholder="e.g. Glow Clinic (max 60 chars)" required />
-      <Field label="Display Name"      name="displayName" placeholder="e.g. Glow (max 20 chars)" required />
-      <Field label="Legal Entity Code" name="leCode"      placeholder="e.g. TEST" />
+      <FormField label="Centre Code"       value={form.centerCode}  onChange={e => setForm(p => ({...p, centerCode:e.target.value}))}  placeholder="e.g. GLOW (exactly 4 chars)" required />
+      <FormField label="Centre Name"       value={form.centreName}  onChange={e => setForm(p => ({...p, centreName:e.target.value}))}  placeholder="e.g. Glow Clinic (max 60 chars)" required />
+      <FormField label="Display Name"      value={form.displayName} onChange={e => setForm(p => ({...p, displayName:e.target.value}))} placeholder="e.g. Glow (max 20 chars)" required />
+      <FormField label="Legal Entity Code" value={form.leCode}      onChange={e => setForm(p => ({...p, leCode:e.target.value}))}      placeholder="e.g. TEST" />
       <div style={{ display:"flex", gap:10, marginTop:8 }}>
         <button onClick={handleSave} disabled={saving}
           style={{ padding:"9px 24px", background:"#334b71", color:"#fff", border:"none",
