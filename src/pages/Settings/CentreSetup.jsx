@@ -4,6 +4,10 @@ import { API_BASE_URL } from "../../config";
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
 const authGet  = async (url) => { const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } }); const j = await r.json(); return j.data ?? j; };
+const authDelete = async (url) => {
+  const r = await fetch(url, { method:"DELETE", headers:{ Authorization:`Bearer ${TOKEN()}` } });
+  return r.json();
+};
 const authPost = async (url, body) => { const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) }); return r.json(); };
 
 const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup"];
@@ -60,7 +64,11 @@ function FormField({ label, value, onChange, placeholder, required, type }) {
 // causing the input to lose focus after each keystroke.
 function CreateCentreForm({ onSaved, onCancel }) {
   const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-  const authPost = async (url, payload) => {
+  const authDelete = async (url) => {
+  const r = await fetch(url, { method:"DELETE", headers:{ Authorization:`Bearer ${TOKEN()}` } });
+  return r.json();
+};
+const authPost = async (url, payload) => {
     const r = await fetch(url, {
       method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` },
       body: JSON.stringify(payload),
@@ -73,6 +81,18 @@ function CreateCentreForm({ onSaved, onCancel }) {
   const [form,   setForm]   = useState({ centerCode:"", centreName:"", displayName:"", leCode:"" });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
+
+  const handleDeleteCentre = async () => {
+    if (!selected) return;
+    if (!window.confirm(`Delete centre "${selected}"? This can only be done if no data exists in other sections (Address, Contact, Tax etc.).`)) return;
+    try {
+      const res = await authDelete(`${API_BASE_URL}/api/Settings/Centre/${encodeURIComponent(selected)}`);
+      if (res.success === false) { showToast(res.message || "Delete failed.", "error"); return; }
+      showToast(`Centre "${selected}" deleted successfully.`, "success");
+      setSelected(null); setData(null);
+      fetchCentres();
+    } catch (e) { showToast(e.message || "Delete failed.", "error"); }
+  };
 
   const handleSave = async () => {
     const errs = [];
@@ -149,9 +169,11 @@ export default function CentreSetup() {
       const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
       const ALLOWED_ROLES = ["admin","productteam"];
       const isAdmin       = ALLOWED_ROLES.includes(role);
-      const isEntityLevel = u.isEntityLevel === true || isAdmin;
-      const canWrite      = isAdmin;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+      // isEntityLevel MUST come from JWT — no fallback
+      // Centre-level admins have isEntityLevel=false and get view-only
+      const isEntityLevel = u.isEntityLevel === true;
+      const canManage     = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canManage, canEdit: canManage, canDelete: canManage };
     } catch {
       return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
     }
@@ -228,6 +250,18 @@ export default function CentreSetup() {
       });
   }, [selected]);
 
+  const handleDeleteCentre = async () => {
+    if (!selected) return;
+    if (!window.confirm(`Delete centre "${selected}"? This can only be done if no data exists in other sections (Address, Contact, Tax etc.).`)) return;
+    try {
+      const res = await authDelete(`${API_BASE_URL}/api/Settings/Centre/${encodeURIComponent(selected)}`);
+      if (res.success === false) { showToast(res.message || "Delete failed.", "error"); return; }
+      showToast(`Centre "${selected}" deleted successfully.`, "success");
+      setSelected(null); setData(null);
+      fetchCentres();
+    } catch (e) { showToast(e.message || "Delete failed.", "error"); }
+  };
+
   const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
@@ -277,10 +311,10 @@ export default function CentreSetup() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      {!isAdmin && (
+      {!canEdit && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Only Admins at entity level can make changes.
+          👁 View Only — Create, edit and delete actions are restricted to Admin users at entity level.
         </div>
       )}
 
@@ -370,9 +404,19 @@ export default function CentreSetup() {
                   <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>🏥 {data.centreName}</div>
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{data.centerCode} · {data.address}</div>
                 </div>
-                <button className="save-btn" onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving…" : "💾 Save Centre"}
-                </button>
+                <div style={{ display:"flex", gap:10 }}>
+                  {canDelete && (
+                    <button onClick={handleDeleteCentre}
+                      style={{ padding:"9px 16px", background:"#fef2f2", color:"#b91c1c",
+                        border:"1px solid #fecaca", borderRadius:10, fontWeight:700,
+                        fontSize:13, cursor:"pointer" }}>
+                      🗑 Delete Centre
+                    </button>
+                  )}
+                  <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
+                    {saving ? "Saving…" : "💾 Save Centre"}
+                  </button>
+                </div>
               </div>
 
               {/* Toast */}
@@ -727,7 +771,7 @@ export default function CentreSetup() {
 
                 {/* Bottom save */}
                 <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:16 }}>
-                  <button className="save-btn" onClick={handleSave} disabled={saving}>
+                  <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
                     {saving ? "Saving…" : "💾 Save Centre"}
                   </button>
                 </div>

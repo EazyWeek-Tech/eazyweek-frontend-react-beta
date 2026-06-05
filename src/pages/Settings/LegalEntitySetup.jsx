@@ -21,18 +21,17 @@ export default function LegalEntitySetup() {
 
 
 
-  // ── Access rights ─────────────────────────────────────────────────────────
-  // Access control — Admin and ProductTeam roles only
-  // canWrite = (Admin or ProductTeam) AND at entity level
+  // ── Access Rights ─────────────────────────────────────────────────────────
+  // Create / Edit / Delete = Admin or ProductTeam AT ENTITY LEVEL only
   const _rights = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
       const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
-      const ALLOWED_ROLES = ["admin", "productteam"];
-      const isAdmin       = ALLOWED_ROLES.includes(role);
-      const isEntityLevel = u.isEntityLevel === true || true; // default true if not set
-      const canWrite      = isAdmin;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+      const ALLOWED   = ["admin", "productteam"];
+      const isAdmin   = ALLOWED.includes(role);
+      const isEntityLevel = u.isEntityLevel === true;
+      const canManage = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canManage, canEdit: canManage, canDelete: canManage };
     } catch {
       return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
     }
@@ -248,7 +247,7 @@ export default function LegalEntitySetup() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      {!isAdmin && (
+      {!canEdit && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
           👁 View Only — Only Admins at entity level can make changes.
@@ -300,7 +299,7 @@ export default function LegalEntitySetup() {
             <div className="le-title">🏢 Legal Entity Setup</div>
             <div className="le-sub">Configure organisation, addresses, contacts &amp; policies</div>
           </div>
-          <button className="save-btn" onClick={handleSave} disabled={saving}>
+          <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
             {saving ? "Saving…" : "💾 Save Entity"}
           </button>
         </div>
@@ -616,7 +615,7 @@ export default function LegalEntitySetup() {
           <button style={{ background:"#fff", border:"1px solid #e7ecf4", borderRadius:10, padding:"10px 20px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
             Cancel
           </button>
-          <button className="save-btn" onClick={handleSave} disabled={saving}>
+          <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
             {saving ? "Saving…" : "💾 Save Entity"}
           </button>
         </div>

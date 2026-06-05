@@ -16,18 +16,16 @@ export default function ZoneSetup() {
 
 
 
-  // ── Access rights ─────────────────────────────────────────────────────────
-  // isEntityLevel and role come directly from the JWT user object
-  // canWrite = Admin role AND at entity level
+  // ── Access Rights ─────────────────────────────────────────────────────────
   const _rights = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const ALLOWED_ROLES = ["admin","productteam"];
-      const isAdmin       = ALLOWED_ROLES.includes(role);
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
+      const ALLOWED   = ["admin", "productteam"];
+      const isAdmin   = ALLOWED.includes(role);
       const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
+      const canManage = isAdmin && isEntityLevel;
+      return { isAdmin, isEntityLevel, canCreate: canManage, canEdit: canManage, canDelete: canManage };
     } catch {
       return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
     }
@@ -174,7 +172,7 @@ export default function ZoneSetup() {
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      {!isAdmin && (
+      {!canEdit && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
           👁 View Only — Only Admins at entity level can make changes.
@@ -211,7 +209,7 @@ export default function ZoneSetup() {
             <div className="zs-title">🗺 Zone Setup</div>
             <div className="zs-sub">Define operational zones and map centres to them</div>
           </div>
-          <button className="primary-btn" onClick={handleNew}>+ Create Zone</button>
+          {canCreate && <button className="primary-btn" onClick={handleNew}>+ Create Zone</button>}
         </div>
 
         {/* Toast */}
@@ -249,7 +247,7 @@ export default function ZoneSetup() {
               </div>
               <div style={{ display:"flex", gap:8 }}>
                 <button className="ghost-btn" style={{ padding:"7px 14px", fontSize:12 }} onClick={()=>{ if(canEdit) handleEdit(z.zoneCode); }}>Edit</button>
-                <button className="danger-btn" onClick={() => setConfirmDelete(z)}>Delete</button>
+                {canDelete && <button className="danger-btn" onClick={() => setConfirmDelete(z)}>Delete</button>}
               </div>
             </div>
           ))}
@@ -370,10 +368,10 @@ export default function ZoneSetup() {
               </div>
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
                 <button className="ghost-btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
-                <button style={{ background:"#b91c1c", color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13, cursor:"pointer" }}
+                {canDelete && (<button style={{ background:"#b91c1c", color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13, cursor:"pointer" }}
                   onClick={()=>{ if(canDelete) handleDelete(confirmDelete.zoneCode); }}>
                   Yes, Delete
-                </button>
+                </button>)}
               </div>
             </div>
           </div>
