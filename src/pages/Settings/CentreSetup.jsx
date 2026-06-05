@@ -6,7 +6,7 @@ const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") ||
 const authGet  = async (url) => { const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } }); const j = await r.json(); return j.data ?? j; };
 const authPost = async (url, body) => { const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) }); return r.json(); };
 
-const TABS = ["General","Contact","Logo","Tax","Numbering","Setup"];
+const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup"];
 
 const TAX_TYPES = {
   "Saudi Arabia": ["VAT Number","CR Number","Zakat Registration Number"],
@@ -48,20 +48,29 @@ function CreateCentreForm({ onSaved, onCancel }) {
     return j.data ?? j;
   };
 
-  const [form,   setForm]   = useState({ centerCode:"", centreName:"", displayName:"", leCode:"", timezone:"", currency:"" });
+  const [form,   setForm]   = useState({ centerCode:"", centreName:"", displayName:"", leCode:"" });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
 
   const handleSave = async () => {
     const errs = [];
-    if (!form.centerCode.trim())  errs.push("Centre Code is required.");
-    if (!form.centreName.trim())  errs.push("Centre Name is required.");
-    if (!form.displayName.trim()) errs.push("Display Name is required.");
+    const code = form.centerCode.trim().toUpperCase();
+    if (!code)                                  errs.push("Centre Code is required.");
+    else if (code.length !== 4)                 errs.push("Centre Code must be exactly 4 characters.");
+    else if (!/^[A-Za-z0-9]{4}$/.test(code))   errs.push("Centre Code must be alphanumeric only.");
+    if (!form.centreName.trim())                errs.push("Centre Name is required.");
+    if (!form.displayName.trim())               errs.push("Display Name is required.");
+    if (!form.leCode?.trim())                   errs.push("Legal Entity is required.");
     if (errs.length) { setErrors(errs); return; }
     setSaving(true);
     try {
-      await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveGeneral`, form);
-      onSaved(form.centerCode.trim().toUpperCase());
+      await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveGeneral`, {
+        centerCode:  code,
+        centreName:  form.centreName.trim(),
+        displayName: form.displayName.trim(),
+        leCode:      form.leCode.trim(),
+      });
+      onSaved(code); // already toUpperCase from validation
     } catch (e) { setErrors([e.message]); }
     finally { setSaving(false); }
   };
@@ -94,12 +103,10 @@ function CreateCentreForm({ onSaved, onCancel }) {
           {errors.map((e,i) => <div key={i}>• {e}</div>)}
         </div>
       )}
-      <Field label="Centre Code"       name="centerCode"  placeholder="e.g. GLOW (max 10 chars)" required />
+      <Field label="Centre Code"       name="centerCode"  placeholder="e.g. GLOW (exactly 4 chars)" required />
       <Field label="Centre Name"       name="centreName"  placeholder="e.g. Glow Clinic (max 60 chars)" required />
       <Field label="Display Name"      name="displayName" placeholder="e.g. Glow (max 20 chars)" required />
       <Field label="Legal Entity Code" name="leCode"      placeholder="e.g. TEST" />
-      <Field label="Timezone"          name="timezone"    placeholder="e.g. Asia/Dubai" />
-      <Field label="Currency"          name="currency"    placeholder="e.g. AED" />
       <div style={{ display:"flex", gap:10, marginTop:8 }}>
         <button onClick={handleSave} disabled={saving}
           style={{ padding:"9px 24px", background:"#334b71", color:"#fff", border:"none",
@@ -151,6 +158,7 @@ export default function CentreSetup() {
   const [isCreating,   setIsCreating]   = useState(false);
 
   // Tab states
+  const [addresses,    setAddresses]    = useState([]);
   const [contacts,     setContacts]     = useState([]);
   const [logoUrl,      setLogoUrl]      = useState("");
   const [logoPreview,  setLogoPreview]  = useState("");
@@ -199,7 +207,8 @@ export default function CentreSetup() {
       .then(d => {
         if (!d) return;
         setData(d);
-        setGeneral({ displayName: d.displayName || "", leCode: d.leCode || "" });
+        setGeneral({ displayName: d.displayName || "", leCode: d.leCode || "", vatNumber: d.vatNumber || "", branch: d.branch || "" });
+        setAddresses(d.addresses?.length ? d.addresses : []);
         setContacts(d.contacts?.length ? d.contacts : []);
         setLogoUrl(d.logoUrl || ""); setLogoPreview(d.logoUrl || "");
         setTaxItems(d.tax || []);
@@ -217,7 +226,17 @@ export default function CentreSetup() {
       let res;
 
       if (activeTab === "General") {
-        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveGeneral`, { centerCode: selected, ...general });
+        // Centre Code and Name are read-only; only Legal Entity and Display Name can be updated
+        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveGeneral`, {
+          centerCode:  selected,
+          leCode:      general.leCode      || "",
+          displayName: general.displayName || "",
+        });
+      } else if (activeTab === "Address") {
+        if (!addresses.length) throw new Error("At least one address is required.");
+        if (!addresses.some(a => a.isPrimary === true))
+          throw new Error("A primary address is mandatory.");
+        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveAddresses`, { centerCode: selected, addresses });
       } else if (activeTab === "Contact") {
         if (!contacts.some(c => c.isPrimary && c.contactType === "Phone"))
           throw new Error("A primary phone number is mandatory.");
@@ -317,7 +336,10 @@ export default function CentreSetup() {
             <CreateCentreForm
               onSaved={(code) => {
                 setIsCreating(false);
-                fetchCentres().then(() => setSelected(code));
+                fetchCentres().then(() => {
+                  setSelected(code);
+                  setActiveTab("Address"); // auto-open Address tab after creation
+                });
               }}
               onCancel={() => setIsCreating(false)}
             />
@@ -356,7 +378,7 @@ export default function CentreSetup() {
               <div className="cs-tabs">
                 {TABS.map(t => (
                   <div key={t} className={`cs-tab ${activeTab===t?"active":""}`} onClick={() => setActiveTab(t)}>
-                    {t==="General"?"🏢":t==="Contact"?"📞":t==="Logo"?"🖼":t==="Tax"?"🧾":t==="Numbering"?"#":t==="Setup"?"⚙":""} {t}
+                    {t==="General"?"🏢":t==="Address"?"📍":t==="Contact"?"📞":t==="Logo"?"🖼":t==="Tax"?"🧾":t==="Numbering"?"#":t==="Setup"?"⚙":""} {t}
                   </div>
                 ))}
               </div>
@@ -365,51 +387,91 @@ export default function CentreSetup() {
 
                 {/* ── GENERAL TAB ── */}
                 {activeTab === "General" && (
-                  <>
-                    <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>General Information</div>
-                      <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Primary identification details. Centre Code and Name are read-only (from existing setup).</div>
-                      <div className="grid-2">
-                        <div className="field">
-                          <label>Centre Code</label>
-                          <input value={data.centerCode} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
-                        <div className="field">
-                          <label>Centre Name</label>
-                          <input value={data.centreName} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
-                        <div className="field">
-                          <label>Display Name <span style={{ color:"#94a3b8", fontWeight:400 }}>(max 20 chars)</span></label>
-                          <input value={general.displayName} maxLength={20}
-                            onChange={e => setGeneral(p => ({ ...p, displayName: e.target.value }))}
-                            placeholder="Short display name" />
-                        </div>
-                        <div className="field">
-                          <label>Legal Entity</label>
-                          <select value={general.leCode} onChange={e => setGeneral(p => ({ ...p, leCode: e.target.value }))}>
-                            <option value="">Select Legal Entity…</option>
-                            {legalEntities.map(le => <option key={le.leCode} value={le.leCode}>{le.leName} ({le.leCode})</option>)}
-                          </select>
-                        </div>
-                        <div className="field">
-                          <label>Address</label>
-                          <input value={data.address} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
-                        <div className="field">
-                          <label>Zone</label>
-                          <input value={data.zone} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
-                        <div className="field">
-                          <label>VAT Number</label>
-                          <input value={data.vatNumber} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
-                        <div className="field">
-                          <label>Branch</label>
-                          <input value={data.branch} readOnly style={{ background:"#f8fafc" }} />
-                        </div>
+                  <div className="card-inner">
+                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>🏢 General Information</div>
+                    <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Primary identification and operational details of the Centre.</div>
+                    <div className="grid-2">
+                      <div className="field">
+                        <label>Legal Entity Code *</label>
+                        <select value={general.leCode} onChange={e => setGeneral(p => ({ ...p, leCode: e.target.value }))}>
+                          <option value="">Select Legal Entity…</option>
+                          {legalEntities.map(le => <option key={le.leCode} value={le.leCode}>{le.leName} ({le.leCode})</option>)}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Centre Code *</label>
+                        <input value={data.centerCode} readOnly style={{ background:"#f8fafc", color:"#64748b" }}
+                          placeholder="e.g., CTR-001" />
+                      </div>
+                      <div className="field">
+                        <label>Name *</label>
+                        <input value={data.centreName} readOnly style={{ background:"#f8fafc", color:"#64748b" }}
+                          placeholder="Official Centre name" />
+                      </div>
+                      <div className="field">
+                        <label>Display Name</label>
+                        <input value={general.displayName} maxLength={20}
+                          onChange={e => setGeneral(p => ({ ...p, displayName: e.target.value }))}
+                          placeholder="User-friendly name" />
                       </div>
                     </div>
-                  </>
+                    <div style={{ marginTop:14, padding:"10px 14px", background:"#f8fafc",
+                      border:"1px solid #e7ecf4", borderRadius:8, fontSize:12, color:"#64748b" }}>
+                      Each Centre must be linked to a valid Legal Entity. Centre code must be unique within the organization.
+                    </div>
+                  </div>
+                )}
+
+                {/* ── ADDRESS TAB ── */}
+                {activeTab === "Address" && (
+                  <div className="card-inner">
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                      <div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}>📍 Address Information</div>
+                        <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Multiple addresses allowed; one must be marked primary.</div>
+                      </div>
+                      <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", isPrimary: p.length === 0 }])}>
+                        + Add Address
+                      </button>
+                    </div>
+                    {addresses.length === 0 && (
+                      <div style={{ textAlign:"center", padding:"30px 0", color:"#94a3b8", fontSize:13 }}>
+                        No addresses added yet. Click "+ Add Address" to begin.
+                      </div>
+                    )}
+                    {addresses.map((a, idx) => (
+                      <div key={idx} style={{ border:"1px solid #e7ecf4", borderRadius:8, padding:14, marginBottom:10 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
+                          <span style={{ fontWeight:700, fontSize:13 }}>
+                            Address #{idx+1} {a.isPrimary && <span className="primary-badge">Primary</span>}
+                          </span>
+                          <button className="del-btn" onClick={() => setAddresses(p => p.filter((_,i) => i !== idx))}>🗑</button>
+                        </div>
+                        <div className="field" style={{ marginBottom:10 }}>
+                          <label>Description * <span style={{ color:"#94a3b8", fontWeight:400 }}>(max 60 chars)</span></label>
+                          <input value={a.description} maxLength={60} placeholder="e.g. Head Office"
+                            onChange={e => setAddresses(p => p.map((x,i) => i===idx ? {...x, description:e.target.value} : x))} />
+                        </div>
+                        <div className="field" style={{ marginBottom:10 }}>
+                          <label>Full Address * <span style={{ color:"#94a3b8", fontWeight:400 }}>(max 255 chars)</span></label>
+                          <textarea value={a.address} maxLength={255} rows={3} placeholder="Complete address"
+                            style={{ border:"1px solid #e7ecf4", borderRadius:8, padding:"10px 12px", fontSize:13,
+                              width:"100%", boxSizing:"border-box", resize:"vertical", outline:"none" }}
+                            onChange={e => setAddresses(p => p.map((x,i) => i===idx ? {...x, address:e.target.value} : x))} />
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                          <div style={{ width:44, height:24, borderRadius:24,
+                            background:a.isPrimary?"#334b71":"#d3dbe8", position:"relative", cursor:"pointer" }}
+                            onClick={() => setAddresses(p => p.map((x,i) => ({ ...x, isPrimary: i === idx })))}>
+                            <div style={{ width:18, height:18, background:"#fff", borderRadius:"50%",
+                              position:"absolute", top:3, left:a.isPrimary?23:3, transition:"all .2s",
+                              boxShadow:"0 1px 3px rgba(0,0,0,.25)" }} />
+                          </div>
+                          <span style={{ fontSize:13, fontWeight:600 }}>Mark as primary address</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
 
                 {/* ── CONTACT TAB ── */}
