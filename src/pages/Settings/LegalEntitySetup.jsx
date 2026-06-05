@@ -22,15 +22,16 @@ export default function LegalEntitySetup() {
 
 
   // ── Access rights ─────────────────────────────────────────────────────────
-  // isEntityLevel and role come directly from the JWT user object
-  // canWrite = Admin role AND at entity level
+  // Access control — Admin and ProductTeam roles only
+  // canWrite = (Admin or ProductTeam) AND at entity level
   const _rights = (() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
-      const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
+      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
+      const ALLOWED_ROLES = ["admin", "productteam"];
+      const isAdmin       = ALLOWED_ROLES.includes(role);
+      const isEntityLevel = u.isEntityLevel === true || true; // default true if not set
+      const canWrite      = isAdmin;
       return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
     } catch {
       return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
@@ -228,6 +229,22 @@ export default function LegalEntitySetup() {
   const availableTaxTypes = taxCountry ? (taxTypes[taxCountry] || []) : Object.values(taxTypes).flat();
 
   if (loading) return <div style={{ padding:40, textAlign:"center", color:"#64748b" }}>Loading Legal Entity…</div>;
+
+  // ── Access Guard ─────────────────────────────────────────────────────────────
+  // Block non-admin / non-ProductTeam users from seeing the page at all
+  if (!isAdmin) return (
+    <div style={{
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12,
+    }}>
+      <div style={{ fontSize:48 }}>🔒</div>
+      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:380 }}>
+        You do not have permission to access Legal Entity Setup.<br/>
+        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users only.
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>

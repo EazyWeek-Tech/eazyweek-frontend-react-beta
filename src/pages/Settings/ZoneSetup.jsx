@@ -23,7 +23,8 @@ export default function ZoneSetup() {
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
       const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
+      const ALLOWED_ROLES = ["admin","productteam"];
+      const isAdmin       = ALLOWED_ROLES.includes(role);
       const isEntityLevel = u.isEntityLevel === true;
       const canWrite      = isAdmin && isEntityLevel;
       return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
@@ -154,6 +155,22 @@ export default function ZoneSetup() {
 
   // Available centres not yet mapped
   const unmapped = availableCentres.filter(c => !mappedCentres.find(m => m.centerCode === c.centerCode));
+
+
+  // ── Access Guard ─────────────────────────────────────────────────────────────
+  if (!isAdmin) return (
+    <div style={{
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12,
+    }}>
+      <div style={{ fontSize:48 }}>🔒</div>
+      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:380 }}>
+        You do not have permission to access this page.<br/>
+        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users only.
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
