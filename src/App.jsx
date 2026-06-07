@@ -75,6 +75,7 @@ import InjectablesConsentForm from "./pages/CustomForms/Antiaging/InjectablesCon
 import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
+import DispositionMaster from "./pages/Opportunity/DispositionMaster";
 import DispositionMappingList from "./pages/Opportunity/DispositionMappingList";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
@@ -302,7 +303,7 @@ if (user && showFirstLogin) {
 <Route path="/opportunity/:oppCode/cancelled/:custId" element={<CancelledEntryDetails />} />
 
 
-<Route path="/masters/disposition" element={<DispositionMappingList />} />
+<Route path="/masters/disposition" element={<DispositionMaster />} />
 <Route path="/opportunity/disposition-mapping/create" element={<DispositionMappingCreate />} />
                   <Route path="cases" element={<CaseManagement />} />
                   <Route
