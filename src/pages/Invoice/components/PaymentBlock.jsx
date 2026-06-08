@@ -717,8 +717,10 @@ const PaymentBlock = ({
         body: JSON.stringify(payload)
       });
       const result = await response.json();
-      if (result.success) {
-        setToast({ message: 'Invoice submitted successfully!', type: 'success' });
+console.log('[PaymentBlock] Invoice API response:', result); // remove after confirmed
+if (result.success) {
+  setToast({ message: 'Invoice submitted successfully!', type: 'success' });
+
 
         // snapshot for print/email
         setSubmittedPayments(payments);
@@ -1282,7 +1284,10 @@ const PaymentBlock = ({
 
 
       {invoiceSuccessPopup && (
-        <div className="popouter active smallinvoicepopup">
+        <div className="popouter active smallinvoicepopup"
+  style={{ display:"flex", position:"fixed", inset:0, zIndex:9999,
+    alignItems:"center", justifyContent:"center",
+    background:"rgba(0,0,0,.5)" }}>
           <div className="popovrly" onClick={() => setInvoiceSuccessPopup(false)}></div>
           <div className="popin">
             <div className="popuphdr">

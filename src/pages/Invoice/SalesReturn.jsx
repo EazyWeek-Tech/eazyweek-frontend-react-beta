@@ -25,16 +25,13 @@ const fmtDate = (d) => {
   return `${day}/${m}/${y}`;
 };
 
-// ── STEP 1 — Recall Invoice button (trigger) is in InvoiceForm, renders modal ──
-// ── STEP 2 — Search popup ────────────────────────────────────────────────────
+// ── STEP 2 — Search popup ─────────────────────────────────────────────────────
 const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
   const [searchBy,    setSearchBy]    = useState("invoiceNo");
   const [searchValue, setSearchValue] = useState("");
   const [results,     setResults]     = useState([]);
-  const [returnedSet, setReturnedSet]  = useState(new Set());
   const [loading,     setLoading]     = useState(false);
 
-  // Default: customer's invoices if custId provided, else 10 most recent
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -47,10 +44,7 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
         } else {
           data = await authGet(`${API_BASE_URL}/api/SalesReturn/RecentInvoices`);
         }
-        const arr = Array.isArray(data) ? data : [];
-        setResults(arr);
-        // returnedSet now comes from fullyReturned flag in results — no extra call needed
-        // partialReturn flag also available per invoice
+        setResults(Array.isArray(data) ? data : []);
       } catch { setResults([]); }
       finally { setLoading(false); }
     })();
@@ -69,16 +63,7 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
   };
 
   return (
-    <div className="popouter" style={{ display: "flex", zIndex: 9999 }}>
-      <div className="popovrly" onClick={onClose} />
-      <div className="popin" style={{ maxWidth: 800, width: "95%" }}>
-        <div className="popuphdr">
-          Recall Invoice
-          <span className="clsbtn" onClick={onClose}>
-            <img src={`${import.meta.env.BASE_URL}images/clsic.svg`} alt="Close" />
-          </span>
-        </div>
-        <div className="popfrm">
+    <div>
           {/* Search bar */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ display: "flex", border: "1.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
@@ -91,10 +76,14 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
                 </button>
               ))}
             </div>
-            <input type="text" placeholder={`Search by ${searchBy === "invoiceNo" ? "invoice number" : "customer no / ID"}…`}
-              value={searchValue} onChange={e => setSearchValue(e.target.value)}
+            <input
+              type="text"
+              placeholder={`Search by ${searchBy === "invoiceNo" ? "invoice number" : "customer no / ID"}…`}
+              value={searchValue}
+              onChange={e => setSearchValue(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSearch()}
-              style={{ flex: 1, height: 40, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14 }} />
+              style={{ flex: 1, height: 40, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14 }}
+            />
             <button onClick={handleSearch}
               style={{ height: 40, padding: "0 20px", background: "#334b71", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
               Search
@@ -102,19 +91,26 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
           </div>
 
           {/* Results grid */}
-          {loading ? <div style={{ textAlign: "center", padding: 20, color: "#64748b" }}>Loading…</div> : (
+          {loading ? (
+            <div style={{ textAlign: "center", padding: 20, color: "#64748b" }}>Loading…</div>
+          ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#f1f5f9" }}>
-                    {["Date", "Invoice No.", "Customer Name", "Cust ID", "Cust No.", "Total", "Action"].map(h => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                    {["Date", "Invoice No.", "Customer Name", "Cust ID", "Cust No.", "Total", "Status", "Action"].map(h => (
+                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 12,
+                        color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {results.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No invoices found.</td></tr>
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>
+                        No invoices found.
+                      </td>
+                    </tr>
                   ) : results.map((inv, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "10px 12px" }}>{fmtDate(inv.invoiceDate)}</td>
@@ -123,25 +119,57 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
                       <td style={{ padding: "10px 12px" }}>{inv.custId}</td>
                       <td style={{ padding: "10px 12px" }}>{inv.custNo}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{fmt(inv.sumTotal)}</td>
+
+                      {/* Status column */}
+                      <td style={{ padding: "10px 12px" }}>
+                        {inv.fullyReturned ? (
+                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                            color: "#b91c1c", background: "#fde8e8",
+                            border: "1px solid #f0c4c0", borderRadius: 99 }}>
+                            Returned
+                          </span>
+                        ) : inv.partialReturn ? (
+                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                            color: "#92400e", background: "#fef3c7",
+                            border: "1px solid #fcd34d", borderRadius: 99 }}>
+                            Partial Return
+                          </span>
+                        ) : (
+                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                            color: "#166534", background: "#dcfce7",
+                            border: "1px solid #86efac", borderRadius: 99 }}>
+                            Active
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Action column */}
                       <td style={{ padding: "10px 12px" }}>
                         <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                           <button onClick={() => onSelect(inv, "view")}
-                            style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6, background: "#fff", color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                            style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6,
+                              background: "#fff", color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
                             View
                           </button>
                           {inv.fullyReturned ? (
-                            <span style={{ padding:"4px 10px", fontSize:11, fontWeight:700, color:"#b91c1c", background:"#fde8e8", border:"1px solid #f0c4c0", borderRadius:6 }}>
+                            <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                              color: "#b91c1c", background: "#fde8e8",
+                              border: "1px solid #f0c4c0", borderRadius: 6 }}>
                               Returned
                             </span>
                           ) : (
                             <>
                               {inv.partialReturn && (
-                                <span style={{ padding:"3px 8px", fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fcd34d", borderRadius:6 }}>
+                                <span style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700,
+                                  color: "#92400e", background: "#fef3c7",
+                                  border: "1px solid #fcd34d", borderRadius: 6 }}>
                                   Partial
                                 </span>
                               )}
                               <button onClick={() => onSelect(inv, "return")}
-                                style={{ padding: "4px 12px", border: "none", borderRadius: 6, background: "#334b71", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                                style={{ padding: "4px 12px", border: "none", borderRadius: 6,
+                                  background: "#334b71", color: "#fff", fontWeight: 700,
+                                  cursor: "pointer", fontSize: 12 }}>
                                 Return
                               </button>
                             </>
@@ -154,20 +182,18 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
               </table>
             </div>
           )}
-        </div>
-      </div>
     </div>
   );
 };
 
 // ── STEP 4 — Return Item Selection ───────────────────────────────────────────
 const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
-  const [data,        setData]        = useState(null);
-  const [reasons,     setReasons]     = useState([]);
-  const [selected,    setSelected]    = useState({});   // lineNo → { qtyReturned, amtReturned }
-  const [reason,      setReason]      = useState("");
-  const [errors,      setErrors]      = useState({});
-  const [loading,     setLoading]     = useState(true);
+  const [data,     setData]     = useState(null);
+  const [reasons,  setReasons]  = useState([]);
+  const [selected, setSelected] = useState({});
+  const [reason,   setReason]   = useState("");
+  const [errors,   setErrors]   = useState({});
+  const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -203,17 +229,16 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
       const line = data.lines.find(l => l.lineNo === lineNo);
       const { qtyReturned, amtReturned } = selected[lineNo];
       const qtyNum = parseInt(qtyReturned);
-    if (!qtyReturned || qtyReturned === "")
+      if (!qtyReturned || qtyReturned === "")
         errs[`${lineNo}_qtyReturned`] = "Qty to Return is required.";
-    else if (String(qtyReturned).includes("."))
+      else if (String(qtyReturned).includes("."))
         errs[`${lineNo}_qtyReturned`] = "Whole numbers only — decimal values not allowed.";
-    else if (isNaN(qtyNum) || qtyNum < 1)
+      else if (isNaN(qtyNum) || qtyNum < 1)
         errs[`${lineNo}_qtyReturned`] = "Qty to Return must be at least 1.";
       else if (parseInt(qtyReturned) > line.availableQty)
         errs[`${lineNo}_qtyReturned`] = `Max ${line.availableQty}`;
       else if (!Number.isInteger(Number(qtyReturned)))
         errs[`${lineNo}_qtyReturned`] = "Whole numbers only.";
-      // Skip amount validation for package-redeemed lines — amount is always 0
       if (!line.isPackageRedeemed) {
         if (!amtReturned || isNaN(amtReturned) || parseFloat(amtReturned) <= 0)
           errs[`${lineNo}_amtReturned`] = "Enter valid amount.";
@@ -229,22 +254,20 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 
   const handleNext = () => {
     if (!validate()) return;
-    // SR-037: check all lines are disabled (fully returned)
     const allReturned = data.lines.every(l => l.availableQty <= 0);
     if (allReturned) { setErrors({ lines: "All items on this invoice have already been returned." }); return; }
-
     const returnLines = Object.keys(selected).map(lineNo => {
       const line = data.lines.find(l => l.lineNo === Number(lineNo));
       return {
-        lineNo:       Number(lineNo),
-        itemCode:     line.itemCode,
-        itemName:     line.itemName,
-        itemType:     line.itemType,
-        qtyReturned:  parseInt(selected[lineNo].qtyReturned),
-        amtReturned:  line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
-        salesAmount:  line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
+        lineNo:            Number(lineNo),
+        itemCode:          line.itemCode,
+        itemName:          line.itemName,
+        itemType:          line.itemType,
+        qtyReturned:       parseInt(selected[lineNo].qtyReturned),
+        amtReturned:       line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
+        salesAmount:       line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
         isPackageRedeemed: line.isPackageRedeemed || false,
-        taxAmount:    0,
+        taxAmount:         0,
       };
     });
     const totalReturn = returnLines.reduce((s, l) => s + l.amtReturned, 0);
@@ -267,20 +290,24 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
           <thead>
             <tr style={{ background: "#f1f5f9" }}>
               {["", "No", "Item ID", "Item", "Qty", "Amt Paid", "Qty to Return", "Amt to Return"].map(h => (
-                <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 700, fontSize: 12,
+                  color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.lines.map(line => {
-              const isChecked = !!selected[line.lineNo];
+              const isChecked       = !!selected[line.lineNo];
               const alreadyReturned = line.availableQty <= 0;
               return (
-                <tr key={line.lineNo} style={{ borderBottom: "1px solid #f1f5f9", opacity: alreadyReturned ? 0.5 : 1, background: alreadyReturned ? "#fdf3f3" : undefined }}>
+                <tr key={line.lineNo} style={{ borderBottom: "1px solid #f1f5f9",
+                  opacity: alreadyReturned ? 0.5 : 1,
+                  background: alreadyReturned ? "#fdf3f3" : undefined }}>
                   <td style={{ padding: "9px 10px" }}>
                     {alreadyReturned
-                      ? <span style={{ fontSize:11, fontWeight:700, color:"#b91c1c", background:"#fde8e8", borderRadius:4, padding:"2px 7px" }}>Returned</span>
-                      : <input type="checkbox" checked={isChecked} disabled={false}
+                      ? <span style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c",
+                          background: "#fde8e8", borderRadius: 4, padding: "2px 7px" }}>Returned</span>
+                      : <input type="checkbox" checked={isChecked}
                           onChange={() => toggle(line.lineNo)} />
                     }
                   </td>
@@ -295,8 +322,12 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
                         <input type="number" min={1} max={line.availableQty} step={1}
                           value={selected[line.lineNo]?.qtyReturned || ""}
                           onChange={e => update(line.lineNo, "qtyReturned", e.target.value)}
-                          style={{ width: 70, padding: "4px 6px", border: `1.5px solid ${errors[`${line.lineNo}_qtyReturned`] ? "#b91c1c" : "#e2e8f0"}`, borderRadius: 6, fontSize: 13 }} />
-                        {errors[`${line.lineNo}_qtyReturned`] && <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_qtyReturned`]}</div>}
+                          style={{ width: 70, padding: "4px 6px",
+                            border: `1.5px solid ${errors[`${line.lineNo}_qtyReturned`] ? "#b91c1c" : "#e2e8f0"}`,
+                            borderRadius: 6, fontSize: 13 }} />
+                        {errors[`${line.lineNo}_qtyReturned`] && (
+                          <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_qtyReturned`]}</div>
+                        )}
                       </>
                     ) : <span style={{ color: "#cbd5e1" }}>—</span>}
                   </td>
@@ -307,9 +338,16 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
                           value={line.isPackageRedeemed ? "0" : (selected[line.lineNo]?.amtReturned || "")}
                           onChange={e => !line.isPackageRedeemed && update(line.lineNo, "amtReturned", e.target.value)}
                           readOnly={line.isPackageRedeemed}
-                          style={{ width: 100, padding: "4px 6px", border: `1.5px solid ${errors[`${line.lineNo}_amtReturned`] ? "#b91c1c" : "#e2e8f0"}`, borderRadius: 6, fontSize: 13, background: line.isPackageRedeemed ? "#f1f5f9" : "#fff" }} />
-                        {line.isPackageRedeemed && <div style={{ color: "#2e7d5e", fontSize: 11, marginTop: 2 }}>📦 Package session — will be restored</div>}
-                        {!line.isPackageRedeemed && errors[`${line.lineNo}_amtReturned`] && <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_amtReturned`]}</div>}
+                          style={{ width: 100, padding: "4px 6px",
+                            border: `1.5px solid ${errors[`${line.lineNo}_amtReturned`] ? "#b91c1c" : "#e2e8f0"}`,
+                            borderRadius: 6, fontSize: 13,
+                            background: line.isPackageRedeemed ? "#f1f5f9" : "#fff" }} />
+                        {line.isPackageRedeemed && (
+                          <div style={{ color: "#2e7d5e", fontSize: 11, marginTop: 2 }}>📦 Package session — will be restored</div>
+                        )}
+                        {!line.isPackageRedeemed && errors[`${line.lineNo}_amtReturned`] && (
+                          <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_amtReturned`]}</div>
+                        )}
                       </>
                     ) : <span style={{ color: "#cbd5e1" }}>—</span>}
                   </td>
@@ -322,9 +360,14 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 
       {/* Reason */}
       <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <label style={{ fontWeight: 700, fontSize: 13, color: "#334b71" }}>Reason for Return: <span style={{ color: "#b91c1c" }}>*</span></label>
-        <select value={reason} onChange={e => { setReason(e.target.value); setErrors(p => { const e={...p}; delete e.reason; return e; }); }}
-          style={{ height: 38, padding: "0 12px", border: `1.5px solid ${errors.reason ? "#b91c1c" : "#e2e8f0"}`, borderRadius: 8, fontSize: 13, minWidth: 200 }}>
+        <label style={{ fontWeight: 700, fontSize: 13, color: "#334b71" }}>
+          Reason for Return: <span style={{ color: "#b91c1c" }}>*</span>
+        </label>
+        <select value={reason}
+          onChange={e => { setReason(e.target.value); setErrors(p => { const e = {...p}; delete e.reason; return e; }); }}
+          style={{ height: 38, padding: "0 12px",
+            border: `1.5px solid ${errors.reason ? "#b91c1c" : "#e2e8f0"}`,
+            borderRadius: 8, fontSize: 13, minWidth: 200 }}>
           <option value="">Select reason…</option>
           {reasons.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
         </select>
@@ -343,15 +386,14 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
 const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loading, hasPackageLines }) => {
   const METHODS = ["Cash", "Card", "Bank Transfer", "Cheque", "Credit Note"];
 
-  // Reference field config per method
   const REFERENCE_CONFIG = {
-    "Card":          { label: "Card Last 4 Digits", placeholder: "e.g. 1234",       type: "text",   maxLen: 4,  required: true  },
-    "Cheque":        { label: "Cheque Number",       placeholder: "e.g. CHQ-00123",  type: "text",   maxLen: 30, required: true  },
-    "Bank Transfer": { label: "Bank Reference No.",  placeholder: "e.g. TXN123456",  type: "text",   maxLen: 50, required: true  },
+    "Card":          { label: "Card Last 4 Digits", placeholder: "e.g. 1234",      type: "text", maxLen: 4,  required: true },
+    "Cheque":        { label: "Cheque Number",       placeholder: "e.g. CHQ-00123", type: "text", maxLen: 30, required: true },
+    "Bank Transfer": { label: "Bank Reference No.",  placeholder: "e.g. TXN123456", type: "text", maxLen: 50, required: true },
   };
 
   const [amounts,    setAmounts]    = useState({});
-  const [references, setReferences] = useState({});  // method → reference string
+  const [references, setReferences] = useState({});
   const [refErrors,  setRefErrors]  = useState({});
   const [error,      setError]      = useState("");
 
@@ -359,20 +401,17 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
   const remaining  = parseFloat((totalReturn - entered).toFixed(2));
   const isBalanced = Math.abs(remaining) < 0.01;
 
-  // Zero-total: package redemption return — skip payment step entirely
+  // Zero-total — package redemption return
   if (totalReturn <= 0) return (
     <div style={{ padding: 24, textAlign: "center" }}>
       <div style={{ fontSize: 44, marginBottom: 12 }}>📦</div>
-      <div style={{ fontWeight: 700, fontSize: 16, color: "#334b71", marginBottom: 8 }}>
-        Package Session Return
-      </div>
+      <div style={{ fontWeight: 700, fontSize: 16, color: "#334b71", marginBottom: 8 }}>Package Session Return</div>
       <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24, lineHeight: 1.6 }}>
         This service was covered by a package redemption.<br />
         No cash refund is required — the session will be restored to the customer's package balance.
       </div>
       <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-        <button className="pribtnblue" onClick={() => onFinalize([])} disabled={loading}
-          style={{ minWidth: 200 }}>
+        <button className="pribtnblue" onClick={() => onFinalize([])} disabled={loading} style={{ minWidth: 200 }}>
           {loading ? "Processing…" : "✓ Confirm Return & Restore Session"}
         </button>
         <button className="seclnk" onClick={onBack}>← Back</button>
@@ -382,7 +421,6 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
 
   const handleFinalize = () => {
     setError(""); setRefErrors({});
-
     if (!isBalanced) {
       if (entered < totalReturn)
         setError(`Total entered (SAR ${fmt(entered)}) is short by SAR ${fmt(totalReturn - entered)}. Must equal Amount to Return (SAR ${fmt(totalReturn)}).`);
@@ -390,31 +428,24 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
         setError(`Total entered (SAR ${fmt(entered)}) exceeds Amount to Return (SAR ${fmt(totalReturn)}) by SAR ${fmt(entered - totalReturn)}.`);
       return;
     }
-
     const methods = METHODS.filter(m => parseFloat(amounts[m]) > 0)
       .map(m => ({ method: m, amount: parseFloat(amounts[m]), reference: references[m] || "" }));
-
     if (!methods.length) { setError("Please enter refund amount in at least one payment method."); return; }
-
-    // Validate references for methods that require them
     const errs = {};
     methods.forEach(({ method }) => {
       const cfg = REFERENCE_CONFIG[method];
-      if (cfg?.required && !references[method]?.trim()) {
+      if (cfg?.required && !references[method]?.trim())
         errs[method] = `${cfg.label} is required for ${method} refunds.`;
-      }
     });
-
     if (Object.keys(errs).length) { setRefErrors(errs); return; }
-
     onFinalize(methods);
   };
 
   return (
     <div>
-      {/* Total banner */}
       <div style={{ background: "#e6f4ef", border: "1px solid #b3d9cc", borderRadius: 10,
-        padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        padding: "12px 16px", marginBottom: 20,
+        display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, color: "#2e7d5e", fontSize: 15 }}>Total Amount to Return</span>
         <span style={{ fontWeight: 800, fontSize: 22, color: "#2e7d5e" }}>SAR {fmt(totalReturn)}</span>
       </div>
@@ -431,15 +462,12 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
         </thead>
         <tbody>
           {METHODS.map(m => {
-            const amt     = parseFloat(amounts[m]) || 0;
-            const hasAmt  = amt > 0;
-            const cfg     = REFERENCE_CONFIG[m];
+            const amt    = parseFloat(amounts[m]) || 0;
+            const hasAmt = amt > 0;
+            const cfg    = REFERENCE_CONFIG[m];
             return (
               <tr key={m} style={{ borderBottom: "1px solid #f1f5f9", verticalAlign: "top" }}>
-                {/* Method name */}
                 <td style={{ padding: "12px 14px", fontWeight: 600 }}>{m}</td>
-
-                {/* Amount input */}
                 <td style={{ padding: "12px 14px", textAlign: "right" }}>
                   <input type="number" min={0} step={0.01} placeholder="0.00"
                     value={amounts[m] || ""}
@@ -447,18 +475,13 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
                     style={{ width: 130, padding: "6px 10px", border: "1.5px solid #e2e8f0",
                       borderRadius: 8, fontSize: 14, textAlign: "right" }} />
                 </td>
-
-                {/* Reference field — only for Card, Cheque, Bank Transfer when amount > 0 */}
                 <td style={{ padding: "12px 14px" }}>
                   {cfg && hasAmt ? (
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
                         {cfg.label} <span style={{ color: "#b91c1c" }}>*</span>
                       </div>
-                      <input
-                        type={cfg.type}
-                        placeholder={cfg.placeholder}
-                        maxLength={cfg.maxLen}
+                      <input type={cfg.type} placeholder={cfg.placeholder} maxLength={cfg.maxLen}
                         value={references[m] || ""}
                         onChange={e => {
                           setReferences(p => ({ ...p, [m]: e.target.value }));
@@ -466,16 +489,10 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
                         }}
                         style={{ width: "100%", padding: "6px 10px",
                           border: `1.5px solid ${refErrors[m] ? "#b91c1c" : "#e2e8f0"}`,
-                          borderRadius: 8, fontSize: 13 }}
-                      />
-                      {refErrors[m] && (
-                        <div style={{ color: "#b91c1c", fontSize: 11, marginTop: 3 }}>{refErrors[m]}</div>
-                      )}
-                      {/* Card: show masked preview */}
+                          borderRadius: 8, fontSize: 13 }} />
+                      {refErrors[m] && <div style={{ color: "#b91c1c", fontSize: 11, marginTop: 3 }}>{refErrors[m]}</div>}
                       {m === "Card" && references[m]?.length === 4 && (
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                          Card ending in **** {references[m]}
-                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Card ending in **** {references[m]}</div>
                       )}
                     </div>
                   ) : cfg && !hasAmt ? (
@@ -488,16 +505,14 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
             );
           })}
 
-          {/* Total entered row */}
           <tr style={{ background: "#f8fafc", fontWeight: 800 }}>
             <td style={{ padding: "12px 14px", color: isBalanced ? "#2e7d5e" : "#b91c1c" }}>Total Entered</td>
-            <td style={{ padding: "12px 14px", textAlign: "right", color: isBalanced ? "#2e7d5e" : "#b91c1c", fontSize: 16 }}>
+            <td style={{ padding: "12px 14px", textAlign: "right",
+              color: isBalanced ? "#2e7d5e" : "#b91c1c", fontSize: 16 }}>
               SAR {fmt(entered)}
             </td>
             <td />
           </tr>
-
-          {/* Remaining indicator */}
           {!isBalanced && entered > 0 && (
             <tr>
               <td colSpan={3} style={{ padding: "6px 14px", color: "#b91c1c", fontSize: 12 }}>
@@ -510,14 +525,13 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
         </tbody>
       </table>
 
-      {error && (
-        <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>
-      )}
+      {error && <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>}
 
       <div className="btnbar" style={{ marginTop: 20 }}>
         <button className="pribtnblue" onClick={handleFinalize}
           disabled={!isBalanced || loading}
-          style={{ opacity: (!isBalanced || loading) ? 0.6 : 1, cursor: (!isBalanced || loading) ? "not-allowed" : "pointer" }}>
+          style={{ opacity: (!isBalanced || loading) ? 0.6 : 1,
+            cursor: (!isBalanced || loading) ? "not-allowed" : "pointer" }}>
           {loading ? "Processing…" : "Finalize Return"}
         </button>
         <button className="seclnk" onClick={onBack}>← Back</button>
@@ -536,11 +550,9 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
     const issueDate  = new Date();
     const expiryDate = new Date();
     expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-
-    const fmt = (d) => d.toLocaleDateString("en-GB"); // DD/MM/YYYY
-    // Extract only the Credit Note portion — not the full return amount
-    const cnMethod    = returnData?.refundMethods?.find(m => m.method === 'Credit Note');
-    const cnAmount    = cnMethod ? parseFloat(cnMethod.amount) : (returnData?.totalReturn || 0);
+    const fmtD = (d) => d.toLocaleDateString("en-GB");
+    const cnMethod = returnData?.refundMethods?.find(m => m.method === "Credit Note");
+    const cnAmount = cnMethod ? parseFloat(cnMethod.amount) : (returnData?.totalReturn || 0);
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
       <title>Credit Note — ${creditNoteNum}</title>
@@ -567,31 +579,22 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
           <div class="cn-title">CREDIT NOTE</div>
           <div class="cn-sub">Eazyweek Clinic Management</div>
         </div>
-
         <div class="cn-num">${creditNoteNum}</div>
-
         <table>
           <tr><td>Issued To</td><td>${selectedInv?.fullName || ""}</td></tr>
           <tr><td>Customer ID</td><td>${selectedInv?.custId || ""}</td></tr>
-          <tr><td>Issue Date</td><td>${fmt(issueDate)}</td></tr>
-          <tr><td>Expiry Date</td><td>${fmt(expiryDate)}</td></tr>
+          <tr><td>Issue Date</td><td>${fmtD(issueDate)}</td></tr>
+          <tr><td>Expiry Date</td><td>${fmtD(expiryDate)}</td></tr>
           <tr><td>Original Invoice</td><td>${selectedInv?.invoiceNum || ""}</td></tr>
           <tr><td>Return Invoice</td><td>${returnInvoiceNum || ""}</td></tr>
         </table>
-
         <div class="cn-value">
           <div style="font-size:13px;color:#64748b;margin-bottom:6px">Credit Note Value</div>
           <span class="cn-currency">SAR </span>
           <span class="cn-amount">${Number(cnAmount).toFixed(2)}</span>
         </div>
-
-        <div class="cn-validity">
-          ⏱ Valid until ${fmt(expiryDate)} · Redeemable against future purchases
-        </div>
-
-        <div class="cn-footer">
-          This credit note is non-transferable and subject to clinic terms and conditions.
-        </div>
+        <div class="cn-validity">⏱ Valid until ${fmtD(expiryDate)} · Redeemable against future purchases</div>
+        <div class="cn-footer">This credit note is non-transferable and subject to clinic terms and conditions.</div>
       </div>
     </body></html>`;
 
@@ -606,9 +609,8 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
     if (!returnInvoiceNum) return;
     setPrinting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Invoice/GetInvoiceDetails/${encodeURIComponent(returnInvoiceNum)}`, {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      });
+      const res  = await fetch(`${API_BASE_URL}/api/Invoice/GetInvoiceDetails/${encodeURIComponent(returnInvoiceNum)}`,
+        { headers: { Authorization: `Bearer ${TOKEN()}` } });
       const json = await res.json();
       const inv  = json.data ?? json;
       const header   = inv.headerJson?.[0] || {};
@@ -640,7 +642,8 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
         <p><strong>Return Invoice No:</strong> ${returnInvoiceNum}</p>
         <p><strong>Original Invoice No:</strong> ${selectedInv?.invoiceNum || ""}</p>
         <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-        <p><strong>Customer:</strong> ${header.firstName || ""} ${header.lastName || ""} &nbsp; <strong>Mobile:</strong> ${header.mobileNumber || ""}</p>
+        <p><strong>Customer:</strong> ${header.firstName || ""} ${header.lastName || ""} &nbsp;
+           <strong>Mobile:</strong> ${header.mobileNumber || ""}</p>
         <h3>Returned Items</h3>
         <table>
           <thead><tr>
@@ -683,12 +686,14 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
     <div style={{ textAlign: "center", padding: "30px 20px" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
       <h3 style={{ color: "#2e7d5e", marginBottom: 8 }}>Sales Return Processed</h3>
-      <div style={{ background: "#e6f4ef", borderRadius: 10, padding: "14px 20px", marginBottom: 16, display: "inline-block", minWidth: 260 }}>
+      <div style={{ background: "#e6f4ef", borderRadius: 10, padding: "14px 20px",
+        marginBottom: 16, display: "inline-block", minWidth: 260 }}>
         <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Return Invoice</div>
         <div style={{ fontWeight: 800, fontSize: 18, color: "#334b71" }}>{returnInvoiceNum || "—"}</div>
       </div>
       {creditNoteNum && (
-        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "14px 20px", marginBottom: 16, display: "inline-block", minWidth: 260, marginLeft: 12 }}>
+        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "14px 20px",
+          marginBottom: 16, display: "inline-block", minWidth: 260, marginLeft: 12 }}>
           <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Credit Note</div>
           <div style={{ fontWeight: 800, fontSize: 18, color: "#92400e" }}>{creditNoteNum}</div>
         </div>
@@ -709,14 +714,14 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
   );
 };
 
-// ── Main SalesReturn component — renders Recall Invoice button + modal flow ──
+// ── Main SalesReturn component ────────────────────────────────────────────────
 const SalesReturn = ({ onClose, custId }) => {
-  const [step,         setStep]         = useState("search");   // search | items | refund | done
-  const [selectedInv,  setSelectedInv]  = useState(null);
-  const [returnData,   setReturnData]   = useState(null);
-  const [result,       setResult]       = useState(null);
-  const [processing,   setProcessing]   = useState(false);
-  const [error,        setError]        = useState("");
+  const [step,        setStep]        = useState("search");
+  const [selectedInv, setSelectedInv] = useState(null);
+  const [returnData,  setReturnData]  = useState(null);
+  const [result,      setResult]      = useState(null);
+  const [processing,  setProcessing]  = useState(false);
+  const [error,       setError]       = useState("");
 
   const getUser = () => {
     try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
@@ -724,18 +729,12 @@ const SalesReturn = ({ onClose, custId }) => {
   };
 
   const handleSelect = (inv, action) => {
-    if (action === "view") {
-      window.open(`/invoice-details/${inv.invoiceNum}`, "_blank");
-      return;
-    }
+    if (action === "view") { window.open(`/invoice-details/${inv.invoiceNum}`, "_blank"); return; }
     setSelectedInv(inv);
     setStep("items");
   };
 
-  const handleItemsNext = (data) => {
-    setReturnData(data);
-    setStep("refund");
-  };
+  const handleItemsNext = (data) => { setReturnData(data); setStep("refund"); };
 
   const handleFinalize = async (refundMethods) => {
     setProcessing(true); setError("");
@@ -753,22 +752,30 @@ const SalesReturn = ({ onClose, custId }) => {
       };
       const res = await authPost(`${API_BASE_URL}/api/SalesReturn/Process`, payload);
       setResult(res);
-      // Store refundMethods in returnData so ReturnSuccess can extract CN amount
       setReturnData(prev => ({ ...prev, refundMethods }));
       setStep("done");
     } catch (e) { setError(e.message || "Failed to process return."); }
     finally { setProcessing(false); }
   };
 
-  const title = { search: "Recall Invoice", items: "Select Items to Return", refund: "Select Refund Method", done: "Return Complete" }[step];
+  const title = {
+    search: "Recall Invoice",
+    items:  "Select Items to Return",
+    refund: "Select Refund Method",
+    done:   "Return Complete",
+  }[step];
 
   return (
     <div className="popouter" style={{ display: "flex", zIndex: 9999 }}>
       <div className="popovrly" onClick={step === "done" ? onClose : undefined} />
-      <div className="popin" style={{ maxWidth: step === "search" ? 820 : 700, width: "95%", maxHeight: "90vh", overflow: "auto" }}>
+      <div className="popin" style={{
+        maxWidth: step === "search" ? 920 : 700,
+        width: "98%", maxHeight: "92vh", overflow: "auto",
+        overflowX: step === "search" ? "auto" : "hidden" }}>
         <div className="popuphdr">
           {step !== "search" && step !== "done" && (
-            <span style={{ marginRight: 8, cursor: "pointer", fontSize: 16 }} onClick={() => setStep(step === "refund" ? "items" : "search")}>←</span>
+            <span style={{ marginRight: 8, cursor: "pointer", fontSize: 16 }}
+              onClick={() => setStep(step === "refund" ? "items" : "search")}>←</span>
           )}
           {title}
           <span className="clsbtn" onClick={onClose}>
@@ -776,17 +783,17 @@ const SalesReturn = ({ onClose, custId }) => {
           </span>
         </div>
         <div className="popfrm">
-          {error && <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, padding: "10px 14px", color: "#b91c1c", marginBottom: 12, fontSize: 13 }}>⚠ {error}</div>}
-
+          {error && (
+            <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8,
+              padding: "10px 14px", color: "#b91c1c", marginBottom: 12, fontSize: 13 }}>
+              ⚠ {error}
+            </div>
+          )}
           {step === "search" && (
             <RecallInvoiceModal onSelect={handleSelect} onClose={onClose} custId={custId} />
           )}
           {step === "items" && selectedInv && (
-            <ReturnItemSelection
-              invoiceNum={selectedInv.invoiceNum}
-              onNext={handleItemsNext}
-              onCancel={onClose}
-            />
+            <ReturnItemSelection invoiceNum={selectedInv.invoiceNum} onNext={handleItemsNext} onCancel={onClose} />
           )}
           {step === "refund" && returnData && (
             <RefundPaymentMethod

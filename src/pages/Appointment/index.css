@@ -471,7 +471,7 @@ body{background:var(--bg);color:var(--text);}
   transition:border .15s,box-shadow .15s;
 }
 .frmdiv textarea:focus,.frmdiv input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(51,75,113,.1);}
-.btnbar{display:flex;gap:10px;justify-content:flex-end;padding-top:8px;}
+.btnbar{display:flex;gap:10px;justify-content:flex-end;padding-top:8px;margin: 20px 0 0;}
 .btnbar .prilnk{padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:13px;font-weight:700;font-family:"Lato",sans-serif;}
 .btnbar .seclnk{padding:9px 18px;background:var(--bg);color:var(--text-md);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:13px;font-weight:600;font-family:"Lato",sans-serif;}
 .rd{color:#dc2626;}

@@ -95,6 +95,7 @@ import OrgHierarchy from "./pages/Settings/OrgHierarchy";
 import ZoneSetup from "./pages/Settings/ZoneSetup";
 import FormBuilder from "./pages/EMR/FormBuilder";
 import FormList from "./pages/EMR/FormList";
+import CreateCampaign from "./pages/Opportunity/CreateCampaign";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -301,6 +302,7 @@ if (user && showFirstLogin) {
 <Route path="/reset-password" element={<ResetPassword />} />
 <Route path="/opportunity/:oppCode/noshow/:custId" element={<NoShowEntryDetails />} />
 <Route path="/opportunity/:oppCode/cancelled/:custId" element={<CancelledEntryDetails />} />
+<Route path="/opportunity/create" element={<CreateCampaign />} />
 
 
 <Route path="/masters/disposition" element={<DispositionMaster />} />
