@@ -265,7 +265,7 @@
             .frmwrpinv .form-group label.frmlbl {
                 position: absolute;
                 left: 10px;
-                top: 9px;
+                top: 7px;
                 font-size: 12px;
                 color: #777;
                 transition: top 0.3s ease, font-size 0.3s ease, color 0.3s ease;
