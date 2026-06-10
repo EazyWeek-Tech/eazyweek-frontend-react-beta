@@ -447,7 +447,7 @@ export default function CreateCampaign() {
   /* ── Render helpers ───────────────────────────────────────────────────────── */
   const today = new Date().toISOString().split("T")[0];
   const subSourceOptions = externalSources
-    .find(s => s.source === rule.externalSource)?.subSources || [];
+    .find(s => s.sourceCode === rule.externalSource)?.subSources || [];
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", padding:"24px 28px", color:C.text, maxWidth:760, margin:"0 auto" }}>
@@ -601,9 +601,14 @@ export default function CreateCampaign() {
 
           {/* R6 — Customer Type */}
           {general.ruleCode === "R6" && (
-            <FieldRow label="Customer Type (X value)">
-              <FInput value={rule.xvalue} placeholder="e.g. VIP"
-                onChange={e=>setRule(p=>({...p,xvalue:e.target.value}))} />
+            <FieldRow label="Customer Type" required hint="Target new or existing customers">
+              <FSelect value={Array.isArray(rule.xvalue) ? rule.xvalue[0]||"" : rule.xvalue}
+                onChange={e=>setRule(p=>({...p,xvalue:e.target.value}))}
+                placeholder="Select customer type…"
+                options={[
+                  { value:"New",      label:"New Customer" },
+                  { value:"Existing", label:"Existing Customer" },
+                ]} />
             </FieldRow>
           )}
 
@@ -615,14 +620,14 @@ export default function CreateCampaign() {
                   setRule(p=>({...p,externalSource:e.target.value,externalSubSource:""}));
                 }}
                 placeholder="Select source…"
-                options={externalSources.map(s=>({value:s.source,label:s.source}))} />
+                options={externalSources.map(s=>({value:s.sourceCode, label:s.name}))} />
             </FieldRow>
             {subSourceOptions.length > 0 && (
               <FieldRow label="External Sub-Source">
                 <FSelect value={rule.externalSubSource}
                   onChange={e=>setRule(p=>({...p,externalSubSource:e.target.value}))}
                   placeholder="Select sub-source…"
-                  options={subSourceOptions.map(s=>({value:s,label:s}))} />
+                  options={subSourceOptions.map(s=>({value:s.subSourceCode, label:s.name||s.subSourceCode}))} />
               </FieldRow>
             )}
           </>)}
@@ -700,8 +705,14 @@ export default function CreateCampaign() {
             {rule.yvalue?.length > 0 && <InfoRow label="Not for (Y)"  value={rule.yvalue.join(", ")} />}
           </>)}
           {general.ruleCode === "R7" && (<>
-            <InfoRow label="External Source"     value={rule.externalSource} />
-            {rule.externalSubSource && <InfoRow label="Sub-Source" value={rule.externalSubSource} />}
+            <InfoRow label="External Source"
+              value={externalSources.find(s=>s.sourceCode===rule.externalSource)?.name || rule.externalSource} />
+            {rule.externalSubSource && (
+              <InfoRow label="Sub-Source"
+                value={externalSources.find(s=>s.sourceCode===rule.externalSource)
+                  ?.subSources?.find(ss=>ss.subSourceCode===rule.externalSubSource)?.name
+                  || rule.externalSubSource} />
+            )}
           </>)}
 
           <div style={{ marginTop:20, padding:"12px 14px", borderRadius:8,

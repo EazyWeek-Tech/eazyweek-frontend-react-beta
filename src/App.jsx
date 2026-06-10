@@ -34,7 +34,6 @@ import SegmentAddForm from "./pages/Masters/SegmentAddForm";
 import DashboardPage from "./pages/Dashboard";
 import CourtesyCallDetails from "./pages/CourtesyCall/CourtesyCallDetails";
 import EInvoiceDetailedReport from "./pages/Einvoice/EInvoiceDetailedReport";
-import OpportunityDetails from "./pages/Opportunity/OpportunityDetails";
 import OpportunityForm from "./pages/Opportunity/OpportunityForm";
 import OppCustomerDetails from "./pages/Opportunity/OppCustomerDetails";
 import ManualOppCustomerDetails from "./pages/Opportunity/ManualOppCustomerDetails";
@@ -76,10 +75,8 @@ import GetFormByDetails from "./pages/EMR/AdvanceFormBuilder/GetFormByDetails";
 import AddLeadCustomerList from "./pages/Opportunity/AddLeadCustomerList";
 import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 import DispositionMaster from "./pages/Opportunity/DispositionMaster";
-import DispositionMappingList from "./pages/Opportunity/DispositionMappingList";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
-import ExternalLeadsTable from "./pages/Opportunity/ExternalLeadsTable";
 import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
 import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
 import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
@@ -87,7 +84,6 @@ import OppUploader from "./pages/Opportunity/OppUploader";
 import OnDemandTriggers from "./pages/OnDemand/OnDemandTriggers";
 import ResetPassword from "./pages/ResetPassword"; 
 import FirstLoginModal from "./components/FirstLoginModal";
-import EmployeeSegmentMapping from "./pages/Masters/EmployeeSegmentMapping";
 import PackageMaster from "./pages/Masters/PackageMaster";
 import LegalEntitySetup from "./pages/Settings/LegalEntitySetup";
 import CentreSetup from "./pages/Settings/CentreSetup";
@@ -96,6 +92,7 @@ import ZoneSetup from "./pages/Settings/ZoneSetup";
 import FormBuilder from "./pages/EMR/FormBuilder";
 import FormList from "./pages/EMR/FormList";
 import CreateCampaign from "./pages/Opportunity/CreateCampaign";
+import CampaignDetails from "./pages/Opportunity/CampaignDetails";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -283,10 +280,13 @@ if (user && showFirstLogin) {
   
 />
 
+<Route path="/opportunity/:oppCode/details"  element={<CampaignDetails />} />
+
+
 <Route path="/emr/forms"           element={<FormList />} />
 <Route path="/emr/builder/:formCode" element={<FormBuilder />} />
 
-<Route path="/opportunity/external/:fromDate/:toDate/:oppCode" element={<ExternalLeadsTable />} />
+{/* <Route path="/opportunity/external/:fromDate/:toDate/:oppCode" element={<ExternalLeadsTable />} /> */}
 
 
  <Route
@@ -375,7 +375,7 @@ if (user && showFirstLogin) {
                     element={<DetailedReport />}
                   />
                   <Route path="/audit" element={<AuditDashboard />} />
-                  <Route path="/opportunity/details/:fromDate/:toDate/:oppCode" element={<OpportunityDetails />} />
+                  {/* <Route path="/opportunity/details/:fromDate/:toDate/:oppCode" element={<OpportunityDetails />} /> */}
 
                   <Route
                     path="/opportunity/create"

@@ -310,19 +310,25 @@ const OpportunityDashboard = () => {
     finally{setLoading(false);}
   };
   const handleOpportunityClick=(row)=>{
-    if(!row)return; const code=String(row?.oppCode||"").trim(); if(!code)return;
-    const now=new Date();
-    const from=toISO(row?.fromDate)||toISO(new Date(now.getTime()-13*86400000));
-    const to=toISO(row?.toDate)||toISO(now);
-    const oRuleCode=String(row?.oRuleCode||"").trim();
-    if(isExternalLeadRow(row)){
-      navigate(`/opportunity/external/${encodeURIComponent(from)}/${encodeURIComponent(to)}/${encodeURIComponent(code)}`,
-        {state:{oppName:row?.oppName,oRuleCode,fromDate:from,toDate:to,externalLead:true,segmentType:row?.segmentType}});
-      return;
+  if(!row)return;
+  const code=String(row?.oppCode||"").trim();
+  if(!code)return;
+  const now=new Date();
+  const from=toISO(row?.fromDate)||toISO(new Date(now.getTime()-13*86400000));
+  const to=toISO(row?.toDate)||toISO(now);
+  // All campaign types → unified CampaignDetails page
+  navigate(`/opportunity/${encodeURIComponent(code)}/details`, {
+    state:{
+      oppName:      row?.oppName      || "",
+      oRuleCode:    row?.oRuleCode    || "",
+      oRuleDetails: row?.oRuleDetails || "",
+      oRuleXvalue:  row?.oRuleXvalue  || "",
+      fromDate:     from,
+      toDate:       to,
+      segmentType:  row?.segmentType  || "",
     }
-    navigate(`/opportunity/details/${encodeURIComponent(from)}/${encodeURIComponent(to)}/${encodeURIComponent(code)}`,
-      {state:{oppName:row?.oppName,oRuleDetails:row?.oRuleDetails,oRuleXvalue:row?.oRuleXvalue,fromDate:from,toDate:to,manualLead:isManualLeadRow(row)}});
-  };
+  });
+};
   const handleBackToDashboard=()=>{setCurrentView("dashboard");setSelectedOpportunity(null);setSelectedOppDetails(null);};
 
   /* View switchers */
