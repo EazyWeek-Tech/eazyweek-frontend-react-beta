@@ -145,9 +145,51 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
 
       {component.componentType === "table" && (
         <>
-          <F label={isArabic?"رؤوس الأعمدة":"Column Headers"} hint="One per line">
-            <EditorTextarea value={(component.config?.columns||[]).join("\n")}
-              onChange={v => updateConfig("columns", v.split("\n").filter(Boolean))} rows={3} dir={dir} />
+          <F label={isArabic ? "رؤوس الأعمدة" : "Column Headers"}>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {(component.config?.columns || ["Column 1", "Column 2"]).map((col, idx) => (
+                <div key={idx} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                  <input
+                    value={col}
+                    dir={dir}
+                    onChange={e => {
+                      const cols = [...(component.config?.columns || [])];
+                      cols[idx] = e.target.value;
+                      updateConfig("columns", cols);
+                    }}
+                    placeholder={`Column ${idx + 1}`}
+                    style={{ flex:1, border:"1px solid #e7ecf4", borderRadius:8,
+                      padding:"7px 10px", fontSize:12, outline:"none", boxSizing:"border-box" }}
+                  />
+                  <button
+                    onClick={() => {
+                      const cols = (component.config?.columns || []).filter((_, i) => i !== idx);
+                      updateConfig("columns", cols.length ? cols : ["Column 1"]);
+                    }}
+                    disabled={(component.config?.columns || []).length <= 1}
+                    style={{ background:"none", border:"1px solid #e7ecf4", borderRadius:6,
+                      width:28, height:28, cursor:"pointer", color:"#94a3b8", fontSize:16,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      opacity: (component.config?.columns || []).length <= 1 ? 0.3 : 1 }}>
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => {
+                  const cols = [...(component.config?.columns || [])];
+                  cols.push(`Column ${cols.length + 1}`);
+                  updateConfig("columns", cols);
+                }}
+                style={{ background:"#f0f4fa", border:"1px dashed #334b71", borderRadius:8,
+                  padding:"6px 10px", fontSize:11, fontWeight:700, color:"#334b71",
+                  cursor:"pointer", textAlign:"center" }}>
+                + Add Column
+              </button>
+              <div style={{ fontSize:10, color:"#94a3b8" }}>
+                {(component.config?.columns || []).length} column{(component.config?.columns || []).length !== 1 ? "s" : ""}
+              </div>
+            </div>
           </F>
           <F label="Default Rows">
             <EditorInput type="number" value={component.config?.rows || 3}

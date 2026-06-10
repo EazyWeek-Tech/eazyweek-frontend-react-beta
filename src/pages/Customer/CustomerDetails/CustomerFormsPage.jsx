@@ -13,11 +13,6 @@ const fmt = (d) => d
   ? new Date(d).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
   : "—";
 
-// Derive "Customer" or "Practitioner" from filledBy code vs custId
-const filledByRole = (filledBy, custId) => {
-  if (!filledBy) return "—";
-  return filledBy === custId ? "Customer" : "Practitioner";
-};
 
 // ─── Image Compare Modal ───────────────────────────────────────────────────────
 const ImageCompare = ({ images, onClose }) => {
@@ -427,12 +422,8 @@ const CustomerFormHistory = () => {
                             <span className="emr-badge" style={typeStyle}>{s.formType}</span>
                           </td>
                           <td style={tdStyle}>
-                            {/* Role: if filledBy matches custId → Customer, else Practitioner */}
-                            {filledByRole(s.filledBy, custId)}
-                            {s.filledByName && (
-                              <div style={{ fontSize:11, color:"#94a3b8" }}>{s.filledByName}</div>
-                            )}
-                          </td>
+  {s.filledByName || s.filledBy || "—"}
+</td>
                           <td style={tdStyle}>
                             <ActionBtn label="View"  onClick={() => setViewSub(s.submissionId)} />
                             <ActionBtn label="🖨 Print" variant="print"
@@ -527,9 +518,7 @@ const CustomerFormHistory = () => {
                         </td>
                         <td style={tdStyle}>
                           Customer
-                          {cf.filledBy && (
-                            <div style={{ fontSize:11, color:"#94a3b8" }}>{cf.filledBy}</div>
-                          )}
+                         {cf.filledByName || cf.filledBy || "—"}
                         </td>
                         <td style={tdStyle}>
                           <ActionBtn label="View"  onClick={() => setViewSub(cf.recId)} />
