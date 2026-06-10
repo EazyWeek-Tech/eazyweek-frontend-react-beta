@@ -378,8 +378,9 @@ const PaymentBlock = ({
     navigate('/appointment');
   };
 
-  const generateInvoiceHTML = () => {
+  const generateInvoiceHTML = (invoiceNumOverride) => {
     const isCitizen = (effectiveCustomer?.status || '').toLowerCase() === 'citizen';
+    const invoiceNum = invoiceNumOverride || generatedInvoiceNumber;
 
     // Prefer submitted snapshots after invoice is created
     const srcItems = submittedInvoiceItems?.length ? submittedInvoiceItems : effectiveInvoiceItems;
@@ -434,13 +435,13 @@ const PaymentBlock = ({
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="width: 33%; text-align: left; vertical-align: middle;">
-                    {centreLogo ? (<img src={centreLogo} alt="Logo" style="max-height: 180px;" />) : (<img src="/images/bright.png" alt="Logo" style="max-height: 180px;" />)}
+                    ${centreLogo ? `<img src="${centreLogo}" alt="Logo" style="max-height:80px;max-width:180px;object-fit:contain;" />` : `<img src="/images/bright.png" alt="Logo" style="max-height:80px;max-width:180px;object-fit:contain;" />`}
                   </td>
                   <td style="width: 34%; text-align: center; font-weight: bold; font-size: 16px; vertical-align: middle;">
                     Simplified Tax Invoice<br />فاتورة ضريبية مبسطة
                   </td>
                   <td style="width: 33%; text-align: right; vertical-align: middle;">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(generatedInvoiceNumber || 'Invoice')}&size=100x100" alt="QR" style="max-height: 80px;" />
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(invoiceNum || 'Invoice')}&size=100x100" alt="QR" style="max-height: 80px;" />
                   </td>
                 </tr>
               </table>
@@ -449,7 +450,7 @@ const PaymentBlock = ({
         </table>
 
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${generatedInvoiceNumber || ''}</p></td></tr>
+          <tr><td colspan="2"><p><strong>Invoice Number:</strong> ${invoiceNum || ''}</p></td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Buyer Name:</strong></td><td style="border:1px solid #000;padding:6px;">${effectiveCustomer?.fullName || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Mobile:</strong></td><td style="border:1px solid #000;padding:6px;">${effectiveCustomer?.mobile || effectiveCustomer?.number || ''}</td></tr>
           <tr><td style="border:1px solid #000;padding:6px;"><strong>Nationality Status:</strong></td><td style="border:1px solid #000;padding:6px;">${effectiveCustomer?.status || ''}</td></tr>
@@ -511,13 +512,20 @@ const PaymentBlock = ({
       setToast({ message: "Invoice number not generated yet.", type: "error" });
       return;
     }
-    const html = generateInvoiceHTML();
+    // Guard: ensure customer has an email address
+    const emailAddr = effectiveCustomer?.email || '';
+    if (!emailAddr) {
+      setToast({ message: "No email address on file for this customer.", type: "error" });
+      return;
+    }
+    // Pass invoiceNum directly so HTML is built with the correct number
+    const html = generateInvoiceHTML(generatedInvoiceNumber);
     setLastGeneratedInvoiceHtml(html);
 
     const invoiceHtmlPayload = {
       invoiceNo: generatedInvoiceNumber,
       custID: effectiveCustomer?.custId || "",
-      custEmailID: effectiveCustomer?.email || "",
+      custEmailID: emailAddr,
       invoiceHtml: html
     };
 
@@ -529,7 +537,7 @@ const PaymentBlock = ({
       });
       const result = await response.json();
       if (result.success) {
-        setToast({ message: "Invoice email sent successfully!", type: "success" });
+        setToast({ message: `Invoice emailed to ${emailAddr}`, type: "success" });
       } else {
         setToast({ message: result.message || "Failed to send email.", type: "error" });
       }
