@@ -531,6 +531,145 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       );
     }
 
+    case "table": {
+      // config.columns: array of {label, type} objects (or legacy strings)
+      const cols = (config.columns || []).map(c =>
+        typeof c === "string" ? { label: c, type: "text" } : c
+      );
+      const defRows  = Math.max(1, config.rows || 3);
+      const emptyRow = () => Object.fromEntries(cols.map((_, i) => [`col${i}`, ""]));
+
+      // Seed from defaultRows if no saved value yet
+      const seedRows = Array.isArray(config.defaultRows) && config.defaultRows.length > 0
+        ? config.defaultRows
+        : Array.from({ length: defRows }, emptyRow);
+
+      const rows = Array.isArray(value) && value.length > 0 ? value : seedRows;
+
+      const updateCell = (ri, ci, v) => {
+        const next = rows.map((r, idx) =>
+          idx === ri ? { ...r, [`col${ci}`]: v } : r
+        );
+        onChange(next);
+      };
+
+      const addRow    = () => onChange([...rows, emptyRow()]);
+      const removeRow = (ri) => {
+        const next = rows.filter((_, idx) => idx !== ri);
+        onChange(next.length ? next : [emptyRow()]);
+      };
+
+      return (
+        <div style={{ display:"block", width:"100%" }}>
+          <Label />
+          <div style={{ overflowX:"auto", border:"1px solid #e7ecf4", borderRadius:8 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr>
+                  {cols.map((col, ci) => (
+                    <th key={ci} style={{
+                      border:"1px solid #e7ecf4", padding:"8px 10px",
+                      background:"#f8fafc", color:"#334b71", fontWeight:700,
+                      textAlign:"left", whiteSpace:"nowrap", fontSize:12,
+                    }}>
+                      {col.label}
+                    </th>
+                  ))}
+                  <th style={{ background:"#f8fafc", border:"1px solid #e7ecf4", width:32 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr key={ri}>
+                    {cols.map((col, ci) => {
+                      const cellVal = row[`col${ci}`] ?? "";
+                      const isFirst = ci === 0 && typeof (config.defaultRows?.[ri]?.col0) === "string" && config.defaultRows[ri].col0;
+                      // Col 0 with a pre-seeded name renders as read-only label
+                      if (isFirst && !value?.length) {
+                        return (
+                          <td key={ci} style={{ border:"1px solid #e7ecf4", padding:"6px 10px",
+                            fontWeight:600, color:"#334b71", background:"#f8fafc", fontSize:13 }}>
+                            {config.defaultRows[ri].col0}
+                          </td>
+                        );
+                      }
+                      // Col 0 when value is saved
+                      if (ci === 0 && col.type === "text") {
+                        return (
+                          <td key={ci} style={{ border:"1px solid #e7ecf4", padding:2 }}>
+                            <input value={cellVal} onChange={e => updateCell(ri, ci, e.target.value)}
+                              style={{ width:"100%", border:"none", outline:"none", padding:"6px 8px",
+                                fontSize:13, background:"transparent", boxSizing:"border-box",
+                                fontWeight: ri < (config.defaultRows?.length || 0) ? 600 : 400,
+                                color:"#334b71" }} />
+                          </td>
+                        );
+                      }
+                      if (col.type === "date") {
+                        return (
+                          <td key={ci} style={{ border:"1px solid #e7ecf4", padding:2 }}>
+                            <input type="date" value={cellVal}
+                              onChange={e => updateCell(ri, ci, e.target.value)}
+                              style={{ width:"100%", border:"none", outline:"none", padding:"6px 8px",
+                                fontSize:13, background:"transparent", boxSizing:"border-box",
+                                minWidth:130 }} />
+                          </td>
+                        );
+                      }
+                      if (col.type === "number") {
+                        return (
+                          <td key={ci} style={{ border:"1px solid #e7ecf4", padding:2 }}>
+                            <input type="number" value={cellVal}
+                              onChange={e => updateCell(ri, ci, e.target.value)}
+                              style={{ width:"100%", border:"none", outline:"none", padding:"6px 8px",
+                                fontSize:13, background:"transparent", boxSizing:"border-box" }} />
+                          </td>
+                        );
+                      }
+                      if (col.type === "dropdown") {
+                        return (
+                          <td key={ci} style={{ border:"1px solid #e7ecf4", padding:2 }}>
+                            <select value={cellVal} onChange={e => updateCell(ri, ci, e.target.value)}
+                              style={{ width:"100%", border:"none", outline:"none", padding:"6px 8px",
+                                fontSize:13, background:"transparent", cursor:"pointer" }}>
+                              <option value="">—</option>
+                              {(col.options || []).map((o, oi) => <option key={oi} value={o}>{o}</option>)}
+                            </select>
+                          </td>
+                        );
+                      }
+                      // default: text
+                      return (
+                        <td key={ci} style={{ border:"1px solid #e7ecf4", padding:2 }}>
+                          <input value={cellVal} onChange={e => updateCell(ri, ci, e.target.value)}
+                            placeholder="—"
+                            style={{ width:"100%", border:"none", outline:"none", padding:"6px 8px",
+                              fontSize:13, background:"transparent", boxSizing:"border-box" }} />
+                        </td>
+                      );
+                    })}
+                    <td style={{ border:"1px solid #e7ecf4", textAlign:"center", padding:4 }}>
+                      <button onClick={() => removeRow(ri)} disabled={rows.length <= 1}
+                        style={{ background:"none", border:"none", cursor:"pointer",
+                          color:"#94a3b8", fontSize:16, opacity: rows.length <= 1 ? 0.3 : 1 }}>
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={addRow}
+            style={{ marginTop:8, padding:"5px 14px", fontSize:12, fontWeight:700,
+              color:"#334b71", background:"#f0f4fa",
+              border:"1px dashed #334b71", borderRadius:7, cursor:"pointer" }}>
+            + Add Row
+          </button>
+        </div>
+      );
+    }
+
     default:
       return null;
   }
@@ -571,23 +710,13 @@ export default function FormFillModal({
         setForms([syntheticForm]);
         setFormDef(def);
 
-        // Seed languagetoggle default so bilingual components are visible
-        const seedDefaults = (base = {}) => {
-          const seeded = { ...base };
-          for (const comp of (def?.components || [])) {
-            if (comp.componentType === "languagetoggle" && !seeded[comp.componentId]) {
-              seeded[comp.componentId] = "en";
-            }
-          }
-          return seeded;
-        };
         if (existingRecId) {
           // Edit mode: pre-fill from the existing submission
           const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${existingRecId}`);
-          setValues(seedDefaults(sub?.responseData || {}));
+          setValues(sub?.responseData || {});
         } else {
           // New fill: start with empty values (macro fields populated by macroContext)
-          setValues(seedDefaults());
+          setValues({});
         }
       };
       loadEdit().finally(() => setLoading(false));
@@ -603,12 +732,7 @@ export default function FormFillModal({
         const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
         setForms([syntheticForm]);
         setFormDef(def);
-        // Seed languagetoggle default so bilingual components are visible
-        const defaults = {};
-        for (const comp of (def?.components || [])) {
-          if (comp.componentType === "languagetoggle") defaults[comp.componentId] = "en";
-        }
-        setValues(defaults);
+        setValues({});
       };
       loadCustomer()
         .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
@@ -649,12 +773,6 @@ export default function FormFillModal({
     for (const comp of (def?.components || [])) {
       if (comp.componentType === "macro" && comp.config?.macroField) {
         macroValues[comp.componentId] = macroMap[comp.config.macroField] ?? "";
-      }
-      // Seed languagetoggle to "en" so all English components are visible by default.
-      // Without this, all bilingual form components are hidden on load because
-      // their show-conditions require __lang_toggle__ === "en" but allValues starts empty.
-      if (comp.componentType === "languagetoggle") {
-        macroValues[comp.componentId] = "en";
       }
     }
     setValues(macroValues);

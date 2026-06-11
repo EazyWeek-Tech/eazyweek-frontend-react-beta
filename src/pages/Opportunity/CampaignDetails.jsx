@@ -206,7 +206,7 @@ const useCampaignHeader = (oppCode) => {
     fetch(`${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(oppCode)}`,
       { headers: authHeaders() })
       .then(r => r.json())
-      .then(d => { if (alive) setHeader(d); })
+      .then(d => { if (alive) setHeader(d?.data ?? d); })
       .catch(e => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };

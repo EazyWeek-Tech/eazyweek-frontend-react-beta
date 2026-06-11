@@ -64,7 +64,7 @@ const PaletteItem = ({ type, label, icon }) => {
 };
 
 // ─── Column Slot ──────────────────────────────────────────────────────────────
-const ColumnSlot = ({ parentId, colIndex, child, isSelected, onSelectChild, onDeleteChild }) => {
+const ColumnSlot = ({ parentId, colIndex, child, isSelected, onSelectChild, onDeleteChild, allComponents = [] }) => {
   const slotId = `slot::${parentId}::${colIndex}`;
   const { setNodeRef, isOver } = useSortable({
     id: slotId,
@@ -89,7 +89,7 @@ const ColumnSlot = ({ parentId, colIndex, child, isSelected, onSelectChild, onDe
               onMouseEnter={e => e.target.style.color="#b91c1c"}
               onMouseLeave={e => e.target.style.color="#cbd5e1"}>×</button>
           </div>
-          <div style={{ pointerEvents:"none" }}><ComponentPreview component={child} compact /></div>
+          <div style={{ pointerEvents:"none" }}><ComponentPreview component={child} compact allComponents={allComponents} /></div>
         </div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
@@ -104,7 +104,7 @@ const ColumnSlot = ({ parentId, colIndex, child, isSelected, onSelectChild, onDe
 
 // ─── Column Layout Canvas Item ────────────────────────────────────────────────
 const ColumnLayoutItem = ({ component, isSelected, onClick, onDelete, childComponents,
-  selectedId, onSelectChild, onDeleteChild, isBilingual }) => {
+  selectedId, onSelectChild, onDeleteChild, allComponents = [], isBilingual }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: component.componentId });
   const colCount = component.config?.columns || 2;
@@ -141,7 +141,8 @@ const ColumnLayoutItem = ({ component, isSelected, onClick, onDelete, childCompo
             <ColumnSlot key={colIdx} parentId={component.componentId} colIndex={colIdx}
               child={childComponents.find(c => c.columnIndex === colIdx)}
               isSelected={selectedId === childComponents.find(c => c.columnIndex === colIdx)?.componentId}
-              onSelectChild={onSelectChild} onDeleteChild={onDeleteChild} />
+              onSelectChild={onSelectChild} onDeleteChild={onDeleteChild}
+              allComponents={allComponents} />
           ))}
         </div>
       </div>
@@ -150,7 +151,7 @@ const ColumnLayoutItem = ({ component, isSelected, onClick, onDelete, childCompo
 };
 
 // ─── Regular Canvas Item ──────────────────────────────────────────────────────
-const CanvasItem = ({ component, isSelected, onClick, onDelete, isBilingual, onDuplicateAsArabic }) => {
+const CanvasItem = ({ component, isSelected, onClick, onDelete, allComponents = [], isBilingual, onDuplicateAsArabic }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: component.componentId });
 
@@ -207,7 +208,7 @@ const CanvasItem = ({ component, isSelected, onClick, onDelete, isBilingual, onD
           </div>
         </div>
         <div style={{ marginTop:8, pointerEvents:"none" }}>
-          <ComponentPreview component={component} compact />
+          <ComponentPreview component={component} compact allComponents={allComponents} />
         </div>
       </div>
     </div>
@@ -608,11 +609,14 @@ export default function FormBuilder() {
                           onClick={setSelectedId} onDelete={handleDeleteComponent}
                           childComponents={childrenOf(comp.componentId)}
                           selectedId={selectedId} onSelectChild={setSelectedId}
-                          onDeleteChild={handleDeleteComponent} isBilingual={isBilingual} />
+                          onDeleteChild={handleDeleteComponent}
+                          allComponents={components}
+                          isBilingual={isBilingual} />
                       ) : (
                         <CanvasItem key={comp.componentId} component={comp}
                           isSelected={selectedId === comp.componentId}
                           onClick={setSelectedId} onDelete={handleDeleteComponent}
+                          allComponents={components}
                           isBilingual={isBilingual}
                           onDuplicateAsArabic={handleDuplicateAsArabic} />
                       )

@@ -1,7 +1,7 @@
 import React from "react";
 
 // dir: "ltr" | "rtl" — passed from FormBuilder based on selected preview language
-export default function ComponentPreview({ component, compact = false, childComponents = [], dir = "ltr", activeLang, onLangChange }) {
+export default function ComponentPreview({ component, compact = false, childComponents = [], allComponents = [], dir = "ltr", activeLang, onLangChange }) {
   const { componentType, label, isMandatory, config = {} } = component;
   const isRTL      = dir === "rtl";
   const fontFamily = isRTL ? "'Noto Sans Arabic', Arial, sans-serif" : "inherit";
@@ -181,15 +181,21 @@ export default function ComponentPreview({ component, compact = false, childComp
 
     case "columnlayout": {
       const colCount = config.columns || 2;
+      // Resolve children: prefer explicitly passed childComponents, else look up from allComponents
+      const resolvedChildren = childComponents.length > 0
+        ? childComponents
+        : allComponents.filter(c => c.parentId === component.componentId)
+            .sort((a, b) => (a.columnIndex ?? 0) - (b.columnIndex ?? 0));
       return (
         <div style={{ display:"grid", gridTemplateColumns:`repeat(${colCount}, 1fr)`, gap:compact?6:12, direction:dir }}>
           {Array.from({ length: colCount }).map((_,colIdx) => {
-            const child = childComponents.find(c => c.columnIndex === colIdx);
+            const child = resolvedChildren.find(c => c.columnIndex === colIdx);
             return (
               <div key={colIdx} style={{ border:"1px solid #e7ecf4", borderRadius:6,
                 padding:compact?"6px":"10px", background:"#fff", minHeight:40 }}>
                 {child
-                  ? <ComponentPreview component={child} compact={compact} dir={dir} />
+                  ? <ComponentPreview component={child} compact={compact}
+                      allComponents={allComponents} dir={dir} />
                   : <div style={{ fontSize:compact?10:11, color:"#cbd5e1", textAlign:"center", paddingTop:compact?6:10 }}>
                       {isRTL?"فارغ":"Empty"}
                     </div>

@@ -15,7 +15,7 @@ const getFormRights = () => {
   const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
   const ALLOWED = ["admin", "productteam"];
   const isAdmin       = ALLOWED.includes(role);
-  const isEntityLevel = u.isEntityLevel === true || isAdmin; // default true for admin roles
+  const isEntityLevel = u.isEntityLevel === true;  // strict — entity level only, no fallback
   const canManage     = isAdmin && isEntityLevel;
   return { isAdmin, canCreate: canManage, canDelete: canManage };
 };
