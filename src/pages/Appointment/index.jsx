@@ -461,9 +461,12 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const [isDoctorRole, setIsDoctorRole] = useState(false);
 
   const timeSlots = useMemo(() => [...Array(145)].map((_, i) => {
-    const base = new Date("1970-01-01T10:00:00");
-    base.setMinutes(base.getMinutes() + i * 5);
-    return base.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", hour12:true });
+    const mins = 600 + i * 5;   // start at 10:00 AM (600 min)
+    const h    = Math.floor(mins / 60);
+    const m    = mins % 60;
+    const per  = h >= 12 ? "PM" : "AM";
+    const dh   = h % 12 === 0 ? 12 : h % 12;   // no leading zero, matches TIME_SLOTS in AppointmentDrawer
+    return `${dh}:${String(m).padStart(2,"0")} ${per}`;
   }), []);
 
   useEffect(() => { if (newCustomer) { setSelectedCustomer(newCustomer); setEditData(null); setIsDrawerOpen(true); } }, [newCustomer]);

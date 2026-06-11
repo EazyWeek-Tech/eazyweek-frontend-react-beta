@@ -25,12 +25,73 @@ const fmtDate = (d) => {
   return `${day}/${m}/${y}`;
 };
 
+const PAGE_SIZE = 10;
+
+// ── Pagination Controls ───────────────────────────────────────────────────────
+const Pagination = ({ total, page, onPage }) => {
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+
+  const pages = [];
+  // Always show first, last, current ±1, with ellipsis
+  const range = new Set([1, totalPages, page, page - 1, page + 1].filter(p => p >= 1 && p <= totalPages));
+  const sorted = [...range].sort((a, b) => a - b);
+
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) pages.push("...");
+    pages.push(p);
+  });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "12px 4px", marginTop: 8, borderTop: "1px solid #f1f5f9" }}>
+      <div style={{ fontSize: 12, color: "#64748b" }}>
+        Showing {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total} records
+      </div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <button
+          onClick={() => onPage(page - 1)} disabled={page === 1}
+          style={{ padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: 6,
+            background: page === 1 ? "#f8fafc" : "#fff", cursor: page === 1 ? "not-allowed" : "pointer",
+            color: page === 1 ? "#cbd5e1" : "#334b71", fontWeight: 700, fontSize: 13 }}>
+          ‹
+        </button>
+        {pages.map((p, i) =>
+          p === "..." ? (
+            <span key={`e${i}`} style={{ padding: "5px 6px", color: "#94a3b8", fontSize: 13 }}>…</span>
+          ) : (
+            <button key={p} onClick={() => onPage(p)}
+              style={{ padding: "5px 10px", border: `1px solid ${p === page ? "#334b71" : "#e2e8f0"}`,
+                borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: "pointer",
+                background: p === page ? "#334b71" : "#fff",
+                color: p === page ? "#fff" : "#334b71" }}>
+              {p}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => onPage(page + 1)} disabled={page === totalPages}
+          style={{ padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: 6,
+            background: page === totalPages ? "#f8fafc" : "#fff",
+            cursor: page === totalPages ? "not-allowed" : "pointer",
+            color: page === totalPages ? "#cbd5e1" : "#334b71", fontWeight: 700, fontSize: 13 }}>
+          ›
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── STEP 2 — Search popup ─────────────────────────────────────────────────────
 const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
   const [searchBy,    setSearchBy]    = useState("invoiceNo");
   const [searchValue, setSearchValue] = useState("");
   const [results,     setResults]     = useState([]);
   const [loading,     setLoading]     = useState(false);
+  const [page,        setPage]        = useState(1);
+
+  // Reset to page 1 whenever results change
+  useEffect(() => { setPage(1); }, [results]);
 
   useEffect(() => {
     (async () => {
@@ -62,126 +123,134 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
     finally { setLoading(false); }
   };
 
+  // Slice results for current page
+  const pageResults = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div>
-          {/* Search bar */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", border: "1.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
-              {["invoiceNo", "customerNo"].map(k => (
-                <button key={k} onClick={() => setSearchBy(k)}
-                  style={{ padding: "8px 16px", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
-                    background: searchBy === k ? "#334b71" : "#f8fafc",
-                    color: searchBy === k ? "#fff" : "#334b71" }}>
-                  {k === "invoiceNo" ? "Invoice No." : "Customer No."}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              placeholder={`Search by ${searchBy === "invoiceNo" ? "invoice number" : "customer no / ID"}…`}
-              value={searchValue}
-              onChange={e => setSearchValue(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSearch()}
-              style={{ flex: 1, height: 40, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14 }}
-            />
-            <button onClick={handleSearch}
-              style={{ height: 40, padding: "0 20px", background: "#334b71", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
-              Search
+      {/* Search bar */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", border: "1.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+          {["invoiceNo", "customerNo"].map(k => (
+            <button key={k} onClick={() => setSearchBy(k)}
+              style={{ padding: "8px 16px", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                background: searchBy === k ? "#334b71" : "#f8fafc",
+                color: searchBy === k ? "#fff" : "#334b71" }}>
+              {k === "invoiceNo" ? "Invoice No." : "Customer No."}
             </button>
-          </div>
+          ))}
+        </div>
+        <input
+          type="text"
+          placeholder={`Search by ${searchBy === "invoiceNo" ? "invoice number" : "customer no / ID"}…`}
+          value={searchValue}
+          onChange={e => setSearchValue(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSearch()}
+          style={{ flex: 1, height: 40, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14 }}
+        />
+        <button onClick={handleSearch}
+          style={{ height: 40, padding: "0 20px", background: "#334b71", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
+          Search
+        </button>
+      </div>
 
-          {/* Results grid */}
-          {loading ? (
-            <div style={{ textAlign: "center", padding: 20, color: "#64748b" }}>Loading…</div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#f1f5f9" }}>
-                    {["Date", "Invoice No.", "Customer Name", "Cust ID", "Cust No.", "Total", "Status", "Action"].map(h => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 12,
-                        color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
-                    ))}
+      {/* Results */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 20, color: "#64748b" }}>Loading…</div>
+      ) : (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {["Date", "Invoice No.", "Customer Name", "Cust ID", "Cust No.", "Total", "Status", "Action"].map(h => (
+                    <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, fontSize: 12,
+                      color: "#475569", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageResults.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>
+                      {results.length === 0 ? "No invoices found." : "No results on this page."}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {results.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>
-                        No invoices found.
-                      </td>
-                    </tr>
-                  ) : results.map((inv, idx) => (
-                    <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "10px 12px" }}>{fmtDate(inv.invoiceDate)}</td>
-                      <td style={{ padding: "10px 12px", fontWeight: 700, color: "#334b71" }}>{inv.invoiceNum}</td>
-                      <td style={{ padding: "10px 12px" }}>{inv.fullName}</td>
-                      <td style={{ padding: "10px 12px" }}>{inv.custId}</td>
-                      <td style={{ padding: "10px 12px" }}>{inv.custNo}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{fmt(inv.sumTotal)}</td>
+                ) : pageResults.map((inv, idx) => (
+                  <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "10px 12px" }}>{fmtDate(inv.invoiceDate)}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 700, color: "#334b71" }}>{inv.invoiceNum}</td>
+                    <td style={{ padding: "10px 12px" }}>{inv.fullName}</td>
+                    <td style={{ padding: "10px 12px" }}>{inv.custId}</td>
+                    <td style={{ padding: "10px 12px" }}>{inv.custNo}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{fmt(inv.sumTotal)}</td>
 
-                      {/* Status column */}
-                      <td style={{ padding: "10px 12px" }}>
+                    {/* Status column */}
+                    <td style={{ padding: "10px 12px" }}>
+                      {inv.fullyReturned ? (
+                        <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                          color: "#b91c1c", background: "#fde8e8",
+                          border: "1px solid #f0c4c0", borderRadius: 99 }}>
+                          Returned
+                        </span>
+                      ) : inv.partialReturn ? (
+                        <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                          color: "#92400e", background: "#fef3c7",
+                          border: "1px solid #fcd34d", borderRadius: 99 }}>
+                          Partial Return
+                        </span>
+                      ) : (
+                        <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                          color: "#166534", background: "#dcfce7",
+                          border: "1px solid #86efac", borderRadius: 99 }}>
+                          Active
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Action column */}
+                    <td style={{ padding: "10px 12px" }}>
+                      <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                        <button onClick={() => onSelect(inv, "view")}
+                          style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6,
+                            background: "#fff", color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                          View
+                        </button>
                         {inv.fullyReturned ? (
                           <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
                             color: "#b91c1c", background: "#fde8e8",
-                            border: "1px solid #f0c4c0", borderRadius: 99 }}>
+                            border: "1px solid #f0c4c0", borderRadius: 6 }}>
                             Returned
                           </span>
-                        ) : inv.partialReturn ? (
-                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                            color: "#92400e", background: "#fef3c7",
-                            border: "1px solid #fcd34d", borderRadius: 99 }}>
-                            Partial Return
-                          </span>
                         ) : (
-                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                            color: "#166534", background: "#dcfce7",
-                            border: "1px solid #86efac", borderRadius: 99 }}>
-                            Active
-                          </span>
+                          <>
+                            {inv.partialReturn && (
+                              <span style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700,
+                                color: "#92400e", background: "#fef3c7",
+                                border: "1px solid #fcd34d", borderRadius: 6 }}>
+                                Partial
+                              </span>
+                            )}
+                            <button onClick={() => onSelect(inv, "return")}
+                              style={{ padding: "4px 12px", border: "none", borderRadius: 6,
+                                background: "#334b71", color: "#fff", fontWeight: 700,
+                                cursor: "pointer", fontSize: 12 }}>
+                              Return
+                            </button>
+                          </>
                         )}
-                      </td>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                      {/* Action column */}
-                      <td style={{ padding: "10px 12px" }}>
-                        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                          <button onClick={() => onSelect(inv, "view")}
-                            style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6,
-                              background: "#fff", color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
-                            View
-                          </button>
-                          {inv.fullyReturned ? (
-                            <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                              color: "#b91c1c", background: "#fde8e8",
-                              border: "1px solid #f0c4c0", borderRadius: 6 }}>
-                              Returned
-                            </span>
-                          ) : (
-                            <>
-                              {inv.partialReturn && (
-                                <span style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700,
-                                  color: "#92400e", background: "#fef3c7",
-                                  border: "1px solid #fcd34d", borderRadius: 6 }}>
-                                  Partial
-                                </span>
-                              )}
-                              <button onClick={() => onSelect(inv, "return")}
-                                style={{ padding: "4px 12px", border: "none", borderRadius: 6,
-                                  background: "#334b71", color: "#fff", fontWeight: 700,
-                                  cursor: "pointer", fontSize: 12 }}>
-                                Return
-                              </button>
-                            </>
-                          )}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* ── Pagination ── */}
+          <Pagination total={results.length} page={page} onPage={setPage} />
+        </>
+      )}
     </div>
   );
 };
@@ -401,7 +470,6 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
   const remaining  = parseFloat((totalReturn - entered).toFixed(2));
   const isBalanced = Math.abs(remaining) < 0.01;
 
-  // Zero-total — package redemption return
   if (totalReturn <= 0) return (
     <div style={{ padding: 24, textAlign: "center" }}>
       <div style={{ fontSize: 44, marginBottom: 12 }}>📦</div>

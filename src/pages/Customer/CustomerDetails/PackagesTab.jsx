@@ -27,7 +27,8 @@ const PackagesTab = ({ custId }) => {
       });
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-      setPackageData(data);
+setPackageData([...data].sort((a, b) => new Date(b.invoiceDate || 0) - new Date(a.invoiceDate || 0)));
+
     } catch { setError("Failed to load packages."); }
     finally { setLoading(false); }
   };

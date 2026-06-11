@@ -320,17 +320,21 @@ const AnnotationPad = ({ assetCode, value, onChange }) => {
 };
 
 // ─── Single Field Renderer (fillable) ─────────────────────────────────────────
-const FieldRenderer = ({ component, value, onChange, conditions, allValues, allComponents = [] }) => {
+const FieldRenderer = ({ component, value, onChange, conditions, allValues, allComponents = [], childComponents = [] }) => {
   const { componentType, label, isMandatory, config = {}, componentId } = component;
 
-  // Apply conditional visibility
-  const isVisible = conditions.every(cond => {
-    if (cond.targetCompId !== componentId) return true;
-    const triggerVal = allValues[cond.triggerCompId];
-    const matches    = String(triggerVal || "").toLowerCase() === String(cond.triggerValue || "").toLowerCase();
-    return cond.action === "show" ? matches : !matches;
-  });
-  if (!isVisible) return null;
+  // ── FIX: filter conditions targeting THIS component only, then check all ──
+  // Old .every() over ALL conditions always returned true because unrelated
+  // conditions short-circuit with `return true`.
+  const myConditions = conditions.filter(cond => cond.targetCompId === componentId);
+  if (myConditions.length > 0) {
+    const isVisible = myConditions.every(cond => {
+      const triggerVal = allValues[cond.triggerCompId];
+      const matches    = String(triggerVal || "").toLowerCase() === String(cond.triggerValue || "").toLowerCase();
+      return cond.action === "show" ? matches : !matches;
+    });
+    if (!isVisible) return null;
+  }
 
   const inp = {
     width:"100%", border:"1px solid #e7ecf4", borderRadius:8, padding:"10px 12px",
@@ -445,7 +449,7 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       );
 
     case "content":
-      return <div style={{ padding:"10px 14px", background:"#f8fafc", borderRadius:8, fontSize:13, color:"#334b71" }}
+      return <div style={{ display:"block", width:"100%", boxSizing:"border-box", padding:"10px 14px", background:"#f8fafc", borderRadius:8, fontSize:13, color:"#334b71", lineHeight:1.7 }}
         dangerouslySetInnerHTML={{ __html: config.html || "" }} />;
 
     case "macro":
@@ -465,12 +469,17 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
         </div>
       );
 
-    case "logo":
+    case "logo": {
+      const imgSrc = config.imageData || config.imageUrl || "";
       return (
         <div style={{ textAlign:config.align||"left" }}>
-          <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
+          {imgSrc
+            ? <img src={imgSrc} alt="Logo" style={{ maxHeight:80, maxWidth:config.maxWidth||"160px", objectFit:"contain" }} />
+            : <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
+          }
         </div>
       );
+    }
 
     case "calculated": {
       // Evaluate formula: replace {Label} tokens with the current value of that field
@@ -527,6 +536,32 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
               = {config.formula || "no formula set"}
             </span>
           </div>
+        </div>
+      );
+    }
+
+    case "columnlayout": {
+      // ── FIX 1: render column children in a grid when filling the form ──
+      const colCount = config.columns || 2;
+      return (
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${colCount}, 1fr)`, gap:16, width:"100%" }}>
+          {Array.from({ length: colCount }).map((_, colIdx) => {
+            const child = childComponents.find(c => c.columnIndex === colIdx);
+            if (!child) return <div key={colIdx} style={{ minHeight:40 }} />;
+            return (
+              <div key={colIdx}>
+                <FieldRenderer
+                  component={child}
+                  value={allValues[child.componentId]}
+                  onChange={val => onChange({ ...allValues, [child.componentId]: val })}
+                  conditions={conditions}
+                  allValues={allValues}
+                  allComponents={allComponents}
+                  childComponents={[]}
+                />
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -760,15 +795,24 @@ export default function FormFillModal({
         <div className="popfrm" style={{ flex:1, overflowY:"auto" }}>
           {formDef ? (
             <div>
-              {(formDef.components || []).map(comp => (
+              {/* Render top-level components only; children are handled inside columnlayout */}
+              {(formDef.components || []).filter(c => !c.parentId).map(comp => (
                 <div key={comp.componentId} style={{ marginBottom:18 }}>
                   <FieldRenderer
                     component={comp}
                     value={values[comp.componentId]}
-                    onChange={val => updateValue(comp.componentId, val)}
+                    onChange={val => {
+                      // columnlayout onChange receives merged allValues object
+                      if (comp.componentType === "columnlayout" && typeof val === "object" && !val?.url) {
+                        setValues(p => ({ ...p, ...val }));
+                      } else {
+                        updateValue(comp.componentId, val);
+                      }
+                    }}
                     conditions={formDef.conditions || []}
                     allValues={values}
                     allComponents={formDef.components || []}
+                    childComponents={(formDef.components || []).filter(c => c.parentId === comp.componentId)}
                   />
                   {errors[comp.componentId] && (
                     <div style={{ color:"#b91c1c", fontSize:11, marginTop:4 }}>
