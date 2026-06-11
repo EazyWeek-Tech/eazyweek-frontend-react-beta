@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  DndContext, DragOverlay, closestCenter,
+  DndContext, DragOverlay, closestCenter, closestCorners, pointerWithin,
   PointerSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
 import {
@@ -66,7 +66,11 @@ const PaletteItem = ({ type, label, icon }) => {
 // ─── Column Slot ──────────────────────────────────────────────────────────────
 const ColumnSlot = ({ parentId, colIndex, child, isSelected, onSelectChild, onDeleteChild }) => {
   const slotId = `slot::${parentId}::${colIndex}`;
-  const { setNodeRef, isOver } = useSortable({ id: slotId, data: { isSlot: true, parentId, colIndex } });
+  const { setNodeRef, isOver } = useSortable({
+    id: slotId,
+    data: { isSlot: true, parentId, colIndex },
+    disabled: true,   // slots are drop targets only — not draggable themselves
+  });
   return (
     <div ref={setNodeRef}
       style={{ minHeight:70, border:`2px dashed ${isOver?"#334b71":"#A7D1CD"}`, borderRadius:8,
@@ -540,7 +544,14 @@ export default function FormBuilder() {
 
       {/* Body */}
       <div className="fb-body">
-        <DndContext sensors={sensors} collisionDetection={closestCenter}
+        <DndContext sensors={sensors}
+          collisionDetection={(args) => {
+            // For slot targets (horizontal grid), pointerWithin gives accurate hit detection
+            // closestCenter struggles with horizontally-laid-out equal-size cells
+            const slotCollisions = pointerWithin(args).filter(c => String(c.id).startsWith("slot::"));
+            if (slotCollisions.length > 0) return slotCollisions;
+            return closestCenter(args);
+          }}
           onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
 
