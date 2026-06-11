@@ -127,11 +127,52 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
 
       {/* Type-specific config */}
       {["dropdown","radio","checkbox"].includes(component.componentType) && (
-        <F label={isArabic?"الخيارات (سطر واحد لكل خيار)":"Options"} hint={isArabic?"خيار واحد في كل سطر":"One option per line"}>
-          <EditorTextarea
-            value={(component.config?.options || []).join("\n")}
-            onChange={v => updateConfig("options", v.split("\n").filter(Boolean))}
-            rows={5} dir={dir} />
+        <F label={isArabic ? "الخيارات" : "Options"}>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {(component.config?.options || ["Option 1","Option 2"]).map((opt, idx) => (
+              <div key={idx} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                <input
+                  value={opt}
+                  dir={dir}
+                  onChange={e => {
+                    const opts = [...(component.config?.options || [])];
+                    opts[idx] = e.target.value;
+                    updateConfig("options", opts);
+                  }}
+                  placeholder={`${isArabic ? "خيار" : "Option"} ${idx + 1}`}
+                  style={{ flex:1, border:"1px solid #e7ecf4", borderRadius:8,
+                    padding:"7px 10px", fontSize:12, outline:"none", boxSizing:"border-box" }}
+                />
+                <button
+                  onClick={() => {
+                    const opts = (component.config?.options || []).filter((_, i) => i !== idx);
+                    updateConfig("options", opts.length ? opts : ["Option 1"]);
+                  }}
+                  disabled={(component.config?.options || []).length <= 1}
+                  style={{ background:"none", border:"1px solid #e7ecf4", borderRadius:6,
+                    width:28, height:28, cursor:"pointer", color:"#94a3b8", fontSize:16,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    opacity: (component.config?.options || []).length <= 1 ? 0.3 : 1,
+                    flexShrink:0 }}>
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => {
+                const opts = [...(component.config?.options || [])];
+                opts.push(`${isArabic ? "خيار" : "Option"} ${opts.length + 1}`);
+                updateConfig("options", opts);
+              }}
+              style={{ background:"#f0f4fa", border:"1px dashed #334b71", borderRadius:8,
+                padding:"6px 10px", fontSize:11, fontWeight:700, color:"#334b71",
+                cursor:"pointer", textAlign:"center" }}>
+              {isArabic ? "+ إضافة خيار" : "+ Add Option"}
+            </button>
+            <div style={{ fontSize:10, color:"#94a3b8" }}>
+              {(component.config?.options || []).length} {isArabic ? "خيارات" : "option(s)"}
+            </div>
+          </div>
         </F>
       )}
 
