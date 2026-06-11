@@ -320,21 +320,17 @@ const AnnotationPad = ({ assetCode, value, onChange }) => {
 };
 
 // ─── Single Field Renderer (fillable) ─────────────────────────────────────────
-const FieldRenderer = ({ component, value, onChange, conditions, allValues, allComponents = [], childComponents = [] }) => {
+const FieldRenderer = ({ component, value, onChange, conditions, allValues, allComponents = [] }) => {
   const { componentType, label, isMandatory, config = {}, componentId } = component;
 
-  // ── FIX: filter conditions targeting THIS component only, then check all ──
-  // Old .every() over ALL conditions always returned true because unrelated
-  // conditions short-circuit with `return true`.
-  const myConditions = conditions.filter(cond => cond.targetCompId === componentId);
-  if (myConditions.length > 0) {
-    const isVisible = myConditions.every(cond => {
-      const triggerVal = allValues[cond.triggerCompId];
-      const matches    = String(triggerVal || "").toLowerCase() === String(cond.triggerValue || "").toLowerCase();
-      return cond.action === "show" ? matches : !matches;
-    });
-    if (!isVisible) return null;
-  }
+  // Apply conditional visibility
+  const isVisible = conditions.every(cond => {
+    if (cond.targetCompId !== componentId) return true;
+    const triggerVal = allValues[cond.triggerCompId];
+    const matches    = String(triggerVal || "").toLowerCase() === String(cond.triggerValue || "").toLowerCase();
+    return cond.action === "show" ? matches : !matches;
+  });
+  if (!isVisible) return null;
 
   const inp = {
     width:"100%", border:"1px solid #e7ecf4", borderRadius:8, padding:"10px 12px",
@@ -449,7 +445,7 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       );
 
     case "content":
-      return <div style={{ display:"block", width:"100%", boxSizing:"border-box", padding:"10px 14px", background:"#f8fafc", borderRadius:8, fontSize:13, color:"#334b71", lineHeight:1.7 }}
+      return <div style={{ padding:"10px 14px", background:"#f8fafc", borderRadius:8, fontSize:13, color:"#334b71" }}
         dangerouslySetInnerHTML={{ __html: config.html || "" }} />;
 
     case "macro":
@@ -469,17 +465,12 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
         </div>
       );
 
-    case "logo": {
-      const imgSrc = config.imageData || config.imageUrl || "";
+    case "logo":
       return (
         <div style={{ textAlign:config.align||"left" }}>
-          {imgSrc
-            ? <img src={imgSrc} alt="Logo" style={{ maxHeight:80, maxWidth:config.maxWidth||"160px", objectFit:"contain" }} />
-            : <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
-          }
+          <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
         </div>
       );
-    }
 
     case "calculated": {
       // Evaluate formula: replace {Label} tokens with the current value of that field
@@ -540,32 +531,6 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       );
     }
 
-    case "columnlayout": {
-      // ── FIX 1: render column children in a grid when filling the form ──
-      const colCount = config.columns || 2;
-      return (
-        <div style={{ display:"grid", gridTemplateColumns:`repeat(${colCount}, 1fr)`, gap:16, width:"100%" }}>
-          {Array.from({ length: colCount }).map((_, colIdx) => {
-            const child = childComponents.find(c => c.columnIndex === colIdx);
-            if (!child) return <div key={colIdx} style={{ minHeight:40 }} />;
-            return (
-              <div key={colIdx}>
-                <FieldRenderer
-                  component={child}
-                  value={allValues[child.componentId]}
-                  onChange={val => onChange({ ...allValues, [child.componentId]: val })}
-                  conditions={conditions}
-                  allValues={allValues}
-                  allComponents={allComponents}
-                  childComponents={[]}
-                />
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-
     default:
       return null;
   }
@@ -606,13 +571,23 @@ export default function FormFillModal({
         setForms([syntheticForm]);
         setFormDef(def);
 
+        // Seed languagetoggle default so bilingual components are visible
+        const seedDefaults = (base = {}) => {
+          const seeded = { ...base };
+          for (const comp of (def?.components || [])) {
+            if (comp.componentType === "languagetoggle" && !seeded[comp.componentId]) {
+              seeded[comp.componentId] = "en";
+            }
+          }
+          return seeded;
+        };
         if (existingRecId) {
           // Edit mode: pre-fill from the existing submission
           const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${existingRecId}`);
-          setValues(sub?.responseData || {});
+          setValues(seedDefaults(sub?.responseData || {}));
         } else {
           // New fill: start with empty values (macro fields populated by macroContext)
-          setValues({});
+          setValues(seedDefaults());
         }
       };
       loadEdit().finally(() => setLoading(false));
@@ -628,7 +603,12 @@ export default function FormFillModal({
         const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
         setForms([syntheticForm]);
         setFormDef(def);
-        setValues({});
+        // Seed languagetoggle default so bilingual components are visible
+        const defaults = {};
+        for (const comp of (def?.components || [])) {
+          if (comp.componentType === "languagetoggle") defaults[comp.componentId] = "en";
+        }
+        setValues(defaults);
       };
       loadCustomer()
         .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
@@ -669,6 +649,12 @@ export default function FormFillModal({
     for (const comp of (def?.components || [])) {
       if (comp.componentType === "macro" && comp.config?.macroField) {
         macroValues[comp.componentId] = macroMap[comp.config.macroField] ?? "";
+      }
+      // Seed languagetoggle to "en" so all English components are visible by default.
+      // Without this, all bilingual form components are hidden on load because
+      // their show-conditions require __lang_toggle__ === "en" but allValues starts empty.
+      if (comp.componentType === "languagetoggle") {
+        macroValues[comp.componentId] = "en";
       }
     }
     setValues(macroValues);
@@ -795,24 +781,15 @@ export default function FormFillModal({
         <div className="popfrm" style={{ flex:1, overflowY:"auto" }}>
           {formDef ? (
             <div>
-              {/* Render top-level components only; children are handled inside columnlayout */}
-              {(formDef.components || []).filter(c => !c.parentId).map(comp => (
+              {(formDef.components || []).map(comp => (
                 <div key={comp.componentId} style={{ marginBottom:18 }}>
                   <FieldRenderer
                     component={comp}
                     value={values[comp.componentId]}
-                    onChange={val => {
-                      // columnlayout onChange receives merged allValues object
-                      if (comp.componentType === "columnlayout" && typeof val === "object" && !val?.url) {
-                        setValues(p => ({ ...p, ...val }));
-                      } else {
-                        updateValue(comp.componentId, val);
-                      }
-                    }}
+                    onChange={val => updateValue(comp.componentId, val)}
                     conditions={formDef.conditions || []}
                     allValues={values}
                     allComponents={formDef.components || []}
-                    childComponents={(formDef.components || []).filter(c => c.parentId === comp.componentId)}
                   />
                   {errors[comp.componentId] && (
                     <div style={{ color:"#b91c1c", fontSize:11, marginTop:4 }}>
