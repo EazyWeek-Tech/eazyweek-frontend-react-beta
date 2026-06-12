@@ -172,10 +172,30 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     return new Date().toISOString().split("T")[0];
   }, [appointment?.appointmentDate]);
 
-  const BASE_STATUSES = ["Booked","Confirmed","Checked In","Active","Completed","Cancelled","No Show"];
-  const RESTRICTED    = ["Checked In","Active","Completed"];
-  const isRestricted  = RESTRICTED.includes(status);
-  const VISIBLE       = BASE_STATUSES.filter(s => !(isRestricted && (s === "Cancelled" || s === "No Show")));
+  // ── Date-aware status logic ──────────────────────────────────────────────
+  const today     = new Date().toISOString().split("T")[0];
+  const isPast    = apptDateISO < today;
+  const isFuture  = apptDateISO > today;
+  const isToday   = apptDateISO === today;
+
+  // Future appointments: only Booked, Confirmed, Cancelled allowed
+  // Past/Today appointments: full workflow + can mark Completed directly
+  // Already restricted (Checked In / Active / Completed): no Cancel/No Show
+  const RESTRICTED = ["Checked In", "Active", "Completed"];
+  const isRestricted = RESTRICTED.includes(status);
+
+  const VISIBLE = (() => {
+    if (isRestricted) {
+      // Once in progress/done — allow progression but not cancel/no-show
+      return ["Checked In", "Active", "Completed"];
+    }
+    if (isFuture) {
+      // Future — only pre-appointment statuses
+      return ["Booked", "Confirmed", "Cancelled"];
+    }
+    // Past or today — full range including Completed (for walk-ins / past bookings)
+    return ["Booked", "Confirmed", "Checked In", "Active", "Completed", "Cancelled", "No Show"];
+  })();
 
   useEffect(() => {
     if (!apptId || !centerCode || !apptDateISO) return;
@@ -245,7 +265,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const handleStatusChange = async (e) => {
     const newStatus = e.target.value;
     if (isRestricted && (newStatus === "Cancelled" || newStatus === "No Show")) {
-      setToast({ message: "Cannot cancel/no-show after checked in or active.", type: "error" });
+      setToast({ message: "Cannot cancel or no-show an appointment that is already in progress or completed.", type: "error" });
+      return;
+    }
+    if (isFuture && !["Booked", "Confirmed", "Cancelled"].includes(newStatus)) {
+      setToast({ message: "Future appointments can only be set to Booked, Confirmed, or Cancelled.", type: "error" });
       return;
     }
     if (newStatus === "Active" || newStatus === "Completed") {
@@ -1327,6 +1351,12 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
           editAppointment={editData}
           selectedDate={selectedDate}
           onRefreshAppointments={() => fetchAppointments(selectedDate)}
+          allowPastDates={true}
+          defaultStatus={
+            selectedDate && selectedDate < new Date().toISOString().split("T")[0]
+              ? "Completed"
+              : undefined
+          }
         />
       )}
 

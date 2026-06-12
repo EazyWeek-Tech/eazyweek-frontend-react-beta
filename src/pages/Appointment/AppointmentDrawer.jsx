@@ -410,6 +410,8 @@ const ServiceList = ({ data = [], onDelete }) => (
 const AppointmentDrawer = ({
   isOpen, onClose, timeSlot, doctor, customer,
   editAppointment, selectedDate, onRefreshAppointments,
+  allowPastDates = false,
+  defaultStatus = undefined,
 }) => {
   const drawerRef    = useRef(null);
   const [height,     setHeight]     = useState(433);
@@ -491,13 +493,9 @@ const AppointmentDrawer = ({
     if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
 
-    // APPT_030: Block booking in past date/time
     const bookingDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
     const today = new Date().toISOString().split("T")[0];
-    if (bookingDate < today) {
-      setToast({ message:"Cannot book an appointment in the past.", type:"error" });
-      return;
-    }
+    const isBookingPast = bookingDate < today;
 
     setSubmitting(true);
 
@@ -555,12 +553,18 @@ const AppointmentDrawer = ({
 
     const freshRefId = crypto.randomUUID();
     setBookingRefId(freshRefId);
+    // Auto-set status for past bookings
+    const bookingStatus = isBookingPast
+      ? (defaultStatus || "Completed")
+      : (defaultStatus || "Booked");
+
     const payload = {
       custID:          customerData.custid || "",
       appointmentDate: bookingDate,
       userId:          user.userId || user.employeeCode || "",
       centerCode:      user.centerCode || "",
       referenceId:     freshRefId,
+      status:          bookingStatus,
       saveAppointment: serviceList.map((e, i) => ({
         startTime:   e.service.start,
         endTime:     e.service.end,
@@ -614,6 +618,20 @@ const AppointmentDrawer = ({
               <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
             </svg>
           </div>
+          {/* Past date booking banner */}
+          {(() => {
+            const bDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
+            const tod   = new Date().toISOString().split("T")[0];
+            return bDate && bDate < tod ? (
+              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 20px",
+                background:"#fef9c3", borderBottom:"1px solid #fde68a" }}>
+                <span style={{ fontSize:13, fontWeight:700, color:"#92400e" }}>
+                  📅 Past date — appointment will be saved as <strong>Completed</strong>
+                </span>
+              </div>
+            ) : null;
+          })()}
+
           {/* Reschedule banner */}
           {editAppointment?.isReschedule && (
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 20px",
