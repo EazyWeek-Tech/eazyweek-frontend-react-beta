@@ -217,6 +217,27 @@ const ServiceMaster = () => {
     { name: "Category",    selector: (row) => row.categoryName || row.CCODE || "",  sortable: true },
     { name: "Subcategory", selector: (row) => row.subCategoryName || row.CSCODE || "", sortable: true },
     {
+      name: "Quick Cart",
+      selector: (row) => row.addToQuickCart || row.ADDTOQUICKCART || "No",
+      sortable: true,
+      center: true,
+      cell: (row) => {
+        const val = (row.addToQuickCart || row.ADDTOQUICKCART || "No").toString().toLowerCase();
+        const isYes = ["yes","1","true"].includes(val);
+        return (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+            background: isYes ? "#dcfce7" : "#f1f5f9",
+            color:      isYes ? "#166534" : "#6b7280",
+            border: `1px solid ${isYes ? "#b3d9cc" : "#e5ebf3"}`,
+          }}>
+            {isYes ? "✓ Yes" : "No"}
+          </span>
+        );
+      },
+    },
+    {
       name: "Status",
       selector: (row) => row.status || row.serviceStatus || row.SERVICESTATUS || "",
       cell:     (row) => {

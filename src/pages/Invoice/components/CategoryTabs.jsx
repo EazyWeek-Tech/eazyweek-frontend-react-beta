@@ -22,35 +22,34 @@ const getCenterCode = () => {
 const truncate = (str = "", max = 35) =>
   str.length > max ? str.slice(0, max) + "…" : str;
 
-const CATEGORIES = [
-  { id: "CC04",  label: "Antiageing Services", icon: "images/antiage.svg" },
-  { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
-  { id: "CC048", label: "Volume filling",      icon: "images/filling.svg" },
-  { id: "CC025", label: "Hair Reduction",      icon: "images/hair.svg"    },
-];
-
 const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
-  const [services,      setServices]      = useState([]);
-  const [activeTab,     setActiveTab]     = useState("services");
-  const [activeCat,     setActiveCat]     = useState(CATEGORIES[0].id);
-  const [searchTerm,    setSearchTerm]    = useState("");
-  const [svcLoading,    setSvcLoading]    = useState(false);
-  const [allPackages,   setAllPackages]   = useState([]);   // all Quick Cart packages
-  const [pkgLoading,    setPkgLoading]    = useState(false);
+  const CATEGORIES = [
+    { id: "CC04",  label: "Antiageing Services", icon: "images/antiage.svg" },
+    { id: "CC048", label: "Volume filling",      icon: "images/filling.svg" },
+    { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
+    { id: "CC025", label: "Hair Reduction",      icon: "images/hair.svg"    },
+  ];
+
+  const [services,    setServices]    = useState([]);
+  const [activeTab,   setActiveTab]   = useState("services");
+  const [activeCat,   setActiveCat]   = useState(CATEGORIES[0].id);
+  const [searchTerm,  setSearchTerm]  = useState("");
+  const [svcLoading,  setSvcLoading]  = useState(false);
+  const [allPackages, setAllPackages] = useState([]);
+  const [pkgLoading,  setPkgLoading]  = useState(false);
 
   // ── Load Quick Cart packages once on mount ────────────────────────────────
   useEffect(() => {
     (async () => {
       setPkgLoading(true);
       try {
-        const u    = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-        const res  = await fetch(
+        const u   = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+        const res = await fetch(
           `${API_BASE_URL}/api/Package/List?status=Active&centerCode=${encodeURIComponent(u.centerCode || "")}`,
           { headers: { Authorization: `Bearer ${TOKEN()}` } }
         );
         const json = await res.json();
         const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-        // Only packages released to this centre AND marked for Quick Cart
         setAllPackages(data.filter(p => p.ADDTOQUICKCART && p.RELEASEDTOCENTRE));
       } catch { setAllPackages([]); }
       finally { setPkgLoading(false); }
@@ -78,7 +77,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
     })();
   }, [activeCat, activeTab]);
 
-  // ── Filter packages by active category (uses CATEGORYCODE column) ─────────
+  // ── Filter packages by active category ───────────────────────────────────
   const filteredPackages = allPackages.filter(p => {
     const matchesCat    = p.CATEGORYCODE === activeCat;
     const matchesSearch = !searchTerm || (p.PACKAGENAME || "").toLowerCase().includes(searchTerm.toLowerCase());
@@ -189,7 +188,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
               </div>
             )}
 
-            {/* Packages list — filtered by activeCat via CATEGORYCODE */}
+            {/* Packages list */}
             {activeTab === "packages" && (
               <div className="ctlistwrp">
                 {pkgLoading ? (
