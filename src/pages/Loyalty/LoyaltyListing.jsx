@@ -2,11 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL as API_BASE } from "../../config";
 
+// ── Auth ─────────────────────────────────────────────────────────────────────
+const getToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+const authHeaders = () => ({
+  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+});
+
 // ── API ───────────────────────────────────────────────────────────────────────
 const fetchLoyaltyPrograms = async (pageNumber = 1, pageSize = 10) => {
   const res = await fetch(
     `${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-    { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } }
+    { headers: authHeaders() }
   );
   if (res.status === 304 || res.status === 404 || res.status === 204)
     return { data: [], totalRecords: 0, totalPages: 0, pageNumber, pageSize };
@@ -17,12 +25,14 @@ const fetchLoyaltyPrograms = async (pageNumber = 1, pageSize = 10) => {
   }
   try {
     const json = await res.json();
+    // Response shape: { success, data: { data: [...], totalRecords, totalPages, ... } }
+    const inner = json.data ?? json;
     return {
-      data: json.data ?? [],
-      totalRecords: json.totalRecords ?? 0,
-      totalPages: json.totalPages ?? Math.ceil((json.totalRecords ?? 0) / pageSize),
-      pageNumber: json.pageNumber ?? pageNumber,
-      pageSize: json.pageSize ?? pageSize,
+      data:         inner.data         ?? [],
+      totalRecords: inner.totalRecords ?? 0,
+      totalPages:   inner.totalPages   ?? Math.ceil((inner.totalRecords ?? 0) / pageSize),
+      pageNumber:   inner.pageNumber   ?? pageNumber,
+      pageSize:     inner.pageSize     ?? pageSize,
     };
   } catch (_) { return { data: [], totalRecords: 0, totalPages: 0, pageNumber, pageSize }; }
 };

@@ -6,7 +6,13 @@ const C = {
   primary: "#334b71", teal: "#A7D1CD", grid: "#eef2f7", axis: "#6e7b8f", coral: "#cc6b5c",
 };
 
-const HEADERS = { "Content-Type": "application/json", "Cache-Control": "no-cache", Pragma: "no-cache" };
+const getToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+const HEADERS = () => ({
+  "Content-Type": "application/json",
+  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+});
 
 const safeJson = async (res, label) => {
   const ct = res.headers.get("content-type") ?? "";
@@ -15,26 +21,29 @@ const safeJson = async (res, label) => {
 };
 
 const fetchCurrencies = async () => {
-  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS, credentials: 'include' });
+  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS() });
   if (!res.ok) throw new Error(`Failed to load currencies (${res.status})`);
-  return safeJson(res, "GET currency/search");
+  const json = await safeJson(res, "GET currency/search");
+  return Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
 };
 
 const fetchTierById = async (tierId) => {
-  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier/${tierId}`, { headers: HEADERS, credentials: 'include' });
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier/${tierId}`, { headers: HEADERS() });
   if (!res.ok) throw new Error(`Failed to load tier (${res.status})`);
-  return res.json();
+  const json = await res.json();
+  return json?.data ?? json;
 };
 
 const fetchTiers = async () => {
-  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier-list`, { headers: HEADERS, credentials: 'include' });
+  const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/get-tier-list`, { headers: HEADERS() });
   if (!res.ok) throw new Error(`Failed to load tiers (${res.status})`);
-  return safeJson(res, "GET get-tier-list");
+  const json = await safeJson(res, "GET get-tier-list");
+  return Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
 };
 
 const saveProgram = async (payload) => {
   const res = await fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
-    method: "POST", headers: HEADERS, credentials: 'include', body: JSON.stringify(payload),
+    method: "POST", headers: HEADERS(), body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let msg = `Save failed (${res.status})`;
@@ -64,7 +73,7 @@ const buildTierPayload = (form, programId) => ({
 
 const createTier = async (payload) => {
   const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/create-tier`, {
-    method: "POST", headers: HEADERS, credentials: 'include', body: JSON.stringify(payload),
+    method: "POST", headers: HEADERS(), body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let msg = `Tier create failed (${res.status})`;
@@ -76,7 +85,7 @@ const createTier = async (payload) => {
 
 const updateTier = async (payload) => {
   const res = await fetch(`${API_BASE}/api/v1/loyalty/tier/update-tier`, {
-    method: "PUT", headers: HEADERS, credentials: 'include', body: JSON.stringify(payload),
+    method: "PUT", headers: HEADERS(), body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let msg = `Tier update failed (${res.status})`;
@@ -92,7 +101,7 @@ const saveTier = (form, programId, isEdit) => {
 };
 
 const fetchServices = async () => {
-  const res = await fetch(`${API_BASE}/api/Master/LoadService`, { headers: HEADERS, credentials: 'include' });
+  const res = await fetch(`${API_BASE}/api/Master/LoadService`, { headers: HEADERS() });
   if (!res.ok) return [];
   try { const d = await res.json(); return Array.isArray(d) ? d : []; } catch { return []; }
 };
@@ -542,7 +551,7 @@ export default function LoyaltyProgramConfig() {
       } else {
         let newProgramId = result?.programId ?? result?.data?.programId ?? 0;
         if (!newProgramId) {
-          const listRes = await fetch(`${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=50`, { headers: HEADERS, credentials: 'include' });
+          const listRes = await fetch(`${API_BASE}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=50`, { headers: HEADERS() });
           if (listRes.ok) {
             const listJson = await listRes.json();
             const matched = (listJson.data ?? []).filter(p => p.programName === payload.programName).sort((a, b) => b.programId - a.programId)[0];
@@ -553,7 +562,7 @@ export default function LoyaltyProgramConfig() {
         setProgramCode(autoCode);
         if (newProgramId && autoCode) {
           fetch(`${API_BASE}/api/LoyaltyProgram/CreateOrUpdate`, {
-            method: "POST", headers: HEADERS, credentials: 'include',
+            method: "POST", headers: HEADERS(),
             body: JSON.stringify({ ...payload, programId: newProgramId, programCode: autoCode }),
           }).catch(() => {});
         }

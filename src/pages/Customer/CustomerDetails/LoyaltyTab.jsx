@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../../config";
-const HEADERS = { "Cache-Control": "no-cache", Pragma: "no-cache" };
+const getToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+const HEADERS = () => ({
+  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+});
 
 const fmt = (d) => {
   if (!d) return "—";
@@ -40,9 +45,9 @@ const LoyaltyTab = ({ custId, recId }) => {
   useEffect(() => {
     if (!recId) return;
     setBalanceLoading(true);
-    fetch(`${API_BASE_URL}/api/v1/points/balance/${recId}`, { headers: HEADERS })
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${recId}`, { headers: HEADERS() })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(d => setBalance(d))
+      .then(d => setBalance(d?.data ?? d))
       .catch(() => setError("Failed to load loyalty balance."))
       .finally(() => setBalanceLoading(false));
   }, [recId]);
@@ -51,9 +56,10 @@ const LoyaltyTab = ({ custId, recId }) => {
   const loadHistory = (p = 1) => {
     if (!recId) return;
     setHistoryLoading(true);
-    fetch(`${API_BASE_URL}/api/v1/points/history/${recId}?page=${p}&pageSize=${pageSize}`, { headers: HEADERS })
+    fetch(`${API_BASE_URL}/api/v1/points/history/${recId}?page=${p}&pageSize=${pageSize}`, { headers: HEADERS() })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
+        // Response: { page, pageSize, total, data: [...] } — no success wrapper
         setHistory(d.data ?? []);
         setTotalPages(Math.ceil((d.total ?? 0) / pageSize) || 1);
         setPage(p);
