@@ -86,6 +86,7 @@ const PaymentBlock = ({
   const [loyaltyBalance, setLoyaltyBalance] = useState(null);
   const [loyaltyBalanceLoading, setLoyaltyBalanceLoading] = useState(false);
   const [centerRecId, setCenterRecId] = useState(0);
+  const [loyaltyEnrollmentType, setLoyaltyEnrollmentType] = useState('ONREQUEST'); // AUTO | ONREQUEST
   const [loyaltyPointsValue, setLoyaltyPointsValue] = useState(null); // SAR value from get-points
   const [loyaltyPointsLoading, setLoyaltyPointsLoading] = useState(false);
   const [loyaltyPointsError, setLoyaltyPointsError] = useState('');
@@ -118,19 +119,20 @@ const PaymentBlock = ({
       .catch(() => {}); // fail silently — logo is cosmetic
   }, [sessionCenterCode]);
 
-  // ---------- Fetch loyalty balance — disabled until loyalty module is ready ----------
-  // LOYALTY TODO: uncomment when loyalty module is ready
-  // useEffect(() => {
-  //   if (activeTab !== 'loyalty' || !recIdFromUrl_final || !isLoyaltyEnrolled) return;
-  //   setLoyaltyBalanceLoading(true);
-  //   fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
-  //     headers: { 'Cache-Control': 'no-cache' },
-  //   })
-  //     .then(r => r.ok ? r.json() : Promise.reject(r.status))
-  //     .then(d => setLoyaltyBalance(d))
-  //     .catch(e => console.warn('Loyalty balance fetch failed:', e))
-  //     .finally(() => setLoyaltyBalanceLoading(false));
-  // }, [activeTab, recIdFromUrl_final]);
+  // ---------- Fetch loyalty program enrollmentType on mount ----------------------
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/LoyaltyProgram/program/list?pageNumber=1&pageSize=1`, {
+      headers: authHeaders(),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const programs = d?.data?.data ?? d?.data ?? [];
+        if (programs.length > 0) {
+          setLoyaltyEnrollmentType(programs[0].enrollmentType ?? 'ONREQUEST');
+        }
+      })
+      .catch(() => {}); // non-critical
+  }, []);
 
   // ---------- Fetch center recId from LoadCenters ----------
   useEffect(() => {
@@ -284,6 +286,21 @@ const PaymentBlock = ({
 
   // Derived from effective customer — must be after effectiveCustomer is defined
   const isLoyaltyEnrolled = !!(effectiveCustomer?.isLoyaltyEnrolled ?? customer?.isLoyaltyEnrolled);
+
+  // ---------- Fetch loyalty balance when loyalty tab opened --------------------
+  // Must be after isLoyaltyEnrolled is defined
+  useEffect(() => {
+    const effectivelyEnrolled = loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled;
+    if (activeTab !== 'loyalty' || !recIdFromUrl_final || !effectivelyEnrolled) return;
+    setLoyaltyBalanceLoading(true);
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
+      headers: authHeaders(),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => setLoyaltyBalance(d?.data ?? d))
+      .catch(e => console.warn('Loyalty balance fetch failed:', e))
+      .finally(() => setLoyaltyBalanceLoading(false));
+  }, [activeTab, recIdFromUrl_final, loyaltyEnrollmentType, isLoyaltyEnrolled]);
 
   // ---------- Effective items (enrich parent items from API by code/name) ----------
   const effectiveInvoiceItems = useMemo(() => {
@@ -737,15 +754,15 @@ if (result.success) {
 
         const invoiceNum = result.message || '';
         setGeneratedInvoiceNumber(invoiceNum);
-        /* TODO: Loyalty points — enable when loyalty module is ready
-        if (recIdFromUrl_final && isLoyaltyEnrolled) {
+        // ── Loyalty points — EARN on cash portion, REDEEMED on loyalty portion ──
+        const effectivelyEnrolled = loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled;
+        if (recIdFromUrl_final && effectivelyEnrolled) {
           const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
-          const loyaltyAmount = loyaltyPayment ? loyaltyPayment.amount : 0;
-          const earnAmount = parsedTotalAmount - loyaltyAmount;
-          if (earnAmount > 0) await createPointsTransaction('EARN', earnAmount, invoiceNum);
-          if (loyaltyPayment) await createPointsTransaction('REDEEMED', loyaltyPayment.amount, invoiceNum);
+          const loyaltyAmount  = loyaltyPayment ? loyaltyPayment.amount : 0;
+          const earnAmount     = parsedTotalAmount - loyaltyAmount; // exclude loyalty portion
+          if (earnAmount > 0)  await createPointsTransaction('EARN',     earnAmount,     invoiceNum);
+          if (loyaltyPayment)  await createPointsTransaction('REDEEMED', loyaltyAmount,  invoiceNum);
         }
-        */
         setInvoiceSuccessPopup(true);
 
         // ── Package Redemption → decrements BALANCEQTY in CLINIC_CUSTOMER_PACKAGES ──
@@ -840,36 +857,34 @@ if (result.success) {
     }
   };
 
-  // ---------- Points transaction helper — disabled until loyalty module is ready ----------
-  // LOYALTY TODO: uncomment when loyalty module is ready
-  // const createPointsTransaction = async (transactionType, invoiceTotal, invoiceNumber) => {
-  //   if (!recIdFromUrl_final) return;
-  //   const now = new Date().toISOString();
-  //   const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
-  //   const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
-  //   try {
-  //     await fetch(`${API_BASE_URL}/api/v1/points/create`, {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({
-  //         customerId: centerRecId || 0,
-  //         membershipId: recIdFromUrl_final,
-  //         programId: 0,
-  //         transactionType,
-  //         amount: invoiceTotal,
-  //         points: 0,
-  //         referenceId,
-  //         description: `INV ${invoiceNumber}`,
-  //         expiryDate: now,
-  //         transactionDate: now,
-  //         status: '1',
-  //         pointsBalanceAfter: 0,
-  //       }),
-  //     });
-  //   } catch (err) {
-  //     console.warn('Points transaction failed (non-critical):', err);
-  //   }
-  // };
+  // ---------- Points transaction helper ----------------------------------------
+  const createPointsTransaction = async (transactionType, amount, invoiceNumber) => {
+    if (!recIdFromUrl_final) return;
+    const now = new Date().toISOString();
+    const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
+    const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
+    try {
+      await fetch(`${API_BASE_URL}/api/v1/points/create`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          CustomerId:         centerRecId || 0,
+          MembershipId:       recIdFromUrl_final,
+          ProgramId:          0,
+          TransactionType:    transactionType,
+          Amount:             amount,
+          Points:             0,            // backend calculates from tier rules
+          ReferenceId:        referenceId,
+          Description:        `INV ${invoiceNumber}`,
+          ExpiryDate:         now,
+          TransactionDate:    now,
+          PointsBalanceAfter: 0,            // backend recalculates
+        }),
+      });
+    } catch (err) {
+      console.warn('Points transaction failed (non-critical):', err);
+    }
+  };
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
                + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
@@ -989,15 +1004,15 @@ if (result.success) {
 
           {activeTab === 'loyalty' && (
             <>
-              {/* Not enrolled guard */}
-              {!isLoyaltyEnrolled && (
+              {/* Not enrolled guard — skip in AUTO mode, everyone earns */}
+              {loyaltyEnrollmentType !== 'AUTO' && !isLoyaltyEnrolled && (
                 <div style={{ padding: '12px 14px', background: '#fdf3f3', border: '1px solid #f0c4c0', borderRadius: 8, color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>
                   ⚠ This customer is not enrolled in the loyalty program. Loyalty payments are unavailable.
                 </div>
               )}
 
               {/* Balance display */}
-              {isLoyaltyEnrolled && <div className="frmdiv">
+              {(loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled) && <div className="frmdiv">
                 {loyaltyBalanceLoading ? (
                   <div style={{ fontSize: 13, color: '#6e7b8f', padding: '8px 0' }}>Loading loyalty balance…</div>
                 ) : loyaltyBalance ? (
@@ -1024,7 +1039,7 @@ if (result.success) {
               </div>}
 
               {/* Points input + convert button */}
-              {isLoyaltyEnrolled && loyaltyBalance && (
+              {(loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled) && loyaltyBalance && (
                 <>
                   <div className="frmdiv">
                     <label>Points to Redeem:</label>
@@ -1061,23 +1076,24 @@ if (result.success) {
                           setLoyaltyPointsLoading(true);
                           setLoyaltyPointsError('');
                           setLoyaltyPointsValue(null);
-                          // LOYALTY TODO: enable when loyalty module is ready
-                          // try {
-                          //   const res = await fetch(
-                          //     `${API_BASE_URL}/api/v1/points/get-points?...`,
-                          //     { headers: { ...authHeaders(), 'Cache-Control': 'no-cache' } }
-                          //   );
-                          //   if (!res.ok) throw new Error(`Failed (${res.status})`);
-                          //   const data = await res.json();
-                          //   const sarValue = typeof data === 'number' ? data : Number(data) || 0;
-                          //   setLoyaltyPointsValue(sarValue);
-                          //   setAmount(String(sarValue));
-                          // } catch (e) {
-                          //   setLoyaltyPointsError('Failed to fetch point value. Try again.');
-                          // } finally {
-                          //   setLoyaltyPointsLoading(false);
-                          // }
-                          setLoyaltyPointsLoading(false); // remove when loyalty enabled
+                          try {
+                            const res = await fetch(
+                              `${API_BASE_URL}/api/v1/points/get-points?customerId=${recIdFromUrl_final}&amount=${pts}&TransactionType=REDEEMED`,
+                              { headers: authHeaders() }
+                            );
+                            if (!res.ok) throw new Error(`Failed (${res.status})`);
+                            const data = await res.json();
+                            // Response: { success, data: <number> }
+                            const sarValue = typeof data?.data === 'number' ? data.data
+                              : typeof data === 'number' ? data
+                              : Number(data?.data ?? data) || 0;
+                            setLoyaltyPointsValue(sarValue);
+                            setAmount(String(sarValue));
+                          } catch (e) {
+                            setLoyaltyPointsError('Failed to fetch point value. Try again.');
+                          } finally {
+                            setLoyaltyPointsLoading(false);
+                          }
                         }}
                       >
                         {loyaltyPointsLoading ? 'Checking…' : 'Get Value'}

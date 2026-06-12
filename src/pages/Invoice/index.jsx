@@ -91,7 +91,7 @@ const InvoicePage = () => {
 
             const firstItem = result[0];
             setFormTnput({ name: firstItem.serviceName||'', servicecode: firstItem.serviceCode||'', doctorId: firstItem.doctorId||'' });
-            setSelectedCustomer({
+            const baseCust = {
               custid:   firstItem.custId   || "",
               fullName: firstItem.fullName || custNameFromUrl || "",
               number:   firstItem.number  || "",
@@ -99,7 +99,29 @@ const InvoicePage = () => {
               gender:   firstItem.gender  || "",
               status:   String(firstItem.nationalityId || firstItem.nationality || "") === "84" ? "Citizen" : "Expat",
               recId:    recIdFromUrl || firstItem.recId || "",
-            });
+              isLoyaltyEnrolled: false,
+            };
+            setSelectedCustomer(baseCust);
+
+            // Fetch full customer details to get isLoyaltyEnrolled
+            if (firstItem.custId) {
+              const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+              fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                body: JSON.stringify({ custID: firstItem.custId }),
+              })
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(d => {
+                  const det = d?.data ?? d;
+                  setSelectedCustomer(prev => ({
+                    ...prev,
+                    isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
+                    recId: prev.recId || det?.recId || det?.recid || "",
+                  }));
+                })
+                .catch(() => {}); // non-critical — loyalty just won't show
+            }
             return;
           }
         } catch (error) {
@@ -113,7 +135,27 @@ const InvoicePage = () => {
           fullName: custNameFromUrl  || "",
           number: "", email: "", gender: "", status: "",
           recId:    recIdFromUrl     || "",
+          isLoyaltyEnrolled: false,
         });
+        // Fetch isLoyaltyEnrolled for URL-based customer load
+        if (custidFromUrl) {
+          const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+          fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+            body: JSON.stringify({ custID: custidFromUrl }),
+          })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(d => {
+              const det = d?.data ?? d;
+              setSelectedCustomer(prev => ({
+                ...prev,
+                isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
+                recId: prev.recId || det?.recId || det?.recid || "",
+              }));
+            })
+            .catch(() => {});
+        }
       }
     };
 
@@ -224,7 +266,7 @@ const InvoicePage = () => {
 
             <div className="invtotalblk">
               <CustomerSearch
-                onCustomerSelect={(cust) => setSelectedCustomer({ ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "" })}
+                onCustomerSelect={(cust) => setSelectedCustomer({ ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) })}
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
                 nationalityStatus={selectedCustomer?.status} />
