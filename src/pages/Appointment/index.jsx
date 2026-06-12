@@ -60,6 +60,23 @@ const Toast = ({ message, type = "info", onClose }) => {
 };
 
 // ── Appointment Details Sidebar ────────────────────────────────────────────────
+// Module-level cache — survives re-renders, cleared on page reload
+const _formStatusCache = new Map();
+const fetchFormStatus = (appointmentId, serviceCode) => {
+  const key = `${appointmentId}|${serviceCode}`;
+  if (_formStatusCache.has(key)) return Promise.resolve(_formStatusCache.get(key));
+  const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  return fetch(
+    `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/FormStatus?serviceCode=${encodeURIComponent(serviceCode)}`,
+    { headers: { Authorization: `Bearer ${tok}` } }
+  ).then(r => r.ok ? r.json() : null)
+   .then(d => {
+     const data = d?.data ?? d ?? {};
+     _formStatusCache.set(key, data);
+     return data;
+   }).catch(() => ({}));
+};
+
 const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, onRefresh, onStatusUpdated }) => {
   const navigate = useNavigate();
   const [appt,   setAppt]   = useState(appointment || null);
@@ -69,6 +86,78 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
 
   // ── EMR Forms hook ────────────────────────────────────────────────────────
   const { checkAndShowForms, showModal, modalProps } = useEMRForms();
+
+  // ── Form status for sidebar ───────────────────────────────────────────────
+  const [sidebarForms,       setSidebarForms]       = useState([]);
+  const [sidebarFormStatus,  setSidebarFormStatus]  = useState(null);
+  const [sidebarFormsLoading,setSidebarFormsLoading]= useState(false);
+
+  // Active forms mapped to this service (Consent/Treatment)
+  const [activeForms,        setActiveForms]        = useState([]);
+  const [activeFormsLoaded,  setActiveFormsLoaded]  = useState(false);
+  // Medical history form — shown if first visit or not filled
+  const [showMedHistory,     setShowMedHistory]     = useState(false);
+  const [medHistFilled,      setMedHistFilled]      = useState(false);
+
+  // ── Direct form open modal ────────────────────────────────────────────────
+  const [directModal,    setDirectModal]    = useState(false);
+  const [directFormCode, setDirectFormCode] = useState(null);
+  const [directMacro,    setDirectMacro]    = useState({});
+
+  const openFormDirect = (formCode, macroCtx = {}) => {
+    setDirectFormCode(formCode);
+    setDirectMacro(macroCtx);
+    setDirectModal(true);
+  };
+
+  const MED_HIST_CODE = "MED-HIST-001";
+
+  useEffect(() => {
+    const svcCode   = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
+    const apptIdVal = appointment?.appointmentId;
+    const custId    = appointment?.custId || "";
+    if (!apptIdVal || !svcCode) return;
+    setSidebarFormsLoading(true);
+
+    // 1. Form fill status
+    fetchFormStatus(apptIdVal, svcCode).then(data => {
+      setSidebarForms(data?.forms || []);
+      setSidebarFormStatus(data?.overall || null);
+    }).finally(() => setSidebarFormsLoading(false));
+
+    // 2. Forms mapped to this specific serviceCode
+    const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    fetch(`${API_BASE_URL}/api/EMR/Service/${encodeURIComponent(svcCode)}/Forms`, {
+      headers: { Authorization: `Bearer ${tok}` }
+    }).then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const forms = Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : [];
+        setActiveForms(forms);
+      })
+      .catch(() => {})
+      .finally(() => setActiveFormsLoaded(true));
+
+    // 3. Medical history — show if customer has no prior submissions
+    if (custId) {
+      fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      }).then(r => r.ok ? r.json() : null)
+        .then(d => {
+          // Response: { data: { submissions: [], customerForms: [...] } }
+          const inner = d?.data ?? d;
+          const submissions = [
+            ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+            ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
+            ...(Array.isArray(inner)                ? inner               : []),
+          ];
+          const medHistSub  = submissions.find(s => s.formCode === MED_HIST_CODE);
+          setMedHistFilled(!!medHistSub);
+          setShowMedHistory(true); // always show button; indicator shows filled/pending
+        }).catch(() => setShowMedHistory(true));
+    } else {
+      setShowMedHistory(true);
+    }
+  }, [appointment?.appointmentId, appointment?.serviceCode, appointment?.custId]);
 
   // ── Customer Notes — check-in alert ──────────────────────────────────────
   const { NotePopup: CheckinNotePopup, checkNotes: checkCheckinNotes } = useCustomerNotes();
@@ -281,16 +370,115 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
 
         <div className="apptactdiv">
           <h2 className="dethead">Appointment Execution</h2>
-          <button onClick={() => goTo("/history")} className="cstlnk" style={{ width:"100%" }}>
-            <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="" /> Medical History
-          </button>
+
+          {/* ── Medical History ── always shown; indicator if filled ── */}
+          {showMedHistory && (() => {
+            const a = appt || appointment || {};
+            const openMedHist = () => {
+              openFormDirect(MED_HIST_CODE, {
+                customerName:     a.fullName         || "",
+                serviceName:      a.serviceName      || "",
+                centreName:       user?.centerName   || "",
+                practitionerName: a.therapistName    || "",
+                appointmentDate:  a.startDate        || new Date().toISOString(),
+                MobileNumber:     a.number           || "",
+                Gender:           a.gender           || "",
+              });
+            };
+            return (
+              <button onClick={openMedHist} className="cstlnk" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <img src={`${import.meta.env.BASE_URL}images/medical.svg`} alt="" /> Medical History
+                </span>
+                {medHistFilled
+                  ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc" }}>✅ Filled</span>
+                  : <span style={{ fontSize:10, fontWeight:700, background:"#fef9c3", color:"#92400e", borderRadius:99, padding:"1px 8px", border:"1px solid #fde68a" }}>⏳ Pending</span>
+                }
+              </button>
+            );
+          })()}
+
+          {/* ── Consent / Treatment forms — shown only if mapped to this service ── */}
+          {(activeForms.length > 0 || !activeFormsLoaded) && (
           <div className="apptcdet">
-            <button onClick={() => goTo("/consent")} className="cstlnk">
-              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Consent Form
-            </button>
-            <button onClick={() => goTo("/treatment")} className="cstlnk">
-              <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" /> Treatment Form
-            </button>
+            {!activeFormsLoaded ? (
+              <div style={{ fontSize:11, color:"#94a3b8", padding:"4px 0" }}>Loading forms…</div>
+            ) : (
+              activeForms.map(form => {
+                const filled = sidebarForms.find(f => f.formCode === form.formCode);
+                const isFilled = filled?.status === "Completed";
+                const openForm = () => {
+                  const a = appt || appointment || {};
+                  openFormDirect(form.formCode, {
+                    customerName:     a.fullName         || "",
+                    serviceName:      a.serviceName      || "",
+                    centreName:       user?.centerName   || "",
+                    practitionerName: a.therapistName    || "",
+                    appointmentDate:  a.startDate        || new Date().toISOString(),
+                  });
+                };
+                return (
+                  <button key={form.formCode} onClick={openForm} className="cstlnk"
+                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <img src={`${import.meta.env.BASE_URL}images/consent.svg`} alt="" />
+                      <span style={{ fontSize:11 }}>{form.formName}</span>
+                    </span>
+                    {isFilled
+                      ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc", whiteSpace:"nowrap" }}>✅ Done</span>
+                      : <span style={{ fontSize:10, fontWeight:700, background:"#f1f5f9", color:"#6e7b8f", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}>Open</span>
+                    }
+                  </button>
+                );
+              })
+            )}
+          </div>
+          )}
+
+          {/* ── EMR Form Status ── */}
+          <div style={{ margin:"10px 0 6px", padding:"10px 12px",
+            background:"#f8fafc", borderRadius:8, border:"1px solid #e7ecf4" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#6e7b8f",
+              textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8,
+              display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span>📋 Forms</span>
+              {!sidebarFormsLoading && sidebarFormStatus && (() => {
+                const s = STATUS_STYLE[sidebarFormStatus] || STATUS_STYLE["Not Started"];
+                return (
+                  <span style={{ background:s.bg, color:s.color, borderRadius:99,
+                    padding:"2px 9px", fontSize:10, fontWeight:700 }}>
+                    {s.icon} {sidebarFormStatus}
+                  </span>
+                );
+              })()}
+            </div>
+            {sidebarFormsLoading ? (
+              <div style={{ fontSize:12, color:"#94a3b8" }}>Loading…</div>
+            ) : sidebarForms.length === 0 ? (
+              <div style={{ fontSize:12, color:"#cc6b5c", fontWeight:600,
+                display:"flex", alignItems:"center", gap:6,
+                padding:"6px 10px", background:"#fff5f5",
+                border:"1px solid #f5c4b0", borderRadius:7 }}>
+                ⚠ No forms filled for this appointment
+              </div>
+            ) : (
+              sidebarForms.map(f => (
+                <div key={f.formCode} style={{ display:"flex", justifyContent:"space-between",
+                  alignItems:"center", padding:"5px 0",
+                  borderBottom:"0.5px solid #f1f5f9", fontSize:12 }}>
+                  <span style={{ color:"#334b71", fontWeight:500 }}>{f.formName}</span>
+                  <span style={{
+                    fontSize:10, fontWeight:700,
+                    color:      f.status === "Completed" ? "#166534" : "#92400e",
+                    background: f.status === "Completed" ? "#dcfce7" : "#fef9c3",
+                    border:     `1px solid ${f.status === "Completed" ? "#b3d9cc" : "#fde68a"}`,
+                    padding:"1px 7px", borderRadius:99
+                  }}>
+                    {f.status === "Completed" ? "✅ Done" : "⏳ Pending"}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
           {(appt?.allLines || [appt]).every(l => Number(l?.isPaymentMade) === 1) ? (
             <div className="pndpay" style={{ opacity: 0.5, cursor: "not-allowed", pointerEvents: "none" }}>
@@ -321,6 +509,32 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {showModal && modalProps && <FormFillModal {...modalProps} />}
+      {directModal && directFormCode && (
+        <FormFillModal
+          formCodeOverride={directFormCode}
+          appointmentId={appt?.appointmentId || appointment?.appointmentId || ""}
+          custId={appt?.custId || appointment?.custId || ""}
+          serviceCode={appt?.serviceCode || appointment?.serviceCode || ""}
+          centerCode={centerCode}
+          macroContext={directMacro}
+          onClose={() => { setDirectModal(false); setDirectFormCode(null); }}
+          onComplete={() => {
+            const fc = directFormCode;
+            setDirectModal(false);
+            setDirectFormCode(null);
+            // Refresh form status after submission
+            const svcCode = appt?.serviceCode || appointment?.serviceCode || "";
+            const aId     = appt?.appointmentId || appointment?.appointmentId || "";
+            const key = `${aId}|${svcCode}`;
+            _formStatusCache.delete(key);
+            fetchFormStatus(aId, svcCode).then(data => {
+              setSidebarForms(data?.forms || []);
+              setSidebarFormStatus(data?.overall || null);
+            });
+            if (fc === MED_HIST_CODE) setMedHistFilled(true);
+          }}
+        />
+      )}
       {CheckinNotePopup}
     </div>
   );
@@ -332,42 +546,53 @@ const STATUS_STYLE = {
   "Not Started":     { bg:"#f1f5f9", color:"#64748b", icon:"📋" },
 };
 
+
+
 const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
   const [status, setStatus] = React.useState(null);
   const [forms,  setForms]  = React.useState([]);
+  const [tipPos, setTipPos] = React.useState({ top:0, left:0 });
   const [showTip,setShowTip]= React.useState(false);
+  const badgeRef = React.useRef(null);
   const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
-  React.useEffect(() => {
+  const fetchStatus = React.useCallback(() => {
     if (!appointmentId || !serviceCode) return;
-    fetch(
-      `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/FormStatus?serviceCode=${encodeURIComponent(serviceCode)}`,
-      { headers: { Authorization: `Bearer ${TOKEN()}` } }
-    ).then(r => r.ok ? r.json() : null)
-     .then(d => {
-       const data = d?.data ?? d;
-       if (data?.overall && data.overall !== "No Forms") {
-         setStatus(data.overall);
-         setForms(data.forms || []);
-       }
-     }).catch(() => {});
+    fetchFormStatus(appointmentId, serviceCode).then(data => {
+      if (data?.overall && data.overall !== "No Forms") {
+        setStatus(data.overall);
+        setForms(data.forms || []);
+      }
+    });
   }, [appointmentId, serviceCode]);
+
+  const handleMouseEnter = () => {
+    fetchStatus(); // lazy — only fetches once on first hover
+    if (badgeRef.current) {
+      const rect = badgeRef.current.getBoundingClientRect();
+      setTipPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
+    }
+    setShowTip(true);
+  };
 
   if (!status) return null;
   const style = STATUS_STYLE[status] || STATUS_STYLE["Not Started"];
 
   return (
-    <div style={{ position:"relative", display:"inline-block" }}
-      onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
-      <div style={{ background:style.bg, color:style.color, borderRadius:99,
-        padding:"1px 7px", fontSize:10, fontWeight:700, cursor:"default",
-        display:"flex", alignItems:"center", gap:3, marginTop:2 }}>
-        {style.icon} {status}
+    <>
+      <div ref={badgeRef} style={{ display:"inline-block" }}
+        onMouseEnter={handleMouseEnter} onMouseLeave={() => setShowTip(false)}>
+        <div style={{ background:style.bg, color:style.color, borderRadius:99,
+          padding:"1px 7px", fontSize:10, fontWeight:700, cursor:"default",
+          display:"flex", alignItems:"center", gap:3, marginTop:2 }}>
+          {style.icon} {status}
+        </div>
       </div>
       {showTip && forms.length > 0 && (
-        <div style={{ position:"absolute", top:"100%", left:0, marginTop:4,
+        <div style={{ position:"fixed", top: tipPos.top, left: tipPos.left, zIndex:9999,
           background:"#fff", border:"1px solid #e7ecf4", borderRadius:8,
-          padding:"8px 12px", zIndex:100, minWidth:220, boxShadow:"0 4px 12px rgba(0,0,0,.1)" }}>
+          padding:"8px 12px", minWidth:220, boxShadow:"0 4px 12px rgba(0,0,0,.1)" }}
+          onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
           {forms.map(f => (
             <div key={f.formCode} style={{ fontSize:11, display:"flex", justifyContent:"space-between",
               alignItems:"center", padding:"3px 0", borderBottom:"0.5px solid #f1f5f9" }}>
@@ -379,7 +604,7 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 };
 
@@ -395,10 +620,10 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
   ];
   return (
     <div className="fltroptflx">
-      <div className="viewfilter">
+      {/* <div className="viewfilter">
         <span className="viewrm viewtb">Rooms</span>
         <span className="viewdoc viewtb active">Practitioners</span>
-      </div>
+      </div> */}
       <div className="vwextrabtns">
         <div className="apptstatus">
           {/* All pill */}

@@ -726,12 +726,38 @@ export default function FormFillModal({
     // ── Customer Form path (formCodeOverride set, no whenToFill) ────────────
     if (formCodeOverride && !whenToFill) {
       const loadCustomer = async () => {
+        // Load form definition
         const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
-        console.log("[FormFillModal] Customer form def:", def?.formCode, "components:", def?.components?.length);
         if (!def || !def.formCode) throw new Error(`Form ${formCodeOverride} not found or inactive`);
         const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
         setForms([syntheticForm]);
         setFormDef(def);
+
+        // Check if customer has already submitted this form — load existing response if so
+        if (custId) {
+          try {
+            const customerForms = await authGet(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`);
+            // Response: { submissions: [], customerForms: [...] }
+            const cfInner = customerForms?.data ?? customerForms;
+            const cfList = [
+              ...(Array.isArray(cfInner?.customerForms) ? cfInner.customerForms : []),
+              ...(Array.isArray(cfInner?.submissions)   ? cfInner.submissions   : []),
+              ...(Array.isArray(cfInner)                ? cfInner               : []),
+            ];
+            const existing = cfList.find(f => f.formCode === formCodeOverride && (f.submissionId || f.recId));
+            const subId = existing?.submissionId || existing?.recId;
+            if (subId) {
+              const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${subId}`);
+              if (sub?.responseData && Object.keys(sub.responseData).length > 0) {
+                setValues(sub.responseData);
+                return; // skip macro prefill — existing data takes priority
+              }
+            }
+          } catch (e) {
+            console.warn("[FormFillModal] Could not load existing submission:", e.message);
+          }
+        }
+        // No existing submission — start fresh with macro prefill
         setValues({});
       };
       loadCustomer()
@@ -775,6 +801,45 @@ export default function FormFillModal({
         macroValues[comp.componentId] = macroMap[comp.config.macroField] ?? "";
       }
     }
+
+    // Customer data prefill — match by label (case-insensitive) for text/date/dropdown fields
+    // Used by Medical History and similar Customer forms opened from appointment sidebar
+    if (macroContext.customerName || macroContext.MobileNumber || macroContext.Gender) {
+      // Build label → prefill value map
+      const labelPrefill = {};
+      if (macroContext.customerName) {
+        ["full name", "patient name", "name", "customer name"].forEach(k => labelPrefill[k] = macroContext.customerName);
+      }
+      if (macroContext.MobileNumber) {
+        ["phone", "phone number", "mobile", "mobile number", "contact number"].forEach(k => labelPrefill[k] = macroContext.MobileNumber);
+      }
+      if (macroContext.Gender) {
+        ["gender", "sex"].forEach(k => labelPrefill[k] = macroContext.Gender);
+      }
+      if (macroContext.appointmentDate) {
+        // Prefill today's date for "Date" fields that are likely "Date of today" not DOB
+        // Only prefill DOB if explicitly provided
+      }
+
+      for (const comp of (def?.components || [])) {
+        // Only prefill fillable input types — not content/signature/calculated
+        if (["content", "logo", "macro", "signature", "calculated", "annotation"].includes(comp.componentType)) continue;
+        // Don't overwrite if already set
+        if (macroValues[comp.componentId]) continue;
+        const labelKey = (comp.label || "").trim().toLowerCase();
+        if (labelKey in labelPrefill && labelPrefill[labelKey]) {
+          // For dropdown: only set if the value matches one of the options
+          if (comp.componentType === "dropdown") {
+            const opts = comp.config?.options || [];
+            const match = opts.find(o => o.toLowerCase() === labelPrefill[labelKey].toLowerCase());
+            if (match) macroValues[comp.componentId] = match;
+          } else {
+            macroValues[comp.componentId] = labelPrefill[labelKey];
+          }
+        }
+      }
+    }
+
     setValues(macroValues);
   };
 
@@ -785,6 +850,8 @@ export default function FormFillModal({
     const e = {};
     for (const comp of formDef.components || []) {
       if (!comp.isMandatory) continue;
+      // Skip non-fillable component types — user cannot input values into these
+      if (["columnlayout", "calculated", "content", "logo", "annotation", "languagetoggle"].includes(comp.componentType)) continue;
       const val = values[comp.componentId];
       // Signature: must have actual drawn data (not just empty string)
       if (comp.componentType === "signature") {
@@ -846,8 +913,13 @@ export default function FormFillModal({
     finally { setSubmitting(false); }
   };
 
-  const updateValue = (compId, val) => {
-    setValues(p => ({ ...p, [compId]: val }));
+  const updateValue = (compId, val, isColumnLayout = false) => {
+    if (isColumnLayout && val && typeof val === "object" && !Array.isArray(val)) {
+      // Spread child component values directly into top-level values
+      setValues(p => ({ ...p, ...val }));
+    } else {
+      setValues(p => ({ ...p, [compId]: val }));
+    }
     if (errors[compId]) setErrors(p => { const e = {...p}; delete e[compId]; return e; });
   };
 
@@ -899,12 +971,12 @@ export default function FormFillModal({
         <div className="popfrm" style={{ flex:1, overflowY:"auto" }}>
           {formDef ? (
             <div>
-              {(formDef.components || []).map(comp => (
+              {(formDef.components || []).filter(c => !c.parentId).map(comp => (
                 <div key={comp.componentId} style={{ marginBottom:18 }}>
                   <FieldRenderer
                     component={comp}
                     value={values[comp.componentId]}
-                    onChange={val => updateValue(comp.componentId, val)}
+                    onChange={val => updateValue(comp.componentId, val, comp.componentType === "columnlayout")}
                     conditions={formDef.conditions || []}
                     allValues={values}
                     allComponents={formDef.components || []}

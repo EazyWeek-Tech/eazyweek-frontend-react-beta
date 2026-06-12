@@ -60,7 +60,6 @@ const GeneralTab = ({ customer }) => {
   // Master data
   const [nationalities, setNationalities] = useState([]);
   const [countries, setCountries]         = useState([]);
-  const [states, setStates]               = useState([]);
   const [languages] = useState([{ value: 1, label: "English" }, { value: 2, label: "Arabic" }]);
 
   const showToast = (msg, type = "success") => {
@@ -90,15 +89,7 @@ const GeneralTab = ({ customer }) => {
 
   }, []);
 
-  // Load states when country changes
-  useEffect(() => {
-    if (!form.countryCode || !TOKEN()) { setStates([]); return; }
-    fetch(`${API_BASE_URL}/api/Master/LoadState/${form.countryCode}`, { headers: authHeaders() })
-      .then(r => r.json()).then(j => {
-        const d = j?.data ?? j;
-        if (Array.isArray(d)) setStates(d.map(s => ({ value: s.stateId ?? s.id, label: s.stateName ?? s.name ?? s.STATE_NAME })));
-      }).catch(() => {});
-  }, [form.countryCode]);
+  // State removed — table not available
 
   const set = (name, value) => setForm(p => ({ ...p, [name]: value }));
 
@@ -117,6 +108,12 @@ const GeneralTab = ({ customer }) => {
     if (!String(form.lastName    || "").trim()) e.lastName    = "Required";
     if (!String(form.mobilePhone || "").trim()) e.mobilePhone = "Required";
     if (!String(form.gender      || "").trim()) e.gender      = "Required";
+    if (!String(form.email       || "").trim()) {
+      e.email = "Required";
+    } else {
+      const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRx.test(form.email.trim())) e.email = "Enter a valid email address";
+    }
 
     const dob = formatDateForInput(form.birthDay);
     if (!dob)               e.birthDay = "Required";
@@ -133,9 +130,16 @@ const GeneralTab = ({ customer }) => {
     e.preventDefault();
     if (!validate()) return;
 
+    // Ensure centerCode — fallback to session if customer record doesn't have it
+    const sessionCenterCode = (() => {
+      try { return JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}').centerCode || ''; }
+      catch { return ''; }
+    })();
+    const resolvedCenterCode = String(form.centerCode || sessionCenterCode || '');
+
     const payload = {
       customerId:              String(form.customerId       || ""),
-      centerCode:              String(form.centerCode       || ""),
+      centerCode:              resolvedCenterCode,
       firstName:               String(form.firstName        || ""),
       middleName:              String(form.middleName       || ""),
       lastName:                String(form.lastName         || ""),
@@ -226,8 +230,9 @@ const GeneralTab = ({ customer }) => {
             <F label="Preferred Name">
               <Inp name="preferredName" value={form.preferredName} onChange={handleChange} />
             </F>
-            <F label="Email">
-              <Inp name="email" type="email" value={form.email} onChange={handleChange} />
+            <F label="Email" required error={errors.email}>
+              <Inp name="email" type="email" value={form.email} onChange={handleChange}
+                placeholder="customer@example.com" />
             </F>
             <F label="Mobile Phone" required error={errors.mobilePhone}>
               <div style={{ display:"flex", gap:6 }}>
@@ -305,14 +310,7 @@ const GeneralTab = ({ customer }) => {
               <Sel name="countryCode" value={form.countryCode}
                 onChange={handleChange} options={countries} />
             </F>
-            <F label="State">
-              <Sel name="stateCode" value={form.stateCode}
-                onChange={handleChange} options={states}
-                disabled={!states.length} />
-            </F>
-            <F label="State (Other)">
-              <Inp name="stateOther" value={form.stateOther} onChange={handleChange} />
-            </F>
+
           </div>
         </Card>
 

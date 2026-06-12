@@ -129,6 +129,9 @@ const CustomerMaster = () => {
   const handleSave = async () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
+    if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
+    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
     setFormError(""); setSaving(true);
     try {
       const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "" };
@@ -265,6 +268,11 @@ const CustomerMaster = () => {
               <Section title="Contact">
                 <FormRow label="Mobile *">
                   <input style={styles.inp} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+                </FormRow>
+                <FormRow label="Email *">
+                  <input style={styles.inp} type="email" name="email"
+                    value={formData.email || ""} onChange={handleInput}
+                    placeholder="customer@example.com" />
                 </FormRow>
               </Section>
 

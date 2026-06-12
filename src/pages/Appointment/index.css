@@ -220,7 +220,7 @@ body{background:var(--bg);color:var(--text);}
   padding:3px;vertical-align:top;position:relative;
   border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#fff;
 }
-.appt-td-v .appcell-v2{position:absolute;inset:3px;height:calc(100% - 6px);overflow:hidden;}
+.appt-td-v .appcell-v2{position:absolute;inset:3px;height:calc(100% - 6px);overflow:visible;}
 
 .appcell-v2{
   border-left:4px solid var(--bord-dk);border-radius:0 6px 6px 0;
