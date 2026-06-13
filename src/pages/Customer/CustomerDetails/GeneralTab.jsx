@@ -285,7 +285,7 @@ const GeneralTab = ({ customer }) => {
         </Card>
 
         {/* ── Address ────────────────────────────────────────────────────── */}
-        <Card icon="📍" title="Address">
+        <Card icon="" title="Address">
           <div className="gt-grid">
             <F label="Address 1" span2>
               <Inp name="address1" value={form.address1} onChange={handleChange} />

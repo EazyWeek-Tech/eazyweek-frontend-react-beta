@@ -457,7 +457,7 @@ const PaymentBlock = ({
       const total = amountWithoutVat + tax;
       // Find any promotion applied to this item
       const promoNote = item._promotionName
-        ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;">🏷 Promo: ${item._promotionName} (-SAR ${discount.toFixed(2)})</td></tr>`
+        ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;"> Promo: ${item._promotionName} (-SAR ${discount.toFixed(2)})</td></tr>`
         : "";
       return `
         <tr>
@@ -545,7 +545,7 @@ const PaymentBlock = ({
               <tr>
                 <td></td>
                 <td colspan="6" style="padding:4px 6px;font-size:10px;color:#166534;font-style:italic;border-top:1px solid #ccc;">
-                  🏷 Invoice Promo: ${p.discountName}
+                   Invoice Promo: ${p.discountName}
                 </td>
                 <td style="padding:4px 6px;font-size:10px;color:#166534;font-weight:700;border-top:1px solid #ccc;">
                   -SAR ${parseFloat(p.discountAmount || 0).toFixed(2)}

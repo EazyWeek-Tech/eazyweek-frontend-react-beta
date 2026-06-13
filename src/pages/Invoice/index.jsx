@@ -181,6 +181,17 @@ const InvoicePage = () => {
   const handlePriceChange    = (index, value) => { const u = [...items]; u[index].price    = value; setItems(u); };
   const handleDiscountChange = (index, value) => { const u = [...items]; u[index].discount  = value; u[index]._manualDiscount = parseFloat(value) > 0; setItems(u); };
   const handleRemove         = (index) => setItems(items.filter((_, idx) => idx !== index));
+  const handleCopyItem       = (index) => setItems(prev => {
+    const original = prev[index];
+    if (!original) return prev;
+    // Duplicate the full line — service/package, price, discount, practitioner code/name, tax fields, etc.
+    // Strip the applied-promotion markers so the copy doesn't double-count a promotion that
+    // appliedPromotions still tracks against the original line only.
+    const copy = { ...original, _promotionId: undefined, _promotionName: undefined };
+    const next = [...prev];
+    next.splice(index + 1, 0, copy);
+    return next;
+  });
   const handleAddItem        = () => setItems([...items, { name: 'New Item', price: '', discount: '' }]);
   const handleAddFormItem    = (newItem) => { setItems(prev => [...prev, newItem]); setFormResetKey(prev => prev + 1); };
   const handleManualDiscount = (updatedItems) => setItems(updatedItems.map(item => ({ ...item, _manualDiscount: parseFloat(item.discount) > 0 })));
@@ -252,7 +263,7 @@ const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
               </div>
             </div>
 
-            <InvoiceTable items={items} onRemove={handleRemove} readOnlyInputs={true}
+            <InvoiceTable items={items} onRemove={handleRemove} onCopy={handleCopyItem} readOnlyInputs={true}
               customer={selectedCustomer} appliedPromotions={appliedPromotions}
               onRemovePromotion={handleRemovePromotion} onRemoveManualDiscount={handleRemoveManualDiscount} />
 

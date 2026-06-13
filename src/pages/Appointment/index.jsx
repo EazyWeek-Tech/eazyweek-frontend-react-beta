@@ -133,7 +133,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       const inner = customerData?.data ?? customerData;
       const customerForms = [
         ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-        ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
         ...(Array.isArray(inner)                ? inner               : []),
       ];
 
@@ -619,7 +618,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
             const inner = customerData?.data ?? customerData;
             const customerForms = [
               ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-              ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
               ...(Array.isArray(inner)                ? inner               : []),
             ];
             const customerFormRows = customerForms.map(cf => ({
@@ -675,7 +673,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               const inner = customerData?.data ?? customerData;
               const customerForms = [
                 ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-                ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
                 ...(Array.isArray(inner)                ? inner               : []),
               ];
               const customerFormRows = customerForms.map(cf => ({

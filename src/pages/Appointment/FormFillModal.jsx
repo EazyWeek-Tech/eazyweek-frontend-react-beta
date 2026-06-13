@@ -512,7 +512,7 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
               style={{ maxWidth:maxW, maxHeight:80, objectFit:"contain", display:"inline-block" }} />
           ) : (
             <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5",
-              borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
+              borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}> Logo</div>
           )}
         </div>
       );

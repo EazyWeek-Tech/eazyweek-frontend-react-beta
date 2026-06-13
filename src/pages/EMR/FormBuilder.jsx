@@ -35,7 +35,7 @@ export const COMPONENT_TYPES = [
   { type:"annotation",   label:"Annotation Pad",   icon:"🖊", group:"Special" },
   { type:"macro",        label:"Macro",            icon:"⚡", group:"Special" },
   { type:"content",      label:"Static Content",   icon:"📃", group:"Content" },
-  { type:"logo",         label:"Logo",             icon:"🏷", group:"Content" },
+  { type:"logo",         label:"Logo",             icon:"", group:"Content" },
   { type:"columnlayout", label:"Columns",          icon:"⬜", group:"Layout" },
   { type:"collapsible",  label:"Collapsible",      icon:"🗂", group:"Layout" },
   { type:"tabs",         label:"Tabs",             icon:"📑", group:"Layout" },

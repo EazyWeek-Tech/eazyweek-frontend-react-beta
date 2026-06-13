@@ -16,7 +16,7 @@ const LENode = ({ name }) => (
     padding:"10px 20px", fontWeight:800, fontSize:13,
     boxShadow:"0 4px 14px rgba(7,29,73,.25)",
   }}>
-    <span style={{ fontSize:16 }}>🏢</span>
+    <span style={{ fontSize:16 }}></span>
     <div>
       <div style={{ fontSize:10, opacity:0.65, textTransform:"uppercase", letterSpacing:1 }}>Legal Entity</div>
       <div>{name}</div>
@@ -31,7 +31,7 @@ const ZoneNode = ({ name }) => (
     padding:"8px 16px", fontWeight:700, fontSize:13,
     boxShadow:"0 2px 8px rgba(51,75,113,.1)",
   }}>
-    <span style={{ fontSize:14 }}>🗺</span>
+    <span style={{ fontSize:14 }}></span>
     <div>
       <div style={{ fontSize:10, color:"#94a3b8", textTransform:"uppercase", letterSpacing:1 }}>Zone</div>
       <div style={{ color:"#334b71" }}>{name}</div>
@@ -46,7 +46,7 @@ const CentreNode = ({ name, direct }) => (
     padding:"7px 14px", fontWeight:600, fontSize:12,
     boxShadow:"0 1px 4px rgba(0,0,0,.06)",
   }}>
-    <span style={{ fontSize:13 }}>🏥</span>
+    <span style={{ fontSize:13 }}></span>
     <div>
       <div style={{ fontSize:9, color:"#94a3b8", textTransform:"uppercase", letterSpacing:1 }}>Centre</div>
       <div style={{ color:"#334b71" }}>{name}</div>
@@ -112,7 +112,7 @@ export default function OrgHierarchy() {
 
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
-          <span style={{ fontSize:22 }}>🏗</span>
+          <span style={{ fontSize:22 }}></span>
           <div>
             <div style={{ fontWeight:800, fontSize:20, color:"#071D49" }}>Organisation Hierarchy</div>
             <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>
@@ -204,9 +204,9 @@ export default function OrgHierarchy() {
         {/* Legend */}
         <div style={{ display:"flex", gap:20, marginTop:18, flexWrap:"wrap" }}>
           {[
-            { icon:"🏢", label:"Legal Entity", color:"#071D49" },
-            { icon:"🗺", label:"Zone (optional grouping)", color:"#334b71" },
-            { icon:"🏥", label:"Centre",       color:"#334b71" },
+            { icon:"", label:"Legal Entity", color:"#071D49" },
+            { icon:"", label:"Zone (optional grouping)", color:"#334b71" },
+            { icon:"", label:"Centre",       color:"#334b71" },
             { icon:"",   label:"DIRECT = Centre reports directly to Legal Entity", color:"#64748b" },
           ].map((l, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:l.color, fontWeight:600 }}>

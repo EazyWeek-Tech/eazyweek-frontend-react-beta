@@ -329,7 +329,7 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize:22, marginBottom:4 }}>🖼</div>
+                  <div style={{ fontSize:22, marginBottom:4 }}></div>
                   <div style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>Click to upload logo</div>
                   <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>PNG, JPG, SVG · max 200KB</div>
                 </div>

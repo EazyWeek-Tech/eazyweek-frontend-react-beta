@@ -224,7 +224,7 @@ const Header = ({ onToggleSidebar, onLogout }) => {
                     className={`clinic-option entity-row ${hierarchy.entity.code === selectedClinic?.code ? "active" : ""}`}
                     onClick={() => handleClinicChange(hierarchy.entity)}
                   >
-                    🏢 {hierarchy.entity.name}
+                     {hierarchy.entity.name}
                   </div>
                 )}
 

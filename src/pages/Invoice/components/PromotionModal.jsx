@@ -98,7 +98,7 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
             <div style={{ textAlign:"center", padding:30, color:"#64748b" }}>Loading promotions…</div>
           ) : promotions.length === 0 ? (
             <div style={{ textAlign:"center", padding:30 }}>
-              <div style={{ fontSize:36, marginBottom:10 }}>🏷️</div>
+              <div style={{ fontSize:36, marginBottom:10 }}>️</div>
               <div style={{ fontWeight:700, fontSize:15, color:"#334b71", marginBottom:6 }}>No Active Promotions</div>
               <div style={{ fontSize:13, color:"#64748b" }}>There are no active promotions available for your centre at this time.</div>
               <button className="seclnk" style={{ marginTop:16 }} onClick={onClose}>Close</button>

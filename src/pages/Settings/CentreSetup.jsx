@@ -122,7 +122,7 @@ const authPost = async (url, payload) => {
   return (
     <div style={{ padding:32, maxWidth:520 }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
-        <span style={{ fontSize:22 }}>🏥</span>
+        <span style={{ fontSize:22 }}></span>
         <div>
           <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>Create New Centre</div>
           <div style={{ fontSize:12, color:"#94a3b8" }}>Fill in the details to set up a new centre</div>
@@ -350,7 +350,7 @@ export default function CentreSetup() {
         {/* Sidebar — centre list */}
         <div className="cs-sidebar">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <h3 style={{ margin:0 }}>🏥 Centres</h3>
+            <h3 style={{ margin:0 }}> Centres</h3>
             {canCreate && (
               <button onClick={() => { setSelected(null); setData(null); setIsCreating(true); }}
                 style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:6,
@@ -365,7 +365,7 @@ export default function CentreSetup() {
               <button key={c.centerCode}
                 className={`cs-centre-btn ${selected === c.centerCode ? "active" : ""}`}
                 onClick={() => { setSelected(c.centerCode); setIsCreating(false); }}>
-                <span>🏥</span>
+                <span></span>
                 <div>
                   <div>{c.centreName}</div>
                   <div style={{ fontSize:10, opacity:0.7 }}>{c.centerCode}</div>
@@ -390,7 +390,7 @@ export default function CentreSetup() {
             />
           ) : !selected ? (
             <div style={{ padding:60, textAlign:"center", color:"#94a3b8" }}>
-              <div style={{ fontSize:36, marginBottom:12 }}>🏥</div>
+              <div style={{ fontSize:36, marginBottom:12 }}></div>
               <div style={{ fontWeight:700, fontSize:15, color:"#334b71", marginBottom:6 }}>Select a Centre</div>
               <div style={{ fontSize:13 }}>Choose a centre from the left to configure its settings.</div>
             </div>
@@ -401,7 +401,7 @@ export default function CentreSetup() {
               {/* Header */}
               <div className="cs-header">
                 <div>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>🏥 {data.centreName}</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}> {data.centreName}</div>
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{data.centerCode} · {data.address}</div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
@@ -433,7 +433,7 @@ export default function CentreSetup() {
               <div className="cs-tabs">
                 {TABS.map(t => (
                   <div key={t} className={`cs-tab ${activeTab===t?"active":""}`} onClick={() => setActiveTab(t)}>
-                    {t==="General"?"🏢":t==="Address"?"📍":t==="Contact"?"📞":t==="Logo"?"🖼":t==="Tax"?"🧾":t==="Numbering"?"#":t==="Setup"?"⚙":""} {t}
+                    {t==="General"?"":t==="Address"?"":t==="Contact"?"":t==="Logo"?"":t==="Tax"?"":t==="Numbering"?"#":t==="Setup"?"":""} {t}
                   </div>
                 ))}
               </div>
@@ -443,7 +443,7 @@ export default function CentreSetup() {
                 {/* ── GENERAL TAB ── */}
                 {activeTab === "General" && (
                   <div className="card-inner">
-                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>🏢 General Information</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> General Information</div>
                     <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Primary identification and operational details of the Centre.</div>
                     <div className="grid-2">
                       <div className="field">
@@ -482,7 +482,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}>📍 Address Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Address Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Multiple addresses allowed; one must be marked primary.</div>
                       </div>
                       <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", isPrimary: p.length === 0 }])}>
@@ -534,7 +534,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}>📞 Contact Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Contact Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Primary phone number is mandatory.</div>
                       </div>
                       <button className="add-btn" onClick={() => setContacts(p => [...p, { description:"", contactType:"Phone", contactValue:"", isPrimary:false }])}>
@@ -585,12 +585,12 @@ export default function CentreSetup() {
                 {/* ── LOGO TAB ── */}
                 {activeTab === "Logo" && (
                   <div className="card-inner">
-                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>🖼 Centre Logo</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> Centre Logo</div>
                     <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Used on invoices, receipts, reports, and customer communications.</div>
                     <div style={{ display:"flex", alignItems:"center", gap:20 }}>
                       <div style={{ width:80, height:80, border:"1px solid #e7ecf4", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:"#f8fafc", overflow:"hidden" }}>
                         {logoPreview ? <img src={logoPreview} alt="Logo" style={{ width:"100%", height:"100%", objectFit:"contain" }} />
-                          : <span style={{ fontSize:28, color:"#cbd5e1" }}>🖼</span>}
+                          : <span style={{ fontSize:28, color:"#cbd5e1" }}></span>}
                       </div>
                       <div>
                         <button className="add-btn" onClick={() => fileRef.current?.click()}>⬆ Upload Logo</button>
@@ -617,7 +617,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}>🧾 Tax Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Tax Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Statutory registrations. Must comply with local regulations.</div>
                       </div>
                       <button className="add-btn" onClick={() => setTaxItems(p => [...p, { taxType:"", regNumber:"", country:taxCountry }])}>

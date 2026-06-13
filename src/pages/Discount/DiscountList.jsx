@@ -292,7 +292,7 @@ export default function DiscountList() {
         ) : Object.values(grouped).every(arr => arr.length === 0) ? (
           <div className="section">
             <div className="empty-state">
-              <div className="icon">🏷️</div>
+              <div className="icon">️</div>
               <div style={{ fontWeight:700, fontSize:15, color:"#334b71", marginBottom:6 }}>No discounts found</div>
               <div style={{ fontSize:13 }}>
                 {query || typeFilter !== "all" || statusFilter !== "all"

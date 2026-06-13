@@ -379,7 +379,7 @@ const CustomerFormHistory = () => {
         </button>
         <button className={`emr-tab ${activeTab==="images"?"active":""}`}
           onClick={() => setActiveTab("images")}>
-          🖼 Images ({data?.images?.length || 0})
+           Images ({data?.images?.length || 0})
         </button>
       </div>
 

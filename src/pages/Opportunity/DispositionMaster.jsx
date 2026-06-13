@@ -324,7 +324,7 @@ export default function DispositionMaster() {
 
       {/* Header */}
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>🏷 Disposition Master</div>
+        <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}> Disposition Master</div>
         <div style={{ fontSize:13, color:C.sub, marginTop:3 }}>
           Manage dispositions for R1–R7 rules and Manual Lead campaigns
         </div>

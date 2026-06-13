@@ -296,7 +296,7 @@ export default function LegalEntitySetup() {
         {/* Header */}
         <div className="le-header">
           <div>
-            <div className="le-title">🏢 Legal Entity Setup</div>
+            <div className="le-title"> Legal Entity Setup</div>
             <div className="le-sub">Configure organisation, addresses, contacts &amp; policies</div>
           </div>
           <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
@@ -320,12 +320,12 @@ export default function LegalEntitySetup() {
             <div key={tab}
               className={`le-tab ${activeTab===tab?"active":""} ${!existing && tab!=="General"?"disabled":""}`}
               onClick={() => (existing || tab==="General") && setActiveTab(tab)}>
-              {tab==="General"?"🏢 General":
-               tab==="Address"?"📍 Address":
-               tab==="Contact"?"📞 Contact":
-               tab==="Logo"?"🖼 Logo":
-               tab==="Tax"?"🧾 Tax":
-               tab==="Setup"?"⚙ Setup":tab}
+              {tab==="General"?" General":
+               tab==="Address"?" Address":
+               tab==="Contact"?" Contact":
+               tab==="Logo"?" Logo":
+               tab==="Tax"?" Tax":
+               tab==="Setup"?"Setup":tab}
             </div>
           ))}
         </div>
@@ -397,7 +397,7 @@ export default function LegalEntitySetup() {
           <div className="le-card">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
               <div>
-                <h3>📍 Address Information</h3>
+                <h3> Address Information</h3>
                 <p style={{ margin:0 }}>Maintain multiple addresses. Exactly one must be marked as primary.</p>
               </div>
               <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", purpose:"Billing", isPrimary:false }])}>
@@ -447,7 +447,7 @@ export default function LegalEntitySetup() {
           <div className="le-card">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
               <div>
-                <h3>📞 Contact Information</h3>
+                <h3> Contact Information</h3>
                 <p style={{ margin:0 }}>Official communication channels. Exactly one phone must be marked primary.</p>
               </div>
               <button className="add-btn" onClick={() => setContacts(p => [...p, { description:"", contactType:"Phone", contactValue:"", isPrimary:false }])}>
@@ -497,12 +497,12 @@ export default function LegalEntitySetup() {
         {/* ── LOGO TAB ────────────────────────────────────────────────────────── */}
         {activeTab === "Logo" && (
           <div className="le-card">
-            <h3>🖼 Logo</h3>
+            <h3> Logo</h3>
             <p>Used in invoices, reports, and customer-facing documents.</p>
             <div style={{ display:"flex", alignItems:"center", gap:20, marginTop:8 }}>
               <div style={{ width:80, height:80, border:"1px solid #e7ecf4", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:"#f8fafc", overflow:"hidden" }}>
                 {logoPreview ? <img src={logoPreview} alt="Logo" style={{ width:"100%", height:"100%", objectFit:"contain" }} />
-                  : <span style={{ fontSize:28, color:"#cbd5e1" }}>🖼</span>}
+                  : <span style={{ fontSize:28, color:"#cbd5e1" }}></span>}
               </div>
               <div>
                 <button className="add-btn" onClick={() => fileRef.current?.click()}>⬆ Upload Logo</button>
@@ -519,7 +519,7 @@ export default function LegalEntitySetup() {
           <div className="le-card">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
               <div>
-                <h3>🧾 Tax Information</h3>
+                <h3> Tax Information</h3>
                 <p style={{ margin:0 }}>Statutory registrations used for tax reporting and invoice generation.</p>
               </div>
               <button className="add-btn" onClick={() => setTaxItems(p => [...p, { taxType:"", regNumber:"", country: taxCountry }])}>
@@ -554,7 +554,7 @@ export default function LegalEntitySetup() {
         {/* ── SETUP TAB ───────────────────────────────────────────────────────── */}
         {activeTab === "Setup" && (
           <div className="le-card">
-            <h3>⚙ Setup Configurations</h3>
+            <h3>Setup Configurations</h3>
             <p>Customer-related operational settings for the Legal Entity.</p>
 
             <div className="toggle-row">

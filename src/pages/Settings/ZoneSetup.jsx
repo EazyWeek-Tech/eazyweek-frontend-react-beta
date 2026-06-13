@@ -206,7 +206,7 @@ export default function ZoneSetup() {
         {/* Header */}
         <div className="zs-header">
           <div>
-            <div className="zs-title">🗺 Zone Setup</div>
+            <div className="zs-title"> Zone Setup</div>
             <div className="zs-sub">Define operational zones and map centres to them</div>
           </div>
           {canCreate && <button className="primary-btn" onClick={handleNew}>+ Create Zone</button>}
@@ -231,7 +231,7 @@ export default function ZoneSetup() {
             <div style={{ textAlign:"center", padding:30, color:"#64748b" }}>Loading zones…</div>
           ) : zones.length === 0 ? (
             <div style={{ textAlign:"center", padding:30, color:"#94a3b8" }}>
-              <div style={{ fontSize:32, marginBottom:8 }}>🗺</div>
+              <div style={{ fontSize:32, marginBottom:8 }}></div>
               No zones created yet. Click "+ Create Zone" to get started.
             </div>
           ) : zones.map(z => (
@@ -262,7 +262,7 @@ export default function ZoneSetup() {
 
             {/* Basic Info */}
             <div style={{ border:"1px solid #e7ecf4", borderRadius:10, padding:16, marginBottom:14 }}>
-              <div style={{ fontWeight:700, fontSize:13, color:"#071D49", marginBottom:12 }}>🏢 Basic Zone Information</div>
+              <div style={{ fontWeight:700, fontSize:13, color:"#071D49", marginBottom:12 }}> Basic Zone Information</div>
               <div className="grid-2">
                 <div className="field">
                   <label>Legal Entity Code *</label>
@@ -302,7 +302,7 @@ export default function ZoneSetup() {
             <div style={{ border:"1px solid #e7ecf4", borderRadius:10, padding:16, marginBottom:14 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#071D49" }}>📍 Centre Mapping</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#071D49" }}> Centre Mapping</div>
                   <div style={{ fontSize:11, color:"#64748b", marginTop:2 }}>Link centres to this zone. Each centre can only belong to one zone.</div>
                 </div>
               </div>
@@ -332,7 +332,7 @@ export default function ZoneSetup() {
                 <div>
                   {mappedCentres.map(c => (
                     <span key={c.centerCode} className="centre-tag">
-                      🏥 {c.centreName} <span style={{ color:"#94a3b8" }}>({c.centerCode})</span>
+                       {c.centreName} <span style={{ color:"#94a3b8" }}>({c.centerCode})</span>
                       <button className="del-tag" onClick={() => removeCentre(c.centerCode)}>×</button>
                     </span>
                   ))}

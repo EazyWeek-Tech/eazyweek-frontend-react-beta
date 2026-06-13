@@ -41,7 +41,7 @@ const DiscountManagement = () => {
         </div>
 
         <div className="dms-card">
-          <div className="icon">⚙</div>
+          <div className="icon"></div>
           <h3>Threshold Discounts</h3>
           <p>
             Apply discounts when customers meet minimum value or quantity requirements

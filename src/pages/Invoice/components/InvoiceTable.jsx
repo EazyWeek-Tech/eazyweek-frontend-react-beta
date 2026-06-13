@@ -7,6 +7,7 @@ const InvoiceTable = ({
   onDiscountChange,
   onDiscountPercentChange,
   onRemove,
+  onCopy,                   // (idx) => void — duplicates the line into the next row
   showDiscountPercent = false,
   readOnlyInputs = false,
   customer,
@@ -150,6 +151,19 @@ const InvoiceTable = ({
                     <td className="discno">{total.toFixed(2)}</td>
                     <td className="actbtncell">
                       <button
+                        className="copybtn tooltip"
+                        data-tooltip="Copy line"
+                        data-tooltip-pos="left"
+                        onClick={() => onCopy?.(idx)}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px", marginRight: 4 }}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                          stroke="#334b71" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="11" height="11" rx="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
+                      <button
                         className="delbtn tooltip"
                         data-tooltip="Delete"
                         data-tooltip-pos="left"
@@ -169,7 +183,7 @@ const InvoiceTable = ({
                           display: "inline-flex", alignItems: "center", gap: 6,
                           fontSize: 11, color: "#a9a7a7", fontWeight: 600, fontStyle: "italic"
                         }}>
-                          <span style={{ fontSize: 13 }}>🏷</span>
+                          <span style={{ fontSize: 13 }}></span>
                           Promo applied: {itemPromo.discountName}
                           {itemPromo.discountAmount > 0 && (
                             <span style={{ color: "#a9a7a7", fontWeight: 400 }}>
@@ -235,7 +249,7 @@ const InvoiceTable = ({
                     display: "inline-flex", alignItems: "center", gap: 6,
                     fontSize: 12, color: "#166534", fontWeight: 600, fontStyle: "italic"
                   }}>
-                    <span style={{ fontSize: 14 }}>🏷</span>
+                    <span style={{ fontSize: 14 }}></span>
                     Invoice Promotion: {promo.discountName}
                     {promo.thresholdType && (
                       <span style={{ fontSize: 11, fontWeight: 400, color: "#4a7c5f" }}>

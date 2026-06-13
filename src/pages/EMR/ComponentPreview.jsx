@@ -169,7 +169,7 @@ export default function ComponentPreview({ component, compact = false, childComp
             <div style={{ display:"inline-flex", alignItems:"center", gap:6,
               padding:"8px 14px", background:"#e9edf5", borderRadius:8,
               border:"1px dashed #cbd5e1" }}>
-              <span style={{ fontSize:16 }}>🏷</span>
+              <span style={{ fontSize:16 }}></span>
               <span style={{ fontSize:compact?10:12, color:"#94a3b8", fontWeight:600 }}>
                 Logo — upload in editor
               </span>
