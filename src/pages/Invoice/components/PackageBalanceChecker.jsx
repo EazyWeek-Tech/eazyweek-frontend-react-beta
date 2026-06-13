@@ -93,7 +93,7 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
             <div style={{ textAlign:"center", padding:30, color:"#64748b" }}>Checking balances…</div>
           ) : available.length === 0 ? (
             <div style={{ textAlign:"center", padding:30 }}>
-              <div style={{ fontSize:32, marginBottom:10 }}>📦</div>
+              <div style={{ fontSize:32, marginBottom:10 }}></div>
               <p style={{ color:"#64748b", fontSize:14 }}>No package balance available for any service in this invoice.</p>
               <p style={{ color:"#94a3b8", fontSize:12 }}>Normal payment will apply for all services.</p>
               <button className="seclnk" onClick={onClose}>Close</button>

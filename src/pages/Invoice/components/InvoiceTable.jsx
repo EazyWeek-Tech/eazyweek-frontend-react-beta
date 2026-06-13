@@ -213,7 +213,7 @@ const InvoiceTable = ({
                           display: "inline-flex", alignItems: "center", gap: 6,
                           fontSize: 11, color: "#a9a7a7", fontWeight: 600, fontStyle: "italic"
                         }}>
-                          <span style={{ fontSize: 13 }}>✂️</span>
+                          <span style={{ fontSize: 13 }}></span>
                           Manual Discount applied
                           <span style={{ color: "#666", fontWeight: 400 }}>
                             (-SAR {discount.toFixed(2)})

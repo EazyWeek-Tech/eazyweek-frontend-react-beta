@@ -402,7 +402,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [] }
             type="button"
             className="pribtnblue"
             onClick={handleClearCart}
-            style={{ height: 30, background: "#dc2626", padding: "0 14px", fontSize: 13, fontWeight: 700 }}
+            style={{ height: 30,padding: "0 14px", fontSize: 13, fontWeight: 700 }}
           >
             Void Transaction
           </button>

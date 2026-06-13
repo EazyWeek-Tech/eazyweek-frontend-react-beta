@@ -412,7 +412,7 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
                             borderRadius: 6, fontSize: 13,
                             background: line.isPackageRedeemed ? "#f1f5f9" : "#fff" }} />
                         {line.isPackageRedeemed && (
-                          <div style={{ color: "#2e7d5e", fontSize: 11, marginTop: 2 }}>📦 Package session — will be restored</div>
+                          <div style={{ color: "#2e7d5e", fontSize: 11, marginTop: 2 }}> Package session — will be restored</div>
                         )}
                         {!line.isPackageRedeemed && errors[`${line.lineNo}_amtReturned`] && (
                           <div style={{ color: "#b91c1c", fontSize: 11 }}>{errors[`${line.lineNo}_amtReturned`]}</div>
@@ -472,7 +472,7 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
 
   if (totalReturn <= 0) return (
     <div style={{ padding: 24, textAlign: "center" }}>
-      <div style={{ fontSize: 44, marginBottom: 12 }}>📦</div>
+      <div style={{ fontSize: 44, marginBottom: 12 }}></div>
       <div style={{ fontWeight: 700, fontSize: 16, color: "#334b71", marginBottom: 8 }}>Package Session Return</div>
       <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24, lineHeight: 1.6 }}>
         This service was covered by a package redemption.<br />
