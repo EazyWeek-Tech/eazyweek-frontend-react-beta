@@ -371,7 +371,7 @@ const CustomerFormHistory = () => {
       <div>
         <button className={`emr-tab ${activeTab==="submissions"?"active":""}`}
           onClick={() => setActiveTab("submissions")}>
-          📝 Submitted Forms ({data?.forms?.submissions?.length || 0})
+          📝 Submitted Forms ({(data?.forms?.submissions||[]).filter(s => s.formType === "Consent/Treatment").length || 0})
         </button>
         <button className={`emr-tab ${activeTab==="customer"?"active":""}`}
           onClick={() => setActiveTab("customer")}>
@@ -392,9 +392,9 @@ const CustomerFormHistory = () => {
           {/* ── Submissions Tab — Consent + Treatment forms ── */}
           {activeTab === "submissions" && (
             <div className="emr-card">
-              {!data?.forms?.submissions?.length ? (
+              {!(data?.forms?.submissions||[]).filter(s => s.formType === "Consent/Treatment").length ? (
                 <div style={{ textAlign:"center", padding:30, color:"#94a3b8", fontSize:13 }}>
-                  No forms submitted yet.
+                  No consent/treatment forms submitted yet.
                 </div>
               ) : (
                 <table className="emr-tbl">
@@ -409,7 +409,7 @@ const CustomerFormHistory = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.forms.submissions.map(s => {
+                    {data.forms.submissions.filter(s => s.formType === "Consent/Treatment").map(s => {
                       const typeStyle = s.formType === "Consent/Treatment"
                         ? { background:"#e9edf5", color:"#334b71" }
                         : { background:"#e6f4ef", color:"#2e7d5e" };

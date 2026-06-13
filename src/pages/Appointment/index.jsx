@@ -548,24 +548,43 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 <img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="" /> Payment Done
               </span>
             </div>
-          ) : (
-            <button onClick={() => {
+          ) : (() => {
               const a = appt||appointment||{};
-              const q = new URLSearchParams();
-              if(a.custId)        q.append("custid",          a.custId);
-              if(a.fullName)      q.append("custname",        a.fullName);
-              if(a.number)        q.append("number",          a.number);
-              if(a.appointmentId) q.append("appointmentid",   a.appointmentId);
-              if(a.isPaymentMade!=null) q.append("isPaymentMade", a.isPaymentMade);
-              const apptDate = a.appointmentDate
-                ? new Date(a.appointmentDate).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0];
-              q.append("appointmentdate", apptDate);
-              navigate(`/invoice?${q.toString()}`);
-            }} className="pndpay">
-              <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="" /> Make Payment</span>
-            </button>
-          )}
+              // Block payment if mandatory forms not complete
+              const mandatoryPending = sidebarForms.some(f =>
+                f.isMandatory && f.status !== "Completed"
+              );
+              if (mandatoryPending) {
+                return (
+                  <div title="Please fill all mandatory forms before making payment"
+                    className="pndpay" style={{ opacity:0.45, cursor:"not-allowed", pointerEvents:"none" }}>
+                    <span className="stimg">
+                      <img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="" /> Make Payment
+                    </span>
+                    <div style={{ fontSize:10, color:"#b91c1c", marginTop:2, textAlign:"center" }}>
+                      Forms pending
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <button onClick={() => {
+                  const q = new URLSearchParams();
+                  if(a.custId)        q.append("custid",          a.custId);
+                  if(a.fullName)      q.append("custname",        a.fullName);
+                  if(a.number)        q.append("number",          a.number);
+                  if(a.appointmentId) q.append("appointmentid",   a.appointmentId);
+                  if(a.isPaymentMade!=null) q.append("isPaymentMade", a.isPaymentMade);
+                  const apptDate = a.appointmentDate
+                    ? new Date(a.appointmentDate).toISOString().split("T")[0]
+                    : new Date().toISOString().split("T")[0];
+                  q.append("appointmentdate", apptDate);
+                  navigate(`/invoice?${q.toString()}`);
+                }} className="pndpay">
+                  <span className="stimg"><img src={`${import.meta.env.BASE_URL}images/paymentpend.svg`} alt="" /> Make Payment</span>
+                </button>
+              );
+            })()}
         </div>
       </div>
 

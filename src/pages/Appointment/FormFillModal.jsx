@@ -56,6 +56,7 @@ const authPost = async (url, body) => {
 const SignaturePad = ({ onChange }) => {
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
+  const hasDrawn  = useRef(false); // track if user actually drew something
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
@@ -63,10 +64,30 @@ const SignaturePad = ({ onChange }) => {
     return { x: src.clientX - rect.left, y: src.clientY - rect.top };
   };
 
-  const start = (e) => { drawing.current = true; const c = canvasRef.current; const ctx = c.getContext("2d"); const p = getPos(e,c); ctx.beginPath(); ctx.moveTo(p.x,p.y); };
-  const draw  = (e) => { if (!drawing.current) return; e.preventDefault(); const c = canvasRef.current; const ctx = c.getContext("2d"); ctx.strokeStyle="#10223f"; ctx.lineWidth=2; ctx.lineCap="round"; const p = getPos(e,c); ctx.lineTo(p.x,p.y); ctx.stroke(); };
-  const end   = () => { drawing.current = false; onChange(canvasRef.current.toDataURL()); };
-  const clear = () => { const c = canvasRef.current; c.getContext("2d").clearRect(0,0,c.width,c.height); onChange(""); };
+  const start = (e) => {
+    drawing.current = true;
+    const c = canvasRef.current; const ctx = c.getContext("2d");
+    const p = getPos(e, c); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+  };
+  const draw = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    hasDrawn.current = true; // mark that actual drawing happened
+    const c = canvasRef.current; const ctx = c.getContext("2d");
+    ctx.strokeStyle = "#10223f"; ctx.lineWidth = 2; ctx.lineCap = "round";
+    const p = getPos(e, c); ctx.lineTo(p.x, p.y); ctx.stroke();
+  };
+  const end = () => {
+    drawing.current = false;
+    // Only emit onChange if something was actually drawn
+    if (hasDrawn.current) onChange(canvasRef.current.toDataURL());
+  };
+  const clear = () => {
+    const c = canvasRef.current;
+    c.getContext("2d").clearRect(0, 0, c.width, c.height);
+    hasDrawn.current = false;
+    onChange("");
+  };
 
   return (
     <div>
@@ -422,7 +443,7 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       return (
         <div>
           <Label />
-          {value && typeof value === "string" && value.startsWith("data:") ? (
+          {value && typeof value === "string" && value.startsWith("data:") && value !== "data:," ? (
             <div>
               <img src={value} alt="Signature" style={{ border:"1px solid #e7ecf4", borderRadius:6,
                 maxWidth:400, maxHeight:120, display:"block", marginBottom:6 }} />
@@ -794,8 +815,8 @@ export default function FormFillModal({
           const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${existingRecId}`);
           setValues(sub?.responseData || {});
         } else {
-          // New fill: start with empty values (macro fields populated by macroContext)
-          setValues({});
+          // New fill: start with defaults (languagetoggle = "en", others empty)
+          setValues(getDefaultValues(def?.components));
         }
       };
       loadEdit().finally(() => setLoading(false));
@@ -834,7 +855,7 @@ export default function FormFillModal({
             console.warn("[FormFillModal] Could not load existing submission:", e.message);
           }
         }
-        setValues({});
+        setValues(getDefaultValues(def?.components));
       };
       loadCustomer()
         .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
@@ -905,7 +926,9 @@ export default function FormFillModal({
       }
     }
 
-    setValues(macroValues);
+    // Merge defaults with macro values — defaults only apply if macro didn't set them
+    const defaults = getDefaultValues(def?.components);
+    setValues({ ...defaults, ...macroValues });
   };
 
   const currentForm = forms[formIndex];
@@ -982,10 +1005,19 @@ export default function FormFillModal({
     finally { setSubmitting(false); }
   };
 
-  const updateValue = (compId, val) => {
-    setValues(p => ({ ...p, [compId]: val }));
-    if (errors[compId]) setErrors(p => { const e = {...p}; delete e[compId]; return e; });
+  // Pre-populate component defaults — languagetoggle starts as "en" so form is visible
+  const getDefaultValues = (components = {}) => {
+    const defaults = {};
+    (Array.isArray(components) ? components : []).forEach(c => {
+      if (c.componentType === "languagetoggle") defaults[c.componentId] = "en";
+    });
+    return defaults;
   };
+
+  const updateValue = React.useCallback((compId, val) => {
+    setValues(p => ({ ...p, [compId]: val }));
+    setErrors(p => { if (!p[compId]) return p; const e = {...p}; delete e[compId]; return e; });
+  }, []);
 
   if (loading) return (
     <div className="popouter" style={{ display:"flex", zIndex:9999 }}>
