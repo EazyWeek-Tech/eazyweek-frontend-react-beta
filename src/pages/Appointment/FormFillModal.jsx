@@ -419,7 +419,23 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       );
 
     case "signature":
-      return <div><Label /><SignaturePad onChange={onChange} /></div>;
+      return (
+        <div>
+          <Label />
+          {value && typeof value === "string" && value.startsWith("data:") ? (
+            <div>
+              <img src={value} alt="Signature" style={{ border:"1px solid #e7ecf4", borderRadius:6,
+                maxWidth:400, maxHeight:120, display:"block", marginBottom:6 }} />
+              <button type="button" onClick={() => onChange("")}
+                style={{ fontSize:11, color:"#b91c1c", background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
+                Clear & Re-sign
+              </button>
+            </div>
+          ) : (
+            <SignaturePad onChange={onChange} />
+          )}
+        </div>
+      );
 
     case "annotation":
       return <div><Label /><AnnotationPad assetCode={config.assetCode || "ANNO-FACE"} value={value} onChange={onChange} /></div>;
@@ -465,12 +481,21 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
         </div>
       );
 
-    case "logo":
+    case "logo": {
+      const imgSrc = config.imageData || config.imageUrl || "";
+      const maxW   = config.maxWidth  || "160px";
       return (
-        <div style={{ textAlign:config.align||"left" }}>
-          <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
+        <div style={{ textAlign:config.align||"left", padding:"4px 0" }}>
+          {imgSrc ? (
+            <img src={imgSrc} alt="Logo"
+              style={{ maxWidth:maxW, maxHeight:80, objectFit:"contain", display:"inline-block" }} />
+          ) : (
+            <div style={{ display:"inline-block", padding:"6px 14px", background:"#e9edf5",
+              borderRadius:8, fontSize:12, color:"#334b71", fontWeight:700 }}>🏷 Logo</div>
+          )}
         </div>
       );
+    }
 
     case "calculated": {
       // Evaluate formula: replace {Label} tokens with the current value of that field
@@ -697,6 +722,33 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
         </div>
       );
 
+    case "languagetoggle":
+      return (
+        <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:4 }}>
+          <div style={{ display:"inline-flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:3 }}>
+            {[
+              { code:"en", flag:"🇬🇧", label:"English" },
+              { code:"ar", flag:"🇸🇦", label:"العربية" },
+            ].map(lang => {
+              const isActive = (value || "en") === lang.code;
+              return (
+                <div key={lang.code} onClick={() => onChange(lang.code)}
+                  style={{
+                    padding:"6px 18px", borderRadius:8, cursor:"pointer",
+                    background: isActive ? "#334b71" : "transparent",
+                    color:      isActive ? "#fff"    : "#64748b",
+                    fontWeight: isActive ? 800       : 700,
+                    fontSize:13, transition:"all .15s",
+                    fontFamily: lang.code === "ar" ? "'Noto Sans Arabic', Arial, sans-serif" : "inherit",
+                  }}>
+                  {lang.flag} {lang.label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+
     default:
       return null;
   }
@@ -754,11 +806,34 @@ export default function FormFillModal({
     if (formCodeOverride && !whenToFill) {
       const loadCustomer = async () => {
         const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
-        console.log("[FormFillModal] Customer form def:", def?.formCode, "components:", def?.components?.length);
         if (!def || !def.formCode) throw new Error(`Form ${formCodeOverride} not found or inactive`);
         const syntheticForm = { formCode: formCodeOverride, formName: def?.formName || "Customer Form" };
         setForms([syntheticForm]);
         setFormDef(def);
+
+        // Load existing submission if customer has already filled this form
+        if (custId) {
+          try {
+            const customerForms = await authGet(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`);
+            const inner = customerForms?.data ?? customerForms;
+            const cfList = [
+              ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+              ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
+              ...(Array.isArray(inner)                ? inner               : []),
+            ];
+            const existing = cfList.find(f => f.formCode === formCodeOverride && (f.submissionId || f.recId));
+            const subId = existing?.submissionId || existing?.recId;
+            if (subId) {
+              const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${subId}`);
+              if (sub?.responseData && Object.keys(sub.responseData).length > 0) {
+                setValues(sub.responseData);
+                return; // skip macro prefill — existing data takes priority
+              }
+            }
+          } catch (e) {
+            console.warn("[FormFillModal] Could not load existing submission:", e.message);
+          }
+        }
         setValues({});
       };
       loadCustomer()
@@ -802,6 +877,34 @@ export default function FormFillModal({
         macroValues[comp.componentId] = macroMap[comp.config.macroField] ?? "";
       }
     }
+    // Customer data prefill by label matching
+    if (macroContext.customerName || macroContext.MobileNumber || macroContext.Gender) {
+      const labelPrefill = {};
+      if (macroContext.customerName) {
+        ["full name","patient name","name","customer name"].forEach(k => labelPrefill[k] = macroContext.customerName);
+      }
+      if (macroContext.MobileNumber) {
+        ["phone","phone number","mobile","mobile number","contact number"].forEach(k => labelPrefill[k] = macroContext.MobileNumber);
+      }
+      if (macroContext.Gender) {
+        ["gender","sex"].forEach(k => labelPrefill[k] = macroContext.Gender);
+      }
+      for (const comp of (def?.components || [])) {
+        if (["content","logo","macro","signature","calculated","annotation"].includes(comp.componentType)) continue;
+        if (macroValues[comp.componentId]) continue;
+        const labelKey = (comp.label || "").trim().toLowerCase();
+        if (labelKey in labelPrefill && labelPrefill[labelKey]) {
+          if (comp.componentType === "dropdown") {
+            const opts = comp.config?.options || [];
+            const match = opts.find(o => o.toLowerCase() === labelPrefill[labelKey].toLowerCase());
+            if (match) macroValues[comp.componentId] = match;
+          } else {
+            macroValues[comp.componentId] = labelPrefill[labelKey];
+          }
+        }
+      }
+    }
+
     setValues(macroValues);
   };
 
@@ -810,10 +913,16 @@ export default function FormFillModal({
   const validate = () => {
     if (!formDef) return true;
     const e = {};
+    // Types the user cannot fill — skip validation regardless of isMandatory flag
+    const SKIP_TYPES = new Set(["columnlayout","calculated","content","logo","annotation","languagetoggle","macro"]);
     for (const comp of formDef.components || []) {
       if (!comp.isMandatory) continue;
+      if (SKIP_TYPES.has(comp.componentType)) continue;
+      // Skip children inside columnlayout — their values are stored at top level
+      // but we validate them individually when they appear as top-level components
+      if (comp.parentId) continue;
       const val = values[comp.componentId];
-      // Signature: must have actual drawn data (not just empty string)
+      // Signature: must have actual drawn data
       if (comp.componentType === "signature") {
         const empty = !val || (typeof val === "string" && (val.trim() === "" || val === "data:,"));
         if (empty) e[comp.componentId] = "Signature is required.";

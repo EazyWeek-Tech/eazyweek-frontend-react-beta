@@ -119,14 +119,52 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     if (!apptIdVal || !svcCode) return;
     setSidebarFormsLoading(true);
 
-    // 1. Form fill status
-    fetchFormStatus(apptIdVal, svcCode).then(data => {
-      setSidebarForms(data?.forms || []);
-      setSidebarFormStatus(data?.overall || null);
+    // 1. Form fill status for service forms + customer forms combined
+    const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    Promise.all([
+      fetchFormStatus(apptIdVal, svcCode),
+      custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+    ]).then(([statusData, customerData]) => {
+      const serviceForms = (statusData?.forms || []);
+
+      // Merge customer forms (Medical History etc.) into the status list
+      const inner = customerData?.data ?? customerData;
+      const customerForms = [
+        ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+        ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
+        ...(Array.isArray(inner)                ? inner               : []),
+      ];
+
+      // Build merged list — customer forms shown as filled if they exist
+      const customerFormRows = customerForms.map(cf => ({
+        formCode:   cf.formCode,
+        formName:   cf.formName || cf.formCode,
+        whenToFill: "Customer",
+        isMandatory: true,
+        status:     "Completed",   // if it's in the list, it was filled
+      }));
+
+      // Combine: service forms first, then customer forms not already in list
+      const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
+      const merged = [
+        ...serviceForms,
+        ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
+      ];
+
+      setSidebarForms(merged);
+
+      // Recalculate overall status including customer forms
+      const completed = merged.filter(f => f.status === "Completed").length;
+      const overall = merged.length === 0         ? null
+                    : completed === merged.length  ? "All Complete"
+                    : completed > 0                ? "Partially Filled"
+                    :                                "Not Started";
+      setSidebarFormStatus(overall);
     }).finally(() => setSidebarFormsLoading(false));
 
     // 2. Forms mapped to this specific serviceCode
-    const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
     fetch(`${API_BASE_URL}/api/EMR/Service/${encodeURIComponent(svcCode)}/Forms`, {
       headers: { Authorization: `Bearer ${tok}` }
     }).then(r => r.ok ? r.json() : null)
@@ -140,7 +178,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     // 3. Medical history — show if customer has no prior submissions
     if (custId) {
       fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-        headers: { Authorization: `Bearer ${tok}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}` }
       }).then(r => r.ok ? r.json() : null)
         .then(d => {
           // Response: { data: { submissions: [], customerForms: [...] } }
