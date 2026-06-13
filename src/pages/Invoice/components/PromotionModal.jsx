@@ -29,8 +29,6 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
 
   const handleApply = async () => {
     if (!selected.length) { setError("Please select at least one promotion."); return; }
-
-    // Rule 3: Empty cart check on frontend too
     if (!items.length) { setError("No items are added to the cart."); return; }
 
     setApplying(true); setError("");
@@ -48,7 +46,6 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
       const data = res.data || res;
       if (data.success === false) { setError(data.message || "Promotion cannot be applied."); return; }
 
-      // Pass result back to invoice page
       onApply(data);
     } catch (e) {
       setError("Failed to apply promotion. Please try again.");
@@ -59,10 +56,35 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
     ? { bg:"#e9edf5", color:"#334b71", border:"#c8d5e8" }
     : { bg:"#e6f4ef", color:"#2e7d5e", border:"#b3d9cc" };
 
+  // Build detail string showing type label + value info
+  const getDetail = (p) => {
+    const val = p.discountValueType === "Percentage"
+      ? `${p.discountValue}% off`
+      : p.discountValueType === "Amount"
+      ? `SAR ${p.discountValue} off`
+      : "";
+
+    if (p.discountType === "simple") {
+      return { label: "Simple", desc: val, color: "#334b71", bg: "#e9edf5" };
+    }
+    if (p.discountType === "threshold") {
+      const trigger = p.thresholdType === "Minimum Value"
+        ? `Min SAR ${p.thresholdValue}`
+        : p.thresholdType === "Minimum Quantity"
+        ? `Min Qty ${p.thresholdValue}`
+        : "";
+      return { label: "Threshold", desc: trigger ? `${trigger} → ${val}` : val, color: "#92400e", bg: "#fef9c3" };
+    }
+    if (p.discountType === "mix") {
+      return { label: "Mix & Match", desc: `${p.mixMatchSlots?.length || 0} item slots`, color: "#5b21b6", bg: "#ede9fe" };
+    }
+    return { label: p.discountType || "—", desc: val, color: "#475569", bg: "#f1f5f9" };
+  };
+
   return (
     <div className="popouter" style={{ display:"flex", zIndex:9999 }}>
       <div className="popovrly" onClick={onClose} />
-      <div className="popin" style={{ maxWidth:620, width:"95%" }}>
+      <div className="popin" style={{ maxWidth:660, width:"95%" }}>
         {/* Header */}
         <div className="popuphdr">
           Active Promotions
@@ -93,6 +115,7 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
                   <tr style={{ background:"#f1f5f9" }}>
                     <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0", width:40 }}></th>
                     <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>Name</th>
+                    <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>Applies To</th>
                     <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>Type</th>
                     <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>Detail</th>
                   </tr>
@@ -100,13 +123,8 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
                 <tbody>
                   {promotions.map(p => {
                     const isSelected = selected.includes(p.discountId);
-                    const tc = typeColor(p.promotionType);
-                    const detail = p.discountValueType === "Percentage"
-                      ? `${p.discountValue}% off`
-                      : p.discountValueType === "Amount"
-                      ? `SAR ${p.discountValue} off`
-                      : p.discountType === "mix" ? "Mix & Match"
-                      : "";
+                    const tc   = typeColor(p.promotionType);
+                    const det  = getDetail(p);
                     return (
                       <tr key={p.discountId}
                         onClick={() => toggle(p.discountId)}
@@ -127,7 +145,15 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
                             {p.promotionType}
                           </span>
                         </td>
-                        <td style={{ padding:"12px 12px", color:"#475569", fontSize:12 }}>{detail}</td>
+                        <td style={{ padding:"12px 12px" }}>
+                          <span style={{ background:det.bg, color:det.color,
+                            borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
+                            {det.label}
+                          </span>
+                        </td>
+                        <td style={{ padding:"12px 12px", color:"#475569", fontSize:12 }}>
+                          {det.desc || "—"}
+                        </td>
                       </tr>
                     );
                   })}
