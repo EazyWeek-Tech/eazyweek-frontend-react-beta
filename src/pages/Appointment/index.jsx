@@ -916,7 +916,10 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     return {
       Completed: by("completed"), Confirmed: by("confirmed"), CheckedIn: by("checked in"),
       Active: by("active"), Booked: by("booked"), Cancelled: by("cancelled"), NoShow: by("no show"),
-      PaymentPending: appointments.filter(a => Number(a.isPaymentMade) === 0).length,
+      PaymentPending: appointments.filter(a => {
+        const st = (a.status || "").toLowerCase();
+        return Number(a.isPaymentMade) === 0 && st !== "cancelled" && st !== "no show";
+      }).length,
     };
   }, [appointments]);
 
@@ -999,7 +1002,10 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const filteredAppointments = useMemo(() => {
     if (!activeFilter) return appointments;
     if (activeFilter === "PaymentPending")
-      return appointments.filter(a => Number(a.isPaymentMade) === 0);
+      return appointments.filter(a => {
+        const st = (a.status || "").toLowerCase();
+        return Number(a.isPaymentMade) === 0 && st !== "cancelled" && st !== "no show";
+      });
     return appointments.filter(a =>
       (a.status || "").toLowerCase() === activeFilter.toLowerCase()
     );
