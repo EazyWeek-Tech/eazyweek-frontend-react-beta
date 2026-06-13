@@ -98,7 +98,7 @@ export default function DiscountConfig() {
             <div className="muted">Set up and manage your discount strategies</div>
           </div>
           <button className="view-all" onClick={() => navigate("/discounts/manage")}>
-  View All Discounts (0)
+  View All Discounts
 </button>
         </div>
 
