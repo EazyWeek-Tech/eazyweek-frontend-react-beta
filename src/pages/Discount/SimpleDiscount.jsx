@@ -22,7 +22,7 @@ export default function SimpleDiscount() {
   const [form, setForm] = useState({
     discountName:     "",
     applicationLevel: "Item Level",
-    startDate:        "",
+    startDate:        todayStr(),
     endDate:          "",
     enableDiscount:   false,
     owner:            "",
@@ -235,13 +235,14 @@ export default function SimpleDiscount() {
           </div>
           <div className="field">
             <label>Start Date *</label>
-            <input type="date" value={F("startDate")} onChange={S("startDate")}
+
+            <input type="date" value={F("startDate")} onChange={S("startDate")} min={todayStr()}
               style={{ borderColor: saveAttempted && errors.startDate ? "#b91c1c" : undefined }} />
             {saveAttempted && errors.startDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.startDate}</span>}
           </div>
           <div className="field">
             <label>End Date *</label>
-            <input type="date" value={F("endDate")} onChange={S("endDate")}
+            <input type="date" value={F("endDate")} onChange={S("endDate")} min={todayStr()}
               style={{ borderColor: saveAttempted && errors.endDate ? "#b91c1c" : undefined }} />
             {saveAttempted && errors.endDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.endDate}</span>}
           </div>

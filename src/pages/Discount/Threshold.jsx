@@ -19,8 +19,8 @@ export default function Threshold() {
 
   const [form, setForm] = useState({
     discountName:     "",
-    applicationLevel: "Invoice Level",
-    startDate:        "",
+    applicationLevel: "Item Level",
+    startDate:        todayStr(),
     endDate:          "",
     enableDiscount:   false,
     owner:            "",
@@ -60,7 +60,7 @@ export default function Threshold() {
         if (!d) return;
         setForm({
           discountName:      d.discountName     || "",
-          applicationLevel:  d.applicationLevel || "Invoice Level",
+          applicationLevel:  d.applicationLevel || "Item Level",
           startDate:         d.startDate ? d.startDate.split("T")[0] : "",
           endDate:           d.endDate   ? d.endDate.split("T")[0]   : "",
           enableDiscount:    d.enableDiscount   || false,
@@ -99,10 +99,14 @@ export default function Threshold() {
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val)}&status=Active`;
         const data = await authGet(url);
         const list = Array.isArray(data) ? data : [];
-        setItemSuggestions(p => ({ ...p, [type]: list.map(i => ({
-          itemCode: i.serviceCode||i.productCode||i.categoryCode||i.packageCode||i.PACKAGECODE||"",
-          itemName: i.serviceName||i.productName||i.categoryName||i.packageName||i.PACKAGENAME||"",
-        })).filter(i => i.itemCode && i.itemName) }));
+        setItemSuggestions(p => ({ ...p, [type]: list.map(i => {
+          let itemCode = "", itemName = "";
+          if (type === "Service")  { itemCode = i.serviceCode  || ""; itemName = i.serviceName  || ""; }
+          if (type === "Product")  { itemCode = i.productCode  || ""; itemName = i.productName  || ""; }
+          if (type === "Package")  { itemCode = i.packageCode  || i.PACKAGECODE || ""; itemName = i.packageName || i.PACKAGENAME || ""; }
+          if (type === "Category") { itemCode = i.categoryCode || i.PCCODE || ""; itemName = i.categoryName || ""; }
+          return { itemCode, itemName };
+        }).filter(i => i.itemCode && i.itemName) }));
       } catch { setItemSuggestions(p => ({ ...p, [type]: [] })); }
     }, 300);
   };
@@ -208,13 +212,13 @@ export default function Threshold() {
           </div>
           <div className="field">
             <label>Start Date *</label>
-            <input type="date" value={F("startDate")} onChange={S("startDate")}
+            <input type="date" value={F("startDate")} onChange={S("startDate")} min={todayStr()}
               style={{ borderColor: saveAttempted && errors.startDate ? "#b91c1c" : undefined }} />
             {saveAttempted && errors.startDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.startDate}</span>}
           </div>
           <div className="field">
             <label>End Date *</label>
-            <input type="date" value={F("endDate")} onChange={S("endDate")}
+            <input type="date" value={F("endDate")} onChange={S("endDate")} min={todayStr()}
               style={{ borderColor: saveAttempted && errors.endDate ? "#b91c1c" : undefined }} />
             {saveAttempted && errors.endDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.endDate}</span>}
           </div>

@@ -23,7 +23,7 @@ export default function MixMatch() {
   const [form, setForm] = useState({
     discountName:      "",
     applicationLevel:  "Item Level",
-    startDate:         "",
+    startDate:         todayStr(),
     endDate:           "",
     enableDiscount:    false,
     owner:             "",
@@ -117,10 +117,14 @@ export default function MixMatch() {
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
         const data = await authGet(url);
         const list = Array.isArray(data) ? data : [];
-        setItemSuggestions(p => ({ ...p, [type]: list.map(i => ({
-          itemCode: i.serviceCode||i.productCode||i.categoryCode||i.packageCode||i.PACKAGECODE||"",
-          itemName: i.serviceName||i.productName||i.categoryName||i.packageName||i.PACKAGENAME||"",
-        })).filter(i => i.itemCode && i.itemName) }));
+        setItemSuggestions(p => ({ ...p, [type]: list.map(i => {
+          let itemCode = "", itemName = "";
+          if (type === "Service")  { itemCode = i.serviceCode  || ""; itemName = i.serviceName  || ""; }
+          if (type === "Product")  { itemCode = i.productCode  || ""; itemName = i.productName  || ""; }
+          if (type === "Package")  { itemCode = i.packageCode  || i.PACKAGECODE || ""; itemName = i.packageName || i.PACKAGENAME || ""; }
+          if (type === "Category") { itemCode = i.categoryCode || i.PCCODE || ""; itemName = i.categoryName || ""; }
+          return { itemCode, itemName };
+        }).filter(i => i.itemCode && i.itemName) }));
       } catch { setItemSuggestions(p => ({ ...p, [type]: [] })); }
     }, 300);
   };
@@ -153,8 +157,12 @@ export default function MixMatch() {
           if (type === "Package")  url = `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
           const data = await authGet(url);
           (Array.isArray(data) ? data : []).forEach(i => {
-            const code = i.serviceCode||i.productCode||i.categoryCode||i.packageCode||i.PACKAGECODE||"";
-            const name = i.serviceName||i.productName||i.categoryName||i.packageName||i.PACKAGENAME||"";
+            // Extract code based on the specific type being searched — avoids categoryCode polluting package results
+            let code = "", name = "";
+            if (type === "Service")  { code = i.serviceCode  || ""; name = i.serviceName  || ""; }
+            if (type === "Product")  { code = i.productCode  || ""; name = i.productName  || ""; }
+            if (type === "Package")  { code = i.packageCode  || i.PACKAGECODE || ""; name = i.packageName || i.PACKAGENAME || ""; }
+            if (type === "Category") { code = i.categoryCode || i.PCCODE || ""; name = i.categoryName || ""; }
             if (code && name) results.push({ itemType: type, itemCode: code, itemName: name });
           });
         }
@@ -170,7 +178,9 @@ export default function MixMatch() {
 
   const selectSlotItem = (slotIdx, item) => {
     // DC-MNM-005: All slots must be the same item type
-    const configuredType = slots.find(s => s.itemCode && s.itemCode !== slots[slotIdx].itemCode)?.itemType || "";
+    // Only check OTHER slots (not the current one being edited)
+    const otherSlots = slots.filter((s, i) => i !== slotIdx && s.itemCode);
+    const configuredType = otherSlots.length > 0 ? otherSlots[0].itemType : "";
     if (configuredType && item.itemType !== configuredType) {
       showToast(`All slots must use the same item type. Current slots use '${configuredType}'.`, "error");
       return;
@@ -280,13 +290,13 @@ export default function MixMatch() {
           </div>
           <div className="field">
             <label>Start Date *</label>
-            <input type="date" value={F("startDate")} onChange={S("startDate")}
+            <input type="date" value={F("startDate")} onChange={S("startDate")} min={todayStr()}
               style={{ borderColor:saveAttempted&&errors.startDate?"#b91c1c":undefined }} />
             {saveAttempted && errors.startDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.startDate}</span>}
           </div>
           <div className="field">
             <label>End Date *</label>
-            <input type="date" value={F("endDate")} onChange={S("endDate")}
+            <input type="date" value={F("endDate")} onChange={S("endDate")} min={todayStr()}
               style={{ borderColor:saveAttempted&&errors.endDate?"#b91c1c":undefined }} />
             {saveAttempted && errors.endDate && <span style={{ color:"#b91c1c", fontSize:11 }}>{errors.endDate}</span>}
           </div>

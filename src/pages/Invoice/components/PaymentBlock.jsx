@@ -371,18 +371,53 @@ const PaymentBlock = ({
         setFormError(`Cannot redeem ${redeemAmt} pts — only ${available} pts available.`);
         return false;
       }
-      if (loyaltyPointsValue === null) {
-        setFormError('Please click "Get Value" to convert points to SAR before adding payment.');
-        return false;
-      }
+      // Points will be converted automatically on Add Payment — no pre-check needed
     }
 
     setFormError('');
     return true;
   };
 
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
     if (!validateForm()) return;
+
+    // For loyalty tab — auto-convert points to SAR on Add Payment click
+    if (activeTab === 'loyalty') {
+      const pts = parseFloat(formData.redeemAmount || '0');
+      if (!pts || pts <= 0) { setFormError('Please enter points to redeem.'); return; }
+      if (pts > (loyaltyBalance?.availablePoints ?? 0)) { setFormError('Exceeds available points.'); return; }
+      setLoyaltyPointsLoading(true);
+      setLoyaltyPointsError('');
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/v1/points/get-points?customerId=${parseInt(recIdFromUrl_final)||0}&amount=${Math.round(pts)}&TransactionType=REDEEMED`,
+          { headers: authHeaders() }
+        );
+        if (!res.ok) throw new Error(`Failed (${res.status})`);
+        const data = await res.json();
+        const sarValue = typeof data?.data === 'number' ? data.data
+          : typeof data === 'number' ? data
+          : Number(data?.data ?? data) || 0;
+        if (!sarValue || sarValue <= 0) { setFormError('Points have no SAR value. Check tier configuration.'); return; }
+        setLoyaltyPointsValue(sarValue);
+        const newPayment = {
+          id: Date.now(),
+          mode: 'Loyalty',
+          amount: sarValue,
+          date: new Date().toLocaleDateString(),
+          cardNumber: ''
+        };
+        setPayments(prev => [...prev, newPayment]);
+        setFormData({});
+        setLoyaltyPointsValue(null);
+        setFormError('');
+      } catch (e) {
+        setFormError('Failed to convert points. Please try again.');
+      } finally {
+        setLoyaltyPointsLoading(false);
+      }
+      return;
+    }
 
     const newPayment = {
       id: Date.now(),
@@ -420,6 +455,10 @@ const PaymentBlock = ({
       const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
       const tax = (amountWithoutVat * taxRate) / 100;
       const total = amountWithoutVat + tax;
+      // Find any promotion applied to this item
+      const promoNote = item._promotionName
+        ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;">🏷 Promo: ${item._promotionName} (-SAR ${discount.toFixed(2)})</td></tr>`
+        : "";
       return `
         <tr>
           <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
@@ -431,6 +470,7 @@ const PaymentBlock = ({
           <td style="border:1px solid #000;padding:6px;">${tax.toFixed(2)} (${taxRate.toFixed(0)}%)</td>
           <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
         </tr>
+        ${promoNote}
       `;
     }).join('');
 
@@ -498,6 +538,20 @@ const PaymentBlock = ({
             </tr>
           </thead>
           <tbody>${invoiceItemRows}</tbody>
+          ${(() => {
+            const invPromos = (appliedPromotions || []).filter(p => p.applicationLevel === "Invoice Level");
+            if (!invPromos.length) return "";
+            return `<tfoot>${invPromos.map(p => `
+              <tr>
+                <td></td>
+                <td colspan="6" style="padding:4px 6px;font-size:10px;color:#166534;font-style:italic;border-top:1px solid #ccc;">
+                  🏷 Invoice Promo: ${p.discountName}
+                </td>
+                <td style="padding:4px 6px;font-size:10px;color:#166534;font-weight:700;border-top:1px solid #ccc;">
+                  -SAR ${parseFloat(p.discountAmount || 0).toFixed(2)}
+                </td>
+              </tr>`).join("")}</tfoot>`;
+          })()}
         </table>
 
         <h4 style="margin-top: 20px;">Payment Summary</h4>
@@ -876,17 +930,17 @@ if (result.success) {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
-          CustomerId:         centerRecId || 0,
-          MembershipId:       recIdFromUrl_final,
+          CustomerId:         parseInt(recIdFromUrl_final) || 0,  // customer recId as int
+          MembershipId:       parseInt(recIdFromUrl_final) || 0,  // same — used for tier lookup
           ProgramId:          0,
           TransactionType:    transactionType,
-          Amount:             amount,
-          Points:             0,            // backend calculates from tier rules
+          Amount:             Math.round(amount),   // int — tier segments are whole numbers
+          Points:             0,                    // backend calculates from tier rules
           ReferenceId:        referenceId,
           Description:        `INV ${invoiceNumber}`,
           ExpiryDate:         now,
           TransactionDate:    now,
-          PointsBalanceAfter: 0,            // backend recalculates
+          PointsBalanceAfter: 0,                    // backend recalculates
         }),
       });
     } catch (err) {
@@ -1051,62 +1105,22 @@ if (result.success) {
                 <>
                   <div className="frmdiv">
                     <label>Points to Redeem:</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="number"
-                        id="redeemAmount"
-                        min="0"
-                        max={loyaltyBalance.availablePoints ?? 0}
-                        value={formData.redeemAmount || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleChange({ target: { id: 'redeemAmount', value: val } });
-                          // Reset converted value when points change
-                          setLoyaltyPointsValue(null);
-                          setLoyaltyPointsError('');
-                          setAmount('0');
-                        }}
-                        placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        type="button"
-                        className="pribtnblue"
-                        style={{ whiteSpace: 'nowrap', padding: '0 12px', height: 38, fontSize: 13 }}
-                        disabled={loyaltyPointsLoading || !formData.redeemAmount || parseFloat(formData.redeemAmount) <= 0}
-                        onClick={async () => {
-                          const pts = parseFloat(formData.redeemAmount || '0');
-                          if (!pts || pts <= 0) return;
-                          if (pts > (loyaltyBalance.availablePoints ?? 0)) {
-                            setLoyaltyPointsError(`Exceeds available points (${loyaltyBalance.availablePoints?.toLocaleString()})`);
-                            return;
-                          }
-                          setLoyaltyPointsLoading(true);
-                          setLoyaltyPointsError('');
-                          setLoyaltyPointsValue(null);
-                          try {
-                            const res = await fetch(
-                              `${API_BASE_URL}/api/v1/points/get-points?customerId=${recIdFromUrl_final}&amount=${pts}&TransactionType=REDEEMED`,
-                              { headers: authHeaders() }
-                            );
-                            if (!res.ok) throw new Error(`Failed (${res.status})`);
-                            const data = await res.json();
-                            // Response: { success, data: <number> }
-                            const sarValue = typeof data?.data === 'number' ? data.data
-                              : typeof data === 'number' ? data
-                              : Number(data?.data ?? data) || 0;
-                            setLoyaltyPointsValue(sarValue);
-                            setAmount(String(sarValue));
-                          } catch (e) {
-                            setLoyaltyPointsError('Failed to fetch point value. Try again.');
-                          } finally {
-                            setLoyaltyPointsLoading(false);
-                          }
-                        }}
-                      >
-                        {loyaltyPointsLoading ? 'Checking…' : 'Get Value'}
-                      </button>
-                    </div>
+                    <input
+                      type="number"
+                      id="redeemAmount"
+                      min="0"
+                      max={loyaltyBalance.availablePoints ?? 0}
+                      value={formData.redeemAmount || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleChange({ target: { id: 'redeemAmount', value: val } });
+                        setLoyaltyPointsValue(null);
+                        setLoyaltyPointsError('');
+                        // Do NOT reset amount — it is set automatically on Add Payment
+                      }}
+                      placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
+                      style={{ width: '100%' }}
+                    />
                     {formData.redeemAmount && parseFloat(formData.redeemAmount) > (loyaltyBalance.availablePoints ?? 0) && (
                       <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
                         Exceeds available points ({loyaltyBalance.availablePoints?.toLocaleString()})
@@ -1115,19 +1129,10 @@ if (result.success) {
                     {loyaltyPointsError && (
                       <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>{loyaltyPointsError}</span>
                     )}
+                    {loyaltyPointsLoading && (
+                      <span style={{ fontSize: 11, color: '#64748b', marginTop: 3, display: 'block' }}>Converting points…</span>
+                    )}
                   </div>
-
-                  {/* Show converted SAR value */}
-                  {loyaltyPointsValue !== null && (
-                    <div className="frmdiv">
-                      <div style={{ background: '#e6f4ef', border: '1px solid #b3d9cc', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 13, color: '#2e7d5e', fontWeight: 700 }}>
-                          ✓ {parseFloat(formData.redeemAmount).toLocaleString()} pts = <strong>{loyaltyPointsValue} SAR</strong>
-                        </span>
-                        <span style={{ fontSize: 11, color: '#6e7b8f' }}>— will be applied as payment</span>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </>

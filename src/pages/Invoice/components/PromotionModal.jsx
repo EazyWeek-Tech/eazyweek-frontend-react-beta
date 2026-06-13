@@ -84,7 +84,7 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
   return (
     <div className="popouter" style={{ display:"flex", zIndex:9999 }}>
       <div className="popovrly" onClick={onClose} />
-      <div className="popin" style={{ maxWidth:660, width:"95%" }}>
+      <div className="popin" style={{ maxWidth:660, width:"95%", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
         {/* Header */}
         <div className="popuphdr">
           Active Promotions
@@ -93,7 +93,7 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
           </span>
         </div>
 
-        <div className="popfrm">
+        <div className="popfrm" style={{ overflowY:"auto", flex:1 }}>
           {loading ? (
             <div style={{ textAlign:"center", padding:30, color:"#64748b" }}>Loading promotions…</div>
           ) : promotions.length === 0 ? (
