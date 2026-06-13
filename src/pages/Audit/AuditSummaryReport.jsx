@@ -218,7 +218,10 @@ export default function AuditSummaryReport() {
     (async () => {
       if (!segmentCodes.length) { setEmployees([]); setEmployeeCode(""); return; }
       const results = await Promise.all(
-        segmentCodes.map(seg => fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}`, { headers: { Authorization: `Bearer ${TOKEN()}` } }).then(r => r.ok ? r.json() : []).catch(() => []))
+        segmentCodes.map(seg => fetch(`${API_BASE_URL}/api/Audit/LoadEmployeesInAudit/${encodeURIComponent(seg)}?centerCode=${encodeURIComponent(getUser().centerCode||"")}`, { headers: { Authorization: `Bearer ${TOKEN()}` } })
+          .then(r => r.ok ? r.json() : { data: [] })
+          .then(j => Array.isArray(j) ? j : Array.isArray(j.data) ? j.data : [])
+          .catch(() => []))
       );
       const seen = new Set(); const mapped = [];
       for (const x of results.flat()) {
