@@ -517,7 +517,7 @@ const CustomerFormHistory = () => {
                           </span>
                         </td>
                         <td style={tdStyle}>
-                          Customer
+                          
                          {cf.filledByName || cf.filledBy || "—"}
                         </td>
                         <td style={tdStyle}>
