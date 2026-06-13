@@ -114,7 +114,7 @@ export default function MixMatch() {
         if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
         if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
         if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
-        if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val)}&status=Active`;
+        if (type === "Package")  url = `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
         const data = await authGet(url);
         const list = Array.isArray(data) ? data : [];
         setItemSuggestions(p => ({ ...p, [type]: list.map(i => ({
@@ -150,7 +150,7 @@ export default function MixMatch() {
           if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
           if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
           if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
-          if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val)}&status=Active`;
+          if (type === "Package")  url = `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
           const data = await authGet(url);
           (Array.isArray(data) ? data : []).forEach(i => {
             const code = i.serviceCode||i.productCode||i.categoryCode||i.packageCode||i.PACKAGECODE||"";
