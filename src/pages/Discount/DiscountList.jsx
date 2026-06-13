@@ -32,18 +32,26 @@ const fmtDate = (d) => {
 };
 
 const discountDetail = (d) => {
+  const name = d.discountName ? `${d.discountName} — ` : "";
   if (d.discountType === "simple") {
-    return d.discountValueType === "Percentage"
-      ? `${d.discountValue}% off`
-      : `SAR ${d.discountValue} off`;
+    const val = d.discountValue > 0
+      ? (d.discountValueType === "Percentage" ? `${d.discountValue}% off` : `SAR ${d.discountValue} off`)
+      : "";
+    return `${name}${val}`.trim().replace(/^— /, "");
   }
   if (d.discountType === "threshold") {
-    const trig = d.thresholdType === "Minimum Value" ? `SAR ${d.thresholdValue} spend` : `Qty ${d.thresholdValue}`;
-    const rew  = d.discountValueType === "Percentage" ? `${d.discountValue}% off` : `SAR ${d.discountValue} off`;
-    return `${trig} → ${rew}`;
+    const trig = d.thresholdType === "Minimum Value"
+      ? `Min SAR ${d.thresholdValue} spend`
+      : d.thresholdType === "Minimum Quantity"
+      ? `Min Qty ${d.thresholdValue}`
+      : "";
+    const rew  = d.discountValue > 0
+      ? (d.discountValueType === "Percentage" ? `${d.discountValue}% off` : `SAR ${d.discountValue} off`)
+      : "";
+    return `${name}${trig}${trig && rew ? " → " : ""}${rew}`.trim().replace(/^— /, "");
   }
-  if (d.discountType === "mix") return "Mix & Match combination";
-  return "";
+  if (d.discountType === "mix") return `${name}Mix & Match combination`.trim().replace(/^— /, "");
+  return name.replace(/— $/, "");
 };
 
 export default function DiscountList() {

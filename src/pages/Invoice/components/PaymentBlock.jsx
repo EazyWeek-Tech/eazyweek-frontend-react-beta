@@ -62,7 +62,12 @@ const PaymentBlock = ({
   const sessionCenterCode = sessionUser?.centerCode || centerCode || '';
 
   // ---------- Derived state ----------
-  const parsedTotalAmount = typeof totalAmount === 'string' ? parseFloat(totalAmount) : totalAmount;
+  const _rawTotal = typeof totalAmount === 'string' ? parseFloat(totalAmount) : totalAmount;
+  // Subtract invoice-level promotion discounts so payment total reflects the actual amount due
+  const _invoiceLevelDiscount = appliedPromotions
+    .filter(p => p.applicationLevel === "Invoice Level")
+    .reduce((sum, p) => sum + parseFloat(p.discountAmount || 0), 0);
+  const parsedTotalAmount = Math.max(0, _rawTotal - _invoiceLevelDiscount);
 
   const [activeTab, setActiveTab] = useState('cash');
   const [amount, setAmount] = useState(parsedTotalAmount.toString());
@@ -200,7 +205,10 @@ const PaymentBlock = ({
 
   // ---------- Recompute remaining amount on payments change ----------
   useEffect(() => {
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+    // Invoice-level promos for display in PaymentBlock summary (mirrors InvoiceTable tfoot)
+  const _invoicePromos = appliedPromotions.filter(p => p.applicationLevel === "Invoice Level");
+
+  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
                + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
     const remaining = Math.max(0, parsedTotalAmount - totalPaid);
     setAmount(remaining.toString());

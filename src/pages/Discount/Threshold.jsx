@@ -19,7 +19,7 @@ export default function Threshold() {
 
   const [form, setForm] = useState({
     discountName:     "",
-    applicationLevel: "Item Level",
+    applicationLevel: "Invoice Level",
     startDate:        "",
     endDate:          "",
     enableDiscount:   false,
@@ -60,7 +60,7 @@ export default function Threshold() {
         if (!d) return;
         setForm({
           discountName:      d.discountName     || "",
-          applicationLevel:  d.applicationLevel || "Item Level",
+          applicationLevel:  d.applicationLevel || "Invoice Level",
           startDate:         d.startDate ? d.startDate.split("T")[0] : "",
           endDate:           d.endDate   ? d.endDate.split("T")[0]   : "",
           enableDiscount:    d.enableDiscount   || false,

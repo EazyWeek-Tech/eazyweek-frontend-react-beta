@@ -197,9 +197,9 @@ const InvoicePage = () => {
     const selected = saved.find(cart => cart.id.toString() === cartId);
     if (selected) { setItems(selected.items); const updated = saved.filter(cart => cart.id.toString() !== cartId); localStorage.setItem('suspendedCarts', JSON.stringify(updated)); setSuspendedCarts(updated); }
   };
-  const handleClearCart             = () => setItems([]);
+  const handleClearCart             = () => { setItems([]); setAppliedPromotions([]); };
   const handleRemoveManualDiscount  = (idx) => setItems(prev => prev.map((item, i) => i !== idx ? item : { ...item, discount: 0, _manualDiscount: false }));
-  const handleRemovePromotion       = () => { setItems(prev => prev.map(item => !item._promotionId ? item : { ...item, discount: 0, _promotionId: undefined, _promotionName: undefined })); setAppliedPromotions(prev => prev.filter(p => p.applicationLevel !== "Item Level")); };
+  const handleRemovePromotion       = () => { setItems(prev => prev.map(item => !item._promotionId ? item : { ...item, discount: 0, _promotionId: undefined, _promotionName: undefined })); setAppliedPromotions([]); };
   const handlePromotionApply        = (result) => { if (result.updatedItems?.length) setItems(result.updatedItems); if (result.applied?.length) setAppliedPromotions(prev => [...prev, ...result.applied]); setShowPromotion(false); };
   const handlePackageRedeem         = ({ packageInfo, serviceCode }) => { setPackageRedemption(packageInfo); setItems(prev => prev.map(item => (item.code === serviceCode || item.servicecode === serviceCode) ? { ...item, price: 0, discount: 0, _redeemed: true, _packageCode: packageInfo.packageCode } : item)); setShowPkgBalance(false); setToast({ message: `Package ${packageInfo.packageCode} applied — service set to SAR 0`, type: "success" }); };
   const handleApplyPriceOverride    = (updatedItems) => setItems(updatedItems);
@@ -215,7 +215,10 @@ const InvoicePage = () => {
     return sum + (netAmount * rate) / 100;
   }, 0);
   const roundoff = 0;
-  const total    = net + tax + roundoff;
+  const invoicePromoDiscount = appliedPromotions
+  .filter(p => p.applicationLevel === "Invoice Level")
+  .reduce((sum, p) => sum + parseFloat(p.discountAmount || 0), 0);
+const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
   const todayDate = new Date().toISOString().split('T')[0];
 
   return (
@@ -271,7 +274,8 @@ const InvoicePage = () => {
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
                 nationalityStatus={selectedCustomer?.status} />
               <div className="invttlwrp">
-                {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount },
+                {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount + invoicePromoDiscount },
+
                   { label: 'Tax', value: tax }, { label: 'Round Off', value: roundoff }, { label: 'Total', value: total }]
                   .map(({ label, value }, idx) => (
                     <div className={`invntry ${label === 'Total' ? 'lst' : ''}`} key={idx}>

@@ -13,13 +13,15 @@ const InvoiceTable = ({
   isPriceOverride,
   editableDiscount = false,
   appliedPromotions = [],   // [{ discountId, discountName, applicationLevel, itemCode, discountAmount }]
-  onRemovePromotion,        // () => void — removes ALL item-level promotions at once
+  onRemovePromotion,        // () => void — removes ALL promotions
   onRemoveManualDiscount,   // (idx) => void — removes manual discount from specific item
 }) => {
   const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
   // Find the single item-level promotion (max 1 per FRD)
-  const itemPromo = appliedPromotions.find(p => p.applicationLevel === "Item Level");
+  const itemPromo     = appliedPromotions.find(p => p.applicationLevel === "Item Level");
+  // All invoice-level promotions
+  const invoicePromos = appliedPromotions.filter(p => p.applicationLevel === "Invoice Level");
 
   return (
     <div className="invtable">
@@ -75,8 +77,8 @@ const InvoiceTable = ({
               const total = amountWithoutVat + tax;
 
               // Check if this item has the item-level promo applied
-              const itemCode    = item.code || item.itemCode || "";
-              const hasPromo    = itemPromo && (
+              const itemCode = item.code || item.itemCode || "";
+              const hasPromo = itemPromo && (
                 itemPromo.itemCode === itemCode ||
                 item._promotionId === itemPromo.discountId
               );
@@ -158,19 +160,14 @@ const InvoiceTable = ({
                     </td>
                   </tr>
 
-                  {/* ── Promo sub-row (only for applicable items) ── */}
+                  {/* ── Item-level promo sub-row ── */}
                   {hasPromo && (
                     <tr style={{ background: "#fff" }}>
                       <td />
                       <td colSpan={colSpan} style={{ paddingTop: 4, paddingBottom: 6 }}>
                         <span style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          fontSize: 11,
-                          color: "#a9a7a7",
-                          fontWeight: 600,
-                          fontStyle: "italic"
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, color: "#a9a7a7", fontWeight: 600, fontStyle: "italic"
                         }}>
                           <span style={{ fontSize: 13 }}>🏷</span>
                           Promo applied: {itemPromo.discountName}
@@ -187,9 +184,7 @@ const InvoiceTable = ({
                               color: "#b91c1c", fontWeight: 400, fontSize: 14,
                               lineHeight: 1, padding: "0 2px", marginLeft: 2,
                             }}
-                          >
-                            ×
-                          </button>
+                          >×</button>
                         </span>
                       </td>
                     </tr>
@@ -201,13 +196,8 @@ const InvoiceTable = ({
                       <td />
                       <td colSpan={colSpan} style={{ paddingTop: 4, paddingBottom: 6 }}>
                         <span style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          fontSize: 11,
-                          color: "#a9a7a7",
-                          fontWeight: 600,
-                           fontStyle: "italic"
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, color: "#a9a7a7", fontWeight: 600, fontStyle: "italic"
                         }}>
                           <span style={{ fontSize: 13 }}>✂️</span>
                           Manual Discount applied
@@ -222,9 +212,7 @@ const InvoiceTable = ({
                               color: "#b91c1c", fontWeight: 800, fontSize: 14,
                               lineHeight: 1, padding: "0 2px", marginLeft: 2,
                             }}
-                          >
-                            ×
-                          </button>
+                          >×</button>
                         </span>
                       </td>
                     </tr>
@@ -234,6 +222,51 @@ const InvoiceTable = ({
             })
           )}
         </tbody>
+
+        {/* ── Invoice-level promotion summary rows ── */}
+        {invoicePromos.length > 0 && (
+          <tfoot>
+            {invoicePromos.map((promo, i) => (
+              <tr key={i} style={{ background: "#f0fdf4", borderTop: "1.5px solid #bbf7d0" }}>
+                <td />
+                <td colSpan={isPriceOverride ? 6 : showDiscountPercent ? 7 : 6}
+                    style={{ padding: "7px 10px" }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    fontSize: 12, color: "#166534", fontWeight: 600, fontStyle: "italic"
+                  }}>
+                    <span style={{ fontSize: 14 }}>🏷</span>
+                    Invoice Promotion: {promo.discountName}
+                    {promo.thresholdType && (
+                      <span style={{ fontSize: 11, fontWeight: 400, color: "#4a7c5f" }}>
+                        ({promo.thresholdType})
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td style={{ padding: "7px 10px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  {promo.discountAmount > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>
+                      -SAR {parseFloat(promo.discountAmount).toFixed(2)}
+                    </span>
+                  )}
+                </td>
+                <td colSpan={2} style={{ padding: "7px 6px", textAlign: "center" }}>
+                  {onRemovePromotion && (
+                    <button
+                      onClick={() => onRemovePromotion?.()}
+                      title="Remove invoice promotion"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "#b91c1c", fontSize: 16, lineHeight: 1, padding: "0 4px",
+                      }}
+                    >×</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tfoot>
+        )}
       </table>
     </div>
   );
