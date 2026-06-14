@@ -787,7 +787,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
               <span style={{ margin:"0 6px" }}> › </span>
               <span style={{ cursor:"pointer", color:"#334B71" }} onClick={onBack}>Manage Service</span>
               <span style={{ margin:"0 6px" }}> › </span>
-              <span>{mode === "edit" ? `Edit — ${formData.serviceCode}` : "Create New"}</span>
+              <span>{mode === "edit" ? `Edit — ${formData.serviceName?.trim()}` : "Create New"}</span>
             </div>
             <h1 style={{ fontSize:22, fontWeight:600, color:"#111827", margin:0 }}>
               {mode === "edit" ? "Edit Service" : "Create Service"}
@@ -801,6 +801,17 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
         </div>
 
         <div style={s.card}>
+          {/* Service name + code shown above the tabs */}
+          <div style={{ padding:"14px 20px", borderBottom:"1px solid #eef1f5", display:"flex", alignItems:"baseline", gap:12, flexWrap:"wrap" }}>
+            <span style={{ fontSize:18, fontWeight:700, color:"#1e293b" }}>
+              {formData.serviceName?.trim() || (mode === "edit" ? "Service" : "New Service")}
+            </span>
+            {formData.serviceCode?.trim() && (
+              <span style={{ fontSize:12.5, fontWeight:700, color:"#334b71", background:"#eef2f8", padding:"3px 10px", borderRadius:999 }}>
+                {formData.serviceCode}
+              </span>
+            )}
+          </div>
           {/* Tabs */}
           <div className="sf-tabs">
             <div style={{ display:"flex", flexWrap:"wrap" }}>

@@ -180,36 +180,57 @@ const CustomerMaster = () => {
   return (
     <div style={{ padding:24, fontFamily:"Inter,sans-serif", maxWidth:1200, margin:"0 auto" }}>
       <style>{`
+        .header-section { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+        .page-title { font-size:24px; font-weight:600; color:#111827; margin:0 0 4px; }
+        .create-btn { padding:10px 20px; background:#334B71; color:#fff; border:none; border-radius:8px; font-weight:500; cursor:pointer; font-size:14px; }
+        .create-btn:hover { background:#22314f; }
         .lds-ring{display:inline-block;position:relative;width:56px;height:56px}
         .lds-ring div{box-sizing:border-box;display:block;position:absolute;width:42px;height:42px;margin:7px;border:4px solid #334B71;border-radius:50%;animation:lds-ring 1.2s linear infinite;border-color:#334B71 transparent transparent transparent}
         @keyframes lds-ring{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
       `}</style>
 
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, color:"#111827", margin:0 }}>Manage Customers</h1>
-        <button style={styles.saveBtn} onClick={handleOpenCreate}>+ New Customer</button>
-      </div>
-
-      <div style={{ marginBottom:16 }}>
-        <input style={{ width:"100%", maxWidth:400, padding:"9px 12px", border:"1px solid #ced4da", borderRadius:6, fontSize:14 }}
-          type="text" placeholder="Search by name, ID, phone, center..."
-          value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-      </div>
-
-      {loading ? (
-        <div style={{ display:"flex", justifyContent:"center", padding:40 }}>
-          <div className="lds-ring"><div/><div/><div/><div/></div>
+      <div className="header-section">
+        <div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6 }}>
+            <a href="/dashboard" style={{ color: "#334B71", textDecoration: "none" }}>Dashboard</a>
+            <span style={{ margin: "0 6px" }}> › </span>
+            <span>Manage Customers</span>
+          </div>
+          <h1 className="page-title">Customers</h1>
+          <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredCustomers.length} customers</p>
         </div>
-      ) : (
-        <DataTable columns={columns} data={filteredCustomers}
-          pagination highlightOnHover responsive dense
-          noDataComponent={<div style={{ padding:32, color:"#9ca3af" }}>No customers found.</div>}
-          customStyles={{
-            headCells: { style:{ background:"#f1f5f9", fontWeight:700, color:"#334B71", fontSize:12, textTransform:"uppercase" } },
-            rows: { style:{ fontSize:13 } },
-          }}
-        />
-      )}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={() => fetchCustomers()}
+            style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4",
+              borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
+            ↻ Refresh
+          </button>
+          <button className="create-btn" onClick={handleOpenCreate}>+ Create New Customer</button>
+        </div>
+      </div>
+
+
+      <DataTable
+        columns={columns}
+        data={filteredCustomers}
+        progressPending={loading}
+        progressComponent={<div style={{ padding: 40, color: "#6b7280" }}>Loading customers...</div>}
+        pagination
+        paginationPerPage={10}
+        paginationRowsPerPageOptions={[10, 25, 50, 100]}
+        subHeader
+        highlightOnHover
+        noDataComponent={<div style={{ padding:32, color:"#9ca3af" }}>No customers found.</div>}
+        subHeaderComponent={
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              type="text" placeholder="Search by name, ID, phone, center..."
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, minWidth: 260, fontSize: 14 }}
+            />
+          </div>
+        }
+      />
 
       {/* Slide-in form panel */}
       {showForm && (

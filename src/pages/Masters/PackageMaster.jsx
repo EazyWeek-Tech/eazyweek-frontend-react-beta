@@ -773,12 +773,12 @@ const PackageMaster = () => {
 
   // ── Form View ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a", maxWidth:960 }}>
+    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a", maxWidth:'100%' }}>
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
         <div>
           <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>
-            {editCode ? `Edit Package — ${editCode}` : "Create New Package"}
+            {editCode ? `Edit Package — ${form.packageName?.trim()}` : "Create New Package"}
           </h2>
           <button onClick={()=>setView("list")} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
             ← Back to List
@@ -819,6 +819,18 @@ const PackageMaster = () => {
           </ul>
         </div>
       )}
+
+      {/* Package name + code shown above the tabs */}
+      <div style={{ display:"flex", alignItems:"baseline", gap:12, flexWrap:"wrap", marginBottom:16 }}>
+        <span style={{ fontSize:18, fontWeight:800, color:"#1e293b" }}>
+          {form.packageName?.trim() || (editCode ? "Package" : "New Package")}
+        </span>
+        {form.packageCode?.trim() && (
+          <span style={{ fontSize:12.5, fontWeight:700, color:"#334b71", background:"#eef2f8", padding:"3px 10px", borderRadius:999 }}>
+            {form.packageCode}
+          </span>
+        )}
+      </div>
 
       {/* Tab bar */}
       <div style={{ display:"flex", borderBottom:"2px solid #e2e8f0", marginBottom:24 }}>
