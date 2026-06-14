@@ -97,7 +97,7 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
       </div>
 
       {/* Language badge for bilingual mode */}
-      {isBilingual && component.lang && (
+      {isBilingual && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"6px 10px",
           borderRadius:8, background: isArabic?"#fef9ec":"#eff6ff",
           border: `1px solid ${isArabic?"#fcd34d":"#bfdbfe"}` }}>
@@ -109,7 +109,7 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
             {isArabic && <div style={{ fontSize:10, color:"#92400e" }}>Text will render right-to-left</div>}
           </div>
           {/* Lang switcher in editor */}
-          <select value={component.lang} onChange={e => update("lang", e.target.value)}
+          <select value={component.lang || "en"} onChange={e => update("lang", e.target.value)}
             style={{ marginLeft:"auto", border:"1px solid #e7ecf4", borderRadius:6, padding:"3px 6px", fontSize:11 }}>
             <option value="en">EN</option>
             <option value="ar">AR</option>

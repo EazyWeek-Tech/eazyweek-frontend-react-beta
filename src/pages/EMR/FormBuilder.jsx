@@ -246,8 +246,21 @@ export default function FormBuilder() {
       .then(data => {
         if (!data?.formCode) return;
         setForm(data);
-        setComponents(data.components || []);
-        setConditions(data.conditions || []);
+        const conds     = data.conditions || [];
+        const rawComps  = data.components  || [];
+        const hasToggle = rawComps.some(c => c.componentId === LANG_TOGGLE_ID);
+        // `lang` isn't stored on the component row — it lives in the language
+        // condition (triggerCompId = toggle). Rehydrate it so the editor switcher
+        // and badges reflect the real saved state after reload.
+        const comps = hasToggle
+          ? rawComps.map(c => {
+              if (c.componentId === LANG_TOGGLE_ID) return c;
+              const langCond = conds.find(cd => cd.triggerCompId === LANG_TOGGLE_ID && cd.targetCompId === c.componentId);
+              return { ...c, lang: langCond ? langCond.triggerValue : (c.lang || "en") };
+            })
+          : rawComps;
+        setComponents(comps);
+        setConditions(conds);
       })
       .finally(() => setLoading(false));
   }, [formCode]);
@@ -415,9 +428,34 @@ export default function FormBuilder() {
 
   const handleCloseEditor = useCallback(() => setSelectedId(null), []);
   const handleUpdateComponent = useCallback((updated) => {
-    setComponents(p => p.map(c => c.componentId === updated.componentId ? updated : c));
+    const old = components.find(c => c.componentId === updated.componentId);
+    const langChanged = isBilingual && updated.lang && old && old.lang !== updated.lang;
+    // A column layout owns its children — moving it to a language moves them too.
+    const childIds = (langChanged && updated.componentType === "columnlayout")
+      ? components.filter(c => c.parentId === updated.componentId).map(c => c.componentId)
+      : [];
+
+    setComponents(p => p.map(c => {
+      if (c.componentId === updated.componentId) return updated;
+      if (childIds.includes(c.componentId)) return { ...c, lang: updated.lang };
+      return c;
+    }));
+
+    // Visibility follows the condition, not the lang tag — keep them in sync so
+    // switching a field to AR actually hides it in the EN view (and vice-versa).
+    if (langChanged) {
+      const affected = [updated.componentId, ...childIds];
+      setConditions(p => {
+        const cleaned = p.filter(c => !(c.triggerCompId === LANG_TOGGLE_ID && affected.includes(c.targetCompId)));
+        const added   = affected.map(id => ({
+          triggerCompId: LANG_TOGGLE_ID, triggerValue: updated.lang,
+          targetCompId:  id, action: "show",
+        }));
+        return [...cleaned, ...added];
+      });
+    }
     setIsDirty(true);
-  }, []);
+  }, [components, isBilingual]);
   const handleDeleteComponent = useCallback((id) => {
     if (id === LANG_TOGGLE_ID) return;  // can't delete the toggle
     setComponents(p => {
@@ -436,12 +474,37 @@ export default function FormBuilder() {
       await authPut(`${API_BASE_URL}/api/EMR/Forms/${formCode}`, {
         formName: form.formName, status: status || form.status,
       });
-      const compRes = await authPost(`${API_BASE_URL}/api/EMR/Forms/SaveComponents`, {
-        formCode, components: components.map((c, i) => ({ ...c, sortOrder: i })),
-      });
+
+      // Language conditions are auto-managed: regenerate them from each component's
+      // lang tag so EVERY component has exactly one (children inherit their parent
+      // column layout's language). This guarantees the published form filters
+      // correctly — without it, an un-conditioned component shows in both languages.
+      let conditionsToSave = conditions;
+      if (isBilingual) {
+        const langOf = (c) => {
+          if (c.parentId) {
+            const parent = components.find(p => p.componentId === c.parentId);
+            return (parent && parent.lang) || c.lang || "en";
+          }
+          return c.lang || "en";
+        };
+        const nonLang  = conditions.filter(c => c.triggerCompId !== LANG_TOGGLE_ID);
+        const langCond = components
+          .filter(c => c.componentId !== LANG_TOGGLE_ID)
+          .map(c => ({ triggerCompId: LANG_TOGGLE_ID, triggerValue: langOf(c), targetCompId: c.componentId, action: "show" }));
+        conditionsToSave = [...nonLang, ...langCond];
+      }
+
+      // Components and conditions are independent tables — save them concurrently.
+      const [compRes, condRes] = await Promise.all([
+        authPost(`${API_BASE_URL}/api/EMR/Forms/SaveComponents`, {
+          formCode, components: components.map((c, i) => ({ ...c, sortOrder: i })),
+        }),
+        authPost(`${API_BASE_URL}/api/EMR/Forms/SaveConditions`, { formCode, conditions: conditionsToSave }),
+      ]);
       if (!compRes.success) throw new Error(compRes.message);
-      const condRes = await authPost(`${API_BASE_URL}/api/EMR/Forms/SaveConditions`, { formCode, conditions });
       if (!condRes.success) throw new Error(condRes.message);
+      setConditions(conditionsToSave);
       setIsDirty(false);
       showToast(status === "Active" ? "Form published." : "Form saved.");
       if (status) setForm(p => ({ ...p, status }));
@@ -458,7 +521,9 @@ export default function FormBuilder() {
     return topLevelComponents.filter(comp => {
       if (comp.componentId === LANG_TOGGLE_ID) return true;  // always show toggle
       const cond = conditions.find(c => c.targetCompId === comp.componentId && c.triggerCompId === LANG_TOGGLE_ID);
-      if (!cond) return true;  // no condition = always show
+      // Fall back to the component's own language tag (defaults to "en") so an
+      // un-conditioned component doesn't leak into the other language's view.
+      if (!cond) return (comp.lang || "en") === lang;
       return cond.triggerValue === lang;
     });
   };
