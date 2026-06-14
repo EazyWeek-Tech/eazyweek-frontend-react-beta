@@ -157,7 +157,7 @@ const NotesTab = ({ custId }) => {
                       {!n.showOnHistory && !n.showOnCheckin && !n.showOnBooking && !n.showOnPayment && !n.isPrivate
                         ? <span style={{ color:"#94a3b8" }}>General</span> : null}
                     </td>
-                    <td>{n.serviceCode || "—"}</td>
+                    <td>{n.serviceName || n.serviceCode || "—"}</td>
                     <td>{n.createdBy || "—"}</td>
                     <td>{n.centerCode || "—"}</td>
                   </tr>

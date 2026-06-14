@@ -97,14 +97,13 @@ const AppointmentTab = ({ custId }) => {
               <th>Therapist</th>
               <th>Payment Type</th>
               <th>Invoice No</th>
-              <th>Receipt No</th>
               <th>Added By</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={10} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No records found.</td></tr>
+              <tr><td colSpan={9} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No records found.</td></tr>
             ) : rows.map((a, i) => {
               const id = a.appointmentId || i;
               const statusKey = (a.status || "").toLowerCase().replace(/\s/g, "");
@@ -121,7 +120,6 @@ const AppointmentTab = ({ custId }) => {
                     <td>{a.therapist || "—"}</td>
                     <td>{a.paymentType || "—"}</td>
                     <td>{a.invoiceNo || "—"}</td>
-                    <td>{a.receiptNo || "—"}</td>
                     <td>{a.addedBy || "—"}</td>
                     <td>
                       {hasNote
@@ -134,7 +132,7 @@ const AppointmentTab = ({ custId }) => {
                   </tr>
                   {isOpen && hasNote && (
                     <tr className="note-row">
-                      <td colSpan={10}>
+                      <td colSpan={9}>
                         <div className="note-content">
                           <strong>📝 Note:</strong> {a.notes}
                         </div>
