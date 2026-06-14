@@ -1490,7 +1490,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       {isDrawerOpen && (
         <AppointmentDrawer
           isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
+          onClose={() => { setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null); }}
           customer={selectedCustomer}
           timeSlot={selectedTimeSlot}
           doctor={selectedDoctor}
