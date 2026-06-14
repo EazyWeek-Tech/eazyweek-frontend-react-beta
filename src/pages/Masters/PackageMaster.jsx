@@ -154,6 +154,10 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors, isAdmin = true }
 // onDisplayVal = just updates the displayed text without clearing selection
 const Autocomplete = ({ displayVal, onType, sugg, onSelect, onAdd, qty, onQty, disabled, label, placeholder }) => {
   const [open, setOpen] = useState(false);
+  // Results arrive asynchronously (after the debounce + network round-trip), by
+  // which point onChange's setOpen(true) may have been undone by an onBlur. Re-open
+  // whenever suggestions land so the dropdown reliably shows.
+  useEffect(() => { if (sugg.length > 0) setOpen(true); }, [sugg]);
   return (
     <div style={{ background:"#f8fafc", borderRadius:10, padding:14, marginBottom:12, border:"1px solid #e2e8f0", opacity: disabled?0.45:1 }}>
       <div style={{ fontWeight:700, fontSize:13, color:"#334b71", marginBottom:10 }}>{label}</div>
@@ -172,6 +176,7 @@ const Autocomplete = ({ displayVal, onType, sugg, onSelect, onAdd, qty, onQty, d
             <ul style={{ position:"absolute", top:"100%", left:0, right:0, background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, zIndex:999, listStyle:"none", margin:0, padding:"4px 0", maxHeight:200, overflowY:"auto", boxShadow:"0 4px 16px rgba(0,0,0,.12)" }}>
               {sugg.map((s,i) => {
                 const name = s.serviceName||s.SERVICENAME||s.productName||s.PRODUCTNAME||"";
+                const code = s.serviceCode||s.SERVICECODE||s.productCode||s.PRODUCTCODE||s.code||"";
                 return (
                   <li key={i}
                     onMouseDown={e => {
@@ -179,10 +184,11 @@ const Autocomplete = ({ displayVal, onType, sugg, onSelect, onAdd, qty, onQty, d
                       onSelect(s, name);    // store selection AND display text in one call
                       setOpen(false);
                     }}
-                    style={{ padding:"9px 12px", cursor:"pointer", fontSize:13 }}
+                    style={{ padding:"9px 12px", cursor:"pointer", fontSize:13, display:"flex", flexDirection:"column", gap:2 }}
                     onMouseEnter={e=>e.currentTarget.style.background="#f0f4fa"}
                     onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                    {name}
+                    <span>{name}</span>
+                    {code && <span style={{ fontSize:11, color:"#94a3b8" }}>Code: {code}</span>}
                   </li>
                 );
               })}
@@ -217,23 +223,33 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAd
   const showSvc  = form.packageConsistsOf !== "Products";
   const showProd = form.packageConsistsOf !== "Services";
 
-  // Called when user types — clears selection, triggers search
-  const handleType = async (val, type) => {
+  // Runs the actual API search.
+  const runSearch = async (val, type) => {
+    const u = getUser();
+    try {
+      const q = encodeURIComponent(val.trim());
+      const url = type === "svc"
+        // requireCentrePrice=false → include services not yet priced at this centre
+        ? `${API_BASE_URL}/api/Master/GetServiceByName/${q}/${u.centerCode||""}?requireCentrePrice=false`
+        : `${API_BASE_URL}/api/Master/GetProductByName/${q}/${u.centerCode||""}`;
+      const data = await authGet(url);
+      const list = Array.isArray(data) ? data : [];
+      if (type === "svc") setSvcSugg(list); else setProdSugg(list);
+    } catch {}
+  };
+
+  // Fires on every input change — React triggers onChange for typing AND paste.
+  // A jump of more than one character = paste/autofill → search immediately (skip
+  // the debounce); the dropdown then shows the matches (by name or code) to pick.
+  const handleType = (val, type) => {
+    const prev = type === "svc" ? svcSearch : prodSearch;
+    const isPaste = val.length - prev.length > 1;
     if (type === "svc") { setSvcSearch(val); setSelSvc(null); setSvcSugg([]); }
     else                { setProdSearch(val); setSelProd(null); setProdSugg([]); }
     clearTimeout(deb.current);
-    if (!val.trim()) return;
-    const u = getUser();
-    deb.current = setTimeout(async () => {
-      try {
-        const url = type === "svc"
-          ? `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val)}/${u.centerCode||""}`
-          : `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val)}/${u.centerCode||""}`;
-        const data = await authGet(url);
-        if (type === "svc") setSvcSugg(Array.isArray(data) ? data : []);
-        else                setProdSugg(Array.isArray(data) ? data : []);
-      } catch {}
-    }, 250);
+    if (val.trim().length < 2) return;             // ignore 0–1 char queries
+    if (isPaste) { runSearch(val, type); return; } // instant search on paste
+    deb.current = setTimeout(() => runSearch(val, type), 250);
   };
 
   // Called when user selects from dropdown — sets both the item AND the display text atomically
