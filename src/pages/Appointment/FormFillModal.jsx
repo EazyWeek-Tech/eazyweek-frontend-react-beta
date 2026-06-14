@@ -936,6 +936,16 @@ export default function FormFillModal({
   const validate = () => {
     if (!formDef) return true;
     const e = {};
+    const conds = formDef.conditions || [];
+    // Same visibility rule the renderer uses — a field hidden by the active
+    // language (or any other condition) must NOT be required. Without this, a
+    // bilingual form filled in Arabic still demands the hidden English fields.
+    const isVisible = (comp) => conds.every(cond => {
+      if (cond.targetCompId !== comp.componentId) return true;
+      const triggerVal = values[cond.triggerCompId];
+      const matches    = String(triggerVal || "").toLowerCase() === String(cond.triggerValue || "").toLowerCase();
+      return cond.action === "show" ? matches : !matches;
+    });
     // Types the user cannot fill — skip validation regardless of isMandatory flag
     const SKIP_TYPES = new Set(["columnlayout","calculated","content","logo","annotation","languagetoggle","macro"]);
     for (const comp of formDef.components || []) {
@@ -944,6 +954,8 @@ export default function FormFillModal({
       // Skip children inside columnlayout — their values are stored at top level
       // but we validate them individually when they appear as top-level components
       if (comp.parentId) continue;
+      // Skip fields not shown in the current language / condition state
+      if (!isVisible(comp)) continue;
       const val = values[comp.componentId];
       // Signature: must have actual drawn data
       if (comp.componentType === "signature") {
