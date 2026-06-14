@@ -27,7 +27,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
     { id: "CC04",  label: "Antiageing Services", icon: "images/antiage.svg" },
     { id: "CC048", label: "Volume filling",      icon: "images/filling.svg" },
     { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
-    { id: "CC025", label: "Hair Reduction",      icon: "images/hair.svg"    },
+    { id: "CC030", label: "Hair Reduction",      icon: "images/hair.svg"    },
   ];
 
   const [services,    setServices]    = useState([]);

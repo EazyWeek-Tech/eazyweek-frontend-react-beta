@@ -651,11 +651,11 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
     { value:" ", label:"< - Select one - >" },
     { value:"10", label:"10 mins"  }, { value:"20",  label:"20 mins"      },
     { value:"30", label:"30 mins"  }, { value:"40",  label:"40 mins"      },
-    { value:"50", label:"50 mins"  }, { value:"1",   label:"1 hour"       },
-    { value:"110",label:"1h 10m"   }, { value:"120", label:"1h 20m"       },
-    { value:"130",label:"1h 30m"   }, { value:"140", label:"1h 40m"       },
-    { value:"150",label:"1h 50m"   }, { value:"2",   label:"2 hours"      },
-    { value:"210",label:"2h 10m"   }, { value:"220", label:"2h 20m"       },
+    { value:"50", label:"50 mins"  }, { value:"60",   label:"1 hour"       },
+    { value:"70",label:"1h 10m"   }, { value:"80", label:"1h 20m"       },
+    { value:"90",label:"1h 30m"   }, { value:"100", label:"1h 40m"       },
+    { value:"110",label:"1h 50m"   }, { value:"120",   label:"2 hours"      },
+    { value:"130",label:"2h 10m"   }, { value:"140", label:"2h 20m"       },
   ];
 
   const badgeColor = { saved:"#d1fae5", draft:"#fef3c7", unsaved:"#f3f4f6" };
