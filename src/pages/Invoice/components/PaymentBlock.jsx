@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { API_BASE_URL } from '../../../config';
 // CreditNoteRedemption modal removed — CN selection is now inline in tab content
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -655,6 +655,12 @@ const PaymentBlock = ({
     return paymentModes.indexOf(mode); // 0..5
   };
 
+  // Guard against duplicate invoice creation from repeated/double clicks while a
+  // submission is still in flight (the button stays enabled during the network
+  // round-trip + post-success processing). Ref = synchronous hard guard, state = UI.
+  const submittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmitInvoice = async () => {
     if (!isZeroTotal && payments.length === 0 && appliedCreditNotes.length === 0) {
       setFormError('Please add at least one payment method.');
@@ -797,6 +803,12 @@ const PaymentBlock = ({
     console.log("linesJson appointmentIDs:", linesJson.map(l => ({ item: l.itemCode, apptId: l.appointmentID })));
     // console.log("payload", payload);
 
+    // Block a second submission while this one is still in flight → prevents
+    // duplicate invoices when the button is double-clicked.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/Invoice`, {
         method: 'POST',
@@ -916,6 +928,9 @@ if (result.success) {
     } catch (err) {
       console.error('Invoice submission error:', err);
       setToast({ message: err.message, type: 'error' });
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -1308,8 +1323,8 @@ if (result.success) {
 
       {(payments.length > 0 || appliedCreditNotes.length > 0 || (isZeroTotal && packageRedemption)) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
-          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled}>
-            Complete Invoice
+          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting}>
+            {isSubmitting ? 'Submitting…' : 'Complete Invoice'}
           </button>
         </div>
       )}

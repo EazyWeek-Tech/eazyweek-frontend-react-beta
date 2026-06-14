@@ -18,6 +18,10 @@ const authPost = async (url, body) => {
 };
 
 const fmt = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ReturnReasons is static master data — cache it for the session so reopening
+// invoices in the return flow doesn't refetch the same list every time.
+let _returnReasonsCache = null;
 const fmtDate = (d) => {
   if (!d) return "";
   const s = typeof d === "string" ? d : new Date(d).toISOString();
@@ -194,7 +198,7 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
                           Returned
                         </span>
                       ) : inv.partialReturn ? (
-                        <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                        <span style={{ padding: "4px 10px",whiteSpace:"nowrap", fontSize: 11, fontWeight: 700,
                           color: "#92400e", background: "#fef3c7",
                           border: "1px solid #fcd34d", borderRadius: 99 }}>
                           Partial Return
@@ -217,7 +221,7 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
                           View
                         </button>
                         {inv.fullyReturned ? (
-                          <span style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                          <span style={{ padding: "4px 10px",whiteSpace:"nowrap", fontSize: 11, fontWeight: 700,
                             color: "#b91c1c", background: "#fde8e8",
                             border: "1px solid #f0c4c0", borderRadius: 6 }}>
                             Returned
@@ -265,9 +269,13 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
+    const reasonsPromise = _returnReasonsCache
+      ? Promise.resolve(_returnReasonsCache)
+      : authGet(`${API_BASE_URL}/api/SalesReturn/ReturnReasons`)
+          .then(r => { _returnReasonsCache = Array.isArray(r) ? r : []; return _returnReasonsCache; });
     Promise.all([
       authGet(`${API_BASE_URL}/api/SalesReturn/InvoiceLines/${encodeURIComponent(invoiceNum)}`),
-      authGet(`${API_BASE_URL}/api/SalesReturn/ReturnReasons`),
+      reasonsPromise,
     ]).then(([inv, rsns]) => {
       setData(inv);
       setReasons(Array.isArray(rsns) ? rsns : []);
@@ -837,7 +845,7 @@ const SalesReturn = ({ onClose, custId }) => {
     <div className="popouter" style={{ display: "flex", zIndex: 9999 }}>
       <div className="popovrly" onClick={step === "done" ? onClose : undefined} />
       <div className="popin" style={{
-        maxWidth: step === "search" ? 920 : 700,
+        maxWidth: step === "search" ? 1000 : 700,
         width: "98%", maxHeight: "92vh", overflow: "auto",
         overflowX: step === "search" ? "auto" : "hidden" }}>
         <div className="popuphdr">

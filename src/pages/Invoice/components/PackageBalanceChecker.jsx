@@ -28,14 +28,6 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
   useEffect(() => {
     if (!custId || !centerCode) { setLoading(false); return; }
     (async () => {
-      // Debug: log all items to trace type values
-      console.log("[PackageBalanceChecker] items received:", items.map(i => ({
-        code: i.code || i.servicecode || i.itemCode,
-        type: i.type,
-        itemType: i.itemType,
-        name: i.name || i.itemName,
-      })));
-
       // Only check service-type items — products are consumed at purchase, never redeemable
       // Exclude: explicit product type, OR code starting with PRO- (product code pattern)
       const serviceItems = items.filter(i => {
@@ -48,14 +40,23 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
         return true; // service or unknown — check it
       });
 
-      if (serviceItems.length === 0) {
+      // Dedupe by service code so the same CheckBalance isn't requested twice
+      const seen = new Set();
+      const uniqueItems = serviceItems.filter(item => {
+        const code = (item.code || item.servicecode || item.itemCode || "").toUpperCase();
+        if (!code || seen.has(code)) return false;
+        seen.add(code);
+        return true;
+      });
+
+      if (uniqueItems.length === 0) {
         setResults([]);
         setLoading(false);
         return;
       }
 
       const checks = await Promise.all(
-        serviceItems.map(async (item) => {
+        uniqueItems.map(async (item) => {
           const code = item.code || item.servicecode || item.itemCode || "";
           if (!code) return null;
           try {
@@ -119,7 +120,7 @@ const PackageBalanceChecker = ({ customer, items = [], onRedeem, onClose }) => {
                       <div style={{ fontSize:12, color:"#64748b" }}>Service: {r.serviceCode}</div>
                     </div>
                     <div style={{ textAlign:"right" }}>
-                      <span style={{ background:"#e6f4ef", color:"#2e7d5e", border:"1px solid #b3d9cc", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+                      <span style={{ background:"#e6f4ef", whiteSpace:"nowrap", color:"#2e7d5e", border:"1px solid #b3d9cc", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
                         Balance: {r.packageInfo.balanceQty}
                       </span>
                     </div>
