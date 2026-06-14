@@ -44,8 +44,10 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
       setPkgLoading(true);
       try {
         const u   = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+        // quickCart=1 → backend also includes packages RELEASED to this centre
+        // even if owned by another legal entity (cross-entity release).
         const res = await fetch(
-          `${API_BASE_URL}/api/Package/List?status=Active&centerCode=${encodeURIComponent(u.centerCode || "")}`,
+          `${API_BASE_URL}/api/Package/List?status=Active&quickCart=1&centerCode=${encodeURIComponent(u.centerCode || "")}`,
           { headers: { Authorization: `Bearer ${TOKEN()}` } }
         );
         const json = await res.json();
