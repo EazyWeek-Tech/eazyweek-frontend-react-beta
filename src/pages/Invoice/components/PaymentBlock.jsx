@@ -95,6 +95,9 @@ const PaymentBlock = ({
   const [loyaltyPointsValue, setLoyaltyPointsValue] = useState(null); // SAR value from get-points
   const [loyaltyPointsLoading, setLoyaltyPointsLoading] = useState(false);
   const [loyaltyPointsError, setLoyaltyPointsError] = useState('');
+  // SAR value of ALL available points (points→SAR via get-points). Used to convert
+  // an entered SAR amount back into points proportionally, and as the redeem cap.
+  const [loyaltyRedeemableSar, setLoyaltyRedeemableSar] = useState(0);
   const [centreLogo,          setCentreLogo]          = useState('');  // from CentreSettings
 
   // Local state from GetSelectedAppDetails API
@@ -310,6 +313,26 @@ const PaymentBlock = ({
       .finally(() => setLoyaltyBalanceLoading(false));
   }, [activeTab, recIdFromUrl_final, loyaltyEnrollmentType, isLoyaltyEnrolled]);
 
+  // ---------- Convert available points → SAR (the redeemable value & rate basis) ----
+  // Uses the same points→SAR direction the rest of the app relies on, so we never
+  // have to guess a reverse "amount→points" contract: from the SAR value of the
+  // full balance we get the per-point rate and can size any entered amount.
+  useEffect(() => {
+    const avail = loyaltyBalance?.availablePoints ?? 0;
+    if (!recIdFromUrl_final || avail <= 0) { setLoyaltyRedeemableSar(0); return; }
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/api/v1/points/get-points?customerId=${parseInt(recIdFromUrl_final) || 0}&amount=${Math.round(avail)}&TransactionType=REDEEMED`, {
+      headers: authHeaders(),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const sar = typeof d?.data === 'number' ? d.data : typeof d === 'number' ? d : Number(d?.data ?? d) || 0;
+        if (!cancelled) setLoyaltyRedeemableSar(sar);
+      })
+      .catch(() => { if (!cancelled) setLoyaltyRedeemableSar(0); });
+    return () => { cancelled = true; };
+  }, [loyaltyBalance, recIdFromUrl_final]);
+
   // ---------- Effective items (enrich parent items from API by code/name) ----------
   const effectiveInvoiceItems = useMemo(() => {
     if (!invoiceItems?.length && apiInvoiceItems?.length) return apiInvoiceItems;
@@ -361,61 +384,71 @@ const PaymentBlock = ({
     }
 
     if (activeTab === 'loyalty') {
-      const redeemAmt = parseFloat(formData.redeemAmount || '');
-      if (!redeemAmt || redeemAmt <= 0) {
-        setFormError('Please enter the points amount to redeem.');
+      const redeemSar = parseFloat(formData.redeemAmount || '');
+      if (!redeemSar || redeemSar <= 0) {
+        setFormError('Please enter the amount to redeem.');
         return false;
       }
-      const available = loyaltyBalance?.availablePoints ?? 0;
-      if (redeemAmt > available) {
-        setFormError(`Cannot redeem ${redeemAmt} pts — only ${available} pts available.`);
-        return false;
-      }
-      // Points will be converted automatically on Add Payment — no pre-check needed
+      // Amount vs available-points value is checked in handleAddPayment (needs the rate).
     }
 
     setFormError('');
     return true;
   };
 
+  // Convert an entered SAR amount into loyalty points using the per-point rate
+  // derived from the SAR value of the full available balance (linear redemption).
+  const pointsForAmount = (sar) => {
+    const avail = loyaltyBalance?.availablePoints ?? 0;
+    const amt   = parseFloat(sar || 0);
+    if (!avail || loyaltyRedeemableSar <= 0 || !amt) return 0;
+    return Math.round(amt * avail / loyaltyRedeemableSar);
+  };
+
   const handleAddPayment = async () => {
     if (!validateForm()) return;
 
-    // For loyalty tab — auto-convert points to SAR on Add Payment click
+    // Loyalty tab — user enters the SAR amount to redeem; points are computed from it.
     if (activeTab === 'loyalty') {
-      const pts = parseFloat(formData.redeemAmount || '0');
-      if (!pts || pts <= 0) { setFormError('Please enter points to redeem.'); return; }
-      if (pts > (loyaltyBalance?.availablePoints ?? 0)) { setFormError('Exceeds available points.'); return; }
-      setLoyaltyPointsLoading(true);
-      setLoyaltyPointsError('');
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/v1/points/get-points?customerId=${parseInt(recIdFromUrl_final)||0}&amount=${Math.round(pts)}&TransactionType=REDEEMED`,
-          { headers: authHeaders() }
-        );
-        if (!res.ok) throw new Error(`Failed (${res.status})`);
-        const data = await res.json();
-        const sarValue = typeof data?.data === 'number' ? data.data
-          : typeof data === 'number' ? data
-          : Number(data?.data ?? data) || 0;
-        if (!sarValue || sarValue <= 0) { setFormError('Points have no SAR value. Check tier configuration.'); return; }
-        setLoyaltyPointsValue(sarValue);
-        const newPayment = {
-          id: Date.now(),
-          mode: 'Loyalty',
-          amount: sarValue,
-          date: new Date().toLocaleDateString(),
-          cardNumber: ''
-        };
-        setPayments(prev => [...prev, newPayment]);
-        setFormData({});
-        setLoyaltyPointsValue(null);
-        setFormError('');
-      } catch (e) {
-        setFormError('Failed to convert points. Please try again.');
-      } finally {
-        setLoyaltyPointsLoading(false);
+      const redeemSar = parseFloat(formData.redeemAmount || '0');
+      if (!redeemSar || redeemSar <= 0) { setFormError('Please enter the amount to redeem.'); return; }
+
+      const avail = loyaltyBalance?.availablePoints ?? 0;
+      if (avail <= 0 || loyaltyRedeemableSar <= 0) {
+        setFormError('No redeemable points available for this customer.');
+        return;
       }
+
+      const totalPaidSoFar = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      const remaining = Math.max(0, parsedTotalAmount - totalPaidSoFar);
+      if (redeemSar > remaining + 0.01) {
+        setFormError(`Amount exceeds remaining balance (SAR ${remaining.toFixed(2)}).`);
+        return;
+      }
+      if (redeemSar > loyaltyRedeemableSar + 0.01) {
+        setFormError(`Amount exceeds the value of available points (SAR ${loyaltyRedeemableSar.toFixed(2)}).`);
+        return;
+      }
+
+      const pointsToRedeem = pointsForAmount(redeemSar);
+      if (pointsToRedeem <= 0) { setFormError('Could not convert this amount to points.'); return; }
+      if (pointsToRedeem > avail) {
+        setFormError(`Requires ${pointsToRedeem.toLocaleString()} pts but only ${avail.toLocaleString()} available.`);
+        return;
+      }
+
+      const newPayment = {
+        id: Date.now(),
+        mode: 'Loyalty',
+        amount: redeemSar,            // SAR applied against the invoice
+        points: pointsToRedeem,       // points deducted — sent in the REDEEMED payload
+        date: new Date().toLocaleDateString(),
+        cardNumber: ''
+      };
+      setPayments(prev => [...prev, newPayment]);
+      setFormData({});
+      setLoyaltyPointsValue(null);
+      setFormError('');
       return;
     }
 
@@ -835,7 +868,7 @@ if (result.success) {
           const loyaltyAmount  = loyaltyPayment ? loyaltyPayment.amount : 0;
           const earnAmount     = parsedTotalAmount - loyaltyAmount; // exclude loyalty portion
           if (earnAmount > 0)  await createPointsTransaction('EARN',     earnAmount,     invoiceNum);
-          if (loyaltyPayment)  await createPointsTransaction('REDEEMED', loyaltyAmount,  invoiceNum);
+          if (loyaltyPayment)  await createPointsTransaction('REDEEMED', loyaltyAmount,  invoiceNum, loyaltyPayment.points || 0);
         }
         setInvoiceSuccessPopup(true);
 
@@ -935,7 +968,7 @@ if (result.success) {
   };
 
   // ---------- Points transaction helper ----------------------------------------
-  const createPointsTransaction = async (transactionType, amount, invoiceNumber) => {
+  const createPointsTransaction = async (transactionType, amount, invoiceNumber, points = 0) => {
     if (!recIdFromUrl_final) return;
     const now = new Date().toISOString();
     const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
@@ -950,7 +983,7 @@ if (result.success) {
           ProgramId:          0,
           TransactionType:    transactionType,
           Amount:             Math.round(amount),   // int — tier segments are whole numbers
-          Points:             0,                    // backend calculates from tier rules
+          Points:             Math.round(points) || 0,  // REDEEMED sends computed points; EARN leaves 0 for backend
           ReferenceId:        referenceId,
           Description:        `INV ${invoiceNumber}`,
           ExpiryDate:         now,
@@ -1095,19 +1128,16 @@ if (result.success) {
                 ) : loyaltyBalance ? (
                   <div style={{ background: '#f0f5ff', border: '1px solid #dce6f0', borderLeft: '4px solid #334b71', borderRadius: 8, padding: '10px 14px', marginBottom: 4 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#6e7b8f', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Loyalty Balance</div>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: '#334b71', lineHeight: 1 }}>{loyaltyBalance.availablePoints?.toLocaleString() ?? '—'}</div>
                         <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Available pts</div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#cc6b5c', lineHeight: 1 }}>{loyaltyBalance.redeemedPoints?.toLocaleString() ?? '—'}</div>
-                        <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Redeemed</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#8da0b8', lineHeight: 1 }}>{loyaltyBalance.expiredPoints?.toLocaleString() ?? '—'}</div>
-                        <div style={{ fontSize: 11, color: '#6e7b8f', marginTop: 3 }}>Expired</div>
-                      </div>
+                      {loyaltyRedeemableSar > 0 && (
+                        <div style={{ fontSize: 12, color: '#6e7b8f' }}>
+                          worth <strong style={{ color: '#334b71' }}>SAR {loyaltyRedeemableSar.toFixed(2)}</strong>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : !recIdFromUrl_final ? (
@@ -1119,33 +1149,35 @@ if (result.success) {
               {(loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled) && loyaltyBalance && (
                 <>
                   <div className="frmdiv">
-                    <label>Points to Redeem:</label>
+                    <label>Amount to Redeem (SAR):</label>
                     <input
                       type="number"
                       id="redeemAmount"
                       min="0"
-                      max={loyaltyBalance.availablePoints ?? 0}
+                      step="0.01"
+                      max={Math.max(0, loyaltyRedeemableSar)}
                       value={formData.redeemAmount || ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         handleChange({ target: { id: 'redeemAmount', value: val } });
                         setLoyaltyPointsValue(null);
                         setLoyaltyPointsError('');
-                        // Do NOT reset amount — it is set automatically on Add Payment
                       }}
-                      placeholder={`Max ${loyaltyBalance.availablePoints?.toLocaleString() ?? 0} pts`}
+                      placeholder={loyaltyRedeemableSar > 0 ? `Max SAR ${loyaltyRedeemableSar.toFixed(2)}` : 'Enter amount'}
                       style={{ width: '100%' }}
                     />
-                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > (loyaltyBalance.availablePoints ?? 0) && (
+                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > 0 && loyaltyRedeemableSar > 0 && (
+                      <span style={{ fontSize: 11, color: '#64748b', marginTop: 3, display: 'block' }}>
+                        ≈ {pointsForAmount(formData.redeemAmount).toLocaleString()} pts
+                      </span>
+                    )}
+                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > loyaltyRedeemableSar + 0.01 && (
                       <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
-                        Exceeds available points ({loyaltyBalance.availablePoints?.toLocaleString()})
+                        Exceeds available points value (SAR {loyaltyRedeemableSar.toFixed(2)})
                       </span>
                     )}
                     {loyaltyPointsError && (
                       <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>{loyaltyPointsError}</span>
-                    )}
-                    {loyaltyPointsLoading && (
-                      <span style={{ fontSize: 11, color: '#64748b', marginTop: 3, display: 'block' }}>Converting points…</span>
                     )}
                   </div>
                 </>
