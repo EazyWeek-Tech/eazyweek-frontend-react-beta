@@ -89,7 +89,7 @@ const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fie
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [] }) => {
+const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], doctorId }) => {
 
   // ── Service ───────────────────────────────────────────────────────────────
   const [serviceText,        setServiceText]        = useState('');
@@ -132,6 +132,20 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [] }
       })
       .catch(() => setAllPractitioners([]));
   }, []);
+
+  // Auto-populate the practitioner when arriving from an appointment's "Make Payment"
+  // (index passes the appointment's doctorId). Runs once the practitioner list loads.
+  useEffect(() => {
+    if (!doctorId || allPractitioners.length === 0) return;
+    const want = String(doctorId).trim().toLowerCase();
+    const match = allPractitioners.find(p =>
+      String(p.practitionerCode || p.id || p.employeeCode || "").trim().toLowerCase() === want
+    );
+    if (match) {
+      setSelectedPract(match);
+      setPractText(match.fullName || "");
+    }
+  }, [doctorId, allPractitioners]);
 
   // ── Service search ────────────────────────────────────────────────────────
   const handleServiceChange = useCallback((value) => {
