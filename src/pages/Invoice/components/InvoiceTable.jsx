@@ -16,6 +16,7 @@ const InvoiceTable = ({
   appliedPromotions = [],   // [{ discountId, discountName, applicationLevel, itemCode, discountAmount }]
   onRemovePromotion,        // () => void — removes ALL promotions
   onRemoveManualDiscount,   // (idx) => void — removes manual discount from specific item
+  onRemovePackage,          // (idx) => void — removes the applied package from specific item
 }) => {
   const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
@@ -221,6 +222,35 @@ const InvoiceTable = ({
                           <button
                             onClick={() => onRemoveManualDiscount?.(idx)}
                             title="Remove manual discount from this item"
+                            style={{
+                              background: "none", border: "none", cursor: "pointer",
+                              color: "#b91c1c", fontWeight: 800, fontSize: 14,
+                              lineHeight: 1, padding: "0 2px", marginLeft: 2,
+                            }}
+                          >×</button>
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {/* ── Package Redemption sub-row (per item) ── */}
+                  {(item._redeemed || item._packageCode || item._packageName) && (
+                    <tr style={{ background: "#fff" }}>
+                      <td />
+                      <td colSpan={colSpan} style={{ paddingTop: 4, paddingBottom: 6 }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, color: "#2e7d5e", fontWeight: 600, fontStyle: "italic"
+                        }}>
+                          
+                          Package applied
+                          {(item._packageName || item._packageCode) && (
+                            <span style={{ color: "#666", fontWeight: 400 }}>
+                              ({item._packageName || item._packageCode})
+                            </span>
+                          )}
+                          <button
+                            onClick={() => onRemovePackage?.(idx)}
+                            title="Remove applied package from this item"
                             style={{
                               background: "none", border: "none", cursor: "pointer",
                               color: "#b91c1c", fontWeight: 800, fontSize: 14,

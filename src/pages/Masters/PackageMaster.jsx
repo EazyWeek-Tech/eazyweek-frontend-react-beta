@@ -760,7 +760,7 @@ const PackageMaster = () => {
                   <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{pkg.CENTRES||"—"}</td>
                   <td style={{ padding:"12px 14px" }}>{statusBadge(pkg.STATUS)}</td>
                   <td style={{ padding:"12px 14px" }}>
-                    <button onClick={()=>canEdit && openEdit(pkg.PACKAGECODE)} disabled={!canEdit} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background: canEdit?"#fff":"#f1f5f9", color: canEdit?"#334b71":"#94a3b8", fontWeight:700, cursor: canEdit?"pointer":"not-allowed", fontSize:12 }}>{canEdit ? "Edit" : "View"}</button>
+                    <button onClick={()=>openEdit(pkg.PACKAGECODE)} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>{canEdit ? "Edit" : "View"}</button>
                   </td>
                 </tr>
               ))}
@@ -786,6 +786,7 @@ const PackageMaster = () => {
         </div>
         {/* Save + Submit buttons */}
         <div style={{ display:"flex", gap:10 }}>
+          {canEdit && (<>
           <button onClick={()=>handleSave("save")} disabled={!!saving}
             style={{ height:40, padding:"0 20px", background:"#fff", color:"#334b71", border:"1.5px solid #334b71", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer", opacity:saving?0.7:1 }}>
             {saving==="save" ? "Saving…" : "Save (Draft)"}
@@ -794,6 +795,7 @@ const PackageMaster = () => {
             style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer", opacity:saving?0.7:1 }}>
             {saving==="submit" ? "Submitting…" : "Submit & Release"}
           </button>
+          </>)}
         </div>
       </div>
 
@@ -852,14 +854,15 @@ const PackageMaster = () => {
       </div>
 
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300 }}>
-        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={isAdmin} />}
-        {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={isAdmin} />}
+        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={canEdit} />}
+        {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={canEdit} />}
         {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===3 && <ValidityTab    form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===4 && <MiscTab        form={form} setForm={setForm} />}
       </div>
 
       <div style={{ display:"flex", gap:12, marginTop:20 }}>
+        {canEdit && (<>
         <button onClick={()=>handleSave("save")} disabled={!!saving}
           style={{ height:40, padding:"0 20px", background:"#fff", color:"#334b71", border:"1.5px solid #334b71", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
           {saving==="save" ? "Saving…" : "Save (Draft)"}
@@ -868,6 +871,7 @@ const PackageMaster = () => {
           style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
           {saving==="submit" ? "Submitting…" : "Submit & Release"}
         </button>
+        </>)}
         <button onClick={()=>setView("list")} style={{ height:40, padding:"0 18px", background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
           Cancel
         </button>

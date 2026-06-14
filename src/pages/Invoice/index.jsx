@@ -29,6 +29,7 @@ const InvoicePage = () => {
   const [showPromotion,     setShowPromotion]     = useState(false);
   const [appliedPromotions, setAppliedPromotions] = useState([]);
   const [packageRedemption, setPackageRedemption] = useState(null);
+  const [clinicName,        setClinicName]        = useState("");
   const [selectedCustomer,  setSelectedCustomer]  = useState(null);
 
   // ── Payment notes popup ────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ const InvoicePage = () => {
               servicecode:      item.serviceCode  || "",
               type:             "service",
               price:            isPaidInUrl ? 0 : parseFloat(item.price || 0),
+              originalPrice:    parseFloat(item.price || 0),   // true price kept for restore (e.g. after package removal)
               discount:         0,
               taxpercent:       parseFloat(item.taxPercent || 0),
               citizentax:       parseFloat(item.taxPercent || 0),
@@ -212,7 +214,8 @@ const InvoicePage = () => {
   const handleRemoveManualDiscount  = (idx) => setItems(prev => prev.map((item, i) => i !== idx ? item : { ...item, discount: 0, _manualDiscount: false }));
   const handleRemovePromotion       = () => { setItems(prev => prev.map(item => !item._promotionId ? item : { ...item, discount: 0, _promotionId: undefined, _promotionName: undefined })); setAppliedPromotions([]); };
   const handlePromotionApply        = (result) => { if (result.updatedItems?.length) setItems(result.updatedItems); if (result.applied?.length) setAppliedPromotions(prev => [...prev, ...result.applied]); setShowPromotion(false); };
-  const handlePackageRedeem         = ({ packageInfo, serviceCode }) => { setPackageRedemption(packageInfo); setItems(prev => prev.map(item => (item.code === serviceCode || item.servicecode === serviceCode) ? { ...item, price: 0, discount: 0, _redeemed: true, _packageCode: packageInfo.packageCode } : item)); setShowPkgBalance(false); setToast({ message: `Package ${packageInfo.packageCode} applied — service set to SAR 0`, type: "success" }); };
+  const handlePackageRedeem         = ({ packageInfo, serviceCode }) => { setPackageRedemption(packageInfo); setItems(prev => prev.map(item => (item.code === serviceCode || item.servicecode === serviceCode) ? { ...item, _origPrice: item.price, price: 0, discount: 0, _redeemed: true, _packageCode: packageInfo.packageCode, _packageName: packageInfo.packageName } : item)); setShowPkgBalance(false); setToast({ message: `Package ${packageInfo.packageCode} applied — service set to SAR 0`, type: "success" }); };
+  const handleRemovePackage         = (idx) => { setItems(prev => prev.map((item, i) => { if (i !== idx) return item; const { _redeemed, _packageCode, _packageName, _origPrice, ...rest } = item; return { ...rest, price: _origPrice != null ? _origPrice : (item.originalPrice != null ? item.originalPrice : item.price) }; })); setPackageRedemption(null); setToast({ message: "Package removed — normal payment applies", type: "info" }); };
   const handleApplyPriceOverride    = (updatedItems) => setItems(updatedItems);
 
   const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
@@ -232,6 +235,50 @@ const InvoicePage = () => {
 const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
   const todayDate = new Date().toISOString().split('T')[0];
 
+  // Resolve clinic name: take topCode from the logged-in session, then look it up
+  // in the Centre Hierarchy and display the matching clinic's full name
+  // (e.g. "Bright" → "Bright Clinics"). Falls back to the code if no match.
+  useEffect(() => {
+    const pick = (o) => {
+      if (!o || typeof o !== "object") return "";
+      const d = o.data && typeof o.data === "object" ? o.data : null;
+      return o.topCode || o.loginCode
+        || (d && (d.topCode || d.loginCode))
+        || (o.session && (o.session.topCode || o.session.loginCode))
+        || (o.user && (o.user.topCode || o.user.loginCode)) || "";
+    };
+    const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || sessionStorage.getItem(k) || "null"); } catch { return null; } };
+    let topCode = "";
+    for (const key of ["userSession", "user", "session", "auth", "loginInfo", "userInfo"]) {
+      topCode = pick(read(key)); if (topCode) break;
+    }
+    if (!topCode) {
+      for (const store of [localStorage, sessionStorage]) {
+        for (let i = 0; i < store.length; i++) {
+          try { const v = pick(JSON.parse(store.getItem(store.key(i)))); if (v) { topCode = v; break; } } catch { /* not JSON */ }
+        }
+        if (topCode) break;
+      }
+    }
+    if (!topCode) return;
+    setClinicName(topCode); // show code immediately; replace with full name once resolved
+
+    (async () => {
+      try {
+        const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+        const res = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, { headers: { Authorization: `Bearer ${tok}` } });
+        const json = await res.json();
+        const data = json?.data ?? json;
+        const want = String(topCode).trim().toLowerCase();
+        const all = [];
+        if (data?.entity) all.push(data.entity);
+        (data?.zones || []).forEach(z => (z.clinics || []).forEach(c => all.push(c)));
+        const match = all.find(c => String(c.code || "").trim().toLowerCase() === want);
+        if (match) setClinicName(String(match.name).trim());
+      } catch { /* keep the code as fallback */ }
+    })();
+  }, []);
+
   return (
     <div className="invoice-page">
       <header className="hdrclass">
@@ -248,7 +295,7 @@ const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
                 </Link>
               </h3>
               <div className="invdetails">
-                {[{ label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: 'Bright Clinic' }].map(({ label, value }, index) => (
+                {[{ label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: clinicName }].map(({ label, value }, index) => (
                   <div className="inventry" key={index}>
                     <label className="inlbl">{label}</label>
                     <input type="text" className="invinp" value={value} readOnly />
@@ -265,7 +312,8 @@ const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
 
             <InvoiceTable items={items} onRemove={handleRemove} onCopy={handleCopyItem} readOnlyInputs={true}
               customer={selectedCustomer} appliedPromotions={appliedPromotions}
-              onRemovePromotion={handleRemovePromotion} onRemoveManualDiscount={handleRemoveManualDiscount} />
+              onRemovePromotion={handleRemovePromotion} onRemoveManualDiscount={handleRemoveManualDiscount}
+              onRemovePackage={handleRemovePackage} />
 
             <InvoiceSummary showPopup={showPopup} setShowPopup={setShowPopup}
               onRecallInvoice={() => setShowReturn(true)} onCheckPackageBalance={() => setShowPkgBalance(true)}
