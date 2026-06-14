@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../../config';
+// NOTE: adjust this relative path to wherever CustomerMaster.jsx lives in your tree.
+import { CustomerFormPanel } from '../../Masters/CustomerMaster';
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -20,6 +22,8 @@ const CustomerSearch = ({
   const [mobile,           setMobile]           = useState('');
   const [email,            setEmail]            = useState('');
   const [name,             setName]             = useState('');
+  const [showAddCustomer,  setShowAddCustomer]  = useState(false);
+  const [enrolling,        setEnrolling]        = useState(false);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -113,6 +117,7 @@ const CustomerSearch = ({
       fullName, firstName, lastName,
       mobile, number: mobile,
       email, status, recId,
+      isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false),
     };
     setSelectedCustomer(enriched);
     onCustomerSelect?.(enriched);
@@ -123,6 +128,54 @@ const CustomerSearch = ({
     setNationalityStatus(''); setSuggestions([]); setShowDropdown(false);
     setSelectedCustomer(null);
     onCustomerSelect?.(null);
+  };
+
+  // ── New customer created from the Invoice page ───────────────────────────────
+  const handleCustomerCreated = (saved) => {
+    setShowAddCustomer(false);
+    if (!saved) return;
+    const firstName = saved.firstName || '';
+    const lastName  = saved.lastName  || '';
+    const full      = [firstName, lastName].filter(Boolean).join(' ').trim() || saved.preferredName || '';
+    const mob       = saved.mobilePhone || saved.mobile || '';
+    const eml       = saved.email || '';
+    const custId    = saved.custId || saved.customerId || saved.custid || '';
+    const status    = saved.customerType || '';
+
+    const enriched = {
+      ...saved,
+      custId, custid: custId,
+      fullName: full, firstName, lastName,
+      mobile: mob, number: mob,
+      email: eml, status,
+      recId: saved.recId || saved.recid || '',
+      isLoyaltyEnrolled: !!saved.isLoyaltyEnrolled,
+    };
+    setSearchText(full);
+    setName(full); setMobile(mob); setEmail(eml);
+    setNationalityStatus(status);
+    setSelectedCustomer(enriched);
+    onCustomerSelect?.(enriched);
+  };
+
+  // ── Enroll a searched customer into the loyalty program ──────────────────────
+  const handleEnrollLoyalty = async () => {
+    if (!selectedCustomer?.custId || enrolling) return;
+    setEnrolling(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Customer/EnrollLoyalty`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({ custId: selectedCustomer.custId, centerCode: getCenterCode() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.success ?? json.Success ?? res.ok) {
+        const updated = { ...selectedCustomer, isLoyaltyEnrolled: true };
+        setSelectedCustomer(updated);
+        onCustomerSelect?.(updated);
+      }
+    } catch { /* leave unenrolled on failure */ }
+    finally { setEnrolling(false); }
   };
 
   const isSelected = !!selectedCustomer;
@@ -139,14 +192,22 @@ const CustomerSearch = ({
             </span>
           )}
         </div>
-        {isSelected && (
-          <button type="button" onClick={handleClear}
-            style={{ display:'inline-flex', alignItems:'center', gap:5, height:32, padding:'0 14px', borderRadius:8, border:'1.5px solid #d0d9e8', background:'#fff', color:'#64748b', fontSize:12, fontWeight:600, cursor:'pointer' }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='#cc6b5c'; e.currentTarget.style.color='#cc6b5c'; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='#d0d9e8'; e.currentTarget.style.color='#64748b'; }}>
-            ✕ Clear
-          </button>
-        )}
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {!isSelected && (
+            <button type="button" onClick={() => setShowAddCustomer(true)}
+              style={{ display:'inline-flex', alignItems:'center', gap:5, height:32, padding:'0 14px', borderRadius:8, border:'none', background:'#334b71', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              + Add Customer
+            </button>
+          )}
+          {isSelected && (
+            <button type="button" onClick={handleClear}
+              style={{ display:'inline-flex', alignItems:'center', gap:5, height:32, padding:'0 14px', borderRadius:8, border:'1.5px solid #d0d9e8', background:'#fff', color:'#64748b', fontSize:12, fontWeight:600, cursor:'pointer' }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor='#cc6b5c'; e.currentTarget.style.color='#cc6b5c'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor='#d0d9e8'; e.currentTarget.style.color='#64748b'; }}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search box */}
@@ -211,6 +272,31 @@ const CustomerSearch = ({
           <ReadOnlyField label="Name"   value={name}   />
           <ReadOnlyField label="Mobile" value={mobile} />
           <ReadOnlyField label="Email"  value={email}  />
+        </div>
+      )}
+
+      {/* Loyalty enrollment for a selected customer */}
+      {isSelected && (
+        <div style={{ marginTop:10 }}>
+          {selectedCustomer.isLoyaltyEnrolled ? (
+            <span style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'#166534' }}>
+              ✓ Enrolled in loyalty program
+            </span>
+          ) : (
+            <label style={{ display:'inline-flex', alignItems:'center', gap:8, fontSize:13, color:'#334b71', cursor: enrolling ? 'wait' : 'pointer' }}>
+              <input type="checkbox" checked={false} disabled={enrolling} onChange={handleEnrollLoyalty} />
+              {enrolling ? 'Enrolling…' : 'Enroll in loyalty program'}
+            </label>
+          )}
+        </div>
+      )}
+
+      {/* Add Customer panel (reuses the CustomerMaster form) */}
+      {showAddCustomer && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', justifyContent:'flex-end' }}>
+          <div style={{ width:500, maxWidth:'95%', background:'#fff', height:'100vh', boxShadow:'-4px 0 24px rgba(0,0,0,0.15)' }}>
+            <CustomerFormPanel onSaved={handleCustomerCreated} onClose={() => setShowAddCustomer(false)} />
+          </div>
         </div>
       )}
     </div>

@@ -25,6 +25,7 @@ const BLANK_FORM = {
   language:        0,
   refBy:           "",
   customerType:    "",  // Citizen | Expat — derived from nationality
+  isLoyaltyEnrolled: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,12 +332,16 @@ const CustomerMaster = () => {
                 <FormRow label="Language">
                   <select style={styles.sel} name="language" value={formData.language} onChange={handleInput}>
                     <option value={0}>Select Language</option>
-                    {languages.map(l => (
-                      <option key={l.id || l.languageId} value={l.id || l.languageId}>
-                        {l.name || l.languageName}
-                      </option>
-                    ))}
+                    <option value={1}>English</option>
+                    <option value={2}>Arabic</option>
                   </select>
+                </FormRow>
+                <FormRow label="Loyalty Program">
+                  <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#334b71", cursor:"pointer" }}>
+                    <input type="checkbox" checked={!!formData.isLoyaltyEnrolled}
+                      onChange={e => setFormData(prev => ({ ...prev, isLoyaltyEnrolled: e.target.checked }))} />
+                    Enroll in loyalty program
+                  </label>
                 </FormRow>
                 <FormRow label="Referred By">
                   <input style={styles.inp} name="refBy" value={formData.refBy} onChange={handleInput} />
@@ -419,7 +424,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
       const data   = result?.data ?? result;
       if (result.success ?? result.Success) {
         setFormSuccess("Customer saved successfully.");
-        setTimeout(() => onSaved?.(data), 1000);
+        setTimeout(() => onSaved?.({ ...formData, ...data }), 1000);
       } else {
         setFormError(result.message || "Failed to save customer.");
       }
@@ -490,8 +495,16 @@ export function CustomerFormPanel({ onSaved, onClose }) {
           <FormRow label="Language">
             <select style={styles.sel} name="language" value={formData.language} onChange={handleInput}>
               <option value={0}>Select Language</option>
-              {languages.map(l => <option key={l.id || l.languageId} value={l.id || l.languageId}>{l.name || l.languageName}</option>)}
+              <option value={1}>English</option>
+              <option value={2}>Arabic</option>
             </select>
+          </FormRow>
+          <FormRow label="Loyalty Program">
+            <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#334b71", cursor:"pointer" }}>
+              <input type="checkbox" checked={!!formData.isLoyaltyEnrolled}
+                onChange={e => setFormData(prev => ({ ...prev, isLoyaltyEnrolled: e.target.checked }))} />
+              Enroll in loyalty program
+            </label>
           </FormRow>
           <FormRow label="Referred By"><input style={styles.inp} name="refBy" value={formData.refBy} onChange={handleInput} /></FormRow>
         </Section>
