@@ -308,7 +308,11 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             {errors.servicename && <div className="error">{errors.servicename}</div>}
             {svcSugg.length > 0 && (
               <ul className="suggestions">{svcSugg.map((s,i) => (
-                <li key={i} onClick={() => handleServiceSelect(s)}>{s.serviceName}</li>
+                <li key={i} onClick={() => handleServiceSelect(s)}
+                  style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  <span>{s.serviceName}</span>
+                  {s.serviceCode && <span style={{ fontSize:11, color:"#94a3b8" }}>Code: {s.serviceCode}</span>}
+                </li>
               ))}</ul>
             )}
           </div>
