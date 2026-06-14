@@ -22,6 +22,7 @@ const BLANK_FORM = {
   mobilePhone:     "",
   nationalityCode: 0,
   nationalityId:   "",
+  countryCode:     "",
   language:        0,
   refBy:           "",
   customerType:    "",  // Citizen | Expat — derived from nationality
@@ -42,6 +43,7 @@ const CustomerMaster = () => {
   const [formError,         setFormError]         = useState("");
   const [formSuccess,       setFormSuccess]       = useState("");
   const [nationalities,     setNationalities]     = useState([]);
+  const [countries,         setCountries]         = useState([]);
   const [languages,         setLanguages]         = useState([]);
   const [centreCountryId,   setCentreCountryId]   = useState(0);
   const [citizenType,       setCitizenType]       = useState(null);
@@ -71,6 +73,9 @@ const CustomerMaster = () => {
 
     fetch(`${API_BASE_URL}/api/Master/LoadLanguage`, { headers: authHeaders() })
       .then(r => r.json()).then(j => setLanguages(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
+
+    fetch(`${API_BASE_URL}/api/Master/LoadCountry`, { headers: authHeaders() })
+      .then(r => r.json()).then(j => setCountries(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
 
     fetch(`${API_BASE_URL}/api/Customer/CentreCountry`, { headers: authHeaders() })
       .then(r => r.json()).then(j => { const d = j?.data ?? j; if (d?.countryId) setCentreCountryId(Number(d.countryId)); }).catch(() => {});
@@ -133,6 +138,7 @@ const CustomerMaster = () => {
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
+    if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
       const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "" };
@@ -325,6 +331,14 @@ const CustomerMaster = () => {
                     )}
                   </div>
                 </FormRow>
+                <FormRow label="Country *">
+                  <select style={styles.sel} name="countryCode" value={formData.countryCode || ""} onChange={handleInput}>
+                    <option value="">Select Country</option>
+                    {countries.map(c => (
+                      <option key={c.code || c.id} value={c.code || c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </FormRow>
               </Section>
 
               {/* Other */}
@@ -377,6 +391,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
   const [formError,       setFormError]       = useState("");
   const [formSuccess,     setFormSuccess]     = useState("");
   const [nationalities,   setNationalities]   = useState([]);
+  const [countries,       setCountries]       = useState([]);
   const [languages,       setLanguages]       = useState([]);
   const [centreCountryId, setCentreCountryId] = useState(0);
   const [citizenType,     setCitizenType]     = useState(null);
@@ -392,6 +407,8 @@ export function CustomerFormPanel({ onSaved, onClose }) {
       .then(r => r.json()).then(j => setNationalities(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
     fetch(`${API_BASE_URL}/api/Master/LoadLanguage`, { headers: authHeaders() })
       .then(r => r.json()).then(j => setLanguages(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
+    fetch(`${API_BASE_URL}/api/Master/LoadCountry`, { headers: authHeaders() })
+      .then(r => r.json()).then(j => setCountries(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
   }, []);
 
   const handleInput = (e) => {
@@ -414,6 +431,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
+    if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
       const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "" };
@@ -488,6 +506,12 @@ export function CustomerFormPanel({ onSaved, onClose }) {
                 </span>
               )}
             </div>
+          </FormRow>
+          <FormRow label="Country *">
+            <select style={styles.sel} name="countryCode" value={formData.countryCode || ""} onChange={handleInput}>
+              <option value="">Select Country</option>
+              {countries.map(c => <option key={c.code || c.id} value={c.code || c.id}>{c.name}</option>)}
+            </select>
           </FormRow>
         </Section>
 
