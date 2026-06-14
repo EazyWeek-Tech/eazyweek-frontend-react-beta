@@ -19,6 +19,7 @@ const BLANK_FORM = {
   gender:          "",
   birthDay:        "",
   anniversary:     "",
+  phoneCode:       "",  // mobile country/dialing code — saved to PHONE_CODE
   mobilePhone:     "",
   nationalityCode: 0,
   nationalityId:   "",
@@ -28,6 +29,28 @@ const BLANK_FORM = {
   customerType:    "",  // Citizen | Expat — derived from nationality
   isLoyaltyEnrolled: false,
 };
+
+// Mobile dialing codes shown before the mobile number (stored in PHONE_CODE).
+const PHONE_CODES = [
+  { code: "+966", label: "+966 Saudi Arabia" },
+  { code: "+971", label: "+971 UAE" },
+  { code: "+973", label: "+973 Bahrain" },
+  { code: "+965", label: "+965 Kuwait" },
+  { code: "+968", label: "+968 Oman" },
+  { code: "+974", label: "+974 Qatar" },
+  { code: "+20",  label: "+20 Egypt" },
+  { code: "+962", label: "+962 Jordan" },
+  { code: "+961", label: "+961 Lebanon" },
+  { code: "+963", label: "+963 Syria" },
+  { code: "+249", label: "+249 Sudan" },
+  { code: "+212", label: "+212 Morocco" },
+  { code: "+91",  label: "+91 India" },
+  { code: "+92",  label: "+92 Pakistan" },
+  { code: "+880", label: "+880 Bangladesh" },
+  { code: "+63",  label: "+63 Philippines" },
+  { code: "+44",  label: "+44 United Kingdom" },
+  { code: "+1",   label: "+1 USA / Canada" },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CustomerMaster page
@@ -134,6 +157,7 @@ const CustomerMaster = () => {
 
   const handleSave = async () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
+    if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -295,7 +319,14 @@ const CustomerMaster = () => {
               {/* Contact */}
               <Section title="Contact">
                 <FormRow label="Mobile *">
-                  <input style={styles.inp} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+                  <div style={{ display:"flex", gap:8 }}>
+                    <select style={{ ...styles.sel, flex:"0 0 150px" }} name="phoneCode"
+                      value={formData.phoneCode || ""} onChange={handleInput}>
+                      <option value="">Code</option>
+                      {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
+                    </select>
+                    <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+                  </div>
                 </FormRow>
                 <FormRow label="Email *">
                   <input style={styles.inp} type="email" name="email"
@@ -427,6 +458,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
 
   const handleSave = async () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
+    if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -485,7 +517,16 @@ export function CustomerFormPanel({ onSaved, onClose }) {
         </Section>
 
         <Section title="Contact">
-          <FormRow label="Mobile *"><input style={styles.inp} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} /></FormRow>
+          <FormRow label="Mobile *">
+            <div style={{ display:"flex", gap:8 }}>
+              <select style={{ ...styles.sel, flex:"0 0 150px" }} name="phoneCode"
+                value={formData.phoneCode || ""} onChange={handleInput}>
+                <option value="">Code</option>
+                {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
+              </select>
+              <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+            </div>
+          </FormRow>
           <FormRow label="Email *"><input style={styles.inp} type="email" name="email" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
         </Section>
 
