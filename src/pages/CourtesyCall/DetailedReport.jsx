@@ -124,7 +124,8 @@ const DetailedReport = () => {
       try {
         const url = `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
         const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } })
-        const data = await res.json()
+        const json = await res.json()
+        const data = json?.data ?? json   // unwrap { success, data } envelope
         const list = Array.isArray(data) ? data : (data ? [data] : [])
         const options = list
           .filter(x => x && (x.id || x.name))
@@ -199,11 +200,12 @@ const DetailedReport = () => {
         const res = await fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors`, {
           headers: { Authorization: `Bearer ${TOKEN()}` },
         })
-        const data = await res.json()
+        const json = await res.json()
+        const data = json?.data ?? json   // unwrap { success, data } envelope
         if (Array.isArray(data)) {
           setAuditorOptions(data)
         } else {
-          console.error("Unexpected auditor list response", data)
+          console.error("Unexpected auditor list response", json)
         }
       } catch (err) {
         console.error("Failed to load auditors", err)
