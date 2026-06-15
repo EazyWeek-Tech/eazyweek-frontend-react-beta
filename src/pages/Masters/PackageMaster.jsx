@@ -512,7 +512,10 @@ const PackageMaster = () => {
       const u = getUser();
       const centerCode = u.centerCode || "";
       const leCode     = u.legalEntityCode || u.leCode || centerCode;
-      const data = await authGet(`${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(search)}&status=${status}&centerCode=${encodeURIComponent(centerCode)}`);
+      // releasedToCentre=1 → also include packages released to this centre even when
+      // owned by another legal entity, so a centre-level user sees what's available
+      // at their centre (not only packages their own entity owns).
+      const data = await authGet(`${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(search)}&status=${status}&centerCode=${encodeURIComponent(centerCode)}&releasedToCentre=1`);
       setPackages(Array.isArray(data) ? data : []);
     } catch { showToast("Failed to load packages","error"); }
     finally { setLoading(false); }
