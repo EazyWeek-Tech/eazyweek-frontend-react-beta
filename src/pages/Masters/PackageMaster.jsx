@@ -491,6 +491,10 @@ const PackageMaster = () => {
   const [packages,  setPackages]  = useState([]);
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState("");
+  const [sortField, setSortField] = useState("PACKAGECODE");
+  const [sortDir,   setSortDir]   = useState("asc");   // "asc" | "desc"
+  const [page,      setPage]      = useState(1);
+  const [pageSize,  setPageSize]  = useState(10);
   const [loading,   setLoading]   = useState(false);
   const [editCode,  setEditCode]  = useState(null);
   const [form,      setForm]      = useState(EMPTY);
@@ -515,6 +519,36 @@ const PackageMaster = () => {
   };
 
   useEffect(()=>{ if(view==="list") loadList(); },[view,search,status]);
+
+  // Reset to first page whenever the result set changes
+  useEffect(()=>{ setPage(1); }, [search, status, packages, pageSize]);
+
+  // Click a header to sort; clicking the active column flips direction
+  const toggleSort = (field) => {
+    if (!field) return;
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
+
+  const sortedPackages = (() => {
+    const arr = [...packages];
+    arr.sort((a, b) => {
+      let av = a[sortField], bv = b[sortField];
+      if (typeof av === "boolean" || typeof bv === "boolean") {
+        av = av ? 1 : 0; bv = bv ? 1 : 0;
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      av = (av ?? "").toString().toLowerCase();
+      bv = (bv ?? "").toString().toLowerCase();
+      const cmp = av.localeCompare(bv, undefined, { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  })();
+
+  const totalPages  = Math.max(1, Math.ceil(sortedPackages.length / pageSize));
+  const safePage    = Math.min(page, totalPages);
+  const pagedPackages = sortedPackages.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const [formDirty, setFormDirty] = useState(false);
 
@@ -742,14 +776,31 @@ const PackageMaster = () => {
         <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead><tr style={{ background:"#f1f5f9" }}>
-              {["Package Code","Package Name","Category","Sub-Category","Centres","Status","Actions"].map(h=>(
-                <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
+              {[
+                { label:"Package Code", field:"PACKAGECODE" },
+                { label:"Package Name", field:"PACKAGENAME" },
+                { label:"Category",     field:"CATEGORY" },
+                { label:"Sub-Category", field:"SUBCATEGORY" },
+                { label:"Centres",      field:"CENTRES" },
+                { label:"Quick Cart",   field:"ADDTOQUICKCART" },
+                { label:"Status",       field:"STATUS" },
+                { label:"Actions",      field:null },
+              ].map(col=>(
+                <th key={col.label} onClick={()=>toggleSort(col.field)}
+                  style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em", cursor: col.field?"pointer":"default", userSelect:"none", whiteSpace:"nowrap" }}>
+                  {col.label}
+                  {col.field && (
+                    <span style={{ marginLeft:6, color: sortField===col.field?"#334b71":"#cbd5e1", fontSize:10 }}>
+                      {sortField===col.field ? (sortDir==="asc" ? "▲" : "▼") : "↕"}
+                    </span>
+                  )}
+                </th>
               ))}
             </tr></thead>
             <tbody>
-              {packages.length===0 ? (
-                <tr><td colSpan={7} style={{ textAlign:"center", padding:40, color:"#94a3b8", fontSize:13 }}>No packages found.</td></tr>
-              ) : packages.map((pkg,i)=>(
+              {sortedPackages.length===0 ? (
+                <tr><td colSpan={8} style={{ textAlign:"center", padding:40, color:"#94a3b8", fontSize:13 }}>No packages found.</td></tr>
+              ) : pagedPackages.map((pkg,i)=>(
                 <tr key={i} style={{ borderBottom:"1px solid #f1f5f9" }}
                   onMouseEnter={e=>e.currentTarget.style.background="#f8faff"}
                   onMouseLeave={e=>e.currentTarget.style.background=""}>
@@ -758,6 +809,11 @@ const PackageMaster = () => {
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.CATEGORY}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.SUBCATEGORY}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{pkg.CENTRES||"—"}</td>
+                  <td style={{ padding:"12px 14px" }}>
+                    <span style={{ background: pkg.ADDTOQUICKCART?"#e6f4ef":"#f1f5f9", color: pkg.ADDTOQUICKCART?"#2e7d5e":"#94a3b8", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+                      {pkg.ADDTOQUICKCART ? "Yes" : "No"}
+                    </span>
+                  </td>
                   <td style={{ padding:"12px 14px" }}>{statusBadge(pkg.STATUS)}</td>
                   <td style={{ padding:"12px 14px" }}>
                     <button onClick={()=>openEdit(pkg.PACKAGECODE)} style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>{canEdit ? "Edit" : "View"}</button>
@@ -766,6 +822,33 @@ const PackageMaster = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && sortedPackages.length > 0 && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14, flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#64748b" }}>
+            <span>Rows per page:</span>
+            <select value={pageSize} onChange={e=>setPageSize(Number(e.target.value))}
+              style={{ height:32, padding:"0 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, background:"#fff" }}>
+              {[10,25,50,100].map(n=><option key={n} value={n}>{n}</option>)}
+            </select>
+            <span style={{ marginLeft:8 }}>
+              {(safePage-1)*pageSize + 1}–{Math.min(safePage*pageSize, sortedPackages.length)} of {sortedPackages.length}
+            </span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={()=>setPage(p=>Math.max(1, p-1))} disabled={safePage<=1}
+              style={{ height:32, padding:"0 12px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff", color: safePage<=1?"#cbd5e1":"#334b71", fontWeight:700, fontSize:13, cursor: safePage<=1?"not-allowed":"pointer" }}>
+              ‹ Prev
+            </button>
+            <span style={{ fontSize:13, color:"#475569", fontWeight:600 }}>Page {safePage} of {totalPages}</span>
+            <button onClick={()=>setPage(p=>Math.min(totalPages, p+1))} disabled={safePage>=totalPages}
+              style={{ height:32, padding:"0 12px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff", color: safePage>=totalPages?"#cbd5e1":"#334b71", fontWeight:700, fontSize:13, cursor: safePage>=totalPages?"not-allowed":"pointer" }}>
+              Next ›
+            </button>
+          </div>
         </div>
       )}
     </div>

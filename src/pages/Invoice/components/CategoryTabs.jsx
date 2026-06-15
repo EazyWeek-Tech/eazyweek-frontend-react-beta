@@ -22,14 +22,16 @@ const getCenterCode = () => {
 const truncate = (str = "", max = 35) =>
   str.length > max ? str.slice(0, max) + "…" : str;
 
-const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
-  const CATEGORIES = [
-    { id: "CC04",  label: "Antiageing Services", icon: "images/antiage.svg" },
-    { id: "CC048", label: "Volume filling",      icon: "images/filling.svg" },
-    { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
-    { id: "CC030", label: "Hair Reduction",      icon: "images/hair.svg"    },
-  ];
+// Fixed category tabs. Quick Cart packages are shown under whichever of these
+// categories they belong to; packages in other categories won't appear here.
+const CATEGORIES = [
+  { id: "CC04",  label: "Antiageing Services", icon: "images/filling.svg" },
+  { id: "CC018", label: "Facials",             icon: "images/antiage.svg" },
+  { id: "CC07",  label: "Consultation",        icon: "images/consult.svg" },
+  { id: "CC030", label: "Hair Reduction",      icon: "images/hair.svg"    },
+];
 
+const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
   const [services,    setServices]    = useState([]);
   const [activeTab,   setActiveTab]   = useState("services");
   const [activeCat,   setActiveCat]   = useState(CATEGORIES[0].id);
