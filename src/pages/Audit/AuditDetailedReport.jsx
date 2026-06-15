@@ -66,7 +66,10 @@ function SearchableDropdown({ options, value, onChange, placeholder = "Select", 
     if (multiple) {
       const vals = Array.isArray(value) ? value : [];
       if (!vals.length) return placeholder;
-      return vals.map(v => options.find(o => o.value === v)?.label || v).join(", ");
+      // Show one name, otherwise a compact count — joining every label overflows
+      // the field and breaks the layout when many (or all) are selected.
+      if (vals.length === 1) return options.find(o => o.value === vals[0])?.label || vals[0];
+      return `${vals.length} selected`;
     }
     return value ? (options.find(o => o.value === value)?.label || value) : placeholder;
   }, [value, options, multiple, placeholder]);
