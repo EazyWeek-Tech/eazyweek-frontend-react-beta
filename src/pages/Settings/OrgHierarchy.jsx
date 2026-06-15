@@ -51,11 +51,7 @@ const CentreNode = ({ name, direct }) => (
       <div style={{ fontSize:9, color:"#94a3b8", textTransform:"uppercase", letterSpacing:1 }}>Centre</div>
       <div style={{ color:"#334b71" }}>{name}</div>
     </div>
-    {direct && (
-      <span style={{ background:"#e9edf5", color:"#334b71", borderRadius:999, padding:"1px 7px", fontSize:10, fontWeight:700, marginLeft:4 }}>
-        DIRECT
-      </span>
-    )}
+    
   </div>
 );
 
@@ -201,20 +197,7 @@ export default function OrgHierarchy() {
           )}
         </div>
 
-        {/* Legend */}
-        <div style={{ display:"flex", gap:20, marginTop:18, flexWrap:"wrap" }}>
-          {[
-            { icon:"", label:"Legal Entity", color:"#071D49" },
-            { icon:"", label:"Zone (optional grouping)", color:"#334b71" },
-            { icon:"", label:"Centre",       color:"#334b71" },
-            { icon:"",   label:"DIRECT = Centre reports directly to Legal Entity", color:"#64748b" },
-          ].map((l, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:l.color, fontWeight:600 }}>
-              {l.icon && <span>{l.icon}</span>}
-              {l.label}
-            </div>
-          ))}
-        </div>
+       
       </div>
     </div>
   );
