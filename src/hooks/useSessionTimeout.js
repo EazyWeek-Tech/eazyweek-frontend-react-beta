@@ -1,14 +1,16 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes of inactivity
-
+// Inactivity timeout DISABLED (demo): the session never auto-logs-out.
+// The hook is kept as a no-op so existing call sites in App.jsx don't break.
+// `logout` is still returned in case a caller invokes it manually.
+//
+// To re-enable later, restore the timer version from git history (or ask) —
+// it used a 30-minute inactivity window resetting on mouse/keyboard/scroll.
 export function useSessionTimeout(onLogout) {
   const navigate = useNavigate();
-  const timerRef = useRef(null);
 
   const logout = useCallback(() => {
-    // Mirror exact keys from App.jsx handleLogout
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("userSession");
     sessionStorage.removeItem("ssoToken");
@@ -17,23 +19,10 @@ export function useSessionTimeout(onLogout) {
     localStorage.removeItem("ssoToken");
     localStorage.removeItem("remember");
 
-    if (onLogout) onLogout(); // clears React state in App
+    if (onLogout) onLogout();
     navigate("/login", { replace: true });
   }, [navigate, onLogout]);
 
-  const resetTimer = useCallback(() => {
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(logout, TIMEOUT_MS);
-  }, [logout]);
-
-  useEffect(() => {
-    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll", "click"];
-    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
-    resetTimer(); // start on mount
-
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, resetTimer));
-      clearTimeout(timerRef.current);
-    };
-  }, [resetTimer]);
+  // No timer is started — nothing ever triggers an automatic logout.
+  return { logout };
 }
