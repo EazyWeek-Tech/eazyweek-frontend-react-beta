@@ -151,7 +151,7 @@ export default function OrgHierarchy() {
               <VLine height={20} />
 
               {/* Horizontal spread — HR-19 fix: border-based T-join per column */}
-              <div style={{ display:"flex", justifyContent:"center", gap:0, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", justifyContent:"center", gap:0 }}>
                   {/* Zones */}
                   {data.zones.map((z, i) => (
                     <div key={z.zoneCode} style={{

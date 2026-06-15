@@ -239,32 +239,54 @@ const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
   // in the Centre Hierarchy and display the matching clinic's full name
   // (e.g. "Bright" → "Bright Clinics"). Falls back to the code if no match.
   useEffect(() => {
+    // Find the lookup code: prefer topCode/loginCode, but fall back to centerCode
+    // (the login payload stores the centre as centerCode/centerName, not topCode).
     const pick = (o) => {
       if (!o || typeof o !== "object") return "";
       const d = o.data && typeof o.data === "object" ? o.data : null;
-      return o.topCode || o.loginCode
-        || (d && (d.topCode || d.loginCode))
-        || (o.session && (o.session.topCode || o.session.loginCode))
-        || (o.user && (o.user.topCode || o.user.loginCode)) || "";
+      return o.topCode || o.loginCode || o.centerCode
+        || (d && (d.topCode || d.loginCode || d.centerCode))
+        || (o.session && (o.session.topCode || o.session.loginCode || o.session.centerCode))
+        || (o.user && (o.user.topCode || o.user.loginCode || o.user.centerCode)) || "";
+    };
+    // Find a ready-made display name (centerName) so we can show it even if the
+    // hierarchy lookup misses or the code isn't in the hierarchy.
+    const pickName = (o) => {
+      if (!o || typeof o !== "object") return "";
+      const d = o.data && typeof o.data === "object" ? o.data : null;
+      return o.centerName
+        || (d && d.centerName)
+        || (o.session && o.session.centerName)
+        || (o.user && o.user.centerName) || "";
     };
     const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || sessionStorage.getItem(k) || "null"); } catch { return null; } };
-    let topCode = "";
+    let topCode = "", centerName = "";
     for (const key of ["userSession", "user", "session", "auth", "loginInfo", "userInfo"]) {
-      topCode = pick(read(key)); if (topCode) break;
+      const o = read(key);
+      if (!topCode)    topCode    = pick(o);
+      if (!centerName) centerName = pickName(o);
+      if (topCode && centerName) break;
     }
-    if (!topCode) {
+    if (!topCode || !centerName) {
       for (const store of [localStorage, sessionStorage]) {
         for (let i = 0; i < store.length; i++) {
-          try { const v = pick(JSON.parse(store.getItem(store.key(i)))); if (v) { topCode = v; break; } } catch { /* not JSON */ }
+          try {
+            const o = JSON.parse(store.getItem(store.key(i)));
+            if (!topCode)    topCode    = pick(o);
+            if (!centerName) centerName = pickName(o);
+          } catch { /* not JSON */ }
         }
-        if (topCode) break;
+        if (topCode && centerName) break;
       }
     }
-    if (!topCode) return;
-    setClinicName(topCode); // show code immediately; replace with full name once resolved
+    // Show the best value we already have (full name beats bare code) right away.
+    if (centerName) setClinicName(String(centerName).trim());
+    else if (topCode) setClinicName(String(topCode).trim());
+    if (!topCode && !centerName) return; // nothing to resolve
 
     (async () => {
       try {
+        if (!topCode) return; // can't look up without a code, keep centerName
         const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
         const res = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, { headers: { Authorization: `Bearer ${tok}` } });
         const json = await res.json();
@@ -275,7 +297,7 @@ const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
         (data?.zones || []).forEach(z => (z.clinics || []).forEach(c => all.push(c)));
         const match = all.find(c => String(c.code || "").trim().toLowerCase() === want);
         if (match) setClinicName(String(match.name).trim());
-      } catch { /* keep the code as fallback */ }
+      } catch { /* keep the name/code already shown as fallback */ }
     })();
   }, []);
 
