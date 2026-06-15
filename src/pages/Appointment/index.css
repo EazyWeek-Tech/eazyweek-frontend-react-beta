@@ -133,12 +133,12 @@ body{background:var(--bg);color:var(--text);}
 .stimg img{width:15px;filter:brightness(0.5);}
 .statno{padding:0 10px;font-weight:800;font-size:13px;color:var(--navy);}
 
-.completed .stimg    {background:#dcfce7;color:#166534;}
+.completed .stimg    {background:#dae4f2;color:#072d62;}
 .paymentpending .stimg{background:#fef2f2;color:#991b1b;}
 .active .stimg       {background:#fff7ed;color:#c2410c;}
 .checkedin .stimg    {background:#fefce8;color:#854d0e;}
-.confirmed .stimg    {background:#f0fdf4;color:#166534;}
-.booked .stimg       {background:#f8fafc;color:#475569;}
+.confirmed .stimg    {background:#f0fdf4;color:#166534;}  
+.booked .stimg       {background:#e7e7e7;color:#475569;}
 
 /* ── Active filter pill ─── */
 .statcell.filter-active{
