@@ -262,6 +262,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   }, [apptId, apptDateISO, centerCode]);
 
   const sendStatusUpdate = async (payload, newStatus) => {
+    const prevStatus = appt?.status || appointment?.status || "";
     try {
       const result = await authPost(`${API_BASE_URL}/api/Appointment/AppOperation`, payload);
       if (result?.success) {
@@ -292,9 +293,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               .catch(e => console.warn("[EMR] MarkFormsComplete failed:", e.message));
           }
 
-          // Generate courtesy call
+          // Generate courtesy call — only when the appointment is actually
+          // transitioning INTO Completed (guards against a second trigger, e.g.
+          // at invoice time, re-firing for an already-completed appointment).
           const groupId = appt?.appointmentId || appointment?.appointmentId || apptId;
-          if (groupId) {
+          if (groupId && prevStatus !== "Completed") {
             authPost(`${API_BASE_URL}/api/Courtesy/GenerateCourtesyCalls`, {
               appointmentGroupId: groupId,
             }).then(r => console.log("[CourtesyCall] result:", r))
@@ -1352,7 +1355,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       <header className="appthdr">
         <div className="flx-spcbt">
           <div className="backbtnapp">
-            <Link to="/dashboard" className="tooltip" data-tooltip="Go Back" data-tooltip-pos="right">
+            <Link to="/dashboard"  data-tooltip="Go Back" data-tooltip-pos="right">
               <img src={`${import.meta.env.BASE_URL}images/back.svg`} width="24" alt="Back" />
             </Link>
             <span className="c-name">{user.centerName || "Clinic"}</span>
@@ -1361,7 +1364,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             <input type="date" value={selectedDate} onChange={e => { setSelectedDate(e.target.value); fetchAppointments(e.target.value); }} />
           </div>
           <div className="actbtnsdiv">
-            <Link to="/dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
+            <Link to="/dashboard"  data-tooltip="Dashboard" data-tooltip-pos="right">
               <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="24" alt="Home" />
             </Link>
             {/* Only show add buttons for non-doctor roles */}

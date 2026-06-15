@@ -142,7 +142,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
       <div className="flx-spcbt">
         <div className="backbtnapp">
         
-    <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Go Back" data-tooltip-pos="right">
+    <Link to="/dashboard" title="Dashboard"  data-tooltip="Go Back" data-tooltip-pos="right">
             <img src={`${import.meta.env.BASE_URL}images/back.svg`} width="24" height="24" alt="Home" />
           </Link>
            <span className="c-name">{centerName}</span>
@@ -158,7 +158,7 @@ const AppointmentHeader = ({ onAddAppointment, onAddCustomer, onDateChange }) =>
         </div>
 
         <div className="actbtnsdiv">
-            <Link to="/dashboard" title="Dashboard" className="tooltip" data-tooltip="Dashboard" data-tooltip-pos="right">
+            <Link to="/dashboard" title="Dashboard"  data-tooltip="Dashboard" data-tooltip-pos="right">
             <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="24" height="24" alt="Home" />
           </Link>
           <div

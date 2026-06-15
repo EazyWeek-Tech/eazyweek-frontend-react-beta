@@ -39,15 +39,19 @@ export default function CourtesyCallDashboard() {
       const json = await res.json()
       const list = json?.data ?? json
       const arr  = Array.isArray(list) ? list : []
-      // Sort descending by appointmentDate (DD/MM/YYYY format from API)
-      arr.sort((a, b) => {
-        const parse = (s) => {
-          if (!s) return 0
-          const [d, m, y] = s.split("/")
-          return new Date(`${y}-${m}-${d}`).getTime()
-        }
-        return parse(b.appointmentDate) - parse(a.appointmentDate)
-      })
+      // Sort by creation time descending — whichever courtesy call was created
+      // last appears first. Falls back to appointmentDate (DD/MM/YYYY) if a row
+      // has no createdDate.
+      const parseAppt = (s) => {
+        if (!s) return 0
+        const [d, m, y] = s.split("/")
+        return new Date(`${y}-${m}-${d}`).getTime()
+      }
+      const sortKey = (r) => {
+        const t = r.createdDate ? new Date(r.createdDate).getTime() : 0
+        return Number.isFinite(t) && t > 0 ? t : parseAppt(r.appointmentDate)
+      }
+      arr.sort((a, b) => sortKey(b) - sortKey(a))
       setData(arr)
     } catch { setData([]) }
     finally { setLoading(false) }

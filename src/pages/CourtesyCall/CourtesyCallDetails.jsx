@@ -206,7 +206,7 @@ const fetchDetails = async () => {
 
   return (
     <>
-      <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", padding:"28px 24px 60px" }}>
+      <div style={{ fontFamily:"Lato,sans-serif",  minHeight:"100vh" }}>
         <style>{`
           .cd-inp { width:100%; padding:9px 12px; border:1px solid #e7ecf4; border-radius:8px;
             font-size:13px; color:#334B71; font-family:Lato,sans-serif; background:#fff;
