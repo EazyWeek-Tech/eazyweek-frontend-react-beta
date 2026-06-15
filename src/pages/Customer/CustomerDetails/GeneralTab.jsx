@@ -83,7 +83,7 @@ const GeneralTab = ({ customer }) => {
     fetch(`${API_BASE_URL}/api/Master/LoadCountry`, { headers: authHeaders() })
       .then(r => r.json()).then(j => {
         const d = j?.data ?? j;
-        if (Array.isArray(d)) setCountries(d.map(c => ({ value: c.countryId ?? c.id, label: c.countryName ?? c.name ?? c.COUNTRY_NAME })));
+        if (Array.isArray(d)) setCountries(d.map(c => ({ value: c.countryId ?? c.id ?? c.code ?? c.CCODE, label: c.countryName ?? c.name ?? c.COUNTRY_NAME })));
       }).catch(() => {});
 
 
@@ -203,13 +203,7 @@ const GeneralTab = ({ customer }) => {
       <form className="gt-wrap" onSubmit={handleSubmit} noValidate>
 
         {/* ── Back button ────────────────────────────────────────────────── */}
-        <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
-          <button type="button" className="gt-btn gt-btn-sec"
-            onClick={() => window.history.back()}
-            style={{ display:"flex", alignItems:"center", gap:6 }}>
-            ← Back
-          </button>
-        </div>
+      
 
         {/* ── Personal Info ──────────────────────────────────────────────── */}
         <Card icon="👤" title="Personal Info">
@@ -346,7 +340,7 @@ const Card = ({ icon, title, children }) => (
 const CSS = `
   .gt-wrap { font-family:'DM Sans',system-ui,sans-serif; color:#1a1f2e; padding:0 0 48px; }
 
-  .gt-card { background:#fff; border:1px solid #e8eaf0; border-radius:12px;
+  .gt-card { background:#fff; border-radius:12px;
     margin-bottom:20px; overflow:hidden; }
   .gt-card-hd { display:flex; align-items:center; gap:10px; padding:14px 24px;
     background:#f7f8fc; border-bottom:1px solid #e8eaf0; }
