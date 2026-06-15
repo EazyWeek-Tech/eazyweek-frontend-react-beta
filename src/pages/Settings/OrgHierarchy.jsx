@@ -107,8 +107,8 @@ export default function OrgHierarchy() {
   const allTopLevel = [...(data.zones || []), ...(data.directCentres || [])];
 
   return (
-    <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 20px 60px" }}>
+    <div style={{ fontFamily:"Lato,sans-serif",  minHeight:"100vh", color:"#10223f" }}>
+      <div style={{ maxWidth:'100%', margin:"0 auto" }}>
 
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
@@ -137,8 +137,8 @@ export default function OrgHierarchy() {
         </div>
 
         {/* Hierarchy flowchart */}
-        <div style={{ background:"#fff", border:"1px solid #e7ecf4", borderRadius:14,
-          padding:"36px 24px", boxShadow:"0 2px 12px rgba(0,0,0,.05)", overflowX:"auto" }}>
+        <div style={{ background:"#fff", 
+          padding:"36px 10px", overflowX:"auto" }}>
 
           {/* Legal Entity — top */}
           <div style={{ textAlign:"center", marginBottom:0 }}>
