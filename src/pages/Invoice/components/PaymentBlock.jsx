@@ -695,6 +695,14 @@ const PaymentBlock = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmitInvoice = async () => {
+    // Already created an invoice in this session — never submit again (the popup
+    // may have been dismissed without resetting). Re-open the success popup instead.
+    if (generatedInvoiceNumber) {
+      setToast({ message: `Invoice ${generatedInvoiceNumber} was already generated.`, type: 'error' });
+      setInvoiceSuccessPopup(true);
+      return;
+    }
+
     if (!isZeroTotal && payments.length === 0 && appliedCreditNotes.length === 0) {
       setFormError('Please add at least one payment method.');
       return;
@@ -1355,8 +1363,8 @@ if (result.success) {
 
       {(payments.length > 0 || appliedCreditNotes.length > 0 || (isZeroTotal && packageRedemption)) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
-          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting}>
-            {isSubmitting ? 'Submitting…' : 'Complete Invoice'}
+          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
+            {isSubmitting ? 'Submitting…' : generatedInvoiceNumber ? 'Invoice Generated' : 'Complete Invoice'}
           </button>
         </div>
       )}
@@ -1372,7 +1380,10 @@ if (result.success) {
   style={{ display:"flex", position:"fixed", inset:0, zIndex:9999,
     alignItems:"center", justifyContent:"center",
     background:"rgba(0,0,0,.5)" }}>
-          <div className="popovrly" onClick={() => setInvoiceSuccessPopup(false)}></div>
+          {/* Backdrop is intentionally non-dismissible: closing must go through
+              the X / Print / Email so we never leave the user on a submittable
+              page after the invoice is already created (would allow a duplicate). */}
+          <div className="popovrly"></div>
           <div className="popin">
             <div className="popuphdr">
               Invoice Submitted

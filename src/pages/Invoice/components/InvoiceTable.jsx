@@ -152,8 +152,8 @@ const InvoiceTable = ({
                     <td className="discno">{total.toFixed(2)}</td>
                     <td className="actbtncell">
                       <button
-                        className="copybtn tooltip"
-                        data-tooltip="Copy line"
+                        className="copybtn"
+                        title="Copy line"
                         data-tooltip-pos="left"
                         onClick={() => onCopy?.(idx)}
                         style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px", marginRight: 4 }}
@@ -165,8 +165,8 @@ const InvoiceTable = ({
                         </svg>
                       </button>
                       <button
-                        className="delbtn tooltip"
-                        data-tooltip="Delete"
+                        className="delbtn"
+                        title="Delete"
                         data-tooltip-pos="left"
                         onClick={() => onRemove?.(idx)}
                       >
