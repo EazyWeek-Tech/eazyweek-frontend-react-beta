@@ -12,14 +12,17 @@ const getCenterCode = () => { const u = getUser(); return (u.centerCode || "").t
 const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.userId || u.userID || "").trim(); };
 
 // ─── Audit Rights ─────────────────────────────────────────────────────────────
-// canWrite:       centre-level AND roleCode === SQ001
+// canWrite:       centre-level AND (admin OR roleCode === SQ001)
 // isEntityLevel:  user logged in at entity level (view-only for all clinics)
 const getAuditRights = () => {
   const u = getUser();
   const roleCode      = (u.roleCode || "").trim().toUpperCase();
+  // Same admin convention used across the app (dashboard / PackageMaster / ServiceMaster)
+  const role          = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
+  const isAdmin       = role === "admin";
   const isEntityLevel = u.isEntityLevel === true;
-  const canWrite      = !isEntityLevel && roleCode === "SQ001";
-  return { canWrite, isEntityLevel, roleCode };
+  const canWrite      = !isEntityLevel && (isAdmin || roleCode === "SQ001");
+  return { canWrite, isEntityLevel, roleCode, isAdmin };
 };
 
 
