@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import Select from "react-select"
+import Select, { components } from "react-select"
 import "./DetailedReport.css"
 import { API_BASE_URL } from "../../config"
 import Toast from "../../components/Toast"
@@ -9,6 +9,31 @@ const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("tok
 const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
 const getCenterCode = () => (getUser().centerCode || "").trim();
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+
+// Compact multi-select rendering: show "N selected" instead of one chip per
+// value, so the control never overflows or stacks tall when many options are
+// picked. Spread {...compactMulti} into each <Select isMulti>.
+const CountMultiValue = (props) => {
+  if (props.index > 0) return null            // render the summary only once
+  const count = props.getValue().length
+  return (
+    <div style={{
+      maxWidth: "100%", padding: "2px 4px", fontSize: 14, color: "#374151",
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+    }}>
+      {count} selected
+    </div>
+  )
+}
+const compactMulti = {
+  closeMenuOnSelect: false,
+  hideSelectedOptions: false,
+  components: { MultiValue: CountMultiValue },
+  styles: {
+    control:        (base) => ({ ...base, flexWrap: "nowrap" }),
+    valueContainer: (base) => ({ ...base, flexWrap: "nowrap", overflow: "hidden" }),
+  },
+};
 
 
 // --- helpers ---
@@ -141,6 +166,15 @@ const DetailedReport = () => {
   }, [])
 
   const handleView = async () => {
+    // Date range is mandatory for this report.
+    if (!filters.fromDate || !filters.toDate) {
+      setToast({ type: "error", message: "Please select both From Date and To Date." })
+      return
+    }
+    if (new Date(filters.fromDate) > new Date(filters.toDate)) {
+      setToast({ type: "error", message: "From Date cannot be after To Date." })
+      return
+    }
     try {
       // User-entered (visible) values
       const userFrom = filters.fromDate
@@ -309,7 +343,7 @@ const DetailedReport = () => {
 
         <div className="dtfltrwrp">
           <div className="filter-group">
-            <label htmlFor="fromDate">From Date</label>
+            <label htmlFor="fromDate">From Date <span style={{ color: "#dc2626" }}>*</span></label>
             <input
               type="date"
               id="fromDate"
@@ -320,7 +354,7 @@ const DetailedReport = () => {
           </div>
 
           <div className="filter-group">
-            <label htmlFor="toDate">To Date:</label>
+            <label htmlFor="toDate">To Date: <span style={{ color: "#dc2626" }}>*</span></label>
             <input
               type="date"
               id="toDate"
@@ -334,6 +368,8 @@ const DetailedReport = () => {
             <label htmlFor="therapistDoctors">Therapist/ Doctors :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="therapistDoctors"
               className="filter-select"
               options={therapistOptions}
@@ -347,6 +383,8 @@ const DetailedReport = () => {
             <label htmlFor="experienceRating">Experience Rating :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="experienceRating"
               className="filter-select"
               options={ratingOptions}
@@ -359,6 +397,8 @@ const DetailedReport = () => {
             <label htmlFor="customerFeedback">Customer Feedback :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="customerFeedback"
               className="filter-select"
               options={feedbackOptions}
@@ -371,6 +411,8 @@ const DetailedReport = () => {
             <label htmlFor="overallSatisfied">Overall Satisfied :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="overallSatisfied"
               className="filter-select"
               options={satisfactionOptions}
@@ -383,6 +425,8 @@ const DetailedReport = () => {
             <label htmlFor="futureAppTaken">Future App Taken :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="futureAppTaken"
               className="filter-select"
               options={futureAppOptions}
@@ -395,6 +439,8 @@ const DetailedReport = () => {
             <label htmlFor="customerType">Customer Type :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="customerType"
               className="filter-select"
               options={customerTypeOptions}
@@ -407,6 +453,8 @@ const DetailedReport = () => {
             <label htmlFor="status">Status :</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="status"
               className="filter-select"
               options={statusOptions}
@@ -419,6 +467,8 @@ const DetailedReport = () => {
             <label htmlFor="auditor">Auditor</label>
             <Select
               isMulti
+
+              {...compactMulti}
               id="auditor"
               className="filter-select"
               options={auditorOptions.map((a) => ({
