@@ -100,6 +100,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
       discount:   0,
       taxpercent: item.taxPercent ?? "0.00",
       citizentax: item.taxPercent ?? "0.00",
+      taxIncluded: item.taxIncluded ?? "No",
     });
     showToast?.(`${truncate(item.serviceName)} added`);
   };
@@ -119,6 +120,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
       taxpercent:  parseFloat(pkg.TAXPERCENT)   || 0,
       citizentax:  parseFloat(pkg.TAXPERCENT)   || 0,
       taxincluded: pkg.TAXINCLUDED || "No",
+      taxIncluded: pkg.TAXINCLUDED || "No",
     });
     showToast?.(`${truncate(pkg.PACKAGENAME)} added`);
   };

@@ -3,6 +3,24 @@ import { API_BASE_URL } from '../../../config';
 // CreditNoteRedemption modal removed — CN selection is now inline in tab content
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+// ── VAT rule (KEEP IN SYNC with index.jsx & InvoiceTable.jsx) ─────────────────
+// base = (price - discount) * qty
+//  • Citizen            → no VAT, price as-is
+//  • Expat, tax NOT inc → VAT added on top
+//  • Expat, tax INCLUDED→ price already has VAT; extract it
+const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitizen) => {
+  const base = Math.max((parseFloat(price) || 0) - (parseFloat(discount) || 0), 0) * (parseFloat(qty) || 1);
+  const rate = parseFloat(ratePct) || 0;
+  const included = String(taxIncluded ?? "").trim().toLowerCase() === "yes";
+  if (isCitizen) return { net: base, tax: 0, total: base, rate: 0 };
+  if (included && rate > 0) {
+    const net = base / (1 + rate / 100);
+    return { net, tax: base - net, total: base, rate };
+  }
+  const tax = (base * rate) / 100;
+  return { net: base, tax, total: base + tax, rate };
+};
+
 const TOKEN = () => {
   const t = localStorage.getItem("token") || sessionStorage.getItem("token");
   if (!t) console.warn("[PaymentBlock] No token found in localStorage or sessionStorage");
@@ -252,6 +270,7 @@ const PaymentBlock = ({
             discount:         Number(row.discount ?? 0),
             taxpercent:       Number(row.taxPercent ?? 0),
             citizentax:       Number(row.taxPercent ?? 0),
+            taxIncluded:      row.taxIncluded ?? "No",
             practitionerCode: row.doctorId     || "",
             practitionerName: row.doctorName   || "",
             quantity:         Number(row.quantity ?? 1),
@@ -484,10 +503,11 @@ const PaymentBlock = ({
       const qty = Number(item.quantity ?? 1);
       const price = parseFloat(item.price) || 0;
       const discount = parseFloat(item.discount) || 0;
-      const amountWithoutVat = Math.max(price - discount, 0) * qty;
-      const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
-      const tax = (amountWithoutVat * taxRate) / 100;
-      const total = amountWithoutVat + tax;
+      const _amt = computeLineAmounts(price, discount, qty, item.taxpercent, item.taxIncluded ?? item.taxincluded, isCitizen);
+      const amountWithoutVat = _amt.net;
+      const taxRate = _amt.rate;
+      const tax = _amt.tax;
+      const total = _amt.total;
       // Find any promotion applied to this item
       const promoNote = item._promotionName
         ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;"> Promo: ${item._promotionName} (-SAR ${discount.toFixed(2)})</td></tr>`
@@ -719,12 +739,8 @@ const PaymentBlock = ({
 
     // tax sum based on items we are actually submitting
     const tax = effectiveInvoiceItems.reduce((sum, i) => {
-      const qty = Number(i.quantity ?? i.qty ?? 1);
-      const price = parseFloat(i.price) || 0;
-      const disc = parseFloat(i.discount) || 0;
-      const netAmount = Math.max(price - disc, 0) * qty;
-      const rate = isCitizen ? parseFloat(i.citizentax) || 0 : parseFloat(i.taxpercent) || 0;
-      return sum + (netAmount * rate) / 100;
+      const a = computeLineAmounts(i.price, i.discount, i.quantity ?? i.qty ?? 1, i.taxpercent, i.taxIncluded ?? i.taxincluded, isCitizen);
+      return sum + a.tax;
     }, 0);
 
     // Final header first/last with safe fallbacks
@@ -758,10 +774,9 @@ const PaymentBlock = ({
       const qty = Number(item.quantity ?? item.qty ?? 1);
       const price = parseFloat(item.price) || 0;
       const discount = parseFloat(item.discount) || 0;
-      const netAmount = Math.max(price - discount, 0) * qty;
-      const taxRate = isCitizen ? parseFloat(item.citizentax) || 0 : parseFloat(item.taxpercent) || 0;
-      const taxAmt = (netAmount * taxRate) / 100;
-      const finalAmount = netAmount + taxAmt;
+      const a = computeLineAmounts(price, discount, qty, item.taxpercent, item.taxIncluded ?? item.taxincluded, isCitizen);
+      const taxAmt = a.tax;
+      const finalAmount = a.total;
 
       return {
         lineNo: index + 1,

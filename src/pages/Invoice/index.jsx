@@ -16,6 +16,25 @@ import PromotionModal from './components/PromotionModal';
 import { useCustomerNotes } from '../../pages/Customer/CustomerDetails/CustomerNotePopup';
 import './styles/InvoicePage.css';
 
+// ── VAT rule (KEEP IN SYNC with InvoiceTable.jsx & PaymentBlock.jsx) ───────────
+// base = (price - discount) * qty
+//  • Citizen            → no VAT, price as-is (net = base, tax = 0, total = base)
+//  • Expat, tax NOT inc → VAT added on top (tax = base*rate%, total = base + tax)
+//  • Expat, tax INCLUDED→ price already has VAT; extract it
+//                         (net = base/(1+rate), tax = base - net, total = base)
+const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitizen) => {
+  const base = Math.max((parseFloat(price) || 0) - (parseFloat(discount) || 0), 0) * (parseFloat(qty) || 1);
+  const rate = parseFloat(ratePct) || 0;
+  const included = String(taxIncluded ?? "").trim().toLowerCase() === "yes";
+  if (isCitizen) return { net: base, tax: 0, total: base, rate: 0 };
+  if (included && rate > 0) {
+    const net = base / (1 + rate / 100);
+    return { net, tax: base - net, total: base, rate };
+  }
+  const tax = (base * rate) / 100;
+  return { net: base, tax, total: base + tax, rate };
+};
+
 const InvoicePage = () => {
   const [items, setItems] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -83,6 +102,7 @@ const InvoicePage = () => {
               discount:         0,
               taxpercent:       parseFloat(item.taxPercent || 0),
               citizentax:       parseFloat(item.taxPercent || 0),
+              taxIncluded:      item.taxIncluded ?? "No",
               practitionerCode: item.doctorId    || "",
               practitionerName: item.doctorName  || "",
               quantity:         1,
@@ -218,21 +238,20 @@ const InvoicePage = () => {
   const handleRemovePackage         = (idx) => { setItems(prev => prev.map((item, i) => { if (i !== idx) return item; const { _redeemed, _packageCode, _packageName, _origPrice, ...rest } = item; return { ...rest, price: _origPrice != null ? _origPrice : (item.originalPrice != null ? item.originalPrice : item.price) }; })); setPackageRedemption(null); setToast({ message: "Package removed — normal payment applies", type: "info" }); };
   const handleApplyPriceOverride    = (updatedItems) => setItems(updatedItems);
 
+  const isCitizen = selectedCustomer?.status === 'Citizen';
   const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
   const discount = items.reduce((sum, i) => sum + (parseFloat(i.discount) || 0), 0);
-  const net      = subtotal - discount;
-  const tax      = items.reduce((sum, i) => {
-    const price = parseFloat(i.price) || 0, disc = parseFloat(i.discount) || 0;
-    const netAmount = Math.max(price - disc, 0);
-    const isCitizen = selectedCustomer?.status === 'Citizen';
-    const rate = isCitizen ? parseFloat(i.citizentax) || 0 : parseFloat(i.taxpercent) || 0;
-    return sum + (netAmount * rate) / 100;
-  }, 0);
+  let tax = 0, grossTotal = 0;
+  items.forEach((i) => {
+    const a = computeLineAmounts(i.price, i.discount, i.quantity ?? 1, i.taxpercent, i.taxIncluded, isCitizen);
+    tax += a.tax;
+    grossTotal += a.total;
+  });
   const roundoff = 0;
   const invoicePromoDiscount = appliedPromotions
   .filter(p => p.applicationLevel === "Invoice Level")
   .reduce((sum, p) => sum + parseFloat(p.discountAmount || 0), 0);
-const total = Math.max(0, net + tax + roundoff - invoicePromoDiscount);
+const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
   const todayDate = new Date().toISOString().split('T')[0];
 
   // Resolve clinic name: take topCode from the logged-in session, then look it up

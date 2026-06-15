@@ -1,6 +1,24 @@
 // InvoiceTable.jsx
 import React from 'react';
 
+// ── VAT rule (KEEP IN SYNC with index.jsx & PaymentBlock.jsx) ─────────────────
+// base = (price - discount) * qty
+//  • Citizen            → no VAT, price as-is
+//  • Expat, tax NOT inc → VAT added on top
+//  • Expat, tax INCLUDED→ price already has VAT; extract it
+const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitizen) => {
+  const base = Math.max((parseFloat(price) || 0) - (parseFloat(discount) || 0), 0) * (parseFloat(qty) || 1);
+  const rate = parseFloat(ratePct) || 0;
+  const included = String(taxIncluded ?? "").trim().toLowerCase() === "yes";
+  if (isCitizen) return { net: base, tax: 0, total: base, rate: 0 };
+  if (included && rate > 0) {
+    const net = base / (1 + rate / 100);
+    return { net, tax: base - net, total: base, rate };
+  }
+  const tax = (base * rate) / 100;
+  return { net: base, tax, total: base + tax, rate };
+};
+
 const InvoiceTable = ({
   items,
   onPriceChange,
@@ -69,14 +87,15 @@ const InvoiceTable = ({
               const newPrice        = item.newPrice ?? '';
               const discount        = parseFloat(item.discount) || 0;
               const discountPercent = price > 0 ? ((discount / price) * 100).toFixed(2) : '';
-              const amountWithoutVat = Math.max(price - discount, 0);
 
-              const taxRate = isCitizen
-                ? parseFloat(item.citizentax)  || 0
-                : parseFloat(item.taxpercent)  || 0;
-
-              const tax   = (amountWithoutVat * taxRate) / 100;
-              const total = amountWithoutVat + tax;
+              const _amt = computeLineAmounts(
+                price, discount, 1, item.taxpercent,
+                item.taxIncluded ?? item.taxincluded, isCitizen
+              );
+              const amountWithoutVat = _amt.net;
+              const taxRate          = _amt.rate;
+              const tax              = _amt.tax;
+              const total            = _amt.total;
 
               // Check if this item has the item-level promo applied
               const itemCode = item.code || item.itemCode || "";
