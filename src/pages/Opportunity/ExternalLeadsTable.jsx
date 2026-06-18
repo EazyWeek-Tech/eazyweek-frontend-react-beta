@@ -252,7 +252,7 @@ const GET_FILTER_OPTIONS_URL = (oppCode) =>
 const fetchOppDetails = async ({
   oppCode, fromISO, toISO,
   page = 1, pageSize = 10,
-  searchTerm = "", statusFilter = "", ownerFilter = "", dispFilter = "",
+  searchTerm = "", statusFilter = "", ownerFilter = "", dispFilter = "", skipCount = false,
 }) => {
   const code = String(oppCode || "").trim();
   const from = fromISO ? toISODateOnly(fromISO) : getTodayInputDate();
@@ -268,6 +268,7 @@ const fetchOppDetails = async ({
     statusFilter,
     ownerFilter,
     dispFilter,
+    skipCount,
   };
 
   const res  = await fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
@@ -282,7 +283,7 @@ const fetchOppDetails = async ({
   const data = JSON.parse(text);
 
   if (data?.data && Array.isArray(data.data))
-    return { rows: data.data, totalCount: data.totalCount ?? data.data.length };
+    return { rows: data.data, totalCount: (data.totalCount === null || data.totalCount === undefined) ? null : data.totalCount };
   if (Array.isArray(data))
     return { rows: data, totalCount: data.length };
   return { rows: [], totalCount: 0 };
@@ -374,6 +375,7 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
 
   // ── Pagination ────────────────────────────────────────────────────────
   const PAGE_SIZE = 10;
+  const filterSigRef = useRef("");
   const [page, setPage] = useState(1);
 
   // ── Campaign header ───────────────────────────────────────────────────
@@ -563,15 +565,21 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
         const apiFrom = isStaticSegment ? (fromDate || "2000-01-01") : (fromDate || getTodayInputDate());
         const apiTo   = isStaticSegment ? (toDate   || "2900-01-01") : (toDate   || getTodayInputDate());
 
+        // Only the page changed (same filters) → skip the COUNT and reuse cached total
+        const filterSig = JSON.stringify([uiOppCode, apiFrom, apiTo, searchTerm, statusFilter, ownerFilter, dispositionFilter]);
+        const skipCount = filterSigRef.current === filterSig;
+
         const { rows: list, totalCount: count } = await fetchOppDetails({
           oppCode: uiOppCode, fromISO: apiFrom, toISO: apiTo,
           page, pageSize: PAGE_SIZE,
           searchTerm, statusFilter, ownerFilter, dispFilter: dispositionFilter,
+          skipCount,
         });
 
         if (!alive) return;
         setAllRows((list || []).map(mapExternalRow));
-        setServerTotal(count);
+        if (count !== null && count !== undefined) setServerTotal(count);
+        filterSigRef.current = filterSig;
       } catch (e) {
         console.error(e);
         if (!alive) return;

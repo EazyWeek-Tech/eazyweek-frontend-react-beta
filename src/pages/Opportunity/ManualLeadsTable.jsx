@@ -60,12 +60,13 @@ const exportFileName = (oppCode) => {
   return `ManualLeads_${oppCode || "All"}_${y}${m}${d}_${hh}${mm}.xlsx`;
 };
 
-const buildLeadListUrl = ({ baseUrl, campaignId, pageNumber, pageSize }) => {
+const buildLeadListUrl = ({ baseUrl, campaignId, pageNumber, pageSize, skipCount }) => {
   if (!campaignId) throw new Error("campaignId is required for LeadOpp/List");
   const qs = new URLSearchParams();
   qs.set("campaignId", String(campaignId));
   qs.set("pageNumber", String(pageNumber || 1));
   qs.set("pageSize",   String(pageSize   || 10));
+  if (skipCount) qs.set("skipCount", "true");
   return `${baseUrl}/api/LeadOpp/List?${qs.toString()}`;
 };
 
@@ -183,14 +184,14 @@ const buildFilterSnapshot = ({
 // ──────────────────────────────────────────────────────────────────────────
 
 const CLIENT_PAGE_SIZE = 10;
-const FETCH_PAGE_SIZE  = 200; // large batch — minimises round-trips
+const FETCH_PAGE_SIZE  = 500; // server cap — fewest round-trips for big campaigns
 
 // ✅ Parallel fetch helper
 //    Step 1 — fetch page 1 to learn totalPages
 //    Step 2 — fan out remaining pages simultaneously with Promise.all
 const fetchAllPagesParallel = async (campaignId) => {
   const fetchOnePage = async (pageNumber) => {
-    const url  = buildLeadListUrl({ baseUrl: API_BASE_URL, campaignId, pageNumber, pageSize: FETCH_PAGE_SIZE });
+    const url  = buildLeadListUrl({ baseUrl: API_BASE_URL, campaignId, pageNumber, pageSize: FETCH_PAGE_SIZE, skipCount: pageNumber > 1 });
     const res  = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, credentials: "include" });
     const text = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);

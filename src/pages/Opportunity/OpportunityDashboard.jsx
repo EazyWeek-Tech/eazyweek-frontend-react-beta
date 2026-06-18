@@ -22,7 +22,8 @@ const C = {
 
 /* ── Rule helpers ─────────────────────────────────────────────────────────── */
 const RULE_KEYS = { MANUAL:"MANUAL", PAID_X_NOT_Y:"PAID_X_NOT_Y", NO_SHOW:"NO_SHOW",
-  PAID_X_CAT:"PAID_X_CAT", SPECIAL_DAY:"SPECIAL_DAY", CANCELLED:"CANCELLED", EXTERNAL:"EXTERNAL" };
+  PAID_X_CAT:"PAID_X_CAT", SPECIAL_DAY:"SPECIAL_DAY", CANCELLED:"CANCELLED",
+  CUSTOMER_TYPE:"CUSTOMER_TYPE", EXTERNAL:"EXTERNAL" };
 
 const isManualLeadRow   = (r) => String(r?.oRuleCode||"").trim().toLowerCase()==="manual lead";
 const isExternalLeadRow = (r) => {
@@ -39,6 +40,7 @@ const detectRuleKey = (r) => {
   if (code==="R1") return RULE_KEYS.PAID_X_NOT_Y;
   if (code==="R2") return RULE_KEYS.PAID_X_CAT;
   if (code==="R5") return RULE_KEYS.SPECIAL_DAY;
+  if (code==="R6") return RULE_KEYS.CUSTOMER_TYPE;
   return "";
 };
 
@@ -56,8 +58,8 @@ const toISO = (d) => {
 
 /* ── API helpers ──────────────────────────────────────────────────────────── */
 const TOKEN = () => localStorage.getItem("token")||sessionStorage.getItem("token")||"";
-const apiFetch = (url,opts={}) => fetch(url,{ credentials:"include",
-  headers:{ Authorization:`Bearer ${TOKEN()}`,...(opts.headers||{}) }, ...opts });
+const apiFetch = (url,opts={}) => fetch(url,{ credentials:"include", ...opts,
+  headers:{ Authorization:`Bearer ${TOKEN()}`,...(opts.headers||{}) } });
 const asArray = (d) => {
   if (Array.isArray(d)) return d; if (!d) return [];
   for (const k of ["data","items","result","results"]) if (Array.isArray(d?.[k])) return d[k];
@@ -220,7 +222,7 @@ const OpportunityDashboard = () => {
         if (isManualLeadRow(n)) { const ml=manualMap.get(String(n.oppCode||"").trim().toUpperCase()); if(ml) Object.assign(n,ml); }
         return n;
       };
-      setOpportunityData(baseArr.map(normalize));
+      setOpportunityData(baseArr.map(normalize).map((r,i)=>({ ...r, __uid:`${r.recID??r.oppCode??"row"}-${r.oRuleCode??r.ruleCode??""}-${i}` })));
     } catch(e) { console.error("Fetch failed:",e); setOpportunityData([]); }
     finally { setLoading(false); }
   };
@@ -241,7 +243,8 @@ const OpportunityDashboard = () => {
   };
   const rowsByRule = useMemo(()=>{
     const g={[RULE_KEYS.MANUAL]:[],[RULE_KEYS.PAID_X_NOT_Y]:[],[RULE_KEYS.NO_SHOW]:[],
-      [RULE_KEYS.PAID_X_CAT]:[],[RULE_KEYS.SPECIAL_DAY]:[],[RULE_KEYS.CANCELLED]:[],[RULE_KEYS.EXTERNAL]:[]};
+      [RULE_KEYS.PAID_X_CAT]:[],[RULE_KEYS.SPECIAL_DAY]:[],[RULE_KEYS.CANCELLED]:[],
+      [RULE_KEYS.CUSTOMER_TYPE]:[],[RULE_KEYS.EXTERNAL]:[]};
     opportunityData.forEach(r=>{const k=detectRuleKey(r);if(k&&g[k])g[k].push(r);});
     return g;
   },[opportunityData]);
@@ -249,6 +252,9 @@ const OpportunityDashboard = () => {
     manual:summarize(rowsByRule[RULE_KEYS.MANUAL]), external:summarize(rowsByRule[RULE_KEYS.EXTERNAL]),
     noShow:summarize(rowsByRule[RULE_KEYS.NO_SHOW]), cancelled:summarize(rowsByRule[RULE_KEYS.CANCELLED]),
     special:summarize(rowsByRule[RULE_KEYS.SPECIAL_DAY]),
+    paidXnotY:summarize(rowsByRule[RULE_KEYS.PAID_X_NOT_Y]),
+    paidXcat:summarize(rowsByRule[RULE_KEYS.PAID_X_CAT]),
+    customerType:summarize(rowsByRule[RULE_KEYS.CUSTOMER_TYPE]),
   }),[rowsByRule]);
 
   /* Table */
@@ -270,7 +276,7 @@ const OpportunityDashboard = () => {
   const handleSort=key=>setSortConfig(p=>({key,direction:p.key===key&&p.direction==="asc"?"desc":"asc"}));
 
   /* Selection */
-  const rowId=item=>item.recID||item.oppCode;
+  const rowId=item=>item.__uid||item.recID||item.oppCode;
   const handleSelectAll=e=>setSelectedRows(e.target.checked?currentData.map(rowId):[]);
   const handleSelectRow=id=>setSelectedRows(prev=>prev.includes(id)?prev.filter(r=>r!==id):[...prev,id]);
 
@@ -288,7 +294,7 @@ const OpportunityDashboard = () => {
     try{
       const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/ExpireOpportunity`,{
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({expireOpp:"Expired by user",oppCodeListJson:selectedRows.map(c=>({oppCode:c}))})});
+        body:JSON.stringify({expireOpp:"Expired by user",oppCodeListJson:selectedRows.map(id=>{const x=opportunityData.find(o=>rowId(o)===id);return {oppCode:String(x?.oppCode||id).trim()};}).filter(o=>o.oppCode)})});
       if(!r.ok)throw new Error("Failed to expire");
       showToast("Opportunities expired successfully.");
       setSelectedRows([]);setCurrentPage(1);setStatusFilter("1");await fetchOpportunities("1");
@@ -336,7 +342,7 @@ const OpportunityDashboard = () => {
   if(currentView==="create-opportunity") return <OpportunityForm onBack={handleBackToDashboard} onNext={()=>setCurrentView("create-rule")} mode="create"/>;
   if(currentView==="create-rule") return <CreateRuleForm opportunityData={opportunityData} onBack={()=>setCurrentView("create-opportunity")} onSave={()=>alert("Rule saved!")} onActivate={()=>{alert("Activated!");setCurrentView("dashboard");}}/>;
   if(currentView==="edit-opportunity") return <EditOpportunityForm opportunityData={selectedOpportunity} onBack={handleBackToDashboard}
-    onSave={upd=>{setOpportunityData(prev=>prev.map(i=>rowId(i)===rowId(upd)?upd:i));showToast("Opportunity updated.");setCurrentView("dashboard");setSelectedRows([]);}}/>;
+    onSave={async upd=>{try{const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/UpdateCampaign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({oppCode:upd.oppCode,oppName:upd.oppName})});if(!r.ok)throw new Error("Failed to update");showToast("Opportunity updated.");setCurrentView("dashboard");setSelectedRows([]);await fetchOpportunities(statusFilter);}catch(e){showToast(e.message||"Error updating","error");}}}/>;
 
   /* Dashboard */
   return (
@@ -345,18 +351,18 @@ const OpportunityDashboard = () => {
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, flexWrap:"wrap", gap:12 }}>
         <div>
-          <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>📊 Opportunity Dashboard</div>
+          <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}> Opportunity Dashboard</div>
           
         </div>
         <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
           {canManage && (<>
             <button onClick={handleEditOppName} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
               borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              ✏ Edit Opp Name
+               Edit Opp Name
             </button>
             <button onClick={handleExpireCampaign} style={{ padding:"9px 16px", border:`1px solid #fcd34d`,
               borderRadius:8, background:"#fef9c7", color:"#92400e", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              ⏱ Expire Campaign
+               Expire Campaign
             </button>
             <button onClick={handleCreateNewCampaign} style={{ padding:"9px 18px", background:C.navy,
               color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
@@ -375,11 +381,14 @@ const OpportunityDashboard = () => {
 
       {/* Charts */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:24 }}>
-        <ChartCard title="Rule: Manual Lead"               dataset={chartData.manual} />
-        <ChartCard title="Rule: External Source (R7)"      dataset={chartData.external} />
-        <ChartCard title="Rule: No Show Appointment"       dataset={chartData.noShow} />
-        <ChartCard title="Rule: Cancelled Appointment"     dataset={chartData.cancelled} />
-        <ChartCard title="Rule: Customer Special Day"      dataset={chartData.special} />
+        <ChartCard title="Rule: Manual Lead"                 dataset={chartData.manual} />
+        <ChartCard title="Rule: Paid for X but not Y (R1)"   dataset={chartData.paidXnotY} />
+        <ChartCard title="Rule: Paid X Category (R2)"        dataset={chartData.paidXcat} />
+        <ChartCard title="Rule: No Show Appointment (R3)"    dataset={chartData.noShow} />
+        <ChartCard title="Rule: Cancelled Appointment (R4)"  dataset={chartData.cancelled} />
+        <ChartCard title="Rule: Customer Special Day (R5)"   dataset={chartData.special} />
+        <ChartCard title="Rule: Customer Type (R6)"          dataset={chartData.customerType} />
+        <ChartCard title="Rule: External Source (R7)"        dataset={chartData.external} />
       </div>
 
       {/* Table card */}
@@ -447,7 +456,7 @@ const OpportunityDashboard = () => {
             <tbody>
               {currentData.length===0 ? (
                 <tr><td colSpan={12} style={{ padding:50, textAlign:"center", color:C.sub, fontSize:13 }}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>📋</div>No opportunities found
+                  <div style={{ fontSize:28, marginBottom:8 }}></div>No opportunities found
                 </td></tr>
               ) : currentData.map((item,idx)=>(
                 <tr key={rowId(item)}
