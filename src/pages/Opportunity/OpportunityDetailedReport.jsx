@@ -5,6 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+// App auth uses a Bearer token (same as Header.jsx); attach it to every request.
+const AUTH_HEADERS = () => {
+  const t = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
 /* ===========================
    Utils
    =========================== */
@@ -100,8 +106,14 @@ const getSessionContext = () => {
       topCode:   sessionStorage.getItem("topCode")   || localStorage.getItem("topCode")   || "",
       userID:    sessionStorage.getItem("userID")    || localStorage.getItem("userID")    || "",
     };
-    const found = candidates[0] || fallback;
-    return { sessionId: norm(found?.sessionId), loginCode: norm(found?.loginCode), topCode: norm(found?.topCode), userID: norm(found?.userID) };
+    const pick = (o, ...ks) => { for (const src of [o, o?.data]) { if(!src) continue; for (const k of ks) if (src[k]!=null && src[k]!=="") return src[k]; } return ""; };
+    const src = candidates.find((c)=>pick(c,"loginCode","LoginCode")||pick(c,"topCode","TopCode")) || candidates[0] || fallback;
+    return {
+      sessionId: norm(pick(src,"sessionId","SessionId")),
+      loginCode: norm(pick(src,"loginCode","LoginCode")),
+      topCode:   norm(pick(src,"topCode","TopCode")),
+      userID:    norm(pick(src,"userID","UserID","userId")),
+    };
   } catch { return { sessionId: "", loginCode: "", topCode: "", userID: "" }; }
 };
 
@@ -281,7 +293,6 @@ function SearchableDropdown({ options, value, onChange, placeholder="None select
       {open&&(
         <div className="dd-menu" style={{maxHeight:maxMenuHeight}}>
           <div className="dd-search">
-            <span className="ico">🔍</span>
             <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search"/>
             {query&&<button className="clear" onClick={()=>setQuery("")} aria-label="Clear">×</button>}
           </div>
@@ -303,16 +314,24 @@ function SearchableDropdown({ options, value, onChange, placeholder="None select
         </div>
       )}
       <style jsx>{`
-        .dd-wrap{position:relative}.dd-wrap.disabled{opacity:.6;pointer-events:none}
-        .dd-input{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid #d8dee8;border-radius:8px;padding:0 10px;cursor:pointer}
-        .dd-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dd-text.muted{color:#98a1b3}.dd-caret{color:#5a6270;font-size:12px}
-        .dd-menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid #e6ebf2;box-shadow:0 8px 26px rgba(0,0,0,.08);border-radius:8px;margin-top:6px;overflow:auto;width:280px}
-        .dd-search{display:grid;grid-template-columns:20px 1fr 22px;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #eef1f6}
-        .dd-search input{height:28px;border:1px solid #e3e8f1;border-radius:6px;padding:0 8px;outline:none}
-        .dd-search .ico{text-align:center;color:#7a8599}.dd-search .clear{background:none;border:none;font-size:18px;line-height:1;color:#7a8599;cursor:pointer}
-        .dd-option{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;user-select:none}
-        .dd-option+.dd-option{border-top:1px solid #f6f7fb}.dd-option:hover{background:#f7f9fc}
-        .dd-option input{width:16px;height:16px}.dd-empty{padding:12px;color:#8a94a7;text-align:center}.select-all{font-weight:700}
+        .dd-wrap{position:relative}
+        .dd-wrap.disabled{opacity:.6;pointer-events:none}
+        .dd-input{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid #e7ecf4;border-radius:8px;padding:0 10px;cursor:pointer;font-size:13px;color:#10223f;font-family:Lato,sans-serif}
+        .dd-input:hover{border-color:#cdd6e6}
+        .dd-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .dd-text.muted{color:#94a3b8}
+        .dd-caret{color:#64748b;font-size:12px}
+        .dd-menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid #e7ecf4;box-shadow:0 8px 26px rgba(16,34,63,.10);border-radius:10px;margin-top:6px;overflow:auto;width:280px}
+        .dd-search{display:grid;grid-template-columns:1fr 22px;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #eef2f7}
+        .dd-search input{height:30px;width:100%;border:1px solid #e7ecf4;border-radius:6px;padding:0 10px;outline:none;font-size:13px;color:#10223f;font-family:Lato,sans-serif}
+        .dd-search input:focus{border-color:#334b71}
+        .dd-search .clear{background:none;border:none;font-size:18px;line-height:1;color:#94a3b8;cursor:pointer}
+        .dd-option{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;user-select:none;font-size:13px;color:#10223f}
+        .dd-option+.dd-option{border-top:1px solid #f1f4f9}
+        .dd-option:hover{background:#f4f6fa}
+        .dd-option input{width:16px;height:16px;accent-color:#334b71}
+        .dd-empty{padding:12px;color:#94a3b8;text-align:center;font-size:13px}
+        .select-all{font-weight:700}
       `}</style>
     </div>
   );
@@ -491,13 +510,19 @@ export default function OpportunityDetailedReport() {
     (async()=>{
       try{
         setLoading(true);
-        const r=await fetch(`${API_BASE_URL}/api/Master/LoadCenters`,{credentials:"include"});
-        const d=await r.json();
-        const listAll=(Array.isArray(d)?d:d?[d]:[]).map((x)=>({ value:norm(x.code??x.centerCode??x.name), label:x.name??x.centerName??(x.code??""), recid:x.recid??x.recId??x.id??"" }));
+        const r=await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`,{credentials:"include",headers:AUTH_HEADERS()});
+        const j=await r.json();
+        const zones=Array.isArray(j?.data?.zones)?j.data.zones:[];
+        const listAll=zones.flatMap((z)=>(Array.isArray(z?.clinics)?z.clinics:[]).map((c)=>({ value:norm(c.code??c.centerCode??c.name), label:c.name??(c.code??""), recid:c.recid??c.recId??c.id??"", zone:z?.zone??"" })));
         let list=listAll;
         if(!isCentriq){
-          const filtered=listAll.filter((c)=>matchesLoginClinic(c.label,c.value,sessionCtx?.loginCode,sessionCtx?.topCode));
-          list=filtered; setClinicCode(filtered[0]?.value||""); setClinicCodes([]);
+          // Clinic level: match the logged-in clinic (userSession topCode, then loginCode)
+          // against the hierarchy by CODE to get its name; payload uses the code.
+          const want=norm(sessionCtx?.topCode)||norm(sessionCtx?.loginCode);
+          let chosen=want?listAll.find((c)=>norm(c.value).toLowerCase()===want.toLowerCase()):null;
+          if(!chosen) chosen=listAll.find((c)=>matchesLoginClinic(c.label,c.value,sessionCtx?.loginCode,sessionCtx?.topCode));
+          if(!chosen) chosen=listAll[0]||null;
+          list=chosen?[chosen]:[]; setClinicCode(chosen?.value||""); setClinicCodes([]);
         } else { setClinicCode(""); setClinicCodes([]); }
         setClinics(list);
       }catch(e){ console.error(e); setClinics([]); }finally{ setLoading(false); }
@@ -508,7 +533,7 @@ export default function OpportunityDetailedReport() {
   useEffect(()=>{
     (async()=>{
       try{
-        const r=await fetch(`${API_BASE_URL}/api/Employees`,{credentials:"include"});
+        const r=await fetch(`${API_BASE_URL}/api/Employees`,{credentials:"include",headers:AUTH_HEADERS()});
 
         const d=await r.json();
         const list=(Array.isArray(d)?d:d?[d]:[]).map((x)=>({
@@ -530,7 +555,7 @@ export default function OpportunityDetailedReport() {
       setLoadingOppNames(true);
       try{
         const results=await Promise.all(rules.map(async(rule)=>{
-          const r=await fetch(OPP_NAMES_ENDPOINT,{ method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({campStatus:status,ruleCode:rule}),signal:ac.signal });
+          const r=await fetch(OPP_NAMES_ENDPOINT,{ method:"POST",credentials:"include",headers:{"Content-Type":"application/json",...AUTH_HEADERS()},body:JSON.stringify({campStatus:status,ruleCode:rule}),signal:ac.signal });
           if(!r.ok)throw new Error(`HTTP ${r.status}`);
           const d=await r.json(); return Array.isArray(d)?d:d?[d]:[];
         }));
@@ -556,7 +581,7 @@ export default function OpportunityDetailedReport() {
     const selectedCampaignIds=Array.isArray(names)?names.map((x)=>Number(x)).filter((n)=>typeof n==="number"&&!Number.isNaN(n)):[];
     const selectedOppNameCSVLocal=(Array.isArray(names)?names:[]).map((id)=>nameOpts.find((o)=>String(o.value)===String(id))?.label).filter(Boolean).join(",");
     const qs=buildQS({ FromDate:atStartOfDayZ(effectiveFromISO),ToDate:atEndOfDayZ(effectiveToISO),OppStatus:oppStatusInt,ClinicCode:clinicCSV||"",ORuleCode:MANUAL_RULE_VALUE,CampaignIds:selectedCampaignIds,clinicCentreId,OppName:selectedOppNameCSVLocal,DateFlag:"0",PageNumber:pageNumber,PageSize:size });
-    const r=await fetch(`${MANUAL_LEAD_LIST_ENDPOINT}?${qs}`,{method:"GET",credentials:"include"});
+    const r=await fetch(`${MANUAL_LEAD_LIST_ENDPOINT}?${qs}`,{method:"GET",credentials:"include",headers:AUTH_HEADERS()});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     return r.json();
   },[getSelectedClinicCentreId]);
@@ -699,7 +724,7 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
           pageSize:   NON_MANUAL_PAGE_SIZE,
           salesOwner: curSalesOwner||"",  //  NEW
         };
-        const r=await fetch(OPP_DETAIL_PAGED_ENDPOINT,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        const r=await fetch(OPP_DETAIL_PAGED_ENDPOINT,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json",...AUTH_HEADERS()},body:JSON.stringify(body)});
         if(!r.ok)throw new Error(`HTTP ${r.status}`);
         const d=await r.json();
         arr=Array.isArray(d?.data)?d.data:[];
@@ -740,7 +765,7 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
         const clinicCSV=isCentriq?(Array.isArray(clinicCodes)?clinicCodes:[]).map(norm).filter(Boolean).join(","):clinicCode||"";
         const rulesCSV=(Array.isArray(oppRuleCodes)?oppRuleCodes:[]).map(norm).filter(Boolean).join(",");
         const body={ fromDate:atStartOfDayZ(effectiveFromISO),toDate:atEndOfDayZ(effectiveToISO),oppStatus:campaignStatusCode||"",clinicCode:clinicCSV||"",oppRule:rulesCSV||"",oppName:selectedOppNameCSV,dateFlag:"0",pageNumber:0,pageSize:NON_MANUAL_PAGE_SIZE,salesOwner:selectedSalesOwner||"" };
-        const r=await fetch(OPP_DETAIL_PAGED_ENDPOINT,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        const r=await fetch(OPP_DETAIL_PAGED_ENDPOINT,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json",...AUTH_HEADERS()},body:JSON.stringify(body)});
         if(!r.ok)throw new Error(`HTTP ${r.status}`);
         const d=await r.json(); const allRaw=Array.isArray(d?.data)?d.data:[];
         exportRows=allRaw.map((x,i)=>normalizeRow(x,i,false,null));
@@ -948,46 +973,53 @@ const fmtSafe=(s)=>{ const r=fmt(s); return r.endsWith("1900")?"":r; };
       {toast&&<div className={`toast ${toast.type}`}>{toast.message}</div>}
 
       <style jsx>{`
-        .title{font-size:22px;font-weight:700;color:#0b1f3a;margin:0 0 6px}
-        .breadcrumb{color:#5e6a7b;margin:18px 0}.crumb-link{color:#2e5aac;cursor:pointer}.crumb-dim{color:#8893a5}.sep{margin:0 6px}
-        .req{color:#d7263d;margin-left:2px}
-        .filters{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:16px;margin-bottom:16px}
+        .wrap{font-family:Lato,sans-serif;min-height:100vh;color:#10223f}
+        .title{font-size:22px;font-weight:800;color:#071D49;margin:0 0 6px}
+        .breadcrumb{color:#64748b;margin:18px 0;font-size:13px}
+        .crumb-link{color:#334b71;cursor:pointer;font-weight:600}
+        .crumb-dim{color:#94a3b8}
+        .sep{margin:0 6px}
+        .req{color:#cc6b5c;margin-left:2px}
+        .filters{background:#fff;border:1px solid #e7ecf4;border-radius:12px;box-shadow:0 1px 2px rgba(16,34,63,.04);padding:18px;margin-bottom:16px}
         .grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px 18px}
         .frow{display:flex;flex-direction:column;gap:6px}
-        label{font-size:12px;font-weight:700;color:#5a6270}
-        input[type="date"]{height:36px;border:1px solid #d8dee8;border-radius:8px;padding:0 10px;outline:none;background:#fff}
-        input[type="date"].input-error{border-color:#d7263d;background:#fff5f5}
-        .hint{color:#6b7280;font-size:12px;margin-top:2px}
-        .actions{margin-top:10px;display:flex;gap:12px;justify-content:flex-end}
-        .btn{background:#112032;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer}
+        label{font-size:12px;font-weight:700;color:#475569}
+        input[type="date"]{height:36px;border:1px solid #e7ecf4;border-radius:8px;padding:0 10px;outline:none;background:#fff;font-size:13px;color:#10223f;font-family:Lato,sans-serif}
+        input[type="date"]:focus{border-color:#334b71}
+        input[type="date"].input-error{border-color:#cc6b5c;background:#fdf3f1}
+        .hint{color:#64748b;font-size:12px;margin-top:2px}
+        .actions{margin-top:14px;display:flex;gap:12px;justify-content:flex-end}
+        .btn{background:#334b71;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;font-family:Lato,sans-serif}
+        .btn:hover{background:#2a3f60}
         .btn[disabled]{opacity:.55;cursor:not-allowed}
-        .table-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:10px 0}
+        .table-wrap{background:#fff;border:1px solid #e7ecf4;border-radius:12px;box-shadow:0 1px 2px rgba(16,34,63,.04);padding:6px 0}
         .table-scroll{max-height:420px;overflow:auto}
         table.tbl{width:100%;min-width:1200px;border-collapse:separate;border-spacing:0}
-        .tbl thead th{position:sticky;top:0;background:#fff;z-index:2;text-align:left;font-size:13px;color:#6c7688;font-weight:700;padding:10px 14px;border-bottom:1px solid #eef1f6;white-space:nowrap}
-        .tbl tbody td{font-size:12px;color:#1b2636;padding:6px 14px;border-bottom:1px solid #f1f4f9;vertical-align:top;line-height:1.35}
-        .link{background:none;border:none;padding:0;font-size:12px;color:#2e5aac;cursor:pointer;font-weight:600;text-align:left}
+        .tbl thead th{position:sticky;top:0;background:#f4f6fa;z-index:2;text-align:left;font-size:12px;color:#475569;font-weight:700;padding:11px 14px;border-bottom:1px solid #e7ecf4;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
+        .tbl tbody td{font-size:12px;color:#10223f; white-space:nowrap; padding:8px 14px;border-bottom:1px solid #f1f4f9;vertical-align:top;line-height:1.35}
+        .tbl tbody tr:hover{background:#f8fafc}
+        .link{background:none;border:none;padding:0;font-size:12px;color:#334b71;cursor:pointer;font-weight:600;text-align:left;font-family:Lato,sans-serif}
         .link:hover{text-decoration:underline}
-        .loading,.empty{text-align:center;color:#6b7280;padding:18px}
-        .disp-summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid #eef1f6;font-size:12px;color:#4b5563}
-        .disp-owner{margin-right:8px;color:#0b1f3a;font-size:12px}
-        .disp-label{font-weight:700;color:#5a6270;margin-right:4px}
-        .disp-chip{background:#f1f4f9;border-radius:20px;padding:3px 10px;color:#1b2636;font-size:12px}
-        .pager{display:flex;align-items:center;gap:8px;justify-content:flex-end;padding:10px 14px;flex-wrap:wrap}
-        .pager-info{font-size:13px;color:#4b5563;margin-right:4px}
-        .pagebtn{background:#0f1f33;color:white;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px}
-        .pagebtn:disabled{opacity:0.5;cursor:not-allowed}
-        .pagebtn-active{background:#2e5aac!important}
-        .pageno,.pagecount{color:#4b5563;font-weight:600}
-        .toast{position:fixed;bottom:16px;right:16px;color:#fff;background:#d7263d;padding:10px 14px;border-radius:8px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,0.15);z-index:9999}
-        .toast.success{background:#138a36}
-
-        .filter-strip{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:#f0f4ff;border:1px solid #d6e0f5;border-radius:10px;padding:12px 16px;margin-bottom:12px}
-        .strip-label{font-size:12px;font-weight:700;color:#2e5aac;margin-right:4px}
+        .loading,.empty{text-align:center;color:#64748b;padding:18px;font-size:13px}
+        .disp-summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid #eef2f7;font-size:12px;color:#475569}
+        .disp-owner{margin-right:8px;color:#071D49;font-size:12px}
+        .disp-label{font-weight:700;color:#475569;margin-right:4px}
+        .disp-chip{background:#eef2f7;border-radius:20px;padding:3px 10px;color:#10223f;font-size:12px}
+        .pager{display:flex;align-items:center;gap:8px;justify-content:flex-end;padding:12px 14px;flex-wrap:wrap}
+        .pager-info{font-size:13px;color:#64748b;margin-right:4px}
+        .pagebtn{background:#fff;color:#10223f;border:1px solid #e7ecf4;border-radius:7px;padding:6px 11px;cursor:pointer;font-size:13px;font-weight:600;font-family:Lato,sans-serif}
+        .pagebtn:hover:not(:disabled){border-color:#334b71;color:#334b71}
+        .pagebtn:disabled{opacity:0.45;cursor:not-allowed}
+        .pagebtn-active{background:#334b71!important;color:#fff!important;border-color:#334b71!important}
+        .pageno,.pagecount{color:#64748b;font-weight:600;font-size:13px}
+        .toast{position:fixed;bottom:16px;right:16px;color:#fff;background:#cc6b5c;padding:10px 14px;border-radius:8px;font-weight:600;box-shadow:0 6px 18px rgba(16,34,63,.18);z-index:9999}
+        .toast.success{background:#4a9e8a}
+        .filter-strip{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:#e9edf5;border:1px solid #e7ecf4;border-radius:10px;padding:12px 16px;margin-bottom:12px}
+        .strip-label{font-size:12px;font-weight:700;color:#334b71;margin-right:4px}
         .strip-field{display:flex;flex-direction:column;gap:4px}
-        .strip-field label{font-size:11px;font-weight:700;color:#5a6270}
-        .strip-clear{background:#d7263d;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end}
-        .strip-count{font-size:12px;color:#4b5563;margin-left:auto}
+        .strip-field label{font-size:11px;font-weight:700;color:#475569}
+        .strip-clear{background:#cc6b5c;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end}
+        .strip-count{font-size:12px;color:#64748b;margin-left:auto}
         @media(max-width:1200px){.grid{grid-template-columns:repeat(4,1fr)}}
         @media(max-width:700px){.grid{grid-template-columns:1fr}}
       `}</style>
