@@ -3,6 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+/** Bearer auth — app authenticates via Authorization header, not a cookie. */
+const AUTH_HEADERS = () => {
+  const t = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+
 /** ✅ same as your file (you can adjust label list later if needed) */
 const DISPOSITION_OPTIONS = [
   { value: "", label: "" },
@@ -231,7 +238,7 @@ useEffect(() => {
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/Opportunity/Dispostion/${encodeURIComponent(OPP_TYPE)}`,
-        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+        { method: "GET", headers: { Accept: "application/json, */*", ...AUTH_HEADERS() }, credentials: "include" }
       );
       if (!res.ok) throw new Error(`Disposition HTTP ${res.status}`);
 
@@ -272,7 +279,7 @@ useEffect(() => {
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/Opportunity/SubDispostion/${encodeURIComponent(OPP_TYPE)}/${encodeURIComponent(dispCode)}`,
-        { method: "GET", headers: { Accept: "application/json, */*" }, credentials: "include" }
+        { method: "GET", headers: { Accept: "application/json, */*", ...AUTH_HEADERS() }, credentials: "include" }
       );
       if (!res.ok) throw new Error(`SubDisposition HTTP ${res.status}`);
 
@@ -317,7 +324,7 @@ useEffect(() => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOpprotunityReason`, {
           method: "GET",
-          headers: { Accept: "application/json, */*" },
+          headers: { Accept: "application/json, */*", ...AUTH_HEADERS() },
           credentials: "include",
         });
         if (!res.ok) throw new Error(`Reasons HTTP ${res.status}`);
@@ -357,7 +364,7 @@ useEffect(() => {
 
         const res = await fetch(
           `${API_BASE_URL}/api/Opportunity/OpportunityMoreDetails/${encodeURIComponent(oppCode)}/${recId}`,
-          { method: "POST", headers: { Accept: "*/*" }, credentials: "include", body: "" }
+          { method: "POST", headers: { Accept: "*/*", ...AUTH_HEADERS() }, credentials: "include", body: "" }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -474,7 +481,7 @@ setForm((p) => ({
   const callUpdate = async () => {
     const res = await fetch(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...AUTH_HEADERS() },
       credentials: "include",
       body: JSON.stringify(buildUpdatePayload()),
     });
@@ -540,7 +547,7 @@ setForm((p) => ({
       <div className="wrap">
 
         <div className="titleBlock">
-          <div className="pageTitle"> No Show Details</div>
+          <div className="pageTitle">Opportunity Details{top.custID ? ` - ${top.custID}` : ""}</div>
         </div>
 
         <fieldset className="fs">

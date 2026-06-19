@@ -51,7 +51,11 @@ const toMidnight = (v) => {
   if (!v) return null;
   if (v instanceof Date) return isNaN(+v) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
   const s = String(v).trim();
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  // Match the leading YYYY-MM-DD even when a time/zone follows (e.g. ISO
+  // "2026-06-20T00:00:00.000Z"). Taking the date part literally avoids a
+  // UTC→local shift that pushed follow-ups to the previous day, which broke
+  // the Today / Tomorrow filters.
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(+iso[1], +iso[2]-1, +iso[3]);
   const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (dmy) return new Date(+dmy[3], +dmy[2]-1, +dmy[1]);
@@ -388,8 +392,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
 
   const openRow = (row) => {
     const rc = ruleCode;
-    if (rc==="R3") return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
-    if (rc==="R4") return navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`,{state:{row,header,oppCode}});
+    if (rc==="R1"||rc==="R2"||rc==="R3"||rc==="R4") return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
     navigate(`/opportunity/${oppCode}/customer/${row.custID}`,{state:{row,header,oppCode}});
   };
 

@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
   import React, { useEffect, useMemo, useState } from "react";
   import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -136,10 +136,16 @@
     return { countryCode: cc ? `+${cc}` : "", mobileNo: m };
   };
 
+  const AUTH_TOKEN = () => {
+    try { return localStorage.getItem("token") || sessionStorage.getItem("token") || ""; }
+    catch { return ""; }
+  };
+  const AUTH_HEADERS = () => (AUTH_TOKEN() ? { Authorization: `Bearer ${AUTH_TOKEN()}` } : {});
+
   const fetchJson = async (url) => {
     const res = await fetch(url, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...AUTH_HEADERS() },
       credentials: "include",
     });
     const text = await res.text();
@@ -157,6 +163,7 @@
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...AUTH_HEADERS(),
       },
       credentials: "include",
       body: JSON.stringify(body),
@@ -434,15 +441,15 @@ const getCenterFromStorage = () => {
       );
 
       return {
-        countryCode: "",
+        countryCode: safe(row?.countryCode || ""),
         mobile: safe(row?.custMobileNo || ""),
         firstName: first,
         lastName: last,
         email: safe(row?.email || ""),
 
-        preferredLanguage: "English",
+        preferredLanguage: safe(row?.preferedLang || "English"),
 
-        centerCode: "",
+        centerCode: safe(row?.centercode || ""),
         doctor: safe(row?.therapistCode || ""),
         doctorName: safe(row?.therapistname || ""),
 
@@ -500,13 +507,40 @@ setSessionCenter(code);
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
 
+    // ── Convert → Create-Customer popup ──
+    const [showCustomerPopup, setShowCustomerPopup] = useState(false);
+    const [creatingCustomer, setCreatingCustomer]   = useState(false);
+    const [nationalityOptions, setNationalityOptions] = useState([]);
+    const [customerForm, setCustomerForm] = useState({
+      firstName: "", lastName: "", mobileNo: "", email: "",
+      countryCode: "", nationalityId: "", dateOfBirth: "", gender: "",
+    });
+    const cInput = { width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #cfd6e4", borderRadius: 8, boxSizing: "border-box" };
+    const cBtn   = { background: "#0b1b37", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
+
+    useEffect(() => {
+      let alive = true;
+      (async () => {
+        try {
+          const data = await fetchJson(`${API_BASE_URL}/api/Master/Nationality`);
+          const list = Array.isArray(data) ? data : (data.items || data.data || []);
+          if (alive) {
+            setNationalityOptions(
+              list.map((n) => ({ id: n.id ?? n.RECID ?? n.value, name: n.name ?? n.NATIONALITYNAME ?? n.label }))
+            );
+          }
+        } catch { /* non-fatal: popup can still be filled manually */ }
+      })();
+      return () => { alive = false; };
+    }, []);
+
     /** ---------------- Load Sources ---------------- */
   useEffect(() => {
     let alive = true;
 
     const run = async () => {
       try {
-        const data = await fetchJson(`${API_BASE_URL}/api/Opportunity/OppSource`);
+        const data = await fetchJson(`${API_BASE_URL}/api/Master/Source`);
         const list = readList(data);
 
         const opts = [
@@ -546,7 +580,7 @@ useEffect(() => {
 
     try {
       const data = await fetchJson(
-        `${API_BASE_URL}/api/Opportunity/OppSubSource/${encodeURIComponent(src)}`
+        `${API_BASE_URL}/api/Master/SubSource/${encodeURIComponent(src)}`
       );
       const list = readList(data);
 
@@ -738,7 +772,7 @@ useEffect(() => {
 
         try {
           const data = await fetchJson(
-            `${API_BASE_URL}/api/Opportunity/OppDoctors/${encodeURIComponent(centerCode)}`
+            `${API_BASE_URL}/api/Master/Doctors/${encodeURIComponent(centerCode)}`
           );
           const list = readList(data);
 
@@ -793,7 +827,7 @@ if (!hasNone) {
 
       const run = async () => {
         try {
-          const data = await fetchJson(`${API_BASE_URL}/api/Opportunity/OppInterestedVertical`);
+          const data = await fetchJson(`${API_BASE_URL}/api/Master/InterestedVertical`);
           const list = readList(data);
 
           const opts = [
@@ -877,6 +911,43 @@ if (!hasNone) {
       return Object.keys(e).length === 0;
     };
 
+    const handleCreateCustomer = async () => {
+      const cf = customerForm;
+      const miss = [];
+      if (!safe(cf.firstName).trim())   miss.push("First name");
+      if (!safe(cf.lastName).trim())    miss.push("Last name");
+      if (!safe(cf.countryCode).trim()) miss.push("Country code");
+      if (!safe(cf.mobileNo).trim())    miss.push("Mobile");
+      if (!isValidEmail(cf.email))      miss.push("Email");
+      if (!String(cf.nationalityId || "").trim()) miss.push("Nationality");
+      if (!safe(cf.dateOfBirth).trim()) miss.push("Date of birth");
+      if (!safe(cf.gender).trim())      miss.push("Gender");
+      if (miss.length) { alert("Please fill: " + miss.join(", ")); return; }
+
+      setCreatingCustomer(true);
+      try {
+        const resC = await postJson(`${API_BASE_URL}/api/Opportunity/CreateCustomer`, {
+          firstName:     safe(cf.firstName).trim(),
+          lastName:      safe(cf.lastName).trim(),
+          countryCode:   safe(cf.countryCode).trim(),
+          mobileNo:      safe(cf.mobileNo).trim(),
+          email:         safe(cf.email).trim(),
+          nationalityId: cf.nationalityId,
+          dateOfBirth:   cf.dateOfBirth,
+          gender:        cf.gender,
+          oppCode:       safe(resolvedOppCode).trim(),
+          recID,
+        });
+        setCreatingCustomer(false);
+        setShowCustomerPopup(false);
+        showToast(`Customer created${resC && resC.custId ? " - " + resC.custId : ""}`);
+        navigate(-1);
+      } catch (err) {
+        setCreatingCustomer(false);
+        alert(`Create customer failed: ${err?.message || err}`);
+      }
+    };
+
     const handleSubmit = async () => {
       if (!validate()) {
         alert("Submit blocked by validation. Check required fields.");
@@ -924,7 +995,23 @@ if (!hasNone) {
 
         console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
 
-        await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
+        const saveRes = await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
+
+        // Converting disposition → collect remaining customer details, then create the customer.
+        if (saveRes && saveRes.convert) {
+          const pf = saveRes.prefill || {};
+          setCustomerForm((prev) => ({
+            ...prev,
+            firstName:   pf.firstName   || safe(form.firstName),
+            lastName:    pf.lastName    || safe(form.lastName),
+            mobileNo:    pf.mobileNo    || nm.mobileNo,
+            countryCode: pf.countryCode || nm.countryCode,
+            email:       pf.email       || safe(form.email),
+          }));
+          setShowCustomerPopup(true);
+          setSaving(false);
+          return;
+        }
 
         showToast("Saved successfully");
         navigate(-1);
@@ -1541,6 +1628,55 @@ if (!hasNone) {
             }
           }
         `}</style>
+
+      {showCustomerPopup && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(560px, 92vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
+            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>Create Customer</h3>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: "#555" }}>
+              This lead is being converted. Confirm the details below to add them as a customer.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={{ fontSize: 13 }}>First name*
+                <input value={customerForm.firstName} onChange={(e) => setCustomerForm((p) => ({ ...p, firstName: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Last name*
+                <input value={customerForm.lastName} onChange={(e) => setCustomerForm((p) => ({ ...p, lastName: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Country code*
+                <input value={customerForm.countryCode} onChange={(e) => setCustomerForm((p) => ({ ...p, countryCode: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Mobile*
+                <input value={customerForm.mobileNo} onChange={(e) => setCustomerForm((p) => ({ ...p, mobileNo: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13, gridColumn: "1 / -1" }}>Email*
+                <input value={customerForm.email} onChange={(e) => setCustomerForm((p) => ({ ...p, email: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Nationality*
+                <select value={customerForm.nationalityId} onChange={(e) => setCustomerForm((p) => ({ ...p, nationalityId: e.target.value }))} style={cInput}>
+                  <option value="">Select...</option>
+                  {nationalityOptions.map((n) => (<option key={n.id} value={n.id}>{n.name}</option>))}
+                </select>
+              </label>
+              <label style={{ fontSize: 13 }}>Date of birth*
+                <input type="date" value={customerForm.dateOfBirth} onChange={(e) => setCustomerForm((p) => ({ ...p, dateOfBirth: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Gender*
+                <select value={customerForm.gender} onChange={(e) => setCustomerForm((p) => ({ ...p, gender: e.target.value }))} style={cInput}>
+                  <option value="">Select...</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 20, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowCustomerPopup(false)} disabled={creatingCustomer} style={{ ...cBtn, background: "#e0e0e0", color: "#333" }}>Cancel</button>
+              <button onClick={handleCreateCustomer} disabled={creatingCustomer} style={cBtn}>{creatingCustomer ? "Creating..." : "Create Customer"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       </>
     );
   };
