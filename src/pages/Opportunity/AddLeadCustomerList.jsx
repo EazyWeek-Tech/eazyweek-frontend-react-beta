@@ -5,6 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+// Auth: verifyToken expects "Authorization: Bearer <token>" (cookies alone aren't accepted).
+const getAuthToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => {
+  const t = getAuthToken();
+  return { Accept: "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) };
+};
+
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const AddLeadCustomerList = () => {
@@ -39,11 +47,18 @@ const AddLeadCustomerList = () => {
       setError("");
       try {
         const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
+          headers: authHeaders(),
           credentials: "include",
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const arr = Array.isArray(data) ? data : data ? [data] : [];
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : data?.data
+          ? [data.data]
+          : [];
         setCustomers(arr);
       } catch (e) {
         console.error(e);

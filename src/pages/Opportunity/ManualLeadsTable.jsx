@@ -3,6 +3,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
+// Auth: verifyToken needs a Bearer token (cookies aren't accepted).
+const getAuthToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+const authHeaders = () => {
+  const t = getAuthToken();
+  return { Accept: "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) };
+};
+
 // -----------------------------
 // Date helpers
 // -----------------------------
@@ -89,19 +97,24 @@ const norm = (v) => String(v ?? "").trim().toLowerCase();
 const toTimeLabel12h = (timeVal) => {
   const s = String(timeVal ?? "").trim();
   if (!s) return "";
-  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(s)) {
-    const m  = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  // already a 12h label like "02:30 PM"
+  let m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m) {
     const hh = String(m[1]).padStart(2, "0");
     return `${hh}:${m[2]} ${String(m[3]).toUpperCase()}`;
   }
-  const parts = s.split(":");
-  const hh24  = parseInt(parts[0] || "0", 10);
-  const mm    = parseInt(parts[1] || "0", 10);
-  if (Number.isNaN(hh24) || Number.isNaN(mm)) return "";
+  // SQL time serialized as ISO ("1970-01-01T18:30:00.000Z"): take the wall-clock HH:MM
+  // from after the "T" directly — do NOT use new Date(), which would TZ-shift it.
+  // Falls back to a plain "HH:MM[:SS]" string.
+  m = s.match(/T(\d{2}):(\d{2})/) || s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  const hh24 = parseInt(m[1], 10);
+  const mm   = m[2];
+  if (Number.isNaN(hh24)) return "";
   const ampm = hh24 >= 12 ? "PM" : "AM";
   let hh12   = hh24 % 12;
   if (hh12 === 0) hh12 = 12;
-  return `${String(hh12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
+  return `${String(hh12).padStart(2, "0")}:${mm} ${ampm}`;
 };
 
 const toProspectType = (apiType, custID) => {
@@ -192,7 +205,7 @@ const FETCH_PAGE_SIZE  = 500; // server cap — fewest round-trips for big campa
 const fetchAllPagesParallel = async (campaignId) => {
   const fetchOnePage = async (pageNumber) => {
     const url  = buildLeadListUrl({ baseUrl: API_BASE_URL, campaignId, pageNumber, pageSize: FETCH_PAGE_SIZE, skipCount: pageNumber > 1 });
-    const res  = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, credentials: "include" });
+    const res  = await fetch(url, { method: "GET", headers: authHeaders(), credentials: "include" });
     const text = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
     return JSON.parse(text);
@@ -301,7 +314,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
       try {
         const res  = await fetch(
           `${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(effectiveOppCode)}`,
-          { method: "GET", headers: { Accept: "application/json" }, credentials: "include" }
+          { method: "GET", headers: authHeaders(), credentials: "include" }
         );
         const text = await res.text();
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
@@ -331,7 +344,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
     const run = async () => {
       setEmpLoading(true);
       try {
-        const res  = await fetch(`${API_BASE_URL}/api/Employees`, { method: "GET", headers: { Accept: "application/json" }, credentials: "include" });
+        const res  = await fetch(`${API_BASE_URL}/api/Employees`, { method: "GET", headers: authHeaders(), credentials: "include" });
         const text = await res.text();
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
         const data = JSON.parse(text);
@@ -357,7 +370,7 @@ export default function ManualLeadsTable({ oppCode, header, onToast }) {
       setCustLoading(true);
       setCustErr("");
       try {
-        const res  = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, { method: "GET", headers: { Accept: "application/json" }, credentials: "include" });
+        const res  = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, { method: "GET", headers: authHeaders(), credentials: "include" });
         const text = await res.text();
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 180)}`);
         const data = JSON.parse(text);

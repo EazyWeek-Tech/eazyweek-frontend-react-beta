@@ -51,11 +51,7 @@ const toMidnight = (v) => {
   if (!v) return null;
   if (v instanceof Date) return isNaN(+v) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
   const s = String(v).trim();
-  // Match the leading YYYY-MM-DD even when a time/zone follows (e.g. ISO
-  // "2026-06-20T00:00:00.000Z"). Taking the date part literally avoids a
-  // UTC→local shift that pushed follow-ups to the previous day, which broke
-  // the Today / Tomorrow filters.
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return new Date(+iso[1], +iso[2]-1, +iso[3]);
   const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (dmy) return new Date(+dmy[3], +dmy[2]-1, +dmy[1]);
@@ -74,6 +70,23 @@ const fmt12h = (hhmmss, ampm) => {
   const label = ap || (h>=12?"PM":"AM");
   let h12 = h%12; if (!h12) h12=12;
   return `${String(h12).padStart(2,"0")}:${mm} ${label}`;
+};
+
+// Canonical 12h label for follow-up time. Handles: an existing "02:30 PM" label (pads hour),
+// a SQL time serialized as ISO ("1970-01-01T18:30:00.000Z" -> wall-clock HH:MM after "T", NO
+// timezone shift), and a plain 24h "14:30:00". Returns "" when there's nothing usable.
+const to12hLabel = (s) => {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  let m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m) return `${String(m[1]).padStart(2,"0")}:${m[2]} ${m[3].toUpperCase()}`;
+  m = t.match(/T(\d{2}):(\d{2})/) || t.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  const h = parseInt(m[1], 10);
+  if (Number.isNaN(h)) return "";
+  const ap = h >= 12 ? "PM" : "AM";
+  let h12 = h % 12; if (h12 === 0) h12 = 12;
+  return `${String(h12).padStart(2,"0")}:${m[2]} ${ap}`;
 };
 
 const timeToMin = (hhmm) => {
@@ -392,7 +405,8 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
 
   const openRow = (row) => {
     const rc = ruleCode;
-    if (rc==="R1"||rc==="R2"||rc==="R3"||rc==="R4") return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
+    if (rc==="R3") return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
+    if (rc==="R4") return navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`,{state:{row,header,oppCode}});
     navigate(`/opportunity/${oppCode}/customer/${row.custID}`,{state:{row,header,oppCode}});
   };
 
@@ -647,8 +661,21 @@ function ExternalSection({ oppCode, churnKey=0 }) {
             custName:   bestName,
             followUpDate: fuDateClean,
             __fuStamp:  fuDateClean ? stamp(toMidnight(fuDateClean)) : NaN,
-            __fuMin:    timeToMin((x?.followUptime||"").toString().replace(/[APM\s]/gi,"")),
-            __fuLabel:  fmt12h(x?.followUptime, x?.followUpAMPM),
+            __fuMin:    (() => {
+              const t = String(x?.followUpTime || "").trim().toUpperCase();
+              let h, mm;
+              let m = t.match(/T(\d{2}):(\d{2})/);           // SQL time as ISO -> 24h wall clock
+              if (m) { h = +m[1]; mm = +m[2]; }
+              else {
+                m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/); // "02:30 PM" label or "14:30"
+                if (!m) return NaN;
+                h = +m[1]; mm = +m[2];
+                if (m[3] === "PM" && h < 12) h += 12;
+                if (m[3] === "AM" && h === 12) h = 0;
+              }
+              return h * 60 + mm;
+            })(),
+            __fuLabel:  to12hLabel(x?.followUpTime),
           };
         }));
         setServerTotal(total);
@@ -840,6 +867,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           status: (x?.status||x?.oppStatus||"").toString(),
           fuDate: x?.followUpDate||x?.followUp||"",
           fuTime: (x?.followUpTime||"").toString(),
+          fuTimeLabel: to12hLabel(x?.followUpTime),
           disposition:(x?.disposition||"").toString(),
           remark:(x?.remark||x?.remarks||"").toString(),
           owner: (x?.saleOwner||x?.salesOwner||"").toString(),
@@ -887,7 +915,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
     });
-    if(fuTime)list=list.filter(r=>norm(fmt12h(r.fuTime))===norm(fuTime));
+    if(fuTime)list=list.filter(r=>norm(r.fuTimeLabel)===norm(fuTime));
     return list;
   },[rows,search,status,owner,disp,fuDateRange,fuTime]);
 
@@ -953,9 +981,9 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
       </div>
 
-      {loading && <Loading />}
+      {(loading || !campaignRecId) && <Loading />}
       {err     && <ErrMsg msg={err} />}
-      {!loading && !err && (
+      {!loading && campaignRecId && !err && (
         paged.length ? (
           <div className="cd-tablewrap">
             <table className="cd-table">
@@ -978,7 +1006,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
                     <td>{safe(r.mobile)}</td>
                     <td>{safe(r.status)}</td>
                     <td>{fmtDate(r.fuDate)}</td>
-                    <td>{safe(fmt12h(r.fuTime))}</td>
+                    <td>{safe(r.fuTimeLabel)}</td>
                     <td>{safe(r.disposition)}</td>
                     <td>{safe(r.remark)}</td>
                     <td>{safe(r.owner)}</td>

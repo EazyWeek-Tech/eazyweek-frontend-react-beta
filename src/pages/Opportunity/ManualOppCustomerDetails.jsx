@@ -126,14 +126,20 @@ const pickTypeFromApi = (obj) => {
 };
 
 // ---- Safe JSON helper (handles session-expired HTML / non-JSON) ----
+const getAuthToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
 const fetchJSON = async (url, options = {}) => {
+  const token = getAuthToken();
+  const { headers: optHeaders, ...restOptions } = options;
   const res = await fetch(url, {
     credentials: "include",
+    ...restOptions,
     headers: {
       Accept: "application/json",
-      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(optHeaders || {}),
     },
-    ...options,
   });
 
   const text = await res.text();
@@ -308,17 +314,22 @@ const LANG_INIT = ["Arabic", "English"];
 // ✅ APIs
 const MASTER_LEAD_URL = `${API_BASE_URL}/api/Master/GetMasterDataLead`;
 const FETCH_CUSTOMER_URL = `${API_BASE_URL}/api/Customer/FetchCustomerDetails`;
-const SUBSOURCE_URL = `${API_BASE_URL}/api/Opportunity/OppSubSource`;
-const DISPOSITION_URL = `${API_BASE_URL}/api/Disposition/List`;
-const SUBDISPOSITION_URL = `${API_BASE_URL}/api/Disposition/SubDispositionList`;
+const SUBSOURCE_URL = `${API_BASE_URL}/api/Master/SubSource`;
+const DISPOSITION_URL = `${API_BASE_URL}/api/Disposition/ManualDisposition`;
+const SUBDISPOSITION_URL = `${API_BASE_URL}/api/Disposition/ManualSubDisposition`;
 const CREATE_OPP_URL = `${API_BASE_URL}/api/LeadOpp/createOpp`;
 const LOAD_CUSTOMERS_URL = `${API_BASE_URL}/api/Customer/LoadCustomers`;
 
 const GET_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/getLead/${id}`;
 const UPDATE_LEAD_URL = (id) => `${API_BASE_URL}/api/LeadOpp/lead/update/${id}`;
+const LINK_CUSTOMER_URL = (id) => `${API_BASE_URL}/api/LeadOpp/lead/linkCustomer/${id}`;
+const NATIONALITY_URL = `${API_BASE_URL}/api/Master/Nationality`;
+const CREATE_CUSTOMER_URL = `${API_BASE_URL}/api/Opportunity/CreateCustomer`;
 
 // ✅ Employees
 const EMPLOYEES_URL = `${API_BASE_URL}/api/Employees`;
+const DOCTORS_URL = (centerCode) =>
+  `${API_BASE_URL}/api/Master/Doctors/${encodeURIComponent(centerCode)}`;
 
 const LS_NEW_LEAD_KEY = (oppCode) => `EW_OPP_NEW_LEAD_${oppCode}`;
 
@@ -792,6 +803,15 @@ subSourceName: "",
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // ── Convert → Create-Customer popup (mirrors External Lead Form) ──
+  const [showCustomerPopup, setShowCustomerPopup] = useState(false);
+  const [creatingCustomer, setCreatingCustomer]   = useState(false);
+  const [nationalityOptions, setNationalityOptions] = useState([]);
+  const [customerForm, setCustomerForm] = useState({
+    firstName: "", lastName: "", mobileNo: "", email: "",
+    countryCode: "", nationalityId: "", dateOfBirth: "", gender: "",
+  });
   const [customerRecId, setCustomerRecId] = useState(0);
 
   useEffect(() => {
@@ -817,11 +837,13 @@ subSourceName: "",
 
     const loadCustomer = async () => {
       try {
-        const data = await fetchJSON(FETCH_CUSTOMER_URL, {
+        const resp = await fetchJSON(FETCH_CUSTOMER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ custID: id }),
         });
+        // FetchCustomerDetails returns { success, message, data:{...} } — unwrap (robust if raw too)
+        const data = resp?.data ?? resp;
 setForm((p) => ({
   ...p,
   firstName: safe(p.firstName || data?.firstName),
@@ -900,24 +922,25 @@ if (!isEdit) {
         const sourcesMapped = (Array.isArray(data?.sources) ? data.sources : [])
           .map((s) => ({ label: safe(s?.name).trim(), value: String(s?.value ?? ""), code: safe(s?.code).trim() }))
           .filter((x) => x.label);
-        setSourceOptions(sourcesMapped.length ? sourcesMapped : [{ label: "< - Select one - >", value: "" }]);
+        setSourceOptions([{ label: "< - Select one - >", value: "" }, ...sourcesMapped]);
 
+        // Doctors from GetMasterDataLead.doctorMappings (employee RECID + name, centre-scoped).
+        // Value = recid (matches the int Doctor_FK); drop any that didn't resolve to a RECID.
         const docsMapped = (Array.isArray(data?.doctorMappings) ? data.doctorMappings : [])
           .map((d) => {
             const name = `${safe(d?.firstName).trim()} ${safe(d?.lastName).trim()}`.trim();
             return {
               label: name || safe(d?.employeeCode).trim(),
-              value: String(d?.recid ?? d?.value ?? ""),
-              code: safe(d?.employeeCode).trim(),
+              value: String(toNumberOr0(d?.recid ?? d?.value)),
             };
           })
-          .filter((x) => x.label && x.value);
+          .filter((x) => x.label && x.value && x.value !== "0");
         setDoctorOptions([{ label: "< - Select one - >", value: "" }, ...docsMapped, { label: "None", value: "0" }]);
 
         const vertMapped = (Array.isArray(data?.appointmentVerticals) ? data.appointmentVerticals : [])
           .map((v) => ({ label: safe(v?.name).trim(), value: String(v?.value ?? ""), code: safe(v?.code).trim() }))
           .filter((x) => x.label);
-        setVerticalOptions(vertMapped.length ? vertMapped : [{ label: "< - Select one - >", value: "" }]);
+        setVerticalOptions([{ label: "< - Select one - >", value: "" }, ...vertMapped]);
 
         const medMapped = (Array.isArray(data?.oppMediums) ? data.oppMediums : [])
           .map((m) => ({ label: safe(m?.name).trim(), value: String(m?.value ?? ""), code: safe(m?.code).trim() }))
@@ -966,7 +989,7 @@ if (!isEdit) {
     setSubSourceLoading(true);
     try {
       const data = await fetchJSON(
-        `${API_BASE_URL}/api/Opportunity/OppSubSource/${encodeURIComponent(srcCode)}`,
+        `${API_BASE_URL}/api/Master/SubSource/${encodeURIComponent(srcCode)}`,
         { method: "GET" }
       );
 
@@ -1035,15 +1058,22 @@ if (!isEdit) {
       setDispLoading(true);
       try {
         const data = await fetchJSON(DISPOSITION_URL, { method: "GET" });
-        const arr = Array.isArray(data) ? data : [];
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
         const mapped = arr
           .filter((d) => d?.isActive !== false)
-          .map((d) => ({ label: safe(d?.dispositionName).trim(), value: String(d?.dispositionID ?? "") }))
+          .map((d) => ({ label: safe(d?.dispositionName).trim(), value: String(d?.dispositionId ?? d?.dispositionID ?? "") }))
           .filter((x) => x.label && x.value)
           .filter((x) => norm(x.label) !== "pending");
 
         setDispositionOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
+
+        // New lead/opp: prefill disposition to WIP (matches the backend's WIP default).
+        // Edit keeps the record's own disposition (set from getLead), so only do this on create.
+        if (!isEdit) {
+          const wip = mapped.find((x) => norm(x.label) === "wip");
+          if (wip) setForm((p) => (p.dispositionId ? p : { ...p, dispositionId: wip.value }));
+        }
       } catch (e) {
         console.error("Failed to load dispositions", e);
         setDispositionOptions([{ label: "< - Select one - >", value: "" }]);
@@ -1066,11 +1096,11 @@ if (!isEdit) {
     const loadSubDisps = async () => {
       setSubDispLoading(true);
       try {
-        const data = await fetchJSON(SUBDISPOSITION_URL, { method: "GET" });
-        const arr = Array.isArray(data) ? data : [];
+        const data = await fetchJSON(`${SUBDISPOSITION_URL}?dispositionId=${dispId}`, { method: "GET" });
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
         const mapped = arr
-          .filter((s) => s?.isActive !== false && toNumberOr0(s?.dispositionID) === dispId)
-          .map((s) => ({ label: safe(s?.subDispositionName).trim(), value: String(s?.subDispositionID ?? "") }))
+          .filter((s) => s?.isActive !== false && toNumberOr0(s?.dispositionId ?? s?.dispositionID) === dispId)
+          .map((s) => ({ label: safe(s?.subDispositionName).trim(), value: String(s?.subDispositionId ?? s?.subDispositionID ?? "") }))
           .filter((x) => x.label && x.value);
 
         setSubDispositionOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
@@ -1098,10 +1128,14 @@ if (!isEdit) {
     const run = async () => {
       setCampaignLoading(true);
       try {
-        const data = await fetchJSON(GET_CAMPAIGN_URL(code), { method: "GET" });
+        const resp = await fetchJSON(GET_CAMPAIGN_URL(code), { method: "GET" });
         if (!alive) return;
 
-        const recid = toNumberOr0(data?.recid);
+        // getCampaign returns { success, data:{...} } — unwrap like CampaignDetails (d?.data ?? d).
+        const data = resp?.data ?? resp;
+        // Campaign_FK must be CLINIC_OPPORTUNITYDETAILS.RECID (campaignDetailId) — the value the
+        // campaign list filters on — NOT the summary recid. Mirror CampaignDetails' precedence.
+        const recid = toNumberOr0(data?.campaignDetailId ?? data?.recid ?? data?.recId);
         setCampaignRecId(recid);
       } catch (e) {
         console.error("❌ getCampaign failed:", e);
@@ -1126,9 +1160,11 @@ if (!isEdit) {
     const run = async () => {
       setLeadLoading(true);
       try {
-        const data = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
+        const resp = await fetchJSON(GET_LEAD_URL(numericLeadOppId), { method: "GET" });
         if (!alive) return;
 
+        // getLead may return { success, data:{...} } — unwrap so prefill reads the right keys.
+        const data = resp?.data ?? resp;
         setLeadApi(data);
 
         // ✅ Store SalesOwner (creator = X) once from API (do NOT overwrite on updates)
@@ -1172,7 +1208,7 @@ if (!isEdit) {
             preferredLanguage: safe(data?.prefLang ?? p.preferredLanguage),
 
             centerCode: String(data?.clinicCentre_FK ?? p.centerCode ?? ""),
-            doctor: String(data?.doctor_FK ?? p.doctor ?? ""),
+            doctor: String(toNumberOr0(data?.doctor_FK)), // 0 / null -> "0" = "None" option
 
             interestedVerticalCode: String(data?.interestIn_FK ?? p.interestedVerticalCode ?? ""),
             sourceName: String(data?.leadSource_FK ?? p.sourceName ?? ""),
@@ -1202,7 +1238,7 @@ if (!isEdit) {
     return () => {
       alive = false;
     };
-  }, [isEdit, numericLeadOppId, mediumOptions]);
+  }, [isEdit, numericLeadOppId]);
 
   /** ---------------- Events ---------------- */
   const onChange = (e) => {
@@ -1554,6 +1590,79 @@ const subMediumName = safe(form.subMedium || "Manual");
     });
   };
 
+  // popup styles (kept inline to mirror the external form)
+  const cInput = { width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #cfd6e4", borderRadius: 8, boxSizing: "border-box" };
+  const cBtn   = { background: "#0b1b37", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
+
+  // Load nationality options for the convert popup
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await fetchJSON(NATIONALITY_URL, { method: "GET" });
+        const list = Array.isArray(data) ? data : (data?.items || data?.data || []);
+        if (alive) {
+          setNationalityOptions(
+            list.map((n) => ({ id: n.id ?? n.RECID ?? n.value, name: n.name ?? n.NATIONALITYNAME ?? n.label }))
+          );
+        }
+      } catch { /* non-fatal */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  // Create the customer, then back-stamp it onto the lead (Customer_FK) via linkCustomer.
+  const handleCreateCustomer = async () => {
+    const cf = customerForm;
+    const miss = [];
+    if (!safe(cf.firstName).trim())   miss.push("First name");
+    if (!safe(cf.lastName).trim())    miss.push("Last name");
+    if (!safe(cf.countryCode).trim()) miss.push("Country code");
+    if (!safe(cf.mobileNo).trim())    miss.push("Mobile");
+    if (!isValidEmail(cf.email))      miss.push("Email");
+    if (!String(cf.nationalityId || "").trim()) miss.push("Nationality");
+    if (!safe(cf.dateOfBirth).trim()) miss.push("Date of birth");
+    if (!safe(cf.gender).trim())      miss.push("Gender");
+    if (miss.length) { alert("Please fill: " + miss.join(", ")); return; }
+
+    setCreatingCustomer(true);
+    try {
+      const resC = await fetchJSON(CREATE_CUSTOMER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName:     safe(cf.firstName).trim(),
+          lastName:      safe(cf.lastName).trim(),
+          countryCode:   safe(cf.countryCode).trim(),
+          mobileNo:      safe(cf.mobileNo).trim(),
+          email:         safe(cf.email).trim(),
+          nationalityId: cf.nationalityId,
+          dateOfBirth:   cf.dateOfBirth,
+          gender:        cf.gender,
+          oppCode:       safe(resolvedOppCode).trim(),
+        }),
+      });
+
+      // attach the freshly-created customer to this lead
+      const newRecId = resC?.recId ?? resC?.data?.recId ?? resC?.customerRecId;
+      if (newRecId) {
+        await fetchJSON(LINK_CUSTOMER_URL(numericLeadOppId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ customerRecId: newRecId }),
+        });
+      }
+
+      setCreatingCustomer(false);
+      setShowCustomerPopup(false);
+      showToast(`Customer created${resC && resC.custId ? " - " + resC.custId : ""}`);
+      navigate(-1);
+    } catch (err) {
+      setCreatingCustomer(false);
+      alert(`Create customer failed: ${err?.message || err}`);
+    }
+  };
+
   const handleSubmit = async () => {
     if (isEdit && isClosed) {
       showToast("A Closed Lead/Opportunity cannot be updated.");
@@ -1573,7 +1682,23 @@ const subMediumName = safe(form.subMedium || "Manual");
     setSaving(true);
     try {
       if (isEdit) {
-        await updateLeadOpp();
+        const saveRes = await updateLeadOpp();
+        // updateLead returns { success, message, data:{ convert, prefill } }
+        const rd = saveRes?.data ?? saveRes;
+        if (rd?.convert) {
+          const pf = rd.prefill || {};
+          setCustomerForm((prev) => ({
+            ...prev,
+            firstName:   pf.firstName   || safe(form.firstName),
+            lastName:    pf.lastName    || safe(form.lastName),
+            mobileNo:    pf.mobileNo    || safe(form.mobile),
+            countryCode: pf.countryCode || safe(form.countryCode),
+            email:       pf.email       || safe(form.email),
+          }));
+          setShowCustomerPopup(true);
+          setSaving(false);
+          return;
+        }
         navigate(-1);
         return;
       }
@@ -2201,6 +2326,55 @@ const subMediumName = safe(form.subMedium || "Manual");
           }
         }
       `}</style>
+
+      {showCustomerPopup && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(560px, 92vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
+            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>Create Customer</h3>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: "#555" }}>
+              This lead is being converted. Confirm the details below to add them as a customer.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={{ fontSize: 13 }}>First name*
+                <input value={customerForm.firstName} onChange={(e) => setCustomerForm((p) => ({ ...p, firstName: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Last name*
+                <input value={customerForm.lastName} onChange={(e) => setCustomerForm((p) => ({ ...p, lastName: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Country code*
+                <input value={customerForm.countryCode} onChange={(e) => setCustomerForm((p) => ({ ...p, countryCode: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Mobile*
+                <input value={customerForm.mobileNo} onChange={(e) => setCustomerForm((p) => ({ ...p, mobileNo: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13, gridColumn: "1 / -1" }}>Email*
+                <input value={customerForm.email} onChange={(e) => setCustomerForm((p) => ({ ...p, email: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Nationality*
+                <select value={customerForm.nationalityId} onChange={(e) => setCustomerForm((p) => ({ ...p, nationalityId: e.target.value }))} style={cInput}>
+                  <option value="">Select...</option>
+                  {nationalityOptions.map((n) => (<option key={n.id} value={n.id}>{n.name}</option>))}
+                </select>
+              </label>
+              <label style={{ fontSize: 13 }}>Date of birth*
+                <input type="date" value={customerForm.dateOfBirth} onChange={(e) => setCustomerForm((p) => ({ ...p, dateOfBirth: e.target.value }))} style={cInput} />
+              </label>
+              <label style={{ fontSize: 13 }}>Gender*
+                <select value={customerForm.gender} onChange={(e) => setCustomerForm((p) => ({ ...p, gender: e.target.value }))} style={cInput}>
+                  <option value="">Select...</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 20, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowCustomerPopup(false)} disabled={creatingCustomer} style={{ ...cBtn, background: "#e0e0e0", color: "#333" }}>Cancel</button>
+              <button onClick={handleCreateCustomer} disabled={creatingCustomer} style={cBtn}>{creatingCustomer ? "Creating..." : "Create Customer"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

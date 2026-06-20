@@ -222,7 +222,18 @@ const OpportunityDashboard = () => {
         if (isManualLeadRow(n)) { const ml=manualMap.get(String(n.oppCode||"").trim().toUpperCase()); if(ml) Object.assign(n,ml); }
         return n;
       };
-      setOpportunityData(baseArr.map(normalize).map((r,i)=>({ ...r, __uid:`${r.recID??r.oppCode??"row"}-${r.oRuleCode??r.ruleCode??""}-${i}` })));
+      // De-dupe by campaign header (CS.RECID): one campaign can have >1 LineNum=1
+      // detail row, which fans the list query into multiple rows sharing the same
+      // recID. Collapse those to a single row. Rows without a recID are kept as-is.
+      const seenRec = new Set();
+      const baseDeduped = baseArr.filter(it => {
+        const key = it?.recID ?? it?.recid;
+        if (key === undefined || key === null || key === "") return true;
+        if (seenRec.has(key)) return false;
+        seenRec.add(key);
+        return true;
+      });
+      setOpportunityData(baseDeduped.map(normalize).map((r,i)=>({ ...r, __uid:`${r.recID??r.oppCode??"row"}-${r.oRuleCode??r.ruleCode??""}-${i}` })));
     } catch(e) { console.error("Fetch failed:",e); setOpportunityData([]); }
     finally { setLoading(false); }
   };
