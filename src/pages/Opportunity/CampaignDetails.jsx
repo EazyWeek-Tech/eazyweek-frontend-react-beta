@@ -405,8 +405,10 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
 
   const openRow = (row) => {
     const rc = ruleCode;
-    if (rc==="R3") return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
-    if (rc==="R4") return navigate(`/opportunity/${oppCode}/cancelled/${row.custID}`,{state:{row,header,oppCode}});
+    // R1–R4 (transaction rules) all open the No Show detail page
+    if (rc==="R1" || rc==="R2" || rc==="R3" || rc==="R4")
+      return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
+    // R5/R6 (master rules)
     navigate(`/opportunity/${oppCode}/customer/${row.custID}`,{state:{row,header,oppCode}});
   };
 
@@ -1151,12 +1153,13 @@ export default function CampaignDetails() {
       <Toast msg={toast} />
 
       <style>{`
-        .cd-container {  }
+        .cd-container { padding: 20px; }
         .cd-breadcrumb { font-size:13px; color:#64748b; margin-bottom:14px; }
         .cd-bclink { color:#334b71; font-weight:700; cursor:pointer; }
         .cd-bclink:hover { text-decoration:underline; }
         .cd-bccur  { color:#94a3b8; }
 
+        .cd-card { background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 10px rgba(0,0,0,.07); }
 
         .cd-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #e8edf5; }
         .cd-headerleft { display:grid; gap:8px; }
