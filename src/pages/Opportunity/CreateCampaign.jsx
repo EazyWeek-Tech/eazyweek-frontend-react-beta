@@ -1,7 +1,56 @@
 // src/pages/Opportunity/CreateCampaign.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { API_BASE_URL } from "../../config";
+
+// ── R7 bulk-upload: Excel header → payload key ──
+const UPLOAD_HEADER_MAP = {
+  custmobileno:      "custMobileNo",
+  firstname:         "firstName",
+  lastname:          "lastName",
+  salesowner:        "salesOwner",
+  doctor:            "doctor",
+  createddate:       "createdDate",
+  oppcode:           "oppCode",
+  oppname:           "oppName",
+  externalsource:    "externalSource",
+  externalsubsource: "externalSubSource",
+  cliniclocation:    "clinicLocation",
+  orulecode:         "oRuleCode",
+};
+const UPLOAD_REQUIRED = [
+  "custMobileNo", "firstName", "lastName", "salesOwner", "doctor", "createdDate",
+  "externalSource", "externalSubSource", "clinicLocation", "oRuleCode",
+];
+const normHeaderKey = (h) => String(h || "").trim().toLowerCase().replace(/[\s_]+/g, "");
+const normalizeUploadRow = (raw) => {
+  const out = {};
+  Object.keys(raw || {}).forEach((k) => {
+    const mapped = UPLOAD_HEADER_MAP[normHeaderKey(k)];
+    if (!mapped) return;
+    let v = raw[k];
+    if (v instanceof Date) v = v.toISOString();
+    out[mapped] = (v == null ? "" : String(v)).trim();
+  });
+  out.oRuleCode = "R7"; // forced regardless of file
+  return out;
+};
+const validateUploadRows = (rows, centerCode) => {
+  const errs = [];
+  rows.forEach((r, i) => {
+    const n = i + 1;
+    const missing = UPLOAD_REQUIRED.filter((k) => !String(r[k] || "").trim());
+    if (missing.length) errs.push(`Row ${n}: missing ${missing.join(", ")}`);
+    if (
+      String(r.clinicLocation || "").trim() &&
+      String(r.clinicLocation).trim().toUpperCase() !== String(centerCode || "").trim().toUpperCase()
+    ) {
+      errs.push(`Row ${n}: ClinicLocation "${r.clinicLocation}" must match your centre "${centerCode}"`);
+    }
+  });
+  return errs;
+};
 
 /* ── Theme ──────────────────────────────────────────────────────────────────── */
 const C = {
@@ -295,6 +344,46 @@ export default function CreateCampaign() {
   });
   const [ruleErrors, setRuleErrors] = useState({});
 
+  // Step 2 — R7 Excel bulk upload
+  const [uploadFileName, setUploadFileName] = useState("");
+  const [uploadRows,     setUploadRows]     = useState([]);
+  const [uploadErrors,   setUploadErrors]   = useState([]);
+  const [parsing,        setParsing]        = useState(false);
+
+  const handleExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParsing(true);
+    setUploadFileName(file.name);
+    setUploadRows([]);
+    setUploadErrors([]);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb  = XLSX.read(ev.target.result, { type: "array", cellDates: true });
+        const ws  = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const rows = raw
+          .map(normalizeUploadRow)
+          .filter((r) => Object.values(r).some((v) => String(v || "").trim()));
+        const errs = validateUploadRows(rows, general.centerCode);
+        setUploadRows(rows);
+        setUploadErrors(errs);
+        if (!rows.length)      showToast("No data rows found in the file.", "error");
+        else if (errs.length)  showToast(`${errs.length} validation issue(s) found.`, "error");
+        else                   showToast(`${rows.length} row(s) ready to upload.`);
+      } catch (err) {
+        setUploadRows([]);
+        setUploadErrors([`Could not read file: ${err.message}`]);
+        showToast("Could not read the Excel file.", "error");
+      } finally {
+        setParsing(false);
+      }
+    };
+    reader.onerror = () => { setParsing(false); showToast("File read error.", "error"); };
+    reader.readAsArrayBuffer(file);
+  };
+
   const showToast = (message, type="success") => {
     setToast({message,type}); setTimeout(()=>setToast(null),4000);
   };
@@ -432,12 +521,30 @@ export default function CreateCampaign() {
 
   /* ── Submit ───────────────────────────────────────────────────────────────── */
   const handleActivate = async () => {
+    // R7: block activation while the uploaded file has unresolved validation issues.
+    if (general.ruleCode === "R7" && isManualUpload && uploadRows.length && uploadErrors.length) {
+      showToast("Please fix the Excel validation issues before activating.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const payload = buildPayload();
       const res = await authPost(`${API_BASE_URL}/api/Opportunity/CreateCampaign`, payload);
       if (res?.success === false) throw new Error(res.message);
-      showToast(`Campaign ${res?.data?.oppCode || ""} created successfully!`);
+      const newOppCode = res?.data?.oppCode || oppCodePreview || "";
+
+      // R7 — push the uploaded external-source rows into the freshly created campaign
+      if (general.ruleCode === "R7" && isManualUpload && uploadRows.length) {
+        const up = await authPost(`${API_BASE_URL}/api/Opportunity/UploadExternalSource`, {
+          oppCode: newOppCode,
+          oppName: general.oppName,
+          rows:    uploadRows,
+        });
+        if (up?.success === false) throw new Error(up.message || "Row upload failed.");
+        showToast(`Campaign ${newOppCode} created — ${up?.data?.inserted ?? uploadRows.length} row(s) uploaded.`);
+      } else {
+        showToast(`Campaign ${newOppCode || ""} created successfully!`);
+      }
       setTimeout(() => navigate("/opportunity"), 1500);
     } catch(e) {
       showToast(e.message || "Failed to create campaign.", "error");
@@ -449,12 +556,27 @@ export default function CreateCampaign() {
   const subSourceOptions = externalSources
     .find(s => s.sourceCode === rule.externalSource)?.subSources || [];
 
+  // Bulk Excel upload is only for the "Others" source + "Manual Upload" sub-source combo.
+  const selectedSourceObj = externalSources.find(s => s.sourceCode === rule.externalSource);
+  const selectedSubSrcObj = subSourceOptions.find(s => s.subSourceCode === rule.externalSubSource);
+  const isManualUpload =
+    String(selectedSourceObj?.name || "").trim().toLowerCase() === "others" &&
+    String(selectedSubSrcObj?.name || "").trim().toLowerCase() === "manual upload";
+
+  // Clear any staged file if the source/sub-source no longer matches the manual-upload combo.
+  useEffect(() => {
+    if (!isManualUpload && (uploadRows.length || uploadFileName || uploadErrors.length)) {
+      setUploadRows([]); setUploadErrors([]); setUploadFileName("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManualUpload]);
+
   return (
     <div style={{ fontFamily:"Lato,sans-serif", padding:"24px 28px", color:C.text, maxWidth:760, margin:"0 auto" }}>
 
       {/* Header */}
       <div style={{ marginBottom:24 }}>
-        <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>📣 Create Campaign</div>
+        <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}> Create Campaign</div>
         <div style={{ fontSize:13, color:C.sub, marginTop:3 }}>
           <span style={{ color:C.navy, cursor:"pointer" }}
             onClick={()=>navigate("/opportunity")}>Opportunity</span>
@@ -629,6 +751,35 @@ export default function CreateCampaign() {
                   placeholder="Select sub-source…"
                   options={subSourceOptions.map(s=>({value:s.subSourceCode, label:s.name||s.subSourceCode}))} />
               </FieldRow>
+            )}
+
+            {/* R7 — Excel bulk upload (only for source "Others" + sub-source "Manual Upload") */}
+            {isManualUpload && (
+            <FieldRow label="Bulk Upload (Excel)"
+              hint="Required columns: CustMobileNo, FirstName, LastName, Sales Owner, Doctor, CreatedDate, ExternalSource, ExternalSubSource, ClinicLocation, ORuleCode. OppCode & OppName come from Step 1. ClinicLocation must match your centre; ORuleCode is set to R7. Rows are inserted into the campaign on Activate.">
+              <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload}
+                style={{ fontSize:13 }} />
+              {parsing && (
+                <div style={{ fontSize:12, color:"#6b7280", marginTop:6 }}>Reading file…</div>
+              )}
+              {uploadFileName && !parsing && (
+                <div style={{ fontSize:12, marginTop:6, color: uploadErrors.length ? C.red : "#15803d" }}>
+                  {uploadFileName} — {uploadRows.length} row(s)
+                  {uploadErrors.length ? `, ${uploadErrors.length} issue(s)` : " ✓ ready"}
+                </div>
+              )}
+              {uploadErrors.length > 0 && (
+                <div style={{ marginTop:8, maxHeight:140, overflowY:"auto", background:"#fff5f5",
+                  border:`1px solid ${C.red}`, borderRadius:8, padding:"8px 10px" }}>
+                  {uploadErrors.slice(0,50).map((er,i)=>(
+                    <div key={i} style={{ fontSize:11, color:C.red }}>⚠ {er}</div>
+                  ))}
+                  {uploadErrors.length>50 && (
+                    <div style={{ fontSize:11, color:C.red }}>…and {uploadErrors.length-50} more</div>
+                  )}
+                </div>
+              )}
+            </FieldRow>
             )}
           </>)}
 
