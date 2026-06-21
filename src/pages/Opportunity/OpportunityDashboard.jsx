@@ -311,21 +311,6 @@ const OpportunityDashboard = () => {
       setSelectedRows([]);setCurrentPage(1);setStatusFilter("1");await fetchOpportunities("1");
     }catch(e){showToast(e.message||"Error expiring","error");}
   };
-  const handleRefresh=async()=>{
-    setLoading(true);
-    try{
-      const codes=selectedRows.length
-        ?selectedRows.map(id=>{const r=opportunityData.find(x=>rowId(x)===id);return String(r?.oppCode||id).trim();}).filter(Boolean)
-        :["123"];
-      for(const code of codes){
-        const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/GetLatestData/${encodeURIComponent(code)}`);
-        if(!r.ok)throw new Error(`GetLatestData failed for ${code}`);
-      }
-      await fetchOpportunities(statusFilter);
-      showToast(codes[0]==="123"?"Latest data loaded for all campaigns":`Latest data loaded for ${codes.length} campaign(s)`);
-    }catch(e){showToast(e?.message||"Failed to get latest data","error");}
-    finally{setLoading(false);}
-  };
   const handleOpportunityClick=(row)=>{
   if(!row)return;
   const code=String(row?.oppCode||"").trim();
@@ -380,10 +365,6 @@ const OpportunityDashboard = () => {
               + Create Campaign
             </button>
           </>)}
-          <button onClick={handleRefresh} style={{ padding:"9px 16px", background:C.navyDk,
-            color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            ↻ Get Latest Data
-          </button>
         </div>
       </div>
 

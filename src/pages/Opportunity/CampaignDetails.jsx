@@ -408,8 +408,8 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
     // R1–R4 (transaction rules) all open the No Show detail page
     if (rc==="R1" || rc==="R2" || rc==="R3" || rc==="R4")
       return navigate(`/opportunity/${oppCode}/noshow/${row.custID}`,{state:{row,header,oppCode}});
-    // R5/R6 (master rules)
-    navigate(`/opportunity/${oppCode}/customer/${row.custID}`,{state:{row,header,oppCode}});
+    // R5/R6 (master rules) → master lead form (customer prefilled, master-transtype dispositions)
+    navigate(`/opportunity/master/${oppCode}/lead/${row.custID}`,{state:{row,header,oppCode}});
   };
 
   const exportCSV = () => {

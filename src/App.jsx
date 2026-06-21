@@ -93,6 +93,7 @@ import FormBuilder from "./pages/EMR/FormBuilder";
 import FormList from "./pages/EMR/FormList";
 import CreateCampaign from "./pages/Opportunity/CreateCampaign";
 import CampaignDetails from "./pages/Opportunity/CampaignDetails";
+import MasterLeadForm from "./pages/Opportunity/MasterLeadForm";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -279,6 +280,7 @@ if (user && showFirstLogin) {
   element={<ManualOppCustomerDetails />}
   
 />
+<Route path="/opportunity/master/:oppCode/lead/:custId" element={<MasterLeadForm />} />
 
 <Route path="/opportunity/:oppCode/details"  element={<CampaignDetails />} />
 

@@ -84,6 +84,14 @@ const searchServices = async (query, centerCode) => {
   } catch { return []; }
 };
 
+// Service categories — full list (endpoint takes no query/centre params).
+const loadServiceCategories = async () => {
+  try {
+    const d = await authGet(`${API_BASE_URL}/api/Master/ServiceCategory`);
+    return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
+  } catch { return []; }
+};
+
 /* ════════════════════════════════════════════════════════════════════════════
    MODULE-LEVEL COMPONENTS
    ════════════════════════════════════════════════════════════════════════════ */
@@ -238,6 +246,107 @@ function ServiceMultiSelect({ value = [], onChange, placeholder, centerCode, exc
             {suggestions.map((s, i) => {
               const name = getSvcName(s);
               const code = getSvcCode(s);
+              return (
+                <div key={i} onMouseDown={()=>handlePick(s)}
+                  style={{ padding:"9px 14px", cursor:"pointer", fontSize:13,
+                    borderBottom:`1px solid ${C.border}`, background:"#fff" }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.navyLt}
+                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                  <span style={{ fontWeight:600, color:C.text }}>{name}</span>
+                  {code && <span style={{ fontSize:11, color:C.sub, marginLeft:8 }}>({code})</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// CategoryMultiSelect — like ServiceMultiSelect but for Service Categories.
+// The /api/Master/ServiceCategory endpoint returns the FULL list (no query/centre
+// param), so we fetch once and filter client-side. value: array of category names.
+function CategoryMultiSelect({ value = [], onChange, placeholder, excludeNames = [] }) {
+  const [all,     setAll]     = useState([]);
+  const [query,   setQuery]   = useState("");
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const selected = Array.isArray(value) ? value : (value ? [value] : []);
+
+  const getCatName = (s) =>
+    s.categoryName || s.CategoryName || s.CATEGORYNAME ||
+    s.serviceCategory || s.SERVICECATEGORY ||
+    s.name || s.NAME || s.value || String(s);
+  const getCatCode = (s) =>
+    s.categoryCode || s.CATEGORYCODE || s.code || s.CODE || "";
+
+  // Load the full category list once on mount.
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    loadServiceCategories().then(list => {
+      if (!alive) return;
+      setAll(Array.isArray(list) ? list : []);
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const blocked = new Set([...selected, ...excludeNames].map(n => String(n).toLowerCase()));
+  const q = query.trim().toLowerCase();
+  const suggestions = all
+    .filter(s => !blocked.has(getCatName(s).toLowerCase()))
+    .filter(s => !q || getCatName(s).toLowerCase().includes(q))
+    .slice(0, 50);
+
+  const handlePick = (cat) => {
+    const name = getCatName(cat);
+    if (!selected.includes(name)) onChange([...selected, name]);
+    setQuery(""); setOpen(false);
+  };
+  const handleRemove = (name) => onChange(selected.filter(s => s !== name));
+
+  return (
+    <div>
+      {/* Selected tags */}
+      {selected.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+          {selected.map(name => (
+            <span key={name} style={{ display:"inline-flex", alignItems:"center", gap:5,
+              background:C.navyLt, color:C.navy, borderRadius:99,
+              padding:"4px 10px", fontSize:12, fontWeight:700, border:`1px solid ${C.border}` }}>
+              {name}
+              <span onClick={()=>handleRemove(name)}
+                style={{ cursor:"pointer", color:C.red, fontWeight:800,
+                  fontSize:14, lineHeight:1, marginLeft:2 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Search input */}
+      <div style={{ position:"relative" }}>
+        <input value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(()=>setOpen(false), 180)}
+          placeholder={selected.length ? "Add more…" : (placeholder||"Select service category…")}
+          style={{ width:"100%", padding:"10px 36px 10px 12px", border:`1px solid ${C.border}`,
+            borderRadius:8, fontSize:13, fontFamily:"Lato,sans-serif", outline:"none",
+            boxSizing:"border-box" }} />
+        {loading && (
+          <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+            fontSize:11, color:C.sub }}>⟳</div>
+        )}
+        {/* Dropdown */}
+        {open && suggestions.length > 0 && (
+          <div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:200,
+            background:"#fff", border:`1px solid ${C.border}`, borderRadius:8,
+            boxShadow:"0 4px 14px rgba(0,0,0,.1)", maxHeight:220, overflowY:"auto", marginTop:2 }}>
+            {suggestions.map((s, i) => {
+              const name = getCatName(s);
+              const code = getCatCode(s);
               return (
                 <div key={i} onMouseDown={()=>handlePick(s)}
                   style={{ padding:"9px 14px", cursor:"pointer", fontSize:13,
@@ -662,16 +771,16 @@ export default function CreateCampaign() {
 
           {/* R1 — Paid X Not Y */}
           {general.ruleCode === "R1" && (<>
-            <FieldRow label="Paid for (X) — Services" hint="Services the customer paid for (multi-select)" required>
-              <ServiceMultiSelect value={rule.xvalue} centerCode={general.centerCode}
-                placeholder="Search and add services…"
+            <FieldRow label="Paid for (X) — Service Category" hint="Service categories the customer paid for (multi-select)" required>
+              <CategoryMultiSelect value={rule.xvalue}
+                placeholder="Select service categories…"
                 excludeNames={rule.yvalue}
                 onChange={v=>setRule(p=>({...p,xvalue:v}))} />
             </FieldRow>
-            <FieldRow label="But Not for (Y) — Services"
-              hint="Services they haven't purchased — cannot overlap with X" required>
-              <ServiceMultiSelect value={rule.yvalue} centerCode={general.centerCode}
-                placeholder="Search and add services…"
+            <FieldRow label="But Not for (Y) — Service Category"
+              hint="Service categories they haven't purchased — cannot overlap with X" required>
+              <CategoryMultiSelect value={rule.yvalue}
+                placeholder="Select service categories…"
                 excludeNames={rule.xvalue}
                 onChange={v=>setRule(p=>({...p,yvalue:v}))} />
             </FieldRow>
@@ -684,10 +793,10 @@ export default function CreateCampaign() {
               marginBottom:16, fontWeight:600 }}>
               Rule: Customer paid for Category X in the past Y days and has no future appointment in Z days for Category P
             </div>
-            <FieldRow label="X — Services (paid for)" required
-              hint="Services the customer already paid for (multi-select)">
-              <ServiceMultiSelect value={rule.xvalue} centerCode={general.centerCode}
-                placeholder="Search and add services…"
+            <FieldRow label="X — Service Category (paid for)" required
+              hint="Service categories the customer already paid for (multi-select)">
+              <CategoryMultiSelect value={rule.xvalue}
+                placeholder="Select service categories…"
                 excludeNames={rule.pvalue}
                 onChange={v=>setRule(p=>({...p,xvalue:v}))} />
             </FieldRow>
@@ -703,10 +812,10 @@ export default function CreateCampaign() {
                 placeholder="e.g. 7"
                 onChange={e=>setRule(p=>({...p,zvalue:e.target.value.replace(/\D/g,"")}))} />
             </FieldRow>
-            <FieldRow label="P — Services to check for future appointment"
-              hint="Services to verify have no upcoming booking (cannot overlap with X)">
-              <ServiceMultiSelect value={rule.pvalue} centerCode={general.centerCode}
-                placeholder="Search and add services…"
+            <FieldRow label="P — Service Category to check for future appointment"
+              hint="Service categories to verify have no upcoming booking (cannot overlap with X)">
+              <CategoryMultiSelect value={rule.pvalue}
+                placeholder="Select service categories…"
                 excludeNames={rule.xvalue}
                 onChange={v=>setRule(p=>({...p,pvalue:v}))} />
             </FieldRow>
