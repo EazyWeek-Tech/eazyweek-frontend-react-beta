@@ -1151,13 +1151,12 @@ export default function CampaignDetails() {
       <Toast msg={toast} />
 
       <style>{`
-        .cd-container { padding: 20px; }
+        .cd-container {  }
         .cd-breadcrumb { font-size:13px; color:#64748b; margin-bottom:14px; }
         .cd-bclink { color:#334b71; font-weight:700; cursor:pointer; }
         .cd-bclink:hover { text-decoration:underline; }
         .cd-bccur  { color:#94a3b8; }
 
-        .cd-card { background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 10px rgba(0,0,0,.07); }
 
         .cd-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #e8edf5; }
         .cd-headerleft { display:grid; gap:8px; }
