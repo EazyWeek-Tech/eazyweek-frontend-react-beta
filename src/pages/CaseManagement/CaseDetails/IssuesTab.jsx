@@ -210,7 +210,7 @@ const insertAtCursor = (el, text) => {
       `${API_BASE_URL}/api/CaseOperation/CaseResponse/${data.caseNo}/ActualResponse`
     );
 
-    const all = Array.isArray(list) ? list : [];
+    const all = Array.isArray(list) ? list : (list?.data ?? []);
 
     // ✅ Find latest draft response (isDraft = true)
     const draftResponse = all.find((r) => r.isDraft === true || r.isDraft === 1);
@@ -272,17 +272,16 @@ useEffect(() => {
     useEffect(() => {
       const run = async () => {
         try {
-          const res = await fetchJSON(`${API_BASE_URL}/api/Employees`);
-          const valid = (Array.isArray(res) ? res : []).filter(
+          const res = await fetchJSON(`${API_BASE_URL}/api/Employee/Dropdown`);
+          const list = (Array.isArray(res) ? res : (res?.data ?? [])).map((e) => ({
+            employeeCode: trim(e.employeeCode ?? e.code ?? e.EMPLOYEECODE),
+            employeeName: trim(e.employeeName ?? e.name ?? `${e.FIRSTNAME || ""} ${e.LASTNAME || ""}`),
+            mobileNo: trim(e.mobileNo ?? e.MOBILEPHONE ?? e.mobilephone),
+            emailID: trim(e.emailID ?? e.EMAIL ?? e.email),
+          }));
+          const normList = list.filter(
             (e) => e.employeeCode && e.employeeName !== "Assign To"
           );
-          const normList = valid.map((e) => ({
-            ...e,
-            employeeCode: trim(e.employeeCode),
-            employeeName: trim(e.employeeName),
-            mobileNo: trim(e.mobileNo),
-            emailID: trim(e.emailID),
-          }));
           setEmployees(normList);
           // IMPORTANT: we DO NOT override assignToCode/assignedTo from hierarchy/URL here.
         } catch (e) {
@@ -349,61 +348,36 @@ useEffect(() => {
       therapistClicked,
     ]);
 
-    // Fetch Case Hierarchy (L1 / L2 details + CC groups)
+    // Case Hierarchy (L1/L2/L3 assignee + CC groups) — derived from the embedded
+    // CaseDetails payload (point #6). No separate CaseHierarchyDB call. Shape kept
+    // identical to the old API result so the CC-switch logic below is unchanged.
     useEffect(() => {
-      const cat = trim(data?.caseCategory || data?.categoryName);
-      const sub = trim(data?.subCategoryName);
-      const sub2 = trim(data?.subSubCategoryName);
-      const sub3 = trim(data?.subSubSubCategoryName || "NA");
-
-      if (!cat || !sub || !sub2) {
-        setHierarchy(null);
-        return;
-      }
-
-      const run = async () => {
-        setHierLoading(true);
-        setHierErr("");
-        try {
-          const url =
-            `${API_BASE_URL}/api/CaseOperation/CaseHierarchyDB` +
-            `?categoryName=${encodeURIComponent(cat)}` +
-            `&subCategoryName=${encodeURIComponent(sub)}` +
-            `&subSubCategoryName=${encodeURIComponent(sub2)}` +
-            `&subSubSubCategoryName=${encodeURIComponent(sub3)}`;
-
-          let res = await fetchJSON(url);
-
-          if (Array.isArray(res)) {
-            const hit = res.find(
-              (r) =>
-                trim(r?.categoryName).toLowerCase() === cat.toLowerCase() &&
-                trim(r?.subCategoryName).toLowerCase() ===
-                  sub.toLowerCase() &&
-                trim(r?.subSubCategoryName).toLowerCase() ===
-                  sub2.toLowerCase() &&
-                trim(r?.subSubSubCategoryName || "NA").toLowerCase() ===
-                  sub3.toLowerCase()
-            );
-            res = hit || null;
-          }
-          setHierarchy(res?.status ? res : res || null);
-        } catch (err) {
-          console.error("Hierarchy fetch failed:", err);
-          setHierarchy(null);
-          setHierErr("Hierarchy not found");
-        } finally {
-          setHierLoading(false);
-        }
+      if (!data) { setHierarchy(null); return; }
+      const h = {
+        firstAssignement:       trim(data.firstAssignmentName),
+        secondAssignement:      trim(data.secondAssignmentName),
+        thirdAssignement:       trim(data.thirdAssignmentName),
+        firstGroupAssignement:  trim(data.firstGroupCC),
+        secondGroupAssignement: trim(data.secondGroupCC),
+        thirdGroupAssignement:  trim(data.thirdGroupCC),
+        firstAssignmentCode:    trim(data.firstAssignmentCode),
+        secondAssignmentCode:   trim(data.secondAssignmentCode),
+        thirdAssignmentCode:    trim(data.thirdAssignmentCode),
+        status: true,
       };
-
-      run();
+      const hasAny =
+        h.firstAssignement || h.secondAssignement ||
+        h.firstGroupAssignement || h.secondGroupAssignement;
+      setHierLoading(false);
+      setHierErr(hasAny ? "" : "Hierarchy not found");
+      setHierarchy(hasAny ? h : null);
     }, [
-      data?.caseCategory,
-      data?.categoryName,
-      data?.subCategoryName,
-      data?.subSubCategoryName,
-      data?.subSubSubCategoryName,
+      data?.firstAssignmentName,
+      data?.secondAssignmentName,
+      data?.thirdAssignmentName,
+      data?.firstGroupCC,
+      data?.secondGroupCC,
+      data?.thirdGroupCC,
     ]);
 
     

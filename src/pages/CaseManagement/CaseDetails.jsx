@@ -8,6 +8,36 @@ import ExpenseTab from "./CaseDetails/ExpenseTab";
 import Toast from "../../components/Toast";
 import { API_BASE_URL } from "../../config";
 
+// Ensure every /api/ request carries the Bearer token the backend's verifyToken
+// expects. Many fetches on this page and its tabs only send credentials:'include'
+// (cookie), which 401s. Installed once globally and guarded by the same flag the
+// Create-Case modal uses, so whichever mounts first patches and the other skips.
+if (typeof window !== "undefined" && !window.__fetchLoggerInstalled) {
+  window.__fetchLoggerInstalled = true;
+  const __originalFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    try {
+      const url = typeof input === "string" ? input : input?.url;
+      const isApi = typeof url === "string" && url.includes("/api/");
+      const h = init.headers || {};
+      const hasAuth =
+        (h && (h.Authorization || h.authorization)) ||
+        (typeof h.get === "function" && h.get("Authorization"));
+      if (isApi && !hasAuth) {
+        const tok =
+          sessionStorage.getItem("ssoToken") ||
+          localStorage.getItem("token") ||
+          sessionStorage.getItem("token") ||
+          "";
+        if (tok) init = { ...init, headers: { ...h, Authorization: `Bearer ${tok}` } };
+      }
+    } catch {
+      /* non-plain headers (Request/Headers) — leave as-is */
+    }
+    return __originalFetch(input, init);
+  };
+}
+
 // --------------------------------------------
 // Config
 // --------------------------------------------
@@ -381,21 +411,19 @@ async function lookupEmployeeByCode(codeRaw) {
   const code = normCodeId(codeRaw);
   if (!code) return null;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+    const res = await fetch(`${API_BASE_URL}/api/Employee/Dropdown`, {
       credentials: "include",
       headers: { Accept: "application/json" },
     });
-    const list = await res.json();
-    if (!Array.isArray(list)) return null;
-    const hit = list.find((e) => normCodeId(e?.employeeCode) === code);
-    return hit
-      ? {
-          employeeCode: trim(hit.employeeCode),
-          employeeName: trim(hit.employeeName),
-          emailID: trim(hit.emailID),
-          mobileNo: trim(hit.mobileNo),
-        }
-      : null;
+    const raw = await res.json();
+    const list = (Array.isArray(raw) ? raw : (raw?.data ?? [])).map((e) => ({
+      employeeCode: trim(e.employeeCode ?? e.code ?? e.EMPLOYEECODE),
+      employeeName: trim(e.employeeName ?? e.name ?? `${e.FIRSTNAME || ""} ${e.LASTNAME || ""}`),
+      emailID: trim(e.emailID ?? e.EMAIL ?? e.email),
+      mobileNo: trim(e.mobileNo ?? e.MOBILEPHONE ?? e.mobilephone),
+    }));
+    const hit = list.find((e) => normCodeId(e.employeeCode) === code);
+    return hit || null;
   } catch {
     return null;
   }
@@ -768,7 +796,8 @@ const CaseDetailsPage = () => {
           `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`,
           { credentials: "include" }
         );
-        const data = await response.json();
+        const raw = await response.json();
+        const data = raw?.data ?? raw;   // unwrap { success, data:{...} } envelope
 
 
         // ✅ NEW requirement: auto-sync session centerCode if mismatch
@@ -886,6 +915,26 @@ try {
           secondSlaCode: trim(data.nextLevelID),
           firstSlaName: trim(data.firstSlaName || ""),
           caseOwnerEmail: trim(data.caseOwnerEmail || data.caseOwnerEMailID || data.ownerEmail || ""),
+
+          // ── Embedded hierarchy (all levels) — removes the separate CaseHierarchyDB call.
+          casePresentLevel:      trim(data.casePresentLevel),
+          firstAssignmentCode:   trim(data.firstAssignmentCode),
+          firstAssignmentName:   trim(data.firstAssignmentName),
+          firstAssignmentEmail:  trim(data.firstAssignmentEmail),
+          firstGroupCC:          trim(data.firstGroupCC),
+          firstSLA:              trim(data.firstSLA),
+          secondAssignmentCode:  trim(data.secondAssignmentCode),
+          secondAssignmentName:  trim(data.secondAssignmentName),
+          secondAssignmentEmail: trim(data.secondAssignmentEmail),
+          secondGroupCC:         trim(data.secondGroupCC),
+          secondSLA:             trim(data.secondSLA),
+          thirdAssignmentCode:   trim(data.thirdAssignmentCode),
+          thirdAssignmentName:   trim(data.thirdAssignmentName),
+          thirdAssignmentEmail:  trim(data.thirdAssignmentEmail),
+          thirdGroupCC:          trim(data.thirdGroupCC),
+          thirdSLA:              trim(data.thirdSLA),
+          hasLevel2:             !!data.hasLevel2,
+          hasLevel3:             !!data.hasLevel3,
         };
 
         setSelectedCaseData(mapped);
@@ -909,71 +958,39 @@ try {
     fetchCaseDetails();
   }, [caseNumber]);
 
-  // hierarchy fetch
+  // Hierarchy — derived from the embedded CaseDetails payload (point #6): no
+  // separate CaseHierarchyDB call. Shape kept identical to the old API result so
+  // all consumers (L1/L2 display, 2-level detection, closure lock) work unchanged.
   useEffect(() => {
-    const cat = trim(selectedCaseData?.caseCategory || selectedCaseData?.categoryName);
-    const sub = trim(selectedCaseData?.subCategoryName);
-    const sub2 = trim(selectedCaseData?.subSubCategoryName);
-    const sub3 = trim(selectedCaseData?.subSubSubCategoryName || "NA");
-    if (!cat || !sub || !sub2) {
-      setHierarchy(null);
-      return;
-    }
-
-    const run = async () => {
-      setHierLoading(true);
-      setHierErr("");
-      try {
-        const url =
-          `${API_BASE_URL}/api/CaseOperation/CaseHierarchyDB` +
-          `?categoryName=${encodeURIComponent(cat)}` +
-          `&subCategoryName=${encodeURIComponent(sub)}` +
-          `&subSubCategoryName=${encodeURIComponent(sub2)}` +
-          `&subSubSubCategoryName=${encodeURIComponent(sub3)}`;
-
-        const r = await fetch(url, {
-          method: "GET",
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
-        const text = await r.text();
-        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}: ${text.slice(0, 180)}`);
-
-        let res;
-        try {
-          res = JSON.parse(text);
-        } catch {
-          throw new Error(`Invalid JSON: ${text.slice(0, 180)}`);
-        }
-
-        let hit = res;
-        if (Array.isArray(res)) {
-          hit =
-            res.find(
-              (x) =>
-                trim(x?.categoryName).toLowerCase() === cat.toLowerCase() &&
-                trim(x?.subCategoryName).toLowerCase() === sub.toLowerCase() &&
-                trim(x?.subSubCategoryName).toLowerCase() === sub2.toLowerCase() &&
-                trim(x?.subSubSubCategoryName || "NA").toLowerCase() === sub3.toLowerCase()
-            ) || null;
-        }
-        setHierarchy(hit?.status ? hit : hit || null);
-      } catch (err) {
-        console.error("Hierarchy fetch failed:", err);
-        setHierarchy(null);
-        setHierErr("Hierarchy not found");
-      } finally {
-        setHierLoading(false);
-      }
+    if (!selectedCaseData) { setHierarchy(null); return; }
+    const h = {
+      firstAssignement:       trim(selectedCaseData.firstAssignmentName),
+      secondAssignement:      trim(selectedCaseData.secondAssignmentName),
+      thirdAssignement:       trim(selectedCaseData.thirdAssignmentName),
+      firstGroupAssignement:  trim(selectedCaseData.firstGroupCC),
+      secondGroupAssignement: trim(selectedCaseData.secondGroupCC),
+      thirdGroupAssignement:  trim(selectedCaseData.thirdGroupCC),
+      firstAssignmentCode:    trim(selectedCaseData.firstAssignmentCode),
+      secondAssignmentCode:   trim(selectedCaseData.secondAssignmentCode),
+      thirdAssignmentCode:    trim(selectedCaseData.thirdAssignmentCode),
+      firstSLA:  trim(selectedCaseData.firstSLA),
+      secondSLA: trim(selectedCaseData.secondSLA),
+      thirdSLA:  trim(selectedCaseData.thirdSLA),
+      status: true,
     };
-
-    run();
+    const hasAny =
+      h.firstAssignement || h.secondAssignement ||
+      h.firstGroupAssignement || h.secondGroupAssignement;
+    setHierLoading(false);
+    setHierErr(hasAny ? "" : "Hierarchy not found");
+    setHierarchy(hasAny ? h : null);
   }, [
-    selectedCaseData?.caseCategory,
-    selectedCaseData?.categoryName,
-    selectedCaseData?.subCategoryName,
-    selectedCaseData?.subSubCategoryName,
-    selectedCaseData?.subSubSubCategoryName,
+    selectedCaseData?.firstAssignmentName,
+    selectedCaseData?.secondAssignmentName,
+    selectedCaseData?.thirdAssignmentName,
+    selectedCaseData?.firstGroupCC,
+    selectedCaseData?.secondGroupCC,
+    selectedCaseData?.thirdGroupCC,
   ]);
 
   useEffect(() => {
@@ -995,12 +1012,17 @@ try {
     }
     const fetchEmp = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+        const res = await fetch(`${API_BASE_URL}/api/Employee/Dropdown`, {
           credentials: "include",
           headers: { Accept: "application/json" },
         });
-        const list = await res.json();
-        const arr = Array.isArray(list) ? list : [];
+        const raw = await res.json();
+        const arr = (Array.isArray(raw) ? raw : (raw?.data ?? [])).map((e) => ({
+          employeeCode: trim(e.employeeCode ?? e.code ?? e.EMPLOYEECODE),
+          employeeName: trim(e.employeeName ?? e.name ?? `${e.FIRSTNAME || ""} ${e.LASTNAME || ""}`),
+          emailID: trim(e.emailID ?? e.EMAIL ?? e.email),
+          mobileNo: trim(e.mobileNo ?? e.MOBILEPHONE ?? e.mobilephone),
+        }));
         setEmployees(arr);
 
         const want = normNameBase(targetName);
@@ -1032,11 +1054,15 @@ try {
         parsed = JSON.parse(text);
       } catch {}
 
+      // Unwrap { success, message, data:{code,name} } -> {code,name}; a real
+      // failure is { success:false, message } with no data, which stays intact.
+      const body = parsed?.data ?? parsed;
+
       if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      if (!parsed || parsed.code !== "200") {
-        throw new Error(parsed?.message || "API did not return code 200");
+      if (!body || String(body.code) !== "200") {
+        throw new Error(body?.message || parsed?.message || "API did not return code 200");
       }
-      return parsed;
+      return body;
     } catch (err) {
       console.error("CaseOperation error →", err);
       throw err;
@@ -1543,11 +1569,13 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         );
 
         if (actionType === "save") {
+          // Draft saved (ISDRAFT=1 / Active=1): reload so it lands in the
+          // "Add Response" textarea (not the responses table), and stay on the page.
+          issuesRef.current?.reloadResponses?.();
           setToast({
             type: "success",
-            message: `Case saved successfully. Case No: ${result.name || selectedCaseData?.caseNo}`,
+            message: `Response saved as draft. Case No: ${result.name || selectedCaseData?.caseNo}`,
           });
-          navigate(-1);
           return;
         }
 
@@ -1577,6 +1605,7 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         }
 
         if (actionType === "updateStatus") {
+          issuesRef.current?.reloadResponses?.();
           setToast({ type: "success", message: `Status updated to ${effectiveStatus || "—"}.` });
         }
       }
@@ -1656,7 +1685,31 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
   };
 
   return (
-    <section>
+    <section className="cd-theme">
+      <style>{`
+        .cd-theme{ --navy:#334b71; --navyDk:#071D49; --border:#e7ecf4; --text:#10223f; }
+        /* form labels + controls only — everything else uses the original CSS */
+        .cd-theme .form-group label{ font-size:12px; font-weight:700; color:var(--navyDk); }
+        .cd-theme .form-group input,
+        .cd-theme .form-group select,
+        .cd-theme .form-group textarea{
+          padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:#fff;
+          font-size:13px; color:var(--text); font-family:inherit; outline:none;
+          transition:border-color .15s, box-shadow .15s;
+        }
+        .cd-theme .form-group input:focus,
+        .cd-theme .form-group select:focus,
+        .cd-theme .form-group textarea:focus{
+          border-color:var(--navy); box-shadow:0 0 0 3px rgba(51,75,113,.12);
+        }
+        .cd-theme .form-group input:disabled,
+        .cd-theme .form-group select:disabled,
+        .cd-theme fieldset[disabled] input,
+        .cd-theme fieldset[disabled] select{
+          background:#f6f8fb; color:#7b8aa3; cursor:not-allowed;
+        }
+      `}</style>
+
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
 
       <div className="brdcrmb">

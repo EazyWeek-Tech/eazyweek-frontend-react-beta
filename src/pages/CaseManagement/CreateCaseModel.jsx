@@ -1,6 +1,47 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../config";
 
+/* Single-pick customer autocomplete (matches the CreateCampaign look).
+   Reuses the existing debounced search: typing drives `query` (customerSearchText),
+   which the parent's effect uses to populate `options` (customerOptions). */
+function CustomerAutocomplete({ query, onQueryChange, options, onPick, error }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+  const list = Array.isArray(options) ? options : [];
+  return (
+    <div ref={wrapRef} className="cc-autocomplete" style={{ position: "relative" }}>
+      <input
+        type="search"
+        autoComplete="off"
+        placeholder="Type customer name or number…"
+        value={query}
+        onChange={(e) => { onQueryChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        className={error ? "error-border" : ""}
+      />
+      {open && list.length > 0 && (
+        <div className="cc-ac-menu">
+          {list.map((cust, i) => (
+            <div
+              key={cust.code || i}
+              className="cc-ac-item"
+              onMouseDown={(e) => { e.preventDefault(); onPick(cust); setOpen(false); }}
+            >
+              <span className="cc-ac-name">{(cust.name || "").trim()}</span>
+              {cust.code && <span className="cc-ac-code">{cust.code}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CreateCaseModel = ({ isOpen, onClose, onSubmit }) => {
   const [activeTab, setActiveTab] = useState("sign-in");
   const [caseCategories, setCaseCategories] = useState([]);
@@ -177,6 +218,26 @@ useEffect(() => {
           if (typeof payload === "string") payload = JSON.parse(payload);
         } catch {
           /* leave as string if not JSON */
+        }
+        // Attach the Bearer token for API calls that don't already carry one.
+        // The Node backend's verifyToken expects Authorization: Bearer <jwt>;
+        // many callers here only send credentials:'include' (cookie), which 401s.
+        try {
+          const isApi = typeof url === "string" && url.includes("/api/");
+          const h = init.headers || {};
+          const hasAuth =
+            (h && (h.Authorization || h.authorization)) ||
+            (typeof h.get === "function" && h.get("Authorization"));
+          if (isApi && !hasAuth) {
+            const tok =
+              sessionStorage.getItem("ssoToken") ||
+              localStorage.getItem("token") ||
+              sessionStorage.getItem("token") ||
+              "";
+            if (tok) init = { ...init, headers: { ...h, Authorization: `Bearer ${tok}` } };
+          }
+        } catch {
+          /* non-plain headers (Request/Headers) — leave as-is */
         }
         try {
           console.log("[API REQUEST]", method, url, {
@@ -385,7 +446,7 @@ const isComplaintCategory = () => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        setCaseCategories(data);
+        setCaseCategories(Array.isArray(data) ? data : (data?.data ?? []));
       } catch (error) {
         console.error("Failed to fetch case categories:", error);
       }
@@ -399,7 +460,7 @@ const isComplaintCategory = () => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        setCaseMediums(data);
+        setCaseMediums(Array.isArray(data) ? data : (data?.data ?? []));
       } catch (error) {
         console.error("Error fetching case mediums:", error);
       }
@@ -413,7 +474,7 @@ const isComplaintCategory = () => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        setServices(data);
+        setServices(Array.isArray(data) ? data : (data?.data ?? []));
       } catch (error) {
         console.error("Error fetching services:", error);
       }
@@ -427,7 +488,8 @@ const isComplaintCategory = () => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        setTherapists(data.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
+        const list = Array.isArray(data) ? data : (data?.data ?? []);
+        setTherapists(list.filter((doc) => doc.code && doc.name !== "< - Select one - >"));
       } catch (error) {
         console.error("Error fetching therapists:", error);
       }
@@ -441,7 +503,7 @@ const isComplaintCategory = () => {
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        setServiceCategories(data);
+        setServiceCategories(Array.isArray(data) ? data : (data?.data ?? []));
       } catch (error) {
         console.error("Error fetching service categories:", error);
       }
@@ -449,13 +511,16 @@ const isComplaintCategory = () => {
 
     const fetchEmployees = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/Employees`, {
+        const response = await fetch(`${API_BASE_URL}/api/Employee/Dropdown`, {
           method: "GET",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
         const data = await response.json();
-        const validEmployees = data.filter((emp) => emp.employeeCode && emp.employeeName !== "Assign To");
+        const list = Array.isArray(data) ? data : (data?.data ?? []);
+        const validEmployees = list
+          .map((emp) => ({ ...emp, employeeCode: emp.employeeCode || emp.code, employeeName: emp.employeeName || emp.name }))
+          .filter((emp) => emp.employeeCode && emp.employeeName !== "Assign To");
         setEmployees(validEmployees);
       } catch (err) {
         console.error("Error fetching employees:", err);
@@ -488,7 +553,7 @@ const isComplaintCategory = () => {
             }
           );
           const data = await res.json();
-          setCustomerOptions(data);
+          setCustomerOptions(Array.isArray(data) ? data : (data?.data ?? []));
         } catch (err) {
           console.error("Error fetching customers:", err);
           setCustomerOptions([]);
@@ -509,7 +574,7 @@ const isComplaintCategory = () => {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
           });
-          const data = await response.json();
+          const data = (await responseToJsonSafe(response)) || {};
           console.log("[CASE OP CONFIG]", data);
 
           if (data.priority) handleChange("priority", data.priority || "");
@@ -655,30 +720,48 @@ const getCenterName = () => {
 
 
     // -----------------------------
-  // ✅ Logged-in user email lookup (from /api/Employees)
+  // ✅ Logged-in user email lookup (from /api/Employee/Dropdown)
   // -----------------------------
+  // Resolve the logged-in user's employee code robustly. `userId` is the usual
+  // field, but some sessions store it under a different key — fall back through
+  // the common ones (and the stored session objects) so createdby is never blank.
+  const getLoggedInUserCode = () =>
+    firstNonEmpty(
+      currentUser?.userID,            // session stores the code here: "CENT-00101"
+      currentUser?.userId,
+      currentUser?.employeeCode,
+      currentUser?.empCode,
+      currentUser?.userCode,
+      currentUser?.code,
+      readFromStoredUserObjects("userID"),
+      readFromStoredUserObjects("userId"),
+      readFromStoredUserObjects("employeeCode"),
+      readFromStoredUserObjects("empCode"),
+      readFromStoredUserObjects("userCode")
+    );
+
   const getLoggedInUserEmail = async () => {
-    const userCode = trim(currentUser?.userId); // ex: "CENT-00184"
+    const userCode = trim(getLoggedInUserCode()); // ex: "CENT-00101"
     if (!userCode) return "";
 
-    // 1) try from already fetched employees list
-    const fromState = (employees || []).find(
-      (e) => trim(e.employeeCode) === userCode && trim(e.emailID)
-    );
-    if (fromState?.emailID) return trim(fromState.emailID);
+    const emailOf = (e) => trim(e?.emailID || e?.EMAIL || e?.email);
+    const codeOf  = (e) => trim(e?.employeeCode || e?.code);
 
-    // 2) fallback: fetch fresh from API
+    // 1) try from already fetched employees list
+    const fromState = (employees || []).find((e) => codeOf(e) === userCode && emailOf(e));
+    if (fromState) return emailOf(fromState);
+
+    // 2) fallback: fetch fresh (employee dropdown returns code/name/EMAIL)
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+      const res = await fetch(`${API_BASE_URL}/api/Employee/Dropdown`, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
       const data = await responseToJsonSafe(res);
-      const fromApi = (data || []).find(
-        (e) => trim(e.employeeCode) === userCode && trim(e.emailID)
-      );
-      return trim(fromApi?.emailID || "");
+      const list = Array.isArray(data) ? data : (data?.data ?? []);
+      const fromApi = list.find((e) => codeOf(e) === userCode && emailOf(e));
+      return emailOf(fromApi || {});
     } catch (err) {
       console.error("Failed to lookup logged-in user email:", err);
       return "";
@@ -787,8 +870,13 @@ const { mergedMoreCC } = await buildMoreCCWithOwner();
   if (!formValues.caseSource) errs.caseSource = "Case Source is required.";
   if (!formValues.priority) errs.priority = "Priority is required.";
 
-  // ✅ Customer is OPTIONAL
-  if (customerSearchText?.trim() && !formValues.customerCode) {
+  // ✅ Customer is mandatory ONLY for Complaint category; optional otherwise
+  if (isComplaintCategory()) {
+    if (!formValues.customerCode) {
+      errs.customerCode = "Customer is required for Complaint cases.";
+    }
+  } else if (customerSearchText?.trim() && !formValues.customerCode) {
+    // optional: if a search was typed but nothing picked, ask them to pick or clear
     errs.customerCode = "Please select a customer from the list (or clear search).";
   }
 
@@ -895,7 +983,7 @@ if (isComplaintCategory() && !formValues.doctorCode) {
       productCode: formValues.product,
       servicecode: formValues.service,
       serviceccode: formValues.serviceCategory,
-      createdby: user?.userId,
+      createdby: getLoggedInUserCode(),
       createddate: new Date().toISOString(),
       issuedesciption: formValues.issuedesciption,
       clientThreat: formValues.clientThreat,
@@ -910,7 +998,7 @@ employeno: formValues.employeno,
       categorySpecificResolution: formValues.specificResolution,
       remarks: formValues.remarks,
       casedisposition: "",
-      caseWith: user?.userId,
+      caseWith: getLoggedInUserCode(),
       status: "Open",
       operation: "Save",
       materialCost: 0,
@@ -935,7 +1023,8 @@ employeno: formValues.employeno,
         body: JSON.stringify(payload),
       });
 
-      const result = await response.json();
+      const raw = await response.json();
+      const result = raw?.data ?? raw;   // unwrap { success, data:{code,name} } → {code,name}
       console.log("[CREATE CASE] Save result", result);
 
       const resultCode = result?.code != null ? String(result.code) : "";
@@ -1041,7 +1130,7 @@ attachmentFileName: attachmentFileName,
       productCode: formValues.product,
       servicecode: formValues.service,
       serviceccode: formValues.serviceCategory,
-      createdby: user?.userId,
+      createdby: getLoggedInUserCode(),
       createddate: new Date().toISOString(),
       issuedesciption: formValues.issuedesciption,
       clientThreat: formValues.clientThreat,
@@ -1080,7 +1169,8 @@ attachmentFileName: attachmentFileName,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
+      const raw = await response.json();
+      const result = raw?.data ?? raw;   // unwrap { success, data:{code,name} } → {code,name}
       console.log("[CREATE CASE] Submit result", result);
 
       if (String(result.code) === "200") {
@@ -1143,6 +1233,93 @@ attachmentFileName: attachmentFileName,
 
       {isOpen && (
         <div className="modal-window show">
+          <style>{`
+            .modal-window.show{
+              position:fixed !important; inset:0 !important; background:rgba(7,29,73,.45) !important;
+              display:flex !important; align-items:stretch; justify-content:flex-end;
+              padding:0; overflow:hidden; z-index:1000 !important;
+              font-family:Lato,system-ui,sans-serif;
+            }
+            .modal-window.show > div{
+              background:#fff; width:100%; max-width:560px; height:100vh;
+              display:flex; flex-direction:column;
+              border-radius:14px 0 0 14px; box-shadow:-18px 0 50px rgba(7,29,73,.25);
+              overflow:hidden; position:relative;
+              animation:cc-slide-in .28s cubic-bezier(.22,.61,.36,1);
+            }
+            @keyframes cc-slide-in{ from{ transform:translateX(100%); } to{ transform:translateX(0); } }
+            .modal-window .frmttl{
+              margin:0; padding:18px 24px; font-size:18px; font-weight:800; color:#071D49;
+              border-bottom:1px solid #e7ecf4; background:#f8fafc;
+              display:flex; align-items:center; justify-content:space-between;
+            }
+            .modal-window .modal-close{
+              cursor:pointer; color:#64748b; font-size:22px; line-height:1;
+              width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:8px;
+            }
+            .modal-window .modal-close:hover{ background:#eef1f6; color:#b91c1c; }
+            .modal-window .popuptabs{
+              list-style:none; margin:0; padding:0 24px; display:flex; gap:6px;
+              border-bottom:1px solid #e7ecf4; background:#fff;
+            }
+            .modal-window .popuptabs li{ list-style:none; }
+            .modal-window .popuptabs a{
+              display:inline-block; padding:12px 16px; font-size:13px; font-weight:700; color:#64748b;
+              text-decoration:none; border-bottom:3px solid transparent; cursor:pointer;
+            }
+            .modal-window .popuptabs a.active{ color:#334b71; border-bottom-color:#334b71; }
+            .modal-window .toastmsg{ display:none; }
+            .modal-window .formwrap{ padding:24px; flex:1; overflow:auto; }
+            .modal-window .formwrap.sign-in.active{
+              display:grid; grid-template-columns:1fr; gap:16px;
+            }
+            .modal-window .form-group{ margin:0; display:flex; flex-direction:column; min-width:0; }
+            .modal-window .form-group label{
+              font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;
+              letter-spacing:.04em; margin-bottom:5px;
+            }
+            .modal-window .form-group input,
+            .modal-window .form-group select,
+            .modal-window .form-group textarea{
+              width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #e7ecf4;
+              border-radius:8px; font-size:13px; font-family:Lato,system-ui,sans-serif; outline:none;
+              background:#fff; color:#10223f;
+            }
+            .modal-window .form-group input:focus,
+            .modal-window .form-group select:focus,
+            .modal-window .form-group textarea:focus{
+              border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.12);
+            }
+            .modal-window .form-group input[readonly],
+            .modal-window .form-group input:disabled,
+            .modal-window .form-group select:disabled{ background:#f8fafc; color:#64748b; }
+            .modal-window .error-border{ border-color:#b91c1c !important; }
+            .modal-window .error-text{ color:#b91c1c; font-size:11px; margin-top:4px; }
+            .modal-window .buttongrp{
+              grid-column:1 / -1; display:flex; justify-content:flex-end; gap:10px;
+              margin-top:8px; padding-top:16px; border-top:1px solid #e7ecf4;
+            }
+            .modal-window .buttongrp .pribtn,
+            .modal-window .buttongrp .secbtn{
+              padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700;
+              cursor:pointer; text-decoration:none; display:inline-block;
+            }
+            .modal-window .buttongrp .pribtn{ background:#334b71; color:#fff; border:none; }
+            .modal-window .buttongrp .secbtn{ background:#f4f6fa; color:#334b71; border:1px solid #e7ecf4; }
+            .modal-window .cc-autocomplete input{ width:100%; }
+            .modal-window .cc-ac-menu{
+              position:absolute; top:100%; left:0; right:0; z-index:50; margin-top:2px; background:#fff;
+              border:1px solid #e7ecf4; border-radius:8px; box-shadow:0 8px 22px rgba(0,0,0,.12);
+              max-height:240px; overflow:auto;
+            }
+            .modal-window .cc-ac-item{
+              padding:9px 12px; cursor:pointer; font-size:13px; display:flex; align-items:center;
+              justify-content:space-between; gap:10px; border-bottom:1px solid #eef1f6;
+            }
+            .modal-window .cc-ac-item:hover{ background:#e9edf5; }
+            .modal-window .cc-ac-name{ font-weight:600; color:#10223f; }
+            .modal-window .cc-ac-code{ font-size:11px; color:#64748b; }
+          `}</style>
           <div>
             <h2 className="frmttl">
               Create Case
@@ -1550,58 +1727,37 @@ attachmentFileName: attachmentFileName,
               </div>
 
               {/* Search Customer */}
+              {/* Customer (single autocomplete) */}
               <div className="form-group">
                 <label htmlFor="customerSearch">
-                  Search Customer 
+                  Customer {isComplaintCategory() && <span style={{ color: "red" }}>*</span>}
                 </label>
-                <input
-                  type="search"
-                  id="customerSearch"
-                  placeholder="Search Customer"
-                  value={customerSearchText}
-                  onChange={(e) => {
-                    setCustomerSearchText(e.target.value);
-                    setValidationErrors((p) => ({
-                      ...p,
-                      customerSearchText: e.target.value?.trim() ? null : "Search Customer is required.",
-                    }));
+                <CustomerAutocomplete
+                  query={customerSearchText}
+                  options={customerOptions}
+                  error={validationErrors.customerSearchText || validationErrors.customerCode}
+                  onQueryChange={(v) => {
+                    setCustomerSearchText(v);
+                    // typing invalidates any prior selection until a new pick
+                    handleChange("customerCode", "");
+                    handleChange("customer", "");
+                    // clear inline hints while typing — the Complaint-only requirement
+                    // is enforced by validateGeneralTab on Next/Save/Submit
+                    setValidationErrors((p) => ({ ...p, customerSearchText: null, customerCode: null }));
                   }}
-                  className={validationErrors.customerSearchText ? "error-border" : ""}
+                  onPick={(cust) => {
+                    const name = (cust.name || "").trim();
+                    handleChange("customerCode", cust.code);
+                    handleChange("customer", name);
+                    setCustomerSearchText(name);
+                    setValidationErrors((p) => ({ ...p, customerSearchText: null, customerCode: null }));
+                  }}
                 />
-                {validationErrors.customerSearchText && (
-                  <div className="error-text">{validationErrors.customerSearchText}</div>
+                {(validationErrors.customerSearchText || validationErrors.customerCode) && (
+                  <div className="error-text">
+                    {validationErrors.customerSearchText || validationErrors.customerCode}
+                  </div>
                 )}
-              </div>
-
-              {/* Customer */}
-              <div className="form-group">
-                <label htmlFor="customer">
-                  Customer 
-                </label>
-                <select
-                  id="customer"
-                  value={formValues.customerCode}
-                  disabled={customerOptions.length === 0}
-                 onChange={(e) => {
-    const selectedCode = e.target.value;
-    const selected = customerOptions.find((cust) => cust.code === selectedCode);
-    handleChange("customerCode", selectedCode);
-    handleChange("customer", selected?.name || "");
-    setValidationErrors((p) => ({
-      ...p,
-      customerCode: selectedCode ? null : "Customer is required.",
-    }));
-  }}
-                  className={validationErrors.customerCode ? "error-border" : ""}
-                >
-                  <option value="">Select Customer</option>
-                  {customerOptions.map((cust, index) => (
-                    <option key={index} value={cust.code}>
-                      {cust.name.trim()}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.customerCode && <div className="error-text">{validationErrors.customerCode}</div>}
               </div>
 
               {/* Product (optional) */}
@@ -2010,7 +2166,10 @@ attachmentFileName: attachmentFileName,
 // Safe JSON helper so we don't crash if a non-JSON response arrives
 async function responseToJsonSafe(res) {
   try {
-    return await res.json();
+    const j = await res.json();
+    // Unwrap the Node success() envelope { success, data } → data.
+    // Leaves raw arrays and non-enveloped objects untouched.
+    return j && typeof j === "object" && !Array.isArray(j) && "data" in j ? j.data : j;
   } catch {
     return null;
   }

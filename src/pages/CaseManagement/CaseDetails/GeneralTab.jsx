@@ -23,7 +23,8 @@ const fetchJSON = async (url) => {
   }
 
   try {
-    return JSON.parse(text);
+    const __j = JSON.parse(text);
+    return __j && typeof __j === "object" && "data" in __j ? __j.data : __j;
   } catch {
     throw new Error(`Invalid JSON: ${text.slice(0,180)}`);
   }

@@ -48,7 +48,8 @@ const getSecondValueFromRange = (range) => {
     return;
   }
 
-        const data = await response.json();
+        const raw = await response.json();
+        const data = raw?.data ?? raw;
 
         const firstSlaName = data.firstSlaName?.trim() || "";
         const secondSlaName = data.secondSlaName?.trim() || "";
@@ -81,7 +82,8 @@ const getSecondValueFromRange = (range) => {
     const fetchActualSLA = async () => {
       try {
     const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
-    const data = await res.json();
+    const rawA = await res.json();
+    const data = Array.isArray(rawA) ? rawA : (rawA?.data ?? []);
 
     if (Array.isArray(data)) {
       // ✅ For SLA: show all non-draft rows but deduplicate consecutive 

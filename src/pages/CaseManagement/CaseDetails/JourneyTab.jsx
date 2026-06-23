@@ -22,11 +22,26 @@ const JourneyTab = forwardRef(({ caseNo }, ref) => {
             },
           }
         );
-        const data = await response.json();
+        const raw = await response.json();
+        const data = Array.isArray(raw) ? raw : (raw?.data ?? []);
 
         // SP now returns rows in correct order (ORDER BY RECID ASC)
-        // No client-side sorting needed
-        setJourneyData(Array.isArray(data) ? data : []);
+        // Collapse consecutive duplicates (same stage, sender, recipient and body)
+        // that come from a response being submitted more than once.
+        const arr = Array.isArray(data) ? data : [];
+        const body = (e) =>
+          (e.response || e.issueDesciption || e.issueDescription || "").toString().trim();
+        const deduped = arr.filter((e, i, a) => {
+          if (i === 0) return true;
+          const p = a[i - 1];
+          return !(
+            (e.stageType || "") === (p.stageType || "") &&
+            (e.createdBy || e.from || "") === (p.createdBy || p.from || "") &&
+            (e.emailTo || e.to || "") === (p.emailTo || p.to || "") &&
+            body(e) === body(p)
+          );
+        });
+        setJourneyData(deduped);
       } catch (error) {
         console.error("Failed to fetch journey data:", error);
         setJourneyData([]);
