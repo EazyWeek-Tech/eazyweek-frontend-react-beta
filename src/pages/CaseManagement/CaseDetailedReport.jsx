@@ -43,6 +43,20 @@ const toOptions = (items, valueKey, labelKey) =>
       __raw: x,
     }));
 
+// Unwrap a { success, message, data:[...] } envelope into a plain array.
+// Handles bare arrays, { data:[...] }, a single { data:{...} } object, and a
+// lone record object.
+const toArray = (raw) =>
+  Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+    ? raw.data
+    : raw?.data && typeof raw.data === "object"
+    ? [raw.data]
+    : raw && typeof raw === "object" && !("data" in raw) && !("success" in raw)
+    ? [raw]
+    : [];
+
 // ---- Session helpers ----
 const tryParseJson = (s) => {
   try {
@@ -93,7 +107,10 @@ const CaseDetailedReport = () => {
   });
 
   const handleMulti = (field) => (selected) =>
-    setFilters((p) => ({ ...p, [field]: selected || [] }));
+    setFilters((p) => ({
+      ...p,
+      [field]: Array.isArray(selected) ? selected : selected ? [selected] : [],
+    }));
 
   const handleSingle = (field) => (selected) =>
     setFilters((p) => ({ ...p, [field]: selected || null }));
@@ -171,7 +188,7 @@ const CaseDetailedReport = () => {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        const d = await r.json();
+        const d = toArray(await r.json());
         setCategoriesRaw(Array.isArray(d) ? d : []);
       } catch (e) {
         console.error("Failed to load categories", e);
@@ -186,7 +203,7 @@ const CaseDetailedReport = () => {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        const d = await r.json();
+        const d = toArray(await r.json());
         const clean = (Array.isArray(d) ? d : []).filter(
           (m) => m.code !== "< - Select one - >"
         );
@@ -204,8 +221,8 @@ const CaseDetailedReport = () => {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        const d = await r.json();
-        const list = Array.isArray(d) ? d : d ? [d] : [];
+        const d = toArray(await r.json());
+        const list = d;
         setTherapistsRaw(
           list
             .filter(
@@ -255,7 +272,7 @@ const CaseDetailedReport = () => {
             headers: { "Content-Type": "application/json" },
           }
         );
-        const d = await r.json();
+        const d = toArray(await r.json());
         setSubCatsRaw(Array.isArray(d) ? d : []);
       } catch (e) {
         console.error("Failed to load subcategories", e);
@@ -273,8 +290,8 @@ const CaseDetailedReport = () => {
             headers: { "Content-Type": "application/json" },
           }
         );
-        const d = await r.json();
-        const list = Array.isArray(d) ? d : d ? [d] : [];
+        const d = toArray(await r.json());
+        const list = d;
         const mergedSpec = Array.from(
           new Set(list.filter((x) => x?.name).map((x) => x.name.trim()))
         );
@@ -319,7 +336,7 @@ const CaseDetailedReport = () => {
             headers: { "Content-Type": "application/json" },
           }
         );
-        const d = await r.json();
+        const d = toArray(await r.json());
         setSubSubCatsRaw(Array.isArray(d) ? d : []);
       } catch (e) {
         console.error("Failed to load sub-sub categories", e);
@@ -354,7 +371,7 @@ const CaseDetailedReport = () => {
           headers: { "Content-Type": "application/json" },
         }
       );
-      const d = await r.json();
+      const d = toArray(await r.json());
       setSourcesRaw(Array.isArray(d) ? d : []);
     } catch (e) {
       console.error("Failed to load sources", e);
@@ -447,6 +464,7 @@ const therapistOptions = useMemo(
     setReportData([]);
     setCurrentPage(1);
 
+    try {
     const clinicCode = getLoggedInClinicCode();
 
     // rule:
@@ -475,18 +493,17 @@ const therapistOptions = useMemo(
       caseMedium: filters.caseMedium?.value || "",
       caseSource: filters.caseSource?.value || "",
 
-      caseDisposition: filters.caseDispositions.map((o) => o.value).join(","), // creatable multi
+      caseDisposition: (Array.isArray(filters.caseDispositions) ? filters.caseDispositions : []).map((o) => o.value).join(","), // creatable multi
       caseSpecificResolution: filters.caseSpecificResolution?.value || "",
 
-      clientThreat: filters.clientThreats.map((o) => o.value).join(","), // multi
-      therapist: filters.therapists.map((o) => o.value).join(","), // multi
+      clientThreat: (Array.isArray(filters.clientThreats) ? filters.clientThreats : []).map((o) => o.value).join(","), // multi
+      therapist: (Array.isArray(filters.therapists) ? filters.therapists : []).map((o) => o.value).join(","), // multi
 
       fromDate: fromDateToSend,
       todate: toDateToSend,
       dateFlag: hasDates ? "1" : "0",
     };
 
-    try {
       const res = await fetch(
         `${API_BASE_URL}/api/CaseOperation/CaseDetailedReport`,
         {
@@ -497,6 +514,7 @@ const therapistOptions = useMemo(
         }
       );
 
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw = await res.json();
 
       // normalize response so table always receives an array
@@ -532,6 +550,7 @@ const therapistOptions = useMemo(
       setShowResults(true);
     } catch (e) {
       console.error("Failed to load Case Detailed Report", e);
+      alert("Failed to load report. " + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -665,7 +684,7 @@ const therapistOptions = useMemo(
       <div className="filters-card">
         <div className="date-grid">
           <div className="fg">
-            <label>From Date</label>
+            <label>From Date <span className="req">*</span></label>
            <input
   type="date"
   required
@@ -675,7 +694,7 @@ const therapistOptions = useMemo(
 
           </div>
           <div className="fg">
-            <label>To Date</label>
+            <label>To Date <span className="req">*</span></label>
             
 <input
   type="date"
@@ -776,6 +795,7 @@ const therapistOptions = useMemo(
           <div className="fg">
             <label>Case Disposition</label>
             <CreatableSelect
+              isMulti
               options={dispositionOptions}
               value={filters.caseDispositions}
               onChange={handleMulti("caseDispositions")}
@@ -799,6 +819,7 @@ const therapistOptions = useMemo(
           <div className="fg">
             <label>Client Threat</label>
             <Select
+              isMulti
               options={clientThreatOptions}
               value={filters.clientThreats}
               onChange={handleMulti("clientThreats")}
@@ -985,6 +1006,7 @@ const therapistOptions = useMemo(
           color: #334155;
           margin-bottom: 6px;
         }
+        .req { color: #dc2626; font-weight: 700; }
         input[type="date"] {
           height: 38px;
           border: 1px solid #d8dee8;
