@@ -56,6 +56,14 @@ const toISO = (d) => {
   const dt = new Date(s); return Number.isNaN(+dt) ? "" : toISO(dt);
 };
 
+// Display format: DD-MM-YYYY (normalises any input via toISO first).
+const toDMY = (d) => {
+  const iso = toISO(d);
+  if (!iso) return "";
+  const [y, m, day] = iso.split("-");
+  return `${day}-${m}-${y}`;
+};
+
 /* ── API helpers ──────────────────────────────────────────────────────────── */
 const TOKEN = () => localStorage.getItem("token")||sessionStorage.getItem("token")||"";
 const apiFetch = (url,opts={}) => fetch(url,{ credentials:"include", ...opts,
@@ -467,8 +475,8 @@ const OpportunityDashboard = () => {
                   </td>
                   <td style={{ padding:"10px 12px",fontSize:13,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.oppName}</td>
                   <td style={{ padding:"10px 12px",fontSize:13 }}>{item.clinic||item.centerName}</td>
-                  <td style={{ padding:"10px 12px",fontSize:12,color:C.sub,whiteSpace:"nowrap" }}>{item.fromDate}</td>
-                  <td style={{ padding:"10px 12px",fontSize:12,color:C.sub,whiteSpace:"nowrap" }}>{item.toDate}</td>
+                  <td style={{ padding:"10px 12px",fontSize:12,color:C.sub,whiteSpace:"nowrap" }}>{toDMY(item.fromDate)}</td>
+                  <td style={{ padding:"10px 12px",fontSize:12,color:C.sub,whiteSpace:"nowrap" }}>{toDMY(item.toDate)}</td>
                   <td style={{ padding:"10px 12px",fontSize:13,textAlign:"right",fontWeight:700 }}>{safeNum(item.totalOpportunities).toLocaleString()}</td>
                   <td style={{ padding:"10px 12px",fontSize:13,textAlign:"right",color:C.open,fontWeight:600 }}>{safeNum(item.noOfOpenOpportunities).toLocaleString()}</td>
                   <td style={{ padding:"10px 12px",fontSize:13,textAlign:"right" }}>{safeNum(item.noOfClosedOpportunities).toLocaleString()}</td>

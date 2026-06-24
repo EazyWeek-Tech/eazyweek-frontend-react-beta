@@ -92,6 +92,14 @@ const loadServiceCategories = async () => {
   } catch { return []; }
 };
 
+// Whole-day span between two YYYY-MM-DD strings (To − From). null if either missing/invalid.
+const daysBetween = (from, to) => {
+  if (!from || !to) return null;
+  const a = new Date(from), b = new Date(to);
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+};
+
 /* ════════════════════════════════════════════════════════════════════════════
    MODULE-LEVEL COMPONENTS
    ════════════════════════════════════════════════════════════════════════════ */
@@ -365,6 +373,20 @@ function CategoryMultiSelect({ value = [], onChange, placeholder, excludeNames =
   );
 }
 
+// Small inline readout that shows the computed day span for a date range.
+function DaysReadout({ from, to }) {
+  const d = daysBetween(from, to);
+  let text = "= — days", color = C.sub;
+  if (d !== null) {
+    if (d > 0)       { text = `= ${d} day${d === 1 ? "" : "s"}`; color = C.navy; }
+    else             { text = "check dates"; color = C.red; }
+  }
+  return (
+    <span style={{ marginLeft:10, fontSize:12, fontWeight:700, color,
+      whiteSpace:"nowrap", alignSelf:"center" }}>{text}</span>
+  );
+}
+
 function SectionCard({ title, children }) {
   return (
     <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
@@ -527,7 +549,18 @@ export default function CreateCampaign() {
   /* ── Step 1 Validation ────────────────────────────────────────────────────── */
   const validateStep1 = () => {
     const e = {};
-    if (!general.oppName.trim())    e.oppName    = "Campaign Name is required.";
+    const nm = general.oppName.trim();
+    if (!nm) {
+      e.oppName = "Campaign Name is required.";
+    } else if (nm.length < 2) {
+      e.oppName = "Campaign Name must be at least 2 characters.";
+    } else if (nm.length > 100) {
+      e.oppName = "Campaign Name must be 100 characters or fewer.";
+    } else if (!/[A-Za-z0-9]/.test(nm)) {
+      e.oppName = "Campaign Name must include at least one letter or number.";
+    } else if (!/^[A-Za-z0-9 \-_()&,.'\/]+$/.test(nm)) {
+      e.oppName = "Only letters, numbers, spaces and - _ ( ) & , . ' / are allowed.";
+    }
     if (!general.ruleCode)          e.ruleCode   = "Rule Type is required.";
     if (!general.centerCode)        e.centerCode = "Centre is required.";
     if (!general.fromDate)          e.fromDate   = "From Date is required.";
@@ -543,10 +576,20 @@ export default function CreateCampaign() {
   /* ── Step 2 Validation ────────────────────────────────────────────────────── */
   const validateStep2 = () => {
     const e = {};
-    if (selectedRule?.hasDays && general.ruleType === "2") {
+    if (selectedRule?.hasDays && general.ruleCode !== "R2" && general.ruleType === "2") {
       if (!rule.ruleDays) e.ruleDays = "Please select Rule Days.";
       if (rule.ruleDays === "0" && !rule.customDays)
         e.customDays = "Enter custom days (minimum 1).";
+    }
+    if (general.ruleCode === "R2") {
+      if (!Array.isArray(rule.xvalue) || rule.xvalue.length === 0)
+        e.xvalue = "Select at least one paid-for category.";
+      const yd = daysBetween(rule.yFromDate, rule.yToDate);
+      const zd = daysBetween(rule.zFromDate, rule.zToDate);
+      if (!rule.yFromDate || !rule.yToDate) e.yRange = "Pick the purchase date range.";
+      else if (yd === null || yd < 1)       e.yRange = "Purchase 'to' date must be after the 'from' date.";
+      if (!rule.zFromDate || !rule.zToDate) e.zRange = "Pick the future check date range.";
+      else if (zd === null || zd < 1)       e.zRange = "Future 'to' date must be after the 'from' date.";
     }
     if (general.ruleCode === "R7" && !rule.externalSource)
       e.externalSource = "External Source is required.";
@@ -559,6 +602,11 @@ export default function CreateCampaign() {
     const effectiveDays = rule.ruleDays === "0" ? rule.customDays : rule.ruleDays;
     const ruleDetails = buildRuleDetails(effectiveDays);
 
+    // R2: convert the two date ranges into day-spans for Y (lookback) and Z (forward).
+    const isR2  = general.ruleCode === "R2";
+    const r2Y   = isR2 ? daysBetween(rule.yFromDate, rule.yToDate) : null;
+    const r2Z   = isR2 ? daysBetween(rule.zFromDate, rule.zToDate) : null;
+
     return {
       oppName:           general.oppName.trim(),
       ruleCode:          general.ruleCode,
@@ -569,8 +617,8 @@ export default function CreateCampaign() {
       ruleDays:          general.ruleType === "2" ? (effectiveDays || "") : "",
       ruleDetails,
       xvalue:            Array.isArray(rule.xvalue) ? rule.xvalue.join(",") : rule.xvalue,
-      yvalue:            Array.isArray(rule.yvalue) ? rule.yvalue.join(",") : rule.yvalue,
-      zvalue:            rule.zvalue,
+      yvalue:            isR2 ? String(r2Y ?? "") : (Array.isArray(rule.yvalue) ? rule.yvalue.join(",") : rule.yvalue),
+      zvalue:            isR2 ? String(r2Z ?? "") : rule.zvalue,
       pvalue:            Array.isArray(rule.pvalue) ? rule.pvalue.join(",") : rule.pvalue,
       externalSource:    rule.externalSource,
       externalSubSource: rule.externalSubSource,
@@ -593,10 +641,12 @@ export default function CreateCampaign() {
       if (yStr) parts.push(`Not for: ${yStr}`);
       if (days) parts.push(`${days} days`);
     } else if (general.ruleCode === "R2") {
-      if (xStr)        parts.push(`Paid for: ${xStr}`);
-      if (rule.yvalue) parts.push(`within ${rule.yvalue} days`);
-      if (rule.zvalue) parts.push(`no future appt in ${rule.zvalue} days`);
-      if (pStr)        parts.push(`for category: ${pStr}`);
+      const yd = daysBetween(rule.yFromDate, rule.yToDate);
+      const zd = daysBetween(rule.zFromDate, rule.zToDate);
+      if (xStr)         parts.push(`Paid for: ${xStr}`);
+      if (yd && yd > 0) parts.push(`within ${yd} days`);
+      if (zd && zd > 0) parts.push(`no future appt in ${zd} days`);
+      if (pStr)         parts.push(`for category: ${pStr}`);
     } else if (general.ruleCode === "R5") {
       if (rule.xvalue) parts.push(`Special Day: ${rule.xvalue}`);
     } else if (general.ruleCode === "R6") {
@@ -698,7 +748,8 @@ export default function CreateCampaign() {
       {/* ── STEP 1: General Info ──────────────────────────────────────────── */}
       {step === 1 && (
         <SectionCard title="General Information">
-          <FieldRow label="Campaign Name" required error={generalErrors.oppName}>
+          <FieldRow label="Campaign Name" required error={generalErrors.oppName}
+            hint="Letters, numbers, spaces and - _ ( ) & , . ' / only">
             <FInput value={general.oppName} placeholder="e.g. No Show - May 2026"
               onChange={e=>setGeneral(p=>({...p,oppName:e.target.value}))} />
           </FieldRow>
@@ -786,38 +837,56 @@ export default function CreateCampaign() {
             </FieldRow>
           </>)}
 
-          {/* R2 — Paid X Category in Y days, No future appt in Z days for Category P */}
+          {/* R2 — Paid for X in window A, then NO P appointment in window B (win-back) */}
           {general.ruleCode === "R2" && (<>
             <div style={{ padding:"10px 14px", borderRadius:8, background:"#f0f4fa",
               border:`1px solid ${C.border}`, fontSize:12, color:C.sub,
               marginBottom:16, fontWeight:600 }}>
-              Rule: Customer paid for Category X in the past Y days and has no future appointment in Z days for Category P
+              Win-back rule: find customers who <b>paid</b> for the chosen categories during one
+              period, but then had <b>no appointment</b> for the check categories during a second
+              period. Both periods are exact date ranges — either one can be in the past
+              (e.g. paid in Nov–Dec, no visit since January).
             </div>
-            <FieldRow label="X — Service Category (paid for)" required
-              hint="Service categories the customer already paid for (multi-select)">
+
+            <FieldRow label="① Paid for these service categories" required
+              hint="Categories the customer paid for during the period below">
               <CategoryMultiSelect value={rule.xvalue}
                 placeholder="Select service categories…"
                 excludeNames={rule.pvalue}
                 onChange={v=>setRule(p=>({...p,xvalue:v}))} />
             </FieldRow>
-            <FieldRow label="Y — Lookback Days (purchased within)" required
-              hint="How many past days to check for the X purchase">
-              <FInput type="number" value={rule.yvalue} min="1"
-                placeholder="e.g. 30"
-                onChange={e=>setRule(p=>({...p,yvalue:e.target.value.replace(/\D/g,"")}))} />
+
+            <FieldRow label="② …paid during this period" required
+              hint="The active window — any date range, e.g. Nov 2025 → Dec 2025"
+              error={ruleErrors.yRange}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <FInput type="date" value={rule.yFromDate} max={rule.yToDate||undefined}
+                  onChange={e=>setRule(p=>({...p,yFromDate:e.target.value}))} />
+                <span style={{ color:C.sub, fontSize:13 }}>to</span>
+                <FInput type="date" value={rule.yToDate} min={rule.yFromDate||undefined}
+                  onChange={e=>setRule(p=>({...p,yToDate:e.target.value}))} />
+                <DaysReadout from={rule.yFromDate} to={rule.yToDate} />
+              </div>
             </FieldRow>
-            <FieldRow label="Z — Forward Days (no future appointment within)" required
-              hint="How many future days to check for absence of appointment">
-              <FInput type="number" value={rule.zvalue} min="1"
-                placeholder="e.g. 7"
-                onChange={e=>setRule(p=>({...p,zvalue:e.target.value.replace(/\D/g,"")}))} />
-            </FieldRow>
-            <FieldRow label="P — Service Category to check for future appointment"
-              hint="Service categories to verify have no upcoming booking (cannot overlap with X)">
+
+            <FieldRow label="③ AND had no appointment for these categories"
+              hint="Categories to check for a booking — can be the same as the paid-for list">
               <CategoryMultiSelect value={rule.pvalue}
                 placeholder="Select service categories…"
-                excludeNames={rule.xvalue}
                 onChange={v=>setRule(p=>({...p,pvalue:v}))} />
+            </FieldRow>
+
+            <FieldRow label="④ …during this period" required
+              hint="The silent window — any date range, past or future, e.g. Jan 2026 → today"
+              error={ruleErrors.zRange}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <FInput type="date" value={rule.zFromDate} max={rule.zToDate||undefined}
+                  onChange={e=>setRule(p=>({...p,zFromDate:e.target.value}))} />
+                <span style={{ color:C.sub, fontSize:13 }}>to</span>
+                <FInput type="date" value={rule.zToDate} min={rule.zFromDate||undefined}
+                  onChange={e=>setRule(p=>({...p,zToDate:e.target.value}))} />
+                <DaysReadout from={rule.zFromDate} to={rule.zToDate} />
+              </div>
             </FieldRow>
           </>)}
 
@@ -892,8 +961,9 @@ export default function CreateCampaign() {
             )}
           </>)}
 
-          {/* Rule Days — only for Dynamic campaigns (Static uses fixed date range instead) */}
-          {selectedRule.hasDays && general.ruleType === "2" && (
+          {/* Rule Days — only for Dynamic campaigns (Static uses fixed date range instead).
+              R2 derives its Y/Z days from the two date ranges above, so it's excluded here. */}
+          {selectedRule.hasDays && general.ruleCode !== "R2" && general.ruleType === "2" && (
             <FieldRow label="Rule Days" required error={ruleErrors.ruleDays}
               hint="How many past days to look back for this rule.">
               <FSelect value={rule.ruleDays}
