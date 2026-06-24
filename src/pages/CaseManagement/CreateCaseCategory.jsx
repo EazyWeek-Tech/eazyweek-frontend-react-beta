@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { resolveCategoryAccess } from "../../categoryAccess";
 
 const CreateCaseCategory = () => {
   const navigate = useNavigate();
+  const [canManage, setCanManage] = useState(false);
+  useEffect(() => {
+    let ok = true;
+    resolveCategoryAccess(API_BASE_URL).then((a) => ok && setCanManage(a.canManage));
+    return () => {
+      ok = false;
+    };
+  }, []);
 
   const [active, setActive] = useState("Category");
 
@@ -132,6 +141,7 @@ const CreateCaseCategory = () => {
     subSubSubCategories.length === 0;
 
   const onSave = async () => {
+    if (!canManage) return alert("You don't have permission to manage categories.");
     if (nothingAdded) return alert("Please add at least one value before saving.");
     setBusy(true);
     try {
@@ -147,6 +157,7 @@ const CreateCaseCategory = () => {
   };
 
   const onSubmit = async () => {
+    if (!canManage) return alert("You don't have permission to manage categories.");
     if (nothingAdded) return alert("Please add at least one value before submitting.");
     setBusy(true);
     try {
@@ -185,41 +196,45 @@ const CreateCaseCategory = () => {
   return (
     <>
       <style jsx>{`
-        .wrap { max-width: 1160px; margin: 0 auto; padding: 16px 16px 64px; }
-        .crumb { color:#334B71; margin-bottom:8px; font-size:14px; }
+        .wrap { max-width: 1160px; margin: 0 auto; padding: 16px 16px 64px; color:#10223f; }
+        .crumb { color:#334B71; margin-bottom:8px; font-size:14px; font-weight:600; }
         .headerbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-        .title { font-size:22px; font-weight:700; color:#111827; margin:0; }
+        .title { font-size:22px; font-weight:800; color:#10223f; margin:0; }
         .header-actions { display:flex; gap:10px; }
-        .btn { border:none; cursor:pointer; font-weight:700; border-radius:8px; padding:10px 16px; }
+        .btn { border:none; cursor:pointer; font-weight:700; border-radius:10px; padding:9px 18px; font-size:14px; box-shadow:0 1px 2px rgba(0,0,0,.08); transition:background .15s; }
         .btn.primary { background:#334B71; color:#fff; }
-        .btn.dark { background:#0f1f3b; color:#fff; }
-        .btn.light { background:#fff; border:1px solid #d1d5db; }
-        .btn.warn { background:#c66752; color:#fff; }
-        .btn:disabled { opacity:.6; cursor:not-allowed; }
+        .btn.primary:hover { background:#071D49; }
+        .btn.dark { background:#071D49; color:#fff; }
+        .btn.light { background:#fff; border:1px solid #e7ecf4; color:#10223f; box-shadow:none; }
+        .btn.light:hover { background:#f4f6fa; }
+        .btn.warn { background:#cc6b5c; color:#fff; }
+        .btn.warn:hover { background:#b85b4d; }
+        .btn:disabled { opacity:.55; cursor:not-allowed; }
 
-        .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; }
-        .tabs { display:flex; gap:10px; border-bottom:1px solid #e5e7eb; padding:10px; flex-wrap:wrap; }
-        .tab { padding:8px 14px; border-radius:999px; border:none; cursor:pointer; font-weight:700; font-size:14px; }
-        .tab.active { background:#05224C; color:#fff; }
+        .card { background:#fff; border:1px solid #e7ecf4; border-radius:12px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+        .tabs { display:flex; gap:10px; border-bottom:1px solid #e7ecf4; padding:10px; flex-wrap:wrap; }
+        .tab { padding:8px 14px; border-radius:999px; border:none; cursor:pointer; font-weight:700; font-size:14px; background:#eef2f8; color:#334b71; }
+        .tab.active { background:#334B71; color:#fff; }
 
         .content { padding:18px; display:grid; grid-template-columns: 1fr 320px; gap:20px; align-items:flex-start; }
         .left { max-width:760px; }
         .row { display:grid; grid-template-columns:180px 1fr; align-items:center; gap:12px; margin-bottom:12px; }
-        .label { color:#374151; font-weight:600; }
-        .inp { height:38px; padding:8px 10px; border-radius:8px; border:1px solid #d1d5db; width:100%; }
+        .label { color:#334155; font-weight:600; }
+        .inp { height:38px; padding:8px 10px; border-radius:8px; border:1px solid #e7ecf4; width:100%; color:#10223f; outline:none; transition:border-color .12s, box-shadow .12s; }
+        .inp:focus { border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,.12); }
         .switch { display:flex; align-items:center; gap:10px; }
         .btns { display:flex; gap:10px; }
 
-        .table { width:100%; border-collapse:collapse; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-        .table th { background:#334B71; color:#fff; text-align:left; font-size:12px; padding:10px; }
-        .table td { padding:10px; border-top:1px solid #f1f5f9; font-size:14px; color:#111827; }
+        .table { width:100%; border-collapse:collapse; border:1px solid #e7ecf4; border-radius:10px; overflow:hidden; }
+        .table th { background:#f4f6fa; color:#10223f; font-weight:800; text-align:left; font-size:12px; padding:10px; border-bottom:1px solid #e7ecf4; }
+        .table td { padding:10px; border-top:1px solid #f1f5f9; font-size:13px; color:#10223f; }
         .actions { text-align:right; }
 
         .right { position:sticky; top:80px; display:flex; flex-direction:column; gap:12px; }
-        .summary { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; }
-        .summary h4 { margin:0 0 8px 0; font-size:16px; color:#0f1f3b; }
-        .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:14px; color:#374151; }
-        .total { margin-top:8px; font-weight:700; }
+        .summary { background:#fff; border:1px solid #e7ecf4; border-radius:12px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+        .summary h4 { margin:0 0 8px 0; font-size:16px; color:#10223f; }
+        .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:14px; color:#64748b; }
+        .total { margin-top:8px; font-weight:700; color:#10223f; }
 
         @media (max-width: 1000px) {
           .content { grid-template-columns:1fr; }
@@ -243,14 +258,24 @@ const CreateCaseCategory = () => {
               <button className="btn light" onClick={() => navigate(-1)} disabled={busy}>
                 Close
               </button>
-              <button className="btn warn" onClick={onSave} disabled={busy || nothingAdded}>
-                {busy ? "Saving..." : "Save Draft"}
-              </button>
-              <button className="btn primary" onClick={onSubmit} disabled={busy || nothingAdded}>
-                {busy ? "Submitting..." : "Submit"}
-              </button>
+              {canManage && (
+                <>
+                  <button className="btn warn" onClick={onSave} disabled={busy || nothingAdded}>
+                    {busy ? "Saving..." : "Save Draft"}
+                  </button>
+                  <button className="btn primary" onClick={onSubmit} disabled={busy || nothingAdded}>
+                    {busy ? "Submitting..." : "Submit"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
+
+          {!canManage && (
+            <div style={{ margin: "8px 0", padding: "10px 14px", borderRadius: 8, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 13, fontWeight: 600 }}>
+              View only — creating categories is restricted to Legal-Entity admins.
+            </div>
+          )}
 
           <div className="card">
             {/* tabs */}

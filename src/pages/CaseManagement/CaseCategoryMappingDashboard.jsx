@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import DataTable from "datatables.net-dt";
 import "datatables.net-fixedcolumns-dt";
 import { API_BASE_URL } from "../../config";
+import { resolveCategoryAccess } from "../../categoryAccess";
 
 // List API
 const LIST_API = (base) => `${base}/api/Master/LoadCaseCategoryMapping`;
@@ -100,6 +101,22 @@ function readActiveCenterFromStorage() {
 
 const CaseCategoryMappingDashboard = () => {
   const navigate = useNavigate();
+  const [canManage, setCanManage] = useState(false);
+  const [atLegalEntity, setAtLegalEntity] = useState(false);
+  useEffect(() => {
+    let ok = true;
+    resolveCategoryAccess(API_BASE_URL).then((a) => {
+      if (ok) {
+        setCanManage(a.canManage);
+        setAtLegalEntity(a.atLegalEntity);
+      }
+    });
+    return () => {
+      ok = false;
+    };
+  }, []);
+
+  const showAllScope = () => atLegalEntity;
 
   const tableRef = useRef(null);
   const dtRef = useRef(null);
@@ -157,7 +174,11 @@ const CaseCategoryMappingDashboard = () => {
 
   // Load data (always filter by activeCenterCode)
   const fetchRows = useCallback(async () => {
-    if (!activeCenterCode) {
+    // "Show all" when operating at the legal-entity level (active centre is the
+    // entity). Otherwise filter to the active clinic.
+    const showAll = atLegalEntity;
+
+    if (!activeCenterCode && !showAll) {
       setRows([]);
       return;
     }
@@ -171,11 +192,21 @@ const CaseCategoryMappingDashboard = () => {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : data ? [data] : [];
+      const raw = await res.json();
+      // Unwrap { success, message, data:[...] } envelope.
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : raw
+        ? [raw]
+        : [];
 
-      // ✅ STRICT filter: API centerCode must equal active center
-      const filtered = list.filter((r) => normCode(r?.centerCode) === normCode(activeCenterCode));
+      // Legal-entity admin sees ALL clinics' mappings; a center user sees only
+      // their own clinic (the entity code never matches a clinic row).
+      const filtered = showAll
+        ? list
+        : list.filter((r) => normCode(r?.centerCode) === normCode(activeCenterCode));
 
       const norm = filtered.map((r, i) => ({
         recId: r.recID ?? r.recId ?? r.id ?? `${i}`,
@@ -205,13 +236,13 @@ const CaseCategoryMappingDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeCenterCode]);
+  }, [activeCenterCode, atLegalEntity]);
 
   // Refetch when active center changes (dropdown switch)
   useEffect(() => {
-    if (!activeCenterCode) return;
+    if (!activeCenterCode && !atLegalEntity) return;
     fetchRows();
-  }, [activeCenterCode, fetchRows]);
+  }, [activeCenterCode, atLegalEntity, fetchRows]);
 
   // External search
   const filteredRows = useMemo(() => {
@@ -251,7 +282,10 @@ const CaseCategoryMappingDashboard = () => {
     return `<span class="${cls}">${s}</span>`;
   };
 
-  const renderActions = (row) => `
+  const renderActions = (row) =>
+    !canManage
+      ? `<span class="muted">—</span>`
+      : `
     <div class="row-actions">
       <button type="button" class="iconbtn blue btn-edit" data-id="${row.recId}" title="Edit" aria-label="Edit">
         ${svgEdit}
@@ -262,13 +296,21 @@ const CaseCategoryMappingDashboard = () => {
     </div>
   `;
 
+  const renderPriority = (row) => {
+    const p = safe(row.priority).trim();
+    if (!p) return `<span class="pill pill-none">—</span>`;
+    const k = p.toLowerCase();
+    const cls = k === "high" ? "pill-high" : k === "low" ? "pill-low" : "pill-normal";
+    return `<span class="pill ${cls}">${p}</span>`;
+  };
+
   const dtColumns = [
     { data: "centerName", title: "Clinic Name", className: "text-nowrap", width: "160px" },
     { data: "categoryName", title: "Category", className: "text-nowrap", width: "180px" },
     { data: "subCategoryName", title: "Sub Category", className: "text-nowrap", width: "200px" },
     { data: "subSubCategoryName", title: "Sub Sub Category", className: "text-nowrap", width: "200px" },
     { data: "subSubSubCategoryName", title: "Sub Sub Sub Category", className: "text-nowrap", width: "220px" },
-    { data: "priority", title: "Priority", className: "text-nowrap", width: "120px" },
+    { data: null, title: "Priority", className: "text-nowrap", width: "120px", render: renderPriority },
     { data: null, title: "Status", className: "text-nowrap", width: "110px", render: renderStatus },
     {
       data: null,
@@ -374,6 +416,7 @@ const CaseCategoryMappingDashboard = () => {
 
   // Delete
   const doDelete = async (recId) => {
+    if (!canManage) return;
     setBusyRow({ recId, action: "delete" });
     try {
       let res = await fetch(DELETE_API(API_BASE_URL, recId), {
@@ -416,23 +459,27 @@ const CaseCategoryMappingDashboard = () => {
             <span className="breadcrumb-current">Category Mapping</span>
           </div>
 
-          {!!activeCenterCode && (
-            <div style={{ marginTop: 6, color: "#647187", fontWeight: 600 }}>
-              Center: {activeCenterCode}{activeCenterName ? ` - ${activeCenterName}` : ""}
+          {(showAllScope() || !!activeCenterCode) && (
+            <div className="scope-note">
+              {showAllScope()
+                ? "Showing all clinics (Legal Entity)"
+                : `Center: ${activeCenterCode}${activeCenterName ? ` - ${activeCenterName}` : ""}`}
             </div>
           )}
         </div>
 
         <div className="actions">
-          <button
-            className="btn"
-            onClick={() => {
-              try { sessionStorage.removeItem("editMapping"); } catch {}
-              navigate("/create-categories-mapping", { state: { mode: "create" } });
-            }}
-          >
-            Create New Mapping
-          </button>
+          {canManage && (
+            <button
+              className="btn"
+              onClick={() => {
+                try { sessionStorage.removeItem("editMapping"); } catch {}
+                navigate("/create-categories-mapping", { state: { mode: "create" } });
+              }}
+            >
+              Create New Mapping
+            </button>
+          )}
         </div>
       </div>
 
@@ -485,39 +532,82 @@ const CaseCategoryMappingDashboard = () => {
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
       <style jsx>{`
+        .case-page { color: #10223f; }
         .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-        .title { margin: 0 0 14px 0; font-size: 22px; color: #0b1f3a; }
-        .breadcrumb { display: flex; align-items: center; gap: 6px; color: #6c7a89; font-size: 14px; margin-top: 4px; }
-        .breadcrumb-link { color: #334b71; text-decoration: none; font-weight: 600; }
+        .title { margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #10223f; }
+        .breadcrumb { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 14px; margin-top: 2px; }
+        .breadcrumb-link { color: #334b71; text-decoration: none; font-weight: 700; }
         .breadcrumb-link:hover { text-decoration: underline; }
         .breadcrumb-separator { color: #9aa3b2; user-select: none; }
         .breadcrumb-current { color: #93a1b3; }
+        .scope-note { margin-top: 6px; color: #64748b; font-weight: 600; font-size: 13px; }
 
         .actions { display: flex; gap: 10px; }
-        .btn { background: #1d2c43; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+        .btn { background: #334b71; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.08); transition: background .15s; }
+        .btn:hover { background: #071D49; }
         .btn:disabled { opacity: .55; cursor: not-allowed; }
 
-        .toolbar { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 12px; }
-        .left { display: flex; align-items: center; gap: 6px; color: #647187; }
-        .left select { height: 32px; border: 1px solid #d8dee8; border-radius: 6px; padding: 0 8px; outline: none; }
-        .right { display: flex; align-items: center; gap: 8px; }
-        .search { width: 220px; height: 32px; border: 1px solid #d8dee8; border-radius: 6px; padding: 0 8px; outline: none; }
+        .toolbar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 12px; }
+        .left { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 14px; }
+        .left select, .search { height: 36px; border: 1px solid #e7ecf4; border-radius: 8px; padding: 0 10px; outline: none; color: #10223f; background: #fff; }
+        .left select:focus, .search:focus { border-color: #334b71; box-shadow: 0 0 0 3px rgba(51,75,113,.12); }
+        .right { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 14px; }
+        .search { width: 240px; }
 
-        .table-wrap { background: #fff; border-radius: 8px; padding: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.06); min-height: 320px; }
+        .table-wrap { background: #fff; border: 1px solid #e7ecf4; border-radius: 12px; padding: 6px 6px 0; box-shadow: 0 1px 4px rgba(0,0,0,.05); min-height: 320px; overflow: hidden; }
 
         .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
         .iconbtn {
-          width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-          border-radius: 6px; border: 1px solid #d8dee8; background: #fff; cursor: pointer;
+          width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+          border-radius: 8px; border: 1px solid #e7ecf4; background: #fff; cursor: pointer; transition: background .12s, border-color .12s;
         }
-        .iconbtn.blue { color: #1d2c43; }
-        .iconbtn.red { color: #b94b56; }
+        .iconbtn.blue { color: #334b71; }
+        .iconbtn.blue:hover { background: #eef2f8; border-color: #c9d4e6; }
+        .iconbtn.red { color: #b91c1c; }
+        .iconbtn.red:hover { background: #fdecea; border-color: #f3c1b8; }
 
-        .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid #e7ecf3; }
-        .badge.active { background: #ecfdf3; color: #0f7a4f; border-color: #b8f2d0; }
-        .badge.inactive { background: #fff1f2; color: #9f1239; border-color: #ffd5db; }
+        .loading { margin-top: 8px; color: #64748b; font-weight: 600; }
+        .toast { position: fixed; right: 18px; bottom: 18px; z-index: 9999; padding: 10px 16px; border-radius: 10px; color: #fff; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+        .toast.success { background: #166534; }
+        .toast.error { background: #b91c1c; }
+      `}</style>
 
-        .loading { margin-top: 8px; color: #647187; font-weight: 600; }
+      {/* Global overrides for DataTables-generated markup + cell pills.
+          Plain (non-jsx) <style> so it reliably targets DT's own DOM. */}
+      <style>{`
+        #categoryMappingTable { border-collapse: separate; border-spacing: 0; }
+        #categoryMappingTable thead th {
+          background: #f4f6fa; color: #10223f; font-weight: 800; font-size: 12.5px;
+          padding: 11px 12px; border-bottom: 1px solid #e7ecf4; text-align: left; white-space: nowrap;
+        }
+        #categoryMappingTable tbody td {
+          padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #10223f; font-size: 13px; background: #fff;
+        }
+        #categoryMappingTable tbody tr:hover td { background: #eff6ff; }
+        #categoryMappingTable .dtfc-fixed-start,
+        #categoryMappingTable .dtfc-fixed-end { background: #fff; }
+        #categoryMappingTable tbody tr:hover .dtfc-fixed-start,
+        #categoryMappingTable tbody tr:hover .dtfc-fixed-end { background: #eff6ff; }
+
+        .dt-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px; flex-wrap: wrap; gap: 8px; }
+        .dt-footer .dt-info { color: #64748b; font-size: 13px; }
+        .dt-footer .dt-paging-button {
+          min-width: 32px; height: 32px; margin-left: 4px; padding: 0 10px; border: 1px solid #e7ecf4 !important;
+          border-radius: 8px; background: #fff !important; color: #334b71 !important; font-size: 13px; cursor: pointer;
+        }
+        .dt-footer .dt-paging-button:hover { background: #f4f6fa !important; }
+        .dt-footer .dt-paging-button.current { background: #334b71 !important; border-color: #334b71 !important; color: #fff !important; }
+        .dt-footer .dt-paging-button.disabled { opacity: .45; cursor: not-allowed; }
+
+        #categoryMappingTable .muted { color: #93a1b3; }
+        #categoryMappingTable .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+        #categoryMappingTable .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+        #categoryMappingTable .badge.active { background: #ecfdf5; color: #047857; }
+        #categoryMappingTable .badge.inactive { background: #eef1f6; color: #475569; }
+        #categoryMappingTable .pill-high { background: #fdecea; color: #b91c1c; }
+        #categoryMappingTable .pill-normal { background: #eff6ff; color: #1d4ed8; }
+        #categoryMappingTable .pill-low { background: #ecfdf5; color: #047857; }
+        #categoryMappingTable .pill-none { background: #eef1f6; color: #64748b; }
       `}</style>
     </div>
   );

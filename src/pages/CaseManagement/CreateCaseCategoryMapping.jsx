@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { resolveCategoryAccess } from "../../categoryAccess";
 
 /**
  * Create / Edit Case Category Mapping
@@ -12,6 +13,14 @@ import { API_BASE_URL } from "../../config";
 const CreateCaseCategoryMapping = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [canManage, setCanManage] = useState(false);
+  useEffect(() => {
+    let ok = true;
+    resolveCategoryAccess(API_BASE_URL).then((a) => ok && setCanManage(a.canManage));
+    return () => {
+      ok = false;
+    };
+  }, []);
 
   // Prefer router state
   let stateMode = location.state?.mode;
@@ -271,16 +280,16 @@ if (rawSess) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Employees`, {
+        const res = await fetch(`${API_BASE_URL}/api/Employee/Dropdown`, {
           credentials: "include",
         });
         if (!res.ok) throw new Error(`Employees: HTTP ${res.status}`);
         const raw = await res.json();
         const list = coerceArray(raw).map((r, i) => ({
           recId: r.recId ?? r.recID ?? r.id ?? i,
-          code: safeStr(r.employeeCode ?? r.code ?? ""),
-          name: safeStr(r.employeeName ?? r.name ?? ""),
-          email: r.emailID ?? r.email ?? "",
+          code: safeStr(r.code ?? r.employeeCode ?? ""),
+          name: safeStr(r.name ?? r.employeeName ?? ""),
+          email: r.EMAIL ?? r.emailID ?? r.email ?? "",
         }));
         const clean = list.filter((e) => e.code).sort((a, b) => a.code.localeCompare(b.code));
         if (!cancelled) setEmployees(clean);
@@ -345,12 +354,17 @@ if (rawSess) {
   };
 
   const onSave = async () => {
+    if (!canManage) return alert("You don't have permission to manage mappings.");
     const errs = validate();
     if (errs.length) return alert(errs.join("\n"));
     setBusy(true);
     try {
       await postMapping(true);
+      try {
+        sessionStorage.removeItem("editMapping");
+      } catch {}
       alert(isEdit ? "Changes saved as draft." : "Saved as draft.");
+      navigate("/categories-mapping");
     } catch (e) {
       console.error(e);
       alert(`Save failed: ${e.message}`);
@@ -360,6 +374,7 @@ if (rawSess) {
   };
 
   const onSubmit = async () => {
+    if (!canManage) return alert("You don't have permission to manage mappings.");
     const errs = validate();
     if (errs.length) return alert(errs.join("\n"));
     setBusy(true);
@@ -369,7 +384,7 @@ if (rawSess) {
       try {
         sessionStorage.removeItem("editMapping");
       } catch {}
-      navigate(-1);
+      navigate("/categories-mapping");
     } catch (e) {
       console.error(e);
       alert(`Submit failed: ${e.message}`);
@@ -408,16 +423,18 @@ if (rawSess) {
           max-width: 980px;
           margin: 0 auto;
           padding: 20px 16px 64px;
+          color: #10223f;
         }
         .crumb {
           color: #334b71;
           font-size: 14px;
           margin-bottom: 6px;
+          font-weight: 600;
         }
         .title {
           font-size: 22px;
-          font-weight: 700;
-          color: #111827;
+          font-weight: 800;
+          color: #10223f;
           margin-bottom: 16px;
         }
         .pill {
@@ -427,14 +444,15 @@ if (rawSess) {
           font-weight: 700;
           font-size: 12px;
           margin-left: 8px;
-          background: #eef2ff;
-          color: #3730a3;
+          background: #eff6ff;
+          color: #1d4ed8;
         }
         .card {
           background: #fff;
-          border: 1px solid #e5e7eb;
+          border: 1px solid #e7ecf4;
           border-radius: 12px;
           padding: 20px;
+          box-shadow: 0 1px 4px rgba(0,0,0,.05);
         }
         .row {
           display: grid;
@@ -444,18 +462,26 @@ if (rawSess) {
           margin-bottom: 14px;
         }
         .label {
-          color: #374151;
+          color: #334155;
           font-weight: 600;
         }
         .fld,
         .select {
           height: 40px;
-          border: 1px solid #d1d5db;
+          border: 1px solid #e7ecf4;
           border-radius: 10px;
           padding: 8px 12px;
           font-size: 14px;
           width: 100%;
           background: #fff;
+          color: #10223f;
+          outline: none;
+          transition: border-color .12s, box-shadow .12s;
+        }
+        .fld:focus,
+        .select:focus {
+          border-color: #334b71;
+          box-shadow: 0 0 0 3px rgba(51,75,113,.12);
         }
         .actions {
           display: flex;
@@ -470,21 +496,26 @@ if (rawSess) {
           font-weight: 700;
           cursor: pointer;
           min-width: 120px;
+          box-shadow: 0 1px 2px rgba(0,0,0,.08);
+          transition: background .15s;
         }
         .btn.save {
-          background: #1f2937;
+          background: #071D49;
           color: #fff;
         }
+        .btn.save:hover { background: #0a285f; }
         .btn.submit {
           background: #334b71;
           color: #fff;
         }
+        .btn.submit:hover { background: #071D49; }
         .btn.close {
-          background: #6b7280;
+          background: #64748b;
           color: #fff;
         }
+        .btn.close:hover { background: #475569; }
         .btn:disabled {
-          opacity: 0.6;
+          opacity: 0.55;
           cursor: not-allowed;
         }
         .inline {
@@ -493,7 +524,7 @@ if (rawSess) {
           align-items: center;
         }
         .muted {
-          color: #6b7280;
+          color: #64748b;
         }
       `}</style>
 
@@ -643,12 +674,16 @@ if (rawSess) {
 
           {/* Buttons */}
           <div className="actions">
-            <button className="btn save" onClick={onSave} disabled={busy || loading}>
-              {busy ? "Saving..." : isEdit ? "Save Changes" : "Save (Draft)"}
-            </button>
-            <button className="btn submit" onClick={onSubmit} disabled={busy || loading}>
-              {busy ? "Submitting..." : isEdit ? "Update" : "Submit"}
-            </button>
+            {canManage && (
+              <>
+                <button className="btn save" onClick={onSave} disabled={busy || loading}>
+                  {busy ? "Saving..." : isEdit ? "Save Changes" : "Save (Draft)"}
+                </button>
+                <button className="btn submit" onClick={onSubmit} disabled={busy || loading}>
+                  {busy ? "Submitting..." : isEdit ? "Update" : "Submit"}
+                </button>
+              </>
+            )}
             <button
               className="btn close"
               onClick={() => {

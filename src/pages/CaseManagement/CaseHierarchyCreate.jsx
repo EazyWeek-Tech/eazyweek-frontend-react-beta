@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { resolveCategoryAccess } from "../../categoryAccess";
 
 /* ----- constants ----- */
 const SLA_OPTIONS = Array.from({ length: 48 }, (_, i) => i + 1); // 1..48
@@ -33,7 +34,9 @@ const parseDays = (str) =>
 async function fetchJSON(url) {
   const r = await fetch(url, { credentials: "include" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  const j = await r.json();
+  // Unwrap { success, message, data } envelope when present.
+  return j && typeof j === "object" && !Array.isArray(j) && "data" in j ? j.data : j;
 }
 
 /* click-outside hook */
@@ -360,6 +363,19 @@ const CaseHierarchyCreate = () => {
   const [recId, setRecId] = useState(0);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const [canManage, setCanManage] = useState(false);
+  const canManageRef = useRef(false);
+  useEffect(() => {
+    let ok = true;
+    resolveCategoryAccess(API_BASE_URL).then((a) => {
+      if (!ok) return;
+      canManageRef.current = a.canManage;
+      setCanManage(a.canManage);
+    });
+    return () => {
+      ok = false;
+    };
+  }, []);
 
   // form stores **codes**
   const [form, setForm] = useState({
@@ -439,8 +455,15 @@ const CaseHierarchyCreate = () => {
 
         // Employees
         try {
-          const d = await fetchJSON(`${API_BASE_URL}/api/Employees`);
-          if (Array.isArray(d)) setEmployees(d);
+          const d = await fetchJSON(`${API_BASE_URL}/api/Employee/Dropdown`);
+          const list = (Array.isArray(d) ? d : [])
+            .map((r) => ({
+              employeeCode: r.employeeCode ?? r.code ?? "",
+              employeeName: r.employeeName ?? r.name ?? "",
+              emailID: r.emailID ?? r.EMAIL ?? r.email ?? "",
+            }))
+            .filter((e) => e.employeeCode);
+          if (list.length) setEmployees(list);
         } catch {
           setEmployees([
             { employeeCode: "CENT-00047", employeeName: "Zoya Kazi" },
@@ -623,8 +646,9 @@ useEffect(() => {
           credentials: "include",
           headers: { Accept: "application/json" },
         });
-        const arr = await res.json();
-        const row = Array.isArray(arr) ? arr[0] : arr;
+        const raw = await res.json();
+        const data = raw && typeof raw === "object" && !Array.isArray(raw) && "data" in raw ? raw.data : raw;
+        const row = Array.isArray(data) ? data[0] : data;
         if (!row) return;
 
         // Prefill map so selected values render even before options arrive
@@ -785,6 +809,7 @@ useEffect(() => {
   });
 
   const submit = async (isDraft) => {
+    if (!canManageRef.current) return showToast("You don't have permission to manage case hierarchy.");
     const err = validate(isDraft); // ⬅️ pass isDraft to validation
     if (err) return showToast(err);
 
@@ -935,12 +960,16 @@ useEffect(() => {
           <button className="btn ghost" onClick={() => navigate(-1)}>
             Close
           </button>
-          <button className="pribtn" disabled={busy} onClick={() => submit(true)}>
-            Save
-          </button>
-          <button className="btn primary" disabled={busy} onClick={() => submit(false)}>
-            {recId ? "Update" : "Submit"}
-          </button>
+          {canManage && (
+            <>
+              <button className="pribtn" disabled={busy} onClick={() => submit(true)}>
+                Save
+              </button>
+              <button className="btn primary" disabled={busy} onClick={() => submit(false)}>
+                {recId ? "Update" : "Submit"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 

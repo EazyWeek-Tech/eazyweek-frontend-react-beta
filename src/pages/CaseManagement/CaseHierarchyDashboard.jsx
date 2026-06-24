@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import DataTable from "datatables.net-dt";           // JS (ESM) — no jQuery needed
 import "datatables.net-fixedcolumns-dt";             // JS plugin (ESM) registers itself
 import { API_BASE_URL } from "../../config";
+import { resolveCategoryAccess } from "../../categoryAccess";
 
 // NOTE: CSS is already included via CDN in index.html (DataTables v2 + FixedColumns v5)
 // If you ever want to import CSS from NPM instead, add:
@@ -16,13 +17,32 @@ const CaseHierarchyDashboard = () => {
 
   const tableRef = useRef(null);
   const dtRef = useRef(null);
+  const canManageRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
+  const [canManage, setCanManage] = useState(false);
+  const [atLegalEntity, setAtLegalEntity] = useState(false);
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [perPage, setPerPage] = useState(10);
   const [rows, setRows] = useState([]);
   const [busyRow, setBusyRow] = useState(null); // { recId, action }
+
+  // Manage rights only for an Admin at the legal-entity level; clinic = view only.
+  useEffect(() => {
+    let ok = true;
+    resolveCategoryAccess(API_BASE_URL).then((a) => {
+      if (!ok) return;
+      canManageRef.current = a.canManage;
+      setCanManage(a.canManage);
+      setAtLegalEntity(a.atLegalEntity);
+      // Redraw so the Actions column re-renders with the resolved rights.
+      try { dtRef.current?.draw(false); } catch {}
+    });
+    return () => {
+      ok = false;
+    };
+  }, []);
 
   const LIST_API = `${API_BASE_URL}/api/CaseOperation/CaseHierarchyDB`;
 
@@ -34,21 +54,32 @@ const CaseHierarchyDashboard = () => {
   const fetchRows = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(LIST_API, {
+      const url = atLegalEntity ? `${LIST_API}?all=1` : LIST_API;
+      const res = await fetch(url, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setRows(Array.isArray(data) ? data : data ? [data] : []);
+      const raw = await res.json();
+      // Unwrap { success, message, data:[...] } envelope.
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : raw && raw.data
+        ? [raw.data]
+        : raw
+        ? [raw]
+        : [];
+      setRows(list);
     } catch (e) {
       console.error(e);
       showToast("Failed to load case hierarchy.");
     } finally {
       setLoading(false);
     }
-  }, [LIST_API]);
+  }, [LIST_API, atLegalEntity]);
 
   useEffect(() => {
     fetchRows();
@@ -78,6 +109,7 @@ const CaseHierarchyDashboard = () => {
 
   // Actions
   const doDelete = async (recId) => {
+  if (!canManageRef.current) return;
   if (!recId) return showToast("Row missing recId.");
 
   // 🔒 Block delete if status is Active
@@ -117,6 +149,7 @@ const CaseHierarchyDashboard = () => {
 
 
  const doActivate = async (recId) => {
+  if (!canManageRef.current) return;
   if (!recId) return showToast("Row missing recId.");
   setBusyRow({ recId, action: "activate" });
   try {
@@ -147,9 +180,17 @@ const CaseHierarchyDashboard = () => {
 
 
   const onEdit = (recId) => {
+    if (!canManageRef.current) return;
     if (!recId) return showToast("Row missing recId.");
     navigate(`/case-hierarchy/edit/${recId}`);
   };
+
+  // Keep the latest action handlers in a ref so the document-level click
+  // listener (bound once at init) never closes over stale state (e.g. rows).
+  const actionsRef = useRef({ doActivate, onEdit, doDelete });
+  useEffect(() => {
+    actionsRef.current = { doActivate, onEdit, doDelete };
+  });
 
   // SVG strings for actions column
   const svgCheck = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -197,6 +238,9 @@ const CaseHierarchyDashboard = () => {
   orderable: false,
   searchable: false,
   render: (row) => {
+    if (!canManageRef.current) {
+      return `<span class="muted">—</span>`;
+    }
     const raw = (row.caseStatus ?? (row.status ? "Active" : "Inactive")).toString();
     const isActive = raw.trim().toLowerCase() === "active";
 
@@ -222,12 +266,14 @@ const CaseHierarchyDashboard = () => {
 
   ];
 
-  // Initialize DataTable once
+  // Initialize DataTable once (destroy:true makes re-init safe under
+  // StrictMode/HMR, eliminating the "Cannot reinitialise DataTable" error)
   useEffect(() => {
-    if (!tableRef.current) return;
-    if (dtRef.current) return; // guard
+    const el = tableRef.current;
+    if (!el) return;
 
-    dtRef.current = new DataTable(tableRef.current, {
+    dtRef.current = new DataTable(el, {
+      destroy: true,
       data: rows,
       columns: dtColumns,
       deferRender: true,
@@ -248,20 +294,23 @@ const CaseHierarchyDashboard = () => {
       dom: "rt<'dt-footer'ip>",
     });
 
-    // Document-level delegated handlers (works for cloned fixed columns too)
+    // Document-level delegated handlers (works for cloned fixed columns too).
+    // Calls go through actionsRef so they always see the latest state.
     const handler = (e) => {
       const btnActivate = e.target.closest?.(".btn-activate");
       const btnEdit = e.target.closest?.(".btn-edit");
       const btnDelete = e.target.closest?.(".btn-delete");
       if (btnActivate) {
+        if (btnActivate.hasAttribute("disabled")) return;
         const id = btnActivate.getAttribute("data-id");
-        if (id && window.confirm("Activate this record?")) doActivate(id);
+        if (id && window.confirm("Activate this record?")) actionsRef.current.doActivate(id);
       } else if (btnEdit) {
         const id = btnEdit.getAttribute("data-id");
-        if (id) onEdit(id);
+        if (id) actionsRef.current.onEdit(id);
       } else if (btnDelete) {
+        if (btnDelete.hasAttribute("disabled")) return;
         const id = btnDelete.getAttribute("data-id");
-        if (id && window.confirm("Delete this record?")) doDelete(id);
+        if (id && window.confirm("Delete this record?")) actionsRef.current.doDelete(id);
       }
     };
     document.addEventListener("click", handler);
@@ -269,12 +318,12 @@ const CaseHierarchyDashboard = () => {
     return () => {
       document.removeEventListener("click", handler);
       if (dtRef.current) {
-        dtRef.current.destroy();
+        try { dtRef.current.destroy(); } catch {}
         dtRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableRef.current]);
+  }, []);
 
   // Update table data when rows change
   useEffect(() => {
@@ -366,7 +415,9 @@ const CaseHierarchyDashboard = () => {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={() => navigate("/case-hierarchy/create")}>Create New</button>
+          {canManage && (
+            <button className="btn" onClick={() => navigate("/case-hierarchy/create")}>Create New</button>
+          )}
           <button className="btn" onClick={exportCSV}>Export</button>
         </div>
       </div>
@@ -443,6 +494,7 @@ const CaseHierarchyDashboard = () => {
 
         /* Action buttons */
         .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+        .muted { color: #93a1b3; }
         .iconbtn {
           width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
           border-radius: 6px; border: 1px solid #d8dee8; background: #fff; cursor: pointer;
