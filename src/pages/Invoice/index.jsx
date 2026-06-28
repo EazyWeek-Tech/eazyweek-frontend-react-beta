@@ -13,6 +13,7 @@ import Toast from './components/Toast';
 import SalesReturn from './SalesReturn';
 import PackageBalanceChecker from './components/PackageBalanceChecker';
 import PromotionModal from './components/PromotionModal';
+import AdvancePayment from './components/AdvancePayment';
 import { useCustomerNotes } from '../../pages/Customer/CustomerDetails/CustomerNotePopup';
 import './styles/InvoicePage.css';
 
@@ -46,6 +47,7 @@ const InvoicePage = () => {
   const [showReturn,        setShowReturn]        = useState(false);
   const [showPkgBalance,    setShowPkgBalance]    = useState(false);
   const [showPromotion,     setShowPromotion]     = useState(false);
+  const [showAdvance,       setShowAdvance]        = useState(false);
   const [appliedPromotions, setAppliedPromotions] = useState([]);
   const [packageRedemption, setPackageRedemption] = useState(null);
   const [clinicName,        setClinicName]        = useState("");
@@ -359,6 +361,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
             <InvoiceSummary showPopup={showPopup} setShowPopup={setShowPopup}
               onRecallInvoice={() => setShowReturn(true)} onCheckPackageBalance={() => setShowPkgBalance(true)}
               onPromotion={() => setShowPromotion(true)}
+              onCollectAdvance={() => setShowAdvance(true)}
               disablePackageBalance={items.some(i => i.type === 'package' || i.itemType === 'package')}
               onManualDiscount={handleManualDiscount} onClearCart={handleClearCart}
               onSuspendCart={handleSuspendCart} onRecallCartById={handleRecallCartById}
@@ -369,7 +372,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
 
             <div className="invtotalblk">
               <CustomerSearch
-                onCustomerSelect={(cust) => setSelectedCustomer({ ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) })}
+                onCustomerSelect={(cust) => setSelectedCustomer(cust ? { ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) } : null)}
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
                 nationalityStatus={selectedCustomer?.status} />
@@ -405,6 +408,16 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
       {showReturn    && <SalesReturn onClose={() => setShowReturn(false)} />}
       {showPromotion && <PromotionModal items={items} onApply={handlePromotionApply} onClose={() => setShowPromotion(false)} />}
       {showPkgBalance && <PackageBalanceChecker customer={selectedCustomer} items={items} onRedeem={handlePackageRedeem} onClose={() => setShowPkgBalance(false)} />}
+
+      {showAdvance && (
+        <div onClick={() => setShowAdvance(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9999, display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:'24px 0' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:14, width:'95%', maxWidth:960, margin:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            <AdvancePayment initialCustomer={selectedCustomer} onClose={() => setShowAdvance(false)} />
+          </div>
+        </div>
+      )}
 
       {/* Customer Notes popup — fires when invoice page loads for a customer */}
       {PaymentNotePopup}

@@ -1102,7 +1102,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                 <button onClick={handleSaveEMRForms}
                   style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:8,
                     padding:"10px 20px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
-                  💾 Save Forms
+                   Save Forms
                 </button>
               </div>
             </div>

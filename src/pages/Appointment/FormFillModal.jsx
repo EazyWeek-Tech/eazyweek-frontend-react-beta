@@ -298,7 +298,7 @@ const AnnotationPad = ({ assetCode, value, onChange }) => {
         <button onClick={undo} title="Undo last stroke"
           style={{ fontSize:12, padding:"2px 10px", borderRadius:6, border:"1px solid #e7ecf4",
             background:"#fff", cursor:"pointer" }}>
-          ↩ Undo
+           Undo
         </button>
 
         {/* Clear */}

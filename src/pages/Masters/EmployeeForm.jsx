@@ -461,7 +461,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
               style={{ padding:"9px 18px", border:"1.5px solid #334b71", borderRadius:8,
                 background:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", color:"#334b71",
                 opacity: saving ? 0.7 : 1 }}>
-              {saving==="save" ? "Saving…" : "💾 Save"}
+              {saving==="save" ? "Saving…" : " Save"}
             </button>
             <button onClick={() => handleSave("submit")} disabled={!!saving}
               style={{ padding:"9px 18px", border:"none", borderRadius:8,

@@ -24,7 +24,7 @@ export const COMPONENT_TYPES = [
   { type:"text",         label:"Short Text",      icon:"📝", group:"Input" },
   { type:"textarea",     label:"Long Text",        icon:"📄", group:"Input" },
   { type:"number",       label:"Number",           icon:"🔢", group:"Input" },
-  { type:"date",         label:"Date",             icon:"📅", group:"Input" },
+  { type:"date",         label:"Date",             icon:"", group:"Input" },
   { type:"time",         label:"Time",             icon:"🕐", group:"Input" },
   { type:"datetime",     label:"Date & Time",      icon:"🗓", group:"Input" },
   { type:"dropdown",     label:"Dropdown",         icon:"⬇", group:"Choice" },

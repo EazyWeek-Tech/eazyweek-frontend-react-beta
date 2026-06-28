@@ -161,7 +161,7 @@ const FaceMapper = forwardRef(({ onDrawingComplete, width = 400, height = 400 },
         <button onClick={() => setTool('point')} style={{ marginLeft: '0.5rem' }}> Point</button>
         <button onClick={() => setTool('line')} style={{ marginLeft: '0.5rem' }}>📏 Line</button>
         <button onClick={handleClear} style={{ marginLeft: '1rem' }}>🧹 Clear</button>
-        <button onClick={handleUndo} style={{ marginLeft: '1rem' }}>↩️ Undo</button>
+        <button onClick={handleUndo} style={{ marginLeft: '1rem' }}>️ Undo</button>
         <button onClick={handleRedo} style={{ marginLeft: '0.5rem' }}>↪️ Redo</button>
       </div>
 

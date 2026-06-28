@@ -69,6 +69,7 @@ export default function LegalEntitySetup() {
   const [setup, setSetup] = useState({
     allowCrossSearch: false, crossSearchMode: "Centre Level",
     allowDuplicateMobile: false, emailOptional: true, allowDuplicateEmail: false,
+    advScope: "CENTRE",
   });
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
@@ -300,7 +301,7 @@ export default function LegalEntitySetup() {
             <div className="le-sub">Configure organisation, addresses, contacts &amp; policies</div>
           </div>
           <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
-            {saving ? "Saving…" : "💾 Save Entity"}
+            {saving ? "Saving…" : " Save Entity"}
           </button>
         </div>
 
@@ -607,6 +608,22 @@ export default function LegalEntitySetup() {
                 <div className="knob"/>
               </div>
             </div>
+
+            <div className="toggle-row">
+              <div>
+                <div className="toggle-label">Advance Payment Scope</div>
+                <div className="toggle-sub">Determines whether a customer advance can be redeemed only at the collecting centre, or at any centre within the group.</div>
+                <div style={{ marginTop:10, display:"flex", gap:16 }}>
+                  {[{ v:"CENTRE", l:"Centre-Specific" }, { v:"COMPANY", l:"Company-Wide" }].map(({ v, l }) => (
+                    <label key={v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                      <input type="radio" name="advScope" checked={(setup.advScope || "CENTRE") === v}
+                        onChange={() => setSetup(p => ({ ...p, advScope: v }))} />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -616,7 +633,7 @@ export default function LegalEntitySetup() {
             Cancel
           </button>
           <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
-            {saving ? "Saving…" : "💾 Save Entity"}
+            {saving ? "Saving…" : " Save Entity"}
           </button>
         </div>
       </div>

@@ -21,6 +21,23 @@ const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitize
   return { net: base, tax, total: base + tax, rate };
 };
 
+// Split a redemption amount across advances FIFO and return its base/VAT portions,
+// using each advance's own VAT ratio (VATAMOUNT/TOTALAMOUNT). Drives the negative
+// "Advance Redemption" line that reduces the invoice's base & VAT (FRD §5).
+const splitAdvanceRedemption = (amount, advances = []) => {
+  let remaining = Number(amount) || 0, base = 0, vat = 0;
+  for (const a of advances) {
+    if (remaining <= 0) break;
+    const bal = Number(a.remainingBalance) || 0;
+    const alloc = Math.min(bal, remaining);
+    if (alloc <= 0) continue;
+    const frac = Number(a.totalAmount) > 0 ? Number(a.vatAmount) / Number(a.totalAmount) : 0;
+    const av = alloc * frac;
+    vat += av; base += (alloc - av); remaining -= alloc;
+  }
+  return { base: parseFloat(base.toFixed(2)), vat: parseFloat(vat.toFixed(2)) };
+};
+
 const TOKEN = () => {
   const t = localStorage.getItem("token") || sessionStorage.getItem("token");
   if (!t) console.warn("[PaymentBlock] No token found in localStorage or sessionStorage");
@@ -102,6 +119,12 @@ const PaymentBlock = ({
   const [cnLoading,           setCnLoading]           = useState(false);
   const [selectedCN,          setSelectedCN]          = useState(null);
   const [cnAmount,            setCnAmount]            = useState('');
+  // ── Advance redemption state (mirrors credit note) ──
+  const [appliedAdvances,   setAppliedAdvances]   = useState([]);
+  const [availableAdvances, setAvailableAdvances] = useState([]);
+  const [advLoading,        setAdvLoading]        = useState(false);
+  const [advTotalBalance,   setAdvTotalBalance]   = useState(0);
+  const [advAmount,         setAdvAmount]         = useState('');
   const [submittedInvoiceItems, setSubmittedInvoiceItems] = useState([]);
   const [submittedTotalAmount, setSubmittedTotalAmount] = useState(0);
 
@@ -230,10 +253,11 @@ const PaymentBlock = ({
   const _invoicePromos = appliedPromotions.filter(p => p.applicationLevel === "Invoice Level");
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
-               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
+               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0)
+               + appliedAdvances.reduce((sum, a) => sum + a.amount, 0);
     const remaining = Math.max(0, parsedTotalAmount - totalPaid);
     setAmount(remaining.toString());
-  }, [payments, parsedTotalAmount, activeTab, appliedCreditNotes]);
+  }, [payments, parsedTotalAmount, activeTab, appliedCreditNotes, appliedAdvances]);
 
   // ---------- Fetch Selected Appointment Details based on URL ----------
   useEffect(() => {
@@ -351,6 +375,40 @@ const PaymentBlock = ({
       .catch(() => { if (!cancelled) setLoyaltyRedeemableSar(0); });
     return () => { cancelled = true; };
   }, [loyaltyBalance, recIdFromUrl_final]);
+
+  // ---------- Load redeemable advance balance when Advance tab activated ----------
+  useEffect(() => {
+    const custId = effectiveCustomer?.custId || custIdFromUrl;
+    if (activeTab !== 'advance') return;
+    if (!custId) {
+      // Customer was removed — clear stale balance instead of showing the old one
+      setAvailableAdvances([]);
+      setAdvTotalBalance(0);
+      setAdvAmount('');
+      return;
+    }
+    setAdvLoading(true);
+    fetch(`${API_BASE_URL}/api/Advance/Balance/${custId}?centerCode=${encodeURIComponent(sessionCenterCode)}`, {
+      headers: authHeaders()
+    })
+      .then(r => r.json())
+      .then(j => {
+        const d = j.data ?? j;
+        setAvailableAdvances(Array.isArray(d.advances) ? d.advances : []);
+        setAdvTotalBalance(Number(d.totalBalance || 0));
+        setAdvAmount('');
+      })
+      .catch(() => { setAvailableAdvances([]); setAdvTotalBalance(0); })
+      .finally(() => setAdvLoading(false));
+  }, [activeTab, effectiveCustomer?.custId, custIdFromUrl]);
+
+  // ---------- Reset advance state whenever the customer changes/clears ----------
+  useEffect(() => {
+    setAvailableAdvances([]);
+    setAdvTotalBalance(0);
+    setAdvAmount('');
+    setAppliedAdvances([]);
+  }, [effectiveCustomer?.custId]);
 
   // ---------- Effective items (enrich parent items from API by code/name) ----------
   const effectiveInvoiceItems = useMemo(() => {
@@ -723,7 +781,7 @@ const PaymentBlock = ({
       return;
     }
 
-    if (!isZeroTotal && payments.length === 0 && appliedCreditNotes.length === 0) {
+    if (!isZeroTotal && payments.length === 0 && appliedCreditNotes.length === 0 && appliedAdvances.length === 0) {
       setFormError('Please add at least one payment method.');
       return;
     }
@@ -795,6 +853,32 @@ const PaymentBlock = ({
       };
     });
 
+    // ── Advance redemption → negative line so insertInvoice books the residual ──
+    // (Model B / FRD §5): the advance already paid VAT at collection, so we subtract
+    // its base AND VAT from the invoice. VAT offset is clamped to the invoice VAT so
+    // citizen invoices — which carry no VAT — never go negative.
+    const advRedeemTotal = parseFloat(appliedAdvances.reduce((s, a) => s + a.amount, 0).toFixed(2));
+    const advRedeemVatRaw = appliedAdvances.reduce((s, a) => s + (a.vat || 0), 0);
+    if (advRedeemTotal > 0) {
+      const vatOffset  = parseFloat(Math.min(advRedeemVatRaw, tax).toFixed(2));
+      const baseOffset = parseFloat((advRedeemTotal - vatOffset).toFixed(2));
+      linesJson.push({
+        lineNo:        linesJson.length + 1,
+        itemCode:      "ADV-REDEEM",
+        itemName:      "Advance Redemption",
+        itemType:      "advance",
+        qty:           1,
+        salesAmount:   parseFloat((-baseOffset).toFixed(2)),
+        taxamount:     parseFloat((-vatOffset).toFixed(2)),
+        finalAmount:   parseFloat((-advRedeemTotal).toFixed(2)),
+        discountAmount: 0,
+        therapistCode: "",
+        appointmentID: linesJson[0]?.appointmentID || appointmentIdFromUrl || "",
+        therapistName: "",
+        quantity:      1,
+      });
+    }
+
     // Build paymentJson — includes both regular payments AND applied Credit Notes
     const cnPayments = appliedCreditNotes.map((cn, i) => ({
       lineNo:       payments.length + i + 1,
@@ -838,7 +922,24 @@ const PaymentBlock = ({
         }]
       : [];
 
-    const paymentJson = [...regularPayments, ...cnPayments, ...zeroPayment];
+    // When an advance covers the whole invoice (no cash / CN), the residual line
+    // total is ~0 but the SP still needs ≥1 payment line — send a SAR 0 marker.
+    const advanceCoversAll =
+      advRedeemTotal > 0 && regularPayments.length === 0 && cnPayments.length === 0 &&
+      (parsedTotalAmount - advRedeemTotal) <= 0.01;
+    const advanceZeroPayment = advanceCoversAll
+      ? [{
+          lineNo:      1,
+          paymentMode: 0,
+          paymentName: "Advance Redemption",
+          cardNumber:  "ADVANCE",
+          totalAmount: 0,
+          paidAmount:  0,
+          paymentDate: now,
+        }]
+      : [];
+
+    const paymentJson = [...regularPayments, ...cnPayments, ...zeroPayment, ...advanceZeroPayment];
 
     // Use the first paid line's appointmentId as header APPOINTMENTID
     // This ensures the SP stores the correct appointment reference
@@ -878,7 +979,15 @@ if (result.success) {
 
 
         // snapshot for print/email
-        setSubmittedPayments(payments);
+        // snapshot for print/email — include CN + advance lines, not just cash/card,
+        // otherwise an invoice settled by advance/CN prints with blank payment rows
+        const snapshotDate = new Date().toLocaleDateString('en-GB');
+        const combinedPaymentLines = [
+          ...payments.map(p => ({ mode: p.mode, amount: p.amount, date: p.date || snapshotDate })),
+          ...appliedCreditNotes.map(cn => ({ mode: `Credit Note - ${cn.creditNoteNum}`, amount: cn.amount, date: snapshotDate })),
+          ...appliedAdvances.map(a => ({ mode: 'Advance Redemption', amount: a.amount, date: snapshotDate })),
+        ];
+        setSubmittedPayments(combinedPaymentLines);
         setSubmittedInvoiceItems(effectiveInvoiceItems);
         setSubmittedTotalAmount(parsedTotalAmount);
 
@@ -978,6 +1087,24 @@ if (result.success) {
           setAppliedCreditNotes([]); // clear after successful redemption
         }
 
+        // ── Redeem applied Advances → decrement balance + record redemption rows ──
+        if (appliedAdvances.length > 0 && invoiceNum) {
+          const custId   = effectiveCustomer?.custId || custIdFromUrl || "";
+          const advTotal = parseFloat(appliedAdvances.reduce((s, a) => s + a.amount, 0).toFixed(2));
+          try {
+            const advRes = await fetch(`${API_BASE_URL}/api/Advance/Redeem`, {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({ centerCode: sessionCenterCode, custId, invoiceNum, amount: advTotal }),
+            });
+            const advJson = await advRes.json();
+            if (!advJson.success) console.warn('Advance redeem failed:', advJson.message);
+          } catch (e) {
+            console.warn('Advance redeem error:', e.message);
+          }
+          setAppliedAdvances([]); // clear after successful redemption
+        }
+
       } else {
         setToast({ message: result.message || 'Submission failed', type: 'error' });
       }
@@ -1020,7 +1147,8 @@ if (result.success) {
   };
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
-               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
+               + appliedCreditNotes.reduce((sum, cn) => sum + cn.amount, 0)
+               + appliedAdvances.reduce((sum, a) => sum + a.amount, 0);
   // isZeroTotal: only meaningful when items exist and package redemption made it zero
   const isZeroTotal       = parsedTotalAmount <= 0 && !!packageRedemption;
   const isCompleteEnabled = isZeroTotal || Math.abs(totalPaid - parsedTotalAmount) < 0.01;
@@ -1055,7 +1183,7 @@ if (result.success) {
           {paymentModes.map((mode) => (
             <div
               key={mode.key}
-              className={`pymnttab ${activeTab === mode.key ? 'activetab' : ''} ${mode.key === 'creditnote' && appliedCreditNotes.length > 0 ? 'activetab' : ''}`}
+              className={`pymnttab ${activeTab === mode.key ? 'activetab' : ''} ${mode.key === 'creditnote' && appliedCreditNotes.length > 0 ? 'activetab' : ''} ${mode.key === 'advance' && appliedAdvances.length > 0 ? 'activetab' : ''}`}
               onClick={() => {
                 setActiveTab(mode.key);
                 setFormError('');
@@ -1208,7 +1336,7 @@ if (result.success) {
             </>
           )}
 
-          {activeTab !== 'creditnote' && (
+          {activeTab !== 'creditnote' && activeTab !== 'advance' && (
             <div className="frmdiv">
               <label>Change:</label>
               <input type="text" readOnly value={change.toFixed(2)} className="rdonly" />
@@ -1275,9 +1403,87 @@ if (result.success) {
             </div>
           )}
 
+          {/* ── Advance redemption inline tab content ── */}
+          {activeTab === 'advance' && (
+            <div style={{ padding: '4px 0' }}>
+              {advLoading ? (
+                <div style={{ color: '#64748b', fontSize: 13, padding: '8px 0' }}>Loading advance balance…</div>
+              ) : advTotalBalance <= 0 ? (
+                <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0', textAlign: 'center' }}>
+                  No redeemable advance balance for this customer.
+                </div>
+              ) : (
+                <>
+                  <div style={{ background: '#f0f5ff', border: '1px solid #dce6f0', borderLeft: '4px solid #334b71',
+                    borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6e7b8f', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Available Advance Balance
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#334b71', lineHeight: 1.2 }}>
+                      SAR {advTotalBalance.toFixed(2)}
+                    </div>
+                  </div>
+
+                  {/* Vouchers drawn FIFO (oldest first) — shown read-only for transparency */}
+                  {availableAdvances.map((a) => (
+                    <div key={a.advanceNum}
+                      style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', marginBottom: 8,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#334b71' }}>{a.advanceNum}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          Expires: {a.expiryDate ? new Date(a.expiryDate).toLocaleDateString('en-GB') : '—'}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: '#2e7d5e' }}>
+                        SAR {Number(a.remainingBalance).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="frmdiv" style={{ marginTop: 8 }}>
+                    <label>
+                      Redeem Amount (max SAR {Math.min(
+                        advTotalBalance,
+                        Math.max(0, parsedTotalAmount - payments.reduce((s,p)=>s+p.amount,0) - appliedCreditNotes.reduce((s,c)=>s+c.amount,0))
+                      ).toFixed(2)}):
+                    </label>
+                    <input
+                      type="number" min={0.01} step={0.01}
+                      value={advAmount}
+                      onChange={e => setAdvAmount(e.target.value)}
+                      style={{ border: '1.5px solid #334b71' }}
+                    />
+                    <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                      Drawn oldest-first (FIFO). The advance's VAT already paid at collection is deducted from this invoice's VAT.
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {formError && <div className="error">{formError}</div>}
           <div className="frmdiv">
-            {activeTab === 'creditnote' ? (
+            {activeTab === 'advance' ? (
+              <button className="pribtnblue"
+                disabled={!advAmount || parseFloat(advAmount) <= 0}
+                style={{ opacity: (!advAmount || parseFloat(advAmount) <= 0) ? 0.5 : 1 }}
+                onClick={() => {
+                  const amt = parseFloat(advAmount);
+                  if (!amt || amt <= 0) { setFormError('Enter a valid redemption amount.'); return; }
+                  if (amt > advTotalBalance + 0.01) { setFormError(`Amount exceeds advance balance (SAR ${advTotalBalance.toFixed(2)}).`); return; }
+                  const remaining = Math.max(0, parsedTotalAmount - payments.reduce((s,p)=>s+p.amount,0) - appliedCreditNotes.reduce((s,c)=>s+c.amount,0));
+                  if (amt > remaining + 0.01) { setFormError(`Amount exceeds remaining balance (SAR ${remaining.toFixed(2)}).`); return; }
+                  const split = splitAdvanceRedemption(amt, availableAdvances);
+                  setAppliedAdvances([{ amount: amt, base: split.base, vat: split.vat }]); // single pooled draw
+                  setFormError('');
+                  setAdvAmount('');
+                  setActiveTab('cash'); // switch back to cash tab after applying
+                }}>
+                Apply Advance
+              </button>
+            ) : activeTab === 'creditnote' ? (
               <button className="pribtnblue"
                 disabled={!selectedCN || !cnAmount || parseFloat(cnAmount) <= 0}
                 style={{ opacity: (!selectedCN || !cnAmount) ? 0.5 : 1 }}
@@ -1322,7 +1528,7 @@ if (result.success) {
               </tr>
             </thead>
             <tbody>
-              {(payments.length > 0 || appliedCreditNotes.length > 0) ? (
+              {(payments.length > 0 || appliedCreditNotes.length > 0 || appliedAdvances.length > 0) ? (
                 <>
                   {payments.map((p, index) => (
                     <tr key={p.id}>
@@ -1350,7 +1556,30 @@ if (result.success) {
                           const updated = appliedCreditNotes.filter((_,j) => j !== i);
                           setAppliedCreditNotes(updated);
                           const totalAfter = payments.reduce((s,p)=>s+p.amount,0)
-                                           + updated.reduce((s,c)=>s+c.amount,0);
+                                           + updated.reduce((s,c)=>s+c.amount,0)
+                                           + appliedAdvances.reduce((s,a)=>s+a.amount,0);
+                          setAmount((Math.max(0, parsedTotalAmount - totalAfter)).toString());
+                        }}>
+                          <img src="images/rmove.svg" alt="Delete" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {appliedAdvances.map((a, i) => (
+                    <tr key={`adv-${i}`} style={{ background: '#eef4ff' }}>
+                      <td>{payments.length + appliedCreditNotes.length + i + 1}</td>
+                      <td>
+                        <span style={{ color: '#334b71', fontWeight: 700 }}>Advance Redemption</span>
+                      </td>
+                      <td>{a.amount.toFixed(2)}</td>
+                      <td>{new Date().toLocaleDateString('en-GB')}</td>
+                      <td>
+                        <button className="removeln" onClick={() => {
+                          const updated = appliedAdvances.filter((_,j) => j !== i);
+                          setAppliedAdvances(updated);
+                          const totalAfter = payments.reduce((s,p)=>s+p.amount,0)
+                                           + appliedCreditNotes.reduce((s,c)=>s+c.amount,0)
+                                           + updated.reduce((s,x)=>s+x.amount,0);
                           setAmount((Math.max(0, parsedTotalAmount - totalAfter)).toString());
                         }}>
                           <img src="images/rmove.svg" alt="Delete" />
@@ -1376,7 +1605,7 @@ if (result.success) {
         </div>
       </div>
 
-      {(payments.length > 0 || appliedCreditNotes.length > 0 || (isZeroTotal && packageRedemption)) && (
+      {(payments.length > 0 || appliedCreditNotes.length > 0 || appliedAdvances.length > 0 || (isZeroTotal && packageRedemption)) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
           <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
             {isSubmitting ? 'Submitting…' : generatedInvoiceNumber ? 'Invoice Generated' : 'Complete Invoice'}

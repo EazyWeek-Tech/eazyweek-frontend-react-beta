@@ -9,6 +9,7 @@ const tabIcons = {
   Forms: "images/form.svg",
   Cases: "images/cases.svg",
   "Credit Memo": "images/creditmemo.svg",
+  "Advance Payments": "images/advwhite.svg",
   Notes: "images/notes1.svg",
   "Loyalty": "images/loyaltywhite.svg",
 };

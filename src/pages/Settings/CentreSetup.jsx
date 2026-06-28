@@ -10,7 +10,7 @@ const authDelete = async (url) => {
 };
 const authPost = async (url, body) => { const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) }); return r.json(); };
 
-const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup"];
+const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup","Advance"];
 
 const TAX_TYPES = {
   "Saudi Arabia": ["VAT Number","CR Number","Zakat Registration Number"],
@@ -21,6 +21,12 @@ const TAX_TYPES = {
   "Qatar":        ["Commercial Registration Number","Tax Card Number"],
   "Kuwait":       ["Tax Number","Commercial License Number"],
   "Singapore":    ["UEN","GST Registration Number","TIN"],
+};
+
+// FRD §3.5: tax Type values follow the country linked to the entity currency.
+const CURRENCY_TO_COUNTRY = {
+  SAR: "Saudi Arabia", AED: "UAE", INR: "India", BHD: "Bahrain",
+  OMR: "Oman", QAR: "Qatar", KWD: "Kuwait", SGD: "Singapore",
 };
 
 const Toggle = ({ value, onChange, label, sub }) => (
@@ -196,7 +202,6 @@ export default function CentreSetup() {
   const [logoUrl,      setLogoUrl]      = useState("");
   const [logoPreview,  setLogoPreview]  = useState("");
   const [taxItems,     setTaxItems]     = useState([]);
-  const [taxCountry,   setTaxCountry]   = useState("Saudi Arabia");
   const [numbering,    setNumbering]    = useState({
     prefixCustomer:"CUST-", prefixInvoice:"INV-", prefixReturn:"SR-",
     prefixCreditNote:"CN-", prefixAdvance:"ADV-", prefixGiftCard:"GC-",
@@ -208,6 +213,11 @@ export default function CentreSetup() {
     returnWindowDays:30,
     allowSalesReturn:true, allowReturnPackages:true, allowReturnServices:true, allowReturnProducts:true,
     roomMandatory:false, equipmentMandatory:false, allowOverbooking:false,
+    // Advance Payment config (FRD §3.1)
+    advMaxCap:"", advValidityDays:"", advAllowValidityExtension:false,
+    advVatRateLocals:"STANDARD", advVatRateExpats:"STANDARD",
+    advAllowRedeemProducts:false, advAllowRedeemPackages:false, advAllowRedeemServices:true,
+    advTaxableLocals:true, advTaxableExpats:true,
   });
   const [general, setGeneral] = useState({ displayName:"", leCode:"" });
   const fileRef = useRef();
@@ -246,7 +256,13 @@ export default function CentreSetup() {
         setLogoUrl(d.logoUrl || ""); setLogoPreview(d.logoUrl || "");
         setTaxItems(d.tax || []);
         if (d.numbering) setNumbering(d.numbering);
-        if (d.setup)     setSetup(d.setup);
+        if (d.setup)     setSetup(s => ({
+          ...s,
+          ...d.setup,
+          // keep numeric advance inputs controlled when DB value is null
+          advMaxCap:       d.setup.advMaxCap       == null ? "" : d.setup.advMaxCap,
+          advValidityDays: d.setup.advValidityDays == null ? "" : d.setup.advValidityDays,
+        }));
       });
   }, [selected]);
 
@@ -289,10 +305,14 @@ export default function CentreSetup() {
       } else if (activeTab === "Logo") {
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveLogo`, { centerCode: selected, logoUrl, mimeType:"image/*" });
       } else if (activeTab === "Tax") {
+        // FRD §3.5: if Type is selected, Registration Number is mandatory.
+        const incomplete = taxItems.findIndex(t => (t.taxType || "").trim() && !(t.regNumber || "").trim());
+        if (incomplete !== -1)
+          throw new Error(`Registration Number is required for "${taxItems[incomplete].taxType}".`);
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveTax`, { centerCode: selected, taxItems });
       } else if (activeTab === "Numbering") {
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveNumbering`, { centerCode: selected, numbering });
-      } else if (activeTab === "Setup") {
+      } else if (activeTab === "Setup" || activeTab === "Advance") {
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveSetup`, { centerCode: selected, setup });
       }
 
@@ -307,7 +327,10 @@ export default function CentreSetup() {
   };
 
   const setPrimary = (idx) => setContacts(p => p.map((c, i) => ({ ...c, isPrimary: i === idx })));
-  const availableTaxTypes = Object.values(TAX_TYPES[taxCountry] ? { [taxCountry]: TAX_TYPES[taxCountry] } : TAX_TYPES).flat();
+  // FRD §3.5: tax country is DERIVED from the entity currency (General tab), not chosen here.
+  const _entityLE  = legalEntities.find(le => le.leCode === general.leCode) || legalEntities[0] || {};
+  const taxCountry = _entityLE.country || CURRENCY_TO_COUNTRY[_entityLE.currency] || "Saudi Arabia";
+  const availableTaxTypes = TAX_TYPES[taxCountry] || [];
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
@@ -626,12 +649,14 @@ export default function CentreSetup() {
                     </div>
                     <div className="field" style={{ marginBottom:14, maxWidth:240 }}>
                       <label>Country</label>
-                      <select value={taxCountry} onChange={e => setTaxCountry(e.target.value)}>
-                        {Object.keys(TAX_TYPES).map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <input value={taxCountry} readOnly tabIndex={-1}
+                        style={{ background:"#f1f5f9", color:"#475569", cursor:"not-allowed" }} />
+                      <div style={{ fontSize:11, color:"#94a3b8", marginTop:4 }}>
+                        Set automatically from the Legal Entity currency.
+                      </div>
                     </div>
                     {taxItems.map((t, idx) => (
-                      <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr auto", gap:10, alignItems:"center", marginBottom:10 }}>
+                      <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, alignItems:"center", marginBottom:10 }}>
                         <select value={t.taxType}
                           onChange={e => setTaxItems(p => p.map((x,i) => i===idx ? {...x, taxType:e.target.value} : x))}>
                           <option value="">Select Type…</option>
@@ -639,7 +664,6 @@ export default function CentreSetup() {
                         </select>
                         <input value={t.regNumber} placeholder="Registration number"
                           onChange={e => setTaxItems(p => p.map((x,i) => i===idx ? {...x, regNumber:e.target.value} : x))} />
-                        <button className="del-btn" onClick={() => setTaxItems(p => p.filter((_,i)=>i!==idx))}>🗑</button>
                       </div>
                     ))}
                     {taxItems.length === 0 && <div style={{ textAlign:"center", padding:20, color:"#94a3b8", fontSize:13 }}>No tax registrations added.</div>}
@@ -765,6 +789,84 @@ export default function CentreSetup() {
                         label="Equipment selection mandatory for appointment booking" sub="" />
                       <Toggle value={setup.allowOverbooking}   onChange={() => setSetup(p=>({...p,allowOverbooking:!p.allowOverbooking}))}
                         label="Allow overbooking of practitioners in the same time slot" sub="" />
+                    </div>
+                  </>
+                )}
+
+                {/* ── ADVANCE TAB ── */}
+                {activeTab === "Advance" && (
+                  <>
+                    {/* Advance limits & validity */}
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>Advance Payment Configurations</div>
+                      <div className="grid-2">
+                        <div className="field">
+                          <label>Maximum Advance Cap</label>
+                          <input type="number" min={0} step={1} value={setup.advMaxCap}
+                            onChange={e => setSetup(p => ({ ...p, advMaxCap: e.target.value }))}
+                            placeholder="Leave blank for no cap" />
+                        </div>
+                        <div className="field">
+                          <label>Validity in days from purchase</label>
+                          <input type="number" min={1} step={1} value={setup.advValidityDays}
+                            onChange={e => setSetup(p => ({ ...p, advValidityDays: e.target.value }))}
+                            placeholder="Leave blank for no expiry" />
+                        </div>
+                      </div>
+                      <Toggle value={setup.advAllowValidityExtension}
+                        onChange={() => setSetup(p=>({...p,advAllowValidityExtension:!p.advAllowValidityExtension}))}
+                        label="Allow validity to be extended"
+                        sub="Expired advances can be extended from the customer profile (Admin only)." />
+                    </div>
+
+                    {/* Redemption scope */}
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>Allow Advance Redemption On</div>
+                      <Toggle value={setup.advAllowRedeemServices} onChange={() => setSetup(p=>({...p,advAllowRedeemServices:!p.advAllowRedeemServices}))}
+                        label="Services" sub="Advance balance can be redeemed against service invoices." />
+                      <Toggle value={setup.advAllowRedeemPackages} onChange={() => setSetup(p=>({...p,advAllowRedeemPackages:!p.advAllowRedeemPackages}))}
+                        label="Packages" sub="Advance balance can be redeemed against packages." />
+                      <Toggle value={setup.advAllowRedeemProducts} onChange={() => setSetup(p=>({...p,advAllowRedeemProducts:!p.advAllowRedeemProducts}))}
+                        label="Products" sub="Advance balance can be redeemed against products." />
+                    </div>
+
+                    {/* Tax handling */}
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>Tax Handling</div>
+
+                      {/* Locals (Citizen) */}
+                      <Toggle value={setup.advTaxableLocals} onChange={() => setSetup(p=>({...p,advTaxableLocals:!p.advTaxableLocals}))}
+                        label="Taxable for Locals (Citizen)"
+                        sub="Customers whose nationality matches the legal entity country. Off = non-taxable (e.g. security deposit), no VAT entry." />
+                      <div className="field" style={{ maxWidth:260, margin:"8px 0 16px",
+                        opacity: setup.advTaxableLocals ? 1 : 0.4, pointerEvents: setup.advTaxableLocals ? "auto" : "none" }}>
+                        <label>VAT Rate (Locals) *</label>
+                        <select value={setup.advVatRateLocals} disabled={!setup.advTaxableLocals}
+                          onChange={e => setSetup(p => ({ ...p, advVatRateLocals: e.target.value }))}
+                          style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:6,
+                            fontSize:13, fontFamily:"Lato,sans-serif", outline:"none", boxSizing:"border-box", background:"#fff" }}>
+                          <option value="STANDARD">Standard (15%)</option>
+                          <option value="ZERO">Zero-Rated (0%)</option>
+                          <option value="EXEMPT">Exempt</option>
+                        </select>
+                      </div>
+
+                      {/* Expats */}
+                      <Toggle value={setup.advTaxableExpats} onChange={() => setSetup(p=>({...p,advTaxableExpats:!p.advTaxableExpats}))}
+                        label="Taxable for Expats"
+                        sub="Customers whose nationality differs from the legal entity country. Off = non-taxable, no VAT entry." />
+                      <div className="field" style={{ maxWidth:260, margin:"8px 0 0",
+                        opacity: setup.advTaxableExpats ? 1 : 0.4, pointerEvents: setup.advTaxableExpats ? "auto" : "none" }}>
+                        <label>VAT Rate (Expats) *</label>
+                        <select value={setup.advVatRateExpats} disabled={!setup.advTaxableExpats}
+                          onChange={e => setSetup(p => ({ ...p, advVatRateExpats: e.target.value }))}
+                          style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:6,
+                            fontSize:13, fontFamily:"Lato,sans-serif", outline:"none", boxSizing:"border-box", background:"#fff" }}>
+                          <option value="STANDARD">Standard (15%)</option>
+                          <option value="ZERO">Zero-Rated (0%)</option>
+                          <option value="EXEMPT">Exempt</option>
+                        </select>
+                      </div>
                     </div>
                   </>
                 )}

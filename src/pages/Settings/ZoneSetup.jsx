@@ -351,7 +351,7 @@ export default function ZoneSetup() {
             <div style={{ display:"flex", gap:12, justifyContent:"flex-end" }}>
               <button className="ghost-btn" onClick={() => setShowForm(false)}>Cancel</button>
               <button className="primary-btn" onClick={() => { if(!canEdit) return; handleSave(); }} disabled={saving}>
-                {saving ? "Saving…" : `💾 ${selected ? "Update Zone" : "Save Zone"}`}
+                {saving ? "Saving…" : ` ${selected ? "Update Zone" : "Save Zone"}`}
               </button>
             </div>
           </div>

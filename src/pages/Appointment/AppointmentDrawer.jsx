@@ -630,7 +630,7 @@ const AppointmentDrawer = ({
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 20px",
                 background:"#fef9c3", borderBottom:"1px solid #fde68a" }}>
                 <span style={{ fontSize:13, fontWeight:700, color:"#92400e" }}>
-                  📅 Past date — appointment will be saved as <strong>Completed</strong>
+                   Past date — appointment will be saved as <strong>Completed</strong>
                 </span>
               </div>
             ) : null;

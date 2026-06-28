@@ -21,6 +21,7 @@ const InvoiceSummary = ({
   onCheckPackageBalance,
   disablePackageBalance = false,
   onPromotion,
+  onCollectAdvance,
 }) => {
   const [toast, setToast] = useState(null);
   const [showPriceOverridePopup, setShowPriceOverridePopup] = useState(false);
@@ -124,6 +125,15 @@ const InvoiceSummary = ({
             style={{ background: "#2e7d5e", opacity: disablePackageBalance ? 0.45 : 1, cursor: disablePackageBalance ? 'not-allowed' : 'pointer' }}
           >
             Check Package Balance
+          </button>
+
+          <button
+            className="pribtnblue"
+            onClick={onCollectAdvance}
+            title="Collect a customer advance payment"
+            style={{ background: "#0f766e" }}
+          >
+            Collect Advance
           </button>
 
           {suspendedCarts.length > 0 && (

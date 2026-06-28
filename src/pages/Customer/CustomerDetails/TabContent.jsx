@@ -2,6 +2,7 @@ import React from "react";
 import GeneralTab from "./GeneralTab";
 import AppointmentTab from "./AppointmentTab";
 import CreditMemoTab from "./CreditMemoTab";
+import AdvanceTab from "./AdvanceTab";
 import NotesTab from "./NotesTab";
 import PackagesTab from "./PackagesTab";
 import InvoiceTab from "./InvoiceTab";
@@ -18,6 +19,8 @@ const TabContent = ({ activeTab, customer, custId, recId }) => {
       return <AppointmentTab custId={custId} />;
     case "Credit Memo":
       return <CreditMemoTab custId={custId} />;
+    case "Advance Payments":
+      return <AdvanceTab custId={custId} />;
     case "Notes":
       return <NotesTab custId={custId} />;
     case "Packages":

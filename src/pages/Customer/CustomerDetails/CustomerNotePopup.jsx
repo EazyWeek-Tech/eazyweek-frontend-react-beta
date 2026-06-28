@@ -21,8 +21,8 @@ const TOKEN = () =>
 
 const CONTEXT_CFG = {
   checkin: { title: "Check-In Alert",   icon: "🔔", color: "#1d4ed8", bg: "#dbeafe" },
-  booking: { title: "Booking Alert",    icon: "📅", color: "#065f46", bg: "#d1fae5" },
-  payment: { title: "Payment Alert",    icon: "💳", color: "#92400e", bg: "#fef3c7" },
+  booking: { title: "Booking Alert",    icon: "", color: "#065f46", bg: "#d1fae5" },
+  payment: { title: "Payment Alert",    icon: "", color: "#92400e", bg: "#fef3c7" },
 };
 
 // ── Stable modal component (not recreated on every render) ────────────────────
