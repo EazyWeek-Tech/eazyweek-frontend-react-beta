@@ -90,6 +90,26 @@ const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fie
 
 // ─────────────────────────────────────────────────────────────────────────────
 const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], doctorId }) => {
+  // ── Create Member (FRD §5): add the membership program as a sole line ─────
+  const handleCreateMember = async () => {
+    const cid = customer?.custId || customer?.custid || customer?.custID || customer?.id || "";
+    if (!cid) { showToast?.("Please add a customer before creating a membership."); return; }
+    if ((items?.length || 0) > 0) { showToast?.("A membership must be on its own invoice — clear the cart first."); return; }
+    try {
+      const res  = await fetch(`${API_BASE_URL}/api/Membership/Eligibility/${encodeURIComponent(cid)}`, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+      const json = await res.json();
+      const d    = json.data || json;
+      if (!d.eligible || !d.program) { showToast?.(json.message || d.message || "This customer is not eligible for a new membership."); return; }
+      const prog = d.program;
+      onAddItem?.({
+        name: prog.programName, code: "MEMBERSHIP", type: "membership", itemType: "membership",
+        price: prog.price, discount: 0,
+        taxpercent: prog.vatPercent ?? 0, citizentax: prog.vatPercent ?? 0, taxIncluded: "No",
+        _membership: true,
+      });
+      showToast?.(`${prog.programName} added`);
+    } catch { showToast?.("Could not check membership eligibility. Please try again."); }
+  };
 
   // ── Service ───────────────────────────────────────────────────────────────
   const [serviceText,        setServiceText]        = useState('');
@@ -411,6 +431,14 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
 
         <div className="form-group frmbtngrp">
           <button type="button" className="addbtn" onClick={handleAdd}>Add</button>
+        </div>
+
+        {/* Create Member — enrols the customer into the membership program */}
+        <div className="form-group frmbtngrp">
+          <button type="button" className="pribtnblue" onClick={handleCreateMember}
+            style={{ height: 30, padding: "0 14px", fontSize: 13, fontWeight: 700, background: "#6d4c9e" }}>
+            Create Member
+          </button>
         </div>
 
         {/* Void Transaction button */}

@@ -251,6 +251,25 @@ const InvoiceTable = ({
                       </td>
                     </tr>
                   )}
+                  {/* ── Member pricing sub-row (per item) ── */}
+                  {item._memberApplied && (
+                    <tr style={{ background: "#fff" }}>
+                      <td />
+                      <td colSpan={colSpan} style={{ paddingTop: 4, paddingBottom: 6 }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, color: "#888", fontWeight: 600, fontStyle: "italic"
+                        }}>
+                          {item._memberNote || "Member pricing applied"}
+                          {item.originalPrice != null && item._memberBenefit > 0 && (
+                            <span style={{ color: "#a9a7a7", fontWeight: 400 }}>
+                              (was SAR {Number(item.originalPrice).toFixed(2)})
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
                   {/* ── Package Redemption sub-row (per item) ── */}
                   {(item._redeemed || item._packageCode || item._packageName) && (
                     <tr style={{ background: "#fff" }}>

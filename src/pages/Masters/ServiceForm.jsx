@@ -324,6 +324,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             taxIncluded: "",
             taxPercent:  "0",
             storeRelease: false,
+            memberPrice: "",
+            memberDiscount: "",
           };
         });
 
@@ -432,6 +434,26 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
   const handlePricingCheckboxChange = (i, field) => {
     markDirty("Pricing");
     setFormData((p) => ({ ...p, pricingData: p.pricingData.map((it, idx) => idx === i ? { ...it, [field]: !it[field] } : it) }));
+  };
+
+  // Membership program active? Member Price/Discount entry is allowed only then (FRD 4.3 rule 1).
+  const [membershipActive, setMembershipActive] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Membership/Program`, { headers:{ Authorization:`Bearer ${TOKEN()}` } });
+        const j = await r.json(); const d = j.data || j;
+        setMembershipActive(!!d.activate);
+      } catch { setMembershipActive(false); }
+    })();
+  }, []);
+
+  // Member Price <-> Member Discount are mutually exclusive (FRD 4.3 rules 2-4).
+  const handleMemberChange = (i, field, value) => {
+    markDirty("Pricing");
+    const other = field === "memberPrice" ? "memberDiscount" : "memberPrice";
+    setFormData((p) => ({ ...p, pricingData: p.pricingData.map((it, idx) =>
+      idx === i ? { ...it, [field]: value, [other]: value !== "" ? "" : it[other] } : it) }));
   };
   const handlePractitionerMappingChange = (field, value) => {
     markDirty("Practitioner Mapping");
@@ -563,6 +585,8 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
       taxPercentage: Number(p.taxPercent  || 0),
       serviceRecID:  0,
       storeRelease:  p.storeRelease ? "Yes" : "No",
+      memberPrice:    p.memberPrice    === "" || p.memberPrice    == null ? null : Number(p.memberPrice),
+      memberDiscount: p.memberDiscount === "" || p.memberDiscount == null ? null : Number(p.memberDiscount),
     })),
     isDraft,
   });
@@ -938,6 +962,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                       <tr>
                         <th style={s.th}>Center</th><th style={s.th}>Price</th>
                         <th style={s.th}>Tax Included</th><th style={s.th}>Tax %</th><th style={s.th}>Release to Centre</th>
+                        <th style={s.th}>Member Price</th><th style={s.th}>Member Discount %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -952,6 +977,15 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
                           </td>
                           <td style={s.td}><input type="number" style={{ ...s.inp, width:80, textAlign:"center", background: p.taxIncluded==="Yes" ? "#f1f5f9" : "#fff" }} value={p.taxPercent} min="0" max="100" step="0.01" disabled={p.taxIncluded==="Yes"} onChange={(e) => handlePricingChange(i,"taxPercent",e.target.value)} /></td>
                           <td style={{ ...s.td, textAlign:"center" }}><input type="checkbox" checked={!!p.storeRelease} onChange={() => handlePricingCheckboxChange(i,"storeRelease")} style={{ width:16, height:16, accentColor:"#334B71" }} /></td>
+                          {(() => {
+                            const enabled = membershipActive && !!p.storeRelease;
+                            const hasMp = p.memberPrice !== "" && p.memberPrice != null;
+                            const hasMd = p.memberDiscount !== "" && p.memberDiscount != null;
+                            return (<>
+                              <td style={s.td}><input type="number" style={{ ...s.inp, width:90, textAlign:"center", background:(!enabled||hasMd)?"#f1f5f9":"#fff" }} value={hasMd?"NA":(p.memberPrice||"")} min="0" step="0.01" disabled={!enabled||hasMd} placeholder={enabled?"":"—"} onChange={(e) => handleMemberChange(i,"memberPrice",e.target.value)} /></td>
+                              <td style={s.td}><input type="number" style={{ ...s.inp, width:90, textAlign:"center", background:(!enabled||hasMp)?"#f1f5f9":"#fff" }} value={hasMp?"NA":(p.memberDiscount||"")} min="0" max="100" step="0.01" disabled={!enabled||hasMp} placeholder={enabled?"":"—"} onChange={(e) => handleMemberChange(i,"memberDiscount",e.target.value)} /></td>
+                            </>);
+                          })()}
                         </tr>
                       ))}
                     </tbody>

@@ -354,6 +354,24 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
   if (loading) return <div className="popfrm" style={{ textAlign: "center", padding: 40 }}>Loading invoice…</div>;
   if (!data)   return <div className="popfrm" style={{ textAlign: "center", padding: 40, color: "red" }}>Failed to load invoice.</div>;
 
+  // Membership purchase invoices are not returnable (FRD 5.3 rule 10).
+  if (data.isMembershipInvoice) {
+    return (
+      <div style={{ padding: "0 4px" }}>
+        <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>
+          <strong>{data.invoiceNum}</strong> · {fmtDate(data.invoiceDate)} · {data.fullName} · Total: <strong>SAR {fmt(data.sumTotal)}</strong>
+        </div>
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "18px 20px", color: "#b91c1c", fontSize: 13.5, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>⚠</span>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>This invoice cannot be returned.</div>
+            A membership purchase invoice is not eligible for a sales return.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "0 4px" }}>
       <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>

@@ -91,6 +91,15 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [sidebarForms,       setSidebarForms]       = useState([]);
   const [sidebarFormStatus,  setSidebarFormStatus]  = useState(null);
   const [sidebarFormsLoading,setSidebarFormsLoading]= useState(false);
+  // Member flag for this appointment's customer (FRD 5.3 rule 12)
+  const [memberFlag, setMemberFlag] = useState(null);
+  useEffect(() => {
+    const cid = appointment?.custId || appt?.custId || "";
+    if (!cid) { setMemberFlag(null); return; }
+    fetch(`${API_BASE_URL}/api/Membership/CustomerStatus/${encodeURIComponent(cid)}`, { headers: { Authorization: `Bearer ${TOKEN()}` } })
+      .then(r => r.json()).then(j => { const d = j.data || j; setMemberFlag(d && d.isMember ? d : null); })
+      .catch(() => setMemberFlag(null));
+  }, [appointment?.custId]);
 
   // Active forms mapped to this service (Consent/Treatment)
   const [activeForms,        setActiveForms]        = useState([]);
@@ -383,6 +392,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               {appt?.fullName || ""}
               <div className="cstno">{appt?.number || "—"}</div>
               <div className="cstid">{appt?.custId || "—"}</div>
+              {memberFlag && (
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:6, padding:"3px 10px", borderRadius:999, background:"linear-gradient(135deg,#6d4c9e,#8b5cf6)", color:"#fff", fontSize:11, fontWeight:700, width:"fit-content", whiteSpace:"nowrap" }}
+                  title={memberFlag.programName || "Active member"}>
+                  ★ Member{memberFlag.programName ? ` — ${memberFlag.programName}` : ""}
+                </span>
+              )}
             </h3>
           </div>
           <div className="cdtprof">

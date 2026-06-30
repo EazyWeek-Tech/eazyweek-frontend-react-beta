@@ -9,6 +9,7 @@ import InvoiceTab from "./InvoiceTab";
 import CaseTab from "./CaseTab";
 import CustomerFormsPage from "./CustomerFormsPage";
 import LoyaltyTab from "./LoyaltyTab";
+import MembershipTab from "./MembershipTab";
 
 const TabContent = ({ activeTab, customer, custId, recId }) => {
 
@@ -25,6 +26,8 @@ const TabContent = ({ activeTab, customer, custId, recId }) => {
       return <NotesTab custId={custId} />;
     case "Packages":
       return <PackagesTab custId={custId} />;
+    case "Membership":
+      return <MembershipTab custId={custId} />;
       case "Forms":
         return <CustomerFormsPage custId={custId} />;
        case "Loyalty":

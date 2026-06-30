@@ -411,6 +411,10 @@ const PaymentBlock = ({
   }, [effectiveCustomer?.custId]);
 
   // ---------- Effective items (enrich parent items from API by code/name) ----------
+  // Membership purchase blocks Loyalty/Advance/Gift Card payment (FRD 5.3 rule 8).
+  const cartHasMembership = (invoiceItems || []).some(i => String(i.type || i.itemType || "").toLowerCase() === "membership");
+  const isPayModeBlocked = (key) => cartHasMembership && (key === "advance" || key === "loyalty");
+
   const effectiveInvoiceItems = useMemo(() => {
     if (!invoiceItems?.length && apiInvoiceItems?.length) return apiInvoiceItems;
 
@@ -570,6 +574,10 @@ const PaymentBlock = ({
       const promoNote = item._promotionName
         ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;"> Promo: ${item._promotionName} (-SAR ${discount.toFixed(2)})</td></tr>`
         : "";
+      // Member price/discount disclosure on the printed invoice (FRD 7.2 rule 6)
+      const memberNote = item._memberApplied
+        ? `<tr><td></td><td colspan="7" style="padding:2px 6px;font-size:10px;color:#666;font-style:italic;">${item._memberNote || "Member pricing applied"}${item.originalPrice != null ? ` (was SAR ${Number(item.originalPrice).toFixed(2)})` : ""}</td></tr>`
+        : "";
       return `
         <tr>
           <td style="border:1px solid #000;padding:6px;">${idx + 1}</td>
@@ -582,6 +590,7 @@ const PaymentBlock = ({
           <td style="border:1px solid #000;padding:6px;">${total.toFixed(2)}</td>
         </tr>
         ${promoNote}
+        ${memberNote}
       `;
     }).join('');
 
@@ -849,7 +858,12 @@ const PaymentBlock = ({
         therapistCode:  item.practitionerCode || item.therapistCode || "",
         appointmentID:  item.appointmentId    || item.appointmentID || appointmentIdFromUrl || "",
         therapistName: item.practitionerName || item.therapistName || "",
-        quantity: qty
+        quantity: qty,
+        // Member pricing passthrough for benefit logging (FRD 6.3)
+        memberApplied: !!item._memberApplied,
+        originalPrice: item.originalPrice != null ? parseFloat(item.originalPrice) : undefined,
+        memberBenefit: item._memberBenefit != null ? parseFloat(item._memberBenefit) : 0,
+        memberBenefitType: item._memberBenefitType || null,
       };
     });
 
@@ -1180,11 +1194,16 @@ if (result.success) {
 
       <div className='outpymnt'>
         <div className="pymttabswrp">
-          {paymentModes.map((mode) => (
+          {paymentModes.map((mode) => {
+            const blocked = isPayModeBlocked(mode.key);
+            return (
             <div
               key={mode.key}
+              title={blocked ? 'Not available when purchasing a membership' : undefined}
               className={`pymnttab ${activeTab === mode.key ? 'activetab' : ''} ${mode.key === 'creditnote' && appliedCreditNotes.length > 0 ? 'activetab' : ''} ${mode.key === 'advance' && appliedAdvances.length > 0 ? 'activetab' : ''}`}
+              style={blocked ? { opacity: 0.4, pointerEvents: 'none', cursor: 'not-allowed' } : undefined}
               onClick={() => {
+                if (blocked) { setFormError('Membership cannot be paid using Loyalty, Advance, or Gift Card.'); return; }
                 setActiveTab(mode.key);
                 setFormError('');
                 setFormData({});
@@ -1195,7 +1214,8 @@ if (result.success) {
               <img src={mode.icon} alt={mode.label} />
               <span className="pymttxt">{mode.label}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="pymntcnt actcont">

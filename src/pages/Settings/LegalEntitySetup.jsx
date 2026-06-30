@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../config";
+import MembershipSection from "./MembershipSection";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
@@ -554,6 +555,7 @@ export default function LegalEntitySetup() {
 
         {/* ── SETUP TAB ───────────────────────────────────────────────────────── */}
         {activeTab === "Setup" && (
+          <>
           <div className="le-card">
             <h3>Setup Configurations</h3>
             <p>Customer-related operational settings for the Legal Entity.</p>
@@ -625,6 +627,9 @@ export default function LegalEntitySetup() {
               </div>
             </div>
           </div>
+
+          <MembershipSection legalEntityCode={existing?.leCode} currency={general.currency} />
+          </>
         )}
 
         {/* Bottom save */}

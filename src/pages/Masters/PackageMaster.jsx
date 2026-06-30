@@ -348,13 +348,23 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAd
 };
 
 // ── TAB 3: PRICING (per-centre) ───────────────────────────────────────────────
-const PricingTab = ({ form, setForm, errors = {} }) => {
+const PricingTab = ({ form, setForm, errors = {}, membershipActive = false }) => {
   const updateRow = (idx, field, val) => {
     setForm(p => {
       const pricing = [...(p.pricing||[])];
       pricing[idx] = { ...pricing[idx], [field]: val };
       // If Tax Included = Yes, force Tax% to 0
       if (field === "taxIncluded" && val === "Yes") pricing[idx].taxPercent = "0";
+      return { ...p, pricing };
+    });
+  };
+
+  // Member Price <-> Member Discount mutually exclusive (FRD 4.3 rules 2-4).
+  const updateMember = (idx, field, val) => {
+    const other = field === "memberPrice" ? "memberDiscount" : "memberPrice";
+    setForm(p => {
+      const pricing = [...(p.pricing||[])];
+      pricing[idx] = { ...pricing[idx], [field]: val, [other]: val !== "" ? "" : pricing[idx][other] };
       return { ...p, pricing };
     });
   };
@@ -370,7 +380,7 @@ const PricingTab = ({ form, setForm, errors = {} }) => {
       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
         <thead>
           <tr style={{ background:"#f1f5f9" }}>
-            {["Centre","Price (SAR)","Tax Included","Tax %","Release to Centre",""].map(h=>(
+            {["Centre","Price (SAR)","Tax Included","Tax %","Release to Centre","Member Price","Member Discount %",""].map(h=>(
               <th key={h} style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
             ))}
           </tr>
@@ -393,12 +403,25 @@ const PricingTab = ({ form, setForm, errors = {} }) => {
                 <input type="checkbox" checked={!!row.releasedToCentre} onChange={e=>updateRow(idx,"releasedToCentre",e.target.checked)}
                   style={{ width:18, height:18, cursor:"pointer" }} />
               </td>
+              {(() => {
+                const enabled = membershipActive && !!row.releasedToCentre;
+                const hasMp = row.memberPrice !== "" && row.memberPrice != null;
+                const hasMd = row.memberDiscount !== "" && row.memberDiscount != null;
+                return (<>
+                  <td style={{ padding:"10px 12px" }}>
+                    <Input type="number" value={hasMd?"NA":row.memberPrice} onChange={e=>updateMember(idx,"memberPrice",e.target.value)} placeholder={enabled?"0.00":"—"} disabled={!enabled||hasMd} style={{ width:110 }} />
+                  </td>
+                  <td style={{ padding:"10px 12px" }}>
+                    <Input type="number" value={hasMp?"NA":row.memberDiscount} onChange={e=>updateMember(idx,"memberDiscount",e.target.value)} placeholder={enabled?"0":"—"} disabled={!enabled||hasMp} style={{ width:80 }} />
+                  </td>
+                </>);
+              })()}
             </tr>
           ))}
         </tbody>
       </table>
       <div style={{ marginTop:10, fontSize:12, color:"#94a3b8" }}>
-        ⚠ Package is purchasable at a centre only when "Release to Centre" is checked.
+        ⚠ Package is purchasable at a centre only when "Release to Centre" is checked. Member Price / Member Discount can be set only when the membership program is active and the package is released to that centre; enter one or the other, not both.
         When Tax Included = Yes, Tax % is automatically set to 0 and disabled.
       </div>
     </div>
@@ -501,6 +524,8 @@ const PackageMaster = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [errors,    setErrors]    = useState({});
   const [toast,     setToast]     = useState(null);
+  const [membershipActive, setMembershipActive] = useState(false);
+  useEffect(() => { (async () => { try { const d = await authGet(`${API_BASE_URL}/api/Membership/Program`); setMembershipActive(!!d.activate); } catch { setMembershipActive(false); } })(); }, []);
   const [saving,    setSaving]    = useState(false);
   const [saveAttempted, setSaveAttempted] = useState(false);
 
@@ -572,11 +597,11 @@ const PackageMaster = () => {
       ];
       pricing = allCentres.map(cc => ({
         centerCode: cc.code || "", centerName: cc.name || cc.code || "",
-        price: "", taxIncluded: "No", taxPercent: "", releasedToCentre: false,
+        price: "", taxIncluded: "No", taxPercent: "", releasedToCentre: false, memberPrice: "", memberDiscount: "",
       }));
     } catch {}
     if (!pricing.length) {
-      pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false }];
+      pricing = [{ centerCode: u.centerCode||"", centerName: u.centerName||u.centerCode||"", price:"", taxIncluded:"No", taxPercent:"", releasedToCentre:false, memberPrice:"", memberDiscount:"" }];
     }
     setForm({...EMPTY, pricing});
     setEditCode(null); setActiveTab(0); setErrors({}); setView("form");
@@ -611,7 +636,7 @@ const PackageMaster = () => {
         addField4:          data.ADDFIELD4          || "",
         addField5:          data.ADDFIELD5          || "",
         items: (data.items||[]).map(i=>({ itemType:i.ITEMTYPE, itemCode:i.ITEMCODE, itemName:i.ITEMNAME, quantity:i.QUANTITY })),
-        pricing: (data.pricing||[]).map(p=>({ centerCode:p.CENTERCODE, centerName:p.CENTERNAME||p.CENTERCODE, price:p.PRICE, taxIncluded:p.TAXINCLUDED||"No", taxPercent:p.TAXPERCENT||"", releasedToCentre:!!p.RELEASEDTOCENTRE })),
+        pricing: (data.pricing||[]).map(p=>({ centerCode:p.CENTERCODE, centerName:p.CENTERNAME||p.CENTERCODE, price:p.PRICE, taxIncluded:p.TAXINCLUDED||"No", taxPercent:p.TAXPERCENT||"", releasedToCentre:!!p.RELEASEDTOCENTRE, memberPrice:p.MEMBERPRICE!=null?String(p.MEMBERPRICE):"", memberDiscount:p.MEMBERDISCOUNT!=null?String(p.MEMBERDISCOUNT):"" })),
       });
       setEditCode(code); setActiveTab(0); setErrors({}); setView("form");
     } catch { showToast("Failed to load package","error"); }
@@ -942,7 +967,7 @@ const PackageMaster = () => {
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300 }}>
         {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={canEdit} />}
         {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={canEdit} />}
-        {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
+        {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} membershipActive={membershipActive} />}
         {activeTab===3 && <ValidityTab    form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
         {activeTab===4 && <MiscTab        form={form} setForm={setForm} />}
       </div>

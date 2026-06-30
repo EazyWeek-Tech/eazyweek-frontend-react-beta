@@ -52,6 +52,19 @@ const InvoicePage = () => {
   const [packageRedemption, setPackageRedemption] = useState(null);
   const [clinicName,        setClinicName]        = useState("");
   const [selectedCustomer,  setSelectedCustomer]  = useState(null);
+  const [memberFlag, setMemberFlag] = useState(null);
+  useEffect(() => {
+    const cid = selectedCustomer?.custId || selectedCustomer?.custid || "";
+    if (!cid) { setMemberFlag(null); return; }
+    (async () => {
+      try {
+        const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+        const r = await fetch(`${API_BASE_URL}/api/Membership/CustomerStatus/${encodeURIComponent(cid)}`, { headers: { Authorization: `Bearer ${tok}` } });
+        const j = await r.json(); const d = j.data || j;
+        setMemberFlag(d && d.isMember ? d : null);
+      } catch { setMemberFlag(null); }
+    })();
+  }, [selectedCustomer]);
 
   // ── Payment notes popup ────────────────────────────────────────────────────
   const { NotePopup: PaymentNotePopup, checkNotes: checkPaymentNotes } = useCustomerNotes();
@@ -217,7 +230,37 @@ const InvoicePage = () => {
     return next;
   });
   const handleAddItem        = () => setItems([...items, { name: 'New Item', price: '', discount: '' }]);
-  const handleAddFormItem    = (newItem) => { setItems(prev => [...prev, newItem]); setFormResetKey(prev => prev + 1); };
+  const handleAddFormItem    = async (newItem) => {
+    // Membership invoices can't mix with other items, and only one membership
+    // per invoice (FRD 5.3 rules 3 & 9).
+    const isMember      = (newItem.type || newItem.itemType) === 'membership';
+    const cartHasMember = items.some(i => (i.type || i.itemType) === 'membership');
+    if (isMember && items.length > 0) { setToast({ message: 'A membership must be purchased on its own invoice — no other items.', type: 'error' }); return; }
+    if (!isMember && cartHasMember)   { setToast({ message: 'This invoice contains a membership — no other items can be added.', type: 'error' }); return; }
+
+    // Member pricing (FRD §7): for an active member, rewrite the line price to
+    // the member price/discount; leave the Discount field empty so manual
+    // discounts/promotions can still stack on top (rule 5).
+    let toAdd = newItem;
+    const t = String(newItem.type || newItem.itemType || '').toLowerCase();
+    if (memberFlag && !newItem._membership && (t === 'service' || t === 'package')) {
+      try {
+        const cid = selectedCustomer?.custId || selectedCustomer?.custid || '';
+        const cc  = (JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}').centerCode) || '';
+        const tok = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const res = await fetch(`${API_BASE_URL}/api/Membership/ResolveItemPricing`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+          body: JSON.stringify({ customerCode: cid, centerCode: cc, itemCode: newItem.code || newItem.itemCode || newItem.servicecode, itemType: t, originalPrice: parseFloat(newItem.price) || 0 }),
+        });
+        const j = await res.json(); const d = j.data || j;
+        if (d && d.memberApplied) {
+          toAdd = { ...newItem, originalPrice: parseFloat(newItem.price) || 0, price: d.effectivePrice, discount: 0,
+            _memberApplied: true, _memberNote: d.note, _memberBenefit: d.benefitAmount, _memberBenefitType: d.benefitType };
+        }
+      } catch { /* on failure, fall back to the normal price */ }
+    }
+    setItems(prev => [...prev, toAdd]); setFormResetKey(prev => prev + 1);
+  };
   const handleManualDiscount = (updatedItems) => setItems(updatedItems.map(item => ({ ...item, _manualDiscount: parseFloat(item.discount) > 0 })));
   const handleSuspendCart    = () => {
     if (items.length === 0) return;
@@ -371,6 +414,26 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               onApplyPriceOverride={handleApplyPriceOverride} />
 
             <div className="invtotalblk">
+              {memberFlag && (
+                <div style={{
+                  display:'inline-flex', alignItems:'center', gap:9, width:'fit-content', maxWidth:'100%',
+                  marginBottom:10, padding:'8px 14px', borderRadius:10,
+                  background:'linear-gradient(135deg,#6d4c9e 0%,#8b5cf6 100%)', color:'#fff',
+                  boxShadow:'0 3px 10px rgba(109,76,158,.28)', whiteSpace:'nowrap',
+                }}>
+                  <span style={{
+                    display:'inline-flex', alignItems:'center', justifyContent:'center',
+                    width:22, height:22, borderRadius:'50%', background:'rgba(255,255,255,.22)',
+                    fontSize:13, lineHeight:1, flexShrink:0,
+                  }}>★</span>
+                  <span style={{ display:'flex', flexDirection:'column', lineHeight:1.2 }}>
+                    <span style={{ fontSize:12, fontWeight:800, letterSpacing:'.02em' }}>Active Member</span>
+                    {memberFlag.programName && (
+                      <span style={{ fontSize:11, fontWeight:500, opacity:.92 }}>{memberFlag.programName}</span>
+                    )}
+                  </span>
+                </div>
+              )}
               <CustomerSearch
                 onCustomerSelect={(cust) => setSelectedCustomer(cust ? { ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) } : null)}
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}

@@ -12,6 +12,7 @@ const tabIcons = {
   "Advance Payments": "images/advwhite.svg",
   Notes: "images/notes1.svg",
   "Loyalty": "images/loyaltywhite.svg",
+  Membership: "images/loyaltywhite.svg",
 };
 
 const TabList = ({ tabs, activeTab, onTabClick, custId }) => {

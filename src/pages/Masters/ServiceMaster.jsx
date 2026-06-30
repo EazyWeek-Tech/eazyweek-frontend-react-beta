@@ -102,6 +102,8 @@ const ServiceMaster = () => {
           taxIncluded:  toYesNo(p.taxIncluded),
           taxPercent:   String(p.taxPercent || "0"),
           storeRelease: toBool(p.storeRelease),
+          memberPrice:    p.memberPrice    != null ? String(p.memberPrice)    : "",
+          memberDiscount: p.memberDiscount != null ? String(p.memberDiscount) : "",
         }))
       : [];
 

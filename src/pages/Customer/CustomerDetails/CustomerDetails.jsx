@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import TabList from "./TabList";
 import TabContent from "./TabContent";
 import { API_BASE_URL } from "../../../config";
-const tabs = ["General", "Appointment", "Invoices", "Packages", "Forms", "Cases", "Credit Memo", "Advance Payments", "Notes", "Loyalty"];
+const tabs = ["General", "Appointment", "Invoices", "Packages", "Forms", "Cases", "Credit Memo", "Advance Payments", "Notes", "Loyalty", "Membership"];
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
