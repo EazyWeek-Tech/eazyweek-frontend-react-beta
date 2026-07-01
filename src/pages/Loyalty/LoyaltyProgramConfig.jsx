@@ -197,6 +197,13 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
   const errs = useMemo(() => {
     const e = {};
     if (!form.tierName.trim()) e.tierName = "Required";
+    else {
+      const nameNorm = form.tierName.trim().toLowerCase();
+      const dupName = (existingTiers ?? []).some(t =>
+        String(t.tierName ?? "").trim().toLowerCase() === nameNorm &&
+        !(tier && t.tierId === tier.tierId));
+      if (dupName) e.tierName = "A tier with this name already exists";
+    }
     if (!form.tierLevel || isNaN(Number(form.tierLevel))) { e.tierLevel = "Required"; }
     else {
       const levelNum = Number(form.tierLevel);
@@ -496,7 +503,7 @@ export default function LoyaltyProgramConfig() {
   const [programCode, setProgramCode] = useState(existingProgram?.programCode ?? "");
   const [programName, setProgramName] = useState(existingProgram?.programName ?? "");
   const [enrollmentType, setEnrollmentType] = useState(existingProgram?.enrollmentType ?? "ONREQUEST");
-  const [status, setStatus] = useState(existingProgram?.isActive ? "ACTIVE" : "ACTIVE");
+  const [status, setStatus] = useState(existingProgram ? (existingProgram.isActive ? "ACTIVE" : "INACTIVE") : "ACTIVE");
   const [startDate, setStartDate] = useState(existingProgram?.startDate ? existingProgram.startDate.slice(0, 10) : "");
   const [endDate, setEndDate] = useState(existingProgram?.endDate ? existingProgram.endDate.slice(0, 10) : "");
   const [currencyId, setCurrencyId] = useState(String(existingProgram?.currencyId_fk ?? existingProgram?.currencyId ?? ""));
@@ -618,7 +625,7 @@ export default function LoyaltyProgramConfig() {
         </div>
         <div className="lyl-grid2">
           <Field label="Start Date *" error={showErr("startDate")}>
-            <input type="date" style={inputStyle(submitted && errors.startDate)} value={startDate} onChange={(e) => setStartDate(e.target.value)} min={new Date().toISOString().slice(0, 10)} />
+            <input type="date" style={inputStyle(submitted && errors.startDate)} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </Field>
           <Field label="End Date" error={showErr("endDate")}>
             <input type="date" style={inputStyle(submitted && errors.endDate)} value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || undefined} />
@@ -651,8 +658,8 @@ export default function LoyaltyProgramConfig() {
         <div className="lyl-grid2">
           <Field label="Currency *" error={showErr("currencyId")}>
             <div className="lyl-select-wrap">
-              <select style={{ ...inputStyle(submitted && errors.currencyId), appearance: "none", paddingRight: 36, ...(isUpdateMode ? { background: "#f4f7fb", color: "#6e7b8f", cursor: "not-allowed" } : {}) }}
-                value={currencyId} onChange={(e) => { if (!isUpdateMode) setCurrencyId(e.target.value); }} disabled={isUpdateMode}>
+              <select style={{ ...inputStyle(submitted && errors.currencyId), appearance: "none", paddingRight: 36 }}
+                value={currencyId} onChange={(e) => setCurrencyId(e.target.value)}>
                 <option value="">Select currency…</option>
                 {currencies.map((c) => (
                   <option key={c.currencyId} value={c.currencyId}>{c.currencyShortName} – {c.currencyFullName}{c.symbol && c.symbol !== "?" ? ` (${c.symbol})` : ""}</option>
