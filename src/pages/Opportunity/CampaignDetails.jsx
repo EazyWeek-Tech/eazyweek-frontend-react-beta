@@ -843,6 +843,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
   const [status,  setStatus]  = useState("");
   const [owner,   setOwner]   = useState("");
   const [disp,    setDisp]    = useState("");
+  const [doctorFilter, setDoctorFilter] = useState("");
   const [fuMode,  setFuMode]  = useState("");
   const [fuFrom,  setFuFrom]  = useState("");
   const [fuTo,    setFuTo]    = useState("");
@@ -853,7 +854,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
   const navigate = useNavigate();
 
   useEffect(()=>{ const t=setTimeout(()=>setSearch(srchDraft),250); return()=>clearTimeout(t); },[srchDraft]);
-  useEffect(()=>setPage(1),[search,status,owner,disp,fuMode,fuFrom,fuTo,fuTime]);
+  useEffect(()=>setPage(1),[search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime]);
 
   useEffect(()=>{
     if(!campaignRecId) return;
@@ -861,9 +862,21 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
     fetchManualPages(campaignRecId)
       .then(data=>{
         if(!alive) return;
-        setRows(data.map(x=>({
-          id:   Number(x?.leadOpp_ID||0),
-          custID: (x?.custID||x?.custId||"").toString(),
+        setRows(data.map(x=>{
+          const _id     = Number(x?.leadOpp_ID||0);
+          const _custID = (x?.custID||x?.custId||"").toString();
+          const _type   = (x?.type||"").toString().trim().toLowerCase();
+          const _prospectType = _type==="opportunity" ? "Opportunity"
+                              : _type==="lead"        ? "Lead"
+                              : (_custID.trim()===""  ? "Lead" : "Opportunity");
+          const _doctor     = (x?.doctorName||x?.doctor||"").toString();
+          const _prospectId = fmtProspectId(_id,"LD-MN");
+          return ({
+          id:   _id,
+          prospectId:   _prospectId,
+          prospectType: _prospectType,
+          doctor:       _doctor,
+          custID: _custID,
           name:   (x?.customerName||x?.custName||"").toString(),
           mobile: (x?.mobileNumber||x?.mobile||"").toString(),
           status: (x?.status||x?.oppStatus||"").toString(),
@@ -877,10 +890,10 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           modifiedDate:x?.modifiedDate||"",
           createdDate: x?.createdDate||"",
           __fuStamp: stamp(toMidnight(x?.followUpDate||"")),
-          __q: [x?.leadOpp_ID,x?.customerName,x?.custName,x?.custID,x?.mobile,x?.mobileNumber,
+          __q: [_prospectId,_prospectType,_doctor,x?.leadOpp_ID,x?.customerName,x?.custName,x?.custID,x?.mobile,x?.mobileNumber,
             x?.status,x?.disposition,x?.saleOwner,x?.salesOwner]
             .map(v=>(v??"").toString().toLowerCase()).join("|"),
-        })));
+        });}));
       })
       .catch(e=>{ if(alive) setErr(e.message); })
       .finally(()=>{ if(alive) setLoading(false); });
@@ -889,6 +902,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
 
   const ownerOpts = useMemo(()=>["", ...new Set(rows.map(r=>r.owner).filter(Boolean))],[rows]);
   const dispOpts  = useMemo(()=>["", ...new Set(rows.map(r=>r.disposition).filter(Boolean))],[rows]);
+  const doctorOpts= useMemo(()=>["", ...new Set(rows.map(r=>r.doctor).filter(Boolean))],[rows]);
 
   const HALF_HOURS_12 = useMemo(()=>Array.from({length:24},(_,h)=>
     [0,30].map(m=>{ const h12=((h+11)%12)+1; const ap=h<12?"AM":"PM"; return `${String(h12).padStart(2,"0")}:${String(m).padStart(2,"0")} ${ap}`; })
@@ -913,13 +927,14 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
     if(status)list=list.filter(r=>norm(r.status)===norm(status));
     if(owner) list=list.filter(r=>norm(r.owner)===norm(owner));
     if(disp)  list=list.filter(r=>norm(r.disposition)===norm(disp));
+    if(doctorFilter) list=list.filter(r=>norm(r.doctor)===norm(doctorFilter));
     if(fuDateRange)list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
     });
     if(fuTime)list=list.filter(r=>norm(r.fuTimeLabel)===norm(fuTime));
     return list;
-  },[rows,search,status,owner,disp,fuDateRange,fuTime]);
+  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime]);
 
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const paged=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
@@ -946,6 +961,12 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
             <label>Disposition</label>
             <select value={disp} onChange={e=>setDisp(e.target.value)}>
               {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+            </select>
+          </div>
+          <div className="cd-fg">
+            <label>Doctor</label>
+            <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
+              {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
             </select>
           </div>
           <div className="cd-fg">
@@ -990,7 +1011,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th>Prospect ID</th><th>Cust ID</th><th>Name</th><th>Mobile</th>
+                <th>Prospect ID</th><th>Prospect Type</th><th>Cust ID</th><th>Name</th><th>Mobile</th><th>Doctor</th>
                 <th>Status</th><th>Follow Up Date</th><th>Follow Up Time</th>
                 <th>Disposition</th><th>Remarks</th><th>Sales Owner</th>
                 <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
@@ -1003,9 +1024,11 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
                         {fmtProspectId(r.id,"LD-MN")}
                       </button>
                     </td>
+                    <td>{safe(r.prospectType)}</td>
                     <td>{safe(r.custID)}</td>
                     <td>{safe(r.name)}</td>
                     <td>{safe(r.mobile)}</td>
+                    <td>{safe(r.doctor)}</td>
                     <td>{safe(r.status)}</td>
                     <td>{fmtDate(r.fuDate)}</td>
                     <td>{safe(r.fuTimeLabel)}</td>

@@ -750,7 +750,9 @@ const minFollowUpDate = useMemo(
 
     try {
       const data = await fetchJSON(FOLLOWUP_HISTORY_URL(numericLeadOppId), { method: "GET" });
-      const list = Array.isArray(data) ? data : [];
+      const list = Array.isArray(data)        ? data
+                 : Array.isArray(data?.data)  ? data.data
+                 : [];
       setFuRows(list);
     } catch (e) {
       console.error("❌ getLeadFollowUpList failed:", e);
@@ -964,6 +966,30 @@ if (!isEdit) {
 
     loadMaster();
   }, [isEdit]);
+
+  /** Auto-populate Centre from the selected customer (create mode only).
+     The Centre <select> option values are recids (Doctor_FK/ClinicCentre_FK need
+     the recid), but the customer carries a centre CODE ("Bright") / NAME
+     ("Bright Clinics"). Resolve that hint against the loaded options and set the
+     matching recid, so the Centre field shows the customer's clinic instead of
+     staying blank. */
+  useEffect(() => {
+    if (isEdit) return;
+    if (centerTouchedRef.current) return;
+    if (!centerOptions || centerOptions.length <= 1) return;   // options not loaded yet
+    setForm((p) => {
+      // already holding a valid option value → leave it
+      if (p.centerCode && centerOptions.some((o) => String(o.value) === String(p.centerCode))) return p;
+      const hint = norm(row?.clinicLocation || state?.header?.clinicLocation || p.centerCode);
+      if (!hint) return p;
+      const match =
+        centerOptions.find((o) => norm(o.code) === hint) ||
+        centerOptions.find((o) => norm(o.label) === hint) ||
+        centerOptions.find((o) => norm(o.label).includes(hint) || hint.includes(norm(o.label)));
+      return match?.value ? { ...p, centerCode: String(match.value) } : p;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerOptions, isEdit, form.centerCode]);
 
  useEffect(() => {
   let alive = true;
@@ -1290,6 +1316,7 @@ if (name === "sourceName") {
   const validate = () => {
     const e = {};
     if (!form.mobile.trim()) e.mobile = "Mobile is required.";
+    else if (!/^\d{7,15}$/.test(form.mobile.trim())) e.mobile = "Enter a valid mobile number (7–15 digits, numbers only).";
     if (!form.firstName.trim()) e.firstName = "First name is required.";
     if (!form.lastName.trim()) e.lastName = "Last name is required.";
 
@@ -1759,15 +1786,19 @@ const subMediumName = safe(form.subMedium || "Manual");
                     <thead>
                       <tr>
                         <th>Sr No</th>
+                        <th>Disposition</th>
+                        <th>Sub-Disposition</th>
                         <th>Follow Up Date</th>
                         <th>Follow Up Time</th>
-                        <th>Sales Owner</th>
+                        <th>Remarks</th>
+                        <th>Modified By</th>
+                        <th>Modified On</th>
                       </tr>
                     </thead>
                     <tbody>
                       {fuRows.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: "center", padding: "14px" }}>
+                          <td colSpan={8} style={{ textAlign: "center", padding: "14px" }}>
                             No follow up history found.
                           </td>
                         </tr>
@@ -1775,9 +1806,13 @@ const subMediumName = safe(form.subMedium || "Manual");
                         fuRows.map((r, idx) => (
                           <tr key={r?.followUpId ?? idx}>
                             <td>{idx + 1}</td>
+                            <td>{safe(r?.disposition)}</td>
+                            <td>{safe(r?.subDisposition)}</td>
                             <td>{formatFollowUpDateDDMMYY(r?.followUpDate)}</td>
                             <td>{formatTimeSpanTo12Hr(r?.followUpTime)}</td>
-                            <td>{safe(r?.salesOwner)}</td>
+                            <td>{safe(r?.remarks ?? r?.remark)}</td>
+                            <td>{safe(r?.modifiedBy ?? r?.salesOwner)}</td>
+                            <td>{safe(r?.modifiedOn)}</td>
                           </tr>
                         ))
                       )}
@@ -1838,7 +1873,7 @@ const subMediumName = safe(form.subMedium || "Manual");
                 <label>
                   Mobile <span className="req">*</span>
                 </label>
-                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" value={form.mobile} disabled={!isLead}  onChange={onChange} placeholder="Mobile" />
+                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
                 {errors.mobile && <div className="errText">{errors.mobile}</div>}
               </div>
 
