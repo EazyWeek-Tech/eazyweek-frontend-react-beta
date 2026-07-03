@@ -564,6 +564,13 @@ body{background:var(--bg);color:var(--text);}
   transform:translateX(-50%);background:var(--navy);color:#fff;
   font-size:11px;padding:4px 8px;border-radius:5px;white-space:nowrap;z-index:200;
 }
+/* Header sits in a sticky 56px bar pinned to the top of the viewport, so a
+   tooltip placed ABOVE the icon renders off-screen and is never seen
+   (TC-APT-05 "Add Customer" tooltip). Render header tooltips BELOW the icon. */
+.appthdr .tooltip:hover::after{
+  bottom:auto;
+  top:calc(100% + 6px);
+}
 .toast{
   position:fixed;top:66px;right:20px;padding:11px 18px;background:var(--navy);color:#fff;
   border-radius:var(--r);z-index:9999;font-size:13px;font-weight:600;

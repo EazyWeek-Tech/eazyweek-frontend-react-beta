@@ -134,7 +134,8 @@ const InvoicePage = () => {
               number:   firstItem.number  || "",
               email:    firstItem.emailId || "",
               gender:   firstItem.gender  || "",
-              status:   String(firstItem.nationalityId || firstItem.nationality || "") === "84" ? "Citizen" : "Expat",
+              status:   firstItem.customerType ||
+                        (String(firstItem.nationalityId || firstItem.nationality || "") === "84" ? "Citizen" : "Expat"),
               recId:    recIdFromUrl || firstItem.recId || "",
               isLoyaltyEnrolled: false,
             };
@@ -153,6 +154,7 @@ const InvoicePage = () => {
                   const det = d?.data ?? d;
                   setSelectedCustomer(prev => ({
                     ...prev,
+                    status: det?.customerType || prev.status,
                     isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
                     recId: prev.recId || det?.recId || det?.recid || "",
                   }));
@@ -187,6 +189,8 @@ const InvoicePage = () => {
               const det = d?.data ?? d;
               setSelectedCustomer(prev => ({
                 ...prev,
+                status: prev.status || det?.customerType ||
+                        (String(det?.nationalityCode ?? det?.nationalityId ?? "") === "84" ? "Citizen" : "Expat"),
                 isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
                 recId: prev.recId || det?.recId || det?.recid || "",
               }));
@@ -376,8 +380,8 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
           <div className="leftsect">
             <div className="invtopwrp">
               <h3 className="sectttl">Invoice details
-                <Link to="/dashboard" title="Dashboard" className="bckbtn tooltip" data-tooltip="Dashboard" data-tooltip-pos="down">
-                  <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="18" height="18" alt="Home" />
+                <Link to="/dashboard" className="bckbtn">
+                  Back to Dashboard
                 </Link>
               </h3>
               <div className="invdetails">

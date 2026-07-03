@@ -24,6 +24,7 @@ const CustomerSearch = ({
   const [name,             setName]             = useState('');
   const [showAddCustomer,  setShowAddCustomer]  = useState(false);
   const [enrolling,        setEnrolling]        = useState(false);
+  const [nationalities,    setNationalities]    = useState([]);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -48,6 +49,23 @@ const CustomerSearch = ({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Load nationality master once (code → name) so the actual nationality
+  // (e.g. "Indian") can be shown next to the Citizen/Expat status.
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/Master/Nationality`, { headers: { Authorization: `Bearer ${TOKEN()}` } })
+      .then(r => r.json())
+      .then(j => { const list = j?.data ?? j; setNationalities(Array.isArray(list) ? list : []); })
+      .catch(() => {});
+  }, []);
+
+  // Resolve a stored NATIONALITY_ID (numeric code) to its display name.
+  const resolveNatName = (code) => {
+    if (code === undefined || code === null || code === '') return '';
+    const c = Number(code);
+    const n = nationalities.find(x => Number(x.code ?? x.id ?? x.NCODE) === c);
+    return n ? (n.name || n.NATIONALITYNAME || '') : '';
+  };
 
   const getCenterCode = () => {
     try {
@@ -101,7 +119,11 @@ const CustomerSearch = ({
     const custId    = cust.custId    || cust.custid     || cust.CUSTID       || '';
     const recId     = cust.recId     || cust.recid      || cust.RECID        || '';
     const natId     = String(cust.nationalityId || cust.NATIONALITY_ID || '');
-    const status    = natId === '84' ? 'Citizen' : 'Expat';
+    // Prefer the persisted Citizen/Expat classification (computed at creation
+    // from nationality-vs-centre country); fall back to the legacy nationality
+    // heuristic only for older records with no stored CUSTOMERTYPE.
+    const persisted = cust.customerType || cust.CUSTOMERTYPE || '';
+    const status    = persisted || (natId === '84' ? 'Citizen' : 'Expat');
 
     setSearchText(fullName);
     setName(fullName);
@@ -117,6 +139,7 @@ const CustomerSearch = ({
       fullName, firstName, lastName,
       mobile, number: mobile,
       email, status, recId,
+      nationalityCode: cust.nationalityCode ?? cust.nationalityId ?? cust.NATIONALITY_ID ?? '',
       isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false),
     };
     setSelectedCustomer(enriched);
@@ -149,6 +172,7 @@ const CustomerSearch = ({
       mobile: mob, number: mob,
       email: eml, status,
       recId: saved.recId || saved.recid || '',
+      nationalityCode: saved.nationalityCode ?? saved.nationalityId ?? '',
       isLoyaltyEnrolled: !!saved.isLoyaltyEnrolled,
     };
     setSearchText(full);
@@ -179,6 +203,7 @@ const CustomerSearch = ({
   };
 
   const isSelected = !!selectedCustomer;
+  const nationalityName = resolveNatName(selectedCustomer?.nationalityCode);
 
   return (
     <div className="cstsearch">
@@ -188,7 +213,7 @@ const CustomerSearch = ({
           <div className="sectttl">Customer Search</div>
           {nationalityStatus && (
             <span className={`nstatus ${nationalityStatus.toLowerCase()}`} style={{ fontWeight:'bold' }}>
-              Nationality Status: {nationalityStatus}
+              Nationality Status: {nationalityStatus}{nationalityName ? ` — ${nationalityName}` : ''}
             </span>
           )}
         </div>
@@ -269,9 +294,10 @@ const CustomerSearch = ({
       {/* Prefilled fields after selection */}
       {isSelected && (
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-          <ReadOnlyField label="Name"   value={name}   />
-          <ReadOnlyField label="Mobile" value={mobile} />
-          <ReadOnlyField label="Email"  value={email}  />
+          <ReadOnlyField label="Name"        value={name}   />
+          <ReadOnlyField label="Mobile"      value={mobile} />
+          <ReadOnlyField label="Email"       value={email}  />
+          <ReadOnlyField label="Nationality" value={nationalityName} />
         </div>
       )}
 

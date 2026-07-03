@@ -52,6 +52,26 @@ const PHONE_CODES = [
   { code: "+1",   label: "+1 USA / Canada" },
 ];
 
+// ── Input sanitizers & classification helper ─────────────────────────────────
+// Names: allow Unicode letters (incl. Arabic), combining marks, spaces, . ' -
+// Blocks digits and special characters (TC-APT-18 / TC-APT-19).
+const NAME_STRIP     = /[^\p{L}\p{M}\s.'-]/gu;
+const sanitizeName   = (v) => String(v ?? "").replace(NAME_STRIP, "");
+// Mobile / phone: digits only — the dial code is a separate field. Capped at 15.
+// Blocks alphabets & special characters (TC-CRT-24 / TC-APT-29 / TC-INV-22).
+const sanitizeDigits = (v) => String(v ?? "").replace(/\D/g, "").slice(0, 15);
+const NAME_FIELDS    = ["firstName", "middleName", "lastName", "preferredName"];
+const PHONE_FIELDS   = ["mobilePhone", "homePhone", "workPhone"];
+
+// Citizen only when the selected nationality's country resolves to the centre's
+// country; ANY other selected nationality — including ones with no country
+// mapping in the master data — is an Expat (TC-EXPT-03). Returns null until a
+// nationality is chosen and the centre country is known.
+const classifyCustomerType = (code, natCountry, centreCountryId) => {
+  if (!code || !centreCountryId) return null;
+  return natCountry && natCountry === centreCountryId ? "Citizen" : "Expat";
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CustomerMaster page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,23 +143,20 @@ const CustomerMaster = () => {
   };
 
   const handleInput = (e) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    let value = e.target.value;
+    if (PHONE_FIELDS.includes(name))     value = sanitizeDigits(value);
+    else if (NAME_FIELDS.includes(name)) value = sanitizeName(value);
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleNationalityChange = (e) => {
     const code = parseInt(e.target.value) || 0;
-    setFormData(prev => ({ ...prev, nationalityCode: code }));
-    if (code && centreCountryId) {
-      const nat = nationalities.find(n => Number(n.code || n.NCODE || n.id) === code);
-      const natCountry = Number(nat?.countryId || nat?.COUNTRY_ID || 0);
-      const ct = natCountry ? (natCountry === centreCountryId ? "Citizen" : "Expat") : null;
-      setCitizenType(ct);
-      setFormData(prev => ({ ...prev, nationalityCode: code, customerType: ct || "" }));
-    } else {
-      setCitizenType(null);
-      setFormData(prev => ({ ...prev, nationalityCode: code, customerType: "" }));
-    }
+    const nat  = nationalities.find(n => Number(n.code || n.NCODE || n.id) === code);
+    const natCountry = Number(nat?.countryId || nat?.COUNTRY_ID || 0);
+    const ct = classifyCustomerType(code, natCountry, centreCountryId);
+    setCitizenType(ct);
+    setFormData(prev => ({ ...prev, nationalityCode: code, customerType: ct || "" }));
   };
 
   const handleOpenCreate = () => {
@@ -159,9 +176,13 @@ const CustomerMaster = () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
     if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
+    if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
+      setFormError("Enter a valid mobile number (6–15 digits, numbers only)."); return;
+    }
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
+    if (!formData.birthDay)    { setFormError("Date of Birth is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
@@ -231,7 +252,7 @@ const CustomerMaster = () => {
           <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredCustomers.length} customers</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <button onClick={() => fetchCustomers()}
+          <button onClick={() => { setSearchTerm(""); fetchCustomers(); }}
             style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4",
               borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
             ↻ Refresh
@@ -308,7 +329,7 @@ const CustomerMaster = () => {
                     <option>Male</option><option>Female</option><option>Other</option>
                   </select>
                 </FormRow>
-                <FormRow label="Date of Birth">
+                <FormRow label="Date of Birth *">
                   <input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Anniversary">
@@ -325,7 +346,7 @@ const CustomerMaster = () => {
                       <option value="">Code</option>
                       {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
                     </select>
-                    <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+                    <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
                   </div>
                 </FormRow>
                 <FormRow label="Email *">
@@ -443,7 +464,10 @@ export function CustomerFormPanel({ onSaved, onClose }) {
   }, []);
 
   const handleInput = (e) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    let value = e.target.value;
+    if (PHONE_FIELDS.includes(name))     value = sanitizeDigits(value);
+    else if (NAME_FIELDS.includes(name)) value = sanitizeName(value);
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -451,7 +475,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
     const code = parseInt(e.target.value) || 0;
     const nat = nationalities.find(n => Number(n.code || n.id || n.NCODE) === code);
     const natCountry = Number(nat?.countryId || nat?.COUNTRY_ID || 0);
-    const ct = code && centreCountryId && natCountry ? (natCountry === centreCountryId ? "Citizen" : "Expat") : null;
+    const ct = classifyCustomerType(code, natCountry, centreCountryId);
     setCitizenType(ct);
     setFormData(prev => ({ ...prev, nationalityCode: code, customerType: ct || "" }));
   };
@@ -460,9 +484,13 @@ export function CustomerFormPanel({ onSaved, onClose }) {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
     if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
+    if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
+      setFormError("Enter a valid mobile number (6–15 digits, numbers only)."); return;
+    }
     if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
+    if (!formData.birthDay)    { setFormError("Date of Birth is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
@@ -512,7 +540,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
             </select>
           </FormRow>
-          <FormRow label="Date of Birth"><input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} /></FormRow>
+          <FormRow label="Date of Birth *"><input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} /></FormRow>
           <FormRow label="Anniversary"><input style={styles.inp} type="date" name="anniversary" value={formData.anniversary} onChange={handleInput} /></FormRow>
         </Section>
 
@@ -524,7 +552,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
                 <option value="">Code</option>
                 {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
               </select>
-              <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} />
+              <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
             </div>
           </FormRow>
           <FormRow label="Email *"><input style={styles.inp} type="email" name="email" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
