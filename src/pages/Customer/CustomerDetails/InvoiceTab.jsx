@@ -5,12 +5,34 @@ import SalesReturn from "../../Invoice/SalesReturn";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
+// Normalize an invoice date to a comparable YYYY-MM-DD string. The app renders
+// dates day-first with either dashes or slashes (e.g. "08-06-2026" / "08/06/2026").
+// Lexicographic comparison on the returned ISO string is date-correct and
+// timezone-safe, which is what the range filter relies on.
+// NOTE: we must parse day-first explicitly — new Date("08-06-2026") misreads it
+// as month-day (August 6), which silently breaks range filtering.
+const toISODate = (d) => {
+  if (!d) return "";
+  if (typeof d === "string") {
+    const s = d.trim();
+    // Already ISO (YYYY-MM-DD, optionally with time) → take the date part.
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    // Day-first: DD-MM-YYYY or DD/MM/YYYY (the app's display format).
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? "" : dt.toISOString().split("T")[0];
+};
+
 const InvoicesTab = ({ custId, recId }) => {
   const [invoiceData,        setInvoiceData]        = useState([]);
   const [filteredInvoices,   setFilteredInvoices]   = useState([]);
   const [searchQuery,        setSearchQuery]         = useState("");
   const [selectedPaymentMode,setSelectedPaymentMode] = useState("All Selected");
-  const [selectedDateRange,  setSelectedDateRange]   = useState("");
+  const [fromDate,           setFromDate]            = useState("");
+  const [toDate,             setToDate]              = useState("");
   const [loading,            setLoading]             = useState(false);
   const [error,              setError]               = useState("");
   const [showReturn,         setShowReturn]          = useState(false);
@@ -36,13 +58,8 @@ const InvoicesTab = ({ custId, recId }) => {
         const allInvoices = data;
         // Show only Sales invoices in the table
         const parseInvDate = (d) => {
-          if (!d) return 0;
-          // Handle DD/MM/YYYY format
-          if (typeof d === "string" && d.includes("/")) {
-            const [day, mon, yr] = d.split("/");
-            return new Date(`${yr}-${mon}-${day}`).getTime();
-          }
-          return new Date(d).getTime();
+          const iso = toISODate(d);
+          return iso ? new Date(iso).getTime() : 0;
         };
         const salesInvoices = allInvoices
           .filter(i => !i.transType || i.transType === "Sales" || i.transType === "Return")
@@ -83,13 +100,18 @@ const InvoicesTab = ({ custId, recId }) => {
       );
     if (selectedPaymentMode !== "All Selected")
       data = data.filter(i => i.paymentMode === selectedPaymentMode);
-    if (selectedDateRange === "Last 7 days") {
-      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
-      data = data.filter(i => new Date(i.invoiceDate) >= cutoff);
+    if (fromDate || toDate) {
+      data = data.filter(i => {
+        const iso = toISODate(i.invoiceDate);
+        if (!iso) return false;
+        if (fromDate && iso < fromDate) return false;
+        if (toDate   && iso > toDate)   return false;
+        return true;
+      });
     }
     setFilteredInvoices(data);
     setCurrentPage(1);
-  }, [searchQuery, selectedPaymentMode, selectedDateRange, invoiceData]);
+  }, [searchQuery, selectedPaymentMode, fromDate, toDate, invoiceData]);
 
   const totalSpent    = filteredInvoices.reduce((s, i) => s + (Number(i.amount) || 0), 0);
   const totalTax      = filteredInvoices.reduce((s, i) => s + (Number(i.tax)    || 0), 0);
@@ -128,9 +150,20 @@ const InvoicesTab = ({ custId, recId }) => {
           <select className="inv-select" value={selectedPaymentMode} onChange={e => setSelectedPaymentMode(e.target.value)}>
             {paymentModes.map((m,i) => <option key={i} value={m}>{m}</option>)}
           </select>
-          <input type="text" placeholder="Time period" className="inv-select" style={{ width:140 }}
-            value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)} />
-          <button className="inv-btn-refresh" onClick={() => setSelectedDateRange(selectedDateRange)}>↺ Refresh</button>
+          <div className="inv-daterange">
+            <label className="inv-date-lbl">From
+              <input type="date" className="inv-date-input" value={fromDate}
+                max={toDate || undefined} onChange={e => setFromDate(e.target.value)} />
+            </label>
+            <label className="inv-date-lbl">To
+              <input type="date" className="inv-date-input" value={toDate}
+                min={fromDate || undefined} onChange={e => setToDate(e.target.value)} />
+            </label>
+          </div>
+          {(fromDate || toDate) && (
+            <button className="inv-btn-refresh" style={{ background:"#fff", color:"#334b71", border:"1.5px solid #e2e8f0" }}
+              onClick={() => { setFromDate(""); setToDate(""); }}>✕ Clear</button>
+          )}
         </div>
 
         {loading ? (
@@ -236,6 +269,10 @@ const InvoicesTab = ({ custId, recId }) => {
         .inv-search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:18px; pointer-events:none; }
         .inv-search { width:100%; height:40px; padding:0 12px 0 36px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; box-sizing:border-box; }
         .inv-select { height:40px; padding:0 12px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; }
+        .inv-daterange { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .inv-date-lbl { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#64748b; }
+        .inv-date-input { height:40px; padding:0 10px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; color:#0f172a; font-family:inherit; }
+        .inv-date-input:focus { border-color:#334b71; }
         .inv-btn-refresh { height:40px; padding:0 18px; border-radius:10px; border:none; background:#334b71; color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
         .inv-table-wrap { border-radius:14px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 4px 20px rgba(15,23,42,.06); background:#fff; }
         .inv-table { width:100%; border-collapse:collapse; }

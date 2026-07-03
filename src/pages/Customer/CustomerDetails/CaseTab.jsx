@@ -101,6 +101,7 @@ const CaseTab = ({ custId }) => {
                 <th>Sub Category</th>
                 <th>Sub Sub Category</th>
                 <th>Case With</th>
+                <th>Therapist</th>
                 <th>Assigned To</th>
                 <th>Owner</th>
                 <th>Created Date</th>
@@ -110,7 +111,7 @@ const CaseTab = ({ custId }) => {
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ textAlign:"center", padding:24, color:"#94a3b8" }}>
+                  <td colSpan={13} style={{ textAlign:"center", padding:24, color:"#94a3b8" }}>
                     {search ? "No cases match your search." : "No cases found for this customer."}
                   </td>
                 </tr>
@@ -120,7 +121,6 @@ const CaseTab = ({ custId }) => {
                     <Link to={`/cases/${c.caseNo}`} className="ct-link">
                       {c.caseNo}
                     </Link>
-                    {c.isDraft && <span className="ct-draft">Draft</span>}
                   </td>
                   <td style={{ maxWidth:220, whiteSpace:"normal" }}>{c.caseTitle || "—"}</td>
                   <td>{badge(c.status,   STATUS_STYLE)}</td>
@@ -129,6 +129,7 @@ const CaseTab = ({ custId }) => {
                   <td>{c.subCategory || "—"}</td>
                   <td>{c.subSubCategory || "—"}</td>
                   <td>{c.caseWith   || "—"}</td>
+                  <td>{c.therapist  || "—"}</td>
                   <td>{c.assignTo   || "—"}</td>
                   <td>{c.owner      || "—"}</td>
                   <td style={{ whiteSpace:"nowrap" }}>
@@ -192,9 +193,6 @@ const CaseTab = ({ custId }) => {
 
         .ct-link { color:#334B71; font-weight:700; text-decoration:none; }
         .ct-link:hover { text-decoration:underline; }
-        .ct-draft { background:#f0f2f5; color:#6b7280; font-size:10px;
-          font-weight:700; padding:2px 6px; border-radius:4px;
-          margin-left:6px; vertical-align:middle; }
 
         .ct-loading { color:#94a3b8; padding:20px 0; font-size:14px; }
         .ct-error   { padding:12px 16px; background:#fee2e2; color:#991b1b;
