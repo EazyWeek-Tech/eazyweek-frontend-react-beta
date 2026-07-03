@@ -531,6 +531,8 @@ export default function LoyaltyProgramConfig() {
   const errors = useMemo(() => {
     const e = {};
     if (!programName.trim()) e.programName = "Program name is required";
+    else if (!/^[\p{L}\p{N}\s]+$/u.test(programName.trim()))
+      e.programName = "Special characters are not allowed. Use letters, numbers and spaces only.";
     if (!currencyId) e.currencyId = "Currency is required";
     if (!startDate) e.startDate = "Start date is required";
     if (endDate && startDate && endDate < startDate) e.endDate = "End date must be after start date";
