@@ -417,7 +417,7 @@ export default function LegalEntitySetup() {
                 <div className="grid-2">
                   <div className="field">
                     <label>Description *</label>
-                    <input value={addr.description} placeholder="e.g. Head Office"
+                    <input value={addr.description} maxLength={60} placeholder="e.g. Head Office"
                       onChange={e => setAddresses(p => p.map((a,i) => i===idx ? {...a, description:e.target.value} : a))} />
                   </div>
                   <div className="field">
@@ -430,7 +430,7 @@ export default function LegalEntitySetup() {
                 </div>
                 <div className="field" style={{ marginTop:10 }}>
                   <label>Address *</label>
-                  <textarea value={addr.address} placeholder="Street, City, State, Postal Code, Country"
+                  <textarea value={addr.address} maxLength={255} placeholder="Street, City, State, Postal Code, Country"
                     onChange={e => setAddresses(p => p.map((a,i) => i===idx ? {...a, address:e.target.value} : a))} />
                 </div>
                 <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:10 }}>
@@ -467,7 +467,7 @@ export default function LegalEntitySetup() {
                 <div className="grid-2">
                   <div className="field">
                     <label>Description *</label>
-                    <input value={c.description} placeholder="e.g. Support"
+                    <input value={c.description} maxLength={60} placeholder="e.g. Support"
                       onChange={e => setContacts(p => p.map((x,i) => i===idx ? {...x, description:e.target.value} : x))} />
                   </div>
                   <div className="field">
@@ -537,6 +537,13 @@ export default function LegalEntitySetup() {
             </div>
             {taxItems.length === 0 && (
               <div style={{ textAlign:"center", padding:"20px 0", color:"#94a3b8", fontSize:13 }}>No tax registrations added. Click "+ Add Registration" to add one.</div>
+            )}
+            {taxItems.length > 0 && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr auto", gap:10, marginBottom:6 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#334b71" }}>Type *</label>
+                <label style={{ fontSize:12, fontWeight:700, color:"#334b71" }}>Registration Number *</label>
+                <span/>
+              </div>
             )}
             {taxItems.map((t, idx) => (
               <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr auto", gap:10, alignItems:"center", marginBottom:10 }}>

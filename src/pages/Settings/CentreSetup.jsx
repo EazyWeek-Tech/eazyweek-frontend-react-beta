@@ -437,7 +437,7 @@ export default function CentreSetup() {
                     </button>
                   )}
                   <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
-                    {saving ? "Saving…" : "💾 Save Centre"}
+                    {saving ? "Saving…" : " Save Centre"}
                   </button>
                 </div>
               </div>
@@ -575,7 +575,7 @@ export default function CentreSetup() {
                         <div className="grid-2">
                           <div className="field">
                             <label>Description *</label>
-                            <input value={c.description} placeholder="e.g. Reception"
+                            <input value={c.description} maxLength={60} placeholder="e.g. Reception"
                               onChange={e => setContacts(p => p.map((x,i) => i===idx ? {...x, description:e.target.value} : x))} />
                           </div>
                           <div className="field">
@@ -655,6 +655,12 @@ export default function CentreSetup() {
                         Set automatically from the Legal Entity currency.
                       </div>
                     </div>
+                    {taxItems.length > 0 && (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, marginBottom:6 }}>
+                        <label style={{ fontSize:12, fontWeight:700, color:"#334b71" }}>Type *</label>
+                        <label style={{ fontSize:12, fontWeight:700, color:"#334b71" }}>Registration Number *</label>
+                      </div>
+                    )}
                     {taxItems.map((t, idx) => (
                       <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, alignItems:"center", marginBottom:10 }}>
                         <select value={t.taxType}
@@ -874,7 +880,7 @@ export default function CentreSetup() {
                 {/* Bottom save */}
                 <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:16 }}>
                   <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
-                    {saving ? "Saving…" : "💾 Save Centre"}
+                    {saving ? "Saving…" : " Save Centre"}
                   </button>
                 </div>
               </div>
