@@ -84,7 +84,7 @@ const Sidebar = ({ collapsed }) => {
         { name: "Employee", path: "/masters/employees" },
     //    { name: "Segment Mapping", path: "/masters/segments" },
     //    { name: "Managers", path: "/masters/managers" },
-    //    { name: "Product", path: "/masters/product" },
+        { name: "Product", path: "/masters/product" },
         { name: "Service", path: "/masters/service" },
     //    { name: "Item Category", path: "/masters/item-category" },
     //    { name: "Item Category Mapping", path: "/masters/item-category-mapping" },

@@ -272,7 +272,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
     if (!value || value.trim().length < 2 || !centerCode) { setProductSuggestions([]); return; }
     try {
       const json = await authFetch(
-        `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(value.trim())}/${centerCode}`
+        `${API_BASE_URL}/api/Product/SearchByName/${encodeURIComponent(value.trim())}/${centerCode}`
       );
       const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
       setProductSuggestions(list.map(item => ({ ...item, type: 'product' })));
@@ -337,6 +337,11 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
     // Product
     if (productText) {
       if (!selectedProduct) { showToast?.("Please select a product from the dropdown."); return; }
+      // Per-centre "Block for Sales" — released but blocked products appear in the
+      // dropdown, but cannot be added; show the FRD message instead.
+      if (selectedProduct.blockedForSale) { showToast?.("This product is blocked for sale."); return; }
+      // Mapping Sales Person = Yes -> practitioner is required at billing; No -> optional.
+      if (selectedProduct.mapSalesPerson && !selectedPract) { showToast?.("Please select a practitioner."); return; }
       onAddItem?.({
         name:             selectedProduct.productName || selectedProduct.name || '',
         code:             selectedProduct.productCode || '',

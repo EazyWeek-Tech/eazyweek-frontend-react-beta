@@ -19,7 +19,6 @@ import DepartmentMaster from "./pages/Masters/DepartmentMaster";
 import ManagerMaster from "./pages/Masters/ManagerMaster";
 import SegmentMapping from "./pages/Masters/SegmentMapping";
 import EmployeeMaster from "./pages/Masters/EmployeeMaster";
-import ProductsMaster from "./pages/Masters/ProductsMaster";
 import ItemCategoryMaster from "./pages/Masters/ItemCategoryMaster";
 import PurchaseCategoryMaster from "./pages/Masters/PurchaseCategoryMaster";
 import ServiceMaster from "./pages/Masters/ServiceMaster";
@@ -94,6 +93,7 @@ import FormList from "./pages/EMR/FormList";
 import CreateCampaign from "./pages/Opportunity/CreateCampaign";
 import CampaignDetails from "./pages/Opportunity/CampaignDetails";
 import MasterLeadForm from "./pages/Opportunity/MasterLeadForm";
+import ProductMaster from "./pages/Masters/ProductMaster";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -349,7 +349,7 @@ if (user && showFirstLogin) {
                     path="/masters/employees"
                     element={<EmployeeMaster />}
                   />
-                  <Route path="/masters/product" element={<ProductsMaster />} />
+                  <Route path="/masters/product" element={<ProductMaster />} />
                   <Route path="/masters/service" element={<ServiceMaster />} />
                   <Route
                     path="/masters/item-category"
