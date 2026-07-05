@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import AssignmentModal from "./AssignmentModal";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1061,6 +1062,7 @@ export default function CampaignDetails() {
   const [toast,    setToast]    = useState("");
   const [churning, setChurning] = useState(false);
   const [churnKey, setChurnKey] = useState(0); // increment to force section re-fetch after churn
+  const [assignOpen, setAssignOpen] = useState(false);
 
   const showToast = (msg, type="success") => {
     setToast({ msg, type }); setTimeout(()=>setToast(""), 4000);
@@ -1150,6 +1152,7 @@ export default function CampaignDetails() {
                 style={{ minWidth:160, opacity: churning ? 0.7 : 1 }}>
                 {churning ? "⟳ Loading…" : "↻ Get Latest Data"}
               </button>
+              <button className="cd-btn-pri" onClick={()=>setAssignOpen(true)}>Assign</button>
               <button className="cd-btn-sec" onClick={()=>navigate(-1)}>← Back</button>
             </div>
           </div>
@@ -1174,6 +1177,15 @@ export default function CampaignDetails() {
       </div>
 
       <Toast msg={toast} />
+
+      <AssignmentModal
+        open={assignOpen}
+        onClose={()=>setAssignOpen(false)}
+        oppCode={oppCode}
+        kind={kind}
+        centerCode={header.centerCode || header.CENTERCODE || ""}
+        onConfirmed={()=>{ setChurnKey(k=>k+1); showToast("Assignment confirmed. Refreshing…"); }}
+      />
 
       <style>{`
         .cd-container { padding: 20px; }
