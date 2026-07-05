@@ -174,6 +174,7 @@ const CustomerMaster = () => {
 
   const handleSave = async () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
+    if (!formData.lastName?.trim())   { setFormError("Last Name is required.");  return; }
     if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
     if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
@@ -317,7 +318,7 @@ const CustomerMaster = () => {
                 <FormRow label="Middle Name">
                   <input style={styles.inp} name="middleName" value={formData.middleName} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Last Name">
+                <FormRow label="Last Name *">
                   <input style={styles.inp} name="lastName" value={formData.lastName} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Preferred Name">
@@ -482,6 +483,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
 
   const handleSave = async () => {
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
+    if (!formData.lastName?.trim())   { setFormError("Last Name is required.");  return; }
     if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
     if (!formData.mobilePhone?.trim()){ setFormError("Mobile is required.");     return; }
     if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
@@ -533,7 +535,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
         <Section title="Basic Information">
           <FormRow label="First Name *"><input style={styles.inp} name="firstName" value={formData.firstName} onChange={handleInput} /></FormRow>
           <FormRow label="Middle Name"><input style={styles.inp} name="middleName" value={formData.middleName} onChange={handleInput} /></FormRow>
-          <FormRow label="Last Name"><input style={styles.inp} name="lastName" value={formData.lastName} onChange={handleInput} /></FormRow>
+          <FormRow label="Last Name *"><input style={styles.inp} name="lastName" value={formData.lastName} onChange={handleInput} /></FormRow>
           <FormRow label="Preferred Name"><input style={styles.inp} name="preferredName" value={formData.preferredName} onChange={handleInput} /></FormRow>
           <FormRow label="Gender">
             <select style={styles.sel} name="gender" value={formData.gender} onChange={handleInput}>
