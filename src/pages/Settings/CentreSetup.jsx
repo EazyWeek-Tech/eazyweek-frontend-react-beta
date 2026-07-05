@@ -814,7 +814,7 @@ export default function CentreSetup() {
                         </div>
                         <div className="field">
                           <label>Validity in days from purchase</label>
-                          <input type="number" min={1} step={1} value={setup.advValidityDays}
+                          <input type="number" min={0} step={1} value={setup.advValidityDays}
                             onChange={e => setSetup(p => ({ ...p, advValidityDays: e.target.value }))}
                             placeholder="Leave blank for no expiry" />
                         </div>

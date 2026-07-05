@@ -138,11 +138,19 @@ const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
           <div style={{ fontSize: 18, fontWeight: 800, color: "#071D49" }}>Advance Collected</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: "#334b71", margin: "10px 0" }}>{done.advanceNum}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, textAlign: "left", margin: "16px 0", fontSize: 13 }}>
-            <Stat label="Total" value={money(done.total)} />
+            <Stat label="Customer" value={customer?.fullName || [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || customer?.custId || "—"} />
+            <Stat label="Centre" value={getCenterCode() || "—"} />
+            <Stat label="Total Paid" value={money(done.total)} />
             <Stat label="Base" value={money(done.base)} />
             <Stat label={`VAT (${done.vatRatePct}%)`} value={money(done.vat)} />
-            <Stat label="Customer" value={done.customerStatus} />
-            {done.expiryDate && <Stat label="Expires" value={new Date(done.expiryDate).toLocaleDateString()} />}
+            <Stat label="Nationality" value={done.customerStatus} />
+            <Stat label="Payment Method" value={[...new Set(payments.map(p => p.paymentMode).filter(Boolean))].join(", ") || "—"} />
+            <Stat label="Collection Date" value={new Date(collDate).toLocaleDateString()} />
+            {done.expiryDate && <Stat label="Valid Until" value={new Date(done.expiryDate).toLocaleDateString()} />}
+            {remarks && <Stat label="Remarks" value={remarks} />}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#64748b", textAlign: "left", margin: "0 0 14px", lineHeight: 1.5 }}>
+            This advance is redeemable against future invoices at {getCenterCode() || "the centre"}, subject to centre policy and the validity date above.
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
             <button style={S.btnPrimary} onClick={resetAll}>+ New Advance</button>

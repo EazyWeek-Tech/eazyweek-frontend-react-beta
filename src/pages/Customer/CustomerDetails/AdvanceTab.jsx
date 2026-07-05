@@ -94,6 +94,7 @@ const AdvanceTab = ({ custId }) => {
       "Fully Redeemed":     { bg: "#f1f5f9", color: "#475569", border: "#e2e8f0" },
       "Partially Refunded": { bg: "#fff4e6", color: "#b45309", border: "#fcd9a8" },
       "Fully Refunded":     { bg: "#fdf3f3", color: "#b91c1c", border: "#f0c4c0" },
+      "Forfeited":          { bg: "#f1f5f9", color: "#475569", border: "#e2e8f0" },
       "Expired":            { bg: "#fdf3f3", color: "#b91c1c", border: "#f0c4c0" },
       "Processed":          { bg: "#e6f4ef", color: "#2e7d5e", border: "#b3d9cc" },
       "Pending Approval":   { bg: "#fff4e6", color: "#b45309", border: "#fcd9a8" },
@@ -107,8 +108,9 @@ const AdvanceTab = ({ custId }) => {
     );
   };
 
-  const canExtend = (r) => IS_ADMIN && Number(r.remainingBalance || 0) > 0 && r.status !== "Fully Redeemed" && r.status !== "Fully Refunded";
-  const canRefund = (r) => Number(r.remainingBalance || 0) > 0 && r.status !== "Fully Redeemed" && r.status !== "Fully Refunded";
+  const canExtend  = (r) => IS_ADMIN && r.allowValidityExtension !== false && Number(r.remainingBalance || 0) > 0 && !["Fully Redeemed", "Fully Refunded", "Forfeited"].includes(r.rawStatus || r.status);
+  const canRefund  = (r) => Number(r.remainingBalance || 0) > 0 && !["Fully Redeemed", "Fully Refunded", "Forfeited"].includes(r.rawStatus || r.status);
+  const canForfeit = (r) => IS_ADMIN && r.isExpired && Number(r.remainingBalance || 0) > 0 && (r.rawStatus || r.status) !== "Forfeited";
 
   // ── Extend validity ──
   const openExtend  = (r) => { setExtendRow(r); setNewDate(""); setReason(""); setModalError(""); };
@@ -183,6 +185,21 @@ const AdvanceTab = ({ custId }) => {
       }
     } catch { setRfError("Refund failed. Please try again."); }
     finally { setRfSaving(false); }
+  };
+
+  const forfeitAdvance = async (row) => {
+    if (!window.confirm(`Forfeit advance ${row.advanceNum}? Its remaining balance of SAR ${fmt(row.remainingBalance)} will be recognised as revenue. This cannot be undone.`)) return;
+    setActingId(row.advanceNum);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Advance/Forfeit`, {
+        method: "POST", headers: authJSON(),
+        body: JSON.stringify({ centerCode: row.centerCode, advanceNum: row.advanceNum }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) showToast("error", json.message || "Forfeit failed.");
+      else { showToast("success", `Advance ${row.advanceNum} forfeited.`); await loadData(); }
+    } catch { showToast("error", "Forfeit failed."); }
+    finally { setActingId(null); }
   };
 
   const approveRefund = async (row) => {
@@ -291,7 +308,8 @@ const AdvanceTab = ({ custId }) => {
                       <div style={{ display: "flex", gap: 6 }}>
                         {canRefund(r) && <button className="adv-refund-btn" onClick={() => openRefund(r)}>Refund</button>}
                         {canExtend(r) && <button className="adv-extend-btn" onClick={() => openExtend(r)}>Extend</button>}
-                        {!canRefund(r) && !canExtend(r) && <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>}
+                        {canForfeit(r) && <button className="adv-forfeit-btn" disabled={actingId === r.advanceNum} onClick={() => forfeitAdvance(r)}>Forfeit</button>}
+                        {!canRefund(r) && !canExtend(r) && !canForfeit(r) && <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>}
                       </div>
                     </td>
                   </tr>
@@ -477,6 +495,9 @@ const AdvanceTab = ({ custId }) => {
         .adv-refund-btn:hover { background:#b45309; color:#fff; }
         .adv-extend-btn { height:30px; padding:0 12px; border-radius:7px; border:1.5px solid #334b71; background:#fff; color:#334b71; font-size:12px; font-weight:700; cursor:pointer; }
         .adv-extend-btn:hover { background:#334b71; color:#fff; }
+        .adv-forfeit-btn { height:30px; padding:0 12px; border-radius:7px; border:1.5px solid #64748b; background:#fff; color:#64748b; font-size:12px; font-weight:700; cursor:pointer; }
+        .adv-forfeit-btn:hover { background:#475569; color:#fff; }
+        .adv-forfeit-btn:disabled { opacity:.5; cursor:not-allowed; }
         .adv-empty { text-align:center; padding:60px 20px; color:#94a3b8; font-size:14px; background:#fff; border-radius:14px; border:1px solid #e2e8f0; }
         .adv-loading { display:flex; align-items:center; gap:10px; padding:30px 0; color:#64748b; font-size:13px; }
         .adv-spinner { width:18px; height:18px; border-radius:50%; border:2.5px solid #e2e8f0; border-top-color:#334b71; animation:adv-spin .8s linear infinite; }

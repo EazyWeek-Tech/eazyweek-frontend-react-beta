@@ -125,6 +125,7 @@ const PaymentBlock = ({
   const [advLoading,        setAdvLoading]        = useState(false);
   const [advTotalBalance,   setAdvTotalBalance]   = useState(0);
   const [advAmount,         setAdvAmount]         = useState('');
+  const [advAllow,          setAdvAllow]          = useState({ services: true, products: true, packages: true });
   const [submittedInvoiceItems, setSubmittedInvoiceItems] = useState([]);
   const [submittedTotalAmount, setSubmittedTotalAmount] = useState(0);
 
@@ -396,6 +397,7 @@ const PaymentBlock = ({
         const d = j.data ?? j;
         setAvailableAdvances(Array.isArray(d.advances) ? d.advances : []);
         setAdvTotalBalance(Number(d.totalBalance || 0));
+        setAdvAllow(d.allow || { services: true, products: true, packages: true });
         setAdvAmount('');
       })
       .catch(() => { setAvailableAdvances([]); setAdvTotalBalance(0); })
@@ -433,6 +435,17 @@ const PaymentBlock = ({
 
     return invoiceItems || [];
   }, [invoiceItems, apiInvoiceItems]);
+
+  // ---------- Advance redemption eligibility by cart item type (FRD §3.1 toggles) ----------
+  const advBlockedTypes = useMemo(() => {
+    const types = new Set(effectiveInvoiceItems.map(i => String(i.type || i.itemType || 'service').toLowerCase()));
+    const blocked = [];
+    if (types.has('service') && advAllow.services === false) blocked.push('Services');
+    if (types.has('product') && advAllow.products === false) blocked.push('Products');
+    if (types.has('package') && advAllow.packages === false) blocked.push('Packages');
+    return blocked;
+  }, [effectiveInvoiceItems, advAllow]);
+  const advRedeemBlocked = advBlockedTypes.length > 0;
 
   // ---------- Form helpers ----------
   const handleChange = (e) => {
@@ -1428,6 +1441,11 @@ if (result.success) {
             <div style={{ padding: '4px 0' }}>
               {advLoading ? (
                 <div style={{ color: '#64748b', fontSize: 13, padding: '8px 0' }}>Loading advance balance…</div>
+              ) : advRedeemBlocked ? (
+                <div style={{ background: '#fdf3f3', border: '1px solid #f0c4c0', borderRadius: 8, padding: '12px 14px',
+                  color: '#b91c1c', fontSize: 13, textAlign: 'center' }}>
+                  Advance redemption is not allowed for {advBlockedTypes.join(', ')} at this centre.
+                </div>
               ) : advTotalBalance <= 0 ? (
                 <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0', textAlign: 'center' }}>
                   No redeemable advance balance for this customer.
@@ -1487,7 +1505,7 @@ if (result.success) {
           <div className="frmdiv">
             {activeTab === 'advance' ? (
               <button className="pribtnblue"
-                disabled={!advAmount || parseFloat(advAmount) <= 0}
+                disabled={!advAmount || parseFloat(advAmount) <= 0 || advRedeemBlocked}
                 style={{ opacity: (!advAmount || parseFloat(advAmount) <= 0) ? 0.5 : 1 }}
                 onClick={() => {
                   const amt = parseFloat(advAmount);
