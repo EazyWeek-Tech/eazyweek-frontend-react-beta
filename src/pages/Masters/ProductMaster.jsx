@@ -70,9 +70,9 @@ const Field = ({ label, required, error, children }) => (
     {error && <div style={{ color:"#b91c1c", fontSize:12, marginTop:3 }}>⚠ {error}</div>}
   </div>
 );
-const Input = ({ value, onChange, placeholder, type="text", readOnly, disabled, style={} }) => (
+const Input = ({ value, onChange, placeholder, type="text", readOnly, disabled, maxLength, style={} }) => (
   <input type={type} value={value ?? ""} onChange={onChange} placeholder={placeholder}
-    readOnly={readOnly} disabled={disabled}
+    readOnly={readOnly} disabled={disabled} maxLength={maxLength}
     style={{ width:"100%", height:38, padding:"0 10px", border:"1.5px solid #e2e8f0", borderRadius:8,
       fontSize:13, boxSizing:"border-box",
       background:(readOnly||disabled)?"#f1f5f9":"#fff",
@@ -168,12 +168,12 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors, barcodeMandatory
       <Field label="Product Code" required error={errors.productCode}>
         <Input value={form.productCode}
           onChange={e => { setForm(p=>({...p,productCode:e.target.value})); setErrors(p=>({...p,productCode:undefined})); }}
-          placeholder="e.g. PRD-1001" readOnly={isEdit} />
+          placeholder="e.g. PRD-1001" readOnly={isEdit} maxLength={50} />
       </Field>
       <Field label="Product Name" required error={errors.productName}>
         <Input value={form.productName}
           onChange={e => { setForm(p=>({...p,productName:e.target.value})); setErrors(p=>({...p,productName:undefined})); }}
-          placeholder="Product name" />
+          placeholder="Product name" maxLength={200} />
       </Field>
 
       <div style={{ gridColumn:"1 / span 2" }}>
@@ -422,7 +422,7 @@ const MiscTab = ({ form, setForm }) => (
     </p>
     {[1,2,3,4,5].map(n=>(
       <Field key={n} label={`Custom Field ${n}`}>
-        <Input value={form[`field${n}`]||""} onChange={e=>setForm(p=>({...p,[`field${n}`]:e.target.value}))} placeholder={`Custom Field ${n}`} />
+        <Input value={form[`field${n}`]||""} onChange={e=>setForm(p=>({...p,[`field${n}`]:e.target.value}))} placeholder={`Custom Field ${n}`} maxLength={500} />
       </Field>
     ))}
   </div>
@@ -581,19 +581,35 @@ const ProductMaster = () => {
       else if (!/^[A-Za-z0-9_\-]+$/.test(form.productCode.trim())) e.productCode = "Alphanumeric only (letters, numbers, - and _).";
     }
     if (!form.productName?.trim()) e.productName = "Product Name is required.";
+    else if (form.productName.length > 200) e.productName = "Product Name must be 200 characters or fewer.";
+    if (!editCode && form.productCode && form.productCode.length > 50) e.productCode = "Product Code must be 50 characters or fewer.";
     if (!form.category?.trim())    e.category    = "Category is required.";
     if (isSubmit && !form.subCategory?.trim()) e.subCategory = "Sub-Category is required before submitting.";
     if (isSubmit && !PRODUCT_TYPES.includes(form.productType)) e.productType = "Select a Product Type (Consumable, Retail, or Sample).";
+    // Custom fields — 500 char cap
+    for (let n = 1; n <= 5; n++) {
+      if ((form[`field${n}`] || "").length > 500) { e[`field${n}`] = `Custom Field ${n} must be 500 characters or fewer.`; }
+    }
     if (form.barcode) {
       if (!isValidEan13(form.barcode)) e.barcode = "Invalid barcode — must be a valid 13-digit EAN-13.";
     } else if (isSubmit && barcodeMandatory) {
       e.barcode = "Barcode is required (configured as mandatory).";
     }
     if (isSubmit) {
-      const bad = (form.pricing||[]).some(p => p.releasedToCentre && (p.price==="" || p.price==null || parseFloat(p.price) < 0));
-      if (bad) e.pricing = "Selling Price is required (and ≥ 0) for every centre marked Release.";
-      const both = (form.pricing||[]).some(p => (p.memberPrice!==""&&p.memberPrice!=null&&p.memberPrice!=="NA") && (p.memberDiscount!==""&&p.memberDiscount!=null&&p.memberDiscount!=="NA"));
-      if (both) e.pricing = (e.pricing? e.pricing+" " : "") + "Set either Member Price or Member Discount, not both.";
+      const has = (v) => v !== "" && v != null && v !== "NA";
+      const num = (v) => parseFloat(v);
+      const msgs = [];
+      (form.pricing || []).forEach((p) => {
+        const centre = p.centerName || p.centerCode || "Centre";
+        if (p.releasedToCentre && !has(p.price)) msgs.push(`${centre}: Selling Price required (Release).`);
+        if (has(p.price)  && (isNaN(num(p.price))  || num(p.price)  < 0)) msgs.push(`${centre}: Selling Price must be ≥ 0.`);
+        if (has(p.mrp)    && (isNaN(num(p.mrp))    || num(p.mrp)    < 0)) msgs.push(`${centre}: MRP must be ≥ 0.`);
+        if (has(p.memberPrice) && (isNaN(num(p.memberPrice)) || num(p.memberPrice) < 0)) msgs.push(`${centre}: Member Price must be ≥ 0.`);
+        if (has(p.memberDiscount) && (isNaN(num(p.memberDiscount)) || num(p.memberDiscount) < 0 || num(p.memberDiscount) > 100)) msgs.push(`${centre}: Member Discount must be 0–100.`);
+        if (has(p.taxPercent) && (isNaN(num(p.taxPercent)) || num(p.taxPercent) < 0 || num(p.taxPercent) > 100)) msgs.push(`${centre}: Tax % must be 0–100.`);
+        if (has(p.memberPrice) && has(p.memberDiscount)) msgs.push(`${centre}: Set Member Price or Member Discount, not both.`);
+      });
+      if (msgs.length) e.pricing = msgs.join(" ");
     }
     // Min Purchase Qty — optional, but when provided must be a positive number
     if (form.minPurchaseQty !== "" && form.minPurchaseQty != null) {
@@ -721,7 +737,7 @@ const ProductMaster = () => {
   /* ── FORM VIEW ───────────────────────────────────────────────────────────── */
   const tabErrorKeys = {
     0:["productCode","productName","category","subCategory","barcode","productType"],
-    1:["pricing","saleUOM"], 2:["minPurchaseQty"], 3:[], 4:[],
+    1:["pricing","saleUOM"], 2:["minPurchaseQty"], 3:[], 4:["field1","field2","field3","field4","field5"],
   };
 
   return (
