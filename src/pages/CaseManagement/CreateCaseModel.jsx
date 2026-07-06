@@ -107,6 +107,7 @@ const [fileError, setFileError] = useState("");
 
   // holds the real case no once server generates it
   const [caseNo, setCaseNo] = useState("");
+  const [moreCcWarning, setMoreCcWarning] = useState("");
 
   const toastRef = useRef(null);
 const pickEmployee = (emp) => {
@@ -519,7 +520,13 @@ const isComplaintCategory = () => {
         const data = await response.json();
         const list = Array.isArray(data) ? data : (data?.data ?? []);
         const validEmployees = list
-          .map((emp) => ({ ...emp, employeeCode: emp.employeeCode || emp.code, employeeName: emp.employeeName || emp.name }))
+          .map((emp) => ({
+            ...emp,
+            employeeCode: emp.employeeCode || emp.code,
+            employeeName: emp.employeeName || emp.name,
+            mobileNo: emp.mobileNo || emp.MOBILEPHONE || emp.mobilephone || "",
+            emailID: emp.emailID || emp.EMAIL || emp.email || "",
+          }))
           .filter((emp) => emp.employeeCode && emp.employeeName !== "Assign To");
         setEmployees(validEmployees);
       } catch (err) {
@@ -802,14 +809,11 @@ const normalizeEmailList = (raw) => {
   const uniq = [];
 
   for (const p of parts) {
-    const key = extractEmail(p) || p.toLowerCase();
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    // store clean email only (recommended)
     const emailOnly = extractEmail(p);
-    uniq.push(emailOnly || p);
+    if (!emailOnly) continue;          // drop tokens without a valid email (e.g. "fp")
+    if (seen.has(emailOnly)) continue;
+    seen.add(emailOnly);
+    uniq.push(emailOnly);
   }
 
   return uniq.join(",");
@@ -2136,7 +2140,28 @@ attachmentFileName: attachmentFileName,
               {/* More CC (optional) */}
               <div className="form-group">
                 <label htmlFor="moreCC">More CC</label>
-                <textarea id="moreCC" rows="5" value={formValues.moreCC} onChange={(e) => handleChange("moreCC", e.target.value)}></textarea>
+                <textarea
+                  id="moreCC"
+                  rows="5"
+                  value={formValues.moreCC}
+                  onChange={(e) => handleChange("moreCC", e.target.value)}
+                  onBlur={() => {
+                    const parts = String(formValues.moreCC || "")
+                      .split(/[,;\n]+/g)
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    const invalid = parts.filter((p) => !extractEmail(p));
+                    setMoreCcWarning(
+                      invalid.length ? `Ignored invalid email(s): ${invalid.join(", ")}` : ""
+                    );
+                    handleChange("moreCC", normalizeEmailList(formValues.moreCC));
+                  }}
+                ></textarea>
+                {moreCcWarning && (
+                  <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 4 }}>
+                    {moreCcWarning}
+                  </div>
+                )}
                 <div className="error"></div>
               </div>
 

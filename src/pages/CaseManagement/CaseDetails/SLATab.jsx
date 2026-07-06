@@ -215,7 +215,7 @@ const getSecondValueFromRange = (range) => {
               </td>
               <td>
                 <div className="box blue">
-                  <input type="text" value={ideal.mid} readOnly />
+                  <input type="text" value={ideal.late} readOnly />
                 </div>
                 <div className="inflex">
                   <div className="arrow-down"></div>

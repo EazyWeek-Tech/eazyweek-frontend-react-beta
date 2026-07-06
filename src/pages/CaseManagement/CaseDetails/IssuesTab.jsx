@@ -49,6 +49,8 @@ const normalizeEmailList = (s) => {
   return out.join(",");
 };
 
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s ?? "").toString().trim());
+
 // Safe JSON fetch
 const fetchJSON = async (url) => {
   const res = await fetch(url, {
@@ -96,6 +98,7 @@ const IssuesTab = forwardRef(
     const [therapistClicked, setTherapistClicked] = useState(false);
     const [responses, setResponses] = useState([]);
     const [attachment, setAttachment] = useState(null);
+    const [moreCcError, setMoreCcError] = useState("");
 
     // Hierarchy (used for L1/L2 + CC)
     const [hierarchy, setHierarchy] = useState(null);
@@ -249,7 +252,7 @@ useEffect(() => {
         const res = await fetchJSON(
           `${API_BASE_URL}/api/CaseOperation/CaseAttachment/${data.caseNo}`
         );
-        const list = Array.isArray(res) ? res : [];
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
         if (list.length > 0) {
           setAttachment(list[0]); // show first attachment
         }
@@ -1063,7 +1066,9 @@ const computedCc = useMemo(() => {
               type="email"
               name="email"
               value={formValues.email || ""}
-              onChange={handleChange}
+              readOnly
+              title="Auto-filled from the selected Next Assignee"
+              style={{ background: "#f1f5f9", cursor: "not-allowed" }}
             />
           </div>
 
@@ -1073,7 +1078,9 @@ const computedCc = useMemo(() => {
               type="text"
               name="cc"
               value={formValues.cc || ""}
-              onChange={handleChange}
+              readOnly
+              title="Configured group CC (not editable)"
+              style={{ background: "#f1f5f9", cursor: "not-allowed" }}
             />
           </div>
 
@@ -1085,12 +1092,24 @@ const computedCc = useMemo(() => {
   onChange={handleChange}
   rows="5"
   onBlur={() => {
+    const raw = (formValues.moreCc || "").replace(/,+$/g, "");
+    const parts = splitEmails(raw);
+    const valid = parts.filter(isEmail);
+    const invalid = parts.filter((p) => !isEmail(p));
+    setMoreCcError(
+      invalid.length ? `Ignored invalid email(s): ${invalid.join(", ")}` : ""
+    );
     setFormValues((prev) => ({
       ...prev,
-      moreCc: trim((prev.moreCc || "").replace(/,+$/g, "")),
+      moreCc: normalizeEmailList(valid.join(",")),
     }));
   }}
 />
+            {moreCcError && (
+              <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 4 }}>
+                {moreCcError}
+              </div>
+            )}
 
 
 

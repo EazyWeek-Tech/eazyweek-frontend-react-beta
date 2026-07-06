@@ -374,7 +374,11 @@ async function loadCentersOnce() {
       headers: { Accept: "application/json" },
     });
     const data = await res.json();
-    __centersCache = Array.isArray(data) ? data : [];
+    __centersCache = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+      ? data.data
+      : [];
   } catch (e) {
     console.error("LoadCenters failed:", e);
     __centersCache = [];
@@ -832,9 +836,20 @@ try {
         const mappedNextCode = trim(firstNonEmpty(data.assignToCode, data.assignCode, data.emailTOCode));
         const mappedNextName = trim(firstNonEmpty(data.assignTOName, data.assignName, data.emailTOName));
 
+        // Resolve the case's clinic name (for the header) from its centerCode.
+        const centersList = await loadCentersOnce();
+        const caseCenterName =
+          getCenterNameFromCenters(centersList, data.centerCode) ||
+          trim(data.centerName) ||
+          trim(data.clinicName) ||
+          trim(data.centerCode);
+
         const mapped = {
           caseNo: trim(data.caseNo),
           title: trim(data.caseTitle),
+
+          centerCode: trim(data.centerCode),
+          centerName: caseCenterName,
 
           categoryCode: trim(data.categoryCode),
           caseCategory: trim(data.categoryName),
@@ -1722,7 +1737,17 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
       </div>
 
       <div className="pg-head">
-        <h2 className="pg-ttl">{selectedCaseData.caseNo}</h2>
+        <div>
+          <h2 className="pg-ttl">{selectedCaseData.caseNo}</h2>
+          {selectedCaseData.centerName && (
+            <div
+              className="pg-clinic"
+              style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginTop: 2 }}
+            >
+              {selectedCaseData.centerName}
+            </div>
+          )}
+        </div>
         <div className="cs-rhs">
           <div className="casedet">
             <div className="csdetval">{selectedCaseData.priority}</div>
@@ -1778,11 +1803,18 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
       <div className="casedetwrp">
         <div className="casecell">
           <div className="form-group">
-            <label>Case Disposition{closed ? " *" : ""}</label>
+            <label>Case Disposition{closed ? " *" : ""}{!isResponseFilled && !closed ? " — add a response first" : ""}</label>
           <select
   value={disposition}
-  disabled={saving || closed || closeLock}
+  disabled={saving || closed || closeLock || !isResponseFilled}
  onChange={(e) => {
+  if (!isResponseFilled) {
+    setToast({
+      type: "error",
+      message: "Please add a response before selecting a disposition.",
+    });
+    return;
+  }
   if (closeLock) {
     setToast({
       type: "error",
@@ -1858,7 +1890,7 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
                 onChange={(e) =>
                   setSelectedCaseData((prev) => (prev ? { ...prev, categorySpecificResolution: e.target.value } : prev))
                 }
-                disabled={saving || closed || closeLock}
+                disabled={saving || closed || closeLock || !isResponseFilled}
               >
                 <option value="">Select</option>
 
