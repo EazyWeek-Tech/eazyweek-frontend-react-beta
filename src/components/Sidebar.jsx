@@ -93,7 +93,15 @@ const Sidebar = ({ collapsed }) => {
         { name: "Packages", path:'/masters/packages'}
       ],
     },
-    
+    {
+  label: "Shift Management",
+  icon: "bx-time-five",
+  submenu: [
+    { name: "Shift Master", path: "/shift/master" },
+    { name: "Roster", path: "/shift/roster" },
+    { name: "My Shift", path: "/shift/my" }
+  ],
+},
     {
       label: "Mapped Forms",
       icon: "bx-file-blank",

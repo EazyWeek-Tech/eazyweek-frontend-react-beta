@@ -94,6 +94,9 @@ import CreateCampaign from "./pages/Opportunity/CreateCampaign";
 import CampaignDetails from "./pages/Opportunity/CampaignDetails";
 import MasterLeadForm from "./pages/Opportunity/MasterLeadForm";
 import ProductMaster from "./pages/Masters/ProductMaster";
+import ShiftMaster from "./pages/Workforce/ShiftMaster";
+import RosterView from "./pages/Workforce/RosterView";
+import MyShift from "./pages/Workforce/MyShift";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -282,6 +285,9 @@ if (user && showFirstLogin) {
 />
 <Route path="/opportunity/master/:oppCode/lead/:custId" element={<MasterLeadForm />} />
 
+
+<Route path="/shift/roster" element={<RosterView />} />
+
 <Route path="/opportunity/:oppCode/details"  element={<CampaignDetails />} />
 
 
@@ -296,6 +302,11 @@ if (user && showFirstLogin) {
   element={<ManualOppCustomerDetails />}
   
 />
+
+<Route path="/shift/master" element={<ShiftMaster />} />
+<Route path="/shift/my" element={<MyShift />} />
+
+
 <Route path="/manuallead/edit/:leadOppId" element={<ManualLeadEdit />} />
 <Route
   path="/opportunity/external/:oppCode/lead/:leadOppId"
