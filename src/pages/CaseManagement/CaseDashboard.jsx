@@ -103,6 +103,128 @@ function TypeBar({ counts }) {
   );
 }
 
+/* ── Dashboard charts (FRD §4.6) ───────────────────────────────────────────── */
+const CAT_COLORS = [C.navy, C.wip, C.open, C.closed, C.cvt, "#7b6fb0", C.navyLt, C.navyDk];
+const RANGES = ["Current Date", "Current Week", "Current Month", "Custom Range"];
+
+const periodRange = (r, f, t) => {
+  const today = new Date(); const s = new Date(today); const e = new Date(today);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  if (r === "Current Week") s.setDate(today.getDate() - today.getDay());
+  else if (r === "Current Month") s.setDate(1);
+  else if (r === "Custom Range") return { fromDate: f || "", toDate: t || "" };
+  return { fromDate: iso(s), toDate: iso(e) };
+};
+
+function PeriodFilter({ range, onPick }) {
+  return (
+    <div style={{ display:"flex", gap:3, background:"#eef2f7", border:`1px solid ${C.border}`, borderRadius:9, padding:3 }}>
+      {RANGES.map((r) => {
+        const a = range === r;
+        return (
+          <button key={r} onClick={() => onPick(r)}
+            style={{ border:"none", cursor:"pointer", fontFamily:"Lato,sans-serif", fontSize:12.5,
+              fontWeight:a?800:600, padding:"6px 12px", borderRadius:7,
+              background:a?"#fff":"transparent", color:a?C.navy:C.sub,
+              boxShadow:a?"0 1px 3px rgba(20,30,45,.12)":"none" }}>
+            {r}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CardShell({ title, sub, children }) {
+  return (
+    <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:C.navyDk }}>{title}</div>
+        {sub && <div style={{ fontSize:11.5, color:C.sub, marginTop:3 }}>{sub}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const Awaiting = ({ text }) => (
+  <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:90, color:"#9aa4b1", fontSize:12.5, textAlign:"center", padding:"0 8px" }}>{text}</div>
+);
+
+function Donut({ segments, centerValue, size = 176, thickness = 26 }) {
+  const total = segments.reduce((a, s) => a + (s.value || 0), 0);
+  const r = (size - thickness) / 2, cx = size / 2, cy = size / 2, CIRC = 2 * Math.PI * r;
+  let off = 0;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex:"none" }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef1f4" strokeWidth={thickness} />
+        {total > 0 && segments.map((s, i) => {
+          const len = (s.value / total) * CIRC;
+          const el = (<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={thickness}
+            strokeDasharray={`${len} ${CIRC - len}`} strokeDashoffset={-off}
+            transform={`rotate(-90 ${cx} ${cy})`} />);
+          off += len; return el;
+        })}
+        <text x={cx} y={cy - 3} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={29} fontWeight={800} fill={C.text}>{safeNum(centerValue != null ? centerValue : total).toLocaleString()}</text>
+        <text x={cx} y={cy + 18} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={12} fontWeight={600} fill={C.sub}>cases</text>
+      </svg>
+      <div style={{ display:"flex", flexDirection:"column", gap:9, minWidth:120 }}>
+        {segments.map((s, i) => {
+          const pct = total ? Math.round((s.value / total) * 100) : 0;
+          return (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:9, fontSize:12.5 }}>
+              <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:"none" }} />
+              <span style={{ fontWeight:700, color:C.text }}>{s.label}</span>
+              <span style={{ marginLeft:"auto", color:C.sub }}>{safeNum(s.value).toLocaleString()} · {pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const niceScale = (max, ticks = 4) => {
+  const raw = max / ticks || 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  return { niceMax: Math.ceil(max / step) * step || step, step };
+};
+
+function VerticalBar({ rows, height = 220 }) {
+  const W = 520, pl = 44, pr = 14, pt = 24, pb = 40;
+  const dataMax = Math.max(1, ...rows.map((r) => r.value));
+  const { niceMax, step } = niceScale(dataMax);
+  const plotW = W - pl - pr, plotH = height - pt - pb;
+  const n = rows.length || 1, band = plotW / n, barW = Math.min(52, band * 0.52);
+  const X = (i) => pl + band * i + band / 2;
+  const Y = (v) => pt + plotH - (v / niceMax) * plotH;
+  const grid = []; for (let v = 0; v <= niceMax + 1e-6; v += step) grid.push(v);
+  const tr = (s, m) => (s.length > m ? s.slice(0, m - 1) + "…" : s);
+  return (
+    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={{ display:"block", height:"auto" }}>
+      {grid.map((v, i) => (
+        <g key={i}>
+          <line x1={pl} y1={Y(v)} x2={W - pr} y2={Y(v)} stroke={C.grid} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <text x={pl - 8} y={Y(v) + 4} textAnchor="end" fontFamily="Lato,sans-serif" fontSize={11} fill={C.axis}>{safeNum(v).toLocaleString()}</text>
+        </g>
+      ))}
+      {rows.map((r, i) => {
+        const h = (r.value / niceMax) * plotH;
+        return (
+          <g key={i}>
+            <rect x={X(i) - barW / 2} y={Y(r.value)} width={barW} height={h} rx={4} fill={r.color || C.navy} />
+            <text x={X(i)} y={Y(r.value) - 8} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={12.5} fontWeight={800} fill={C.text}>{safeNum(r.value).toLocaleString()}</text>
+            <text x={X(i)} y={height - 14} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={10.5} fill={C.sub}>{tr(r.label, 12)}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function SortTH({ col, label, sortConfig, onSort, right }) {
   const icon = sortConfig.key !== col ? "↕" : sortConfig.direction === "asc" ? "↑" : "↓";
   return (
@@ -237,6 +359,12 @@ const CaseDashboard = () => {
   const [caseRecords, setCaseRecords] = useState([]);
   const [employees,   setEmployees]   = useState([]);
 
+  // Dashboard charts (FRD §4.6) + period filter
+  const [charts, setCharts] = useState({ priority:{ High:0, Normal:0, Low:0 }, category:[], averageResolutionDays:null, slaBreach:[] });
+  const [range,      setRange]      = useState("Current Month"); // default per request
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
+
   // Server-side filters (sent to CaseDB)
   const [filters, setFilters] = useState({ owner:"", priority:"", assignTo:"", status:"" });
   // Client-side
@@ -257,9 +385,13 @@ const CaseDashboard = () => {
   /* Fetch: counts + employees once */
   useEffect(() => {
     if (!user) return;
+    if (range === "Custom Range" && (!customFrom || !customTo || new Date(customTo) < new Date(customFrom))) return;
     (async () => {
       try {
-        const res = await apiFetch(`${API_BASE_URL}/api/CaseOperation/CaseDBCount`, {
+        const { fromDate, toDate } = periodRange(range, customFrom, customTo);
+        const qp = new URLSearchParams();
+        if (fromDate && toDate) { qp.set("fromDate", fromDate); qp.set("toDate", toDate); }
+        const res = await apiFetch(`${API_BASE_URL}/api/CaseOperation/CaseDashboard?${qp}`, {
           headers:{ "Content-Type":"application/json" },
         });
         const d = asObj(await res.json().catch(() => ({})));
@@ -270,7 +402,13 @@ const CaseDashboard = () => {
           incident:safeNum(d.incident), repair:safeNum(d.repair),
           maintainenece:safeNum(d.maintenance ?? d.maintainenece),
         });
-      } catch (e) { console.error("CaseDBCount failed:", e); }
+        setCharts({
+          priority:{ High:safeNum(d.priority?.High), Normal:safeNum(d.priority?.Normal), Low:safeNum(d.priority?.Low) },
+          category:Array.isArray(d.category) ? d.category.map((c) => ({ name:trim(c.name), count:safeNum(c.count ?? c.cnt) })) : [],
+          averageResolutionDays:d.averageResolutionDays == null ? null : safeNum(d.averageResolutionDays),
+          slaBreach:Array.isArray(d.slaBreach) ? d.slaBreach : [],
+        });
+      } catch (e) { console.error("CaseDashboard failed:", e); }
 
       try {
         const res = await apiFetch(`${API_BASE_URL}/api/Employee/Dropdown`, { headers:{ "Content-Type":"application/json" } });
@@ -283,7 +421,7 @@ const CaseDashboard = () => {
       } catch (e) { console.error("Employees failed:", e); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, range, customFrom, customTo]);
 
   /* Fetch: cases whenever the server-side filters change */
   const fetchCases = async (f) => {
@@ -377,22 +515,109 @@ const CaseDashboard = () => {
     <div style={{ fontFamily:"Lato,sans-serif", minHeight:"100vh", color:C.text }}>
 
       {/* Header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
-        marginBottom:20, flexWrap:"wrap", gap:12 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+        marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>Case Dashboard</div>
-        {canCreateCase && (
-          <button onClick={() => setIsCreateOpen(true)} style={{ padding:"9px 18px", background:C.navy,
-            color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            + Create Case
-          </button>
-        )}
+        <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+          <PeriodFilter range={range} onPick={setRange} />
+          {canCreateCase && (
+            <button onClick={() => setIsCreateOpen(true)} style={{ padding:"9px 18px", background:C.navy,
+              color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+              + Create Case
+            </button>
+          )}
+        </div>
       </div>
+      {range === "Custom Range" && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap", justifyContent:"flex-end" }}>
+          <label style={{ fontSize:13, color:C.sub, display:"flex", alignItems:"center", gap:6 }}>From
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+              style={{ padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, fontFamily:"Lato,sans-serif" }} />
+          </label>
+          <label style={{ fontSize:13, color:C.sub, display:"flex", alignItems:"center", gap:6 }}>To
+            <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)}
+              style={{ padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, fontFamily:"Lato,sans-serif" }} />
+          </label>
+          {customFrom && customTo && new Date(customTo) < new Date(customFrom) && (
+            <span style={{ fontSize:12, color:C.unresolved, fontWeight:700 }}>To Date cannot be earlier than From Date.</span>
+          )}
+        </div>
+      )}
 
       {/* KPI bar */}
       <KPIBar counts={counts} />
 
       {/* Case types — categories & numbers */}
       <TypeBar counts={counts} />
+
+      {/* Analytics — FRD §4.6 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))", gap:16, marginBottom:16 }}>
+        <CardShell title="Cases by status" sub="Closed · WIP · Open">
+          <Donut centerValue={counts.open + counts.wip + counts.closed} segments={[
+            { label:"Closed", value:counts.closed, color:C.closed },
+            { label:"WIP",    value:counts.wip,    color:C.wip },
+            { label:"Open",   value:counts.open,   color:C.open },
+          ]} />
+        </CardShell>
+        <CardShell title="Resolved vs. unresolved" sub="Share of cases resolved">
+          <Donut centerValue={counts.resolved + counts.unResolved} segments={[
+            { label:"Resolved",   value:counts.resolved,   color:C.resolved },
+            { label:"Unresolved", value:counts.unResolved, color:C.unresolved },
+          ]} />
+        </CardShell>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))", gap:16, marginBottom:16 }}>
+        <CardShell title="Cases by priority" sub="Open cases · High / Normal / Low">
+          <VerticalBar rows={[
+            { label:"High",   value:charts.priority.High,   color:C.open },
+            { label:"Normal", value:charts.priority.Normal, color:C.wip },
+            { label:"Low",    value:charts.priority.Low,    color:C.resolved },
+          ]} />
+        </CardShell>
+        <CardShell title="Category-wise case count" sub="Cases grouped by case category">
+          {charts.category.length
+            ? <VerticalBar rows={[...charts.category].sort((a,b)=>b.count-a.count).slice(0,8).map((c,i)=>({ label:c.name, value:c.count, color:CAT_COLORS[i%CAT_COLORS.length] }))} />
+            : <Awaiting text="No cases in the selected period." />}
+        </CardShell>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"minmax(240px,320px) 1fr", gap:16, marginBottom:24 }}>
+        <CardShell title="Average resolution time" sub="Creation → resolution, in period">
+          {charts.averageResolutionDays != null ? (
+            <>
+              <div style={{ fontSize:40, fontWeight:800, color:C.navy }}>{charts.averageResolutionDays} days</div>
+              <div style={{ height:1, background:C.border, margin:"14px 0" }} />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}>
+                <span style={{ color:C.sub }}>Resolved</span><span style={{ fontWeight:800 }}>{safeNum(counts.resolved).toLocaleString()}</span>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginTop:8 }}>
+                <span style={{ color:C.sub }}>Unresolved</span><span style={{ fontWeight:800, color:C.unresolved }}>{safeNum(counts.unResolved).toLocaleString()}</span>
+              </div>
+            </>
+          ) : <Awaiting text="Awaiting resolution-time source (case close timestamp)." />}
+        </CardShell>
+        <CardShell title="Cases nearing SLA breach" sub="Ranked by urgency — overdue first">
+          {charts.slaBreach.length ? (
+            <div>
+              {[...charts.slaBreach].sort((a,b)=>safeNum(a.dueInDays)-safeNum(b.dueInDays)).map((c,i) => {
+                const dd = safeNum(c.dueInDays), overdue = dd<0, dueToday = dd===0;
+                const bg = overdue?"#f6e5e2":dueToday?"#f6efdc":"#eef2f7";
+                const col = overdue?C.unresolved:dueToday?C.wip:C.closed;
+                const txt = overdue?`Overdue ${Math.abs(dd)}d`:dueToday?"Due today":`Due ${dd}d`;
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10, fontSize:13, padding:"10px 0", borderBottom:`1px solid ${C.grid}` }}>
+                    <span style={{ width:120, fontWeight:800, color:C.navy }}>{c.caseNo}</span>
+                    <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.subject}</span>
+                    <span style={{ color:C.sub }}>{c.owner}</span>
+                    <span style={{ fontSize:11, fontWeight:800, padding:"3px 9px", borderRadius:20, background:bg, color:col, whiteSpace:"nowrap" }}>{txt}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <Awaiting text="Awaiting SLA-breach source (response / escalation feed)." />}
+        </CardShell>
+      </div>
 
       {/* Table card */}
       <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>

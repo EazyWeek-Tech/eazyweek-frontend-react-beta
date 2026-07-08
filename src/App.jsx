@@ -97,6 +97,8 @@ import ProductMaster from "./pages/Masters/ProductMaster";
 import ShiftMaster from "./pages/Workforce/ShiftMaster";
 import RosterView from "./pages/Workforce/RosterView";
 import MyShift from "./pages/Workforce/MyShift";
+import AppointmentDashboard from "./pages/Appointment/AppointmentDashboard";
+import InvoiceDashboard from "./pages/Invoice/InvoiceDashboard";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -278,6 +280,10 @@ if (user && showFirstLogin) {
 
 
                   <Route path="/on-demand" element={<OnDemandTriggers />} />
+
+                  <Route path="/appointment/dashboard" element={<AppointmentDashboard />} />
+
+                  <Route path="/invoice/dashboard" element={<InvoiceDashboard />} />
                   <Route
   path="/manuallead/:oppCode"
   element={<ManualOppCustomerDetails />}

@@ -1,13 +1,10 @@
 // Shared access + auth helper for the Case Category / Category-Mapping screens.
 //
 // Access rule (confirmed from the live session model):
-//   • Admin              = user.role === "Admin"
-//   • Legal-Entity level = the user logged in at the top/entity, i.e.
-//                          userSession.loginCode === userSession.topCode
-//                          (a clinic-level user logs in with loginCode = their
-//                           clinic, so loginCode !== topCode).
-//   • canManage = isAdmin && atLegalEntity  -> may create / edit / delete.
-//   Everyone else is VIEW-ONLY.
+//   • Legal-Entity level = the active centre equals the hierarchy's entity code
+//                          (a clinic-level user is scoped to their clinic).
+//   • canManage = atLegalEntity  -> ANY role may create / edit / delete / activate
+//                                   at the legal entity. Clinic level is VIEW-ONLY.
 //
 // Importing this module also installs a one-time fetch patch that attaches the
 // Bearer token to /api/ calls (these pages otherwise fetch cookie-only and 401,
@@ -139,8 +136,9 @@ async function fetchEntityCode(apiBaseUrl) {
   return __entityCodePromise;
 }
 
-// Authoritative async check. canManage only when an Admin is operating AT the
-// legal entity (active centre === the hierarchy's entity code). Fails closed.
+// Authoritative async check. canManage whenever the active centre is the legal
+// entity (active centre === the hierarchy's entity code) — for ANY role.
+// Fails closed (view-only) until the entity code resolves.
 export async function resolveCategoryAccess(apiBaseUrl) {
   const { role, isAdmin, activeCenter } = getCategoryAccess();
   const entityCode = await fetchEntityCode(apiBaseUrl);
@@ -151,7 +149,8 @@ export async function resolveCategoryAccess(apiBaseUrl) {
     activeCenter,
     entityCode,
     atLegalEntity,
-    canManage: isAdmin && atLegalEntity,
+    // Any role may create / edit / delete / activate at the legal entity.
+    canManage: atLegalEntity,
   };
 }
 

@@ -47,6 +47,7 @@ const Sidebar = ({ collapsed }) => {
       label: "Appointment",
       icon: "bx-calendar",
       submenu: [
+        { name: "Appointment Dashboard", path: "/appointment/dashboard" },
         { name: "Appointment", path: "/appointment" },
       ],
     },
@@ -71,7 +72,11 @@ const Sidebar = ({ collapsed }) => {
     {
       label: "Invoice",
       icon: "bx-receipt",
-      submenu: [{ name: "Invoice", path: "/invoice" }],
+      submenu: [
+        { name: "Invoice Dashboard", path: "/invoice/dashboard" },
+        { name: "Invoice", path: "/invoice" }
+
+      ],
     },
     {
       label: "Masters",

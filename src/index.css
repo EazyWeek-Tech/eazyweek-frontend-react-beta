@@ -423,7 +423,7 @@ li i {
   transform: translateY(-10px);
   visibility: hidden;
   transition: 300ms;
-  z-index: 20;
+  z-index: 200;
 }
 
 .usrmenu::before {

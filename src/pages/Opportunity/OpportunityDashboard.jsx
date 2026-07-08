@@ -3,8 +3,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import {
-  ResponsiveContainer, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, BarChart, Bar, ComposedChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, PieChart, Pie,
 } from "recharts";
 
 import OpportunityForm     from "./OpportunityForm";
@@ -80,6 +80,67 @@ const safeNum = v => Number.isFinite(+v) ? +v : 0;
    Never define components with inputs/state inside another component's render.
    Doing so causes React to remount them on every re-render (focus loss bug).
    ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Dashboard §4.1 helpers ────────────────────────────────────────────────── */
+const RULE_ORDER = [
+  [RULE_KEYS.MANUAL,"Manual"], [RULE_KEYS.PAID_X_NOT_Y,"R1"], [RULE_KEYS.PAID_X_CAT,"R2"],
+  [RULE_KEYS.NO_SHOW,"R3"], [RULE_KEYS.CANCELLED,"R4"], [RULE_KEYS.SPECIAL_DAY,"R5"],
+  [RULE_KEYS.CUSTOMER_TYPE,"R6"], [RULE_KEYS.EXTERNAL,"R7"],
+];
+const RANGES = ["Current Date","Current Week","Current Month","Custom Range"];
+
+// Best-effort period window; lead-level period filtering needs a backend endpoint.
+const periodBounds = (range, f, t) => {
+  const today = new Date();
+  const start = new Date(today); start.setHours(0,0,0,0);
+  const end   = new Date(today); end.setHours(23,59,59,999);
+  if (range === "Current Week")  start.setDate(today.getDate() - today.getDay());
+  else if (range === "Current Month") start.setDate(1);
+  else if (range === "Custom Range") {
+    if (!f || !t) return null;
+    const s = new Date(f); s.setHours(0,0,0,0);
+    const e = new Date(t); e.setHours(23,59,59,999);
+    if (e < s) return null;
+    return { start:s, end:e };
+  }
+  return { start, end };
+};
+const getRowDate = (r) => {
+  const v = r.createdDate ?? r.createddate ?? r.CREATEDDATE ?? r.fromDate ?? r.oppStaticFromDate ?? r.createdOn;
+  const d = v ? new Date(v) : null;
+  return d && !isNaN(d.getTime()) ? d : null;
+};
+
+function PeriodFilter({ range, onPick }) {
+  return (
+    <div style={{ display:"flex", gap:3, background:"#eef2f7", border:`1px solid ${C.border}`, borderRadius:9, padding:3 }}>
+      {RANGES.map((r) => {
+        const a = range === r;
+        return (
+          <button key={r} onClick={() => onPick(r)}
+            style={{ border:"none", cursor:"pointer", fontFamily:"Lato,sans-serif", fontSize:12.5,
+              fontWeight:a?800:600, padding:"6px 12px", borderRadius:7,
+              background:a?"#fff":"transparent", color:a?C.navy:C.sub,
+              boxShadow:a?"0 1px 3px rgba(20,30,45,.12)":"none" }}>
+            {r}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DashCard({ title, sub, children }) {
+  return (
+    <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:"18px 20px", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ fontSize:12, fontWeight:800, color:C.navyDk, textTransform:"uppercase", letterSpacing:".05em" }}>{title}</div>
+        {sub && <div style={{ fontSize:11.5, color:C.sub, marginTop:3 }}>{sub}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function ChartCard({ title, dataset }) {
   const hasData = Array.isArray(dataset) && dataset.some(d=>Number(d.value)>0);
@@ -189,6 +250,10 @@ const OpportunityDashboard = () => {
   const [toast,               setToast]               = useState(null);
   const [loading,             setLoading]             = useState(false);
   const [canManage,           setCanManage]           = useState(false);
+  // Period filter (FRD §2)
+  const [range,      setRange]      = useState("Current Month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
 
   useEffect(() => {
     try {
@@ -267,14 +332,65 @@ const OpportunityDashboard = () => {
     opportunityData.forEach(r=>{const k=detectRuleKey(r);if(k&&g[k])g[k].push(r);});
     return g;
   },[opportunityData]);
-  const chartData = useMemo(()=>({
-    manual:summarize(rowsByRule[RULE_KEYS.MANUAL]), external:summarize(rowsByRule[RULE_KEYS.EXTERNAL]),
-    noShow:summarize(rowsByRule[RULE_KEYS.NO_SHOW]), cancelled:summarize(rowsByRule[RULE_KEYS.CANCELLED]),
-    special:summarize(rowsByRule[RULE_KEYS.SPECIAL_DAY]),
-    paidXnotY:summarize(rowsByRule[RULE_KEYS.PAID_X_NOT_Y]),
-    paidXcat:summarize(rowsByRule[RULE_KEYS.PAID_X_CAT]),
-    customerType:summarize(rowsByRule[RULE_KEYS.CUSTOMER_TYPE]),
-  }),[rowsByRule]);
+  /* Period scope (best-effort by campaign date; lead-level period needs backend) */
+  const scopedData = useMemo(() => {
+    const b = periodBounds(range, customFrom, customTo);
+    if (!b) return opportunityData;
+    return opportunityData.filter((r) => { const d = getRowDate(r); return !d || (d >= b.start && d <= b.end); });
+  }, [opportunityData, range, customFrom, customTo]);
+
+  /* §4.1 datasets — aggregated per rule from the scoped rows */
+  const ruleAgg = useMemo(() => {
+    const g = {}; RULE_ORDER.forEach(([k]) => { g[k] = []; });
+    scopedData.forEach((r) => { const k = detectRuleKey(r); if (k && g[k]) g[k].push(r); });
+    return RULE_ORDER.map(([key, label]) => {
+      const rows = g[key];
+      const total     = rows.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
+      const open      = rows.reduce((s,r)=>s+safeNum(r.noOfOpenOpportunities),0);
+      const closed    = rows.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
+      const converted = rows.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
+      const withoutOwner = rows.reduce((s,r)=>s+safeNum(r.recordswithoutSalesOwner),0);
+      const wip = Math.max(0, total - open - closed);
+      const notConverted = Math.max(0, closed - converted);
+      return { key, rule:label, total, open, wip, closed, converted, notConverted,
+        withoutOwner, withOwner: Math.max(0, open - withoutOwner),
+        convRate: total ? +(converted / total * 100).toFixed(1) : 0 };
+    }).filter((r) => r.total > 0);
+  }, [scopedData]);
+
+  // Rule-wise status (BR-05 fixed order: Pending, WIP, Converted, Not Converted)
+  const ruleStatusData = useMemo(() => ruleAgg.map((r) => ({
+    rule:r.rule, Pending:r.open, WIP:r.wip, Converted:r.converted, "Not Converted":r.notConverted,
+  })), [ruleAgg]);
+
+  // Rule-wise performance (leads generated + conversion rate)
+  const rulePerfData = useMemo(() => ruleAgg.map((r) => ({
+    rule:r.rule, leads:r.total, convRate:r.convRate,
+  })), [ruleAgg]);
+
+  // Lead funnel (BR-04 fixed order). Derived from lifecycle aggregates until a
+  // lead-disposition feed (New/Contacted/Converted/Lost) is available.
+  const funnelData = useMemo(() => {
+    const T = ruleAgg.reduce((a,r)=>({ total:a.total+r.total, wip:a.wip+r.wip, closed:a.closed+r.closed,
+      converted:a.converted+r.converted, notConverted:a.notConverted+r.notConverted }),
+      { total:0, wip:0, closed:0, converted:0, notConverted:0 });
+    return [
+      { stage:"New",       value:T.total,          fill:C.navy },
+      { stage:"Contacted", value:T.wip + T.closed,  fill:"#5C86A8" },
+      { stage:"Converted", value:T.converted,       fill:C.cvt },
+      { stage:"Lost",      value:T.notConverted,    fill:C.open },
+    ];
+  }, [ruleAgg]);
+
+  // Open leads: assigned vs. unassigned to a sales owner
+  const ownerData = useMemo(() => {
+    const withOwner    = ruleAgg.reduce((s,r)=>s+r.withOwner,0);
+    const withoutOwner = ruleAgg.reduce((s,r)=>s+r.withoutOwner,0);
+    return [
+      { name:"With sales owner", value:withOwner,    fill:C.cvt },
+      { name:"No sales owner",   value:withoutOwner, fill:C.open },
+    ];
+  }, [ruleAgg]);
 
   /* Table */
   const filteredData = useMemo(()=>{
@@ -359,6 +475,7 @@ const OpportunityDashboard = () => {
           
         </div>
         <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+          <PeriodFilter range={range} onPick={setRange} />
           {canManage && (<>
             <button onClick={handleEditOppName} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
               borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
@@ -376,19 +493,93 @@ const OpportunityDashboard = () => {
         </div>
       </div>
 
-      {/* KPI bar */}
-      <KPIBar data={opportunityData} />
+      {range === "Custom Range" && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap", justifyContent:"flex-end" }}>
+          <label style={{ fontSize:13, color:C.sub, display:"flex", alignItems:"center", gap:6 }}>From
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+              style={{ padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, fontFamily:"Lato,sans-serif" }} />
+          </label>
+          <label style={{ fontSize:13, color:C.sub, display:"flex", alignItems:"center", gap:6 }}>To
+            <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)}
+              style={{ padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, fontFamily:"Lato,sans-serif" }} />
+          </label>
+          {customFrom && customTo && new Date(customTo) < new Date(customFrom) && (
+            <span style={{ fontSize:12, color:C.open, fontWeight:700 }}>To Date cannot be earlier than From Date.</span>
+          )}
+        </div>
+      )}
 
-      {/* Charts */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:24 }}>
-        <ChartCard title="Rule: Manual Lead"                 dataset={chartData.manual} />
-        <ChartCard title="Rule: Paid for X but not Y (R1)"   dataset={chartData.paidXnotY} />
-        <ChartCard title="Rule: Paid X Category (R2)"        dataset={chartData.paidXcat} />
-        <ChartCard title="Rule: No Show Appointment (R3)"    dataset={chartData.noShow} />
-        <ChartCard title="Rule: Cancelled Appointment (R4)"  dataset={chartData.cancelled} />
-        <ChartCard title="Rule: Customer Special Day (R5)"   dataset={chartData.special} />
-        <ChartCard title="Rule: Customer Type (R6)"          dataset={chartData.customerType} />
-        <ChartCard title="Rule: External Source (R7)"        dataset={chartData.external} />
+      {/* KPI bar */}
+      <KPIBar data={scopedData} />
+
+      {/* Analytics — FRD §4.1 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(420px,1fr))", gap:16, marginBottom:24 }}>
+
+        <DashCard title="Rule-wise status" sub="Pending · WIP · Converted · Not Converted">
+          <div style={{ height:260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ruleStatusData} margin={{ top:6, right:10, bottom:0, left:0 }}>
+                <CartesianGrid stroke={C.grid} vertical={false} />
+                <XAxis dataKey="rule" tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius:8, border:`1px solid ${C.border}`, fontSize:12 }} />
+                <Legend wrapperStyle={{ fontSize:12 }} />
+                <Bar dataKey="Pending"       stackId="s" fill="#9aa4b1" />
+                <Bar dataKey="WIP"           stackId="s" fill={C.wip} />
+                <Bar dataKey="Converted"     stackId="s" fill={C.cvt} />
+                <Bar dataKey="Not Converted" stackId="s" fill={C.open} radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </DashCard>
+
+        <DashCard title="Lead funnel" sub="New → Contacted → Converted → Lost">
+          <div style={{ height:260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelData} layout="vertical" margin={{ top:6, right:34, bottom:0, left:14 }}>
+                <CartesianGrid stroke={C.grid} horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="stage" tick={{ fill:C.axis, fontSize:12 }} axisLine={false} tickLine={false} width={78} />
+                <Tooltip contentStyle={{ borderRadius:8, border:`1px solid ${C.border}`, fontSize:12 }} />
+                <Bar dataKey="value" radius={[0,6,6,0]} label={{ position:"right", fill:C.text, fontSize:12, fontWeight:700 }}>
+                  {funnelData.map((e,i) => <Cell key={i} fill={e.fill} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </DashCard>
+
+        <DashCard title="Rule-wise performance" sub="Leads generated & conversion rate">
+          <div style={{ height:260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={rulePerfData} margin={{ top:6, right:10, bottom:0, left:0 }}>
+                <CartesianGrid stroke={C.grid} vertical={false} />
+                <XAxis dataKey="rule" tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="l" allowDecimals={false} tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="r" orientation="right" unit="%" tick={{ fill:C.axis, fontSize:11 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius:8, border:`1px solid ${C.border}`, fontSize:12 }} />
+                <Legend wrapperStyle={{ fontSize:12 }} />
+                <Bar yAxisId="l" dataKey="leads" name="Leads generated" fill={C.navy} radius={[6,6,0,0]} barSize={26} />
+                <Line yAxisId="r" dataKey="convRate" name="Conversion rate %" stroke={C.open} strokeWidth={2.5} dot={{ r:3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </DashCard>
+
+        <DashCard title="Open leads vs. sales owner" sub="Unassigned vs. assigned open leads">
+          <div style={{ height:260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={ownerData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={92} paddingAngle={2}>
+                  {ownerData.map((e,i) => <Cell key={i} fill={e.fill} />)}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius:8, border:`1px solid ${C.border}`, fontSize:12 }} />
+                <Legend wrapperStyle={{ fontSize:12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </DashCard>
+
       </div>
 
       {/* Table card */}

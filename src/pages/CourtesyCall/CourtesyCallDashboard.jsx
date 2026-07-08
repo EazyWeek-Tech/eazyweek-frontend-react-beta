@@ -17,12 +17,78 @@ const STATUS_STYLE = {
   "Completed":            { bg: "#F0FDF4", color: "#166534", dot: "#22C55E" },
 }
 
+/* ── §4.5 helpers (inline; no external CSS) ────────────────────────────────── */
+const pad2b = (n) => String(n).padStart(2, "0")
+const ymd   = (d) => `${d.getFullYear()}-${pad2b(d.getMonth()+1)}-${pad2b(d.getDate())}`
+const monthStartYMD = () => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth(), 1)) }
+const RANGES = ["Current Date", "Current Week", "Current Month", "Custom Range"]
+const periodBounds = (range) => {
+  const today = new Date(); const start = new Date(today)
+  if (range === "Current Week")  start.setDate(today.getDate() - today.getDay())
+  else if (range === "Current Month") start.setDate(1)
+  else if (range === "Custom Range") return null // user sets From/To in the filters card
+  return { fromDate: ymd(start), toDate: ymd(today) }
+}
+
+function PeriodFilter({ range, onPick }) {
+  return (
+    <div style={{ display:"flex", gap:3, background:"#eef2f7", border:"1px solid #e7ecf4", borderRadius:9, padding:3 }}>
+      {RANGES.map((r) => {
+        const a = range === r
+        return (
+          <button key={r} onClick={() => onPick(r)}
+            style={{ border:"none", cursor:"pointer", fontFamily:"Lato,sans-serif", fontSize:12.5,
+              fontWeight:a?800:600, padding:"6px 12px", borderRadius:7,
+              background:a?"#fff":"transparent", color:a?"#334B71":"#64748b",
+              boxShadow:a?"0 1px 3px rgba(20,30,45,.12)":"none" }}>
+            {r}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function CCDonut({ segments, centerValue, size = 176, thickness = 26 }) {
+  const total = segments.reduce((a, s) => a + (s.value || 0), 0)
+  const r = (size - thickness) / 2, cx = size / 2, cy = size / 2, CIRC = 2 * Math.PI * r
+  let off = 0
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:24, flexWrap:"wrap" }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex:"none" }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef1f4" strokeWidth={thickness} />
+        {total > 0 && segments.map((s, i) => {
+          const len = (s.value / total) * CIRC
+          const el = (<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={thickness}
+            strokeDasharray={`${len} ${CIRC - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${cx} ${cy})`} />)
+          off += len; return el
+        })}
+        <text x={cx} y={cy-2} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={30} fontWeight={800} fill="#071D49">{Math.round(centerValue != null ? centerValue : total).toLocaleString()}</text>
+        <text x={cx} y={cy+18} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={12} fontWeight={600} fill="#64748b">calls</text>
+      </svg>
+      <div style={{ display:"flex", flexDirection:"column", gap:12, minWidth:170 }}>
+        {segments.map((s, i) => {
+          const pct = total ? Math.round((s.value / total) * 100) : 0
+          return (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:9, fontSize:13 }}>
+              <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:"none" }} />
+              <span style={{ fontWeight:700, color:"#334B71" }}>{s.label}</span>
+              <span style={{ marginLeft:"auto", color:"#64748b" }}>{Math.round(s.value).toLocaleString()} · {pct}%</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function CourtesyCallDashboard() {
   const [data,         setData]         = useState([])
   const [auditors,     setAuditors]     = useState([])
   const [loading,      setLoading]      = useState(true)
   const [toast,        setToast]        = useState(null)
-  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: "2020-01-01", toDate: todayYMD() })
+  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() })
+  const [range,        setRange]        = useState("Current Month")
   const [search,       setSearch]       = useState("")
   const [page,         setPage]         = useState(1)
   const [perPage,      setPerPage]      = useState(10)
@@ -73,11 +139,21 @@ export default function CourtesyCallDashboard() {
   }
 
   const handleClear = () => {
-    const reset = { status: "", auditor: "", fromDate: "2020-01-01", toDate: todayYMD() }
+    const reset = { status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() }
     setFilters(reset)
     setSearch("")
     setPage(1)
+    setRange("Current Month")
     fetchData(reset)
+  }
+
+  // Period filter drives the existing fromDate/toDate (and refetch)
+  const handlePeriod = (r) => {
+    setRange(r)
+    const b = periodBounds(r)
+    if (!b) return // Custom Range → user edits From/To in the filters card below
+    const next = { ...filters, fromDate: b.fromDate, toDate: b.toDate }
+    setFilters(next); setPage(1); fetchData(next)
   }
 
   const filtered = useMemo(() => {
@@ -88,6 +164,18 @@ export default function CourtesyCallDashboard() {
         .some(v => v?.toString().toLowerCase().includes(q))
     )
   }, [data, search])
+
+  // Completion bifurcation counts (FRD §4.5) — from the loaded, period-scoped list
+  const counts = useMemo(() => {
+    let pending = 0, partial = 0, completed = 0
+    data.forEach(r => {
+      const s = STATUS_LABEL[String(r.status)] || r.status
+      if (s === "Pending") pending++
+      else if (s === "Partially Completed") partial++
+      else if (s === "Completed") completed++
+    })
+    return { pending, partial, completed, total: pending + partial + completed }
+  }, [data])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / perPage))
   const start       = (page - 1) * perPage
@@ -136,10 +224,44 @@ export default function CourtesyCallDashboard() {
               {loading ? "Loading…" : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
             </div>
           </div>
-          <div style={{ display:"flex", gap:8 }}>
+          <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+            <PeriodFilter range={range} onPick={handlePeriod} />
             <span style={{ fontSize:12, color:"#94a3b8", alignSelf:"center" }}>{getUser().centerName || ""}</span>
           </div>
         </div>
+      </div>
+
+      {range === "Custom Range" && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap", justifyContent:"flex-end" }}>
+          <label style={{ fontSize:13, color:"#64748b", display:"flex", alignItems:"center", gap:6 }}>From
+            <input className="cc-inp" style={{ width:"auto" }} type="date" value={filters.fromDate}
+              onChange={e => handleFilter("fromDate", e.target.value)} />
+          </label>
+          <label style={{ fontSize:13, color:"#64748b", display:"flex", alignItems:"center", gap:6 }}>To
+            <input className="cc-inp" style={{ width:"auto" }} type="date" value={filters.toDate} min={filters.fromDate || undefined}
+              onChange={e => handleFilter("toDate", e.target.value)} />
+          </label>
+          {filters.fromDate && filters.toDate && new Date(filters.toDate) < new Date(filters.fromDate) && (
+            <span style={{ fontSize:12, color:"#cc6b5c", fontWeight:700 }}>To Date cannot be earlier than From Date.</span>
+          )}
+        </div>
+      )}
+
+      {/* Completion bifurcation — FRD §4.5 */}
+      <div className="cc-card" style={{ padding:"20px 22px", marginBottom:16 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:"#071D49" }}>Completion bifurcation</div>
+        <div style={{ fontSize:11.5, color:"#64748b", marginTop:3, marginBottom:16 }}>Courtesy calls split by completion status</div>
+        {counts.total > 0 ? (
+          <CCDonut centerValue={counts.total} segments={[
+            { label:"Completed",           value:counts.completed, color:"#22C55E" },
+            { label:"Partially Completed", value:counts.partial,   color:"#3B82F6" },
+            { label:"Pending",             value:counts.pending,   color:"#F59E0B" },
+          ]} />
+        ) : (
+          <div style={{ minHeight:120, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:13 }}>
+            No courtesy calls in the selected period.
+          </div>
+        )}
       </div>
 
       {/* Filters */}
