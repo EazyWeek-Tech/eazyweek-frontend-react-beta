@@ -99,27 +99,38 @@ export function getCategoryAccess() {
 
   const role = trim(user.role || user.roleName || user.userRole);
   const isAdmin = role.toLowerCase() === "admin";
+  const isEntityLevel =
+    user.isEntityLevel === true ||
+    String(user.isEntityLevel).toLowerCase() === "true";
 
-  // Active centre = whatever the app currently considers "selected". The direct
-  // loginCode key is rewritten to the active centre by the case-details sync, so
-  // it's the freshest signal; fall back to the session object, then user.centerCode.
-  const activeCenter = trim(
-    readDirect("loginCode") ||
-      sess.loginCode ||
-      sess.LoginCode ||
-      sess.topCode ||
-      sess.TopCode ||
-      user.centerCode
-  );
+  // Some environments store placeholders like "Not Set" in the session
+  // loginCode/topCode — treat those (and blanks) as empty so the chain falls
+  // through to the real user.centerCode instead of stopping on "Not Set".
+  const clean = (v) => {
+    const t = trim(v);
+    if (!t) return "";
+    return /^(not\s*set|null|undefined|n\/a|na|-)$/i.test(t) ? "" : t;
+  };
 
-  return { role, isAdmin, activeCenter };
+  // Active centre = whatever the app currently considers "selected".
+  const activeCenter =
+    clean(readDirect("loginCode")) ||
+    clean(sess.loginCode) ||
+    clean(sess.LoginCode) ||
+    clean(sess.topCode) ||
+    clean(sess.TopCode) ||
+    clean(user.centerCode);
+
+  return { role, isAdmin, activeCenter, isEntityLevel };
 }
 
 // Cache the entity code for the session (the legal entity doesn't change).
+// A failed/empty result is NOT cached, so a later call can retry (covers a
+// first request that raced auth on beta).
 let __entityCodePromise = null;
 async function fetchEntityCode(apiBaseUrl) {
   if (__entityCodePromise) return __entityCodePromise;
-  __entityCodePromise = (async () => {
+  const p = (async () => {
     try {
       const res = await fetch(`${apiBaseUrl}/api/Settings/Centre/Hierarchy`, {
         credentials: "include",
@@ -133,21 +144,34 @@ async function fetchEntityCode(apiBaseUrl) {
       return "";
     }
   })();
-  return __entityCodePromise;
+  __entityCodePromise = p;
+  // Clear the cache if it resolved empty (or threw) so the next call retries.
+  p.then((code) => {
+    if (!code) __entityCodePromise = null;
+  }).catch(() => {
+    __entityCodePromise = null;
+  });
+  return p;
 }
 
 // Authoritative async check. canManage whenever the active centre is the legal
 // entity (active centre === the hierarchy's entity code) — for ANY role.
 // Fails closed (view-only) until the entity code resolves.
 export async function resolveCategoryAccess(apiBaseUrl) {
-  const { role, isAdmin, activeCenter } = getCategoryAccess();
+  const { role, isAdmin, activeCenter, isEntityLevel } = getCategoryAccess();
   const entityCode = await fetchEntityCode(apiBaseUrl);
-  const atLegalEntity = !!entityCode && norm(activeCenter) === norm(entityCode);
+  // Prefer the authoritative comparison (active centre === hierarchy entity code).
+  // If the entity code can't be resolved (e.g. the call failed on beta), fall
+  // back to the user's isEntityLevel flag so an entity admin isn't locked out.
+  const atLegalEntity = entityCode
+    ? norm(activeCenter) === norm(entityCode)
+    : isEntityLevel;
   return {
     role,
     isAdmin,
     activeCenter,
     entityCode,
+    isEntityLevel,
     atLegalEntity,
     // Any role may create / edit / delete / activate at the legal entity.
     canManage: atLegalEntity,
