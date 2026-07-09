@@ -1,0 +1,65 @@
+{
+  "_comment": "Single source of truth for EazyWeek license tiers. Keep the frontend copy (src/config) and backend copy (src/middlewares) identical.",
+
+  "tiers": ["launch", "grow", "scale"],
+
+  "tierLabels": {
+    "launch": "Launch",
+    "grow": "Grow",
+    "scale": "Scale & Custom"
+  },
+
+  "featureSets": {
+    "launch": [
+      "appointment",
+      "emr",
+      "billing",
+      "customer360"
+    ],
+    "grow": [
+      "appointment",
+      "emr",
+      "billing",
+      "customer360",
+      "discounts",
+      "loyalty",
+      "membership",
+      "opportunity",
+      "reporting",
+      "multiLocation"
+    ],
+    "scale": [
+      "appointment",
+      "emr",
+      "billing",
+      "customer360",
+      "discounts",
+      "loyalty",
+      "membership",
+      "opportunity",
+      "reporting",
+      "multiLocation",
+      "audit",
+      "caseManagement",
+      "courtesyCall",
+      "integrations"
+    ]
+  },
+
+  "featureMeta": {
+    "appointment":    { "label": "Appointment Booking & Scheduling", "blurb": "Book, reschedule and manage appointments across your centres." },
+    "emr":            { "label": "EMR & Treatment Forms", "blurb": "Digital treatment records and customisable clinical forms." },
+    "billing":        { "label": "Billing & E-Invoice", "blurb": "Invoicing, payments and ZATCA e-invoicing." },
+    "customer360":    { "label": "Customer 360 & CRM", "blurb": "A unified view of every customer's history and activity." },
+    "discounts":      { "label": "Discounts & Promotions", "blurb": "Threshold, mix-and-match and promotional discounting." },
+    "loyalty":        { "label": "Loyalty Management", "blurb": "Points, tiers and rewards to keep customers coming back." },
+    "membership":     { "label": "Membership Management", "blurb": "Paid membership programs with member pricing and benefits." },
+    "opportunity":    { "label": "Lead & Opportunity Management", "blurb": "Capture, assign and convert leads through your sales pipeline." },
+    "reporting":      { "label": "Advanced Reporting & Dashboards", "blurb": "Detailed reports and executive dashboards across modules." },
+    "multiLocation":  { "label": "Multi-location Governance", "blurb": "Zones and organisation hierarchy for managing multiple centres." },
+    "audit":          { "label": "Audit Management", "blurb": "Quality audits against segments, criteria and scoring." },
+    "caseManagement": { "label": "Case Management", "blurb": "Track, assign, escalate and resolve customer cases." },
+    "courtesyCall":   { "label": "Courtesy Call / Service Quality", "blurb": "Post-visit follow-up calls and service-quality tracking." },
+    "integrations":   { "label": "Custom Integrations & SSO", "blurb": "Bespoke integrations and single sign-on." }
+  }
+}

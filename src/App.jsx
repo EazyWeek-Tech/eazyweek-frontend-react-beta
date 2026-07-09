@@ -99,6 +99,7 @@ import RosterView from "./pages/Workforce/RosterView";
 import MyShift from "./pages/Workforce/MyShift";
 import AppointmentDashboard from "./pages/Appointment/AppointmentDashboard";
 import InvoiceDashboard from "./pages/Invoice/InvoiceDashboard";
+import FeatureGate from "./components/FeatureGate";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -209,6 +210,11 @@ if (user && showFirstLogin) {
     />
   );
 }
+  // License gate helper — wraps a route element so locked modules show the upgrade notice
+  const gate = (feature, element) => (
+    <FeatureGate feature={feature} currentUser={user}>{element}</FeatureGate>
+  );
+
   return (
     <Routes>
       {/* Add Routes WITHOUT Sidebar + Header */}
@@ -220,12 +226,12 @@ if (user && showFirstLogin) {
       <Route path="/consultation/history" element={<ConsultationHistory />} />
       <Route path="/invoices" element={<InvoicesTab />} />
       <Route path="/invoice-details/:invoiceNum" element={<InvoiceDetails />} />
-      <Route path="/loyalty/config" element={<LoyaltyProgramConfig />} />
+      <Route path="/loyalty/config" element={gate("loyalty", <LoyaltyProgramConfig />)} />
       
-      <Route path="/membership" element={<MembershipConfig />} />
-      <Route path="/discounts" element={<DiscountManagement />} />
-      <Route path="/discounts/configure/*" element={<DiscountConfig />} />
-      <Route path="/discounts/manage" element={<DiscountList />} />
+      <Route path="/membership" element={gate("membership", <MembershipConfig />)} />
+      <Route path="/discounts" element={gate("discounts", <DiscountManagement />)} />
+      <Route path="/discounts/configure/*" element={gate("discounts", <DiscountConfig />)} />
+      <Route path="/discounts/manage" element={gate("discounts", <DiscountList />)} />
       <Route path="/consentform/injectible" element={<InjectableTreatment />} />
       <Route path="/consentform/facial" element={<HyaluronidaseCF />} />
       <Route
@@ -258,7 +264,7 @@ if (user && showFirstLogin) {
               <div className="home-sect">
                 <Routes>
                   <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="/loyalty" element={<LoyaltyListing />} />
+                  <Route path="/loyalty" element={gate("loyalty", <LoyaltyListing />)} />
 
                   <Route
                     path="/segmentaddform/:employeeCode"
@@ -266,11 +272,11 @@ if (user && showFirstLogin) {
                   />
                   <Route
                     path="/opportunity/:oppCode/customers"
-                    element={<AddLeadCustomerList />}
+                    element={gate("opportunity", <AddLeadCustomerList />)}
                   />
                   <Route
                     path="/opportunity/customers"
-                    element={<AddLeadCustomerList />}
+                    element={gate("opportunity", <AddLeadCustomerList />)}
                   />
 
                    <Route
@@ -286,15 +292,15 @@ if (user && showFirstLogin) {
                   <Route path="/invoice/dashboard" element={<InvoiceDashboard />} />
                   <Route
   path="/manuallead/:oppCode"
-  element={<ManualOppCustomerDetails />}
+  element={gate("opportunity", <ManualOppCustomerDetails />)}
   
 />
-<Route path="/opportunity/master/:oppCode/lead/:custId" element={<MasterLeadForm />} />
+<Route path="/opportunity/master/:oppCode/lead/:custId" element={gate("opportunity", <MasterLeadForm />)} />
 
 
 <Route path="/shift/roster" element={<RosterView />} />
 
-<Route path="/opportunity/:oppCode/details"  element={<CampaignDetails />} />
+<Route path="/opportunity/:oppCode/details"  element={gate("opportunity", <CampaignDetails />)} />
 
 
 <Route path="/emr/forms"           element={<FormList />} />
@@ -305,7 +311,7 @@ if (user && showFirstLogin) {
 
  <Route
   path="/manuallead/:oppCode/:custId"
-  element={<ManualOppCustomerDetails />}
+  element={gate("opportunity", <ManualOppCustomerDetails />)}
   
 />
 
@@ -313,23 +319,23 @@ if (user && showFirstLogin) {
 <Route path="/shift/my" element={<MyShift />} />
 
 
-<Route path="/manuallead/edit/:leadOppId" element={<ManualLeadEdit />} />
+<Route path="/manuallead/edit/:leadOppId" element={gate("opportunity", <ManualLeadEdit />)} />
 <Route
   path="/opportunity/external/:oppCode/lead/:leadOppId"
-  element={<ExternalLeadForm />}
+  element={gate("opportunity", <ExternalLeadForm />)}
 />
 <Route path="/reset-password" element={<ResetPassword />} />
-<Route path="/opportunity/:oppCode/noshow/:custId" element={<NoShowEntryDetails />} />
-<Route path="/opportunity/:oppCode/cancelled/:custId" element={<CancelledEntryDetails />} />
-<Route path="/opportunity/create" element={<CreateCampaign />} />
+<Route path="/opportunity/:oppCode/noshow/:custId" element={gate("opportunity", <NoShowEntryDetails />)} />
+<Route path="/opportunity/:oppCode/cancelled/:custId" element={gate("opportunity", <CancelledEntryDetails />)} />
+<Route path="/opportunity/create" element={gate("opportunity", <CreateCampaign />)} />
 
 
-<Route path="/masters/disposition" element={<DispositionMaster />} />
-<Route path="/opportunity/disposition-mapping/create" element={<DispositionMappingCreate />} />
-                  <Route path="cases" element={<CaseManagement />} />
+<Route path="/masters/disposition" element={gate("opportunity", <DispositionMaster />)} />
+<Route path="/opportunity/disposition-mapping/create" element={gate("opportunity", <DispositionMappingCreate />)} />
+                  <Route path="cases" element={gate("caseManagement", <CaseManagement />)} />
                   <Route
                     path="/cases/:caseNumber"
-                    element={<CaseDetailsPage />}
+                    element={gate("caseManagement", <CaseDetailsPage />)}
                   />
                   <Route
                     path="/masters/customers"
@@ -337,7 +343,7 @@ if (user && showFirstLogin) {
                   />
                   <Route
                     path="/case-detailed-report"
-                    element={<CaseDetailedReport />}
+                    element={gate("caseManagement", <CaseDetailedReport />)}
                   />
                   <Route
                     path="/masters/practitioners"
@@ -349,9 +355,9 @@ if (user && showFirstLogin) {
 
                   <Route path="/settings/centre-setup" element={<CentreSetup />} />
 
-                   <Route path="/settings/zone-setup" element={<ZoneSetup />} />
+                   <Route path="/settings/zone-setup" element={gate("multiLocation", <ZoneSetup />)} />
 
-                  <Route path="/settings/org-setup" element={<OrgHierarchy />} />
+                  <Route path="/settings/org-setup" element={gate("multiLocation", <OrgHierarchy />)} />
 
                   <Route
                     path="/masters/department"
@@ -378,31 +384,31 @@ if (user && showFirstLogin) {
                   />
                   <Route
                     path="/opportunity"
-                    element={<OpportunityDashboard />}
+                    element={gate("opportunity", <OpportunityDashboard />)}
                   />
                   <Route path="/einvoice" element={<EInvoiceDashboard />} />
                   <Route
                     path="/einvoice/detailed"
-                    element={<EInvoiceDetailedReport />}
+                    element={gate("reporting", <EInvoiceDetailedReport />)}
                   />
                   <Route
                     path="/courtesy-call"
-                    element={<CourtesyCallDashboard />}
+                    element={gate("courtesyCall", <CourtesyCallDashboard />)}
                   />
                   <Route
                     path="/courtesy-call/report"
-                    element={<DetailedReport />}
+                    element={gate("courtesyCall", <DetailedReport />)}
                   />
-                  <Route path="/audit" element={<AuditDashboard />} />
+                  <Route path="/audit" element={gate("audit", <AuditDashboard />)} />
                   {/* <Route path="/opportunity/details/:fromDate/:toDate/:oppCode" element={<OpportunityDetails />} /> */}
 
                   <Route
                     path="/opportunity/create"
-                    element={<OpportunityForm mode="create" />}
+                    element={gate("opportunity", <OpportunityForm mode="create" />)}
                   />
                   <Route
                     path="/opportunity/:oppCode/customer/:custId"
-                    element={<OppCustomerDetails />}
+                    element={gate("opportunity", <OppCustomerDetails />)}
                   />
 
                   <Route
@@ -411,61 +417,61 @@ if (user && showFirstLogin) {
                   />
                   <Route
                     path="/auditsegmentview"
-                    element={<AuditCreateDashboard />}
+                    element={gate("audit", <AuditCreateDashboard />)}
                   />
                   <Route
                     path="/courtesy-call/details"
-                    element={<CourtesyCallDetails />}
+                    element={gate("courtesyCall", <CourtesyCallDetails />)}
                   />
                   <Route
                     path="/case-hierarchy"
-                    element={<CaseHierarchyDashboard />}
+                    element={gate("caseManagement", <CaseHierarchyDashboard />)}
                   />
                   <Route
                     path="/case-hierarchy/create"
-                    element={<CaseHierarchyCreate />}
+                    element={gate("caseManagement", <CaseHierarchyCreate />)}
                   />
                   <Route
                     path="/case-hierarchy/edit/:recId"
-                    element={<CaseHierarchyCreate />}
+                    element={gate("caseManagement", <CaseHierarchyCreate />)}
                   />
-                  <Route path="/audit/create" element={<AuditCreate />} />
+                  <Route path="/audit/create" element={gate("audit", <AuditCreate />)} />
                   <Route
                     path="/audit/summary"
-                    element={<AuditSummaryReport />}
+                    element={gate("audit", <AuditSummaryReport />)}
                   />
                   <Route
                     path="/audit/detailed"
-                    element={<AuditDetailedReport />}
+                    element={gate("audit", <AuditDetailedReport />)}
                   />
                   <Route
                     path="/opportunity/detailed"
-                    element={<OpportunityDetailedReport />}
+                    element={gate("opportunity", <OpportunityDetailedReport />)}
                   />
                   <Route
                     path="/opportunity/summary"
-                    element={<OpportunitySummaryReport />}
+                    element={gate("opportunity", <OpportunitySummaryReport />)}
                   />
-                  <Route path="/audit/:segment/form" element={<AuditForm />} />
+                  <Route path="/audit/:segment/form" element={gate("audit", <AuditForm />)} />
                   <Route
                     path="/case-categories"
-                    element={<CaseCategoryMaster />}
+                    element={gate("caseManagement", <CaseCategoryMaster />)}
                   />
                   <Route
                     path="/create-categories-mapping"
-                    element={<CreateCaseCategoryMapping />}
+                    element={gate("caseManagement", <CreateCaseCategoryMapping />)}
                   />
                   <Route
                     path="/create-case-category"
-                    element={<CreateCaseCategory />}
+                    element={gate("caseManagement", <CreateCaseCategory />)}
                   />
                   <Route
                     path="/categories-mapping"
-                    element={<CaseCategoryMappingDashboard />}
+                    element={gate("caseManagement", <CaseCategoryMappingDashboard />)}
                   />
                   <Route
                     path="/audit/:auditNo"
-                    element={<AuditDraftDetails />}
+                    element={gate("audit", <AuditDraftDetails />)}
                   />
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route
@@ -501,7 +507,7 @@ if (user && showFirstLogin) {
                   />
                   <Route
                     path="/audit/:auditNo"
-                    element={<AuditDraftDetails />}
+                    element={gate("audit", <AuditDraftDetails />)}
                   />
                   <Route
                     path="/custom-forms/form-builder"
