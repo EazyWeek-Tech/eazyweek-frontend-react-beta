@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config"; // adjust path to match this file's location
+import { resolveFeatures, getFeatureMeta, minimumTierFor, getTierLabel } from "../../config/licenseConfig"; // license helpers (adjust path if needed)
 
 /**
  * EazyWeek — Executive Analytics Dashboard
@@ -538,6 +539,30 @@ const SectionHeading = ({ num, title, sub }) => (
 
 const card = { background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16, padding: "20px 22px" };
 
+// Placeholder shown in place of a block's data when the tenant's plan lacks the feature.
+function LockedBlock({ feature, ar }) {
+  const meta = getFeatureMeta(feature);
+  const tier = minimumTierFor(feature);
+  const tierLabel = tier ? getTierLabel(tier) : null;
+  const msg = ar ? "قم بالترقية لعرض هذه البيانات" : "Upgrade to view this data";
+  const sub = tierLabel
+    ? (ar ? `متوفّر في باقة ${tierLabel}` : `Available on the ${tierLabel} plan`)
+    : (ar ? "إضافة مخصّصة" : "Custom add-on");
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "44px 24px", minHeight: 190 }}>
+      <div style={{ width: 54, height: 54, borderRadius: "50%", background: "rgba(209,154,62,0.14)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="5" y="10.5" width="14" height="9.5" rx="2" fill={COLORS.gold} />
+          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" stroke={COLORS.gold} strokeWidth="2" fill="none" />
+        </svg>
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.ink }}>{meta.label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.primary, marginTop: 9 }}>{msg}</div>
+      <div style={{ fontSize: 12.5, color: "#8b95a2", marginTop: 5 }}>{sub}</div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
@@ -552,6 +577,18 @@ export default function Dashboard() {
   const live = useLiveDashboard({ range });
   const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live });
   const ar = d.ar;
+
+  // License-based block visibility — read the tenant's plan from the logged-in user.
+  const licenseUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "null"); }
+    catch { return null; }
+  }, []);
+  const licenseSet = useMemo(
+    () => resolveFeatures(licenseUser?.licenseTier, licenseUser?.licenseOverrides),
+    [licenseUser]
+  );
+  // Rollout-safe: until login returns a licenseTier, show every block.
+  const can = (feature) => !licenseUser?.licenseTier || licenseSet.has(feature);
 
   const toggleCentre = (name) => {
     setSelected((prev) => {
@@ -708,6 +745,7 @@ export default function Dashboard() {
         {/* ===================== 2. CENTRE PERFORMANCE ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="02" title={d.t.centre} />
+          {can("multiLocation") ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
             {/* Ranked bars */}
             <div style={card}>
@@ -756,11 +794,14 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          ) : <LockedBlock feature="multiLocation" ar={ar} />}
         </section>
 
         {/* ===================== 3. GROWTH & PIPELINE ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="03" title={d.t.growth} />
+          {(can("opportunity") || can("loyalty")) ? (
+          <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 16 }}>
             {d.growthKpis.map((k, i) => (
               <div key={i} style={{ ...card, borderRadius: 14, padding: "16px 18px" }}>
@@ -819,6 +860,7 @@ export default function Dashboard() {
             {/* Col 3: Loyalty + Campaigns */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Loyalty */}
+              {can("loyalty") ? (
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.loyalty}</div>
                 <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -847,6 +889,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
+              ) : <LockedBlock feature="loyalty" ar={ar} />}
 
               {/* Campaigns */}
               <div style={card}>
@@ -868,11 +911,14 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          </>
+          ) : <LockedBlock feature="opportunity" ar={ar} />}
         </section>
 
         {/* ===================== 4. OPERATIONS ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="04" title={d.t.ops} />
+          {can("caseManagement") ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* Cases by status */}
             <div style={card}>
@@ -928,6 +974,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          ) : <LockedBlock feature="caseManagement" ar={ar} />}
         </section>
 
         {/* ===================== 5. REVENUE TREND ===================== */}
