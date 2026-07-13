@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess, isEntityLevel } from "../Settings/masterAccess";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
@@ -169,22 +171,8 @@ export default function CentreSetup() {
   // ── Access rights ─────────────────────────────────────────────────────────
   // isEntityLevel and role come directly from the JWT user object
   // canWrite = Admin role AND at entity level
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
-      const ALLOWED_ROLES = ["admin","productteam"];
-      const isAdmin       = ALLOWED_ROLES.includes(role);
-      // isEntityLevel MUST come from JWT — no fallback
-      // Centre-level admins have isEntityLevel=false and get view-only
-      const isEntityLevel = u.isEntityLevel === true;
-      const canManage     = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canManage, canEdit: canManage, canDelete: canManage };
-    } catch {
-      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
-    }
-  })();
-  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const [centres,      setCentres]      = useState([]);
   const [selected,     setSelected]     = useState(null); // centerCode
@@ -267,6 +255,8 @@ export default function CentreSetup() {
   }, [selected]);
 
   const handleDeleteCentre = async () => {
+    const gate = checkAccess({ has, code: "MDM.CENTRE_DELETE" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     if (!selected) return;
     if (!window.confirm(`Delete centre "${selected}"? This can only be done if no data exists in other sections (Address, Contact, Tax etc.).`)) return;
     try {
@@ -279,6 +269,8 @@ export default function CentreSetup() {
   };
 
   const handleSave = async () => {
+    const gate = checkAccess({ has, code: ["MDM.CENTRE_CREATE","MDM.CENTRE_EDIT","MDM.CENTRE_SAVE"] });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     if (!selected) return;
     setSaving(true);
     try {
@@ -332,14 +324,24 @@ export default function CentreSetup() {
   const taxCountry = _entityLE.country || CURRENCY_TO_COUNTRY[_entityLE.currency] || "Saudi Arabia";
   const availableTaxTypes = TAX_TYPES[taxCountry] || [];
 
+  // Entity-level-only screen. At a centre, everyone (including Admin /
+  // Product Team) is blocked; only Admin / Product Team at the Legal Entity
+  // level may access it.
+  const _setupUser = getUser();
+  const _setupRole = (_setupUser.role || _setupUser.userRole || _setupUser.securityRole || "").toLowerCase().replace(/\s+/g, "");
+  const _canViewSetup = ["admin", "productteam"].includes(_setupRole) && isEntityLevel();
+  if (!_canViewSetup) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
+      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:400 }}>
+        Centre Setup is available at the Legal Entity level only.<br/>
+        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users.
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      {!canEdit && (
-        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
-          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Create, edit and delete actions are restricted to Admin users at entity level.
-        </div>
-      )}
 
       <style>{`
         .cs-wrap { max-width:1100px; margin:0 auto; padding:28px 20px 60px; display:grid; grid-template-columns:240px 1fr; gap:20px; }
@@ -374,13 +376,11 @@ export default function CentreSetup() {
         <div className="cs-sidebar">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <h3 style={{ margin:0 }}> Centres</h3>
-            {canCreate && (
-              <button onClick={() => { setSelected(null); setData(null); setIsCreating(true); }}
+              <button onClick={() => requireAccess("MDM.CENTRE_CREATE", () => { setSelected(null); setData(null); setIsCreating(true); })}
                 style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:6,
                   padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
                 + New
               </button>
-            )}
           </div>
           {loading ? <div style={{ fontSize:12, color:"#94a3b8" }}>Loading…</div> :
             centres.length === 0 ? <div style={{ fontSize:12, color:"#94a3b8" }}>No centres found.</div> :
@@ -428,15 +428,13 @@ export default function CentreSetup() {
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{data.centerCode} · {data.address}</div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
-                  {canDelete && (
-                    <button onClick={handleDeleteCentre}
+                    <button onClick={() => requireAccess("MDM.CENTRE_DELETE", handleDeleteCentre)}
                       style={{ padding:"9px 16px", background:"#fef2f2", color:"#b91c1c",
                         border:"1px solid #fecaca", borderRadius:10, fontWeight:700,
                         fontSize:13, cursor:"pointer" }}>
                       🗑 Delete Centre
                     </button>
-                  )}
-                  <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
+                  <button className="save-btn" onClick={handleSave} disabled={saving}>
                     {saving ? "Saving…" : " Save Centre"}
                   </button>
                 </div>
@@ -879,7 +877,7 @@ export default function CentreSetup() {
 
                 {/* Bottom save */}
                 <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:16 }}>
-                  <button className="save-btn" onClick={handleSave} disabled={saving || !canEdit}>
+                  <button className="save-btn" onClick={handleSave} disabled={saving}>
                     {saving ? "Saving…" : " Save Centre"}
                   </button>
                 </div>

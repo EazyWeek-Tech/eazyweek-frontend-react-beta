@@ -16,6 +16,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -41,6 +42,11 @@ const MODES = [
   { id: "REASSIGN_MANUAL",label: "Reassign (Manual)",              type: "MANUAL_ALLOC", mode: "REASSIGN", group: "reassign", flow: "manual" },
 ];
 
+// Permission code required for each assignment mode (mirrors the backend gates on
+// AutoStage / ManualStage). Manual = MANUAL_LEAD_ASSIGN; auto/availability = either auto code.
+const codeForMode = (m) =>
+  m?.flow === "manual" ? "OPP.MANUAL_LEAD_ASSIGN" : ["OPP.AUTO_LEAD_ASSIGN", "OPP.AUTO_LEAD_ASSIGN_AVAIL"];
+
 const PRESENCE_META = {
   available: { label: "Available", cls: "am-badge-ok"   },
   busy:      { label: "Busy",      cls: "am-badge-busy" },
@@ -51,6 +57,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function AssignmentModal({ open, onClose, oppCode, kind, centerCode = "", onConfirmed }) {
   const [step, setStep]       = useState("mode");   // mode | auto | manual | review | done
+  const { guard } = usePermissions();
   const [modeId, setModeId]   = useState("");
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
@@ -280,7 +287,7 @@ export default function AssignmentModal({ open, onClose, oppCode, kind, centerCo
                 return (
                   <React.Fragment key={m.id}>
                     {divide && <div className="am-divider" />}
-                    <button className="am-mode" onClick={() => pickMode(m)}>{m.label}</button>
+                    <button className="am-mode" onClick={() => guard(codeForMode(m), () => pickMode(m))}>{m.label}</button>
                   </React.Fragment>
                 );
               })}

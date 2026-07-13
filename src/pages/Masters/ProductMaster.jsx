@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
 
 /* ============================================================================
    PRODUCT MASTER (Phase 2)
@@ -447,17 +449,8 @@ const emptyPricingRow = (code, name) => ({
 
 /* ── MAIN COMPONENT ────────────────────────────────────────────────────────── */
 const ProductMaster = () => {
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
-      const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite };
-    } catch { return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false }; }
-  })();
-  const { canCreate, canEdit } = _rights;
+  const { has: hasPerm, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has: hasPerm, guard, notifyDenied });
 
   const [view,      setView]      = useState("list");
   const [products,  setProducts]  = useState([]);
@@ -621,6 +614,8 @@ const ProductMaster = () => {
   };
 
   const handleSave = async (action) => {
+    const gate = checkAccess({ has: hasPerm, code: editCode ? "MDM.PRODUCTS_EDIT" : "MDM.PRODUCTS_CREATE" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     setSaveAttempted(true);
     const e = validate(action);
     setErrors(e);
@@ -665,7 +660,7 @@ const ProductMaster = () => {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <button onClick={loadList} style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4", borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>↻ Refresh</button>
-            {canCreate && <button onClick={openCreate} style={{ padding:"10px 20px", background:"#334B71", color:"#fff", border:"none", borderRadius:8, fontWeight:600, cursor:"pointer", fontSize:14 }}>+ Create New Product</button>}
+            <button onClick={() => requireAccess("MDM.PRODUCTS_CREATE", openCreate)} style={{ padding:"10px 20px", background:"#334B71", color:"#fff", border:"none", borderRadius:8, fontWeight:600, cursor:"pointer", fontSize:14 }}>+ Create New Product</button>
           </div>
         </div>
 
@@ -704,8 +699,8 @@ const ProductMaster = () => {
                       color: p.STATUS==="Active"?"#065f46":p.STATUS==="Draft"?"#92400e":"#6b7280" }}>{p.STATUS||"—"}</span>
                   </td>
                   <td style={{ padding:"11px 14px", textAlign:"right" }}>
-                    <button onClick={()=>openEdit(p.PRODUCTCODE)} style={{ fontSize:13, padding:"5px 12px", borderRadius:6, border:"none", background:"#fef3c7", color:"#92400e", fontWeight:500, cursor:"pointer" }}>
-                      {canEdit ? "✏️ Edit" : "👁 View"}
+                    <button onClick={()=>requireAccess("MDM.PRODUCTS_EDIT", () => openEdit(p.PRODUCTCODE))} style={{ fontSize:13, padding:"5px 12px", borderRadius:6, border:"none", background:"#fef3c7", color:"#92400e", fontWeight:500, cursor:"pointer" }}>
+                      ✏️ Edit
                     </button>
                   </td>
                 </tr>
@@ -746,11 +741,11 @@ const ProductMaster = () => {
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
         <div>
-          <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>{editCode ? `${canEdit?"Edit":"View"} Product — ${form.productName?.trim()}` : "Create New Product"}</h2>
+          <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>{editCode ? `Edit Product — ${form.productName?.trim()}` : "Create New Product"}</h2>
           <button onClick={()=>setView("list")} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>← Back to List</button>
         </div>
         <div style={{ display:"flex", gap:10 }}>
-          {canEdit && (<>
+          {(<>
             <button onClick={()=>handleSave("save")} disabled={!!saving} style={{ height:40, padding:"0 20px", background:"#fff", color:"#334b71", border:"1.5px solid #334b71", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer", opacity:saving?0.7:1 }}>{saving==="save"?"Saving…":"Save (Draft)"}</button>
             <button onClick={()=>handleSave("submit")} disabled={!!saving} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer", opacity:saving?0.7:1 }}>{saving==="submit"?"Submitting…":"Submit & Release"}</button>
           </>)}
@@ -790,7 +785,7 @@ const ProductMaster = () => {
         })}
       </div>
 
-      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300, pointerEvents: canEdit?"auto":"none", opacity: canEdit?1:0.85 }}>
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300, pointerEvents:"auto", opacity:1 }}>
         {activeTab===0 && <GeneralTab   form={form} setForm={setForm} errors={saveAttempted?errors:{}} isEdit={!!editCode} setErrors={setErrors} barcodeMandatory={barcodeMandatory} />}
         {activeTab===1 && <SalesTab     form={form} setForm={setForm} errors={saveAttempted?errors:{}} uomOptions={uomOptions} membershipActive={membershipActive} />}
         {activeTab===2 && <PurchaseTab  form={form} setForm={setForm} uomOptions={uomOptions} errors={saveAttempted?errors:{}} />}
@@ -799,11 +794,11 @@ const ProductMaster = () => {
       </div>
 
       <div style={{ display:"flex", gap:12, marginTop:20 }}>
-        {canEdit && (<>
+        {(<>
           <button onClick={()=>handleSave("save")} disabled={!!saving} style={{ height:40, padding:"0 20px", background:"#fff", color:"#334b71", border:"1.5px solid #334b71", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>{saving==="save"?"Saving…":"Save (Draft)"}</button>
           <button onClick={()=>handleSave("submit")} disabled={!!saving} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>{saving==="submit"?"Submitting…":"Submit & Release"}</button>
         </>)}
-        <button onClick={()=>setView("list")} style={{ height:40, padding:"0 18px", background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>{canEdit ? "Cancel" : "Back"}</button>
+        <button onClick={()=>setView("list")} style={{ height:40, padding:"0 18px", background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>Cancel</button>
       </div>
     </div>
   );

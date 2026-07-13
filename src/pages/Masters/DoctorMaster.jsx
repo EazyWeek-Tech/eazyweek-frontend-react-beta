@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
 
 const TOKEN = () => localStorage.getItem("token");
 
@@ -23,6 +25,8 @@ const DoctorMaster = () => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   };
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const fetchDoctors = useCallback(async () => {
     setLoading(true);
@@ -74,6 +78,8 @@ const DoctorMaster = () => {
   };
 
   const handleSave = async () => {
+    const gate = checkAccess({ has, code: "MDM.PRACTITIONERS_CREATE" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     if (!form.employeeCode)      return showToast("Please select a doctor", "error");
     if (!form.associatedClinic)  return showToast("Please select a clinic", "error");
 
@@ -107,6 +113,8 @@ const DoctorMaster = () => {
   };
 
   const handleDelete = async (doctor) => {
+    const gate = checkAccess({ has, code: "MDM.PRACTITIONERS_DELETE" });
+    if (!gate.ok) { notifyDenied(gate.message); setConfirmDelete(null); return; }
     try {
       const res  = await fetch(`${API_BASE_URL}/api/master/DoctorMappingRemove`, {
         method: "POST",
@@ -142,7 +150,7 @@ const DoctorMaster = () => {
           <h1 style={s.title}>Doctors / Therapists</h1>
           <p style={s.subtitle}>{filtered.length} practitioner mapping{filtered.length !== 1 ? "s" : ""}</p>
         </div>
-        <button style={s.addBtn} onClick={openModal}>+ Map Practitioner</button>
+        <button style={s.addBtn} onClick={() => requireAccess("MDM.PRACTITIONERS_CREATE", openModal)}>+ Map Practitioner</button>
       </div>
 
       {/* Search */}
@@ -165,7 +173,7 @@ const DoctorMaster = () => {
           <div style={s.empty}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>👨‍⚕️</div>
             <p style={{ color: "#6b7280", fontSize: 14 }}>No practitioner mappings found</p>
-            <button style={s.addBtn} onClick={openModal}>+ Map First Practitioner</button>
+            <button style={s.addBtn} onClick={() => requireAccess("MDM.PRACTITIONERS_CREATE", openModal)}>+ Map First Practitioner</button>
           </div>
         ) : (
           <table style={s.table}>
@@ -187,7 +195,7 @@ const DoctorMaster = () => {
                   <td style={s.td}>{d.lastName}</td>
                   <td style={s.td}>{d.associatedClinic}</td>
                   <td style={s.td}>
-                    <button style={s.deleteBtn} onClick={() => setConfirmDelete(d)}>Remove</button>
+                    <button style={s.deleteBtn} onClick={() => requireAccess("MDM.PRACTITIONERS_DELETE", () => setConfirmDelete(d))}>Remove</button>
                   </td>
                 </tr>
               ))}

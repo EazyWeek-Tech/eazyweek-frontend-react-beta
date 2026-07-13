@@ -7,6 +7,7 @@ import { useEMRForms } from "./useEMRForms";
 import FormFillModal from "./FormFillModal";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import { CustomerFormPanel } from "../Masters/CustomerMaster";
+import { usePermissions } from "../Settings/usePermissions";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -16,14 +17,24 @@ const authPost = async (url, payload) => {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`POST ${url} failed`);
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error((json && json.message) || `POST ${url} failed`);
+    err.status = res.status;
+    err.serverMessage = (json && json.message) || "";
+    throw err;
+  }
   return json.data ?? json;
 };
 const authGet = async (url) => {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
-  if (!res.ok) throw new Error(`GET ${url} failed`);
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error((json && json.message) || `GET ${url} failed`);
+    err.status = res.status;
+    err.serverMessage = (json && json.message) || "";
+    throw err;
+  }
   return json.data ?? json;
 };
 const getUser = () => {
@@ -82,6 +93,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [appt,   setAppt]   = useState(appointment || null);
   const [status, setStatus] = useState(appointment?.status || "Booked");
   const [toast,  setToast]  = useState(null);
+  const { has, guard, notifyDenied } = usePermissions();
   const [loading,setLoading]= useState(false);
 
   // ── EMR Forms hook ────────────────────────────────────────────────────────
@@ -314,11 +326,17 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           }
         }
       } else setToast({ message: result?.message || "Update failed.", type: "error" });
-    } catch { setToast({ message: "Error updating appointment.", type: "error" }); }
+    } catch (e) {
+      if (e?.status === 403) notifyDenied(e.serverMessage || e.message || "Access denied. You do not have permission for this action.");
+      else setToast({ message: "Error updating appointment.", type: "error" });
+    }
   };
 
   const handleStatusChange = async (e) => {
     const newStatus = e.target.value;
+    // Permission gate (FRD 4.2): cancel/no-show need Delete, other changes need Edit.
+    const _needed = (newStatus === "Cancelled" || newStatus === "No Show") ? "APPT.DELETE" : "APPT.EDIT";
+    if (!has(_needed)) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
     if (isRestricted && (newStatus === "Cancelled" || newStatus === "No Show")) {
       setToast({ message: "Cannot cancel or no-show an appointment that is already in progress or completed.", type: "error" });
       return;
@@ -358,7 +376,10 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     if (!window.confirm("Delete this appointment?")) return;
     authPost(`${API_BASE_URL}/api/Appointment/AppOperation`, { appointmentId: apptId, status: "", operation: "DELETE", centerCode, lineNo: apptLineNo })
       .then(() => { setToast({ message: "Deleted!", type: "success" }); onRefresh?.(); setTimeout(() => onClose?.(), 1500); })
-      .catch(() => setToast({ message: "Delete failed.", type: "error" }));
+      .catch((e) => {
+        if (e?.status === 403) notifyDenied(e.serverMessage || e.message || "Access denied. You do not have permission to delete this appointment.");
+        else setToast({ message: "Delete failed.", type: "error" });
+      });
   };
 
   const handleEdit = () => {
@@ -415,12 +436,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               {/* Reschedule — only for non-completed/non-active statuses */}
               {!["Completed","Active","Checked In"].includes(status) && onReschedule && (
                 <button className="edit " data-tooltip="Reschedule"
-                  onClick={() => { onReschedule?.(appt || appointment); onClose?.(); }}
+                  onClick={() => guard("APPT.EDIT", () => { onReschedule?.(appt || appointment); onClose?.(); })}
                   style={{ marginLeft:2 }}>
                     Reschedule
                 </button>
               )}
-              <button className="delete " data-tooltip="Delete" onClick={handleDelete}>
+              <button className="delete " data-tooltip="Delete" onClick={() => guard("APPT.DELETE", handleDelete)}>
                 Delete
                 </button>
             </div>
@@ -851,6 +872,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const suggestRef = useRef(null);
 
   const user = useMemo(() => getUser(), []);
+  const { has, guard, notifyDenied } = usePermissions();
 
   // ── Doctor-only access ──────────────────────────────────────────────────
   // If the logged-in user is a practitioner/doctor, restrict the grid to
@@ -1100,6 +1122,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                     setSelectedTimeSlot(slotTime);
                     setSelectedDoctor(doc);
                     setEditData(null);
+                    if (!has("APPT.CREATE")) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
                     setIsDrawerOpen(true);
                   }}>
 
@@ -1284,6 +1307,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                       setSelectedTimeSlot(slotTime);
                       setSelectedDoctor(doc);
                       setEditData(null);
+                      if (!has("APPT.CREATE")) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
                       setIsDrawerOpen(true);
                     }}>
 
@@ -1385,10 +1409,10 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             {/* Only show add buttons for non-doctor roles */}
             {!isDoctorRole && (
               <>
-                <div className="apptimg tooltip" data-tooltip="Add Appointment" onClick={() => { setSelectedCustomer(null); setIsDrawerOpen(true); }}>
+                <div className="apptimg tooltip" data-tooltip="Add Appointment" onClick={() => guard("APPT.CREATE", () => { setSelectedCustomer(null); setIsDrawerOpen(true); })}>
                   <img src={`${import.meta.env.BASE_URL}images/addappt.svg`} alt="Add" />
                 </div>
-                <span className="apptstgs tooltip" data-tooltip="Add Customer" onClick={() => setShowAddCustomer(true)}>
+                <span className="apptstgs tooltip" data-tooltip="Add Customer" onClick={() => guard("MDM.CUSTOMERS_CREATE", () => setShowAddCustomer(true))}>
                   <img src={`${import.meta.env.BASE_URL}images/addcustwhite.svg`} alt="Add Customer" />
                 </span>
               </>
@@ -1412,7 +1436,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                       <li key={idx} style={{ cursor:"pointer", padding:"4px 8px", display:"flex", justifyContent:"space-between", alignItems:"center" }}
                         onClick={() => { setSearchTerm(`${item.firstName} - ${item.mobile}`); setSuggestions([]); }}>
                         <span>{item.firstName} – {item.mobile}</span>
-                        <span onClick={e => { e.stopPropagation(); setSelectedCustomer(item); setIsDrawerOpen(true); setSuggestions([]); setSearchTerm(""); }} className="bookappt">
+                        <span onClick={e => { e.stopPropagation(); guard("APPT.CREATE", () => { setSelectedCustomer(item); setIsDrawerOpen(true); setSuggestions([]); setSearchTerm(""); }); }} className="bookappt">
                           <img src={`${import.meta.env.BASE_URL}images/addapptblk.svg`} alt="Book" />
                         </span>
                       </li>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import Select, { components } from "react-select"
 import "./DetailedReport.css"
 import { API_BASE_URL } from "../../config"
+import { usePermissions } from "../Settings/usePermissions";
 import Toast from "../../components/Toast"
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -51,6 +52,7 @@ const INVISIBLE_FROM_DEFAULT = "1999-01-01"
 const INVISIBLE_TO_DEFAULT   = ymd(new Date()) // today
 
 const DetailedReport = () => {
+  const { has } = usePermissions();
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
     fromDate: "",                  // UI stays empty unless user picks
@@ -326,6 +328,17 @@ const DetailedReport = () => {
   const futureAppOptions = toOptionList(["Yes", "No"])
   const satisfactionOptions = toOptionList(["Yes", "No"])
   const customerTypeOptions = toOptionList(["New", "Existing"])
+
+  // View-only report, gated on its Reports permission (FRD 4.10). Without the
+  // right the user gets Access Denied instead of the report (TC-040).
+  if (!has("RPT.COURTESY_CALL_DETAILED")) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
+      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:420 }}>
+        You do not have permission to view the Courtesy Call Detailed report.
+      </div>
+    </div>
+  );
 
   return (
     <>

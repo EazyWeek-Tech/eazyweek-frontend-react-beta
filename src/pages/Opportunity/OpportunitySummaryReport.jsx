@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 // App auth uses a Bearer token (same as Header.jsx); attach it to every request.
 const AUTH_HEADERS = () => {
@@ -370,6 +371,7 @@ const OPP_NAMES_ENDPOINT = `${API_BASE_URL}/api/Opportunity/GetOppNames`;
 const MANUAL_LEAD_SUMMARY_ENDPOINT = `${API_BASE_URL}/api/LeadOpp/report/leadopps/Summary`;
 
 export default function OpportunitySummaryReport() {
+  const { has } = usePermissions();
   const navigate = useNavigate();
   const { state } = useLocation() || {};
 
@@ -997,6 +999,17 @@ if (!fromDate || !toDate) {
       setExporting(false);
     }
   };
+
+  // View-only report, gated on its Reports permission (FRD 4.10). Without the
+  // right the user gets Access Denied instead of the report (TC-040).
+  if (!has("RPT.OPPORTUNITY_SUMMARY")) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
+      <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:420 }}>
+        You do not have permission to view the Opportunity Summary report.
+      </div>
+    </div>
+  );
 
   return (
     <div className="wrap">

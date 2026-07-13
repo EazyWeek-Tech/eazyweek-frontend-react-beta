@@ -395,7 +395,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
   if (!isEdit && !isAdmin) {
     return (
       <div style={{ padding:40, fontFamily:"'Segoe UI',system-ui,sans-serif", textAlign:"center" }}>
-        <div style={{ fontSize:40, marginBottom:16 }}>🔒</div>
+        <div style={{ fontSize:40, marginBottom:16 }}></div>
         <div style={{ fontWeight:800, fontSize:20, color:"#1e293b", marginBottom:8 }}>Access Denied</div>
         <div style={{ color:"#64748b", fontSize:14, marginBottom:24 }}>
           Only Admin users can create new employees.

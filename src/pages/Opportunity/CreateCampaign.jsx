@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 // ── R7 bulk-upload: Excel header → payload key ──
 const UPLOAD_HEADER_MAP = {
@@ -429,6 +430,8 @@ function Toast({ toast }) {
    MAIN COMPONENT
    ════════════════════════════════════════════════════════════════════════════ */
 export default function CreateCampaign() {
+  // Entry is guarded at the dashboard; this also guards direct navigation.
+  const { guard } = usePermissions();
   const navigate = useNavigate();
   const [step, setStep]   = useState(1);
   const [toast, setToast] = useState(null);
@@ -1071,7 +1074,7 @@ export default function CreateCampaign() {
             </button>
           )}
           {step === 3 && (
-            <button onClick={handleActivate} disabled={saving}
+            <button onClick={() => guard("OPP.CAMPAIGN_CREATION", handleActivate)} disabled={saving}
               style={{ padding:"10px 28px", background:saving?"#94a3b8":C.green,
                 color:"#fff", border:"none", borderRadius:8, fontWeight:700,
                 fontSize:13, cursor:saving?"not-allowed":"pointer" }}>

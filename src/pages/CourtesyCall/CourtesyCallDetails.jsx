@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import Toast from "../../components/Toast";
+import { usePermissions } from "../Settings/usePermissions";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
@@ -20,6 +21,7 @@ const CourtesyCallDetails = () => {
   const [services, setServices] = useState([]); // For "Customer Complaint for Service"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const { guard, notifyDenied } = usePermissions();
   const sessionUserId = getEmployeeCode();
 
   // Keep strings for API fields, except we keep agentRating in UI as number | ""
@@ -187,9 +189,13 @@ const fetchDetails = async () => {
           body: JSON.stringify(payload),
         }
       );
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       const data = json?.data ?? json;
 
+      if (res.status === 403) {
+        notifyDenied((data && data.message) || "Access denied. You do not have permission for this action.");
+        return;
+      }
       if (data?.success) {
         navigate(-1); // back on success
         return;
@@ -256,10 +262,10 @@ const fetchDetails = async () => {
           </div>
           <div style={{ display:"flex", gap:8 }}>
             <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>← Back</button>
-            <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(1)} disabled={loading}>
+            <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
               {loading ? "Saving…" : "Save"}
             </button>
-            <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(2)} disabled={loading}>
+            <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
               {loading ? "Submitting…" : "Submit"}
             </button>
           </div>
@@ -462,10 +468,10 @@ const fetchDetails = async () => {
 
         {/* Action buttons — bottom */}
         <div style={{ display:"flex", gap:10, paddingTop:4 }}>
-          <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(1)} disabled={loading}>
+          <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
             {loading ? "Saving…" : "Save"}
           </button>
-          <button className="cd-btn cd-btn-pri" onClick={() => handleSubmit(2)} disabled={loading}>
+          <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
             {loading ? "Submitting…" : "Submit"}
           </button>
           <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>Back</button>

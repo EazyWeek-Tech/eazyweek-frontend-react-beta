@@ -4,24 +4,15 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import DataTable from "react-data-table-component";
 import ServiceForm from "./ServiceForm";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess } from "../Settings/masterAccess";
 
 const TOKEN = () => localStorage.getItem("token");
 
 const ServiceMaster = () => {
 
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
-      const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
-    } catch {
-      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
-    }
-  })();
-  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const [serviceData, setServiceData]                   = useState([]);
   const [searchTerm, setSearchTerm]                     = useState("");
@@ -251,7 +242,7 @@ const ServiceMaster = () => {
     {
       name: "Action",
       cell: (row) => (
-        <button className="act-btn edit" onClick={() => handleEdit(row)}>
+        <button className="act-btn edit" onClick={() => requireAccess("MDM.SERVICES_EDIT", () => handleEdit(row))}>
           {detailsLoading ? "…" : "✏️ Edit"}
         </button>
       ),
@@ -281,7 +272,7 @@ const ServiceMaster = () => {
               borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
             ↻ Refresh
           </button>
-          {canCreate && <button className="create-btn" onClick={handleCreateNew}>+ Create New Service</button>}
+          <button className="create-btn" onClick={() => requireAccess("MDM.SERVICES_CREATE", handleCreateNew)}>+ Create New Service</button>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 import {
   ResponsiveContainer, BarChart, Bar, ComposedChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, PieChart, Pie,
@@ -249,19 +250,12 @@ const OpportunityDashboard = () => {
   const [sortConfig,          setSortConfig]          = useState({ key:null, direction:"asc" });
   const [toast,               setToast]               = useState(null);
   const [loading,             setLoading]             = useState(false);
-  const [canManage,           setCanManage]           = useState(false);
+  // Manage actions are driven by the Role master (matrix), not a hardcoded role.
+  const { guard } = usePermissions();
   // Period filter (FRD §2)
   const [range,      setRange]      = useState("Current Month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo,   setCustomTo]   = useState("");
-
-  useEffect(() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user")||sessionStorage.getItem("user")||"{}");
-      const role = String(u?.role||u?.roleName||u?.userRole||"").trim().toLowerCase().replace(/\s+/g,"");
-      setCanManage(role==="admin"||role==="productteam");
-    } catch { setCanManage(false); }
-  }, []);
 
   const showToast = (message,type="success") => {
     setToast({message,type}); setTimeout(()=>setToast(null),3500);
@@ -476,20 +470,18 @@ const OpportunityDashboard = () => {
         </div>
         <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
           <PeriodFilter range={range} onPick={setRange} />
-          {canManage && (<>
-            <button onClick={handleEditOppName} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
-              borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-               Edit Opp Name
-            </button>
-            <button onClick={handleExpireCampaign} style={{ padding:"9px 16px", border:`1px solid #fcd34d`,
-              borderRadius:8, background:"#fef9c7", color:"#92400e", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-               Expire Campaign
-            </button>
-            <button onClick={handleCreateNewCampaign} style={{ padding:"9px 18px", background:C.navy,
-              color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              + Create Campaign
-            </button>
-          </>)}
+          <button onClick={() => guard("OPP.CAMPAIGN_NAME_EDIT", handleEditOppName)} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
+            borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+             Edit Opp Name
+          </button>
+          <button onClick={() => guard("OPP.EXPIRING_CAMPAIGN", handleExpireCampaign)} style={{ padding:"9px 16px", border:`1px solid #fcd34d`,
+            borderRadius:8, background:"#fef9c7", color:"#92400e", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+             Expire Campaign
+          </button>
+          <button onClick={() => guard("OPP.CAMPAIGN_CREATION", handleCreateNewCampaign)} style={{ padding:"9px 18px", background:C.navy,
+            color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            + Create Campaign
+          </button>
         </div>
       </div>
 

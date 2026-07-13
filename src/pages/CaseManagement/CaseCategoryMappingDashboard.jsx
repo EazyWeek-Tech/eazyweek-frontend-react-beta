@@ -6,6 +6,9 @@ import DataTable from "datatables.net-dt";
 import "datatables.net-fixedcolumns-dt";
 import { API_BASE_URL } from "../../config";
 import { resolveCategoryAccess } from "../../categoryAccess";
+import { usePermissions } from "../Settings/usePermissions";
+
+const LEGAL_ENTITY_ONLY = "This action is available at the Legal Entity level only.";
 
 // List API
 const LIST_API = (base) => `${base}/api/Master/LoadCaseCategoryMapping`;
@@ -103,11 +106,14 @@ const CaseCategoryMappingDashboard = () => {
   const navigate = useNavigate();
   const [canManage, setCanManage] = useState(false);
   const [atLegalEntity, setAtLegalEntity] = useState(false);
+  const canManageRef = useRef(false);
+  const { notifyDenied } = usePermissions();
   useEffect(() => {
     let ok = true;
     resolveCategoryAccess(API_BASE_URL).then((a) => {
       if (ok) {
         setCanManage(a.canManage);
+        canManageRef.current = a.canManage;
         setAtLegalEntity(a.atLegalEntity);
       }
     });
@@ -283,9 +289,7 @@ const CaseCategoryMappingDashboard = () => {
   };
 
   const renderActions = (row) =>
-    !canManage
-      ? `<span class="muted">—</span>`
-      : `
+    `
     <div class="row-actions">
       <button type="button" class="iconbtn blue btn-edit" data-id="${row.recId}" title="Edit" aria-label="Edit">
         ${svgEdit}
@@ -350,6 +354,7 @@ const CaseCategoryMappingDashboard = () => {
 
       if (btnEdit) {
         e.preventDefault();
+        if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
         const id = btnEdit.getAttribute("data-id");
         const row = rows.find((r) => String(r.recId) === String(id));
         if (!row) return showToast("Row not found.");
@@ -364,6 +369,7 @@ const CaseCategoryMappingDashboard = () => {
 
       if (btnDelete) {
         e.preventDefault();
+        if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
         const id = btnDelete.getAttribute("data-id");
         if (!id) return;
         if (!window.confirm("Delete this mapping? This cannot be undone.")) return;
@@ -416,7 +422,7 @@ const CaseCategoryMappingDashboard = () => {
 
   // Delete
   const doDelete = async (recId) => {
-    if (!canManage) return;
+    if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
     setBusyRow({ recId, action: "delete" });
     try {
       let res = await fetch(DELETE_API(API_BASE_URL, recId), {
@@ -469,17 +475,16 @@ const CaseCategoryMappingDashboard = () => {
         </div>
 
         <div className="actions">
-          {canManage && (
-            <button
-              className="btn"
-              onClick={() => {
-                try { sessionStorage.removeItem("editMapping"); } catch {}
-                navigate("/create-categories-mapping", { state: { mode: "create" } });
-              }}
-            >
-              Create New Mapping
-            </button>
-          )}
+          <button
+            className="btn"
+            onClick={() => {
+              if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
+              try { sessionStorage.removeItem("editMapping"); } catch {}
+              navigate("/create-categories-mapping", { state: { mode: "create" } });
+            }}
+          >
+            Create New Mapping
+          </button>
         </div>
       </div>
 

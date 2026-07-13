@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
 import CreateCaseModel from "./CreateCaseModel";
+import { usePermissions } from "../Settings/usePermissions";
 
 /* ── EazyWeek palette (matches OpportunityDashboard) ───────────────────────── */
 const C = {
@@ -341,7 +342,7 @@ function Loader() {
 
 const PRIORITIES = ["", "Normal", "High", "Low"];
 const STATUSES   = ["", "WIP", "Open", "Closed"];
-const ALLOWED_CREATE_CASE_ROLES = ["Admin", "Team Member", "System User"];
+const ALLOWED_CREATE_CASE_ROLES = ["Admin", "Team Member", "System User"]; // deprecated — create access now driven by the Role master (CASE.* permissions)
 
 /* ── Main component ───────────────────────────────────────────────────────── */
 const CaseDashboard = () => {
@@ -377,8 +378,9 @@ const CaseDashboard = () => {
   const [toast,        setToast]        = useState(null);
   const [loading,      setLoading]      = useState(false);
 
-  const roleName = trim(user?.roleName || user?.role || user?.userRole);
-  const canCreateCase = ALLOWED_CREATE_CASE_ROLES.includes(roleName);
+  // Create access is now driven by the Role master (matrix), not a hardcoded
+  // role list. guard() runs the action if permitted, else shows the toast.
+  const { guard } = usePermissions();
 
   const showToast = (message, type="success") => { setToast({ message, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -520,12 +522,12 @@ const CaseDashboard = () => {
         <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>Case Dashboard</div>
         <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
           <PeriodFilter range={range} onPick={setRange} />
-          {canCreateCase && (
-            <button onClick={() => setIsCreateOpen(true)} style={{ padding:"9px 18px", background:C.navy,
+          <button
+            onClick={() => guard(["CASE.CREATE", "CASE.SAVE", "CASE.EDIT"], () => setIsCreateOpen(true))}
+            style={{ padding:"9px 18px", background:C.navy,
               color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              + Create Case
-            </button>
-          )}
+            + Create Case
+          </button>
         </div>
       </div>
       {range === "Custom Range" && (

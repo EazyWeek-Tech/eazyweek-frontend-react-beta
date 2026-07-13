@@ -75,7 +75,7 @@ export default function AuditCreate() {
     return (
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
         minHeight:"60vh", gap:16, fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-        <div style={{ fontSize:48 }}>🔒</div>
+        <div style={{ fontSize:48 }}></div>
         <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>Access Restricted</div>
         <div style={{ fontSize:14, color:"#64748b", textAlign:"center", maxWidth:380 }}>
           {isEntityLevel

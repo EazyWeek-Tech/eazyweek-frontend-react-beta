@@ -6,6 +6,9 @@ import DataTable from "datatables.net-dt";           // JS (ESM) — no jQuery n
 import "datatables.net-fixedcolumns-dt";             // JS plugin (ESM) registers itself
 import { API_BASE_URL } from "../../config";
 import { resolveCategoryAccess } from "../../categoryAccess";
+import { usePermissions } from "../Settings/usePermissions";
+
+const LEGAL_ENTITY_ONLY = "This action is available at the Legal Entity level only.";
 
 // NOTE: CSS is already included via CDN in index.html (DataTables v2 + FixedColumns v5)
 // If you ever want to import CSS from NPM instead, add:
@@ -18,6 +21,7 @@ const CaseHierarchyDashboard = () => {
   const tableRef = useRef(null);
   const dtRef = useRef(null);
   const canManageRef = useRef(false);
+  const { notifyDenied } = usePermissions();
 
   const [loading, setLoading] = useState(true);
   const [canManage, setCanManage] = useState(false);
@@ -109,10 +113,10 @@ const CaseHierarchyDashboard = () => {
 
   // Actions
   const doDelete = async (recId) => {
-  if (!canManageRef.current) return;
+  if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
   if (!recId) return showToast("Row missing recId.");
 
-  // 🔒 Block delete if status is Active
+  //  Block delete if status is Active
   const row = rows.find((r) => String(r.recId) === String(recId));
   const normStatus = ((row?.caseStatus ?? (row?.status ? "Active" : "Inactive")) || "")
     .toString()
@@ -149,7 +153,7 @@ const CaseHierarchyDashboard = () => {
 
 
  const doActivate = async (recId) => {
-  if (!canManageRef.current) return;
+  if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
   if (!recId) return showToast("Row missing recId.");
   setBusyRow({ recId, action: "activate" });
   try {
@@ -180,7 +184,7 @@ const CaseHierarchyDashboard = () => {
 
 
   const onEdit = (recId) => {
-    if (!canManageRef.current) return;
+    if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
     if (!recId) return showToast("Row missing recId.");
     navigate(`/case-hierarchy/edit/${recId}`);
   };
@@ -238,9 +242,6 @@ const CaseHierarchyDashboard = () => {
   orderable: false,
   searchable: false,
   render: (row) => {
-    if (!canManageRef.current) {
-      return `<span class="muted">—</span>`;
-    }
     const raw = (row.caseStatus ?? (row.status ? "Active" : "Inactive")).toString();
     const isActive = raw.trim().toLowerCase() === "active";
 
@@ -300,6 +301,7 @@ const CaseHierarchyDashboard = () => {
       const btnActivate = e.target.closest?.(".btn-activate");
       const btnEdit = e.target.closest?.(".btn-edit");
       const btnDelete = e.target.closest?.(".btn-delete");
+      if ((btnActivate || btnEdit || btnDelete) && !canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; }
       if (btnActivate) {
         if (btnActivate.hasAttribute("disabled")) return;
         const id = btnActivate.getAttribute("data-id");
@@ -415,9 +417,7 @@ const CaseHierarchyDashboard = () => {
         </div>
 
         <div className="actions">
-          {canManage && (
-            <button className="btn" onClick={() => navigate("/case-hierarchy/create")}>Create New</button>
-          )}
+          <button className="btn" onClick={() => { if (!canManageRef.current) { notifyDenied(LEGAL_ENTITY_ONLY); return; } navigate("/case-hierarchy/create"); }}>Create New</button>
           <button className="btn" onClick={exportCSV}>Export</button>
         </div>
       </div>

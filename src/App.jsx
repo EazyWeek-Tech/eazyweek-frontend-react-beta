@@ -100,6 +100,8 @@ import MyShift from "./pages/Workforce/MyShift";
 import AppointmentDashboard from "./pages/Appointment/AppointmentDashboard";
 import InvoiceDashboard from "./pages/Invoice/InvoiceDashboard";
 import FeatureGate from "./components/FeatureGate";
+import { PermissionProvider } from "./pages/Settings/usePermissions";
+import SecuritySettings from "./pages/Masters/SecuritySettings";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -216,6 +218,7 @@ if (user && showFirstLogin) {
   );
 
   return (
+    <PermissionProvider>
     <Routes>
       {/* Add Routes WITHOUT Sidebar + Header */}
       <Route path="/appointment" element={<Appointment />} />
@@ -457,6 +460,10 @@ if (user && showFirstLogin) {
                     path="/case-categories"
                     element={gate("caseManagement", <CaseCategoryMaster />)}
                   />
+
+                  <Route path="/settings/security" element={<SecuritySettings />} />
+
+
                   <Route
                     path="/create-categories-mapping"
                     element={gate("caseManagement", <CreateCaseCategoryMapping />)}
@@ -536,6 +543,7 @@ if (user && showFirstLogin) {
         }
       />
     </Routes>
+    </PermissionProvider>
   );
 }
 

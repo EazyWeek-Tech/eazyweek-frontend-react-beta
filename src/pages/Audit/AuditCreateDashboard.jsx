@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import DataTable from "react-data-table-component";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
@@ -28,7 +29,10 @@ const getAuditRights = () => {
 
 const AuditCreateDashboard = () => {
   const navigate = useNavigate();
-  const { canWrite, isEntityLevel } = getAuditRights();
+  // Create access is driven by the Role master (AUD.*); entity-level users still
+  // can't create (audits need a specific clinic) — kept as a business rule.
+  const { isEntityLevel } = getAuditRights();
+  const { guard, notifyDenied } = usePermissions();
 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -256,7 +260,11 @@ const AuditCreateDashboard = () => {
         </div>
 
         <div className="actions">
-          {canWrite && <button className="pribtn" onClick={() => navigate("/audit/create")}>New Audit</button>}
+          <button className="pribtn" onClick={() =>
+            isEntityLevel
+              ? notifyDenied("Switch to a specific clinic to create an audit.")
+              : guard(["AUD.CREATE", "AUD.SAVE", "AUD.EDIT"], () => navigate("/audit/create"))
+          }>New Audit</button>
           <button className="pribtn" onClick={exportCSV}>Export</button>
         </div>
       </div>

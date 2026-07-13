@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess, isEntityLevel } from "../Settings/masterAccess";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
@@ -17,20 +19,8 @@ export default function ZoneSetup() {
 
 
   // ── Access Rights ─────────────────────────────────────────────────────────
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s+/g, "");
-      const ALLOWED   = ["admin", "productteam"];
-      const isAdmin   = ALLOWED.includes(role);
-      const isEntityLevel = u.isEntityLevel === true;
-      const canManage = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canManage, canEdit: canManage, canDelete: canManage };
-    } catch {
-      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
-    }
-  })();
-  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const [zones,           setZones]           = useState([]);
   const [selected,        setSelected]        = useState(null);  // zoneCode for edit
@@ -121,6 +111,8 @@ export default function ZoneSetup() {
   };
 
   const handleSave = async () => {
+    const gate = checkAccess({ has, code: ["MDM.ZONE_CREATE","MDM.ZONE_EDIT","MDM.ZONE_SAVE"] });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     setSaveAttempted(true);
     if (!validate()) return;
     setSaving(true);
@@ -139,6 +131,8 @@ export default function ZoneSetup() {
   };
 
   const handleDelete = async (zoneCode) => {
+    const gate = checkAccess({ has, code: "MDM.ZONE_DELETE" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     try {
       const res = await authDel(`${API_BASE_URL}/api/Settings/Zone/${zoneCode}`);
       if (!res.success) throw new Error(res.message);
@@ -156,28 +150,25 @@ export default function ZoneSetup() {
 
 
   // ── Access Guard ─────────────────────────────────────────────────────────────
-  if (!isAdmin) return (
-    <div style={{
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12,
-    }}>
-      <div style={{ fontSize:48 }}>🔒</div>
+
+  // Entity-level-only screen. At a centre, everyone (including Admin /
+  // Product Team) is blocked; only Admin / Product Team at the Legal Entity
+  // level may access it.
+  const _setupUser = getUser();
+  const _setupRole = (_setupUser.role || _setupUser.userRole || _setupUser.securityRole || "").toLowerCase().replace(/\s+/g, "");
+  const _canViewSetup = ["admin", "productteam"].includes(_setupRole) && isEntityLevel();
+  if (!_canViewSetup) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
       <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
-      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:380 }}>
-        You do not have permission to access this page.<br/>
-        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users only.
+      <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:400 }}>
+        Zone Setup is available at the Legal Entity level only.<br/>
+        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users.
       </div>
     </div>
   );
 
   return (
     <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", color:"#10223f" }}>
-      {!canEdit && (
-        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
-          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Only Admins at entity level can make changes.
-        </div>
-      )}
 
       <style>{`
         .zs-wrap { max-width:1000px; margin:0 auto; padding:28px 20px 60px; }
@@ -209,7 +200,7 @@ export default function ZoneSetup() {
             <div className="zs-title"> Zone Setup</div>
             <div className="zs-sub">Define operational zones and map centres to them</div>
           </div>
-          {canCreate && <button className="primary-btn" onClick={handleNew}>+ Create Zone</button>}
+          <button className="primary-btn" onClick={() => requireAccess("MDM.ZONE_CREATE", handleNew)}>+ Create Zone</button>
         </div>
 
         {/* Toast */}
@@ -246,8 +237,8 @@ export default function ZoneSetup() {
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <button className="ghost-btn" style={{ padding:"7px 14px", fontSize:12 }} onClick={()=>{ if(canEdit) handleEdit(z.zoneCode); }}>Edit</button>
-                {canDelete && <button className="danger-btn" onClick={() => setConfirmDelete(z)}>Delete</button>}
+                <button className="ghost-btn" style={{ padding:"7px 14px", fontSize:12 }} onClick={() => requireAccess("MDM.ZONE_EDIT", () => handleEdit(z.zoneCode))}>Edit</button>
+                <button className="danger-btn" onClick={() => requireAccess("MDM.ZONE_DELETE", () => setConfirmDelete(z))}>Delete</button>
               </div>
             </div>
           ))}
@@ -350,7 +341,7 @@ export default function ZoneSetup() {
             {/* Actions */}
             <div style={{ display:"flex", gap:12, justifyContent:"flex-end" }}>
               <button className="ghost-btn" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="primary-btn" onClick={() => { if(!canEdit) return; handleSave(); }} disabled={saving}>
+              <button className="primary-btn" onClick={handleSave} disabled={saving}>
                 {saving ? "Saving…" : ` ${selected ? "Update Zone" : "Save Zone"}`}
               </button>
             </div>
@@ -368,10 +359,10 @@ export default function ZoneSetup() {
               </div>
               <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
                 <button className="ghost-btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
-                {canDelete && (<button style={{ background:"#b91c1c", color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13, cursor:"pointer" }}
-                  onClick={()=>{ if(canDelete) handleDelete(confirmDelete.zoneCode); }}>
+                <button style={{ background:"#b91c1c", color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13, cursor:"pointer" }}
+                  onClick={() => handleDelete(confirmDelete.zoneCode)}>
                   Yes, Delete
-                </button>)}
+                </button>
               </div>
             </div>
           </div>

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
 
 const TOKEN = () => localStorage.getItem("token");
 
@@ -18,6 +20,8 @@ const ClinicMaster = () => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   };
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const fetchClinics = async () => {
     setLoading(true);
@@ -49,6 +53,8 @@ const ClinicMaster = () => {
   }, [search, clinics]);
 
   const handleSave = async () => {
+    const gate = checkAccess({ has, code: "MDM.CENTRE_CREATE" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     if (!form.code || !form.name) return showToast("Code and Name are required", "error");
     setSaving(true);
     try {
@@ -74,6 +80,8 @@ const ClinicMaster = () => {
   };
 
   const handleDelete = async (clinic) => {
+    const gate = checkAccess({ has, code: "MDM.CENTRE_DELETE" });
+    if (!gate.ok) { notifyDenied(gate.message); setConfirm(null); return; }
     try {
       const res = await fetch(`${API_BASE_URL}/api/master/ClinicRemove`, {
         method: "POST",
@@ -109,7 +117,7 @@ const ClinicMaster = () => {
           <h1 style={s.title}>Clinics</h1>
           <p style={s.subtitle}>{filtered.length} clinic{filtered.length !== 1 ? "s" : ""}</p>
         </div>
-        <button style={s.addBtn} onClick={() => setDrawerOpen(true)}>+ Add Clinic</button>
+        <button style={s.addBtn} onClick={() => requireAccess("MDM.CENTRE_CREATE", () => setDrawerOpen(true))}>+ Add Clinic</button>
       </div>
 
       {/* Search */}
@@ -155,7 +163,7 @@ const ClinicMaster = () => {
                   <td style={s.td}>
                     <button
                       style={s.deleteBtn}
-                      onClick={() => setConfirm(c)}
+                      onClick={() => requireAccess("MDM.CENTRE_DELETE", () => setConfirm(c))}
                     >
                       Remove
                     </button>

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import DataTable from "react-data-table-component";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
 import { useNavigate } from "react-router-dom";
 
 const TOKEN       = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -90,6 +92,8 @@ const CustomerMaster = () => {
   const [languages,         setLanguages]         = useState([]);
   const [centreCountryId,   setCentreCountryId]   = useState(0);
   const [citizenType,       setCitizenType]       = useState(null);
+  const { has, guard, notifyDenied } = usePermissions();
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
   const [generatedId,       setGeneratedId]       = useState("");
 
   const navigate = useNavigate();
@@ -173,6 +177,8 @@ const CustomerMaster = () => {
   const handleCloseForm = () => { setShowForm(false); setFormError(""); setFormSuccess(""); setCitizenType(null); };
 
   const handleSave = async () => {
+    const gate = checkAccess({ has, code: "MDM.CUSTOMERS_CREATE", level: "centre" });
+    if (!gate.ok) { notifyDenied(gate.message); return; }
     if (!formData.firstName?.trim())  { setFormError("First Name is required."); return; }
     if (!formData.lastName?.trim())   { setFormError("Last Name is required.");  return; }
     if (!formData.phoneCode)          { setFormError("Country code is required."); return; }
@@ -258,7 +264,7 @@ const CustomerMaster = () => {
               borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
             ↻ Refresh
           </button>
-          <button className="create-btn" onClick={handleOpenCreate}>+ Create New Customer</button>
+          <button className="create-btn" onClick={() => requireAccess("MDM.CUSTOMERS_CREATE", handleOpenCreate, { level: "centre" })}>+ Create New Customer</button>
         </div>
       </div>
 

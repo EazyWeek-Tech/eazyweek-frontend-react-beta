@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
+import { makeRequireAccess, isEntityLevel } from "../Settings/masterAccess";
 import EmployeeForm from "./EmployeeForm";
 
 const TOKEN   = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -27,21 +29,10 @@ const EmployeeMaster = () => {
 
 
   // ── Access rights ─────────────────────────────────────────────────────────
-  // isEntityLevel and role come directly from the JWT user object
-  // canWrite = Admin role AND at entity level
-  const _rights = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      const role = (u.role || u.userRole || u.securityRole || "").toLowerCase().replace(/\s/g, "");
-      const isAdmin       = role === "admin";
-      const isEntityLevel = u.isEntityLevel === true;
-      const canWrite      = isAdmin && isEntityLevel;
-      return { isAdmin, isEntityLevel, canCreate: canWrite, canEdit: canWrite, canDelete: canWrite };
-    } catch {
-      return { isAdmin:false, isEntityLevel:false, canCreate:false, canEdit:false, canDelete:false };
-    }
-  })();
-  const { isAdmin, isEntityLevel, canCreate, canEdit, canDelete } = _rights;
+  const { has, guard, notifyDenied } = usePermissions();
+  const entity  = isEntityLevel();
+  const canEdit = has("MDM.EMPLOYEES_EDIT"); // passed to EmployeeForm for its edit/view mode
+  const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
   const [employees, setEmployees] = useState([]);
   const [total,     setTotal]     = useState(0);
@@ -95,8 +86,8 @@ const EmployeeMaster = () => {
     return (
       <EmployeeForm
         employeeCode={view === "edit" ? editCode : null}
-        isAdmin={isAdmin}
-        isEntityLevel={isEntityLevel}
+        isAdmin={canEdit}
+        isEntityLevel={entity}
         onBack={() => { setView("list"); setEditCode(null); loadList(); }}
         onSaved={() => { setView("list"); setEditCode(null); loadList(); showToast("Employee saved successfully."); }}
       />
@@ -105,13 +96,6 @@ const EmployeeMaster = () => {
 
   return (
     <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
-      {!isAdmin && (
-        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
-          background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — Only Admins at entity level can make changes.
-        </div>
-      )}
-
       {toast && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3",
@@ -129,13 +113,11 @@ const EmployeeMaster = () => {
           </div>
           <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Employees</h2>
         </div>
-        {canCreate && (
-          <button onClick={() => setView("create")}
-            style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:10,
-              padding:"10px 20px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            + Create New Employee
-          </button>
-        )}
+        <button onClick={() => requireAccess("MDM.EMPLOYEES_CREATE", () => setView("create"))}
+          style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:10,
+            padding:"10px 20px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+          + Create New Employee
+        </button>
       </div>
 
       {/* Filters */}
@@ -186,10 +168,10 @@ const EmployeeMaster = () => {
                 <td style={{ padding:"12px 14px" }}>{statusBadge(emp.STATUS)}</td>
                 <td style={{ padding:"12px 14px" }}>
                   <button
-                    onClick={() => { setEditCode(emp.EMPLOYEECODE); setView("edit"); }}
+                    onClick={() => requireAccess("MDM.EMPLOYEES_EDIT", () => { setEditCode(emp.EMPLOYEECODE); setView("edit"); })}
                     style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6,
                       background:"#fff", color:"#334b71", fontWeight:700, fontSize:12, cursor:"pointer" }}>
-                    {isAdmin ? "Edit" : "View"} →
+                    Edit →
                   </button>
                 </td>
               </tr>

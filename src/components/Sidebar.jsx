@@ -107,6 +107,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
     //    { name: "Managers", path: "/masters/managers" },
         { name: "Product", path: "/masters/product" },
         { name: "Service", path: "/masters/service" },
+        { name: "Roles", path: "/settings/security" },
     //    { name: "Item Category", path: "/masters/item-category" },
     //    { name: "Item Category Mapping", path: "/masters/item-category-mapping" },
     //    { name: "Purchase Category", path: "/masters/purchase-category" },
@@ -163,7 +164,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
       label: "Settings",
       icon: "bx-cog",
       submenu: [
-        { name: "Settings", path: "/settings" },
+        { name: "Security Settings", path: "/settings/security" },
         { name: "Loyalty", path: "/loyalty", feature: "loyalty" },
         { name: "Membership", path: "/membership", feature: "membership" },
         { name: "Legal Entity", path: "/settings/legal-entity" },
