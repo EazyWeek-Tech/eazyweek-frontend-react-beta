@@ -166,7 +166,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
       submenu: [
         { name: "Security Settings", path: "/settings/security" },
         { name: "Loyalty", path: "/loyalty", feature: "loyalty" },
-        { name: "Membership", path: "/membership", feature: "membership" },
+        
         { name: "Legal Entity", path: "/settings/legal-entity" },
          { name: "Centre Setup", path: "/settings/centre-setup" },
          { name: "Zone Setup", path: "/settings/zone-setup", feature: "multiLocation" },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL as API_BASE } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 const getToken = () =>
@@ -21,7 +22,10 @@ const fetchLoyaltyPrograms = async (pageNumber = 1, pageSize = 10) => {
   if (!res.ok) {
     let msg = `API error: ${res.status}`;
     try { const b = await res.json(); if (b?.message || b?.error) msg = b.message ?? b.error; } catch (_) {}
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.serverMessage = msg;
+    throw err;
   }
   try {
     const json = await res.json();
@@ -61,6 +65,7 @@ const Badge = ({ active }) => (
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function LoyaltyListing() {
   const navigate = useNavigate();
+  const { guard, notifyDenied } = usePermissions();
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ totalRecords: 0, totalPages: 0, pageNumber: 1, pageSize: 10 });
   const [loading, setLoading] = useState(true);
@@ -76,7 +81,11 @@ export default function LoyaltyListing() {
         setMeta({ totalRecords: res.totalRecords, totalPages: res.totalPages, pageNumber: res.pageNumber, pageSize: res.pageSize });
         setPage(p);
       })
-      .catch((err) => { console.error(err); setError("Failed to load loyalty programs."); setRows([]); })
+      .catch((err) => {
+        console.error(err); setRows([]);
+        if (err?.status === 403) { notifyDenied(err.serverMessage || err.message || "You do not have permission to view loyalty programs."); setError(null); }
+        else setError("Failed to load loyalty programs.");
+      })
       .finally(() => setLoading(false));
   };
 
@@ -111,7 +120,7 @@ export default function LoyaltyListing() {
           {!loading && hasProgram && (
             <button
               className="ll-btn ll-btn-outline"
-              onClick={() => navigate("/loyalty/config", { state: { program: latestProgram } })}
+              onClick={() => guard("LOY.PROGRAM_MANAGE", () => navigate("/loyalty/config", { state: { program: latestProgram } }))}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -123,7 +132,7 @@ export default function LoyaltyListing() {
           <button
             className="ll-btn ll-btn-primary"
             style={{display:'none'}}
-            onClick={() => navigate("/loyalty/config", { state: { program: null } })}
+            onClick={() => guard("LOY.PROGRAM_MANAGE", () => navigate("/loyalty/config", { state: { program: null } }))}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -186,7 +195,7 @@ export default function LoyaltyListing() {
             <p className="ll-empty-sub">Create your first loyalty program to start rewarding customers.</p>
             <button
               className="ll-btn ll-btn-primary"
-              onClick={() => navigate("/loyalty/config", { state: { program: null } })}
+              onClick={() => guard("LOY.PROGRAM_MANAGE", () => navigate("/loyalty/config", { state: { program: null } }))}
             >
               + Create Program
             </button>
@@ -239,7 +248,7 @@ export default function LoyaltyListing() {
                 <button
                   className="ll-action-btn"
                   title="Edit"
-                  onClick={() => navigate("/loyalty/config", { state: { program: p } })}
+                  onClick={() => guard("LOY.PROGRAM_MANAGE", () => navigate("/loyalty/config", { state: { program: p } }))}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -282,7 +291,7 @@ export default function LoyaltyListing() {
                   <button
                     className="ll-btn ll-btn-primary"
                     style={{ height: 34, fontSize: 13, padding: "0 16px" }}
-                    onClick={() => navigate("/loyalty/config", { state: { program: p } })}
+                    onClick={() => guard("LOY.PROGRAM_MANAGE", () => navigate("/loyalty/config", { state: { program: p } }))}
                   >
                     Edit Configuration →
                   </button>

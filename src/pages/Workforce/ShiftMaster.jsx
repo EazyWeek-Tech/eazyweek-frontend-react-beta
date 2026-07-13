@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../../pages/Settings/usePermissions";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const api = async (path, opts = {}) => {
@@ -34,7 +35,11 @@ const emptyTemplate = (centerCode) => ({
 });
 
 export default function ShiftMaster() {
-  const { entityLevel, canManage, centerCode: userCentre } = rights();
+  const { entityLevel, centerCode: userCentre } = rights();
+  const { has, guard, notifyDenied } = usePermissions();
+  const canCreate = has("WF.TEMPLATE_CREATE");
+  const canEdit   = has("WF.TEMPLATE_EDIT");
+  const canManage = canCreate || canEdit; // drives the Edit/View label only
 
   const [view, setView]         = useState("list");   // list | form | assign
   const [centres, setCentres]   = useState([]);
@@ -88,6 +93,8 @@ export default function ShiftMaster() {
   const rmBreak = (i) => setForm((p) => ({ ...p, breaks: p.breaks.filter((_, idx) => idx !== i) }));
 
   const saveTemplate = async () => {
+    const _code = form.recid ? "WF.TEMPLATE_EDIT" : "WF.TEMPLATE_CREATE";
+    if (!has(_code)) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
     setSaving(true);
     try {
       const body = {
@@ -104,6 +111,7 @@ export default function ShiftMaster() {
   };
 
   const deactivate = async (recid) => {
+    if (!has("WF.TEMPLATE_DEACTIVATE")) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
     if (!window.confirm("Deactivate this shift template? Existing assignments are kept.")) return;
     try { await api(`/api/Workforce/Shift/Template/${recid}/Deactivate`, { method: "POST" }); showToast("Template deactivated."); loadTemplates(); }
     catch (e) { showToast(e.message, "error"); }
@@ -120,6 +128,7 @@ export default function ShiftMaster() {
   const toggleDow = (n) => setADows((p) => { const s = new Set(p); s.has(n) ? s.delete(n) : s.add(n); return s; });
 
   const doAssign = async () => {
+    if (!has("WF.ASSIGN")) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
     if (!selEmps.size) { showToast("Select at least one employee.", "error"); return; }
     setSaving(true);
     try {
@@ -279,7 +288,7 @@ export default function ShiftMaster() {
           <div style={sx.crumb}>Dashboard › Shift Management › Shift Master</div>
           <h2 style={{ ...sx.h2, margin: 0 }}>Shift Master</h2>
         </div>
-        {canManage && <button style={sx.priBtn} onClick={openCreate}>+ Create Shift Template</button>}
+        <button style={sx.priBtn} onClick={() => guard("WF.TEMPLATE_CREATE", openCreate)}>+ Create Shift Template</button>
       </div>
 
       {entityLevel && (
@@ -319,8 +328,8 @@ export default function ShiftMaster() {
                   {t.active
                     ? <button style={sx.rowBtn} onClick={() => openEdit(t.recid)}>{canManage ? "Edit" : "View"}</button>
                     : <span style={{ color: "#94a3b8", fontSize: 12 }}>Inactive</span>}
-                  {canManage && t.active && <button style={{ ...sx.rowBtn, marginLeft: 6 }} onClick={() => openAssign(t)}>Assign</button>}
-                  {canManage && t.active && <button style={{ ...sx.rowBtn, marginLeft: 6, borderColor: "#f0c4c0", color: "#b91c1c" }} onClick={() => deactivate(t.recid)}>Deactivate</button>}
+                  {t.active && <button style={{ ...sx.rowBtn, marginLeft: 6 }} onClick={() => guard("WF.ASSIGN", () => openAssign(t))}>Assign</button>}
+                  {t.active && <button style={{ ...sx.rowBtn, marginLeft: 6, borderColor: "#f0c4c0", color: "#b91c1c" }} onClick={() => guard("WF.TEMPLATE_DEACTIVATE", () => deactivate(t.recid))}>Deactivate</button>}
                 </td>
               </tr>
             ))}
