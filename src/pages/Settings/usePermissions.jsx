@@ -14,8 +14,12 @@
 //
 // ── INTEGRATION SHIM (match your app, same 3 as RoleMaster.jsx) ──────────────
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { API_BASE_URL } from "../../config";
 
-const API_BASE = "/api"; // e.g. "http://localhost:8080/api" in dev
+// Use the app-wide backend base (absolute on beta/prod; relative-via-proxy in
+// dev). A hardcoded "/api" only worked through the Vite dev proxy — on a built
+// static site it hit the frontend host and returned index.html.
+const API_BASE = `${API_BASE_URL}/api`;
 function getToken() {
   return localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
 }

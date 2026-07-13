@@ -11,9 +11,9 @@
 //   getActiveCentre(): the active clinic/centre code
 // ============================================================================
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { API_BASE_URL } from "../../config";
 
-const API_BASE = "/api"; // e.g. "http://localhost:8080/api" in dev
-
+const API_BASE = `${API_BASE_URL}/api`; // absolute on beta/prod; proxy-relative in dev
 function getToken() {
   return (
     localStorage.getItem("token") ||

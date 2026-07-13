@@ -7,8 +7,9 @@
 // Integration shim matches RoleMaster.jsx (API_BASE / getToken).
 // ============================================================================
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { API_BASE_URL } from "../../config";
 
-const API_BASE = "/api"; // e.g. "http://localhost:8080/api" in dev
+const API_BASE = `${API_BASE_URL}/api`; // absolute on beta/prod; proxy-relative in dev
 function getToken() {
   return (
     localStorage.getItem("token") ||
