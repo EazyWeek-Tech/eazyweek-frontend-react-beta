@@ -204,10 +204,11 @@ if (user && showFirstLogin) {
   return (
     <FirstLoginModal
       employeeCode={firstLoginCode}
-      onComplete={() => {
+      onDone={() => {
         localStorage.removeItem("isFirstLogin");
         localStorage.removeItem("firstLoginEmployeeCode");
         setShowFirstLogin(false);
+        navigate("/dashboard", { replace: true });
       }}
     />
   );

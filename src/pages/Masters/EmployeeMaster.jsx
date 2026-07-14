@@ -24,6 +24,26 @@ const statusBadge = (status) => {
   );
 };
 
+const rolesChips = (roles) => {
+  const list = String(roles || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (list.length === 0)
+    return <span style={{ color:"#94a3b8", fontSize:12 }}>—</span>;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:4, maxWidth:240 }}>
+      {list.map((role, i) => (
+        <span key={`${role}-${i}`} style={{ display:"inline-block", padding:"2px 8px",
+          borderRadius:6, fontSize:11, fontWeight:600, background:"#eef2f9",
+          color:"#334b71", border:"1px solid #dbe3f0", whiteSpace:"nowrap" }}>
+          {role}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const EmployeeMaster = () => {
 
 
@@ -141,7 +161,7 @@ const EmployeeMaster = () => {
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:"#f1f5f9" }}>
-              {["Employee Code","First Name","Last Name","Job","Primary Centre","Status",""].map(h => (
+              {["Employee Code","First Name","Last Name","Job","Primary Centre","Roles","Status",""].map(h => (
                 <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700,
                   fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0",
                   textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
@@ -150,9 +170,9 @@ const EmployeeMaster = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>Loading…</td></tr>
             ) : employees.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>No employees found.</td></tr>
+              <tr><td colSpan={8} style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>No employees found.</td></tr>
             ) : employees.map(emp => (
               <tr key={emp.EMPLOYEECODE}
                 style={{ borderBottom:"1px solid #f1f5f9", cursor:"pointer" }}
@@ -165,6 +185,7 @@ const EmployeeMaster = () => {
                 <td style={{ padding:"12px 14px" }}>{emp.LASTNAME  || "—"}</td>
                 <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.JOB || "—"}</td>
                 <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.PRIMARYCENTRE || "—"}</td>
+                <td style={{ padding:"12px 14px" }}>{rolesChips(emp.ROLES)}</td>
                 <td style={{ padding:"12px 14px" }}>{statusBadge(emp.STATUS)}</td>
                 <td style={{ padding:"12px 14px" }}>
                   <button

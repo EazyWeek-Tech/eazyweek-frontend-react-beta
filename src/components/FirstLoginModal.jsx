@@ -8,7 +8,14 @@ const authPost = async (url, body) => {
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` },
     body: JSON.stringify(body),
   });
-  return r.json();
+  // Read as text first so a non-JSON response (404 HTML, 502 proxy page, crash)
+  // surfaces the real status instead of collapsing into a generic network error.
+  const raw = await r.text();
+  let json;
+  try { json = raw ? JSON.parse(raw) : {}; }
+  catch { throw new Error(`Server error (${r.status}). ${raw.slice(0, 160)}`.trim()); }
+  if (!r.ok) throw new Error(json.message || `Request failed (${r.status}).`);
+  return json;
 };
 
 /**
@@ -26,6 +33,19 @@ const FirstLoginModal = ({ employeeCode, onDone }) => {
   const [error,      setError]      = useState("");
   const [saving,     setSaving]     = useState(false);
 
+  // Dismiss the modal. Prefer the parent's onDone; if it wasn't wired,
+  // fall back to clearing the first-login flags and hard-navigating to the
+  // dashboard so the user is never stuck on this screen.
+  const finish = () => {
+    if (typeof onDone === "function") { onDone(); return; }
+    console.warn("FirstLoginModal: onDone prop missing/not a function — using fallback redirect.");
+    try {
+      localStorage.removeItem("isFirstLogin");
+      localStorage.removeItem("firstLoginEmployeeCode");
+    } catch { /* ignore storage errors */ }
+    window.location.assign("/dashboard");
+  };
+
   const handleSubmit = async () => {
     setError("");
     if (!newPwd || newPwd.length < 6) { setError("Password must be at least 6 characters."); return; }
@@ -39,8 +59,8 @@ const FirstLoginModal = ({ employeeCode, onDone }) => {
       if (!res.success) { setError(res.message || "Failed to reset password."); return; }
 
       await authPost(`${API_BASE_URL}/api/employee/FirstLoginDone`, { employeeCode });
-      onDone();
-    } catch { setError("Network error. Please try again."); }
+      finish();
+    } catch (e) { setError(e?.message || "Network error. Please try again."); }
     finally  { setSaving(false); }
   };
 
