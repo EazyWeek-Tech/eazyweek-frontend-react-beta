@@ -416,6 +416,7 @@ const AppointmentDrawer = ({
   editAppointment, selectedDate, onRefreshAppointments,
   allowPastDates = false,
   defaultStatus = undefined,
+  onBooked,   // LTR: fired on a successful new booking → { referenceId, custID, appointmentId }
 }) => {
   const drawerRef    = useRef(null);
   const [height,     setHeight]     = useState(433);
@@ -586,6 +587,15 @@ const AppointmentDrawer = ({
       const result = await authPost(`${API_BASE_URL}/api/Appointment/SaveAppointment`, payload);
       if (result?.success !== false) {
         setToast({ message:"Appointment saved!", type:"success" });
+
+        // ── LTR: report the booking back to the caller (lead→appointment flow) ─
+        // ⚠ VERIFY the appointment-id field on SaveAppointment's response; the
+        // conversion link falls back to the client referenceId if none is present.
+        onBooked?.({
+          referenceId:   freshRefId,
+          custID:        customerData.custid || "",
+          appointmentId: result?.appointmentId ?? result?.appointmentID ?? result?.apptId ?? result?.id ?? freshRefId,
+        });
 
         // ── Fire booking notes popup after successful save ─────────────────
         if (customerData.custid) {

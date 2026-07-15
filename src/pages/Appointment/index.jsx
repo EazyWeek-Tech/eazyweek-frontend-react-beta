@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Link, useNavigate, Routes, Route } from "react-router-dom";
+import { Link, useNavigate, Routes, Route, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+
+// LTR: endpoints the conversion handoff calls after a booking is saved / cancelled.
+const LTR_CONFIRM_URL = `${API_BASE_URL}/api/Opportunity/ConfirmConversionAppointment`;
+const LTR_REVERT_URL  = `${API_BASE_URL}/api/Opportunity/RevertConversionAppointment`;
 import AppointmentDrawer from "./AppointmentDrawer";
 import InvoicePage from "../Invoice";
 import { useEMRForms } from "./useEMRForms";
@@ -855,6 +859,9 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
 };
 
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
+  const ltrLocation = useLocation();
+  const [ltrCtx, setLtrCtx] = useState(null);   // LTR: conversion context from a converted lead
+  const ltrBookedRef = useRef(false);           // synchronous guard: booked vs cancelled
   const [isDrawerOpen,        setIsDrawerOpen]       = useState(false);
   const [selectedCustomer,    setSelectedCustomer]   = useState(null);
   const [selectedTimeSlot,    setSelectedTimeSlot]   = useState(null);
@@ -899,6 +906,21 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   }), []);
 
   useEffect(() => { if (newCustomer) { setSelectedCustomer(newCustomer); setEditData(null); setIsDrawerOpen(true); } }, [newCustomer]);
+
+  // LTR: a converted lead routed here (FRD §6.2) — prefill the customer, open the
+  // booking drawer, and remember the conversion so we can confirm/revert it.
+  useEffect(() => {
+    const st = ltrLocation.state || {};
+    if (st.ltrConversion && st.newCustomer) {
+      setSelectedCustomer(st.newCustomer);
+      setEditData(null);
+      setLtrCtx(st.ltrConversion);
+      ltrBookedRef.current = false;
+      setIsDrawerOpen(true);
+      // clear history state so a refresh/back does not re-trigger the flow
+      try { window.history.replaceState({}, document.title); } catch {}
+    }
+  }, [ltrLocation.key]);
 
   const fetchDoctors = async () => {
     try {
@@ -1532,7 +1554,29 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       {isDrawerOpen && (
         <AppointmentDrawer
           isOpen={isDrawerOpen}
-          onClose={() => { setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null); }}
+          onClose={() => {
+            setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null);
+            // LTR: drawer closed without a successful booking → revert (Case A step 6b)
+            if (ltrCtx && !ltrBookedRef.current) {
+              authPost(LTR_REVERT_URL, { ...ltrCtx }).catch(() => {});
+            }
+            setLtrCtx(null); ltrBookedRef.current = false;
+          }}
+          onBooked={async (info) => {
+            // LTR: booking saved → record the Appointment ID against the lead (step 6a)
+            ltrBookedRef.current = true;             // synchronous: suppress the revert on close
+            const ctx = ltrCtx;
+            if (ctx) {
+              try {
+                await authPost(LTR_CONFIRM_URL, {
+                  ...ctx,
+                  appointmentId: info?.appointmentId || info?.referenceId || "",
+                  apptStatus:    "Booked",
+                });
+              } catch { /* non-fatal: link can be retried from the list */ }
+            }
+            setLtrCtx(null);
+          }}
           customer={selectedCustomer}
           timeSlot={selectedTimeSlot}
           doctor={selectedDoctor}

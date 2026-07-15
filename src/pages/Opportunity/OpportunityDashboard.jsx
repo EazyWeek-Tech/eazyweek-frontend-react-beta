@@ -143,6 +143,29 @@ function DashCard({ title, sub, children }) {
   );
 }
 
+// LTR widgets — sales-owner breakdown as labelled bars.
+function OwnerCountList({ rows, accent, emptyText }) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length)
+    return <div style={{ fontSize:12.5, color:C.sub, padding:"10px 0" }}>{emptyText}</div>;
+  const max = Math.max(...list.map(r => r.count || 0), 1);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:9, maxHeight:236, overflowY:"auto" }}>
+      {list.map((r, i) => (
+        <div key={i} style={{ minWidth:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:C.text, marginBottom:3 }}>
+            <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", paddingRight:8 }}>{r.salesOwner || "Unassigned"}</span>
+            <span style={{ fontWeight:800, color:C.navyDk }}>{r.count}</span>
+          </div>
+          <div style={{ height:6, background:C.navyLt, borderRadius:4, overflow:"hidden" }}>
+            <div style={{ width:`${Math.round(((r.count || 0) / max) * 100)}%`, height:"100%", background:accent, borderRadius:4 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChartCard({ title, dataset }) {
   const hasData = Array.isArray(dataset) && dataset.some(d=>Number(d.value)>0);
   return (
@@ -256,6 +279,8 @@ const OpportunityDashboard = () => {
   const [range,      setRange]      = useState("Current Month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo,   setCustomTo]   = useState("");
+  // LTR conversion widgets (FRD): converted-awaiting-appt + appt-booking-failed, by owner.
+  const [ltrWidgets, setLtrWidgets] = useState({ convertedNoMapping:[], apptBookingFailed:[], totals:{ convertedNoMapping:0, apptBookingFailed:0 } });
 
   const showToast = (message,type="success") => {
     setToast({message,type}); setTimeout(()=>setToast(null),3500);
@@ -306,6 +331,15 @@ const OpportunityDashboard = () => {
   };
 
   useEffect(()=>{ fetchOpportunities(statusFilter); },[statusFilter]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch(`${API_BASE_URL}/api/Opportunity/LtrConversionWidgets`)
+      .then(r => r.json())
+      .then(j => { if (alive && j) setLtrWidgets(j.data || j); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   /* Chart data */
   const summarize = (rows) => {
@@ -539,6 +573,16 @@ const OpportunityDashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </DashCard>
+
+        <DashCard title="Converted · awaiting appointment" sub={`Pending mapping · ${ltrWidgets.totals?.convertedNoMapping || 0} total`}>
+          <OwnerCountList rows={ltrWidgets.convertedNoMapping} accent={C.wip}
+            emptyText="No converted leads awaiting an appointment." />
+        </DashCard>
+
+        <DashCard title="Appointment booking failed" sub={`WIP · about to convert · ${ltrWidgets.totals?.apptBookingFailed || 0} total`}>
+          <OwnerCountList rows={ltrWidgets.apptBookingFailed} accent={C.open}
+            emptyText="No failed or cancelled booking conversions." />
         </DashCard>
 
         <DashCard title="Rule-wise performance" sub="Leads generated & conversion rate">

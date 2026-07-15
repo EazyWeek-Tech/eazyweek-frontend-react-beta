@@ -372,6 +372,8 @@ const getCenterFromStorage = () => {
   const MasterLeadForm = () => {
     const params = useParams();
     const navigate = useNavigate();
+    // LTR: mount path of the Appointment module. ⚠ VERIFY against your router.
+    const APPOINTMENT_ROUTE = "/appointment";
     const locationObj = useLocation();
     const { state } = locationObj;
 
@@ -1035,9 +1037,28 @@ if (!hasNone) {
 
         const saveRes = await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
 
-        // Master rule: the customer already exists — never open the create-customer popup,
-        // even if the backend reports convert=true. Treat the save as final.
-        void saveRes;
+        // LTR Case A (FRD §6.2): Master leads already have a customer — on a converting
+        // save with booking mandatory, route straight to the Appointment Booking screen.
+        // Case B (not mandatory) → treat the save as final (Appointment ID shows Pending).
+        if (saveRes && saveRes.convert && saveRes.apptMandatory !== false && safe(resolvedCustID).trim()) {
+          const cid = safe(resolvedCustID).trim();
+          navigate(APPOINTMENT_ROUTE, { state: {
+            ltrConversion: {
+              leadSource: saveRes.leadSource || "TRANS",
+              leadRecId:  String(saveRes.leadRecId || recID),
+              oppCode:    safe(resolvedOppCode).trim(),
+              custId:     cid,
+            },
+            newCustomer: {
+              custId: cid, custid: cid,
+              firstName: safe(form.firstName).trim(),
+              lastName:  safe(form.lastName).trim(),
+              mobile:    safe(form.mobile).trim(),
+              name:      `${safe(form.firstName).trim()} ${safe(form.lastName).trim()}`.trim(),
+            },
+          }});
+          return;
+        }
 
         showToast("Saved successfully");
         navigate(-1);

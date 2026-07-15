@@ -556,6 +556,8 @@ const ManualOppCustomerDetails = () => {
   const locationObj = useLocation();
   const { state } = locationObj;
   const navigate = useNavigate();
+  // LTR: mount path of the Appointment module. ⚠ VERIFY against your router.
+  const APPOINTMENT_ROUTE = "/appointment";
 
   const resolvedOppCode = useMemo(() => getOppCodeFromUrl(params.oppCode, locationObj), [params.oppCode, locationObj.pathname]);
 
@@ -808,6 +810,9 @@ subSourceName: "",
 
   // ── Convert → Create-Customer popup (mirrors External Lead Form) ──
   const [showCustomerPopup, setShowCustomerPopup] = useState(false);
+  // LTR: campaign's Appt-Booking-Mandatory flag + conversion context (Case A).
+  const [apptMandatory, setApptMandatory] = useState(true);
+  const [convertCtx, setConvertCtx] = useState(null);
   const [creatingCustomer, setCreatingCustomer]   = useState(false);
   const [nationalityOptions, setNationalityOptions] = useState([]);
   const [customerForm, setCustomerForm] = useState({
@@ -1163,6 +1168,8 @@ if (!isEdit) {
         // campaign list filters on — NOT the summary recid. Mirror CampaignDetails' precedence.
         const recid = toNumberOr0(data?.campaignDetailId ?? data?.recid ?? data?.recId);
         setCampaignRecId(recid);
+        // LTR: capture Appt-Booking-Mandatory (default Yes) for Case A routing.
+        setApptMandatory(data?.apptBookingMandatory !== 0 && data?.apptBookingMandatory !== false);
       } catch (e) {
         console.error("❌ getCampaign failed:", e);
         if (alive) setCampaignRecId(0);
@@ -1683,6 +1690,26 @@ const subMediumName = safe(form.subMedium || "Manual");
       setCreatingCustomer(false);
       setShowCustomerPopup(false);
       showToast(`Customer created${resC && resC.custId ? " - " + resC.custId : ""}`);
+      // LTR Case A (FRD §6.2): route to Appointment Booking when mandatory; else go back.
+      const newCustId = resC?.custId || resC?.customerId || "";
+      if (convertCtx?.apptMandatory && newCustId) {
+        navigate(APPOINTMENT_ROUTE, { state: {
+          ltrConversion: {
+            leadSource: convertCtx.leadSource,
+            leadRecId:  convertCtx.leadRecId,
+            oppCode:    convertCtx.oppCode,
+            custId:     newCustId,
+          },
+          newCustomer: {
+            custId: newCustId, custid: newCustId,
+            firstName: safe(cf.firstName).trim(),
+            lastName:  safe(cf.lastName).trim(),
+            mobile:    safe(cf.mobileNo).trim(),
+            name:      `${safe(cf.firstName).trim()} ${safe(cf.lastName).trim()}`.trim(),
+          },
+        }});
+        return;
+      }
       navigate(-1);
     } catch (err) {
       setCreatingCustomer(false);
@@ -1714,6 +1741,13 @@ const subMediumName = safe(form.subMedium || "Manual");
         const rd = saveRes?.data ?? saveRes;
         if (rd?.convert) {
           const pf = rd.prefill || {};
+          // LTR: remember conversion context for post-customer routing (Case A).
+          setConvertCtx({
+            apptMandatory,
+            leadSource: "MANUAL",
+            leadRecId:  String(numericLeadOppId || ""),
+            oppCode:    safe(resolvedOppCode).trim(),
+          });
           setCustomerForm((prev) => ({
             ...prev,
             firstName:   pf.firstName   || safe(form.firstName),

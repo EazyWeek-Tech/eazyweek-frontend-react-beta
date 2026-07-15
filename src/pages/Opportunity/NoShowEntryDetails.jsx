@@ -192,6 +192,8 @@ const NoShowEntryDetails = () => {
   const { oppCode, custId } = useParams();
   const { state } = useLocation(); // { recId, oppCode, row, header, isManual }
   const navigate = useNavigate();
+  // LTR: mount path of the Appointment module (matches the sidebar route).
+  const APPOINTMENT_ROUTE = "/appointment";
 
   const [row] = useState(state?.row || null);
   const [header] = useState(state?.header || null);
@@ -522,7 +524,26 @@ setForm((p) => ({
     setSaving(true);
     setError("");
     try {
-      await callUpdate();
+      const saveRes = await callUpdate();
+      // LTR Case A (FRD §6.2): R1–R4 leads already have a customer — on a converting
+      // save with booking mandatory, route straight to the Appointment Booking screen.
+      const ltrCid = safe(top.custID).trim();
+      if (saveRes && saveRes.convert && saveRes.apptMandatory !== false && ltrCid) {
+        navigate(APPOINTMENT_ROUTE, { state: {
+          ltrConversion: {
+            leadSource: saveRes.leadSource || "TRANS",
+            leadRecId:  String(saveRes.leadRecId || state?.recId || getRecId(state?.row)),
+            oppCode:    oppCode,
+            custId:     ltrCid,
+          },
+          newCustomer: {
+            custId: ltrCid, custid: ltrCid,
+            name:   safe(top.custName).trim(),
+            mobile: safe(top.custMobileNo).trim(),
+          },
+        }});
+        return;
+      }
       navigate(-1);
     } catch (e) {
       console.error(e);

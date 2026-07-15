@@ -25,6 +25,102 @@ const authHeaders = () => ({
   ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}),
 });
 
+// ── LTR Funnel: resolve mapped Appointment IDs for a set of leads ─────────────
+const fetchLeadAppointments = async (leadSource, recIds) => {
+  const ids = [...new Set((recIds || []).map((x) => String(x || "")).filter(Boolean))];
+  if (!ids.length) return {};
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/Opportunity/LeadAppointments`, {
+      method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ leadSource, recIds: ids }),
+    });
+    const j = await r.json();
+    return (j && j.data) || {};
+  } catch { return {}; }
+};
+// Appointment ID cell: mapped id → shown; else Pending for converted leads; else —
+const apptCell = (appt, disposition) => {
+  const id = appt && appt.appointmentId;
+  if (id) return id;
+  const conv = String(disposition || "").trim().toLowerCase().startsWith("converted");
+  return conv ? "Pending" : "—";
+};
+
+// ── Case B: a customer's future appointments + manual link (FRD §6.3 / §7) ────
+const fetchFutureAppointments = async (custId) => {
+  const cid = String(custId || "").trim();
+  if (!cid) return [];
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/Opportunity/CustomerFutureAppointments?custId=${encodeURIComponent(cid)}`,
+      { headers: authHeaders() });
+    const j = await r.json();
+    return (j && j.data) || [];
+  } catch { return []; }
+};
+const linkLeadAppt = async (payload) => {
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/Opportunity/LinkLeadAppointment`, {
+      method: "POST", headers: authHeaders(), body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    return j && j.success !== false;
+  } catch { return false; }
+};
+const fmtApptOption = (a) => {
+  const dt = a.dateTime ? new Date(a.dateTime) : null;
+  const d  = dt && !isNaN(dt.getTime()) ? dt.toLocaleString() : "";
+  return `${a.appointmentId}${a.service ? ` · ${a.service}` : ""}${d ? ` · ${d}` : ""}`;
+};
+
+// Appointment ID cell — read-only when mapped or not-converted; an editable
+// future-appointments dropdown when the lead is Converted but still Pending (Case B).
+function ApptMapCell({ leadSource, recId, custId, oppCode, disposition, mapped, onLinked }) {
+  const conv = String(disposition || "").trim().toLowerCase().startsWith("converted");
+  const [opts, setOpts] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  if (mapped) return <span>{mapped}</span>;
+  if (!conv)  return <span>{"—"}</span>;
+  if (!String(custId || "").trim())
+    return <span title="No customer linked yet">Pending</span>;
+
+  const load = async () => {
+    if (opts !== null || busy) return;
+    setBusy(true);
+    setOpts(await fetchFutureAppointments(custId));
+    setBusy(false);
+  };
+  const pick = async (appointmentId) => {
+    if (!appointmentId) return;
+    setBusy(true);
+    const ok = await linkLeadAppt({
+      leadSource, leadRecId: String(recId), oppCode: oppCode || "",
+      custId: String(custId), appointmentId,
+    });
+    setBusy(false);
+    if (ok) onLinked?.(recId, appointmentId);
+  };
+
+  return (
+    <select
+      className="cd-appt-map"
+      disabled={busy}
+      defaultValue=""
+      onMouseDown={load}
+      onFocus={load}
+      onChange={(e) => pick(e.target.value)}
+      title="Map a future appointment (Converted lead)"
+      style={{ maxWidth: 180, fontSize: 12, padding: "4px 6px" }}
+    >
+      <option value="">{busy ? "Loading\u2026" : "Pending — map…"}</option>
+      {(opts || []).map((a) => (
+        <option key={a.appointmentId} value={a.appointmentId}>{fmtApptOption(a)}</option>
+      ))}
+      {opts && opts.length === 0 && <option value="" disabled>No future appointments</option>}
+    </select>
+  );
+}
+
 const toISODateOnly = (d) => {
   if (!d) return "";
   if (d instanceof Date) {
@@ -245,6 +341,14 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   const showAppt = ruleCode==="R3" || ruleCode==="R4";
 
   const [rows,    setRows]    = useState([]);
+  const [apptMap, setApptMap] = useState({});   // LTR: recid → { appointmentId, apptStatus }
+  useEffect(() => {
+    const ids = (rows || []).map(r => r && r.recid).filter(Boolean);
+    if (!ids.length) { setApptMap({}); return; }
+    let alive = true;
+    fetchLeadAppointments("TRANS", ids).then(m => { if (alive) setApptMap(m); });
+    return () => { alive = false; };
+  }, [rows]);
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
 
@@ -523,6 +627,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
                 <th onClick={()=>onSort("custMobileNo")}>Mobile {sortArrow("custMobileNo")}</th>
                 <th onClick={()=>onSort("oppStatus")}>Status {sortArrow("oppStatus")}</th>
                 <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th>
+                <th>Appointment ID</th>
                 <th>Therapist</th>
                 {showAppt && <th onClick={()=>onSort("appointmentdatetime")}>Appt Date {sortArrow("appointmentdatetime")}</th>}
                 <th>Remarks</th>
@@ -540,6 +645,9 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
                     <td>{safe(r.custMobileNo)}</td>
                     <td>{safe(r.oppStatus)}</td>
                     <td>{safe(r.disposition)}</td>
+                    <td><ApptMapCell leadSource="TRANS" recId={r.recid} custId={r.custID} oppCode={oppCode}
+                        disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
+                        onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td>{safe(r.__therapist)}</td>
                     {showAppt && <td>{fmtDate(r.appointmentdatetime||r.appointmentDateTime)}</td>}
                     <td>{safe(r.remarks)}</td>
@@ -580,6 +688,14 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
 
 function ExternalSection({ oppCode, churnKey=0 }) {
   const [rows,       setRows]       = useState([]);
+  const [apptMap,    setApptMap]    = useState({});   // LTR: recid → { appointmentId, apptStatus }
+  useEffect(() => {
+    const ids = (rows || []).map(r => r && r.recid).filter(Boolean);
+    if (!ids.length) { setApptMap({}); return; }
+    let alive = true;
+    fetchLeadAppointments("EXTERNAL", ids).then(m => { if (alive) setApptMap(m); });
+    return () => { alive = false; };
+  }, [rows]);
   const [serverTotal,setServerTotal]= useState(0);
   const [loading,    setLoading]    = useState(false);
   const [err,        setErr]        = useState("");
@@ -772,7 +888,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
             <table className="cd-table">
               <thead><tr>
                 <th>Lead ID</th><th>Lead Name</th><th>Mobile</th>
-                <th>Status</th><th>Disposition</th>
+                <th>Status</th><th>Disposition</th><th>Appointment ID</th>
                 <th>Follow Up Date</th><th>Follow Up Time</th>
                 <th>Remarks</th><th>Sales Owner</th>
                 <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
@@ -792,6 +908,9 @@ function ExternalSection({ oppCode, churnKey=0 }) {
                     <td>{safe(r.custMobileNo)}</td>
                     <td>{safe(r.oppStatus)}</td>
                     <td>{safe(r.disposition)}</td>
+                    <td><ApptMapCell leadSource="EXTERNAL" recId={r.recid} custId={r.custID||r.custId} oppCode={oppCode}
+                        disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
+                        onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td>{fmtDate(r.followUpDate)}</td>
                     <td>{safe(r.__fuLabel)}</td>
                     <td>{safe(r.remarks)}</td>
@@ -837,6 +956,14 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
   );
 
   const [rows,    setRows]    = useState([]);
+  const [apptMap, setApptMap] = useState({});   // LTR: id → { appointmentId, apptStatus }
+  useEffect(() => {
+    const ids = (rows || []).map(r => r && r.id).filter(Boolean);
+    if (!ids.length) { setApptMap({}); return; }
+    let alive = true;
+    fetchLeadAppointments("MANUAL", ids).then(m => { if (alive) setApptMap(m); });
+    return () => { alive = false; };
+  }, [rows]);
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
   const [page,    setPage]    = useState(1);
@@ -1014,7 +1141,7 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
               <thead><tr>
                 <th>Prospect ID</th><th>Prospect Type</th><th>Cust ID</th><th>Name</th><th>Mobile</th><th>Doctor</th>
                 <th>Status</th><th>Follow Up Date</th><th>Follow Up Time</th>
-                <th>Disposition</th><th>Remarks</th><th>Sales Owner</th>
+                <th>Disposition</th><th>Appointment ID</th><th>Remarks</th><th>Sales Owner</th>
                 <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
               </tr></thead>
               <tbody>
@@ -1034,6 +1161,9 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
                     <td>{fmtDate(r.fuDate)}</td>
                     <td>{safe(r.fuTimeLabel)}</td>
                     <td>{safe(r.disposition)}</td>
+                    <td><ApptMapCell leadSource="MANUAL" recId={r.id} custId={r.custID} oppCode={oppCode}
+                        disposition={r.disposition} mapped={apptMap[String(r.id)]?.appointmentId}
+                        onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td>{safe(r.remark)}</td>
                     <td>{safe(r.owner)}</td>
                     <td>{safe(r.modifiedBy)}</td>

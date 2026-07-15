@@ -372,6 +372,8 @@ const getCenterFromStorage = () => {
   const ExternalLeadForm = () => {
     const params = useParams();
     const navigate = useNavigate();
+    // LTR: mount path of the Appointment module. ⚠ VERIFY against your router.
+    const APPOINTMENT_ROUTE = "/appointment";
     const locationObj = useLocation();
     const { state } = locationObj;
 
@@ -509,6 +511,8 @@ setSessionCenter(code);
 
     // ── Convert → Create-Customer popup ──
     const [showCustomerPopup, setShowCustomerPopup] = useState(false);
+    // LTR: conversion context captured on a converting save (Case A routing).
+    const [convertCtx, setConvertCtx] = useState(null);
     const [creatingCustomer, setCreatingCustomer]   = useState(false);
     const [nationalityOptions, setNationalityOptions] = useState([]);
     const [customerForm, setCustomerForm] = useState({
@@ -941,6 +945,27 @@ if (!hasNone) {
         setCreatingCustomer(false);
         setShowCustomerPopup(false);
         showToast(`Customer created${resC && resC.custId ? " - " + resC.custId : ""}`);
+        // LTR Case A (FRD §6.2): if booking is mandatory, route to the Appointment
+        // Booking screen with the new customer pre-filled; else go back (Case B → Pending).
+        const newCustId = resC?.custId || resC?.customerId || "";
+        if (convertCtx?.apptMandatory && newCustId) {
+          navigate(APPOINTMENT_ROUTE, { state: {
+            ltrConversion: {
+              leadSource: convertCtx.leadSource,
+              leadRecId:  convertCtx.leadRecId,
+              oppCode:    convertCtx.oppCode,
+              custId:     newCustId,
+            },
+            newCustomer: {
+              custId: newCustId, custid: newCustId,
+              firstName: safe(cf.firstName).trim(),
+              lastName:  safe(cf.lastName).trim(),
+              mobile:    safe(cf.mobileNo).trim(),
+              name:      `${safe(cf.firstName).trim()} ${safe(cf.lastName).trim()}`.trim(),
+            },
+          }});
+          return;
+        }
         navigate(-1);
       } catch (err) {
         setCreatingCustomer(false);
@@ -1000,6 +1025,13 @@ if (!hasNone) {
         // Converting disposition → collect remaining customer details, then create the customer.
         if (saveRes && saveRes.convert) {
           const pf = saveRes.prefill || {};
+          // LTR: remember whether this campaign mandates appointment booking (Case A)
+          setConvertCtx({
+            apptMandatory: saveRes.apptMandatory !== false,
+            leadSource:    saveRes.leadSource || "EXTERNAL",
+            leadRecId:     String(saveRes.leadRecId || recID),
+            oppCode:       safe(resolvedOppCode).trim(),
+          });
           setCustomerForm((prev) => ({
             ...prev,
             firstName:   pf.firstName   || safe(form.firstName),

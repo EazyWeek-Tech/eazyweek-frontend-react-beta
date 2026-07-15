@@ -76,6 +76,7 @@ import LaserConsentForm from "./pages/CustomForms/LaserSession/LaserSessionCF";
 import DispositionMaster from "./pages/Opportunity/DispositionMaster";
 import DispositionMappingCreate from "./pages/Opportunity/DispositionMappingCreate";
 import ManualLeadEdit from "./pages/Opportunity/ManualLeadEdit";
+import LTRFunnelDashboard from "./pages/Opportunity/LTRFunnelDashboard";
 import ExternalLeadForm from "./pages/Opportunity/ExternalLeadForm";
 import NoShowEntryDetails from "./pages/Opportunity/NoShowEntryDetails";
 import CancelledEntryDetails from "./pages/Opportunity/CancelledEntryDetails";
@@ -270,6 +271,7 @@ if (user && showFirstLogin) {
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="/loyalty" element={gate("loyalty", <LoyaltyListing />)} />
 
+
                   <Route
                     path="/segmentaddform/:employeeCode"
                     element={<SegmentAddForm />}
@@ -332,6 +334,7 @@ if (user && showFirstLogin) {
 <Route path="/opportunity/:oppCode/noshow/:custId" element={gate("opportunity", <NoShowEntryDetails />)} />
 <Route path="/opportunity/:oppCode/cancelled/:custId" element={gate("opportunity", <CancelledEntryDetails />)} />
 <Route path="/opportunity/create" element={gate("opportunity", <CreateCampaign />)} />
+<Route path="/ltr-funnel" element={gate("opportunity", <LTRFunnelDashboard />)} />
 
 
 <Route path="/masters/disposition" element={gate("opportunity", <DispositionMaster />)} />

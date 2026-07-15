@@ -83,7 +83,7 @@ const T_EN = {
   compare: "Compare", allCentres: "All Centres", totalRevenue: "Total revenue", vsPrev: "vs. previous period",
   vsPrevShort: "vs prev", citizenExpat: "Revenue by customer type", citizen: "Citizen", expat: "Expat",
   topPerformer: "Top performer", bottomPerformer: "Needs attention", heatTitle: "Month-over-month trend",
-  heatSub: "Revenue change per centre, last 6 months", funnel: "Lead → opportunity funnel", convRate: "Conversion",
+  heatSub: "Revenue change per centre, last 6 months", funnel: "Lead-to-Revenue funnel", convRate: "Conversion",
   loyalty: "Loyalty engagement", pointsEarned: "Points earned", pointsRedeemed: "Points redeemed",
   tierDist: "Tier distribution", campaigns: "Campaign performance", campaign: "Campaign", leads: "Leads",
   conv: "Conv.", openCases: "open cases", sla: "SLA compliance", target: "target",
@@ -99,7 +99,7 @@ const T_AR = {
   compare: "مقارنة", allCentres: "كل المراكز", totalRevenue: "إجمالي الإيرادات", vsPrev: "مقارنة بالفترة السابقة",
   vsPrevShort: "عن السابق", citizenExpat: "الإيرادات حسب نوع العميل", citizen: "مواطن", expat: "مقيم",
   topPerformer: "الأفضل أداءً", bottomPerformer: "يحتاج انتباه", heatTitle: "الاتجاه الشهري",
-  heatSub: "تغير الإيرادات لكل مركز، آخر ٦ أشهر", funnel: "مسار الفرص البيعية", convRate: "التحويل",
+  heatSub: "تغير الإيرادات لكل مركز، آخر ٦ أشهر", funnel: "مسار العميل إلى الإيراد", convRate: "التحويل",
   loyalty: "تفاعل الولاء", pointsEarned: "النقاط المكتسبة", pointsRedeemed: "النقاط المستبدلة", tierDist: "توزيع الفئات",
   campaigns: "أداء الحملات", campaign: "الحملة", leads: "العملاء", conv: "التحويل", openCases: "حالات مفتوحة",
   sla: "الالتزام بالاتفاقية", target: "الهدف", avgResolution: "متوسط وقت الحل", aging: "أعمار قائمة الحالات",
@@ -293,7 +293,7 @@ function useLiveDashboard({ range }) {
     const { fromDate, toDate } = periodDates(range);
     const base = { headers: { "Content-Type": "application/json", ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}) }, credentials: "include", signal };
     try {
-      const [invB, caseB, apptB, oppB, advB, memB, loyB] = await Promise.all([
+      const [invB, caseB, apptB, oppB, advB, memB, loyB, ltrB] = await Promise.all([
         fetch(`${API_BASE_URL}/api/Invoice/Dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/CaseOperation/CaseDashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/Appointment/AppDashboard`, { ...base, method: "POST", body: JSON.stringify({ fromDate, toDate }) }).then(okJson).catch(() => null),
@@ -302,11 +302,13 @@ function useLiveDashboard({ range }) {
         fetch(`${API_BASE_URL}/api/Advance/Dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/Membership/Dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/v1/loyalty/dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
+        fetch(`${API_BASE_URL}/api/Opportunity/Funnel`, base).then(okJson).catch(() => null),
       ]);
       if (!invB && !caseB && !apptB && !oppB) { setLive({ live: false }); return; }
       const inv = unwrap(invB) || {}, cs = unwrap(caseB) || {}, ap = unwrap(apptB) || {};
       const opp = Array.isArray(oppB) ? oppB : (unwrap(oppB) || []);
       const adv = unwrap(advB), mem = unwrap(memB), loy = unwrap(loyB);
+      const ltr = unwrap(ltrB);
       const N = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
       const salesDaily = inv.salesDaily || [];
@@ -338,6 +340,7 @@ function useLiveDashboard({ range }) {
         caseCounts: { open: N(cs.open), wip: N(cs.wip), closed: N(cs.closed) },
         funnelValues: { leads, contacted: Math.max(0, leads - oppOpen), booked, attended, invoiced: invoiceCount },
         endFunnel: { shown: attended, invoices: invoiceCount, noShows, shownNotInvoiced: Math.max(0, attended - invoiceCount) },
+        ltr: ltr ? { buckets: ltr.buckets || {}, revenue: ltr.revenue || {}, appointment: ltr.appointment || {}, spend: ltr.spend || {}, badges: ltr.badges || {} } : null,
       });
     } catch { setLive({ live: false }); }
   }, [range]);
@@ -408,11 +411,11 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       { label: ar ? "أعضاء الولاء" : "Loyalty members", value: "6,210", delta: "+9.3%", arrow: "▲", sentColor: posC },
     ];
     const stageDefs = [
-      { key: "leads", en: "Leads", ar: "عملاء محتملون", base: 5990 },
-      { key: "contacted", en: "Contacted", ar: "تم التواصل", base: 4465 },
-      { key: "booked", en: "Appointment Booked", ar: "حجز موعد", base: 3036 },
-      { key: "attended", en: "Appointment Attended", ar: "حضور الموعد", base: 1503 },
-      { key: "invoiced", en: "Invoice Converted", ar: "تحويل لفاتورة", base: 754 },
+      { key: "captured",          en: "Captured",           ar: "الملتقطة",   base: 5990 },
+      { key: "converted",         en: "Converted",          ar: "المحوّلة",   base: 2400 },
+      { key: "appointmentBooked", en: "Appointment Booked", ar: "حجز موعد",   base: 1500 },
+      { key: "showedUp",          en: "Showed Up",          ar: "الحضور",     base: 900 },
+      { key: "purchased",         en: "Purchased",          ar: "شراء",       base: 500 },
     ];
     const funnelStages = stageDefs.map((s) => ({
       label: ar ? s.ar : s.en, value: Math.round(s.base * f), raw: s.base,
@@ -493,8 +496,19 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       { label: ar ? "مغلقة" : "Closed", count: L.caseCounts.closed, color: "#85A2AA" },
     ].map((x) => ({ ...x, pct: ((x.count / csMaxL) * 100).toFixed(0) })) : caseStatuses;
     const eOpenCases = L ? (L.caseCounts.open + L.caseCounts.wip) : 148;
-    const eFunnelStages = L ? stageDefs.map((s) => ({ label: ar ? s.ar : s.en, value: L.funnelValues[s.key] || 0, raw: L.funnelValues[s.key] || 0 })) : funnelStages;
-    const eFunnelRate = L ? (eFunnelStages[0].value ? ((eFunnelStages[4].value / eFunnelStages[0].value) * 100).toFixed(1) : "0.0") : funnelRate;
+    const eFunnelStages = L?.ltr?.buckets ? stageDefs.map((s) => ({ label: ar ? s.ar : s.en, value: L.ltr.buckets[s.key] || 0, raw: L.ltr.buckets[s.key] || 0 })) : funnelStages;
+    const eFunnelRate = L?.ltr?.buckets ? (L.ltr.buckets.captured ? ((L.ltr.buckets.purchased / L.ltr.buckets.captured) * 100).toFixed(1) : "0.0") : funnelRate;
+    const revenueFunnel = L?.ltr?.revenue ? [
+      { label: ar ? "معدل الشراء" : "Purchase Rate",          value: `${L.ltr.revenue.purchaseRate ?? 0}%` },
+      { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size",   value: fmtSAR(L.ltr.revenue.avgBasketSize || 0) },
+      { label: ar ? "إجمالي الإيرادات" : "Total Revenue",     value: fmtSAR(L.ltr.revenue.totalRevenue || 0) },
+      { label: ar ? "تكلفة اكتساب العميل" : "Lead Acq. Cost", value: fmtSAR((L.ltr.spend && L.ltr.spend.leadAcquisitionCost) || 0) },
+    ] : [
+      { label: ar ? "معدل الشراء" : "Purchase Rate",          value: "21.0%" },
+      { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size",   value: fmtSAR(1450) },
+      { label: ar ? "إجمالي الإيرادات" : "Total Revenue",     value: fmtSAR(377000) },
+      { label: ar ? "تكلفة اكتساب العميل" : "Lead Acq. Cost", value: fmtSAR(83) },
+    ];
     const efVals = L ? [L.endFunnel.shown, L.endFunnel.invoices, L.endFunnel.noShows, L.endFunnel.shownNotInvoiced] : null;
     const eEndFunnel = L ? endFunnelTiles.map((tile, i) => ({ ...tile, value: grp(efVals[i]) })) : endFunnelTiles;
 
@@ -515,7 +529,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       topName: top ? top.name : "—", topVal: top ? fmtSAR(top.rev * f) : "",
       botName: bot ? bot.name : "—", botVal: bot ? fmtSAR(bot.rev * f) : "",
       heatMonths, centreHeat,
-      growthKpis: eGrowthKpis, funnelStages: eFunnelStages, funnelRate: eFunnelRate, loyaltyTiers, leadSources, endFunnelTiles: eEndFunnel,
+      growthKpis: eGrowthKpis, funnelStages: eFunnelStages, funnelRate: eFunnelRate, loyaltyTiers, leadSources, endFunnelTiles: eEndFunnel, revenueFunnel: revenueFunnel,
       pointsEarned: ePointsEarned != null ? ePointsEarned : grp(1240000 * f), pointsRedeemed: ePointsRedeemed != null ? ePointsRedeemed : grp(780000 * f), campaigns,
       openCases: eOpenCases, caseStatuses: eCaseStatuses, sla, slaTarget,
       slaTag: atRisk ? (ar ? "تحت الخطر" : "At risk") : ar ? "ضمن الهدف" : "On target",
@@ -851,6 +865,15 @@ export default function Dashboard() {
                     <div key={i} style={{ background: "#f5f7f5", border: "1px solid #eaeeea", borderRadius: 11, padding: "13px 14px", textAlign: "center" }}>
                       <div style={{ fontSize: 11.5, color: "#7a8593", lineHeight: 1.3, minHeight: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>{e.label}</div>
                       <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4, fontVariantNumeric: "tabular-nums", color: e.color }}>{e.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#33404e" }}>{ar ? "مسار الإيرادات" : "Revenue funnel"}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                  {d.revenueFunnel.map((r, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5 }}>
+                      <span style={{ color: "#7a8593" }}>{r.label}</span>
+                      <span style={{ fontWeight: 700, color: "#13294B", fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
                     </div>
                   ))}
                 </div>

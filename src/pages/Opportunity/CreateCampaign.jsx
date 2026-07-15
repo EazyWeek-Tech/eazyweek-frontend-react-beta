@@ -457,6 +457,8 @@ export default function CreateCampaign() {
     fromDate:   "",
     toDate:     "",       // blank = Dynamic
     ruleType:   "",       // "1"=Static, "2"=Dynamic — derived from toDate logic
+    campaignSpend: "",    // FRD §4.1 — optional numeric (SAR)
+    apptMandatory: "Yes", // FRD §4.1 — Yes/No, default Yes
   });
   const [generalErrors, setGeneralErrors] = useState({});
 
@@ -572,6 +574,12 @@ export default function CreateCampaign() {
     if (general.ruleType === "1" && general.toDate && general.fromDate
         && new Date(general.toDate) <= new Date(general.fromDate))
       e.toDate = "To Date must be after From Date.";
+    const spendRaw = String(general.campaignSpend ?? "").trim().replace(/,/g, "");
+    if (spendRaw !== "") {
+      const spendNum = Number(spendRaw);
+      if (!Number.isFinite(spendNum) || spendNum < 0)
+        e.campaignSpend = "Campaign Spend must be a valid non-negative number.";
+    }
     setGeneralErrors(e);
     return !Object.keys(e).length;
   };
@@ -617,6 +625,8 @@ export default function CreateCampaign() {
       fromDate:          general.fromDate,
       toDate:            general.ruleType === "1" ? general.toDate : null,
       ruleType:          general.ruleType,          // "1"=Static, "2"=Dynamic
+      campaignSpend:     (() => { const s = String(general.campaignSpend ?? "").trim().replace(/,/g, ""); return s === "" ? null : Number(s); })(),
+      apptMandatory:     general.apptMandatory !== "No",   // true = Yes (default)
       ruleDays:          general.ruleType === "2" ? (effectiveDays || "") : "",
       ruleDetails,
       xvalue:            Array.isArray(rule.xvalue) ? rule.xvalue.join(",") : rule.xvalue,
@@ -787,6 +797,42 @@ export default function CreateCampaign() {
               error={generalErrors.toDate}>
               <FInput type="date" value={general.toDate} min={general.fromDate||today}
                 onChange={e=>setGeneral(p=>({...p,toDate:e.target.value}))} />
+            </FieldRow>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            <FieldRow label="Campaign Spend" error={generalErrors.campaignSpend}
+              hint="Optional. Total spend on this campaign (SAR). Used for Lead Acquisition Cost.">
+              <div style={{ position:"relative" }}>
+                <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)",
+                  fontSize:13, fontWeight:700, color:C.sub, pointerEvents:"none" }}>SAR</span>
+                <input type="text" inputMode="decimal" value={general.campaignSpend}
+                  placeholder="e.g. 11480"
+                  onChange={e=>setGeneral(p=>({...p,campaignSpend:e.target.value}))}
+                  style={{ width:"100%", padding:"10px 12px 10px 46px", border:`1px solid ${C.border}`,
+                    borderRadius:8, fontSize:13, fontFamily:"Lato,sans-serif", outline:"none",
+                    background:"#fff", color:C.text, boxSizing:"border-box" }} />
+              </div>
+            </FieldRow>
+
+            <FieldRow label="Appt Booking Mandatory on Conversion" required
+              hint="Yes auto-routes to Appointment Booking when a lead is marked Converted.">
+              <div style={{ display:"flex", gap:10 }}>
+                {["Yes","No"].map(opt => {
+                  const active = general.apptMandatory === opt;
+                  return (
+                    <button key={opt} type="button"
+                      onClick={()=>setGeneral(p=>({...p,apptMandatory:opt}))}
+                      style={{ flex:1, padding:"10px 12px", borderRadius:8, cursor:"pointer",
+                        fontSize:13, fontWeight:700, fontFamily:"Lato,sans-serif",
+                        border:`1px solid ${active ? C.navy : C.border}`,
+                        background: active ? C.navy : "#fff",
+                        color: active ? "#fff" : C.text }}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
             </FieldRow>
           </div>
 
@@ -1025,6 +1071,15 @@ export default function CreateCampaign() {
           <InfoRow label="Segment"
             value={general.ruleType==="1" ? "Static" : "Dynamic"}
             badge={general.ruleType==="1"
+              ? {bg:C.yellowBg,color:C.yellow}
+              : {bg:C.greenBg,color:C.green}} />
+          <InfoRow label="Campaign Spend"
+            value={String(general.campaignSpend ?? "").trim()===""
+              ? "—"
+              : `SAR ${Number(String(general.campaignSpend).replace(/,/g,"")).toLocaleString()}`} />
+          <InfoRow label="Appt Booking Mandatory on Conversion"
+            value={general.apptMandatory==="No" ? "No" : "Yes"}
+            badge={general.apptMandatory==="No"
               ? {bg:C.yellowBg,color:C.yellow}
               : {bg:C.greenBg,color:C.green}} />
 

@@ -42,6 +42,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
       feature: "opportunity",
       submenu: [
         { name: "Opportunity", path: "/opportunity" },
+        { name: "Lead Funnel", path: "/ltr-funnel" },
         { name: "Disposition Mapping", path: "/masters/disposition" },
         { name: "Detailed report", path: "/opportunity/detailed", feature: "reporting" },
         { name: "Summary report", path: "/opportunity/summary", feature: "reporting" },
