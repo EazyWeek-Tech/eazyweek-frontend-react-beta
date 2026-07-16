@@ -348,14 +348,45 @@ function useLiveDashboard({ range }) {
   return live;
 }
 
-function useDashboardData({ range, compare, overlayPrev, lang, selected, live }) {
+/* Active centres from the hierarchy endpoint (which returns active clinics
+   only): { names: {code->name}, codes: [code,...] }. null until loaded / on
+   failure, so callers fall back to the full static list.                  */
+function useCentreDirectory() {
+  const [dir, setDir] = useState(null);
+  useEffect(() => {
+    const ctl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, {
+          headers: { "Content-Type": "application/json", ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}) },
+          credentials: "include",
+          signal: ctl.signal,
+        });
+        if (!res.ok) return;
+        const data = unwrap(await res.json()) || {};
+        const names = {};
+        const codes = [];
+        (data.zones || []).forEach((z) =>
+          (z.clinics || []).forEach((cl) => {
+            if (cl && cl.code && cl.isEntity !== true) { names[cl.code] = cl.name || cl.code; codes.push(cl.code); }
+          })
+        );
+        if (codes.length) setDir({ names, codes });
+      } catch { /* keep code fallback */ }
+    })();
+    return () => ctl.abort();
+  }, []);
+  return dir;
+}
+
+function useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres }) {
   return useMemo(() => {
     const ar = lang === "ar";
     const t = ar ? T_AR : T_EN;
     const f = RANGE_FACTOR[range] || 1;
     const posC = COLORS.pos, negC = COLORS.neg, neuC = COLORS.neu;
 
-    const sel = CENTRES.filter((c) => selected.has(c.name));
+    const sel = centres.filter((c) => selected.has(c.name));
     const monthRev = sel.reduce((a, c) => a + c.rev, 0);
     const periodRev = monthRev * f;
     const net = periodRev / 1.15;
@@ -387,7 +418,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
     const sorted = [...sel].sort((a, b) => b.rev - a.rev);
     const maxRev = sorted.length ? sorted[0].rev : 1;
     const centreRanked = sorted.map((c, i) => ({
-      name: c.name, value: fmtSAR(c.rev * f), pct: ((c.rev / maxRev) * 100).toFixed(1),
+      name: c.label || c.name, value: fmtSAR(c.rev * f), pct: ((c.rev / maxRev) * 100).toFixed(1),
       color: i === 0 ? COLORS.primary : i === sorted.length - 1 ? COLORS.coral : "#85A2AA",
     }));
     const top = sorted[0], bot = sorted[sorted.length - 1];
@@ -395,7 +426,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
     // Heatmap
     const heatMonths = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
     const centreHeat = sorted.map((c) => ({
-      name: c.name,
+      name: c.label || c.name,
       cells: (MOM[c.name] || [0, 0, 0, 0, 0, 0]).map((v) => {
         const col = heatColor(v);
         return { label: (v > 0 ? "+" : "") + v + "%", bg: col.bg, color: col.color };
@@ -463,7 +494,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
     const agColors = [COLORS.primary, "#5C86A8", COLORS.gold, COLORS.neg];
     const aging = ag.map((x, i) => ({ label: x[0], count: x[1], pct: ((x[1] / agMax) * 100).toFixed(0), color: agColors[i] }));
 
-    const allSel = selected.size === CENTRES.length;
+    const allSel = selected.size === centres.length;
 
     // ── Live overrides (real endpoint data replaces sample where available) ──
     const L = live && live.live ? live : null;
@@ -518,7 +549,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       ranges: RANGE_KEYS.map((k, i) => ({
         key: k, label: RANGE_LABELS[ar ? "ar" : "en"][i], active: range === k,
       })),
-      centreOptions: CENTRES.map((c) => ({ name: c.name, on: selected.has(c.name) })),
+      centreOptions: centres.map((c) => ({ name: c.name, label: c.label || c.name, on: selected.has(c.name) })),
       allSel,
       centreSummary: allSel ? t.allCentres : ar ? selected.size + " مراكز" : selected.size + " centres",
       showCompare: compare,
@@ -526,8 +557,8 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       revSpark: eRevSpark,
       citizenPct: 63, expatPct: 37, citizenVal: fmtSAR(ePeriodRev * 0.63),
       finKpis: eFinKpis, centreRanked,
-      topName: top ? top.name : "—", topVal: top ? fmtSAR(top.rev * f) : "",
-      botName: bot ? bot.name : "—", botVal: bot ? fmtSAR(bot.rev * f) : "",
+      topName: top ? (top.label || top.name) : "—", topVal: top ? fmtSAR(top.rev * f) : "",
+      botName: bot ? (bot.label || bot.name) : "—", botVal: bot ? fmtSAR(bot.rev * f) : "",
       heatMonths, centreHeat,
       growthKpis: eGrowthKpis, funnelStages: eFunnelStages, funnelRate: eFunnelRate, loyaltyTiers, leadSources, endFunnelTiles: eEndFunnel, revenueFunnel: revenueFunnel,
       pointsEarned: ePointsEarned != null ? ePointsEarned : grp(1240000 * f), pointsRedeemed: ePointsRedeemed != null ? ePointsRedeemed : grp(780000 * f), campaigns,
@@ -537,7 +568,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live })
       avgResolution: "6.4h", aging,
       series: eSeries, prevSeries: ePrevSeries, trendRangeLabel: range,
     };
-  }, [range, compare, overlayPrev, lang, selected, live]);
+  }, [range, compare, overlayPrev, lang, selected, live, centres]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -589,7 +620,29 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(() => new Set(CENTRES.map((c) => c.name)));
 
   const live = useLiveDashboard({ range });
-  const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live });
+  const centreDir = useCentreDirectory();
+  // Effective centre list: active centres from the hierarchy (name from the
+  // API, mock rev kept by code). Falls back to the full static list until the
+  // hierarchy has loaded.
+  const activeCentres = useMemo(() => {
+    if (!centreDir || !centreDir.codes.length) return CENTRES;
+    const byCode = Object.fromEntries(CENTRES.map((c) => [c.name, c]));
+    return centreDir.codes.map((code) => ({
+      name: code,
+      label: centreDir.names[code] || code,
+      rev: byCode[code] ? byCode[code].rev : 0,
+    }));
+  }, [centreDir]);
+  // Once the hierarchy loads, keep the selection within the active centres.
+  useEffect(() => {
+    if (!centreDir || !centreDir.codes.length) return;
+    const active = new Set(centreDir.codes);
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((code) => active.has(code)));
+      return next.size ? next : active;
+    });
+  }, [centreDir]);
+  const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres: activeCentres });
   const ar = d.ar;
 
   // License-based block visibility — read the tenant's plan from the logged-in user.
@@ -613,7 +666,7 @@ export default function Dashboard() {
   };
   const toggleAll = () => {
     setSelected((prev) =>
-      prev.size === CENTRES.length ? new Set([CENTRES[0].name]) : new Set(CENTRES.map((c) => c.name))
+      prev.size === activeCentres.length ? new Set([activeCentres[0].name]) : new Set(activeCentres.map((c) => c.name))
     );
   };
 
@@ -677,7 +730,7 @@ export default function Dashboard() {
                     <span style={{ width: 16, height: 16, borderRadius: 5, border: `1.5px solid ${c.on ? COLORS.primary : "#cdd4dc"}`, background: c.on ? COLORS.primary : "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, flex: "none" }}>
                       {c.on ? "✓" : ""}
                     </span>
-                    {c.name}
+                    {c.label}
                   </button>
                 ))}
               </div>
@@ -1000,8 +1053,8 @@ export default function Dashboard() {
           ) : <LockedBlock feature="caseManagement" ar={ar} />}
         </section>
 
-        {/* ===================== 5. REVENUE TREND ===================== */}
-        <section>
+        {/* ===================== 5. REVENUE TREND (temporarily hidden) ===================== */}
+        <section style={{ display: "none" }}>
           <SectionHeading num="05" title={d.t.trend} sub={d.trendRangeLabel} />
           <div style={{ background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16, padding: "22px 24px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 12 }}>
