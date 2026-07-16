@@ -517,6 +517,22 @@ const PackageMaster = () => {
   const [toast,     setToast]     = useState(null);
   const [membershipActive, setMembershipActive] = useState(false);
   useEffect(() => { (async () => { try { const d = await authGet(`${API_BASE_URL}/api/Membership/Program`); setMembershipActive(!!d.activate); } catch { setMembershipActive(false); } })(); }, []);
+  // Centre code → name map, so the list can show centre NAMES instead of codes.
+  // Sourced from the same hierarchy endpoint used by openCreate. If a code isn't
+  // found (or the API already returns names) the original token passes through.
+  const [centreMap, setCentreMap] = useState({});
+  useEffect(() => { (async () => {
+    try {
+      const res  = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, { headers:{ Authorization:`Bearer ${TOKEN()}` } });
+      const json = await res.json();
+      const hier = json.data ?? json;
+      const map  = {};
+      (hier.zones || []).forEach(z => (z.clinics || []).forEach(c => {
+        if (c.code) { const nm = c.name || c.code; map[c.code] = nm; map[String(c.code).toUpperCase()] = nm; }
+      }));
+      setCentreMap(map);
+    } catch { setCentreMap({}); }
+  })(); }, []);
   const [saving,    setSaving]    = useState(false);
   const [saveAttempted, setSaveAttempted] = useState(false);
 
@@ -769,6 +785,17 @@ const PackageMaster = () => {
     } finally { setSaving(false); }
   };
 
+  // Translate the CENTRES field (comma/semicolon/pipe separated) from codes to names.
+  const centreNames = (csv) => {
+    if (!csv) return "—";
+    const out = String(csv).split(/[,;|]/).map(tok => {
+      const t = tok.trim();
+      if (!t) return null;
+      return centreMap[t] || centreMap[t.toUpperCase()] || t;
+    }).filter(Boolean);
+    return out.length ? out.join(", ") : "—";
+  };
+
   const statusBadge = (s) => {
     const cfg = { Active:{bg:"#e6f4ef",color:"#2e7d5e"}, Draft:{bg:"#fef3c7",color:"#92400e"}, Inactive:{bg:"#f1f5f9",color:"#475569"} }[s] || {bg:"#f1f5f9",color:"#475569"};
     return <span style={{ background:cfg.bg, color:cfg.color, borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{s}</span>;
@@ -802,7 +829,7 @@ const PackageMaster = () => {
                 { label:"Package Name", field:"PACKAGENAME" },
                 { label:"Category",     field:"CATEGORY" },
                 { label:"Sub-Category", field:"SUBCATEGORY" },
-                { label:"Centres",      field:"CENTRES" },
+                { label:"Centre Name",  field:"CENTRES" },
                 { label:"Quick Cart",   field:"ADDTOQUICKCART" },
                 { label:"Status",       field:"STATUS" },
                 { label:"Actions",      field:null },
@@ -829,7 +856,7 @@ const PackageMaster = () => {
                   <td style={{ padding:"12px 14px" }}>{pkg.PACKAGENAME}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.CATEGORY}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{pkg.SUBCATEGORY}</td>
-                  <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{pkg.CENTRES||"—"}</td>
+                  <td style={{ padding:"12px 14px", color:"#64748b", fontSize:12 }}>{centreNames(pkg.CENTRES)}</td>
                   <td style={{ padding:"12px 14px" }}>
                     <span style={{ background: pkg.ADDTOQUICKCART?"#e6f4ef":"#f1f5f9", color: pkg.ADDTOQUICKCART?"#2e7d5e":"#94a3b8", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
                       {pkg.ADDTOQUICKCART ? "Yes" : "No"}
