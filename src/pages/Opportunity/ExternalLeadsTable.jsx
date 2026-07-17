@@ -66,7 +66,7 @@ const padLeadId = (v, width = 7) => {
 const toTimeLabel12h = (hhmmss, ampm) => {
   const t = String(hhmmss || "").trim();
   const ap = String(ampm || "").trim().toUpperCase();
-  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
   if (!m) return ap ? ap : "";
   const hh = parseInt(m[1], 10);
   const mm = parseInt(m[2], 10);
@@ -113,13 +113,17 @@ const dateToStamp = (d) => {
  * Convert API followUptime ("13:30:00") to total minutes since midnight.
  * The API sends 24h time — AMPM field is for display only.
  */
-const rowTimeToMinutes = (hhmmss) => {
+const rowTimeToMinutes = (hhmmss, ampm) => {
   const t = String(hhmmss || "").trim();
-  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
   if (!m) return NaN;
-  const h = parseInt(m[1], 10);
+  let h = parseInt(m[1], 10);
   const min = parseInt(m[2], 10);
   if (Number.isNaN(h) || Number.isNaN(min)) return NaN;
+  const ap = (m[3] || String(ampm || "")).trim().toUpperCase();
+  // Apply the meridian only for a 12-hour clock hour (1-12). A 24h value like
+  // "17:00" is already absolute, so a stray "PM" flag must NOT add 12 again.
+  if (ap && h >= 1 && h <= 12) { h = h % 12; if (ap === "PM") h += 12; }
   return h * 60 + min;
 };
 
@@ -127,15 +131,22 @@ const rowTimeToMinutes = (hhmmss) => {
  * Convert an <input type="time"> value ("HH:mm") to total minutes.
  * Returns NaN when empty/invalid.
  */
-const inputTimeToMinutes = (hhmm) => {
-  if (!hhmm) return NaN;
-  const parts = String(hhmm).split(":");
-  if (parts.length !== 2) return NaN;
-  const h = Number(parts[0]);
-  const min = Number(parts[1]);
+const inputTimeToMinutes = (val) => {
+  if (!val) return NaN;
+  const m = String(val).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!m) return NaN;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
   if (Number.isNaN(h) || Number.isNaN(min)) return NaN;
+  const ap = (m[3] || "").toUpperCase();
+  if (ap) { h = h % 12; if (ap === "PM") h += 12; }   // 12h slot -> 24h
   return h * 60 + min;
 };
+
+// Half-hour slots "01:00 AM" … "12:30 PM" — same picker as R1–R6.
+const HALF_HOURS = Array.from({ length: 24 }, (_, h) =>
+  [0, 30].map((m) => `${String(((h + 11) % 12) + 1).padStart(2, "0")}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`)
+).flat();
 
 // ─── Session storage helpers (keyed by oppCode) ───────────────────────────
 const SS_EXT_FILTER_KEY = (oppCode) => `EW_EXT_FILTERS_${oppCode}`;
@@ -317,7 +328,7 @@ const mapExternalRow = (x) => {
 
   const followUpDateObj   = parseDateMidnight(followUpDateRaw);
   const __followUpStamp   = followUpDateObj ? dateToStamp(followUpDateObj) : NaN;
-  const __followUpMinutes = rowTimeToMinutes(followUpTimeRaw); // 24h minutes
+  const __followUpMinutes = rowTimeToMinutes(followUpTimeRaw, followUpAMPM); // 24h minutes
 
   return {
     recid:              x?.recid ?? x?.recId ?? "",
@@ -409,7 +420,9 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
 
   const [fromDate, setFromDate] = useState(() => {
     if (_saved.fromDate != null) return _saved.fromDate;
-    return isStaticSegment ? "" : getTodayInputDate();
+    if (isStaticSegment) return "";
+    // Dynamic: default Created-From = the campaign's creation From date (To stays today)
+    return toISODateOnly(fromDateFromUrl) || getTodayInputDate();
   });
   const [toDate, setToDate] = useState(() => {
     if (_saved.toDate != null) return _saved.toDate;
@@ -478,11 +491,11 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
       setFromDate((p) => (_saved.fromDate != null ? p : ""));
       setToDate((p)   => (_saved.toDate   != null ? p : ""));
     } else {
-      setFromDate((p) => (_saved.fromDate != null ? p : (p || getTodayInputDate())));
+      setFromDate((p) => (_saved.fromDate != null ? p : (p || toISODateOnly(fromDateFromUrl) || getTodayInputDate())));
       setToDate((p)   => (_saved.toDate   != null ? p : (p || getTodayInputDate())));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStaticSegment]);
+  }, [isStaticSegment, fromDateFromUrl]);
 
   // 250 ms search debounce
   useEffect(() => {
@@ -666,6 +679,11 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
   const safePage   = Math.min(Math.max(page, 1), totalPages);
   const pagedRows  = filteredRows; // already the current page from server
 
+  // OPP-012: flag an invalid follow-up time range (To earlier than From)
+  const followUpTimeError =
+    !!followUpFromTime && !!followUpToTime &&
+    inputTimeToMinutes(followUpFromTime) > inputTimeToMinutes(followUpToTime);
+
   const toggleSort = (key) => {
     if (sortKey !== key) { setSortKey(key); setSortDir("asc"); return; }
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -832,28 +850,27 @@ export default function ExternalLeadsTable({ oppCode, header, onToast }) {
             {/* Follow Up Time From — CLIENT-SIDE */}
             <div className="fgroup">
               <label className="flabel">Follow Up From Time :</label>
-              <div className="time-wrap">
-                <input type="time" className="finput time-input" value={followUpFromTime}
-                  onChange={(e) => setFollowUpFromTime(e.target.value)} />
-                {followUpFromTime && (
-                  <button className="time-clear" onClick={() => setFollowUpFromTime("")} title="Clear">✕</button>
-                )}
-              </div>
+              <select className="finput" value={followUpFromTime} onChange={(e) => setFollowUpFromTime(e.target.value)}>
+                <option value="">—</option>
+                {HALF_HOURS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
             {/* Follow Up Time To — CLIENT-SIDE */}
             <div className="fgroup">
               <label className="flabel">Follow Up To Time :</label>
-              <div className="time-wrap">
-                <input type="time" className="finput time-input" value={followUpToTime}
-                  onChange={(e) => setFollowUpToTime(e.target.value)} />
-                {followUpToTime && (
-                  <button className="time-clear" onClick={() => setFollowUpToTime("")} title="Clear">✕</button>
-                )}
-              </div>
+              <select className="finput" value={followUpToTime} onChange={(e) => setFollowUpToTime(e.target.value)}>
+                <option value="">—</option>
+                {HALF_HOURS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
           </div>
+          {followUpTimeError && (
+            <div className="fu-time-error" style={{ color: "#c33", fontSize: 12, marginTop: 6 }}>
+              Follow Up To Time cannot be earlier than Follow Up From Time.
+            </div>
+          )}
         </div>
 
         {/* Search */}

@@ -708,19 +708,20 @@ function ExternalSection({ oppCode, churnKey=0 }) {
   const [err,        setErr]        = useState("");
   const [page,       setPage]       = useState(1);
 
-  const [status,     setStatus]     = useState("");
-  const [owner,      setOwner]      = useState("");
-  const [disp,       setDisp]       = useState("");
-  const [srchDraft,  setSrchDraft]  = useState("");
-  const [search,     setSearch]     = useState("");
-  const [fromDate,   setFromDate]   = useState(todayISO());
-  const [toDate,     setToDate]     = useState(todayISO());
+  const _sf = (() => { try { return JSON.parse(sessionStorage.getItem(`cd:extF:${oppCode}`) || "{}") || {}; } catch { return {}; } })();
+  const [status,     setStatus]     = useState(_sf.status   ?? "");
+  const [owner,      setOwner]      = useState(_sf.owner    ?? "");
+  const [disp,       setDisp]       = useState(_sf.disp     ?? "");
+  const [srchDraft,  setSrchDraft]  = useState(_sf.search   ?? "");
+  const [search,     setSearch]     = useState(_sf.search   ?? "");
+  const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());
+  const [toDate,     setToDate]     = useState(_sf.toDate   ?? todayISO());
 
-  const [fuMode,     setFuMode]     = useState("");
-  const [fuFrom,     setFuFrom]     = useState("");
-  const [fuTo,       setFuTo]       = useState("");
-  const [fuTFrom,    setFuTFrom]    = useState("");
-  const [fuTTo,      setFuTTo]      = useState("");
+  const [fuMode,     setFuMode]     = useState(_sf.fuMode   ?? "");
+  const [fuFrom,     setFuFrom]     = useState(_sf.fuFrom   ?? "");
+  const [fuTo,       setFuTo]       = useState(_sf.fuTo     ?? "");
+  const [fuTFrom,    setFuTFrom]    = useState(_sf.fuTFrom  ?? "");
+  const [fuTTo,      setFuTTo]      = useState(_sf.fuTTo    ?? "");
 
   const [ownerOpts,  setOwnerOpts]  = useState([]);
   const [dispOpts,   setDispOpts]   = useState([]);
@@ -750,7 +751,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
       method:"POST", headers:authHeaders(),
       body:JSON.stringify({
         oppCode, fromDate, toDate,
-        pageNumber:page, pageSize:PAGE_SIZE,
+        pageNumber:1, pageSize:5000,   // fetch full set; filter + paginate client-side (like R1-R6)
         searchTerm:search, statusFilter:status,
         ownerFilter:owner, dispFilter:disp,
       }),
@@ -788,20 +789,27 @@ function ExternalSection({ oppCode, churnKey=0 }) {
             followUpDate: fuDateClean,
             __fuStamp:  fuDateClean ? stamp(toMidnight(fuDateClean)) : NaN,
             __fuMin:    (() => {
-              const t = String(x?.followUpTime || "").trim().toUpperCase();
-              let h, mm;
-              let m = t.match(/T(\d{2}):(\d{2})/);           // SQL time as ISO -> 24h wall clock
-              if (m) { h = +m[1]; mm = +m[2]; }
-              else {
-                m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/); // "02:30 PM" label or "14:30"
-                if (!m) return NaN;
-                h = +m[1]; mm = +m[2];
-                if (m[3] === "PM" && h < 12) h += 12;
-                if (m[3] === "AM" && h === 12) h = 0;
-              }
-              return h * 60 + mm;
+              const raw = String(x?.followUptime || x?.followUpTime || "").trim().toUpperCase();
+              let m = raw.match(/T(\d{2}):(\d{2})/);
+              if (m) return (+m[1]) * 60 + (+m[2]);
+              m = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/);
+              if (!m) return NaN;
+              let h = +m[1];
+              const ap = m[3] || String(x?.followUpAMPM || "").trim().toUpperCase();
+              if (ap) { h = h % 12; if (ap === "PM") h += 12; }
+              return h * 60 + (+m[2]);
             })(),
-            __fuLabel:  to12hLabel(x?.followUpTime),
+            __fuLabel:  (() => {
+              const raw = String(x?.followUptime || x?.followUpTime || "").trim();
+              const m = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+              if (!m) return "";
+              let hh = parseInt(m[1], 10);
+              const mm = m[2];
+              const ap = (m[3] || String(x?.followUpAMPM || "")).trim().toUpperCase();
+              const label = (hh > 12 || hh === 0) ? (hh >= 12 ? "PM" : "AM") : (ap || (hh === 12 ? "PM" : "AM"));
+              let h12 = hh % 12; if (h12 === 0) h12 = 12;
+              return `${String(h12).padStart(2, "0")}:${mm} ${label}`;
+            })(),
           };
         }));
         setServerTotal(total);
@@ -809,7 +817,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
       .catch(e=>{if(alive)setErr(e.message);})
       .finally(()=>{if(alive)setLoading(false);});
     return()=>{alive=false;};
-  },[oppCode,fromDate,toDate,page,search,status,owner,disp,churnKey]);
+  },[oppCode,fromDate,toDate,search,status,owner,disp,churnKey]);
 
   useEffect(()=>setPage(1),[search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo]);
 
@@ -825,13 +833,24 @@ function ExternalSection({ oppCode, churnKey=0 }) {
     return null;
   },[fuMode,fuFrom,fuTo]);
 
+  const to24h = (slot) => {
+    if (!slot) return "";
+    const m=String(slot).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if(!m) return "";
+    let h=Number(m[1])%12; if((m[3]||"").toUpperCase()==="PM") h+=12;
+    return `${String(h).padStart(2,"0")}:${m[2]}`;
+  };
+  const filterTFrom = to24h(fuTFrom);
+  const filterTTo   = to24h(fuTTo);
+
   const filtered = useMemo(()=>{
     let list=rows.slice();
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
     });
-    const fMin=timeToMin(fuTFrom), tMin=timeToMin(fuTTo);
+    const fMin=timeToMin(filterTFrom), tMin=timeToMin(filterTTo);
+    if(!isNaN(fMin)&&!isNaN(tMin)&&fMin>tMin) return [];   // OPP-012: To earlier than From
     if(!isNaN(fMin)||!isNaN(tMin)) list=list.filter(r=>{
       if(isNaN(r.__fuMin)) return false;
       if(!isNaN(fMin)&&r.__fuMin<fMin) return false;
@@ -839,9 +858,14 @@ function ExternalSection({ oppCode, churnKey=0 }) {
       return true;
     });
     return list;
-  },[rows,fuDateRange,fuTFrom,fuTTo]);
+  },[rows,fuDateRange,filterTFrom,filterTTo]);
 
-  const totalPages = Math.max(1,Math.ceil(serverTotal/PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length/PAGE_SIZE));
+  const paged = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  const fuTimeError = !isNaN(timeToMin(filterTFrom)) && !isNaN(timeToMin(filterTTo)) && timeToMin(filterTFrom) > timeToMin(filterTTo);
+  useEffect(() => {
+    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, search, fromDate, toDate, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
+  }, [oppCode, status, owner, disp, search, fromDate, toDate, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
 
   return (
     <div>
@@ -876,13 +900,26 @@ function ExternalSection({ oppCode, churnKey=0 }) {
             <div className="cd-fg"><label>FU From</label><input type="date" value={fuFrom} onChange={e=>setFuFrom(e.target.value)} /></div>
             <div className="cd-fg"><label>FU To</label><input type="date" value={fuTo} onChange={e=>setFuTo(e.target.value)} /></div>
           </>)}
-          <div className="cd-fg"><label>FU Time From</label><input type="time" value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)} /></div>
-          <div className="cd-fg"><label>FU Time To</label><input type="time" value={fuTTo} onChange={e=>setFuTTo(e.target.value)} /></div>
+          <div className="cd-fg"><label>FU Time From</label>
+            <select value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)}>
+              <option value="">—</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="cd-fg"><label>FU Time To</label>
+            <select value={fuTTo} onChange={e=>setFuTTo(e.target.value)}>
+              <option value="">—</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {fuTimeError && <div className="cd-fg" style={{alignSelf:"flex-end"}}><span style={{color:"#c33",fontSize:12}}>FU Time To cannot be earlier than From.</span></div>}
         </div>
       </div>
 
       <div className="cd-searchrow">
-        <span className="cd-count">{serverTotal} record(s)</span>
+        <span className="cd-count">{filtered.length>0
+          ? <>showing {((page-1)*PAGE_SIZE+1).toLocaleString()}–{Math.min(page*PAGE_SIZE,filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}</>
+          : "0 records"}</span>
         <input className="cd-search" placeholder="Search (Customer, Mobile, Remarks…)"
           value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
       </div>
@@ -901,7 +938,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
                 <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
               </tr></thead>
               <tbody>
-                {filtered.map((r,i)=>(
+                {paged.map((r,i)=>(
                   <tr key={`${r.recid||i}-${i}`}>
                     <td>
                       <button className="cd-link" onClick={()=>navigate(

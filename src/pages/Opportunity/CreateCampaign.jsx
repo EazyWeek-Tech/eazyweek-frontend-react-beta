@@ -563,7 +563,7 @@ export default function CreateCampaign() {
       e.oppName = "Campaign Name must be 100 characters or fewer.";
     } else if (!/[\p{L}\p{N}]/u.test(nm)) {
       e.oppName = "Campaign Name must include at least one letter or number.";
-    } else if (!/^[\p{L}\p{N} \-_()&,.'\/]+$/u.test(nm)) {
+    } else if (!/^[\p{L}\p{M}\p{N} \-_()&,.'\/]+$/u.test(nm)) {
       e.oppName = "Only letters (any language), numbers, spaces and - _ ( ) & , . ' / are allowed.";
     }
     if (!general.ruleCode)          e.ruleCode   = "Rule Type is required.";
