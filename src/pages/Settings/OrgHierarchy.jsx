@@ -19,7 +19,7 @@ const LENode = ({ name }) => (
     <span style={{ fontSize:16 }}></span>
     <div>
       <div style={{ fontSize:10, opacity:0.65, textTransform:"uppercase", letterSpacing:1 }}>Legal Entity</div>
-      <div>{name}</div>
+      <div>Lumea Group</div>
     </div>
   </div>
 );
