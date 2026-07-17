@@ -561,10 +561,10 @@ export default function CreateCampaign() {
       e.oppName = "Campaign Name must be at least 2 characters.";
     } else if (nm.length > 100) {
       e.oppName = "Campaign Name must be 100 characters or fewer.";
-    } else if (!/[A-Za-z0-9]/.test(nm)) {
+    } else if (!/[\p{L}\p{N}]/u.test(nm)) {
       e.oppName = "Campaign Name must include at least one letter or number.";
-    } else if (!/^[A-Za-z0-9 \-_()&,.'\/]+$/.test(nm)) {
-      e.oppName = "Only letters, numbers, spaces and - _ ( ) & , . ' / are allowed.";
+    } else if (!/^[\p{L}\p{N} \-_()&,.'\/]+$/u.test(nm)) {
+      e.oppName = "Only letters (any language), numbers, spaces and - _ ( ) & , . ' / are allowed.";
     }
     if (!general.ruleCode)          e.ruleCode   = "Rule Type is required.";
     if (!general.centerCode)        e.centerCode = "Centre is required.";

@@ -422,7 +422,7 @@ const OpportunityDashboard = () => {
 
   /* Table */
   const filteredData = useMemo(()=>{
-    const q=searchTerm.toLowerCase();
+    const q=searchTerm.trim().toLowerCase();
     let rows=opportunityData.filter(i=>(i.oppCode||"").toLowerCase().includes(q)||(i.oppName||"").toLowerCase().includes(q)||
       (i.clinic||"").toLowerCase().includes(q)||(i.centerName||"").toLowerCase().includes(q)||(i.segmentType||"").toLowerCase().includes(q));
     if(sortConfig.key) rows=[...rows].sort((a,b)=>{
@@ -458,8 +458,9 @@ const OpportunityDashboard = () => {
       const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/ExpireOpportunity`,{
         method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({expireOpp:"Expired by user",oppCodeListJson:selectedRows.map(id=>{const x=opportunityData.find(o=>rowId(o)===id);return {oppCode:String(x?.oppCode||id).trim()};}).filter(o=>o.oppCode)})});
-      if(!r.ok)throw new Error("Failed to expire");
-      showToast("Opportunities expired successfully.");
+      const data=await r.json().catch(()=>null);
+      if(!r.ok||data?.success===false)throw new Error(data?.message||"Failed to expire the campaign.");
+      showToast(data?.message||"Opportunities expired successfully.");
       setSelectedRows([]);setCurrentPage(1);setStatusFilter("1");await fetchOpportunities("1");
     }catch(e){showToast(e.message||"Error expiring","error");}
   };
@@ -490,7 +491,7 @@ const OpportunityDashboard = () => {
   if(currentView==="create-opportunity") return <OpportunityForm onBack={handleBackToDashboard} onNext={()=>setCurrentView("create-rule")} mode="create"/>;
   if(currentView==="create-rule") return <CreateRuleForm opportunityData={opportunityData} onBack={()=>setCurrentView("create-opportunity")} onSave={()=>alert("Rule saved!")} onActivate={()=>{alert("Activated!");setCurrentView("dashboard");}}/>;
   if(currentView==="edit-opportunity") return <EditOpportunityForm opportunityData={selectedOpportunity} onBack={handleBackToDashboard}
-    onSave={async upd=>{try{const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/UpdateCampaign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({oppCode:upd.oppCode,oppName:upd.oppName})});if(!r.ok)throw new Error("Failed to update");showToast("Opportunity updated.");setCurrentView("dashboard");setSelectedRows([]);await fetchOpportunities(statusFilter);}catch(e){showToast(e.message||"Error updating","error");}}}/>;
+    onSave={async upd=>{try{const r=await apiFetch(`${API_BASE_URL}/api/Opportunity/UpdateCampaign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({oppCode:upd.oppCode,oppName:upd.oppName})});const data=await r.json().catch(()=>null);if(!r.ok||data?.success===false)throw new Error(data?.message||"Failed to update the campaign.");showToast(data?.message||"Opportunity updated.");setCurrentView("dashboard");setSelectedRows([]);await fetchOpportunities(statusFilter);}catch(e){showToast(e.message||"Error updating","error");}}}/>;
 
   /* Dashboard */
   return (

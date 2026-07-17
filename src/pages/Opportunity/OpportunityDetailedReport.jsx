@@ -366,7 +366,17 @@ export default function OpportunityDetailedReport() {
   const isManualSelected  = useMemo(()=>Array.isArray(oppRuleCodes)&&oppRuleCodes.includes(MANUAL_RULE_VALUE),[oppRuleCodes]);
 
   const sessionCtx = useMemo(()=>getSessionContext(),[]);
-  const isCentriq  = norm(sessionCtx?.loginCode).toLowerCase()==="centriq clinics";
+  const isCentriq  = (()=>{
+    const lc = norm(sessionCtx?.loginCode).toLowerCase();
+    const tc = norm(sessionCtx?.topCode).toLowerCase();
+    // Organisation/entity level ⇒ list every clinic. Detect it robustly: session
+    // loginCode/topCode get overwritten by other screens, so match the entity
+    // login/code/name, an empty code, or the beta "Not Set" fallback instead of
+    // one exact string.
+    const ENTITY = ["centriq clinics", "cntq", "lumea group"];
+    if (!lc || lc === "not set") return true;
+    return ENTITY.includes(lc) || ENTITY.includes(tc);
+  })();
 
   const [userRoleName, setUserRoleName] = useState("");
   useEffect(()=>{

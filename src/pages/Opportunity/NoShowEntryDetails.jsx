@@ -10,40 +10,8 @@ const AUTH_HEADERS = () => {
 };
 
 
-/** ✅ same as your file (you can adjust label list later if needed) */
-const DISPOSITION_OPTIONS = [
-  { value: "", label: "" },
-  { value: "LS008", label: "Converted" },
-  { value: "LS011", label: "Not Converted" },
-  { value: "LS013", label: "WIP" },
-];
-
-// ✅ Sub-Disposition options (dependent on Disposition)
-const SUB_DISPOSITION_BY_DISPOSITION = {
-  LS008: [
-    { value: "LS0021", label: "Converted" },
-    { value: "LS028", label: "Rescheduling" },
-  ],
-  LS013: [
-    { value: "LS0022", label: "WIP" },
-    { value: "LS029", label: "Switched Off" },
-    { value: "LS030", label: "No Answer" },
-  ],
-  LS011: [
-    { value: "LS022", label: "Will Visit Personally" },
-    { value: "LS023", label: "Doctor not available" },
-    { value: "LS024", label: "Price" },
-    { value: "LS025", label: "Clinic too far" },
-    { value: "LS026", label: "Machine Service Availibility" },
-    { value: "LS027", label: "Took Service Outside " },
-    { value: "LS031", label: "Refuse to Reschedule " },
-  ],
-};
-
-const getSubDispositionOptions = (disp) => {
-  const key = normalizeLSCode(disp);
-  return SUB_DISPOSITION_BY_DISPOSITION[key] || [];
-};
+// Disposition + sub-disposition options are loaded live from the API
+// (CLINIC_LEADSTATUS / CLINIC_LEADSUBSTATUS) — no hardcoded lists.
 
 // (kept consistent with your existing app)
 const OPP_STATUS = { OPEN: "1", CLOSED: "2" };
@@ -103,20 +71,14 @@ const normalizeDispCode = (v) => {
   return s;
 };
 
-const normalizeSubDispForDisposition = (dispCode, subValueOrLabel) => {
+const normalizeSubDispForDisposition = (_dispCode, subValueOrLabel) => {
   const raw = String(subValueOrLabel ?? "").trim();
   if (!raw) return "";
-
-  // if already a code like LS0022
+  // Keep an LS code as-is; otherwise return the saved value unchanged. Sub-
+  // dispositions are curated in the master data and loaded from the API, so a
+  // saved value is never dropped against a stale hardcoded list.
   const maybeCode = normalizeLSCode(raw);
-  if (/^LS\d{2,6}$/.test(maybeCode)) return maybeCode;
-
-  // otherwise treat as label and find matching option by label
-  const opts = getSubDispositionOptions(dispCode);
-  const match = opts.find(
-    (o) => String(o.label).trim().toLowerCase() === raw.toLowerCase()
-  );
-  return match ? normalizeLSCode(match.value) : "";
+  return /^LS\d{2,6}$/.test(maybeCode) ? maybeCode : raw;
 };
 
 // ---------- helpers to sanitize API follow-up dates ----------
@@ -400,10 +362,6 @@ const apiReasonCode = String(
 const apiRemarks = String(data?.remarts || "").trim();
 
 // ✅ choose UI disposition
-
-// ✅ allow-list check using normalized values
-const allowedSub = getSubDispositionOptions(resolvedDisp).map((x) => normalizeLSCode(x.value));
-const resolvedSubDisp = allowedSub.includes(apiSubDisp) ? apiSubDisp : "";
 
 // ✅ set form
 setForm((p) => ({

@@ -367,9 +367,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   const [fuFrom,  setFuFrom]  = useState("");
   const [fuTo,    setFuTo]    = useState("");
   const [fuTFrom, setFuTFrom] = useState("");
-  const [fuTFrMer,setFuTFrMer]= useState("AM");
   const [fuTTo,   setFuTTo]   = useState("");
-  const [fuTToMer,setFuTToMer]= useState("AM");
 
   const [sort, setSort] = useState({ key:"", dir:"asc" });
   const [page, setPage] = useState(1);
@@ -411,7 +409,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
           __therapist: (r?.therapistname||r?.therapistName||r?.THERAPISTNAME||"").toString().trim(),
           __apptStamp: stamp(toMidnight(r?.appointmentdatetime||r?.appointmentDateTime||"")),
           __fuStamp:   stamp(toMidnight(r?.followUpDate||r?.followupdate||"")),
-          __fuMin:     timeToMin((r?.followUptime||r?.followUpTime||"").toString().replace(/[APM]/gi,"")),
+          __fuMin:     (()=>{const raw=(r?.followUptime||r?.followUpTime||"").toString().trim();const m=raw.match(/^(\d{1,2}):(\d{2})/);if(!m)return NaN;let h=Number(m[1])%12;if((r?.followUpAMPM||r?.followupampm||"").toString().trim().toUpperCase()==="PM")h+=12;return h*60+Number(m[2]);})(),
           __q: [r?.custID,r?.custName,r?.custMobileNo,r?.oppStatus,r?.salesOwner,r?.disposition,
                 r?.therapistname,r?.therapistName].map(x=>(x??"").toString().toLowerCase()).join("|"),
         })));
@@ -457,25 +455,27 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
     if (fuMode==="0") { const s=+today; return {from:s,to:s}; }
     if (fuMode==="1") { const t=new Date(today); t.setDate(t.getDate()+1); const s=+t; return {from:s,to:s}; }
     if (fuMode==="2" && fuFrom && fuTo) {
-      let f=stamp(toMidnight(fuFrom)), t=stamp(toMidnight(fuTo));
-      if (f>t){const tmp=f;f=t;t=tmp;}
+      const f=stamp(toMidnight(fuFrom)), t=stamp(toMidnight(fuTo));
+      if (f>t) return {invalid:true};   // From after To → surface error, show no records
       return {from:f,to:t};
     }
     return null;
   }, [fuMode,fuFrom,fuTo]);
 
-  const to24h = (slot,mer) => {
+  const to24h = (slot) => {
     if (!slot) return "";
-    const [hh,mm]=slot.split(":").map(Number);
-    const b=hh%12; const h=mer==="PM"?b+12:b;
-    return `${String(h).padStart(2,"0")}:${mm}`;
+    const m=String(slot).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if(!m) return "";
+    let h=Number(m[1])%12; if((m[3]||"").toUpperCase()==="PM") h+=12;
+    return `${String(h).padStart(2,"0")}:${m[2]}`;
   };
-  const filterTFrom = to24h(fuTFrom, fuTFrMer);
-  const filterTTo   = to24h(fuTTo,   fuTToMer);
+  const filterTFrom = to24h(fuTFrom);
+  const filterTTo   = to24h(fuTTo);
 
   const filtered = useMemo(()=>{
     let list = rows.slice();
     // apptDate is server-side for R3/R4; followUp date/time remain client-side
+    if (fuDateRange?.invalid) return [];   // FU From date after To date → no records
     if (fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
@@ -491,7 +491,12 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
     }
     if (sort.key) {
       const dir=sort.dir==="asc"?1:-1;
+      const numericKey = sort.key==="recid";
       list=[...list].sort((a,b)=>{
+        if (numericKey) {
+          const an=Number(a?.[sort.key])||0, bn=Number(b?.[sort.key])||0;
+          return an<bn?-dir:an>bn?dir:0;
+        }
         const av=(a?.[sort.key]??"").toString().toLowerCase();
         const bv=(b?.[sort.key]??"").toString().toLowerCase();
         return av<bv?-dir:av>bv?dir:0;
@@ -585,6 +590,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
           {fuMode==="2" && (<>
             <div className="cd-fg"><label>FU From</label><input type="date" value={fuFrom} onChange={e=>setFuFrom(e.target.value)} /></div>
             <div className="cd-fg"><label>FU To</label><input type="date" value={fuTo} onChange={e=>setFuTo(e.target.value)} /></div>
+            {fuDateRange?.invalid && <div className="cd-fg" style={{alignSelf:"flex-end"}}><span style={{color:"#c33",fontSize:12}}>From date cannot be after To date.</span></div>}
           </>)}
           <div className="cd-fg cd-wide">
             <label>Follow Up Time From</label>
@@ -621,14 +627,14 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th>Prospect ID</th>
+                <th onClick={()=>onSort("recid")}>Prospect ID {sortArrow("recid")}</th>
                 <th onClick={()=>onSort("custID")}>Cust ID {sortArrow("custID")}</th>
                 <th onClick={()=>onSort("custName")}>Name {sortArrow("custName")}</th>
                 <th onClick={()=>onSort("custMobileNo")}>Mobile {sortArrow("custMobileNo")}</th>
                 <th onClick={()=>onSort("oppStatus")}>Status {sortArrow("oppStatus")}</th>
                 <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th>
                 <th>Appointment ID</th>
-                <th>Therapist</th>
+                <th onClick={()=>onSort("__therapist")}>Therapist {sortArrow("__therapist")}</th>
                 {showAppt && <th onClick={()=>onSort("appointmentdatetime")}>Appt Date {sortArrow("appointmentdatetime")}</th>}
                 <th>Remarks</th>
                 <th onClick={()=>onSort("salesOwner")}>Sales Owner {sortArrow("salesOwner")}</th>
@@ -665,9 +671,10 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
       {/* Batch navigation for large campaigns */}
       <div className="cd-server-pager">
         <span className="cd-count">
-          {serverTotal.toLocaleString()} total · showing {
-            ((serverPage-1)*SERVER_PAGE_SIZE+1).toLocaleString()}–{
-            Math.min(serverPage*SERVER_PAGE_SIZE, serverTotal).toLocaleString()}
+          {filtered.length>0
+            ? <>showing {((page-1)*PAGE_SIZE+1).toLocaleString()}–{Math.min(page*PAGE_SIZE,filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}</>
+            : "no records"}
+          {serverTotal>SERVER_PAGE_SIZE && <> · batch {serverPage}/{Math.ceil(serverTotal/SERVER_PAGE_SIZE)} ({serverTotal.toLocaleString()} loaded)</>}
         </span>
         {serverTotal > SERVER_PAGE_SIZE && (<>
           <button className="cd-pgbtn" disabled={serverPage<=1}
