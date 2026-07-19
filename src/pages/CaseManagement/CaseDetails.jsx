@@ -1702,7 +1702,7 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
   return (
     <section className="cd-theme">
       <style>{`
-        .cd-theme{ --navy:#334b71; --navyDk:#071D49; --border:#e7ecf4; --text:#10223f; }
+        .cd-theme{ --navy:#334b71; --navyDk:#071D49; --border:#e7ecf4; --text:#10223f; padding: 20px; border-radius: 12px; background: #fff; }
         /* form labels + controls only — everything else uses the original CSS */
         .cd-theme .form-group label{ font-size:12px; font-weight:700; color:var(--navyDk); }
         .cd-theme .form-group input,

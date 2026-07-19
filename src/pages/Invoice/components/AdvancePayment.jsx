@@ -228,7 +228,7 @@ const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
                 </div>
                 {preview.capExceeded && (
                   <div style={{ marginTop: 10, fontSize: 12, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
-                    ⚠ This exceeds the maximum advance cap of {money(preview.maxCap)}.
+                     This exceeds the maximum advance cap of {money(preview.maxCap)}.
                   </div>
                 )}
               </div>

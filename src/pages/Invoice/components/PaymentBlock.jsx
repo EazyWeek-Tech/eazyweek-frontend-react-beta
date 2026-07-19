@@ -1301,7 +1301,7 @@ if (result.success) {
               {/* Not enrolled guard — skip in AUTO mode, everyone earns */}
               {loyaltyEnrollmentType !== 'AUTO' && !isLoyaltyEnrolled && (
                 <div style={{ padding: '12px 14px', background: '#fdf3f3', border: '1px solid #f0c4c0', borderRadius: 8, color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>
-                  ⚠ This customer is not enrolled in the loyalty program. Loyalty payments are unavailable.
+                   This customer is not enrolled in the loyalty program. Loyalty payments are unavailable.
                 </div>
               )}
 
@@ -1325,7 +1325,7 @@ if (result.success) {
                     </div>
                   </div>
                 ) : !recIdFromUrl_final ? (
-                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>⚠ Select a customer to view loyalty balance.</div>
+                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}> Select a customer to view loyalty balance.</div>
                 ) : null}
               </div>}
 

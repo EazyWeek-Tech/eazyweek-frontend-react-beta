@@ -181,7 +181,7 @@ export default function FormList() {
             background:toast.type==="error"?"#fdf3f3":"#e6f4ef",
             border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
             color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-            {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+            {toast.type==="error"?" ":"✓ "}{toast.msg}
           </div>
         )}
 
@@ -246,7 +246,7 @@ export default function FormList() {
                         opacity: deleting === f.formCode ? 0.5 : 1,
                         flexShrink:0, lineHeight:1,
                       }}>
-                      {deleting === f.formCode ? "…" : "🗑"}
+                      {deleting === f.formCode ? "…" : "DELETE"}
                     </button>
                   )}
                   <span style={{ fontSize:18, color:"#94a3b8" }}>›</span>

@@ -267,7 +267,7 @@ export default function MixMatch() {
           background:toast.type==="error"?"#fdf3f3":"#e6f4ef",
           border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
           color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-          {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+          {toast.type==="error"?" ":"✓ "}{toast.msg}
         </div>
       )}
 
@@ -309,7 +309,7 @@ export default function MixMatch() {
           <div className={`switch ${F("enableDiscount")?"on":""}`} onClick={handleEnableToggle}><div className="knob"/></div>
           <div className="muted">Enable Discount</div>
         </div>
-        {saveAttempted && errors.enableDiscount && <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}>⚠ {errors.enableDiscount}</div>}
+        {saveAttempted && errors.enableDiscount && <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}> {errors.enableDiscount}</div>}
         <div className="help" style={{ marginTop:10 }}>
           <strong>Important:</strong> Discounts will only become active once the start date is reached. Use the toggle to temporarily disable active discounts.
         </div>
@@ -335,7 +335,7 @@ export default function MixMatch() {
           })}
         </div>
         {selectedCentres.length > 0 && <div style={{ marginTop:8, fontSize:12, color:"#2e7d5e" }}>✓ {selectedCentres.length} centre{selectedCentres.length>1?"s":""} selected</div>}
-        {saveAttempted && errors.centres && <div className="warn" style={{ marginTop:10 }}>⚠ {errors.centres}</div>}
+        {saveAttempted && errors.centres && <div className="warn" style={{ marginTop:10 }}> {errors.centres}</div>}
       </section>
 
       {/* ── Applicable Items — controls active slot count ── */}
@@ -385,7 +385,7 @@ export default function MixMatch() {
             ))}
           </div>
         )}
-        {saveAttempted && errors.applicableItems && <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}>⚠ {errors.applicableItems}</div>}
+        {saveAttempted && errors.applicableItems && <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}> {errors.applicableItems}</div>}
       </section>
 
       {/* ── Discount Type (single for all slots) ── */}
@@ -409,7 +409,7 @@ export default function MixMatch() {
             {activeSlots} active slot{activeSlots>1?"s":""} (based on applicable items selected)
           </span>
         </h4>
-        {saveAttempted && errors.slots && <div style={{ color:"#b91c1c", fontSize:12, marginBottom:10 }}>⚠ {errors.slots}</div>}
+        {saveAttempted && errors.slots && <div style={{ color:"#b91c1c", fontSize:12, marginBottom:10 }}> {errors.slots}</div>}
 
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:600 }}>

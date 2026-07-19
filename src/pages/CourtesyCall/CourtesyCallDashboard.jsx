@@ -182,7 +182,7 @@ export default function CourtesyCallDashboard() {
   const pageData    = filtered.slice(start, start + perPage)
 
   return (
-    <div style={{ fontFamily:"Lato,sans-serif", background:"#f7f9fc", minHeight:"100vh", padding:"28px 24px 60px" }}>
+    <div style={{ fontFamily:"Lato,sans-serif", minHeight:"100vh", padding:"0" }}>
       <style>{`
         .cc-card { background:#fff; border:1px solid #e7ecf4; border-radius:12px; }
         .cc-th { background:#f1f5f9; padding:11px 14px; font-size:11px; font-weight:800;

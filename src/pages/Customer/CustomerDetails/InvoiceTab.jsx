@@ -137,7 +137,7 @@ const InvoicesTab = ({ custId, recId }) => {
 
         {toast && (
           <div className={`inv-toast ${toast.type}`}>
-            {toast.type === "success" ? "✓" : "⚠"} {toast.msg}
+            {toast.type === "success" ? "✓" : ""} {toast.msg}
           </div>
         )}
 
@@ -169,7 +169,7 @@ const InvoicesTab = ({ custId, recId }) => {
         {loading ? (
           <div className="inv-loading"><div className="inv-spinner" /> Loading invoices…</div>
         ) : error ? (
-          <div className="inv-error">⚠ {error}</div>
+          <div className="inv-error"> {error}</div>
         ) : (
           <div className="inv-table-wrap">
             <table className="inv-table">

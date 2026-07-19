@@ -589,7 +589,7 @@ const AppointmentDrawer = ({
         setToast({ message:"Appointment saved!", type:"success" });
 
         // ── LTR: report the booking back to the caller (lead→appointment flow) ─
-        // ⚠ VERIFY the appointment-id field on SaveAppointment's response; the
+        //  VERIFY the appointment-id field on SaveAppointment's response; the
         // conversion link falls back to the client referenceId if none is present.
         onBooked?.({
           referenceId:   freshRefId,

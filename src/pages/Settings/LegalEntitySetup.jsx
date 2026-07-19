@@ -275,7 +275,7 @@ export default function LegalEntitySetup() {
         .switch.on .knob { left:23px; }
         .add-btn { background:#fff; border:1px solid #e7ecf4; border-radius:8px; padding:8px 14px; font-weight:700; font-size:12px; color:#334b71; cursor:pointer; }
         .add-btn:hover { background:#f1f5f9; }
-        .del-btn { background:none; border:none; color:#b91c1c; cursor:pointer; font-size:18px; padding:0 4px; line-height:1; }
+        .del-btn { background:#b91c1c; border:none; color:#fff; cursor:pointer; font-size:10px; font-weight: 600; text-transform: capitalize; border-radius: 4px; padding: 4px; }
         .primary-badge { background:#e6f4ef; color:#2e7d5e; border:1px solid #b3d9cc; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700; }
         .save-btn { background:#334b71; color:#fff; border:none; border-radius:10px; padding:11px 24px; font-weight:800; font-size:13px; cursor:pointer; }
         .save-btn:disabled { opacity:0.55; cursor:not-allowed; }
@@ -300,7 +300,7 @@ export default function LegalEntitySetup() {
             background:toast.type==="error"?"#fdf3f3":"#e6f4ef",
             border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
             color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-            {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+            {toast.type==="error"?" ":"✓ "}{toast.msg}
           </div>
         )}
 
@@ -325,7 +325,7 @@ export default function LegalEntitySetup() {
           <div className="le-card">
             <h3>General Information</h3>
             <p>Primary details used to uniquely identify and configure the Legal Entity.
-              {existing && <span style={{ color:"#f59e0b", marginLeft:6 }}>⚠ General info cannot be modified once created.</span>}
+              {existing && <span style={{ color:"#f59e0b", marginLeft:6 }}> General info cannot be modified once created.</span>}
             </p>
             <div className="grid-2">
               <div className="field">
@@ -400,7 +400,7 @@ export default function LegalEntitySetup() {
                   <span style={{ fontWeight:700, fontSize:13 }}>
                     Address #{idx+1} {addr.isPrimary && <span className="primary-badge">Primary</span>}
                   </span>
-                  <button className="del-btn" onClick={() => setAddresses(p => p.filter((_,i)=>i!==idx))}>🗑</button>
+                  <button className="del-btn" onClick={() => setAddresses(p => p.filter((_,i)=>i!==idx))}>DELETE</button>
                 </div>
                 <div className="grid-2">
                   <div className="field">
@@ -450,7 +450,7 @@ export default function LegalEntitySetup() {
                   <span style={{ fontWeight:700, fontSize:13 }}>
                     Contact #{idx+1} {c.isPrimary && <span className="primary-badge">Primary</span>}
                   </span>
-                  <button className="del-btn" onClick={() => setContacts(p => p.filter((_,i)=>i!==idx))}>🗑</button>
+                  <button className="del-btn" onClick={() => setContacts(p => p.filter((_,i)=>i!==idx))}>DELETE</button>
                 </div>
                 <div className="grid-2">
                   <div className="field">
@@ -542,7 +542,7 @@ export default function LegalEntitySetup() {
                 </select>
                 <input value={t.regNumber} placeholder="Enter registration number"
                   onChange={e => setTaxItems(p => p.map((x,i) => i===idx ? {...x, regNumber:e.target.value} : x))} />
-                <button className="del-btn" onClick={() => setTaxItems(p => p.filter((_,i)=>i!==idx))}>🗑</button>
+                <button className="del-btn" onClick={() => setTaxItems(p => p.filter((_,i)=>i!==idx))}>DELETE</button>
               </div>
             ))}
           </div>

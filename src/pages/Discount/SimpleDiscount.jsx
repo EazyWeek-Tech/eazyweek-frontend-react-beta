@@ -211,7 +211,7 @@ export default function SimpleDiscount() {
           background: toast.type==="error" ? "#fdf3f3" : "#e6f4ef",
           border: `1px solid ${toast.type==="error" ? "#f0c4c0" : "#b3d9cc"}`,
           color: toast.type==="error" ? "#b91c1c" : "#2e7d5e" }}>
-          {toast.type==="error" ? "⚠ " : "✓ "}{toast.msg}
+          {toast.type==="error" ? " " : "✓ "}{toast.msg}
         </div>
       )}
 
@@ -259,7 +259,7 @@ export default function SimpleDiscount() {
           <div className="muted">Enable Discount</div>
         </div>
         {saveAttempted && errors.enableDiscount && (
-          <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}>⚠ {errors.enableDiscount}</div>
+          <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}> {errors.enableDiscount}</div>
         )}
         <div className="help" style={{ marginTop:10 }}>
           <strong>Important:</strong> Discounts will only become active once the start date is reached, regardless of the Enable Discount setting. Use the toggle to temporarily disable active discounts.
@@ -294,7 +294,7 @@ export default function SimpleDiscount() {
           </div>
         )}
         {saveAttempted && errors.centres && (
-          <div className="warn" style={{ marginTop:10 }}>⚠ {errors.centres}</div>
+          <div className="warn" style={{ marginTop:10 }}> {errors.centres}</div>
         )}
       </section>
 
@@ -379,7 +379,7 @@ export default function SimpleDiscount() {
           </div>
         )}
         {saveAttempted && errors.items && (
-          <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}>⚠ {errors.items}</div>
+          <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}> {errors.items}</div>
         )}
       </section>
 

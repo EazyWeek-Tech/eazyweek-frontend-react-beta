@@ -128,7 +128,7 @@ const Toast = ({ msg, type, onClose }) => {
   const isErr = type === "error";
   return (
     <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, background: isErr ? "#fdf3f3" : "#e6f4ef", border: `1px solid ${isErr ? "#f0c4c0" : "#b3d9cc"}`, color: isErr ? C.coral : "#2e7d5e", borderRadius: 12, padding: "12px 18px", fontWeight: 700, fontSize: 14, boxShadow: "0 4px 16px rgba(0,0,0,0.10)", display: "flex", alignItems: "center", gap: 10, maxWidth: 380 }}>
-      <span>{isErr ? "⚠" : "✓"}</span>
+      <span>{isErr ? "" : "✓"}</span>
       <span style={{ flex: 1 }}>{msg}</span>
       <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "inherit", padding: 0 }}>×</button>
     </div>
@@ -369,7 +369,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
             )}
             <ServiceSelect field="redeemCategoryIds" label="Redemption Services" selectedIds={form.redeemCategoryIds ?? []} onToggle={toggleRedeem} error={showErr("redeemCategoryIds")} />
           </div>
-          {err && <div style={{ marginTop: 12, padding: "8px 12px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}>⚠ {err}</div>}
+          {err && <div style={{ marginTop: 12, padding: "8px 12px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}> {err}</div>}
         </div>
 
         <div style={{ padding: "12px 20px", borderTop: "1px solid #e5ebf3", display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -440,7 +440,7 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
           Loading tiers…
         </div>
       )}
-      {tiersError && <div style={{ padding: "10px 14px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}>⚠ {tiersError}</div>}
+      {tiersError && <div style={{ padding: "10px 14px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8, color: C.coral, fontSize: 13 }}> {tiersError}</div>}
       {!tiersLoading && !tiersError && tiers.length === 0 && (
         <div style={{ padding: "24px 0", textAlign: "center", color: C.axis, fontSize: 13 }}>No tiers yet. Click <b>+ Add Tier</b> to create one.</div>
       )}
@@ -596,7 +596,7 @@ export default function LoyaltyProgramConfig() {
   );
 
   if (loadError) return (
-    <div style={{ margin: 32, padding: "16px 20px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 12, color: C.coral, fontFamily: "system-ui, sans-serif" }}>⚠ {loadError}</div>
+    <div style={{ margin: 32, padding: "16px 20px", background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 12, color: C.coral, fontFamily: "system-ui, sans-serif" }}> {loadError}</div>
   );
 
   return (

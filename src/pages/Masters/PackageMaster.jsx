@@ -18,7 +18,7 @@ const Field = ({ label, required, error, children }) => (
       {label}{required && <span style={{ color:"#b91c1c" }}> *</span>}
     </label>
     {children}
-    {error && <div style={{ color:"#b91c1c", fontSize:12, marginTop:3 }}>⚠ {error}</div>}
+    {error && <div style={{ color:"#b91c1c", fontSize:12, marginTop:3 }}> {error}</div>}
   </div>
 );
 const Input = ({ value, onChange, placeholder, type="text", readOnly, disabled, style={} }) => (
@@ -297,7 +297,7 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAd
         <Select value={form.packageConsistsOf||"Services"} onChange={e=>setForm(p=>({...p,packageConsistsOf:e.target.value}))}
           options={["Services","Products","Services & Products"]} />
       </Field>
-      {err && <div style={{ color:"#b91c1c", fontSize:12, marginBottom:10 }}>⚠ {err}</div>}
+      {err && <div style={{ color:"#b91c1c", fontSize:12, marginBottom:10 }}> {err}</div>}
 
       <Autocomplete disabled={!showSvc} label="Add Service" placeholder="Search active services…"
         displayVal={svcSearch} onType={v=>handleType(v,"svc")} sugg={svcSugg} onSelect={(s,name)=>handleSelect(s,name,"svc")}
@@ -309,7 +309,7 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAd
 
       {errors.items && (
         <div style={{ color:"#b91c1c", fontSize:13, padding:"8px 12px", background:"#fdf3f3", border:"1px solid #f0c4c0", borderRadius:8, marginBottom:10 }}>
-          ⚠ {errors.items}
+           {errors.items}
         </div>
       )}
 
@@ -318,22 +318,22 @@ const CombinationTab = ({ form, setForm, errors = {}, setErrors = () => {}, isAd
           <div style={{ fontWeight:700, fontSize:13, color:"#334b71", marginBottom:8 }}>Package Details</div>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, border:"1px solid #e2e8f0", borderRadius:8, overflow:"hidden" }}>
             <thead>
-              <tr style={{ background:"#f1f5f9" }}>
+              <tr style={{ background:"#334b71" }}>
                 {["Type","Code","Name","Qty",""].map(h=>(
-                  <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
+                  <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#fff", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(form.items||[]).map((item,i)=>(
-                <tr key={i} style={{ borderBottom:"1px solid #f1f5f9", background: errors[`itemQty_${i}`] ? "#fdf3f3" : undefined }}>
-                  <td style={{ padding:"9px 12px" }}><span style={{ background: item.itemType==="Service"?"#eef2f7":"#fef3c7", color: item.itemType==="Service"?"#334b71":"#92400e", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{item.itemType}</span></td>
+                <tr key={i} style={{ borderBottom:"1px solid #f1f5f9", background: errors[`itemQty_${i}`] ? "#334b71" : undefined }}>
+                  <td style={{ padding:"9px 12px" }}><span style={{ background: item.itemType==="Service"?"#eef2f7":"#fef3c7", color: item.itemType==="Service"?"#fff":"#92400e", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{item.itemType}</span></td>
                   <td style={{ padding:"9px 12px", fontWeight:700, color:"#334b71" }}>{item.itemCode}</td>
                   <td style={{ padding:"9px 12px" }}>{item.itemName}</td>
                   <td style={{ padding:"9px 12px", fontWeight:700 }}>
                     {item.quantity}
                     {errors[`itemQty_${i}`] && (
-                      <div style={{ color:"#b91c1c", fontSize:11, fontWeight:400 }}>⚠ {errors[`itemQty_${i}`]}</div>
+                      <div style={{ color:"#b91c1c", fontSize:11, fontWeight:400 }}> {errors[`itemQty_${i}`]}</div>
                     )}
                   </td>
                   <td style={{ padding:"9px 12px" }}>
@@ -381,9 +381,9 @@ const PricingTab = ({ form, setForm, errors = {}, membershipActive = false }) =>
     <div style={{ overflowX:"auto" }}>
       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
         <thead>
-          <tr style={{ background:"#f1f5f9" }}>
+          <tr style={{ background:"#334b71" }}>
             {["Centre","Price (SAR)","Tax Included","Tax %","Release to Centre","Member Price","Member Discount %",""].map(h=>(
-              <th key={h} style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
+              <th key={h} style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#fff", borderBottom:"1px solid #e2e8f0" }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -423,7 +423,7 @@ const PricingTab = ({ form, setForm, errors = {}, membershipActive = false }) =>
         </tbody>
       </table>
       <div style={{ marginTop:10, fontSize:12, color:"#94a3b8" }}>
-        ⚠ Package is purchasable at a centre only when "Release to Centre" is checked. Member Price / Member Discount can be set only when the membership program is active and the package is released to that centre; enter one or the other, not both.
+         Package is purchasable at a centre only when "Release to Centre" is checked. Member Price / Member Discount can be set only when the membership program is active and the package is released to that centre; enter one or the other, not both.
         When Tax Included = Yes, Tax % is automatically set to 0 and disabled.
       </div>
     </div>
@@ -453,7 +453,7 @@ const ValidityTab = ({ form, setForm, errors }) => (
     </Field>
     {form.neverExpires && form.gracePeriod && (
       <div style={{ padding:'8px 12px', background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:8, fontSize:12, color:'#92400e', marginBottom:8 }}>
-        ⚠ Grace Period has no effect when package Never Expires.
+         Grace Period has no effect when package Never Expires.
       </div>
     )}
     <Toggle value={form.gracePeriod} onChange={()=>setForm(p=>({...p,gracePeriod:!p.gracePeriod,graceTenure:""}))}
@@ -666,10 +666,12 @@ const PackageMaster = () => {
     else if (!/^[A-Za-z0-9_\-]+$/.test(form.packageCode.trim()))
       e.packageCode = "Package Code must be alphanumeric (letters, numbers, hyphens, underscores only).";
 
-    if (!form.packageName?.trim())
+    // Package Name & Category are required only when submitting; a draft Save
+    // needs just a valid Package Code (PM-043).
+    if (isSubmit && !form.packageName?.trim())
       e.packageName = "Package Name is required.";
 
-    if (!form.category?.trim())
+    if (isSubmit && !form.category?.trim())
       e.category = "Category is required.";
 
     if (isSubmit && !form.subCategory?.trim())
@@ -785,6 +787,16 @@ const PackageMaster = () => {
     } finally { setSaving(false); }
   };
 
+  // Confirm before discarding unsaved edits (PM-046). Used by "Back to List" & "Cancel".
+  const leaveForm = () => {
+    if (formDirty && !window.confirm("You have unsaved changes. Leave this page and discard them?"))
+      return;
+    setFormDirty(false);
+    setView("list");
+  };
+  // Any tab edit marks the form dirty so leaveForm can warn before navigating away.
+  const dirtySetForm = (p) => { setFormDirty(true); setForm(p); };
+
   // Translate the CENTRES field (comma/semicolon/pipe separated) from codes to names.
   const centreNames = (csv) => {
     if (!csv) return "—";
@@ -803,7 +815,7 @@ const PackageMaster = () => {
 
   // ── List View ────────────────────────────────────────────────────────────────
   if (view === "list") return (
-    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+    <div style={{ padding:10, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
@@ -823,7 +835,7 @@ const PackageMaster = () => {
       {loading ? <div style={{ textAlign:"center", padding:40, color:"#64748b" }}>Loading…</div> : (
         <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr style={{ background:"#f1f5f9" }}>
+            <thead><tr style={{ background:"#334b71" }}>
               {[
                 { label:"Package Code", field:"PACKAGECODE" },
                 { label:"Package Name", field:"PACKAGENAME" },
@@ -835,10 +847,10 @@ const PackageMaster = () => {
                 { label:"Actions",      field:null },
               ].map(col=>(
                 <th key={col.label} onClick={()=>toggleSort(col.field)}
-                  style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em", cursor: col.field?"pointer":"default", userSelect:"none", whiteSpace:"nowrap" }}>
+                  style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#fff", borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em", cursor: col.field?"pointer":"default", userSelect:"none", whiteSpace:"nowrap" }}>
                   {col.label}
                   {col.field && (
-                    <span style={{ marginLeft:6, color: sortField===col.field?"#334b71":"#cbd5e1", fontSize:10 }}>
+                    <span style={{ marginLeft:6, color: sortField===col.field?"#fff":"#cbd5e1", fontSize:10 }}>
                       {sortField===col.field ? (sortDir==="asc" ? "▲" : "▼") : "↕"}
                     </span>
                   )}
@@ -911,7 +923,7 @@ const PackageMaster = () => {
           <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:"#1e293b" }}>
             {editCode ? `Edit Package — ${form.packageName?.trim()}` : "Create New Package"}
           </h2>
-          <button onClick={()=>setView("list")} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
+          <button onClick={leaveForm} style={{ background:"none", border:"none", color:"#334b71", cursor:"pointer", fontSize:13, fontWeight:600, padding:0 }}>
             ← Back to List
           </button>
         </div>
@@ -943,7 +955,7 @@ const PackageMaster = () => {
       {saveAttempted && Object.keys(errors).length > 0 && (
         <div style={{ marginBottom:16, padding:"12px 16px", background:"#fdf3f3", border:"1px solid #f0c4c0", borderRadius:10 }}>
           <div style={{ fontWeight:700, fontSize:13, color:"#b91c1c", marginBottom:6 }}>
-            ⚠ Please fix the following before {Object.keys(errors).length === 1 ? "saving" : `saving (${Object.keys(errors).length} issues)`}:
+             Please fix the following before {Object.keys(errors).length === 1 ? "saving" : `saving (${Object.keys(errors).length} issues)`}:
           </div>
           <ul style={{ margin:0, paddingLeft:18, fontSize:12, color:"#b91c1c" }}>
             {Object.values(errors).map((msg, i) => (
@@ -985,11 +997,11 @@ const PackageMaster = () => {
       </div>
 
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e2e8f0", padding:24, minHeight:300 }}>
-        {activeTab===0 && <GeneralTab     form={form} setForm={p => { setFormDirty(true); setForm(p); }} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={true} />}
-        {activeTab===1 && <CombinationTab form={form} setForm={setForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={true} />}
-        {activeTab===2 && <PricingTab     form={form} setForm={setForm} errors={saveAttempted ? errors : {}} membershipActive={membershipActive} />}
-        {activeTab===3 && <ValidityTab    form={form} setForm={setForm} errors={saveAttempted ? errors : {}} />}
-        {activeTab===4 && <MiscTab        form={form} setForm={setForm} />}
+        {activeTab===0 && <GeneralTab     form={form} setForm={dirtySetForm} errors={saveAttempted ? errors : {}} isEdit={!!editCode} setErrors={setErrors} isAdmin={true} />}
+        {activeTab===1 && <CombinationTab form={form} setForm={dirtySetForm} errors={saveAttempted ? errors : {}} setErrors={setErrors} isAdmin={true} />}
+        {activeTab===2 && <PricingTab     form={form} setForm={dirtySetForm} errors={saveAttempted ? errors : {}} membershipActive={membershipActive} />}
+        {activeTab===3 && <ValidityTab    form={form} setForm={dirtySetForm} errors={saveAttempted ? errors : {}} />}
+        {activeTab===4 && <MiscTab        form={form} setForm={dirtySetForm} />}
       </div>
 
       <div style={{ display:"flex", gap:12, marginTop:20 }}>
@@ -1003,7 +1015,7 @@ const PackageMaster = () => {
           {saving==="submit" ? "Submitting…" : "Submit & Release"}
         </button>
         </>)}
-        <button onClick={()=>setView("list")} style={{ height:40, padding:"0 18px", background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+        <button onClick={leaveForm} style={{ height:40, padding:"0 18px", background:"#fff", color:"#64748b", border:"1.5px solid #e2e8f0", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
           Cancel
         </button>
       </div>

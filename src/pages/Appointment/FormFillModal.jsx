@@ -1071,7 +1071,7 @@ export default function FormFillModal({
         {toast && (
           <div style={{ margin:"8px 20px 0", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:600,
             background:"#fdf3f3", border:"1px solid #f0c4c0", color:"#b91c1c", flexShrink:0 }}>
-            ⚠ {toast.msg}
+             {toast.msg}
           </div>
         )}
 
@@ -1091,7 +1091,7 @@ export default function FormFillModal({
                   />
                   {errors[comp.componentId] && (
                     <div style={{ color:"#b91c1c", fontSize:11, marginTop:4 }}>
-                      ⚠ {errors[comp.componentId]}
+                       {errors[comp.componentId]}
                     </div>
                   )}
                 </div>

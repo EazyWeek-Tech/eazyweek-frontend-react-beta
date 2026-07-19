@@ -87,7 +87,7 @@ const LoyaltyTab = ({ custId, recId }) => {
 
       {error && (
         <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 10, padding: "12px 16px", color: "#cc6b5c", fontSize: 13, marginBottom: 16 }}>
-          ⚠ {error}
+           {error}
         </div>
       )}
 

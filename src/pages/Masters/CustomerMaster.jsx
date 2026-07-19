@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
-import DataTable from "react-data-table-component";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
 import { usePermissions } from "../Settings/usePermissions";
 import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
@@ -74,6 +73,24 @@ const classifyCustomerType = (code, natCountry, centreCountryId) => {
   return natCountry && natCountry === centreCountryId ? "Citizen" : "Expat";
 };
 
+// ── Field accessors + column config (PackageMaster-style list) ───────────────
+const getCustCode  = (r) => r.custId     || "";
+const getFirst     = (r) => r.firstName  || "";
+const getLast      = (r) => r.lastName   || "";
+const getPhone     = (r) => r.mobile     || "";
+const getLastVisit = (r) => r.lastVisit  || "";
+const getCenter    = (r) => r.centerName || "";
+
+const COLUMNS = [
+  { label: "Code",       field: "code",      get: getCustCode,  kind: "code" },
+  { label: "First Name", field: "first",     get: getFirst },
+  { label: "Last Name",  field: "last",      get: getLast },
+  { label: "Phone No.",  field: "phone",     get: getPhone },
+  { label: "Last Visit", field: "lastVisit", get: getLastVisit, muted: true },
+  { label: "Center",     field: "center",    get: getCenter,    muted: true },
+  { label: "Actions",    field: null },
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CustomerMaster page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +112,10 @@ const CustomerMaster = () => {
   const { has, guard, notifyDenied } = usePermissions();
   const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
   const [generatedId,       setGeneratedId]       = useState("");
+  const [sortField,         setSortField]         = useState(null);
+  const [sortDir,           setSortDir]           = useState("asc");
+  const [page,              setPage]              = useState(1);
+  const [pageSize,          setPageSize]          = useState(10);
 
   const navigate = useNavigate();
 
@@ -135,6 +156,34 @@ const CustomerMaster = () => {
       [c.firstName, c.lastName, c.custId, c.mobile, c.centerName].join(" ").toLowerCase().includes(lower)
     ));
   }, [searchTerm, customers]);
+
+  // ── Column sort + pagination (PackageMaster-style) ─────────────────────────
+  const sortedCustomers = useMemo(() => {
+    if (!sortField) return filteredCustomers;
+    const col = COLUMNS.find((c) => c.field === sortField);
+    if (!col?.get) return filteredCustomers;
+    const arr = [...filteredCustomers];
+    arr.sort((a, b) => {
+      const va = String(col.get(a) ?? "").toLowerCase();
+      const vb = String(col.get(b) ?? "").toLowerCase();
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [filteredCustomers, sortField, sortDir]);
+
+  useEffect(() => { setPage(1); }, [searchTerm, pageSize, sortField, sortDir]);
+
+  const totalPages     = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const safePage       = Math.min(page, totalPages);
+  const pagedCustomers = sortedCustomers.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const toggleSort = (field) => {
+    if (!field) return;
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("asc"); }
+  };
 
   const goToCustomerPage = (row) => {
     const qp = new URLSearchParams();
@@ -208,88 +257,112 @@ const CustomerMaster = () => {
     finally { setSaving(false); }
   };
 
-  // ── Table columns ─────────────────────────────────────────────────────────
-  const columns = [
-    {
-      name: "Code", sortable: true, width: "120px",
-      cell: (row) => (
-        <a href="#" onClick={e => { e.preventDefault(); goToCustomerPage(row); }}
-          style={{ color:"#334B71", textDecoration:"underline", cursor:"pointer", fontWeight:600 }}>
-          {row.custId}
-        </a>
-      ),
-    },
-    { name:"First Name", selector: r => r.firstName,  sortable:true },
-    { name:"Last Name",  selector: r => r.lastName,   sortable:true },
-    { name:"Phone No.",  selector: r => r.mobile,     sortable:true },
-    { name:"Last Visit", selector: r => r.lastVisit,  sortable:true },
-    { name:"Center",     selector: r => r.centerName, sortable:true },
-    {
-      name:"Actions", width:"90px",
-      cell: (row) => (
-        <button onClick={() => goToCustomerPage(row)}
-          style={{ padding:"4px 12px", background:"#f1f5f9", border:"1px solid #d0d9e8",
-            borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:600, color:"#334B71" }}>
-          View
-        </button>
-      ),
-    },
-  ];
-
   return (
-    <div style={{ padding:24, fontFamily:"Inter,sans-serif", maxWidth:1200, margin:"0 auto" }}>
-      <style>{`
-        .header-section { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
-        .page-title { font-size:24px; font-weight:600; color:#111827; margin:0 0 4px; }
-        .create-btn { padding:10px 20px; background:#334B71; color:#fff; border:none; border-radius:8px; font-weight:500; cursor:pointer; font-size:14px; }
-        .create-btn:hover { background:#22314f; }
-        .lds-ring{display:inline-block;position:relative;width:56px;height:56px}
-        .lds-ring div{box-sizing:border-box;display:block;position:absolute;width:42px;height:42px;margin:7px;border:4px solid #334B71;border-radius:50%;animation:lds-ring 1.2s linear infinite;border-color:#334B71 transparent transparent transparent}
-        @keyframes lds-ring{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-      `}</style>
-
-      <div className="header-section">
-        <div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6 }}>
-            <a href="/dashboard" style={{ color: "#334B71", textDecoration: "none" }}>Dashboard</a>
-            <span style={{ margin: "0 6px" }}> › </span>
-            <span>Manage Customers</span>
-          </div>
-          <h1 className="page-title">Customers</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredCustomers.length} customers</p>
-        </div>
+    <div style={{ padding:0, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Customer Master</h2>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={() => { setSearchTerm(""); fetchCustomers(); }}
-            style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4",
-              borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
+            style={{ height:40, padding:"0 16px", background:"#fff", color:"#334b71", border:"1.5px solid #e2e8f0",
+              borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
             ↻ Refresh
           </button>
-          <button className="create-btn" onClick={() => requireAccess("MDM.CUSTOMERS_CREATE", handleOpenCreate, { level: "centre" })}>+ Create New Customer</button>
+          <button onClick={() => requireAccess("MDM.CUSTOMERS_CREATE", handleOpenCreate, { level: "centre" })}
+            style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none",
+              borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            + Create New Customer
+          </button>
         </div>
       </div>
 
+      <div style={{ display:"flex", gap:10, marginBottom:18 }}>
+        <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by name, ID, phone, center…"
+          style={{ flex:1, height:40, padding:"0 14px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:13 }} />
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredCustomers}
-        progressPending={loading}
-        progressComponent={<div style={{ padding: 40, color: "#6b7280" }}>Loading customers...</div>}
-        pagination
-        paginationPerPage={10}
-        paginationRowsPerPageOptions={[10, 25, 50, 100]}
-        subHeader
-        highlightOnHover
-        noDataComponent={<div style={{ padding:32, color:"#9ca3af" }}>No customers found.</div>}
-        subHeaderComponent={
-          <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="text" placeholder="Search by name, ID, phone, center..."
-              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, minWidth: 260, fontSize: 14 }}
-            />
+      {loading ? (
+        <div style={{ textAlign:"center", padding:40, color:"#64748b" }}>Loading customers…</div>
+      ) : (
+        <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead>
+              <tr style={{ background:"#334b71" }}>
+                {COLUMNS.map((col) => (
+                  <th key={col.label} onClick={() => toggleSort(col.field)}
+                    style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#fff",
+                      borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em",
+                      cursor: col.field ? "pointer" : "default", userSelect:"none", whiteSpace:"nowrap" }}>
+                    {col.label}
+                    {col.field && (
+                      <span style={{ marginLeft:6, color: sortField === col.field ? "#fff" : "#cbd5e1", fontSize:10 }}>
+                        {sortField === col.field ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+                      </span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pagedCustomers.length === 0 ? (
+                <tr><td colSpan={COLUMNS.length} style={{ textAlign:"center", padding:40, color:"#94a3b8", fontSize:13 }}>No customers found.</td></tr>
+              ) : pagedCustomers.map((row, i) => (
+                <tr key={row.recId || row.custId || i} style={{ borderBottom:"1px solid #f1f5f9" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8faff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+                  <td style={{ padding:"12px 14px" }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); goToCustomerPage(row); }}
+                      style={{ color:"#334b71", fontWeight:700, textDecoration:"underline", cursor:"pointer" }}>
+                      {getCustCode(row)}
+                    </a>
+                  </td>
+                  <td style={{ padding:"12px 14px" }}>{getFirst(row)}</td>
+                  <td style={{ padding:"12px 14px" }}>{getLast(row)}</td>
+                  <td style={{ padding:"12px 14px" }}>{getPhone(row)}</td>
+                  <td style={{ padding:"12px 14px", color:"#64748b" }}>{getLastVisit(row)}</td>
+                  <td style={{ padding:"12px 14px", color:"#64748b" }}>{getCenter(row)}</td>
+                  <td style={{ padding:"12px 14px" }}>
+                    <button onClick={() => goToCustomerPage(row)}
+                      style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff",
+                        color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && sortedCustomers.length > 0 && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14, flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#64748b" }}>
+            <span>Rows per page:</span>
+            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+              style={{ height:32, padding:"0 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, background:"#fff" }}>
+              {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span style={{ marginLeft:8 }}>
+              {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, sortedCustomers.length)} of {sortedCustomers.length}
+            </span>
           </div>
-        }
-      />
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+              style={{ height:32, padding:"0 12px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff",
+                color: safePage <= 1 ? "#cbd5e1" : "#334b71", fontWeight:700, fontSize:13, cursor: safePage <= 1 ? "not-allowed" : "pointer" }}>
+              ‹ Prev
+            </button>
+            <span style={{ fontSize:13, color:"#475569", fontWeight:600 }}>Page {safePage} of {totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+              style={{ height:32, padding:"0 12px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff",
+                color: safePage >= totalPages ? "#cbd5e1" : "#334b71", fontWeight:700, fontSize:13, cursor: safePage >= totalPages ? "not-allowed" : "pointer" }}>
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Slide-in form panel */}
       {showForm && (
@@ -421,7 +494,7 @@ const CustomerMaster = () => {
                 </FormRow>
               </Section>
 
-              {formError   && <div style={styles.errBox}>⚠ {formError}</div>}
+              {formError   && <div style={styles.errBox}> {formError}</div>}
               {formSuccess && <div style={styles.sucBox}>✓ {formSuccess}</div>}
             </div>
 
@@ -610,7 +683,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
           <FormRow label="Referred By"><input style={styles.inp} name="refBy" value={formData.refBy} onChange={handleInput} /></FormRow>
         </Section>
 
-        {formError   && <div style={styles.errBox}>⚠ {formError}</div>}
+        {formError   && <div style={styles.errBox}> {formError}</div>}
         {formSuccess && <div style={styles.sucBox}>✓ {formSuccess}</div>}
       </div>
 

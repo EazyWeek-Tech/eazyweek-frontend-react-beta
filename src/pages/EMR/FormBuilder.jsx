@@ -596,7 +596,7 @@ export default function FormBuilder() {
 
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           {toast && <span style={{ fontSize:12, fontWeight:600, color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-            {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}</span>}
+            {toast.type==="error"?" ":"✓ "}{toast.msg}</span>}
           <span style={{ fontSize:12, color:"#94a3b8" }}>{components.length} components</span>
           <button className="sec-btn"
             onClick={async () => { await handleSave(); navigate("/emr/forms"); }} disabled={saving}>

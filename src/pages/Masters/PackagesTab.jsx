@@ -32,9 +32,9 @@ const PackagesTab = ({ custId }) => {
   }, [custId]);
 
   const statusBadge = (pkg) => {
-    const today = new Date();
+    // Status is computed server-side (grace-aware Expired / Exhausted); trust it,
+    // with a light Exhausted fallback for zero-balance rows.
     let s = pkg.status;
-    if (s === "Active" && pkg.expiryDate && new Date(pkg.expiryDate) < today) s = "Expired";
     if (s === "Active" && pkg.balanceQty === 0) s = "Exhausted";
     const styles = {
       Active:    { bg:"#e6f4ef", color:"#2e7d5e", border:"#b3d9cc" },
@@ -57,7 +57,7 @@ const PackagesTab = ({ custId }) => {
       </div>
 
       {loading ? <div className="pkg-loading"><div className="pkg-spinner" /> Loading packages…</div>
-      : error   ? <div className="pkg-error">⚠ {error}</div>
+      : error   ? <div className="pkg-error"> {error}</div>
       : packages.length === 0 ? <div className="pkg-empty">No packages purchased yet.</div>
       : (
         <div className="pkg-table-wrap">

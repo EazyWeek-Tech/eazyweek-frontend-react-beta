@@ -372,7 +372,7 @@ const getCenterFromStorage = () => {
   const MasterLeadForm = () => {
     const params = useParams();
     const navigate = useNavigate();
-    // LTR: mount path of the Appointment module. ⚠ VERIFY against your router.
+    // LTR: mount path of the Appointment module.  VERIFY against your router.
     const APPOINTMENT_ROUTE = "/appointment";
     const locationObj = useLocation();
     const { state } = locationObj;

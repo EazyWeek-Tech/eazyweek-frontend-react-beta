@@ -825,7 +825,7 @@ const GeneralForm = () => {
             <div className="GF-modal-body">
               <div className="GF-warning-row">
                 <div className="GF-warning-icon" aria-hidden>
-                  ⚠
+                  
                 </div>
                 <div className="GF-warning-text">
                   <p>

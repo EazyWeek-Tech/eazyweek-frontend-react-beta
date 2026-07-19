@@ -1376,7 +1376,7 @@ export default function CampaignDetails() {
       />
 
       <style>{`
-        .cd-container { padding: 20px; }
+        .cd-container { padding: 0px; }
         .cd-breadcrumb { font-size:13px; color:#64748b; margin-bottom:14px; }
         .cd-bclink { color:#334b71; font-weight:700; cursor:pointer; }
         .cd-bclink:hover { text-decoration:underline; }

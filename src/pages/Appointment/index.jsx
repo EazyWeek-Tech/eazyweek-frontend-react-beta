@@ -574,7 +574,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 display:"flex", alignItems:"center", gap:6,
                 padding:"6px 10px", background:"#fff5f5",
                 border:"1px solid #f5c4b0", borderRadius:7 }}>
-                ⚠ No forms filled for this appointment
+                 No forms filled for this appointment
               </div>
             ) : (
               sidebarForms.map(f => (

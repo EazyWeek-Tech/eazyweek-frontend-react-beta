@@ -73,7 +73,7 @@ function Toast({ toast }) {
       background:toast.type==="success"?C.green:C.red, color:"#fff",
       padding:"12px 20px", borderRadius:8, boxShadow:"0 4px 14px rgba(0,0,0,.2)",
       fontSize:13, fontWeight:600 }}>
-      {toast.type==="success"?"✓ ":"⚠ "}{toast.message}
+      {toast.type==="success"?"✓ ":" "}{toast.message}
     </div>
   );
 }
@@ -320,7 +320,7 @@ export default function DispositionMaster() {
 
   /* ── Render ── */
   return (
-    <div style={{ fontFamily:"Lato,sans-serif", padding:"24px 28px", color:C.text }}>
+    <div style={{ fontFamily:"Lato,sans-serif", padding:"0 10px", color:C.text }}>
 
       {/* Header */}
       <div style={{ marginBottom:20 }}>

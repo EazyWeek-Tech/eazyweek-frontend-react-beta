@@ -123,7 +123,7 @@ const CreditNoteRedemption = ({ custId, invoiceTotal, onApply, onClose }) => {
 
               {error && (
                 <div style={{ marginTop:10, padding:"8px 12px", background:"#fdf3f3", border:"1px solid #f0c4c0", borderRadius:8, color:"#b91c1c", fontSize:13 }}>
-                  ⚠ {error}
+                   {error}
                 </div>
               )}
 

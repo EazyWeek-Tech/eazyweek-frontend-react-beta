@@ -188,7 +188,7 @@ export default function Threshold() {
           background: toast.type==="error"?"#fdf3f3":"#e6f4ef",
           border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
           color: toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-          {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+          {toast.type==="error"?" ":"✓ "}{toast.msg}
         </div>
       )}
 
@@ -231,7 +231,7 @@ export default function Threshold() {
           <div className={`switch ${F("enableDiscount")?"on":""}`} onClick={handleEnableToggle}><div className="knob"/></div>
           <div className="muted">Enable Discount</div>
         </div>
-        {saveAttempted && errors.enableDiscount && <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}>⚠ {errors.enableDiscount}</div>}
+        {saveAttempted && errors.enableDiscount && <div style={{ color:"#b91c1c", fontSize:12, marginTop:6 }}> {errors.enableDiscount}</div>}
         <div className="help" style={{ marginTop:10 }}>
           <strong>Important:</strong> Discounts will only become active once the start date is reached. Use the toggle to temporarily disable active discounts.
         </div>
@@ -257,7 +257,7 @@ export default function Threshold() {
           })}
         </div>
         {selectedCentres.length > 0 && <div style={{ marginTop:8, fontSize:12, color:"#2e7d5e" }}>✓ {selectedCentres.length} centre{selectedCentres.length>1?"s":""} selected</div>}
-        {saveAttempted && errors.centres && <div className="warn" style={{ marginTop:10 }}>⚠ {errors.centres}</div>}
+        {saveAttempted && errors.centres && <div className="warn" style={{ marginTop:10 }}> {errors.centres}</div>}
       </section>
 
       {/* ── Threshold Configuration ── */}
@@ -357,7 +357,7 @@ export default function Threshold() {
             ))}
           </div>
         )}
-        {saveAttempted && errors.items && <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}>⚠ {errors.items}</div>}
+        {saveAttempted && errors.items && <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}> {errors.items}</div>}
       </section>
 
       <div className="btns">

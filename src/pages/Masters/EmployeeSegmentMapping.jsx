@@ -253,7 +253,7 @@ const EmployeeSegmentMapping = ({ employee, onBack }) => {
       {confirmRemove && (
         <div style={s.modalOverlay}>
           <div style={s.modal}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>️</div>
             <h3 style={s.modalTitle}>Remove Mapping?</h3>
             <p style={s.modalBody}>
               Remove <strong>{confirmRemove.auditSegment || confirmRemove.AuditSegment}</strong> mapping

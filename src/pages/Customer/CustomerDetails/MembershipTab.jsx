@@ -49,7 +49,7 @@ const MembershipTab = ({ custId }) => {
       {loading ? (
         <div className="mtab-loading"><div className="mtab-spinner" /> Loading membership…</div>
       ) : error ? (
-        <div className="mtab-error">⚠ {error}</div>
+        <div className="mtab-error"> {error}</div>
       ) : !data ? (
         <div className="mtab-empty">No membership information.</div>
       ) : (

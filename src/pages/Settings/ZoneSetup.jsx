@@ -209,7 +209,7 @@ export default function ZoneSetup() {
             background:toast.type==="error"?"#fdf3f3":"#e6f4ef",
             border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
             color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-            {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+            {toast.type==="error"?" ":"✓ "}{toast.msg}
           </div>
         )}
 
@@ -330,7 +330,7 @@ export default function ZoneSetup() {
                 </div>
               )}
               {saveAttempted && errors.centres && (
-                <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}>⚠ {errors.centres}</div>
+                <div style={{ color:"#b91c1c", fontSize:12, marginTop:8 }}> {errors.centres}</div>
               )}
 
               <div style={{ marginTop:12, padding:"10px 14px", background:"#e9edf5", borderRadius:8, fontSize:12, color:"#334b71" }}>
@@ -352,7 +352,7 @@ export default function ZoneSetup() {
         {confirmDelete && (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999 }}>
             <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:400, width:"90%", textAlign:"center" }}>
-              <div style={{ fontSize:36, marginBottom:12 }}>⚠️</div>
+              <div style={{ fontSize:36, marginBottom:12 }}>️</div>
               <div style={{ fontWeight:800, fontSize:16, color:"#334b71", marginBottom:8 }}>Delete Zone?</div>
               <div style={{ fontSize:13, color:"#64748b", marginBottom:20 }}>
                 Deleting <strong>{confirmDelete.zoneName}</strong> will reset all mapped centres back to <strong>No Zone</strong>. This cannot be undone.

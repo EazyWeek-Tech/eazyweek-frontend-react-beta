@@ -234,7 +234,7 @@ export default function DiscountList() {
         {/* Error */}
         {error && (
           <div style={{ padding:"12px 16px", background:"#fdf3f3", border:"1px solid #f0c4c0", borderRadius:10, color:"#b91c1c", fontSize:13, marginBottom:12 }}>
-            ⚠ {error}
+             {error}
           </div>
         )}
 

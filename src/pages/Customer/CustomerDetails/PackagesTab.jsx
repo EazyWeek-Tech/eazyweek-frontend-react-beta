@@ -89,7 +89,7 @@ setPackageData([...data].sort((a, b) => new Date(b.invoiceDate || 0) - new Date(
         <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}>Loading packages…</div>
       ) : error ? (
         <div style={{ padding: "12px 16px", background: "#fdf3f3", border: "1px solid #f0c4c0",
-          borderRadius: 8, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>
+          borderRadius: 8, color: "#b91c1c", fontSize: 13 }}> {error}</div>
       ) : (
         <>
           <table className="packages-table">

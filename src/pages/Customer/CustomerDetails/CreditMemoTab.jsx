@@ -69,7 +69,7 @@ const CreditNoteTab = ({ custId }) => {
       {loading ? (
         <div className="cn-loading"><div className="cn-spinner" /> Loading credit notes…</div>
       ) : error ? (
-        <div className="cn-error">⚠ {error}</div>
+        <div className="cn-error"> {error}</div>
       ) : data.length === 0 ? (
         <div className="cn-empty">No credit notes found for this customer.</div>
       ) : (

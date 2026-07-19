@@ -171,7 +171,7 @@ const PromotionModal = ({ items = [], onApply, onClose }) => {
               {error && (
                 <div style={{ padding:"10px 14px", background:"#fdf3f3", border:"1px solid #f0c4c0",
                   borderRadius:8, color:"#b91c1c", fontSize:13, marginBottom:12 }}>
-                  ⚠ {error}
+                   {error}
                 </div>
               )}
 

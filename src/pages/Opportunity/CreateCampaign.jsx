@@ -144,7 +144,7 @@ function FieldRow({ label, required, error, children, hint }) {
       </label>
       {children}
       {hint  && <div style={{ fontSize:11, color:C.sub,  marginTop:4 }}>{hint}</div>}
-      {error && <div style={{ fontSize:11, color:C.red,  marginTop:4 }}>⚠ {error}</div>}
+      {error && <div style={{ fontSize:11, color:C.red,  marginTop:4 }}> {error}</div>}
     </div>
   );
 }
@@ -421,7 +421,7 @@ function Toast({ toast }) {
       background:toast.type==="success"?C.green:C.red, color:"#fff",
       padding:"12px 20px", borderRadius:8, boxShadow:"0 4px 14px rgba(0,0,0,.2)",
       fontSize:13, fontWeight:600 }}>
-      {toast.type==="success"?"✓ ":"⚠ "}{toast.message}
+      {toast.type==="success"?"✓ ":" "}{toast.message}
     </div>
   );
 }
@@ -999,7 +999,7 @@ export default function CreateCampaign() {
                 <div style={{ marginTop:8, maxHeight:140, overflowY:"auto", background:"#fff5f5",
                   border:`1px solid ${C.red}`, borderRadius:8, padding:"8px 10px" }}>
                   {uploadErrors.slice(0,50).map((er,i)=>(
-                    <div key={i} style={{ fontSize:11, color:C.red }}>⚠ {er}</div>
+                    <div key={i} style={{ fontSize:11, color:C.red }}> {er}</div>
                   ))}
                   {uploadErrors.length>50 && (
                     <div style={{ fontSize:11, color:C.red }}>…and {uploadErrors.length-50} more</div>
@@ -1040,7 +1040,7 @@ export default function CreateCampaign() {
                     placeholder="Enter number of days e.g. 45"
                     onChange={e=>setRule(p=>({...p,customDays:e.target.value.replace(/\D/g,"")}))} />
                   {ruleErrors.customDays && (
-                    <div style={{ fontSize:11, color:C.red, marginTop:4 }}>⚠ {ruleErrors.customDays}</div>
+                    <div style={{ fontSize:11, color:C.red, marginTop:4 }}> {ruleErrors.customDays}</div>
                   )}
                 </div>
               )}

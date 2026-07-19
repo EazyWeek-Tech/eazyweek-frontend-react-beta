@@ -186,10 +186,7 @@ const DoctorMaster = () => {
             </thead>
             <tbody>
               {filtered.map((d, i) => (
-                <tr key={i}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = ""}
-                >
+                <tr>
                   <td style={s.td}><span style={s.codeTag}>{d.employeeCode}</span></td>
                   <td style={s.td}>{d.firstName}</td>
                   <td style={s.td}>{d.lastName}</td>
@@ -304,7 +301,7 @@ const DoctorMaster = () => {
         <div style={s.modalOverlay} onClick={() => setConfirmDelete(null)}>
           <div style={{ ...s.modal, maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>️</div>
               <h3 style={s.modalTitle}>Remove Mapping?</h3>
               <p style={{ fontSize: 14, color: "#6b7280", margin: "8px 0 20px", lineHeight: 1.6 }}>
                 Remove <strong>{confirmDelete.firstName} {confirmDelete.lastName}</strong> from{" "}
@@ -349,7 +346,7 @@ const s = {
   loader:        { textAlign: "center", padding: 40, color: "#6b7280", fontSize: 14 },
   empty:         { textAlign: "center", padding: "48px 24px" },
   table:         { width: "100%", borderCollapse: "collapse" },
-  th:            { padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" },
+  th:            { padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#fff", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", background: "#334b71" },
   td:            { padding: "12px 16px", fontSize: 13, color: "#374151", borderBottom: "1px solid #f3f4f6" },
   codeTag:       { background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 500 },
   deleteBtn:     { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" },

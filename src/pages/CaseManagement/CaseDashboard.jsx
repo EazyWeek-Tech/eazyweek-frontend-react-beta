@@ -324,7 +324,7 @@ function Toast({ toast }) {
     <div style={{ position:"fixed", top:20, right:20, zIndex:9999,
       background:toast.type==="success"?"#166534":"#b91c1c", color:"#fff",
       padding:"12px 20px", borderRadius:8, boxShadow:"0 4px 14px rgba(0,0,0,.2)", fontSize:13, fontWeight:600 }}>
-      {toast.type==="success"?"✓ ":"⚠ "}{toast.message}
+      {toast.type==="success"?"✓ ":" "}{toast.message}
     </div>
   );
 }

@@ -1475,8 +1475,8 @@ button.disabled {
 .overlay {
   position: fixed;
   inset: 0;
-  background: url(../images/VVVBG.jpg) no-repeat center left;
-  background-size: cover;
+  background: url(../images/ezywkbg.png) no-repeat center;
+  background-size: 100%;
   display: flex;
   align-items: center;
   justify-content: center;

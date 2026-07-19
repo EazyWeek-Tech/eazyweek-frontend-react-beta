@@ -1,13 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import DataTable from "react-data-table-component";
 import ServiceForm from "./ServiceForm";
 import { API_BASE_URL } from "../../config";
 import { usePermissions } from "../Settings/usePermissions";
 import { makeRequireAccess } from "../Settings/masterAccess";
 
 const TOKEN = () => localStorage.getItem("token");
+
+// ── Field accessors (tolerate both camelCase API shape and legacy UPPER shape) ──
+const getCode        = (r) => r.serviceCode     || r.SERVICECODE     || "";
+const getName        = (r) => r.serviceName     || r.SERVICENAME     || "";
+const getCategory    = (r) => r.categoryName    || r.CCODE           || "";
+const getSubCategory = (r) => r.subCategoryName  || r.CSCODE          || "";
+const getQuickCart   = (r) => r.addToQuickCart  || r.ADDTOQUICKCART  || "No";
+const getStatus      = (r) => r.status || r.serviceStatus || r.SERVICESTATUS || "";
+
+// Column config — mirrors PackageMaster's sortable header pattern
+const COLUMNS = [
+  { label: "Service Code", field: "code",        get: getCode,        kind: "code" },
+  { label: "Service Name", field: "name",        get: getName },
+  { label: "Category",     field: "category",    get: getCategory,    muted: true },
+  { label: "Sub-Category", field: "subcategory", get: getSubCategory, muted: true },
+  { label: "Quick Cart",   field: "quickcart",   get: getQuickCart,   kind: "quickcart" },
+  { label: "Status",       field: "status",      get: getStatus,      kind: "status" },
+  { label: "Actions",      field: null },
+];
 
 const ServiceMaster = () => {
 
@@ -24,6 +42,8 @@ const ServiceMaster = () => {
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState(null);
   const [formMode, setFormMode]                         = useState("create");
   const [detailsLoading, setDetailsLoading]             = useState(false);
+  const [sortField, setSortField]                       = useState(null);
+  const [sortDir, setSortDir]                           = useState("asc");
 
   const fetchServiceData = useCallback(async () => {
     setLoading(true);
@@ -66,6 +86,35 @@ const ServiceMaster = () => {
       return matchesTerm && matchesStatus;
     });
   }, [serviceData, searchTerm, serviceStatus]);
+
+  // Column sort layered on top of the default recency sort from fetch
+  const sortedServices = useMemo(() => {
+    if (!sortField) return filteredServices;
+    const col = COLUMNS.find((c) => c.field === sortField);
+    if (!col?.get) return filteredServices;
+    const arr = [...filteredServices];
+    arr.sort((a, b) => {
+      const va = String(col.get(a) ?? "").toLowerCase();
+      const vb = String(col.get(b) ?? "").toLowerCase();
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [filteredServices, sortField, sortDir]);
+
+  // Reset to first page whenever the visible set changes
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, serviceStatus, entriesPerPage, sortField, sortDir]);
+
+  const totalPages    = Math.max(1, Math.ceil(sortedServices.length / entriesPerPage));
+  const safePage      = Math.min(currentPage, totalPages);
+  const pagedServices = sortedServices.slice((safePage - 1) * entriesPerPage, safePage * entriesPerPage);
+
+  const toggleSort = (field) => {
+    if (!field) return;
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("asc"); }
+  };
 
   const handleCreateNew = () => {
     setSelectedServiceForEdit(null);
@@ -204,117 +253,142 @@ const ServiceMaster = () => {
     }
   };
 
-  const columns = [
-    { name: "Code",        selector: (row) => row.serviceCode  || row.SERVICECODE,  sortable: true },
-    { name: "Name",        selector: (row) => row.serviceName  || row.SERVICENAME,  sortable: true, wrap: true },
-    { name: "Category",    selector: (row) => row.categoryName || row.CCODE || "",  sortable: true },
-    { name: "Subcategory", selector: (row) => row.subCategoryName || row.CSCODE || "", sortable: true },
-    {
-      name: "Quick Cart",
-      selector: (row) => row.addToQuickCart || row.ADDTOQUICKCART || "No",
-      sortable: true,
-      center: true,
-      cell: (row) => {
-        const val = (row.addToQuickCart || row.ADDTOQUICKCART || "No").toString().toLowerCase();
-        const isYes = ["yes","1","true"].includes(val);
-        return (
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-            background: isYes ? "#dcfce7" : "#f1f5f9",
-            color:      isYes ? "#166534" : "#6b7280",
-            border: `1px solid ${isYes ? "#b3d9cc" : "#e5ebf3"}`,
-          }}>
-            {isYes ? "✓ Yes" : "No"}
-          </span>
-        );
-      },
-    },
-    {
-      name: "Status",
-      selector: (row) => row.status || row.serviceStatus || row.SERVICESTATUS || "",
-      cell:     (row) => {
-        const s = (row.status || row.serviceStatus || row.SERVICESTATUS || "").toLowerCase();
-        return <span className={`status-badge ${s}`}>{s || "active"}</span>;
-      },
-      sortable: true,
-    },
-    {
-      name: "Action",
-      cell: (row) => (
-        <button className="act-btn edit" onClick={() => requireAccess("MDM.SERVICES_EDIT", () => handleEdit(row))}>
-          {detailsLoading ? "…" : "✏️ Edit"}
-        </button>
-      ),
-      ignoreRowClick: true, allowOverflow: true, button: true,
-    },
-  ];
+  // ── Cell renderers (match PackageMaster pill styling) ────────────────────────
+  const quickCartBadge = (val) => {
+    const isYes = ["yes","1","true"].includes(String(val ?? "").toLowerCase());
+    return (
+      <span style={{ background: isYes ? "#e6f4ef" : "#f1f5f9", color: isYes ? "#2e7d5e" : "#94a3b8",
+        borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
+        {isYes ? "Yes" : "No"}
+      </span>
+    );
+  };
+
+  const statusBadge = (s) => {
+    const norm = String(s ?? "").trim().toLowerCase() || "active";
+    const cfg  = norm === "active"
+      ? { bg: "#e6f4ef", color: "#2e7d5e" }
+      : { bg: "#f1f5f9", color: "#475569" };
+    const disp = norm.charAt(0).toUpperCase() + norm.slice(1);
+    return (
+      <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
+        {disp}
+      </span>
+    );
+  };
 
   if (showForm) {
     return <ServiceForm service={selectedServiceForEdit} onBack={handleBackFromForm} mode={formMode} />;
   }
 
+  // ── List View (themed to match PackageMaster) ────────────────────────────────
   return (
-    <div className="service-master-container">
-      <div className="header-section">
-        <div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6 }}>
-            <a href="/dashboard" style={{ color: "#334B71", textDecoration: "none" }}>Dashboard</a>
-            <span style={{ margin: "0 6px" }}> › </span>
-            <span>Manage Services</span>
-          </div>
-          <h1 className="page-title">Services</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>{filteredServices.length} services</p>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+    <div style={{ padding: 10, fontFamily: "'Segoe UI',system-ui,sans-serif", color: "#0f172a" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1e293b" }}>Service Master</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={() => fetchServiceData()}
-            style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4",
-              borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>
+            style={{ height: 40, padding: "0 16px", background: "#fff", color: "#334b71", border: "1.5px solid #e2e8f0",
+              borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
             ↻ Refresh
           </button>
-          <button className="create-btn" onClick={() => requireAccess("MDM.SERVICES_CREATE", handleCreateNew)}>+ Create New Service</button>
+          <button onClick={() => requireAccess("MDM.SERVICES_CREATE", handleCreateNew)}
+            style={{ height: 40, padding: "0 20px", background: "#334b71", color: "#fff", border: "none",
+              borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            + Create New Service
+          </button>
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredServices}
-        progressPending={loading}
-        progressComponent={<div style={{ padding: 40, color: "#6b7280" }}>Loading services...</div>}
-        pagination
-        paginationPerPage={entriesPerPage}
-        paginationRowsPerPageOptions={[10, 25, 50, 100]}
-        onChangeRowsPerPage={(n) => { setEntriesPerPage(n); setCurrentPage(1); }}
-        onChangePage={(p) => setCurrentPage(p)}
-        subHeader
-        highlightOnHover
-        subHeaderComponent={
-          <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="text" placeholder="Search services..."
-              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, minWidth: 220, fontSize: 14 }}
-            />
-            <select value={serviceStatus} onChange={(e) => setServiceStatus(e.target.value)}
-              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-        }
-      />
+      <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+        <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by code, name or category…"
+          style={{ flex: 1, height: 40, padding: "0 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13 }} />
+        <select value={serviceStatus} onChange={(e) => setServiceStatus(e.target.value)}
+          style={{ height: 40, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, background: "#fff" }}>
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
 
-      <style>{`
-        .header-section { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
-        .page-title { font-size:24px; font-weight:600; color:#111827; margin:0 0 4px; }
-        .create-btn { padding:10px 20px; background:#334B71; color:#fff; border:none; border-radius:8px; font-weight:500; cursor:pointer; font-size:14px; }
-        .create-btn:hover { background:#22314f; }
-        .status-badge { padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; background:#d1fae5; color:#065f46; text-transform:capitalize; }
-        .status-badge.inactive { background:#fee2e2; color:#991b1b; }
-        .act-btn.edit { font-size:13px; padding:5px 12px; border-radius:6px; border:none; background:#fef3c7; color:#92400e; font-weight:500; cursor:pointer; }
-        .act-btn.edit:hover { background:#fde68a; }
-      `}</style>
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 40, color: "#64748b" }}>Loading services…</div>
+      ) : (
+        <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #e2e8f0", background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#334b71" }}>
+                {COLUMNS.map((col) => (
+                  <th key={col.label} onClick={() => toggleSort(col.field)}
+                    style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, fontSize: 11, color: "#fff",
+                      borderBottom: "1px solid #e2e8f0", textTransform: "uppercase", letterSpacing: ".06em",
+                      cursor: col.field ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>
+                    {col.label}
+                    {col.field && (
+                      <span style={{ marginLeft: 6, color: sortField === col.field ? "#fff" : "#cbd5e1", fontSize: 10 }}>
+                        {sortField === col.field ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+                      </span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pagedServices.length === 0 ? (
+                <tr><td colSpan={COLUMNS.length} style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 13 }}>No services found.</td></tr>
+              ) : pagedServices.map((row, i) => (
+                <tr key={getCode(row) || i} style={{ borderBottom: "1px solid #f1f5f9" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8faff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "#334b71" }}>{getCode(row)}</td>
+                  <td style={{ padding: "12px 14px" }}>{getName(row)}</td>
+                  <td style={{ padding: "12px 14px", color: "#64748b" }}>{getCategory(row)}</td>
+                  <td style={{ padding: "12px 14px", color: "#64748b" }}>{getSubCategory(row)}</td>
+                  <td style={{ padding: "12px 14px" }}>{quickCartBadge(getQuickCart(row))}</td>
+                  <td style={{ padding: "12px 14px" }}>{statusBadge(getStatus(row))}</td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <button onClick={() => requireAccess("MDM.SERVICES_EDIT", () => handleEdit(row))}
+                      style={{ padding: "4px 12px", border: "1px solid #334b71", borderRadius: 6, background: "#fff",
+                        color: "#334b71", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                      {detailsLoading ? "…" : "Edit"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && sortedServices.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#64748b" }}>
+            <span>Rows per page:</span>
+            <select value={entriesPerPage} onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+              style={{ height: 32, padding: "0 8px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, background: "#fff" }}>
+              {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span style={{ marginLeft: 8 }}>
+              {(safePage - 1) * entriesPerPage + 1}–{Math.min(safePage * entriesPerPage, sortedServices.length)} of {sortedServices.length}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}
+              style={{ height: 32, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff",
+                color: safePage <= 1 ? "#cbd5e1" : "#334b71", fontWeight: 700, fontSize: 13, cursor: safePage <= 1 ? "not-allowed" : "pointer" }}>
+              ‹ Prev
+            </button>
+            <span style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>Page {safePage} of {totalPages}</span>
+            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+              style={{ height: 32, padding: "0 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff",
+                color: safePage >= totalPages ? "#cbd5e1" : "#334b71", fontWeight: 700, fontSize: 13, cursor: safePage >= totalPages ? "not-allowed" : "pointer" }}>
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

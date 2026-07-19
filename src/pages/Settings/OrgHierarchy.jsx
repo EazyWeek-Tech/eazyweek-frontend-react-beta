@@ -94,7 +94,7 @@ export default function OrgHierarchy() {
 
   if (error) return (
     <div style={{ fontFamily:"Lato,sans-serif", padding:60, textAlign:"center" }}>
-      <div style={{ fontSize:36, marginBottom:12 }}>⚠️</div>
+      <div style={{ fontSize:36, marginBottom:12 }}>️</div>
       <div style={{ fontWeight:700, fontSize:15, color:"#b91c1c", marginBottom:6 }}>{error}</div>
       <div style={{ fontSize:13, color:"#64748b" }}>Please ensure at least one Legal Entity and one Centre are configured.</div>
     </div>

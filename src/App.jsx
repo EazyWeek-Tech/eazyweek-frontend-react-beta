@@ -103,6 +103,7 @@ import InvoiceDashboard from "./pages/Invoice/InvoiceDashboard";
 import FeatureGate from "./components/FeatureGate";
 import { PermissionProvider } from "./pages/Settings/usePermissions";
 import SecuritySettings from "./pages/Masters/SecuritySettings";
+import CashManagement from "./pages/Invoice/CashManagement/CashManagement";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -266,7 +267,7 @@ if (user && showFirstLogin) {
             <Sidebar collapsed={isSidebarCollapsed} />
             <section className="rhs-sect">
               <Header onToggleSidebar={toggleSidebar} onLogout={handleLogout} />
-              <div className="home-sect">
+              <div className="">
                 <Routes>
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="/loyalty" element={gate("loyalty", <LoyaltyListing />)} />
@@ -296,6 +297,7 @@ if (user && showFirstLogin) {
                   <Route path="/appointment/dashboard" element={<AppointmentDashboard />} />
 
                   <Route path="/invoice/dashboard" element={<InvoiceDashboard />} />
+                  <Route path="/invoice/cash-management" element={<CashManagement />} />
                   <Route
   path="/manuallead/:oppCode"
   element={gate("opportunity", <ManualOppCustomerDetails />)}

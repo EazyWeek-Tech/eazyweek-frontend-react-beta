@@ -31,7 +31,8 @@ const Sidebar = ({ collapsed, currentUser }) => {
       feature: "billing",
       submenu: [
         { name: "Invoice Dashboard", path: "/invoice/dashboard" },
-        { name: "Invoice", path: "/invoice" }
+        { name: "Invoice", path: "/invoice" },
+        { name: "Cash Management", path: "/invoice/cash-management" }
 
       ],
     },

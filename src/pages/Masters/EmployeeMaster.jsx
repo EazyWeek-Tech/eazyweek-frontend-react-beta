@@ -115,7 +115,7 @@ const EmployeeMaster = () => {
   }
 
   return (
-    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+    <div style={{ padding:10, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
       {toast && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3",
@@ -160,10 +160,10 @@ const EmployeeMaster = () => {
       <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
-            <tr style={{ background:"#f1f5f9" }}>
+            <tr style={{ background:"#334b71" }}>
               {["Employee Code","First Name","Last Name","Job","Primary Centre","Roles","Status",""].map(h => (
                 <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700,
-                  fontSize:11, color:"#475569", borderBottom:"1px solid #e2e8f0",
+                  fontSize:11, color:"#fff", borderBottom:"1px solid #e2e8f0",
                   textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
               ))}
             </tr>

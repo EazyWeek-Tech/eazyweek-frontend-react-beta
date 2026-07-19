@@ -366,7 +366,7 @@ export default function CentreSetup() {
         .save-btn { background:#334b71; color:#fff; border:none; border-radius:10px; padding:10px 22px; font-weight:800; font-size:13px; cursor:pointer; }
         .save-btn:disabled { opacity:0.55; cursor:not-allowed; }
         .add-btn { background:#fff; border:1px solid #e7ecf4; border-radius:8px; padding:7px 14px; font-weight:700; font-size:12px; color:#334b71; cursor:pointer; }
-        .del-btn { background:none; border:none; color:#b91c1c; cursor:pointer; font-size:18px; padding:0 4px; }
+        .del-btn { background:#b91c1c; border:none; color:#fff; cursor:pointer; font-size:10px; font-weight: 600; text-transform: capitalize; border-radius: 4px; padding: 4px; }
         .primary-badge { background:#e6f4ef; color:#2e7d5e; border:1px solid #b3d9cc; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700; }
         @media(max-width:768px){ .cs-wrap{ grid-template-columns:1fr; } }
       `}</style>
@@ -432,7 +432,7 @@ export default function CentreSetup() {
                       style={{ padding:"9px 16px", background:"#fef2f2", color:"#b91c1c",
                         border:"1px solid #fecaca", borderRadius:10, fontWeight:700,
                         fontSize:13, cursor:"pointer" }}>
-                      🗑 Delete Centre
+                      DELETE Delete Centre
                     </button>
                   <button className="save-btn" onClick={handleSave} disabled={saving}>
                     {saving ? "Saving…" : " Save Centre"}
@@ -446,7 +446,7 @@ export default function CentreSetup() {
                   background:toast.type==="error"?"#fdf3f3":"#e6f4ef",
                   border:`1px solid ${toast.type==="error"?"#f0c4c0":"#b3d9cc"}`,
                   color:toast.type==="error"?"#b91c1c":"#2e7d5e" }}>
-                  {toast.type==="error"?"⚠ ":"✓ "}{toast.msg}
+                  {toast.type==="error"?" ":"✓ "}{toast.msg}
                 </div>
               )}
 
@@ -521,7 +521,7 @@ export default function CentreSetup() {
                           <span style={{ fontWeight:700, fontSize:13 }}>
                             Address #{idx+1} {a.isPrimary && <span className="primary-badge">Primary</span>}
                           </span>
-                          <button className="del-btn" onClick={() => setAddresses(p => p.filter((_,i) => i !== idx))}>🗑</button>
+                          <button className="del-btn" onClick={() => setAddresses(p => p.filter((_,i) => i !== idx))}>DELETE</button>
                         </div>
                         <div className="field" style={{ marginBottom:10 }}>
                           <label>Description * <span style={{ color:"#94a3b8", fontWeight:400 }}>(max 60 chars)</span></label>
@@ -568,7 +568,7 @@ export default function CentreSetup() {
                           <span style={{ fontWeight:700, fontSize:13 }}>
                             Contact #{idx+1} {c.isPrimary && <span className="primary-badge">Primary</span>}
                           </span>
-                          <button className="del-btn" onClick={() => setContacts(p => p.filter((_,i)=>i!==idx))}>🗑</button>
+                          <button className="del-btn" onClick={() => setContacts(p => p.filter((_,i)=>i!==idx))}>DELETE</button>
                         </div>
                         <div className="grid-2">
                           <div className="field">
@@ -696,7 +696,7 @@ export default function CentreSetup() {
                       ))}
                     </div>
                     <div style={{ marginTop:14, padding:"10px 14px", background:"#fef3c7", border:"1px solid #fcd34d", borderRadius:8, fontSize:12, color:"#92400e" }}>
-                      ⚠ Changing a prefix only affects new transactions. All existing records keep their original numbers.
+                       Changing a prefix only affects new transactions. All existing records keep their original numbers.
                     </div>
                   </div>
                 )}

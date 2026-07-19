@@ -715,7 +715,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                       {isAdmin && (
                         <button onClick={() => delHistoryRow(i)}
                           style={{ background:"none", border:"none", color:"#b91c1c",
-                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">🗑</button>
+                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">DELETE</button>
                       )}
                     </td>
                   </tr>
@@ -797,7 +797,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                       {isAdmin && (
                         <button onClick={() => delRoleRow(i)}
                           style={{ background:"none", border:"none", color:"#b91c1c",
-                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">🗑</button>
+                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">DELETE</button>
                       )}
                     </td>
                   </tr>

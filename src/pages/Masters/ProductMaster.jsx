@@ -69,7 +69,7 @@ const Field = ({ label, required, error, children }) => (
       {label}{required && <span style={{ color:"#b91c1c" }}> *</span>}
     </label>
     {children}
-    {error && <div style={{ color:"#b91c1c", fontSize:12, marginTop:3 }}>⚠ {error}</div>}
+    {error && <div style={{ color:"#b91c1c", fontSize:12, marginTop:3 }}> {error}</div>}
   </div>
 );
 const Input = ({ value, onChange, placeholder, type="text", readOnly, disabled, maxLength, style={} }) => (
@@ -297,7 +297,7 @@ const SalesTab = ({ form, setForm, errors = {}, uomOptions, membershipActive }) 
             <thead>
               <tr style={{ background:"#f1f5f9" }}>
                 {["Centre","MRP","Selling Price","Tax Incl.","Tax %","Release","Block Sale","Member Price","Member Disc. %"].map(h=>(
-                  <th key={h} style={{ padding:"10px 10px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding:"10px 10px", textAlign:"left", fontWeight:700, fontSize:12, color:"#fff", borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -331,10 +331,10 @@ const SalesTab = ({ form, setForm, errors = {}, uomOptions, membershipActive }) 
             </tbody>
           </table>
           {errors.pricing && (
-            <div style={{ color:"#b91c1c", fontSize:12.5, marginTop:8 }}>⚠ {errors.pricing}</div>
+            <div style={{ color:"#b91c1c", fontSize:12.5, marginTop:8 }}> {errors.pricing}</div>
           )}
           <div style={{ marginTop:10, fontSize:12, color:"#94a3b8" }}>
-            ⚠ A product is sellable at a centre only when “Release” is checked. “Block Sale” stops sale at that centre (invoice shows “This product is blocked for sale”).
+             A product is sellable at a centre only when “Release” is checked. “Block Sale” stops sale at that centre (invoice shows “This product is blocked for sale”).
             When Tax Included = Yes, Tax % is set to 0 and disabled. Member Price / Member Discount need the membership program active and the centre released; enter one or the other, not both.
           </div>
         </div>
@@ -638,8 +638,8 @@ const ProductMaster = () => {
 
   const th = (label, field) => (
     <th onClick={()=>toggleSort(field)}
-      style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#475569", textTransform:"uppercase", letterSpacing:".05em", borderBottom:"1px solid #e2e8f0", cursor: field?"pointer":"default", whiteSpace:"nowrap" }}>
-      {label}{field && sortField===field && <span style={{ color:"#334b71" }}> {sortDir==="asc"?"▲":"▼"}</span>}
+      style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#fff", textTransform:"uppercase", letterSpacing:".05em", borderBottom:"1px solid #e2e8f0", cursor: field?"pointer":"default", whiteSpace:"nowrap" }}>
+      {label}{field && sortField===field && <span style={{ color:"#fff" }}> {sortDir==="asc"?"▲":"▼"}</span>}
     </th>
   );
 
@@ -674,7 +674,7 @@ const ProductMaster = () => {
 
         <div style={{ border:"1px solid #e2e8f0", borderRadius:14, overflow:"hidden", background:"#fff", boxShadow:"0 4px 20px rgba(15,23,42,.06)" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
-            <thead><tr style={{ background:"#f1f5f9" }}>
+            <thead><tr style={{ background:"#334b71" }}>
               {th("Code","PRODUCTCODE")}{th("Name","PRODUCTNAME")}{th("Category","CATEGORY")}{th("Type","PRODUCTTYPE")}{th("Barcode","BARCODE")}{th("Price","SELLINGPRICE")}{th("Status","STATUS")}
               <th style={{ padding:"11px 14px", borderBottom:"1px solid #e2e8f0" }}></th>
             </tr></thead>
@@ -736,7 +736,7 @@ const ProductMaster = () => {
   };
 
   return (
-    <div style={{ padding:28, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+    <div style={{ padding:10, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
@@ -762,7 +762,7 @@ const ProductMaster = () => {
 
       {saveAttempted && Object.keys(errors).length>0 && (
         <div style={{ marginBottom:16, padding:"12px 16px", background:"#fdf3f3", border:"1px solid #f0c4c0", borderRadius:10 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:"#b91c1c", marginBottom:6 }}>⚠ Please fix the following:</div>
+          <div style={{ fontWeight:700, fontSize:13, color:"#b91c1c", marginBottom:6 }}> Please fix the following:</div>
           <ul style={{ margin:0, paddingLeft:18, fontSize:12, color:"#b91c1c" }}>
             {Object.values(errors).filter(Boolean).map((m,i)=><li key={i}>{m}</li>)}
           </ul>

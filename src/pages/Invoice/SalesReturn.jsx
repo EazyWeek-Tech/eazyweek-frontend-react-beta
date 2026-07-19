@@ -362,7 +362,7 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
           <strong>{data.invoiceNum}</strong> · {fmtDate(data.invoiceDate)} · {data.fullName} · Total: <strong>SAR {fmt(data.sumTotal)}</strong>
         </div>
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "18px 20px", color: "#b91c1c", fontSize: 13.5, display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>⚠</span>
+          <span style={{ fontSize: 18, lineHeight: 1 }}></span>
           <div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>This invoice cannot be returned.</div>
             A membership purchase invoice is not eligible for a sales return.
@@ -378,7 +378,7 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
         <strong>{data.invoiceNum}</strong> · {fmtDate(data.invoiceDate)} · {data.fullName} · Total: <strong>SAR {fmt(data.sumTotal)}</strong>
       </div>
       <h4 style={{ marginBottom: 10, fontSize: 14, color: "#334b71" }}>Select the item/service to be returned</h4>
-      {errors.lines && <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 8 }}>⚠ {errors.lines}</div>}
+      {errors.lines && <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 8 }}> {errors.lines}</div>}
 
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -619,7 +619,7 @@ const RefundPaymentMethod = ({ totalReturn, onFinalize, onBack, onCancel, loadin
         </tbody>
       </table>
 
-      {error && <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>⚠ {error}</div>}
+      {error && <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}> {error}</div>}
 
       <div className="btnbar" style={{ marginTop: 20 }}>
         <button className="pribtnblue" onClick={handleFinalize}
@@ -880,7 +880,7 @@ const SalesReturn = ({ onClose, custId }) => {
           {error && (
             <div style={{ background: "#fdf3f3", border: "1px solid #f0c4c0", borderRadius: 8,
               padding: "10px 14px", color: "#b91c1c", marginBottom: 12, fontSize: 13 }}>
-              ⚠ {error}
+               {error}
             </div>
           )}
           {step === "search" && (

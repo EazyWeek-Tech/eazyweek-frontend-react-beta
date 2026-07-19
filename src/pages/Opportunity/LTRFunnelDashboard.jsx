@@ -6,7 +6,7 @@ import { API_BASE_URL } from "../../config";
    Wired to:  GET /api/Opportunity/Funnel           (buckets + badges + metrics)
               GET /api/Opportunity/FunnelDrilldown   (lead list per stage)
 
-   ⚠ Mount this page in your router, e.g.:
+    Mount this page in your router, e.g.:
         <Route path="/ltr-funnel" element={<LTRFunnelDashboard />} />
       and add a nav entry pointing at it. Import path here assumes this file sits
       beside the other module pages (../../config). Adjust if placed elsewhere.

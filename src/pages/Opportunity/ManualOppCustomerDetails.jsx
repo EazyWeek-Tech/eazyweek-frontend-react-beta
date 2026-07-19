@@ -556,7 +556,7 @@ const ManualOppCustomerDetails = () => {
   const locationObj = useLocation();
   const { state } = locationObj;
   const navigate = useNavigate();
-  // LTR: mount path of the Appointment module. ⚠ VERIFY against your router.
+  // LTR: mount path of the Appointment module.  VERIFY against your router.
   const APPOINTMENT_ROUTE = "/appointment";
 
   const resolvedOppCode = useMemo(() => getOppCodeFromUrl(params.oppCode, locationObj), [params.oppCode, locationObj.pathname]);
@@ -1525,7 +1525,7 @@ const modifierRecId =
   const updateLeadOpp = async () => {
     if (!numericLeadOppId) throw new Error("Invalid leadOpp_ID for update.");
     if (!originalSalesOwnerRecId) {
-      console.warn("⚠️ originalSalesOwnerRecId is 0. SalesOwner may overwrite if backend updates it.");
+      console.warn("️ originalSalesOwnerRecId is 0. SalesOwner may overwrite if backend updates it.");
     }
 const mediumName = "Manual";
 const subMediumName = safe(form.subMedium || "Manual");
