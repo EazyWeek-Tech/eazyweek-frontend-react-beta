@@ -214,7 +214,8 @@ useEffect(() => {
           value: normalizeLSCode(x?.code),
           label: String(x?.name ?? "").trim(),
         }))
-        .filter((x) => x.value || x.label);
+        .filter((x) => x.value || x.label)
+        .filter((x) => ["wip","converted","not converted"].includes(String(x.label||"").trim().toLowerCase()));
 
       setDispOptions([{ value: "", label: "" }, ...mapped]);
     } catch (e) {

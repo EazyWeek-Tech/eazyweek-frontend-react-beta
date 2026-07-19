@@ -1038,9 +1038,9 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           const _id     = Number(x?.leadOpp_ID||0);
           const _custID = (x?.custID||x?.custId||"").toString();
           const _type   = (x?.type||"").toString().trim().toLowerCase();
-          const _prospectType = _type==="opportunity" ? "Opportunity"
-                              : _type==="lead"        ? "Lead"
-                              : (_custID.trim()===""  ? "Lead" : "Opportunity");
+          // Prospect Type comes from the stored Type only — a converted lead keeps
+          // Type='Lead' even though it now has a Customer ID (LC-CV-003 / LC-BR-006).
+          const _prospectType = _type==="opportunity" ? "Opportunity" : "Lead";
           const _doctor     = (x?.doctorName||x?.doctor||"").toString();
           const _prospectId = fmtProspectId(_id,"LD-MN");
           return ({
@@ -1092,6 +1092,10 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
     return null;
   },[fuMode,fuFrom,fuTo]);
 
+  const [sort, setSort] = useState({ key:"", dir:"asc" });
+  const onSort = (key) => setSort(p => p.key===key ? {key, dir:p.dir==="asc"?"desc":"asc"} : {key, dir:"asc"});
+  const sortArrow = (k) => sort.key===k ? (sort.dir==="asc"?"↑":"↓") : "↕";
+
   const filtered = useMemo(()=>{
     let list=rows.slice();
     const s=search.trim().toLowerCase();
@@ -1105,8 +1109,18 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
       return s>=fuDateRange.from&&s<=fuDateRange.to;
     });
     if(fuTime)list=list.filter(r=>norm(r.fuTimeLabel)===norm(fuTime));
+    if(sort.key){
+      const dir=sort.dir==="asc"?1:-1;
+      const numericKey=sort.key==="id";
+      list=[...list].sort((a,b)=>{
+        if(numericKey){const an=Number(a?.[sort.key])||0,bn=Number(b?.[sort.key])||0;return (an-bn)*dir;}
+        const av=(a?.[sort.key]??"").toString().toLowerCase();
+        const bv=(b?.[sort.key]??"").toString().toLowerCase();
+        return av<bv?-1*dir:av>bv?1*dir:0;
+      });
+    }
     return list;
-  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime]);
+  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime,sort]);
 
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const paged=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
@@ -1183,10 +1197,10 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th>Prospect ID</th><th>Prospect Type</th><th>Cust ID</th><th>Name</th><th>Mobile</th><th>Doctor</th>
-                <th>Status</th><th>Follow Up Date</th><th>Follow Up Time</th>
-                <th>Disposition</th><th>Appointment ID</th><th>Remarks</th><th>Sales Owner</th>
-                <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
+                <th onClick={()=>onSort("id")}>Prospect ID {sortArrow("id")}</th><th onClick={()=>onSort("prospectType")}>Prospect Type {sortArrow("prospectType")}</th><th onClick={()=>onSort("custID")}>Cust ID {sortArrow("custID")}</th><th onClick={()=>onSort("name")}>Name {sortArrow("name")}</th><th onClick={()=>onSort("mobile")}>Mobile {sortArrow("mobile")}</th><th onClick={()=>onSort("doctor")}>Doctor {sortArrow("doctor")}</th>
+                <th onClick={()=>onSort("status")}>Status {sortArrow("status")}</th><th onClick={()=>onSort("fuDate")}>Follow Up Date {sortArrow("fuDate")}</th><th onClick={()=>onSort("fuTimeLabel")}>Follow Up Time {sortArrow("fuTimeLabel")}</th>
+                <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th><th>Appointment ID</th><th onClick={()=>onSort("remark")}>Remarks {sortArrow("remark")}</th><th onClick={()=>onSort("owner")}>Sales Owner {sortArrow("owner")}</th>
+                <th onClick={()=>onSort("modifiedBy")}>Modified By {sortArrow("modifiedBy")}</th><th onClick={()=>onSort("modifiedDate")}>Modified Date {sortArrow("modifiedDate")}</th><th onClick={()=>onSort("createdDate")}>Created Date {sortArrow("createdDate")}</th>
               </tr></thead>
               <tbody>
                 {paged.map((r,i)=>(

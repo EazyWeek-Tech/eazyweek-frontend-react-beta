@@ -671,7 +671,7 @@ useEffect(() => {
           let opts = (Array.isArray(list) ? list : []).map((x) => ({
             value: safe(x?.code).trim(),
             label: safe(x?.name).trim() || safe(x?.code).trim(),
-          }));
+          })).filter((o) => ["wip","converted","not converted"].includes(String(o.label||"").trim().toLowerCase()));
 
           // ensure "< - Select one - >" exists at top
           const hasBlank = opts.some((o) => safe(o.value).trim() === "");

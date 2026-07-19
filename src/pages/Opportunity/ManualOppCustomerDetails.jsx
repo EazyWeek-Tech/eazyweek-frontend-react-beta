@@ -1095,7 +1095,7 @@ if (!isEdit) {
           .filter((d) => d?.isActive !== false)
           .map((d) => ({ label: safe(d?.dispositionName).trim(), value: String(d?.dispositionId ?? d?.dispositionID ?? "") }))
           .filter((x) => x.label && x.value)
-          .filter((x) => norm(x.label) !== "pending");
+          .filter((x) => ["wip","converted","not converted"].includes(norm(x.label)));
 
         setDispositionOptions([{ label: "< - Select one - >", value: "" }, ...mapped]);
 
