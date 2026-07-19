@@ -166,7 +166,7 @@ const Login = ({ onLoginSuccess }) => {
               <div className="form active">
                 <div className="l-logo">
                   <img
-                    src="https://insightlive.azurewebsites.net/ImageAssets/NNL.png"
+                    src="/images/eazyWeek.png"
                     alt="Logo"
                     width="180"
                   />
