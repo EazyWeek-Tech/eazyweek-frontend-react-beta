@@ -338,7 +338,7 @@ const HALF_HOURS = Array.from({length:24},(_, h) =>
 
 function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   const ruleCode = String(header?.oRuleCode||"").trim().toUpperCase();
-  const showAppt = ruleCode==="R3" || ruleCode==="R4";
+  const showAppt = ["R1","R2","R3","R4"].includes(ruleCode);   // Appt Date col+filter for R1/R2 too
 
   const [rows,    setRows]    = useState([]);
   const [apptMap, setApptMap] = useState({});   // LTR: recid → { appointmentId, apptStatus }
