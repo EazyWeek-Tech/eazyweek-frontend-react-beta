@@ -354,7 +354,7 @@ const CustomerFormHistory = () => {
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <div>
-          <div style={{ fontWeight:800, fontSize:20, color:"#071D49" }}>📋 EMR Forms</div>
+          <div style={{ fontWeight:800, fontSize:20, color:"#071D49" }}> EMR Forms</div>
           <div style={{ fontSize:13, color:"#64748b", marginTop:2 }}>{customerName}</div>
         </div>
         {(data?.images?.length || 0) > 1 && (

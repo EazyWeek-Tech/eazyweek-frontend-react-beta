@@ -662,7 +662,7 @@ export default function FormBuilder() {
                 <div className="canvas-drop">
                   {topLevelComponents.length === 0 ? (
                     <div style={{ textAlign:"center", padding:"60px 20px", color:"#94a3b8" }}>
-                      <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
+                      <div style={{ fontSize:36, marginBottom:12 }}></div>
                       <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>Start building your form</div>
                       <div style={{ fontSize:13 }}>Drag components from the left panel and drop them here</div>
                     </div>

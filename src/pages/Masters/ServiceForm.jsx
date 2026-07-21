@@ -1068,7 +1068,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}>📋 EMR Forms</div>
+                  <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}> EMR Forms</div>
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>
                     Map consent/treatment forms to this service. Max 11 forms.
                   </div>
@@ -1083,7 +1083,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
               {emrForms.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"40px 0", color:"#94a3b8",
                   border:"2px dashed #e7ecf4", borderRadius:10 }}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>📋</div>
+                  <div style={{ fontSize:28, marginBottom:8 }}></div>
                   <div style={{ fontWeight:700, fontSize:13, color:"#334b71", marginBottom:4 }}>No forms mapped</div>
                   <div style={{ fontSize:12 }}>Click "+ Add Form" to link a consent or treatment form.</div>
                 </div>

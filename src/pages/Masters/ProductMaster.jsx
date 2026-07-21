@@ -297,7 +297,7 @@ const SalesTab = ({ form, setForm, errors = {}, uomOptions, membershipActive }) 
             <thead>
               <tr style={{ background:"#f1f5f9" }}>
                 {["Centre","MRP","Selling Price","Tax Incl.","Tax %","Release","Block Sale","Member Price","Member Disc. %"].map(h=>(
-                  <th key={h} style={{ padding:"10px 10px", textAlign:"left", fontWeight:700, fontSize:12, color:"#fff", borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding:"10px 10px", textAlign:"left", fontWeight:700, fontSize:12, color:"#334b71", borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>

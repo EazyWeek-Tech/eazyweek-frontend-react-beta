@@ -556,7 +556,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
             <div style={{ fontSize:11, fontWeight:700, color:"#6e7b8f",
               textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8,
               display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span>📋 Forms</span>
+              <span> Forms</span>
               {!sidebarFormsLoading && sidebarFormStatus && (() => {
                 const s = STATUS_STYLE[sidebarFormStatus] || STATUS_STYLE["Not Started"];
                 return (
@@ -750,7 +750,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
 const STATUS_STYLE = {
   "All Complete":    { bg:"#dcfce7", color:"#166534", icon:"✅" },
   "Partially Filled":{ bg:"#fef9c3", color:"#854F0B", icon:"🟡" },
-  "Not Started":     { bg:"#f1f5f9", color:"#64748b", icon:"📋" },
+  "Not Started":     { bg:"#f1f5f9", color:"#64748b", icon:"" },
 };
 
 

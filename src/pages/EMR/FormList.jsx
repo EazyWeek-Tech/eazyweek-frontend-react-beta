@@ -167,7 +167,7 @@ export default function FormList() {
         {/* Header */}
         <div className="fl-header">
           <div>
-            <div className="fl-title">📋 EMR Forms</div>
+            <div className="fl-title"> EMR Forms</div>
             <div className="fl-sub">Create and manage electronic medical record forms</div>
           </div>
           {canCreate && (
@@ -213,7 +213,7 @@ export default function FormList() {
             <div style={{ padding:40, textAlign:"center", color:"#64748b" }}>Loading forms…</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding:40, textAlign:"center" }}>
-              <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
+              <div style={{ fontSize:32, marginBottom:8 }}></div>
               <div style={{ fontWeight:700, fontSize:14, color:"#334b71", marginBottom:4 }}>No forms found</div>
               <div style={{ fontSize:13, color:"#94a3b8" }}>Click "+ Create Form" to get started.</div>
             </div>
