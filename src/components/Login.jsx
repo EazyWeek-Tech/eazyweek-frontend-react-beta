@@ -166,9 +166,9 @@ const Login = ({ onLoginSuccess }) => {
               <div className="form active">
                 <div className="l-logo">
                   <img
-                    src="/images/eazyWeek.png"
+                    src="/images/updatedlogo.png"
                     alt="Logo"
-                    width="180"
+                    width="100"
                   />
                 </div>
                 <p className="subtitle">Sign in to continue to your account</p>
