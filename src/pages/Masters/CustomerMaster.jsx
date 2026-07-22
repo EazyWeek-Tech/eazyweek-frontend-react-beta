@@ -132,12 +132,18 @@ const CustomerMaster = () => {
     finally { setLoading(false); }
   }, []);
 
+  // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
+  // slow config call never blocks a save that would otherwise be valid.
+  const [policy, setPolicy] = useState({ emailOptional: true, allowDuplicateMobile: true, allowDuplicateEmail: true });
+
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   // ── Fetch supporting dropdowns ────────────────────────────────────────────
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/Master/Nationality`, { headers: authHeaders() })
       .then(r => r.json()).then(j => setNationalities(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
+    fetch(`${API_BASE_URL}/api/Customer/Policy`, { headers: authHeaders() })
+      .then(r => r.json()).then(j => { const d = j?.data ?? j; if (d) setPolicy(p => ({ ...p, ...d })); }).catch(() => {});
 
     fetch(`${API_BASE_URL}/api/Master/LoadLanguage`, { headers: authHeaders() })
       .then(r => r.json()).then(j => setLanguages(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
@@ -235,10 +241,13 @@ const CustomerMaster = () => {
     if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
       setFormError("Enter a valid mobile number (6–15 digits, numbers only)."); return;
     }
-    if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
+    // Email is mandatory only when Legal Entity → Setup says it is.
+    if (!policy.emailOptional && !formData.email?.trim()) { setFormError("Email is required."); return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
-    if (!formData.birthDay)    { setFormError("Date of Birth is required."); return; }
+    // Date of Birth is optional. Nationality is not — the invoice derives the
+    // Citizen / Expat status from it, and billing stalls without it.
+    if (!formData.nationalityCode) { setFormError("Nationality is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
@@ -409,7 +418,7 @@ const CustomerMaster = () => {
                     <option>Male</option><option>Female</option><option>Other</option>
                   </select>
                 </FormRow>
-                <FormRow label="Date of Birth *">
+                <FormRow label="Date of Birth">
                   <input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Anniversary">
@@ -429,7 +438,7 @@ const CustomerMaster = () => {
                     <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
                   </div>
                 </FormRow>
-                <FormRow label="Email *">
+                <FormRow label={policy.emailOptional ? "Email" : "Email *"}>
                   <input style={styles.inp} type="email" name="email"
                     value={formData.email || ""} onChange={handleInput}
                     placeholder="customer@example.com" />
@@ -438,7 +447,7 @@ const CustomerMaster = () => {
 
               {/* Nationality */}
               <Section title="Nationality">
-                <FormRow label="Nationality">
+                <FormRow label="Nationality *">
                   <div style={{ display:"flex", gap:10, alignItems:"center" }}>
                     <select style={{ ...styles.sel, flex:1 }}
                       name="nationalityCode"
@@ -529,6 +538,10 @@ export function CustomerFormPanel({ onSaved, onClose }) {
   const [citizenType,     setCitizenType]     = useState(null);
   const [generatedId,     setGeneratedId]     = useState("");
 
+  // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
+  // slow config call never blocks a save that would otherwise be valid.
+  const [policy, setPolicy] = useState({ emailOptional: true, allowDuplicateMobile: true, allowDuplicateEmail: true });
+
   useEffect(() => {
     const cc = getCC();
     fetch(`${API_BASE_URL}/api/Customer/CentreSettings/${cc}`, { headers: authHeaders() })
@@ -541,6 +554,8 @@ export function CustomerFormPanel({ onSaved, onClose }) {
       .then(r => r.json()).then(j => setLanguages(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
     fetch(`${API_BASE_URL}/api/Master/LoadCountry`, { headers: authHeaders() })
       .then(r => r.json()).then(j => setCountries(Array.isArray(j?.data ?? j) ? (j?.data ?? j) : [])).catch(() => {});
+    fetch(`${API_BASE_URL}/api/Customer/Policy`, { headers: authHeaders() })
+      .then(r => r.json()).then(j => { const d = j?.data ?? j; if (d) setPolicy(p => ({ ...p, ...d })); }).catch(() => {});
   }, []);
 
   const handleInput = (e) => {
@@ -568,10 +583,13 @@ export function CustomerFormPanel({ onSaved, onClose }) {
     if (!/^\d{6,15}$/.test(String(formData.mobilePhone).trim())) {
       setFormError("Enter a valid mobile number (6–15 digits, numbers only)."); return;
     }
-    if (!formData.email?.trim())       { setFormError("Email is required.");       return; }
+    // Email is mandatory only when Legal Entity → Setup says it is.
+    if (!policy.emailOptional && !formData.email?.trim()) { setFormError("Email is required."); return; }
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRx.test(formData.email.trim())) { setFormError("Please enter a valid email address."); return; }
-    if (!formData.birthDay)    { setFormError("Date of Birth is required."); return; }
+    // Date of Birth is optional. Nationality is not — the invoice derives the
+    // Citizen / Expat status from it, and billing stalls without it.
+    if (!formData.nationalityCode) { setFormError("Nationality is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
     setFormError(""); setSaving(true);
     try {
@@ -621,7 +639,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
             </select>
           </FormRow>
-          <FormRow label="Date of Birth *"><input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} /></FormRow>
+          <FormRow label="Date of Birth"><input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} /></FormRow>
           <FormRow label="Anniversary"><input style={styles.inp} type="date" name="anniversary" value={formData.anniversary} onChange={handleInput} /></FormRow>
         </Section>
 
@@ -636,11 +654,11 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
             </div>
           </FormRow>
-          <FormRow label="Email *"><input style={styles.inp} type="email" name="email" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
+          <FormRow label={policy.emailOptional ? "Email" : "Email *"}><input style={styles.inp} type="email" name="email" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
         </Section>
 
         <Section title="Nationality">
-          <FormRow label="Nationality">
+          <FormRow label="Nationality *">
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <select style={{ ...styles.sel, flex:1 }} name="nationalityCode" value={formData.nationalityCode || ""} onChange={handleNationalityChange}>
                 <option value="">Select Nationality</option>

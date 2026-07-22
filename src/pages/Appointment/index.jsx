@@ -9,6 +9,8 @@ import AppointmentDrawer from "./AppointmentDrawer";
 import InvoicePage from "../Invoice";
 import { useEMRForms } from "./useEMRForms";
 import FormFillModal from "./FormFillModal";
+import { useInvoicePrecheck } from "./useInvoicePrecheck";
+import InvoicePrecheckModal from "./InvoicePrecheckModal";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import { CustomerFormPanel } from "../Masters/CustomerMaster";
 import { usePermissions } from "../Settings/usePermissions";
@@ -102,6 +104,13 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
 
   // ── EMR Forms hook ────────────────────────────────────────────────────────
   const { checkAndShowForms, showModal, modalProps } = useEMRForms();
+
+  // ── Invoice pre-check hook ────────────────────────────────────
+  // Verifies the customer record carries everything the invoice needs (today:
+  // nationality, which drives Citizen / Expat) before billing opens.
+  const {
+    runPrecheck, checking: precheckBusy, showPrecheck, precheckProps,
+  } = useInvoicePrecheck();
 
   // ── Form status for sidebar ───────────────────────────────────────────────
   const [sidebarForms,       setSidebarForms]       = useState([]);
@@ -621,7 +630,16 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 );
               }
               return (
-                <button onClick={() => {
+                <button onClick={async () => {
+                  // Pre-check: nationality (and anything else billing needs) must
+                  // be on the customer record. Blocks only if the receptionist
+                  // closes the modal without completing it.
+                  const ok = await runPrecheck({
+                    custId:     a.custId || "",
+                    centerCode: getUser().centerCode || "",
+                  });
+                  if (!ok) return;
+
                   const q = new URLSearchParams();
                   if(a.custId)        q.append("custid",          a.custId);
                   if(a.fullName)      q.append("custname",        a.fullName);
@@ -642,6 +660,8 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {precheckBusy && <InvoicePrecheckModal checking />}
+      {showPrecheck && precheckProps && <InvoicePrecheckModal {...precheckProps} />}
       {showModal && modalProps && <FormFillModal {...modalProps}
         onComplete={() => {
           // Refresh sidebar form status after consent/treatment form submitted

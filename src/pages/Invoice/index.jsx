@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config';
 
@@ -71,6 +71,7 @@ const InvoicePage = () => {
 
   const [formTnput, setFormTnput] = useState({ name: '', servicecode: '', doctorId: '' });
 
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const custidFromUrl          = searchParams.get('custid');
   const appointmentIdFromUrl   = searchParams.get('appointmentid');
@@ -79,6 +80,11 @@ const InvoicePage = () => {
   const recIdFromUrl           = searchParams.get('recid')      || '';
   const lineCountFromUrl       = parseInt(searchParams.get('linecount') || '1', 10);
   const appointmentDateFromUrl = searchParams.get('appointmentdate') || '';
+
+  /* Invoice opened from an appointment: the customer is fixed by the URL, so
+     Add Customer is locked out. Creating a new customer at this point would
+     silently detach the invoice from the appointment it is billing. */
+  const fromAppointment = !!(appointmentIdFromUrl || custidFromUrl);
 
   // ── Load customer + appointment items ─────────────────────────────────────
   useEffect(() => {
@@ -379,10 +385,31 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
         <div className="invflex">
           <div className="leftsect">
             <div className="invtopwrp">
-              <h3 className="sectttl">Invoice details
-                <Link to="/dashboard" className="bckbtn">
-                  Back to Dashboard
-                </Link>
+              <h3 className="sectttl" style={{ position:'relative' }}>Invoice details
+                {/* Both buttons live in one flex wrapper, and the wrapper owns the
+                    positioning. .bckbtn positions itself (absolute/float), so two of
+                    them landed on the same spot and Home simply painted over Back.
+                    Forcing the children to position:'static' inside a flex row
+                    neutralises that whichever rule the class actually uses. */}
+                <span style={{ position:'absolute', right:0, top:'50%', transform:'translateY(-50%)',
+                  display:'inline-flex', alignItems:'center', gap:8, zIndex:2 }}>
+                  {/* Back = previous screen (usually the appointment this invoice
+                      came from). Falls back to the dashboard when the tab has no
+                      history — e.g. the invoice URL was opened directly. */}
+                  <button type="button" className="bckbtn"
+                    onClick={() => {
+                      if (window.history.length > 1) navigate(-1);
+                      else navigate('/dashboard');
+                    }}
+                    style={{ position:'static', float:'none', transform:'none', margin:0,
+                      background:'transparent', border:'none', font:'inherit', cursor:'pointer' }}>
+                    Back
+                  </button>
+                  <Link to="/dashboard" className="bckbtn"
+                    style={{ position:'static', float:'none', transform:'none', margin:0 }}>
+                    Home
+                  </Link>
+                </span>
               </h3>
               <div className="invdetails">
                 {[{ label: 'Invoice Date:', value: todayDate }, { label: 'Clinic Name:', value: clinicName }].map(({ label, value }, index) => (
@@ -418,31 +445,13 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               onApplyPriceOverride={handleApplyPriceOverride} />
 
             <div className="invtotalblk">
-              {memberFlag && (
-                <div style={{
-                  display:'inline-flex', alignItems:'center', gap:9, width:'fit-content', maxWidth:'100%',
-                  marginBottom:10, padding:'8px 14px', borderRadius:10,
-                  background:'linear-gradient(135deg,#6d4c9e 0%,#8b5cf6 100%)', color:'#fff',
-                  boxShadow:'0 3px 10px rgba(109,76,158,.28)', whiteSpace:'nowrap',
-                }}>
-                  <span style={{
-                    display:'inline-flex', alignItems:'center', justifyContent:'center',
-                    width:22, height:22, borderRadius:'50%', background:'rgba(255,255,255,.22)',
-                    fontSize:13, lineHeight:1, flexShrink:0,
-                  }}>★</span>
-                  <span style={{ display:'flex', flexDirection:'column', lineHeight:1.2 }}>
-                    <span style={{ fontSize:12, fontWeight:800, letterSpacing:'.02em' }}>Active Member</span>
-                    {memberFlag.programName && (
-                      <span style={{ fontSize:11, fontWeight:500, opacity:.92 }}>{memberFlag.programName}</span>
-                    )}
-                  </span>
-                </div>
-              )}
               <CustomerSearch
                 onCustomerSelect={(cust) => setSelectedCustomer(cust ? { ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) } : null)}
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
-                nationalityStatus={selectedCustomer?.status} />
+                nationalityStatus={selectedCustomer?.status}
+                lockedCustomer={fromAppointment}
+                membership={memberFlag} />
               <div className="invttlwrp">
                 {[{ label: 'Sub Total', value: subtotal }, { label: 'Discount', value: discount + invoicePromoDiscount },
 

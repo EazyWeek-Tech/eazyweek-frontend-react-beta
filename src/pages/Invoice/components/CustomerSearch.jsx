@@ -12,6 +12,11 @@ const CustomerSearch = ({
   emailId,
   number,
   nationalityStatus: nationalityFromProps,
+  // true when the invoice was opened from an appointment — the customer is
+  // already decided, so creating a new one here is not allowed.
+  lockedCustomer = false,
+  // { isMember, programName } from /api/Membership/CustomerStatus, or null.
+  membership = null,
 }) => {
   const [searchText,       setSearchText]       = useState('');
   const [suggestions,      setSuggestions]      = useState([]);
@@ -76,6 +81,9 @@ const CustomerSearch = ({
 
   // ── Search handler ─────────────────────────────────────────────────────────
   const handleSearchChange = (e) => {
+    // Appointment invoices are billed to the appointment's customer. Nothing
+    // typed here may change that.
+    if (lockedCustomer) return;
     const value = e.target.value;
     setSearchText(value);
     setShowDropdown(true);
@@ -203,6 +211,10 @@ const CustomerSearch = ({
   };
 
   const isSelected = !!selectedCustomer;
+  /* The search box is read-only once a customer is pinned — either because one
+     was picked from the dropdown, or because the invoice came from an
+     appointment whose customer has already been seen. */
+  const isLocked   = isSelected || lockedCustomer;
   const nationalityName = resolveNatName(selectedCustomer?.nationalityCode);
 
   return (
@@ -219,8 +231,14 @@ const CustomerSearch = ({
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {!isSelected && (
-            <button type="button" onClick={() => setShowAddCustomer(true)}
-              style={{ display:'inline-flex', alignItems:'center', gap:5, height:32, padding:'0 14px', borderRadius:8, border:'none', background:'#334b71', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            <button type="button" disabled={lockedCustomer}
+              onClick={() => { if (!lockedCustomer) setShowAddCustomer(true); }}
+              title={lockedCustomer
+                ? 'This invoice belongs to an appointment — its customer cannot be changed here. Add new customers from the Customer screen.'
+                : 'Add a new customer'}
+              style={{ display:'inline-flex', alignItems:'center', gap:5, height:32, padding:'0 14px', borderRadius:8, border:'none',
+                background: lockedCustomer ? '#9aa8bf' : '#334b71', color:'#fff', fontSize:12, fontWeight:600,
+                opacity: lockedCustomer ? 0.55 : 1, cursor: lockedCustomer ? 'not-allowed' : 'pointer' }}>
               + Add Customer
             </button>
           )}
@@ -243,24 +261,43 @@ const CustomerSearch = ({
             placeholder="Search by name, mobile or email…"
             value={searchText}
             onChange={handleSearchChange}
-            onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
-            readOnly={isSelected}
+            onFocus={() => { if (!isLocked && suggestions.length > 0) setShowDropdown(true); }}
+            /* Appointment invoice: fully disabled, not merely read-only. A
+               disabled input cannot be focused, typed into, pasted into or
+               reached by keyboard, so there is no way to retarget the invoice
+               at a different customer. readOnly still covers the softer case
+               of a customer picked from the dropdown, which Clear can undo. */
+            disabled={lockedCustomer}
+            readOnly={isLocked}
+            title={lockedCustomer
+              ? 'This invoice is for a completed appointment — the customer cannot be changed.'
+              : ''}
             style={{
               width:'100%', padding:'9px 36px 9px 12px',
-              border: isSelected ? '1.5px solid #6ee7b7' : '1px solid #ced4da',
+              border: lockedCustomer
+                ? '1.5px solid #cbd5e1'
+                : isSelected ? '1.5px solid #6ee7b7' : '1px solid #ced4da',
               borderRadius:8, fontSize:14, boxSizing:'border-box',
-              background: isSelected ? '#f0fdf4' : '#fff',
-              color: isSelected ? '#065f46' : '#111',
+              background: lockedCustomer
+                ? '#eef2f7'
+                : isSelected ? '#f0fdf4' : '#fff',
+              color: lockedCustomer
+                ? '#475569'
+                : isSelected ? '#065f46' : '#111',
+              fontWeight: lockedCustomer ? 600 : 400,
+              cursor: lockedCustomer ? 'not-allowed' : 'text',
+              WebkitTextFillColor: lockedCustomer ? '#475569' : undefined, // Safari greys disabled text
+              opacity: 1,                                                 // keep it readable, not faded
               outline:'none',
             }}
           />
           <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'#9ca3af', pointerEvents:'none' }}>
-            {searching ? '⟳' : isSelected ? '✓' : '🔍'}
+            {searching ? '⟳' : lockedCustomer ? '🔒' : isSelected ? '✓' : '🔍'}
           </span>
         </div>
 
         {/* Dropdown results */}
-        {showDropdown && suggestions.length > 0 && !isSelected && (
+        {showDropdown && suggestions.length > 0 && !isLocked && (
           <ul style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:999, listStyle:'none', margin:0, padding:'4px 0', maxHeight:240, overflowY:'auto' }}>
             {suggestions.map((cust, idx) => {
               const full = `${cust.firstName || ''} ${cust.lastName || ''}`.trim();
@@ -284,15 +321,16 @@ const CustomerSearch = ({
         )}
 
         {/* No results */}
-        {showDropdown && !searching && searchText.length >= 2 && suggestions.length === 0 && !isSelected && (
+        {showDropdown && !searching && searchText.length >= 2 && suggestions.length === 0 && !isLocked && (
           <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:'12px 14px', fontSize:13, color:'#9ca3af', zIndex:999, boxShadow:'0 4px 12px rgba(0,0,0,0.08)' }}>
             No customers found for "{searchText}"
           </div>
         )}
       </div>
 
-      {/* Prefilled fields after selection */}
-      {isSelected && (
+      {/* Prefilled fields — shown for a picked customer and for an appointment
+          invoice, so the receptionist can see who is being billed. */}
+      {isLocked && (
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <ReadOnlyField label="Name"        value={name}   />
           <ReadOnlyField label="Mobile"      value={mobile} />
@@ -317,8 +355,28 @@ const CustomerSearch = ({
         </div>
       )}
 
+      {/* Membership — a compact chip on the same line-length as the loyalty
+          flag above it. It used to be a large gradient card up in .invtotalblk,
+          where the parent flex row stretched it to full height; keeping it here,
+          inline, means it sizes to its own content. */}
+      {isLocked && membership?.isMember && (
+        <div style={{ marginTop:8 }}>
+          <span style={{ display:'inline-flex', alignItems:'center', gap:6,
+            padding:'3px 10px', borderRadius:999, fontSize:11, fontWeight:700,
+            background:'linear-gradient(135deg,#6d4c9e 0%,#8b5cf6 100%)', color:'#fff',
+            whiteSpace:'nowrap', maxWidth:'100%' }}>
+            <span style={{ fontSize:11, lineHeight:1 }}>★</span>
+            Active Member
+            {membership.programName && (
+              <span style={{ fontWeight:500, opacity:.9, overflow:'hidden',
+                textOverflow:'ellipsis' }}>· {membership.programName}</span>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Add Customer panel (reuses the CustomerMaster form) */}
-      {showAddCustomer && (
+      {showAddCustomer && !lockedCustomer && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', justifyContent:'flex-end' }}>
           <div style={{ width:500, maxWidth:'95%', background:'#fff', height:'100vh', boxShadow:'-4px 0 24px rgba(0,0,0,0.15)' }}>
             <CustomerFormPanel onSaved={handleCustomerCreated} onClose={() => setShowAddCustomer(false)} />

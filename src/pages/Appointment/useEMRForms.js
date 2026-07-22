@@ -36,38 +36,62 @@ export const useEMRForms = () => {
   }) => {
     if (!["Start", "Completed"].includes(toStatus)) return true;
 
+    const whenToFill = toStatus === "Start" ? "Before Service Starts" : "After Service Starts";
+
     try {
-      // ── Step 1: On Start, check if this is the customer's first visit ──────
-      // If first visit AND a Customer Form exists → show it first before consent forms
-      if (toStatus === "Start" && custId && centerCode) {
-        const apptForms = await authGet(
+      // One fetch serves both gates below.
+      let apptForms = null;
+      if (appointmentId) {
+        apptForms = await authGet(
           `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/Forms` +
-          `?serviceCode=${encodeURIComponent(serviceCode)}&custId=${encodeURIComponent(custId)}`
+          `?serviceCode=${encodeURIComponent(serviceCode || "")}&custId=${encodeURIComponent(custId || "")}`
         );
-
-        if (apptForms?.isFirstVisit && apptForms?.customerForm) {
-          // Show Customer Form — wait for completion before proceeding
-          const customerFormFilled = await new Promise((resolve) => {
-            setResolve({ fn: resolve });
-            setModalProps({
-              appointmentId,
-              serviceCode,
-              custId,
-              centerCode,
-              whenToFill:        null,         // Customer Form has no whenToFill
-              isCustomerFormEdit: false,
-              existingRecId:     null,          // new fill — not an edit
-              formCodeOverride:  apptForms.customerForm.formCode,
-              macroContext,
-            });
-          });
-
-          // If practitioner closed without filling → block the status change
-          if (!customerFormFilled) return false;
-        }
       }
 
-      // ── Step 2: Check consent/treatment form gates ─────────────────────────
+      // ── Step 1: On Start, first visit + a Customer Form → show it first ────
+      if (toStatus === "Start" && custId && centerCode &&
+          apptForms?.isFirstVisit && apptForms?.customerForm) {
+        const customerFormFilled = await new Promise((done) => {
+          setResolve({ fn: done });
+          setModalProps({
+            appointmentId,
+            serviceCode,
+            custId,
+            centerCode,
+            whenToFill:         null,        // Customer Form has no whenToFill
+            isCustomerFormEdit: false,
+            existingRecId:      null,        // new fill — not an edit
+            formCodeOverride:   apptForms.customerForm.formCode,
+            macroContext,
+          });
+        });
+
+        // If practitioner closed without filling → block the status change
+        if (!customerFormFilled) return false;
+      }
+
+      /* ── Step 2: consent / treatment forms ─────────────────────────────────
+         These used to open ONLY when CheckStatusChange answered canProceed:false,
+         which the backend decides from isMandatory. Any consent or treatment form
+         that was not flagged mandatory therefore never appeared on its own — the
+         practitioner had to know to go looking for it.
+
+         Now we open whatever is genuinely pending for this transition. Mandatory
+         forms still cannot be skipped (FormFillModal only renders Skip for
+         optional ones), and if nothing is pending the modal completes itself
+         immediately, so the status change is never delayed for no reason. */
+      const pending = (apptForms?.serviceForms || []).filter(
+        (f) => f.whenToFill === whenToFill && !f.isSubmitted
+      );
+
+      if (pending.length) {
+        return new Promise((done) => {
+          setResolve({ fn: done });
+          setModalProps({ appointmentId, serviceCode, custId, centerCode, whenToFill, macroContext });
+        });
+      }
+
+      // Backstop: the server may block for a reason the form list does not show.
       const res = await authPost(`${API_BASE_URL}/api/EMR/Appointment/CheckStatusChange`, {
         appointmentId, serviceCode, toStatus,
       });
@@ -76,10 +100,8 @@ export const useEMRForms = () => {
       const { canProceed } = res || {};
       if (canProceed !== false) return true;
 
-      // Need forms — show modal via promise
-      return new Promise((res) => {
-        setResolve({ fn: res });
-        const whenToFill = toStatus === "Start" ? "Before Service Starts" : "After Service Starts";
+      return new Promise((done) => {
+        setResolve({ fn: done });
         setModalProps({ appointmentId, serviceCode, custId, centerCode, whenToFill, macroContext });
       });
     } catch {

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import {
+  fetchCustomerDetails, loadNationalities, natCodeOf, natNameOf,
+} from "./customerFields";
 import { API_BASE_URL } from "../../config";
 // ComponentPreview not needed in fill mode
 
@@ -800,6 +803,152 @@ export default function FormFillModal({
 
   const showToast = (msg, type="error") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
+  /* ── Customer detail prefill ─────────────────────────────────────────────
+     Any field on any form that asks for something already on the customer
+     record is filled in from it. The practitioner should never retype a name,
+     mobile or date of birth the system already holds.
+
+     Matching order:
+       1. an explicit mapping on the component (config.customerField /
+          config.prefillFrom / config.mapTo) — use this in the form builder for
+          anything the label heuristic below cannot catch;
+       2. the component label, normalised (so "Mobile Number", "mobile no." and
+          "Contact Number" all resolve to the same field).
+
+     Existing answers always win: a value already set — from a saved submission,
+     a macro, or a default — is never overwritten. */
+  const customerRef = useRef(null);
+
+  const getCustomerRecord = async () => {
+    if (customerRef.current !== null) return customerRef.current;
+    customerRef.current = (custId ? await fetchCustomerDetails(custId) : null) || {};
+    return customerRef.current;
+  };
+
+  /* Label matching is token-based, not exact. Real forms say "Name of Patient",
+     "Patient's Full Name", "Mobile No.", "اسم المريض" — an exact-match list
+     misses all of them. We normalise the label (lowercase, strip punctuation,
+     accents and filler words) and then test for the tokens that identify each
+     field, most specific rule first. Arabic labels are matched too, since these
+     forms are bilingual. */
+  const norm = (v) => String(v || "")
+    .toLowerCase()
+    .replace(/[\u2019'`]/g, "")            // patient's -> patients
+    .replace(/[^\p{L}\p{N}]+/gu, " ")      // punctuation, *, :, / -> space
+    .replace(/\b(of|the|your|please|enter|kindly|write)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const PERSON = /(patient|customer|client|guest|مريض|عميل)/;
+
+  /* Fields that belong to somebody (or something) else. Without this, "Doctor
+     Name", "Guardian Name" and "Emergency Contact Number" would all be filled
+     with the patient's own details — worse than leaving them blank. */
+  const NOT_THE_CUSTOMER = new RegExp([
+    "doctor","physician","practitioner","therapist","clinician","nurse","staff",
+    "provider","witness","guardian","attendant","relative","relation","emergency",
+    "next kin","kin","referr","referred by","signature","service","treatment",
+    "centre","center","clinic","branch","company","insurance","policy","employer",
+    "طبيب","خدمة","مركز","عيادة","شاهد","ولي","طوارئ","توقيع",
+  ].join("|"));
+
+  // Order matters: the narrow rules must run before the broad "name" rule.
+  const FIELD_RULES = [
+    ["birthDay",    (t) => /\bdob\b/.test(t) || /birth ?date|date birth|birthday|تاريخ الميلاد|الميلاد/.test(t)],
+    ["age",         (t) => /^age$|\bage\b(?! ?group)|العمر|السن/.test(t)],
+    ["nationality", (t) => /nationality|الجنسية/.test(t)],
+    ["email",       (t) => /e ?mail|البريد|الايميل|الإيميل/.test(t)],
+    ["mobilePhone", (t) => /mobile|phone|telephone|contact|cell|whats ?app|جوال|هاتف|موبايل|تواصل/.test(t)],
+    ["customerId",  (t) => /\bmrn\b|\bfile (no|number)\b|\brecord (no|number)\b/.test(t)
+                        || (/\b(id|no|number)\b/.test(t) && PERSON.test(t))],
+    ["firstName",   (t) => /(first|given) name|الاسم الاول|الاسم الأول/.test(t)],
+    ["lastName",    (t) => /(last|family|sur) ?name|اسم العائلة|العائلة/.test(t)],
+    ["city",        (t) => /^(city|town)$|المدينة/.test(t)],
+    ["address",     (t) => /address|العنوان/.test(t)],
+    ["gender",      (t) => /^(gender|sex)$|gender|الجنس(?!ية)/.test(t)],
+    // Broadest last: any remaining label that is essentially "name".
+    ["fullName",    (t) => /\bname\b|اسم/.test(t)],
+  ];
+
+  const matchCustomerField = (label) => {
+    const t = norm(label);
+    if (!t) return "";
+    if (NOT_THE_CUSTOMER.test(t)) return "";
+    for (const [key, test] of FIELD_RULES) { if (test(t)) return key; }
+    return "";
+  };
+
+  const buildPrefillMap = (cust, natName) => {
+    const dob = cust.birthDay ? new Date(cust.birthDay) : null;
+    const dobValid = dob && !isNaN(dob.getTime()) && dob.getFullYear() > 1900;
+    let age = "";
+    if (dobValid) {
+      const t  = new Date();
+      const hadBirthday = t >= new Date(t.getFullYear(), dob.getMonth(), dob.getDate());
+      age = String(Math.max(0, t.getFullYear() - dob.getFullYear() - (hadBirthday ? 0 : 1)));
+    }
+    return {
+      fullName:    `${cust.firstName || ""} ${cust.lastName || ""}`.trim(),
+      firstName:   cust.firstName   || "",
+      lastName:    cust.lastName    || "",
+      mobilePhone: cust.mobilePhone || "",
+      email:       cust.email       || "",
+      gender:      cust.gender      || "",
+      birthDay:    dobValid ? dob.toISOString().split("T")[0] : "",
+      nationality: natName || "",
+      customerId:  cust.customerId  || "",
+      age,
+      address:     cust.address1    || "",
+      city:        cust.city        || "",
+    };
+  };
+
+  const applyCustomerPrefill = async (def, baseValues = {}) => {
+    const cust = await getCustomerRecord();
+    if (!cust || !Object.keys(cust).length) {
+      console.warn("[FormFillModal] No customer record for prefill — custId:", custId || "(empty)");
+      return baseValues;
+    }
+
+    let natName = "";
+    if (cust.nationalityCode) {
+      const list = await loadNationalities();
+      const item = list.find(n => natCodeOf(n) === String(cust.nationalityCode));
+      natName = item ? natNameOf(item) : "";
+    }
+
+    const map = buildPrefillMap(cust, natName);
+
+
+    const out = { ...baseValues };
+    const filled = [], unmatched = [];
+    for (const comp of (def?.components || [])) {
+      if (["content","logo","macro","signature","calculated","annotation"].includes(comp.componentType)) continue;
+      if (out[comp.componentId] !== undefined && out[comp.componentId] !== "") continue;
+
+      const explicit = comp.config?.customerField || comp.config?.prefillFrom || comp.config?.mapTo;
+      const key = explicit || matchCustomerField(comp.label);
+      const val = key ? map[key] : "";
+      if (!val) { if (!key) unmatched.push(comp.label); continue; }
+
+      if (comp.componentType === "dropdown" || comp.componentType === "radio") {
+        const opts  = comp.config?.options || [];
+        const match = opts.find(o => String(o).toLowerCase() === String(val).toLowerCase());
+        if (match) out[comp.componentId] = match;
+      } else {
+        out[comp.componentId] = val;
+      }
+      filled.push(`${comp.label} <- ${key}`);
+    }
+
+    /* Diagnostic: if a customer-detail field is still blank, its label did not
+       match any rule. Read this in the console and either rename the label or
+       set config.customerField on that component in the form builder. */
+    console.debug("[FormFillModal] prefill filled:", filled,
+                  "| unmatched:", unmatched);
+    return out;
+  };
+
   // Load forms — either appointment flow or Customer Form edit mode
   useEffect(() => {
     if (isCustomerFormEdit && formCodeOverride) {
@@ -815,8 +964,8 @@ export default function FormFillModal({
           const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${existingRecId}`);
           setValues(sub?.responseData || {});
         } else {
-          // New fill: start with defaults (languagetoggle = "en", others empty)
-          setValues(getDefaultValues(def?.components));
+          // New fill: defaults, then anything we already know about the customer
+          setValues(await applyCustomerPrefill(def, getDefaultValues(def?.components)));
         }
       };
       loadEdit().finally(() => setLoading(false));
@@ -855,7 +1004,7 @@ export default function FormFillModal({
             console.warn("[FormFillModal] Could not load existing submission:", e.message);
           }
         }
-        setValues(getDefaultValues(def?.components));
+        setValues(await applyCustomerPrefill(def, getDefaultValues(def?.components)));
       };
       loadCustomer()
         .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
@@ -926,9 +1075,10 @@ export default function FormFillModal({
       }
     }
 
-    // Merge defaults with macro values — defaults only apply if macro didn't set them
+    // Merge defaults with macro values — defaults only apply if macro didn't set them,
+    // then fill any remaining customer-detail fields from the customer record.
     const defaults = getDefaultValues(def?.components);
-    setValues({ ...defaults, ...macroValues });
+    setValues(await applyCustomerPrefill(def, { ...defaults, ...macroValues }));
   };
 
   const currentForm = forms[formIndex];

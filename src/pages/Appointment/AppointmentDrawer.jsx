@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
+import {
+  sanitizeName, sanitizeDigits,
+  loadNationalities, natCodeOf, natNameOf, ensureCustomerId,
+} from "./customerFields";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet  = async (url) => {
@@ -21,6 +25,10 @@ const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
   catch { return {}; }
 };
+
+/* Customer-field helpers (sanitizers, nationality master, Citizen/Expat rule)
+   live in ./customerFields so the booking drawer and the invoice pre-check
+   share ONE definition — see the note there about CENTRE_COUNTRY_ID. */
 
 const Toast = ({ message, type = "info", onClose }) => {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
@@ -76,12 +84,20 @@ const TIME_SLOTS = [...Array(144)].map((_, i) => {
 });
 
 const CustomerForm = ({ prefill, onChange }) => {
-  const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"" };
+  const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"", nationalityCode:"" };
   const [form,    setForm]    = useState(EMPTY);
   const [mobSugg, setMobSugg] = useState([]);
   const [nmSugg,  setNmSugg]  = useState([]);
   const debounce   = useRef(null);
   const prevCustid = useRef("__init__");
+
+
+  // ── Nationality master ────────────────────────────────────────────────────
+  // Optional at booking time. Filling it here saves the receptionist the
+  // pre-check prompt at Make Payment; leaving it blank costs nothing now.
+  const [natList, setNatList] = useState([]);
+
+  useEffect(() => { loadNationalities().then(setNatList); }, []);
 
   useEffect(() => {
     if (!prefill) return;
@@ -94,6 +110,7 @@ const CustomerForm = ({ prefill, onChange }) => {
       lastname:  prefill.lastname  || prefill.lastName  || (prefill.name||"").split(" ").slice(1).join(" ") || "",
       email:     prefill.email     || "",
       gender:    prefill.gender    || "",
+      nationalityCode: String(prefill.nationalityCode ?? prefill.nationalityId ?? ""),
       custid:    incomingId,
     };
     setForm(next);
@@ -112,21 +129,26 @@ const CustomerForm = ({ prefill, onChange }) => {
     } catch { if (type==="number") setMobSugg([]); else setNmSugg([]); }
   };
 
+  /* Typing after a pick BREAKS the link. Previously custid survived an edit, so
+     you could select Ahmed, retype the mobile, and book Ahmed's slot under
+     someone else's number. Any manual edit now clears it — re-select or Add. */
   const handleChange = (e) => {
     const { id, value } = e.target;
     if (id === "number") {
-      const digits = value.replace(/\D/g,"").slice(0,10);
-      sync({ ...form, number: digits });
+      const digits = sanitizeDigits(value).slice(0,10);
+      sync({ ...form, number: digits, custid: "" });
       if (digits.length >= 3) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("number", digits), 300); }
       else setMobSugg([]);
       return;
     }
     if (id === "firstname") {
-      sync({ ...form, firstname: value });
-      if (value.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("firstname", value), 300); }
+      const clean = sanitizeName(value);
+      sync({ ...form, firstname: clean, custid: "" });
+      if (clean.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("firstname", clean), 300); }
       else setNmSugg([]);
       return;
     }
+    if (id === "lastname") { sync({ ...form, lastname: sanitizeName(value), custid: "" }); return; }
     sync({ ...form, [id]: value });
   };
 
@@ -134,6 +156,7 @@ const CustomerForm = ({ prefill, onChange }) => {
     const next = {
       number: item.mobile||"", firstname: item.firstName||"", lastname: item.lastName||"",
       email: item.email||"", gender: item.gender||"",
+      nationalityCode: String(item.nationalityId ?? item.nationalityCode ?? ""),
       custid: item.custId||item.custid||item.id||"",
     };
     prevCustid.current = next.custid;
@@ -143,6 +166,11 @@ const CustomerForm = ({ prefill, onChange }) => {
 
   return (
     <div className="bscdetwrp">
+      <style>{`
+        .cf-natlbl{position:static!important;transform:none!important;display:block;
+          font-size:11px;font-weight:600;color:#5b6b85;margin-bottom:4px}
+        .cf-nat{width:100%}
+      `}</style>
       <div className="frmlgnd">Customer Details</div>
       <form autoComplete="off">
         <input type="hidden" id="custid" value={form.custid} />
@@ -172,6 +200,21 @@ const CustomerForm = ({ prefill, onChange }) => {
           <input type="email" id="email" placeholder=" " value={form.email} onChange={handleChange} />
           <label htmlFor="email" className="frmlbl">Email Address</label>
         </div>
+
+        {/* Nationality — optional here so a walk-in can be booked in seconds.
+            It IS required at billing: Make Payment runs a pre-check and asks for
+            it then (see useInvoicePrecheck). Filling it in now saves that step. */}
+        <div className="form-group">
+          <label htmlFor="nationalityCode" className="frmlbl cf-natlbl">Nationality</label>
+          <select id="nationalityCode" className="cf-nat" value={form.nationalityCode}
+            onChange={e => sync({ ...form, nationalityCode: e.target.value })}>
+            <option value="">Select nationality</option>
+            {natList.map((n, i) => (
+              <option key={`${natCodeOf(n)}-${i}`} value={natCodeOf(n)}>{natNameOf(n)}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="form-group radgrp">
           <label className="frmlbl">Gender</label>
           <div className="rdopts">
@@ -498,6 +541,7 @@ const AppointmentDrawer = ({
     if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
 
+
     const bookingDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
     const today = new Date().toISOString().split("T")[0];
     const isBookingPast = bookingDate < today;
@@ -563,8 +607,25 @@ const AppointmentDrawer = ({
       ? (defaultStatus || "Completed")
       : (defaultStatus || "Booked");
 
+    /* The customer must exist in the master before the row is written. If the
+       receptionist typed a walk-in who was never registered, create them here —
+       silently, no extra click. Same mobile as an existing customer links to
+       that record instead of duplicating it. (Reschedule rows are already
+       linked, so this only runs on the new-booking path.) */
+    let bookingCustId = customerData.custid || "";
+    try {
+      bookingCustId = await ensureCustomerId(customerData, user.centerCode || "");
+      if (bookingCustId !== customerData.custid) {
+        setCustomerData(p => ({ ...(p || {}), custid: bookingCustId }));
+      }
+    } catch (e) {
+      setToast({ message: e?.message || "Could not save the customer.", type:"error" });
+      setSubmitting(false);
+      return;
+    }
+
     const payload = {
-      custID:          customerData.custid || "",
+      custID:          bookingCustId,
       appointmentDate: bookingDate,
       userId:          user.userId || user.employeeCode || "",
       centerCode:      user.centerCode || "",
@@ -593,13 +654,13 @@ const AppointmentDrawer = ({
         // conversion link falls back to the client referenceId if none is present.
         onBooked?.({
           referenceId:   freshRefId,
-          custID:        customerData.custid || "",
+          custID:        bookingCustId,
           appointmentId: result?.appointmentId ?? result?.appointmentID ?? result?.apptId ?? result?.id ?? freshRefId,
         });
 
         // ── Fire booking notes popup after successful save ─────────────────
-        if (customerData.custid) {
-          await checkBookingNotes(customerData.custid, "booking");
+        if (bookingCustId) {
+          await checkBookingNotes(bookingCustId, "booking");
         }
 
         setServiceList([]); setCustomerData(null);
