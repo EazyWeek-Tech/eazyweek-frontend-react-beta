@@ -32,8 +32,10 @@ const Sidebar = ({ collapsed, currentUser }) => {
       submenu: [
         { name: "Invoice Dashboard", path: "/invoice/dashboard" },
         { name: "Invoice", path: "/invoice" },
-        { name: "Cash Management", path: "/invoice/cash-management" }
-
+        { name: "Cash Management", path: "/invoice/cash-management" },
+        { name: "Itemised Sales Report", path: "/reports/itemised-report" },
+        { name: "Liability Report", path: "/reports/liability-report" },
+        { name: "Payment Report", path: "/reports/payment-report" },
       ],
     },
     // 3. Opportunity

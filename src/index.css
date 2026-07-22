@@ -587,7 +587,7 @@ li i {
 .popup-container {
   background: var(--white-color);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 5px 10px 30px rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 460px;
   padding: 2rem;
@@ -1494,20 +1494,20 @@ button.disabled {
   background: rgba(0, 0, 0, 0.2);
   z-index: 2;
 }
-
 .popup-container {
-  background: var(--white-color);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 460px;
-  padding: 2rem;
-  animation: slideUp 0.3s ease-out;
-  transition: 0.3s ease-out;
-  font-family: "Inter";
-  z-index: 3;
+    background: rgb(255 255 255);
+    backdrop-filter: blur(24px);
+    border-radius: 16px;
+    box-shadow: 0px 30px 80px -20px rgb(243 243 244 / 55%), 0 8px 24px rgb(249 249 249 / 6%);
+    width: 100%;
+    max-width: 460px;
+    padding: 2rem;
+    animation: slideUp 0.3s ease-out;
+    transition: 0.3s ease-out;
+    font-family: "Inter";
+    z-index: 3;
+    border: 1px solid rgba(255, 255, 255, 0.32);
 }
-
 @keyframes slideUp {
   from {
     opacity: 0;

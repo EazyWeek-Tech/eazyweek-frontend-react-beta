@@ -104,6 +104,9 @@ import FeatureGate from "./components/FeatureGate";
 import { PermissionProvider } from "./pages/Settings/usePermissions";
 import SecuritySettings from "./pages/Masters/SecuritySettings";
 import CashManagement from "./pages/Invoice/CashManagement/CashManagement";
+import SalesReport from "./pages/Reports/SalesReport";
+import LiabilityReport from "./pages/Reports/LiabilityReport";
+import PaymentReport from "./pages/Reports/PaymentReport";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -326,6 +329,9 @@ if (user && showFirstLogin) {
 <Route path="/shift/master" element={<ShiftMaster />} />
 <Route path="/shift/my" element={<MyShift />} />
 
+<Route path="/reports/itemised-report" element={<SalesReport />} />
+<Route path="/reports/liability-report" element={<LiabilityReport />} />
+<Route path="/reports/payment-report" element={<PaymentReport />} />
 
 <Route path="/manuallead/edit/:leadOppId" element={gate("opportunity", <ManualLeadEdit />)} />
 <Route

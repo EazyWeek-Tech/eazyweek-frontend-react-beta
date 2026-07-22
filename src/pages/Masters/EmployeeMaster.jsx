@@ -161,7 +161,7 @@ const EmployeeMaster = () => {
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:"#334b71" }}>
-              {["Employee Code","First Name","Last Name","Job","Primary Centre","Roles","Status",""].map(h => (
+              {["Employee Code","First Name","Last Name","Job","Roles","Status",""].map(h => (
                 <th key={h} style={{ padding:"11px 14px", textAlign:"left", fontWeight:700,
                   fontSize:11, color:"#fff", borderBottom:"1px solid #e2e8f0",
                   textTransform:"uppercase", letterSpacing:".06em" }}>{h}</th>
@@ -184,7 +184,7 @@ const EmployeeMaster = () => {
                 <td style={{ padding:"12px 14px" }}>{emp.FIRSTNAME || "—"}</td>
                 <td style={{ padding:"12px 14px" }}>{emp.LASTNAME  || "—"}</td>
                 <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.JOB || "—"}</td>
-                <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.PRIMARYCENTRE || "—"}</td>
+                {/* <td style={{ padding:"12px 14px", color:"#64748b" }}>{emp.PRIMARYCENTRE || "—"}</td> */}
                 <td style={{ padding:"12px 14px" }}>{rolesChips(emp.ROLES)}</td>
                 <td style={{ padding:"12px 14px" }}>{statusBadge(emp.STATUS)}</td>
                 <td style={{ padding:"12px 14px" }}>

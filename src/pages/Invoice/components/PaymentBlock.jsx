@@ -910,7 +910,7 @@ const PaymentBlock = ({
     const cnPayments = appliedCreditNotes.map((cn, i) => ({
       lineNo:       payments.length + i + 1,
       paymentMode:  0,
-      paymentName:  `Credit Note - ${cn.creditNoteNum}`,
+      paymentName:  "Credit Note",      // PAYMENTNAME stays the plain mode label (matches Sales Return)
       cardNumber:   cn.creditNoteNum,   // store CN number in cardNumber field for reference
       totalAmount:  parsedTotalAmount,
       paidAmount:   cn.amount,
@@ -930,12 +930,12 @@ const PaymentBlock = ({
     // SP requires at least one payment line — for zero-total (package redemption),
     // send a SAR 0 "Package Redemption" entry so SP doesn't reject the payload
     // PR-012/013/014/015: Store package redemption details in payment record
-    // paymentName = 'Advance Redemption', cardNumber encodes packageCode|purchaseInvoice|purchaseDate
+    // paymentName = 'Package Redemption', cardNumber encodes packageCode|purchaseInvoice|purchaseDate
     const zeroPayment = (isZeroTotal && regularPayments.length === 0 && cnPayments.length === 0)
       ? [{
           lineNo:      1,
           paymentMode: 0,
-          paymentName: "Advance Redemption",
+          paymentName: "Package Redemption",
           cardNumber:  [
             packageRedemption?.packageCode        || "",
             packageRedemption?.purchaseInvoiceNum || "",
