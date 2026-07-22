@@ -303,7 +303,7 @@ export default function ShiftMaster() {
       <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #e2e8f0", background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr style={{ background: "#f1f5f9" }}>
-            {["Shift Name", "Time", "Centre", "Role", "Breaks", "Status", ""].map((h) => (
+            {["Shift Name", "Time",  "Role", "Breaks", "Status", ""].map((h) => (
               <th key={h} style={sx.th}>{h}</th>
             ))}
           </tr></thead>
@@ -316,7 +316,7 @@ export default function ShiftMaster() {
               <tr key={t.recid} style={{ borderBottom: "1px solid #f1f5f9", opacity: t.active ? 1 : 0.55 }}>
                 <td style={{ ...sx.td, fontWeight: 700, color: NAVY }}>{t.shiftName}</td>
                 <td style={sx.td}>{t.startTime}–{t.endTime}</td>
-                <td style={{ ...sx.td, color: "#64748b" }}>{t.centerCode}</td>
+                {/* <td style={{ ...sx.td, color: "#64748b" }}>{t.centerCode}</td> */}
                 <td style={{ ...sx.td, color: "#64748b" }}>{t.role || "—"}</td>
                 <td style={sx.td}>{t.breakCount}</td>
                 <td style={sx.td}>
