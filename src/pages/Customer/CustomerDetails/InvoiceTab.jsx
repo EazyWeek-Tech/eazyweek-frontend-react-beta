@@ -44,7 +44,7 @@ const InvoicesTab = ({ custId, recId }) => {
   const [toast,              setToast]               = useState(null);
   const [currentPage,        setCurrentPage]         = useState(1);
 
-  const paymentModes = ["All Selected", "Cash", "Card", "Bank Transfer", "Cheque", "Credit Note"];
+  const paymentModes = ["All Selected", "Cash", "Card", "Bank Transfer", "Check","Loyalty", "Package Redemption", "Credit Note"];
   const [returnedInvoices, setReturnedInvoices] = useState(new Set());
   const itemsPerPage = 10;
 

@@ -234,6 +234,26 @@ function SegmentBadge({ type }) {
   );
 }
 
+/* Appointment Mandatory — CLINIC_OPPORTUNITYDETAILS.ApptBookingMandatory (bit).
+   Backend may send 1/0, true/false or "1"/"0"; null/undefined renders as "—". */
+const isApptMandatory = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "boolean") return v;
+  const s = String(v).trim().toLowerCase();
+  if (s === "1" || s === "true" || s === "yes") return true;
+  if (s === "0" || s === "false" || s === "no") return false;
+  return null;
+};
+
+function ApptMandatoryBadge({ value }) {
+  const yes = isApptMandatory(value);
+  if (yes === null) return <span style={{ color:C.sub, fontSize:12 }}>—</span>;
+  return (
+    <span style={{ background:yes?"#e8f5e9":"#fdecea", color:yes?"#1b5e20":"#b91c1c",
+      borderRadius:8, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{yes?"Yes":"No"}</span>
+  );
+}
+
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -310,7 +330,8 @@ const OpportunityDashboard = () => {
           noOfOpenOpportunities:it.noOfOpenOpportunities??it.noOfOpen??0,
           noOfClosedOpportunities:it.noOfClosedOpportunities??it.noOfClosed??0,
           noOfConvertedOutOfClosed:it.noOfConvertedOutOfClosed??0,
-          recordswithoutSalesOwner:it.recordswithoutSalesOwner??0 };
+          recordswithoutSalesOwner:it.recordswithoutSalesOwner??0,
+          apptBookingMandatory:it.apptBookingMandatory??it.ApptBookingMandatory??it.apptMandatory??null };
         if (isManualLeadRow(n)) { const ml=manualMap.get(String(n.oppCode||"").trim().toUpperCase()); if(ml) Object.assign(n,ml); }
         return n;
       };
@@ -679,11 +700,12 @@ const OpportunityDashboard = () => {
                 <SortTH col="recordswithoutSalesOwner" label="No Owner"    right     sortConfig={sortConfig} onSort={handleSort} />
                 <SortTH col="noOfConvertedOutOfClosed" label="Converted"   right     sortConfig={sortConfig} onSort={handleSort} />
                 <SortTH col="segmentType"              label="Segment"               sortConfig={sortConfig} onSort={handleSort} />
+                <SortTH col="apptBookingMandatory"     label="Appointment Mandatory" sortConfig={sortConfig} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
               {currentData.length===0 ? (
-                <tr><td colSpan={12} style={{ padding:50, textAlign:"center", color:C.sub, fontSize:13 }}>
+                <tr><td colSpan={13} style={{ padding:50, textAlign:"center", color:C.sub, fontSize:13 }}>
                   <div style={{ fontSize:28, marginBottom:8 }}></div>No opportunities found
                 </td></tr>
               ) : currentData.map((item,idx)=>(
@@ -711,6 +733,7 @@ const OpportunityDashboard = () => {
                   <td style={{ padding:"10px 12px",fontSize:13,textAlign:"right",color:"#b45309" }}>{safeNum(item.recordswithoutSalesOwner).toLocaleString()}</td>
                   <td style={{ padding:"10px 12px",fontSize:13,textAlign:"right",color:C.cvt,fontWeight:600 }}>{safeNum(item.noOfConvertedOutOfClosed).toLocaleString()}</td>
                   <td style={{ padding:"10px 12px" }}><SegmentBadge type={item.segmentType}/></td>
+                  <td style={{ padding:"10px 12px" }}><ApptMandatoryBadge value={item.apptBookingMandatory}/></td>
                 </tr>
               ))}
             </tbody>

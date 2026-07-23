@@ -1115,7 +1115,7 @@ if (!hasNone) {
                   </label>
                   <input
                     className={`inp ${errors.firstName ? "err" : ""}`}
-                    name="firstName"
+                    name="firstName" autoComplete="one-time-code"
                     value={form.firstName}
                     onChange={onChange}
                     placeholder="First Name"
@@ -1129,7 +1129,7 @@ if (!hasNone) {
                   </label>
                   <input
                     className={`inp ${errors.lastName ? "err" : ""}`}
-                    name="lastName"
+                    name="lastName" autoComplete="one-time-code"
                     value={form.lastName}
                     onChange={onChange}
                     placeholder="Last Name"
@@ -1141,7 +1141,7 @@ if (!hasNone) {
                   <label>Country Code</label>
                   <input
                     className="inp"
-                    name="countryCode"
+                    name="countryCode" autoComplete="one-time-code"
                     value={form.countryCode}
                     onChange={onChange}
                     placeholder="Country Code"
@@ -1154,7 +1154,7 @@ if (!hasNone) {
                   </label>
                   <input
                     className={`inp ${errors.mobile ? "err" : ""}`}
-                    name="mobile"
+                    name="mobile" autoComplete="one-time-code"
                     value={form.mobile}
                     onChange={onChange}
                     placeholder="Mobile"
@@ -1166,7 +1166,7 @@ if (!hasNone) {
                   <label>Email</label>
                   <input
                     className={`inp ${errors.email ? "err" : ""}`}
-                    name="email"
+                    name="email" autoComplete="one-time-code"
                     value={form.email}
                     onChange={onChange}
                     placeholder="Email"

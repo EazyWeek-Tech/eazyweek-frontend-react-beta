@@ -401,16 +401,16 @@ const CustomerMaster = () => {
               {/* Basic Information */}
               <Section title="Basic Information">
                 <FormRow label="First Name *">
-                  <input style={styles.inp} name="firstName" value={formData.firstName} onChange={handleInput} />
+                  <input style={styles.inp} name="firstName" autoComplete="one-time-code" value={formData.firstName} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Middle Name">
-                  <input style={styles.inp} name="middleName" value={formData.middleName} onChange={handleInput} />
+                  <input style={styles.inp} name="middleName" autoComplete="one-time-code" value={formData.middleName} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Last Name *">
-                  <input style={styles.inp} name="lastName" value={formData.lastName} onChange={handleInput} />
+                  <input style={styles.inp} name="lastName" autoComplete="one-time-code" value={formData.lastName} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Preferred Name">
-                  <input style={styles.inp} name="preferredName" value={formData.preferredName} onChange={handleInput} />
+                  <input style={styles.inp} name="preferredName" autoComplete="one-time-code" value={formData.preferredName} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Gender">
                   <select style={styles.sel} name="gender" value={formData.gender} onChange={handleInput}>
@@ -419,10 +419,10 @@ const CustomerMaster = () => {
                   </select>
                 </FormRow>
                 <FormRow label="Date of Birth">
-                  <input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} />
+                  <input style={styles.inp} type="date" name="birthDay" autoComplete="one-time-code" value={formData.birthDay} onChange={handleInput} />
                 </FormRow>
                 <FormRow label="Anniversary">
-                  <input style={styles.inp} type="date" name="anniversary" value={formData.anniversary} onChange={handleInput} />
+                  <input style={styles.inp} type="date" name="anniversary" autoComplete="one-time-code" value={formData.anniversary} onChange={handleInput} />
                 </FormRow>
               </Section>
 
@@ -435,11 +435,11 @@ const CustomerMaster = () => {
                       <option value="">Code</option>
                       {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
                     </select>
-                    <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
+                    <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" autoComplete="one-time-code" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
                   </div>
                 </FormRow>
                 <FormRow label={policy.emailOptional ? "Email" : "Email *"}>
-                  <input style={styles.inp} type="email" name="email"
+                  <input style={styles.inp} type="email" name="email" autoComplete="one-time-code"
                     value={formData.email || ""} onChange={handleInput}
                     placeholder="customer@example.com" />
                 </FormRow>
@@ -499,7 +499,7 @@ const CustomerMaster = () => {
                   </label>
                 </FormRow>
                 <FormRow label="Referred By">
-                  <input style={styles.inp} name="refBy" value={formData.refBy} onChange={handleInput} />
+                  <input style={styles.inp} name="refBy" autoComplete="one-time-code" value={formData.refBy} onChange={handleInput} />
                 </FormRow>
               </Section>
 
@@ -630,17 +630,17 @@ export function CustomerFormPanel({ onSaved, onClose }) {
 
       <div style={styles.panelBody}>
         <Section title="Basic Information">
-          <FormRow label="First Name *"><input style={styles.inp} name="firstName" value={formData.firstName} onChange={handleInput} /></FormRow>
-          <FormRow label="Middle Name"><input style={styles.inp} name="middleName" value={formData.middleName} onChange={handleInput} /></FormRow>
-          <FormRow label="Last Name *"><input style={styles.inp} name="lastName" value={formData.lastName} onChange={handleInput} /></FormRow>
-          <FormRow label="Preferred Name"><input style={styles.inp} name="preferredName" value={formData.preferredName} onChange={handleInput} /></FormRow>
+          <FormRow label="First Name *"><input style={styles.inp} name="firstName" autoComplete="one-time-code" value={formData.firstName} onChange={handleInput} /></FormRow>
+          <FormRow label="Middle Name"><input style={styles.inp} name="middleName" autoComplete="one-time-code" value={formData.middleName} onChange={handleInput} /></FormRow>
+          <FormRow label="Last Name *"><input style={styles.inp} name="lastName" autoComplete="one-time-code" value={formData.lastName} onChange={handleInput} /></FormRow>
+          <FormRow label="Preferred Name"><input style={styles.inp} name="preferredName" autoComplete="one-time-code" value={formData.preferredName} onChange={handleInput} /></FormRow>
           <FormRow label="Gender">
             <select style={styles.sel} name="gender" value={formData.gender} onChange={handleInput}>
               <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
             </select>
           </FormRow>
-          <FormRow label="Date of Birth"><input style={styles.inp} type="date" name="birthDay" value={formData.birthDay} onChange={handleInput} /></FormRow>
-          <FormRow label="Anniversary"><input style={styles.inp} type="date" name="anniversary" value={formData.anniversary} onChange={handleInput} /></FormRow>
+          <FormRow label="Date of Birth"><input style={styles.inp} type="date" name="birthDay" autoComplete="one-time-code" value={formData.birthDay} onChange={handleInput} /></FormRow>
+          <FormRow label="Anniversary"><input style={styles.inp} type="date" name="anniversary" autoComplete="one-time-code" value={formData.anniversary} onChange={handleInput} /></FormRow>
         </Section>
 
         <Section title="Contact">
@@ -651,10 +651,10 @@ export function CustomerFormPanel({ onSaved, onClose }) {
                 <option value="">Code</option>
                 {PHONE_CODES.map(pc => <option key={pc.code} value={pc.code}>{pc.label}</option>)}
               </select>
-              <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
+              <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" autoComplete="one-time-code" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
             </div>
           </FormRow>
-          <FormRow label={policy.emailOptional ? "Email" : "Email *"}><input style={styles.inp} type="email" name="email" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
+          <FormRow label={policy.emailOptional ? "Email" : "Email *"}><input style={styles.inp} type="email" name="email" autoComplete="one-time-code" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
         </Section>
 
         <Section title="Nationality">
@@ -698,7 +698,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               Enroll in loyalty program
             </label>
           </FormRow>
-          <FormRow label="Referred By"><input style={styles.inp} name="refBy" value={formData.refBy} onChange={handleInput} /></FormRow>
+          <FormRow label="Referred By"><input style={styles.inp} name="refBy" autoComplete="one-time-code" value={formData.refBy} onChange={handleInput} /></FormRow>
         </Section>
 
         {formError   && <div style={styles.errBox}> {formError}</div>}

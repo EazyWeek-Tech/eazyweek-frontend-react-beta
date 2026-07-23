@@ -432,7 +432,7 @@ export default function CentreSetup() {
                       style={{ padding:"9px 16px", background:"#fef2f2", color:"#b91c1c",
                         border:"1px solid #fecaca", borderRadius:10, fontWeight:700,
                         fontSize:13, cursor:"pointer" }}>
-                      DELETE Delete Centre
+                       Delete Centre
                     </button>
                   <button className="save-btn" onClick={handleSave} disabled={saving}>
                     {saving ? "Saving…" : " Save Centre"}
@@ -614,7 +614,7 @@ export default function CentreSetup() {
                           : <span style={{ fontSize:28, color:"#cbd5e1" }}></span>}
                       </div>
                       <div>
-                        <button className="add-btn" onClick={() => fileRef.current?.click()}>⬆ Upload Logo</button>
+                        <button className="add-btn" onClick={() => fileRef.current?.click()}> Upload Logo</button>
                         <input type="file" ref={fileRef} accept=".png,.jpg,.jpeg,.svg" style={{ display:"none" }}
                           onChange={e => {
                             const file = e.target.files[0]; if (!file) return;
@@ -660,7 +660,7 @@ export default function CentreSetup() {
                       </div>
                     )}
                     {taxItems.map((t, idx) => (
-                      <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, alignItems:"center", marginBottom:10 }}>
+                      <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:10, alignItems:"center", marginBottom:10 }} className="field">
                         <select value={t.taxType}
                           onChange={e => setTaxItems(p => p.map((x,i) => i===idx ? {...x, taxType:e.target.value} : x))}>
                           <option value="">Select Type…</option>
@@ -706,7 +706,7 @@ export default function CentreSetup() {
                   <>
                     {/* Gift Card */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>🎁 Gift Card Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}> Gift Card Configurations</div>
                       <div className="grid-2">
                         <div className="field">
                           <label>Validity in days from purchase *</label>
@@ -725,7 +725,7 @@ export default function CentreSetup() {
 
                     {/* Sales */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>💳 Sales Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> Sales Configurations</div>
                       <Toggle value={setup.allowMultiPayment}      onChange={() => setSetup(p=>({...p,allowMultiPayment:!p.allowMultiPayment}))}
                         label="Allow multiple payment methods in a single transaction"
                         sub="Multiple payment methods in a single transaction." />
@@ -744,7 +744,7 @@ export default function CentreSetup() {
 
                     {/* Sales Return */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>↩ Sales Return Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}> Sales Return Configurations</div>
                       <Toggle value={setup.allowSalesReturn}
                         onChange={() => setSetup(p => ({
                           ...p,
@@ -770,7 +770,7 @@ export default function CentreSetup() {
 
                     {/* Appointment */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>📅 Appointment Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>Appointment Configurations</div>
                       <Toggle value={setup.allowOnlineBooking} onChange={() => setSetup(p=>({...p,allowOnlineBooking:!p.allowOnlineBooking}))}
                         label="Allow Online Booking" sub="Customers can book appointments online" />
                       <Toggle value={setup.allowCancellation}

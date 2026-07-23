@@ -108,7 +108,7 @@ const daysBetween = (from, to) => {
 function StepBar({ step }) {
   const steps = ["General Info", "Rule Config", "Activate"];
   return (
-    <div style={{ display:"flex", alignItems:"center", marginBottom:28, gap:0 }}>
+    <div style={{ display:"flex", alignItems:"center", marginBottom:28, gap:0, marginLeft:0 }}>
       {steps.map((s, i) => {
         const n = i + 1;
         const done   = step > n;

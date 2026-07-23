@@ -131,7 +131,7 @@ const CategoryTabs = ({ onAddItem, showToast, showErrToast, customer }) => {
 
   return (
     <div className="srvlistdiv">
-      <h3 className="sectttl">Categories</h3>
+      <h3 className="sectttl">Quick Cart</h3>
 
       <div className="pymntmode">
         {/* Left — category tabs */}

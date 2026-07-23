@@ -1886,7 +1886,7 @@ const subMediumName = safe(form.subMedium || "Manual");
                 <label>
                   First Name <span className="req">*</span>
                 </label>
-                <input className={`inp ${errors.firstName ? "err" : ""}`} name="firstName" value={form.firstName} onChange={onChange} placeholder="First Name" />
+                <input className={`inp ${errors.firstName ? "err" : ""}`} name="firstName" autoComplete="one-time-code" value={form.firstName} onChange={onChange} placeholder="First Name" />
                 {errors.firstName && <div className="errText">{errors.firstName}</div>}
               </div>
 
@@ -1894,26 +1894,26 @@ const subMediumName = safe(form.subMedium || "Manual");
                 <label>
                   Last Name <span className="req">*</span>
                 </label>
-                <input className={`inp ${errors.lastName ? "err" : ""}`} name="lastName" value={form.lastName} onChange={onChange} placeholder="Last Name" />
+                <input className={`inp ${errors.lastName ? "err" : ""}`} name="lastName" autoComplete="one-time-code" value={form.lastName} onChange={onChange} placeholder="Last Name" />
                 {errors.lastName && <div className="errText">{errors.lastName}</div>}
               </div>
 
               <div className="field">
                 <label>Country Code</label>
-                <input className="inp" name="countryCode" value={form.countryCode} onChange={onChange} placeholder="Country Code" />
+                <input className="inp" name="countryCode" autoComplete="one-time-code" value={form.countryCode} onChange={onChange} placeholder="Country Code" />
               </div>
 
               <div className="field">
                 <label>
                   Mobile <span className="req">*</span>
                 </label>
-                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
+                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" autoComplete="one-time-code" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
                 {errors.mobile && <div className="errText">{errors.mobile}</div>}
               </div>
 
               <div className="field">
                 <label>Email</label>
-                <input className={`inp ${errors.email ? "err" : ""}`} name="email" value={form.email} onChange={onChange} placeholder="Email" />
+                <input className={`inp ${errors.email ? "err" : ""}`} name="email" autoComplete="one-time-code" value={form.email} onChange={onChange} placeholder="Email" />
                 {errors.email && <div className="errText">{errors.email}</div>}
               </div>
             </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ClearButton } from "../../components/ClearableInput";
 import { API_BASE_URL } from "../../config";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import {
@@ -83,11 +84,20 @@ const TIME_SLOTS = [...Array(144)].map((_, i) => {
   return `${dh}:${String(m).padStart(2,"0")} ${per}`;
 });
 
+// Suggestion rows show the FULL name plus the mobile, so two customers sharing a
+// first name (or a household sharing a surname) can be told apart before picking.
+const custLabel = (i) => {
+  const name = [i.firstName, i.lastName].filter(Boolean).join(" ").trim();
+  return [name, i.mobile || ""].filter(Boolean).join(" – ");
+};
+
 const CustomerForm = ({ prefill, onChange }) => {
   const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"", nationalityCode:"" };
   const [form,    setForm]    = useState(EMPTY);
   const [mobSugg, setMobSugg] = useState([]);
   const [nmSugg,  setNmSugg]  = useState([]);
+  const [lnSugg,  setLnSugg]  = useState([]);
+
   const debounce   = useRef(null);
   const prevCustid = useRef("__init__");
 
@@ -126,7 +136,12 @@ const CustomerForm = ({ prefill, onChange }) => {
       const arr  = Array.isArray(data) ? data : [];
       if (type === "number")    setMobSugg(arr.filter(i => (i.mobile||"").startsWith(val)));
       if (type === "firstname") setNmSugg(arr.filter(i => (i.firstName||"").toLowerCase().includes(val.toLowerCase())));
-    } catch { if (type==="number") setMobSugg([]); else setNmSugg([]); }
+      if (type === "lastname")  setLnSugg(arr.filter(i => (i.lastName ||"").toLowerCase().includes(val.toLowerCase())));
+    } catch {
+      if      (type === "number")   setMobSugg([]);
+      else if (type === "lastname") setLnSugg([]);
+      else                          setNmSugg([]);
+    }
   };
 
   /* Typing after a pick BREAKS the link. Previously custid survived an edit, so
@@ -148,7 +163,13 @@ const CustomerForm = ({ prefill, onChange }) => {
       else setNmSugg([]);
       return;
     }
-    if (id === "lastname") { sync({ ...form, lastname: sanitizeName(value), custid: "" }); return; }
+    if (id === "lastname") {
+      const clean = sanitizeName(value);
+      sync({ ...form, lastname: clean, custid: "" });
+      if (clean.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("lastname", clean), 300); }
+      else setLnSugg([]);
+      return;
+    }
     sync({ ...form, [id]: value });
   };
 
@@ -161,7 +182,7 @@ const CustomerForm = ({ prefill, onChange }) => {
     };
     prevCustid.current = next.custid;
     setForm(next); onChange?.(next);
-    setMobSugg([]); setNmSugg([]);
+    setMobSugg([]); setNmSugg([]); setLnSugg([]);
   };
 
   return (
@@ -175,26 +196,34 @@ const CustomerForm = ({ prefill, onChange }) => {
       <form autoComplete="off">
         <input type="hidden" id="custid" value={form.custid} />
         <div className="form-group" style={{ position:"relative" }}>
-          <input type="text" id="number" placeholder=" " value={form.number} onChange={handleChange} maxLength={10} inputMode="numeric" />
+          <input type="text" id="number" placeholder=" " autoComplete="one-time-code" value={form.number} onChange={handleChange} maxLength={10} inputMode="numeric" style={{ paddingRight: 28 }} />
           <label htmlFor="number" className="frmlbl">Mobile Number</label>
+          <ClearButton targetId="number" show={!!form.number} />
           {mobSugg.length > 0 && (
             <ul className="suggestions">{mobSugg.map((i,idx) => (
-              <li key={idx} onClick={() => selectSugg(i)}>{i.firstName} – {i.mobile}</li>
+              <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
             ))}</ul>
           )}
         </div>
         <div className="form-group" style={{ position:"relative" }}>
-          <input type="text" id="firstname" placeholder=" " value={form.firstname} onChange={handleChange} />
+          <input type="text" id="firstname" placeholder=" " autoComplete="one-time-code" value={form.firstname} onChange={handleChange} style={{ paddingRight: 28 }} />
           <label htmlFor="firstname" className="frmlbl">First Name</label>
+          <ClearButton targetId="firstname" show={!!form.firstname} />
           {nmSugg.length > 0 && (
             <ul className="suggestions">{nmSugg.map((i,idx) => (
-              <li key={idx} onClick={() => selectSugg(i)}>{i.firstName} – {i.mobile}</li>
+              <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
             ))}</ul>
           )}
         </div>
-        <div className="form-group">
-          <input type="text" id="lastname" placeholder=" " value={form.lastname} onChange={handleChange} />
+        <div className="form-group" style={{ position:"relative" }}>
+          <input type="text" id="lastname" placeholder=" " autoComplete="one-time-code" value={form.lastname} onChange={handleChange} style={{ paddingRight: 28 }} />
           <label htmlFor="lastname" className="frmlbl">Last Name</label>
+          <ClearButton targetId="lastname" show={!!form.lastname} />
+          {lnSugg.length > 0 && (
+            <ul className="suggestions">{lnSugg.map((i,idx) => (
+              <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
+            ))}</ul>
+          )}
         </div>
         <div className="form-group">
           <input type="email" id="email" placeholder=" " value={form.email} onChange={handleChange} />
@@ -345,9 +374,22 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       <div className="srvwrp">
         <div className="frmlgnd">Requesting Services</div>
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <input type="text" id="servicename" placeholder=" " value={form.servicename} onChange={handleServiceChange} />
+          <div className="form-group" style={{ position:"relative" }}>
+            <input type="text" id="servicename" placeholder=" " value={form.servicename} onChange={handleServiceChange} style={{ paddingRight: 28 }} />
             <label htmlFor="servicename" className="frmlbl">Service</label>
+            {/* Clearing the service must also drop the resolved code, the loaded
+                practitioner and any open suggestions — otherwise a stale
+                servicecode/practitioner stays attached to an empty field. */}
+            <ClearButton
+              targetId="servicename"
+              show={!!form.servicename}
+              onClear={() => {
+                setForm(p => ({ ...p, servicename:"", servicecode:"", practitioner:"", practitionerName:"" }));
+                setSvcSugg([]);
+                setPractitioners([]);
+                document.getElementById("servicename")?.focus();
+              }}
+            />
             {errors.servicename && <div className="error">{errors.servicename}</div>}
             {svcSugg.length > 0 && (
               <ul className="suggestions">{svcSugg.map((s,i) => (
