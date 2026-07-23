@@ -560,9 +560,14 @@ const PaymentBlock = ({
   };
 
   const handlePopupClose = () => {
-    // reset and redirect to /appointment
+    // The invoice is already created, so leave this page on a HARD navigation.
+    // A router navigate() would keep this component mounted — apiInvoiceItems /
+    // effectiveCustomer survive resetAll() by design, and without the URL params
+    // the item fetch will not re-run, leaving a stale cart that is still
+    // submittable. A full reload guarantees a clean slate.
     resetAll();
-    navigate('/appointment');
+    const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+    window.location.assign(`${base}/invoice`);
   };
 
   const generateInvoiceHTML = (invoiceNumOverride) => {

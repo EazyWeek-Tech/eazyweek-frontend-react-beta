@@ -17,6 +17,11 @@ const fmtTime = (d) => {
   return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
+const num = (v) => Number(v ?? 0).toLocaleString();
+
+// Header and body rows must use the same track sizes or the columns drift apart.
+const GRID_COLS = "1.6fr 0.8fr 1.4fr 1.2fr 1fr";
+
 const TYPE_STYLE = {
   EARN:    { bg: "#e6f4ef", color: "#2e7d5e", border: "#b3d9cc", label: "Earn" },
   REDEEMED:{ bg: "#fff0ee", color: "#cc6b5c", border: "#f5c4b0", label: "Redeem" },
@@ -44,19 +49,21 @@ const LoyaltyTab = ({ custId, recId }) => {
   // Fetch balance
   useEffect(() => {
     if (!recId) return;
+    const ac = new AbortController();
     setBalanceLoading(true);
-    fetch(`${API_BASE_URL}/api/v1/points/balance/${recId}`, { headers: HEADERS() })
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${recId}`, { headers: HEADERS(), signal: ac.signal })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => setBalance(d?.data ?? d))
-      .catch(() => setError("Failed to load loyalty balance."))
+      .catch(e => { if (e?.name !== "AbortError") setError("Failed to load loyalty balance."); })
       .finally(() => setBalanceLoading(false));
+    return () => ac.abort();
   }, [recId]);
 
   // Fetch history
-  const loadHistory = (p = 1) => {
+  const loadHistory = (p = 1, signal) => {
     if (!recId) return;
     setHistoryLoading(true);
-    fetch(`${API_BASE_URL}/api/v1/points/history/${recId}?page=${p}&pageSize=${pageSize}`, { headers: HEADERS() })
+    fetch(`${API_BASE_URL}/api/v1/points/history/${recId}?page=${p}&pageSize=${pageSize}`, { headers: HEADERS(), signal })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
         // Response: { page, pageSize, total, data: [...] } — no success wrapper
@@ -64,11 +71,15 @@ const LoyaltyTab = ({ custId, recId }) => {
         setTotalPages(Math.ceil((d.total ?? 0) / pageSize) || 1);
         setPage(p);
       })
-      .catch(() => setError("Failed to load point history."))
+      .catch(e => { if (e?.name !== "AbortError") setError("Failed to load point history."); })
       .finally(() => setHistoryLoading(false));
   };
 
-  useEffect(() => { loadHistory(1); }, [recId]);
+  useEffect(() => {
+    const ac = new AbortController();
+    loadHistory(1, ac.signal);
+    return () => ac.abort();
+  }, [recId]);
 
   if (!recId) return (
     <div style={{ padding: "24px 0", color: "#6e7b8f", fontSize: 13 }}>
@@ -164,7 +175,7 @@ const LoyaltyTab = ({ custId, recId }) => {
         ) : (
           <>
             {/* ── Table header — sequence: Date | Type | Invoice No | Points Earned on Invoice | Total Balance ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.6fr 1.1fr 1.4fr 1fr", padding: "9px 18px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 12, fontWeight: 700, color: "#6e7b8f", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, padding: "9px 18px", background: "#f4f7fb", borderBottom: "1px solid #e5ebf3", fontSize: 12, fontWeight: 700, color: "#6e7b8f", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               <span>Date</span>
               <span>Type</span>
               <span>Invoice No</span>
@@ -179,7 +190,7 @@ const LoyaltyTab = ({ custId, recId }) => {
               const descParts = (r.description || "").trim().split(/\s+/);
               const invoiceNo = descParts.length > 1 ? descParts[descParts.length - 1] : (r.description || "—");
               return (
-                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 1.4fr 1.2fr 1fr", padding: "12px 18px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafbfe", borderBottom: i < history.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
+                <div key={r.id ?? i} style={{ display: "grid", gridTemplateColumns: GRID_COLS, padding: "12px 18px", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafbfe", borderBottom: i < history.length - 1 ? "1px solid #f0f4fa" : "none", fontSize: 13 }}>
                   <span style={{ color: "#6e7b8f", fontSize: 14 }}>{fmtTime(r.transactionDate)}</span>
                   <span>
                     <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 13, fontWeight: 700, background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>
@@ -188,10 +199,10 @@ const LoyaltyTab = ({ custId, recId }) => {
                   </span>
                   <span style={{ color: "#334b71", fontWeight: 600, fontSize: 14 }}>{invoiceNo}</span>
                   <span style={{ textAlign: "right", fontWeight: 700, color: isNeg ? "#cc6b5c" : "#2e7d5e" }}>
-                    {isNeg ? "-" : "+"}{r.points.toLocaleString()}
+                    {isNeg ? "-" : "+"}{num(r.points)}
                   </span>
                   <span style={{ textAlign: "right", fontWeight: 600, color: "#334b71" }}>
-                    {r.pointsBalanceAfter.toLocaleString()}
+                    {num(r.pointsBalanceAfter)}
                   </span>
                 </div>
               );

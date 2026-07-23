@@ -2,7 +2,7 @@
 // Invoicing & Refunds dashboard — Dashboards FRD §4.3. Self-contained, `C` palette.
 // Source: GET /api/Invoice/Dashboard  (+ GET /api/EInvoice/LoadEInvoice for status).
 //   - Sales trend .......... line + area                                  [Fig 7]
-//   - Open vs. closed ...... donut (count + value)
+//   - VAT .................. KPI tile, total for the selected period
 //   - Sale by item type .... horizontal bars, Refunds negative/red        [Fig 8]
 //   - Discount ............. daily discount bars (Promotion vs Manual split
 //                            not stored separately — see note; BR-07)     [Fig 9]
@@ -63,31 +63,6 @@ function normalizeItemTypes(rows) {
   });
   return ITEM_MAP.map(m => ({ label:m.label, value: acc[m.label]||0, refund:m.label==="Refunds" }))
     .map(x => x.refund ? { ...x, value: -Math.abs(x.value) } : x);
-}
-
-/* Donut */
-function Donut({ segments, centerValue, unit, size = 176, thickness = 26 }) {
-  const total = segments.reduce((a,s)=>a+(s.value||0),0);
-  const r=(size-thickness)/2, cx=size/2, cy=size/2, CIRC=2*Math.PI*r; let off=0;
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:22, flexWrap:"wrap" }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex:"none" }}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#eef1f4" strokeWidth={thickness} />
-        {total>0 && segments.map((s,i)=>{ const len=(s.value/total)*CIRC; const el=(<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={thickness} strokeDasharray={`${len} ${CIRC-len}`} strokeDashoffset={-off} transform={`rotate(-90 ${cx} ${cy})`} />); off+=len; return el; })}
-        <text x={cx} y={cy-2} textAnchor="middle" fontFamily={FONT} fontSize={26} fontWeight={800} fill={C.text}>{grp(centerValue!=null?centerValue:total)}</text>
-        <text x={cx} y={cy+18} textAnchor="middle" fontFamily={FONT} fontSize={12} fontWeight={600} fill={C.sub}>{unit}</text>
-      </svg>
-      <div style={{ display:"flex", flexDirection:"column", gap:11, minWidth:170 }}>
-        {segments.map((s,i)=>(
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:9, fontSize:12.5 }}>
-            <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:"none" }} />
-            <span style={{ fontWeight:700, color:C.text }}>{s.label}</span>
-            <span style={{ marginLeft:"auto", color:C.sub }}>{grp(s.value)}{s.sub?` · ${s.sub}`:""}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 /* Line + area (sales) */
@@ -185,6 +160,7 @@ function EInvoiceBar({ success, failed }) {
 const MOCK = {
   salesDaily: Array.from({length:7},(_,i)=>({ date:`2026-07-0${i+1}`, sales:[3200,4100,3800,4600,5200,4900,2650][i] })),
   openClosed: { openCnt:38, openVal:210000, closedCnt:164, closedVal:980000 },
+  vatTotal: 3711,
   itemType: [{itemType:"service",amount:172000},{itemType:"package",amount:98000},{itemType:"products",amount:52000},{itemType:"advance",amount:38000},{itemType:"gift card",amount:16000},{itemType:"refund",amount:9000}],
   discountDaily: Array.from({length:7},(_,i)=>({ date:`2026-07-0${i+1}`, discount:[1200,1450,980,1600,1300,1100,900][i] })),
   einvoice: { success:268, failed:14 },
@@ -232,6 +208,7 @@ function useInvoiceDashboard({ range, customFrom, customTo }) {
       live: !!live,
       salesTrend: bucketSeries(src.salesDaily||[], "sales"),
       totalSales,
+      vatTotal: num(src.vatTotal),
       openClosed: { openCnt:num(oc.openCnt), openVal:num(oc.openVal), closedCnt:num(oc.closedCnt), closedVal:num(oc.closedVal) },
       itemType: normalizeItemTypes(src.itemType||[]),
       discountTrend: bucketSeries(src.discountDaily||[], "discount"),
@@ -286,23 +263,14 @@ export default function InvoiceDashboard() {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:16 }}>
-        {[{l:"Total sales",v:fmtSAR(data.totalSales),c:C.navy},{l:"Invoices",v:grp(oc.openCnt+oc.closedCnt),c:C.navyDk},{l:"Closed",v:grp(oc.closedCnt),c:C.cvt},{l:"Open",v:grp(oc.openCnt),c:C.open}].map(k=>(
+        {[{l:"Total sales",v:fmtSAR(data.totalSales),c:C.navy},{l:"Invoices",v:grp(oc.openCnt+oc.closedCnt),c:C.navyDk},{l:"VAT",v:fmtSAR(data.vatTotal),c:C.wip}].map(k=>(
           <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}><div style={{ fontSize:23, fontWeight:800, color:k.c }}>{k.v}</div><div style={{ fontSize:12.5, color:C.sub, fontWeight:600, marginTop:4 }}>{k.l}</div></div>
         ))}
       </div>
 
-      <div style={{ marginBottom:16 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:16, alignItems:"start" }}>
         <CardShell title="Sales trend" sub="Invoice value over the selected period">
           {data.salesTrend.length ? <AreaLine points={data.salesTrend} /> : <Empty text="No sales in the selected period." />}
-        </CardShell>
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:16 }}>
-        <CardShell title="Open vs. closed invoices" sub="Count and value split">
-          {(oc.openCnt+oc.closedCnt)>0 ? <Donut centerValue={oc.openCnt+oc.closedCnt} unit="invoices" segments={[
-            { label:"Closed", value:oc.closedCnt, color:C.cvt, sub:fmtSAR(oc.closedVal) },
-            { label:"Open",   value:oc.openCnt,   color:C.open, sub:fmtSAR(oc.openVal) },
-          ]} /> : <Empty text="No invoices in the selected period." />}
         </CardShell>
         <CardShell title="Sale by item type" sub="Service · Package · Products · Advance · Gift Card · Refunds">
           <HBars rows={data.itemType} />

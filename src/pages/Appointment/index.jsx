@@ -402,16 +402,18 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     onClose?.();
   };
 
-  const goTo = (path, extra = {}) => {
+ const goTo = (path, extra = {}) => {
     const a = appt || appointment || {};
     const q = new URLSearchParams();
     if (a.custId) q.append("custid", a.custId);
+    // Customer 360's Loyalty and Invoice tabs key off the customer RECID, not custId.
+    const custRecId = a.custRecId ?? a.recId ?? a.recID ?? a.RECID ?? a.customerRecId ?? "";
+    if (custRecId) q.append("recid", String(custRecId));
     if (a.fullName) q.append("custname", a.fullName);
     if (a.appointmentId) q.append("appointmentid", a.appointmentId);
     Object.entries(extra).forEach(([k, v]) => q.append(k, v));
     navigate(`${path}?${q.toString()}`);
   };
-
   return (
     <div className="smdiv expand">
       <div className="resizable">
@@ -435,7 +437,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
             </h3>
           </div>
           <div className="cdtprof">
-            <a href="#" className="cstlnk" onClick={e => { e.preventDefault(); goTo("/customer", { fullname: appt?.fullName, number: appt?.number }); }}>
+           <a href="#" className="cstlnk" onClick={e => { e.preventDefault(); goTo("/customer", { fullname: appt?.fullName, number: appt?.number }); }}>
               <img src={`${import.meta.env.BASE_URL}images/custome.svg`} width="16" alt="" /> Customer Profile
             </a>
           </div>
