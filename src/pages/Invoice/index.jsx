@@ -401,8 +401,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
                       if (window.history.length > 1) navigate(-1);
                       else navigate('/dashboard');
                     }}
-                    style={{ position:'static', float:'none', transform:'none', margin:0,
-                      background:'transparent', border:'none', font:'inherit', cursor:'pointer' }}>
+                    style={{  }}>
                     Back
                   </button>
                   <Link to="/dashboard" className="bckbtn"

@@ -15,6 +15,9 @@ const DoctorMaster = () => {
   const [saving, setSaving]       = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [toast, setToast]         = useState(null);
+  const [showAll, setShowAll]     = useState(false);  // bypass the job-title filter
+  const [page, setPage]           = useState(1);
+  const [empError, setEmpError]   = useState("");     // real reason the list is empty
 
   const [form, setForm] = useState({
     employeeCode: "",
@@ -40,16 +43,30 @@ const DoctorMaster = () => {
     finally { setLoading(false); }
   }, []);
 
-  // Load doctor employees — filtered by job title on backend
+  // Load employees eligible for practitioner mapping.
+  // showAll=true drops the backend job-title filter and returns every active employee.
   const fetchDoctorEmployees = useCallback(async () => {
+    setEmpError("");
     try {
-      const res  = await fetch(`${API_BASE_URL}/api/employee/doctors`, {
-        headers: { Authorization: `Bearer ${TOKEN()}` },
-      });
+      const res  = await fetch(
+        `${API_BASE_URL}/api/employee/Doctors${showAll ? "?all=1" : ""}`,
+        { headers: { Authorization: `Bearer ${TOKEN()}` } }
+      );
       const json = await res.json();
-      if (json.success) setEmployees(json.data);
-    } catch { console.error("Failed to load doctor employees"); }
-  }, []);
+      // Never fail silently — an empty dropdown must say WHY.
+      if (!res.ok || json.success === false) {
+        setEmployees([]);
+        setEmpError(json.message || `Request failed (HTTP ${res.status}).`);
+        return;
+      }
+      const rows = Array.isArray(json) ? json : (json.data ?? []);
+      setEmployees(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      setEmployees([]);
+      setEmpError("Could not reach the server.");
+      console.error("Failed to load doctor employees", err);
+    }
+  }, [showAll]);
 
   const fetchClinics = useCallback(async () => {
     try {
@@ -137,6 +154,21 @@ const DoctorMaster = () => {
       .join(" ").toLowerCase().includes(search.toLowerCase())
   );
 
+  // ── Pagination (client-side) ────────────────────────────────────────────────
+  // SpLoadDoctors returns the full mapping set in one call, so paging happens
+  // here rather than server-side. LIMIT matches EmployeeMaster for consistency.
+  const LIMIT      = 10;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LIMIT));
+  const paged      = filtered.slice((page - 1) * LIMIT, page * LIMIT);
+
+  // Searching jumps back to page 1
+  useEffect(() => { setPage(1); }, [search]);
+
+  // Keep the page in range when the set shrinks (e.g. after a Remove on the last page)
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   return (
     <div style={s.page}>
       {/* Header */}
@@ -185,8 +217,8 @@ const DoctorMaster = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((d, i) => (
-                <tr>
+              {paged.map((d, i) => (
+                <tr key={`${d.employeeCode}-${d.associatedClinic}-${i}`}>
                   <td style={s.td}><span style={s.codeTag}>{d.employeeCode}</span></td>
                   <td style={s.td}>{d.firstName}</td>
                   <td style={s.td}>{d.lastName}</td>
@@ -200,6 +232,47 @@ const DoctorMaster = () => {
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div style={s.pager}>
+          <button onClick={() => setPage(1)} disabled={page === 1} style={pgBtn(page === 1)}>«</button>
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={pgBtn(page === 1)}>‹ Prev</button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+            .reduce((acc, p, idx, arr) => {
+              if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, i) => p === "..." ? (
+              <span key={`dots-${i}`} style={{ fontSize: 13, color: "#9ca3af", padding: "0 4px" }}>…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                style={{
+                  ...pgBtn(false),
+                  background: p === page ? "#334B71" : "#fff",
+                  color:      p === page ? "#fff" : "#334B71",
+                  fontWeight: p === page ? 700 : 400,
+                  border:     `1px solid ${p === page ? "#334B71" : "#e5e7eb"}`,
+                }}
+              >
+                {p}
+              </button>
+            ))
+          }
+
+          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={pgBtn(page === totalPages)}>Next ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={pgBtn(page === totalPages)}>»</button>
+
+          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>
+            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, filtered.length)} of {filtered.length}
+          </span>
+        </div>
+      )}
 
       {/* Add Modal Popup */}
       {modalOpen && (
@@ -241,10 +314,22 @@ const DoctorMaster = () => {
                 </select>
                 {employees.length === 0 && (
                   <p style={s.hint}>
-                    No employees found with doctor/therapist job titles.
-                    Assign job titles in Employee Master first.
+                    {empError
+                      ? `Could not load employees — ${empError}`
+                      : showAll
+                        ? "No active employees found."
+                        : "No employees matched the practitioner job titles. Tick “Show all employees” below."}
                   </p>
                 )}
+
+                <label style={s.toggleRow}>
+                  <input
+                    type="checkbox"
+                    checked={showAll}
+                    onChange={(e) => setShowAll(e.target.checked)}
+                  />
+                  <span>Show all employees (ignore job title)</span>
+                </label>
               </div>
 
               {/* Selected employee preview */}
@@ -362,6 +447,8 @@ const s = {
   label:         { display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" },
   select:        { width: "100%", padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, outline: "none", background: "#fff", cursor: "pointer" },
   hint:          { fontSize: 12, color: "#ef4444", marginTop: 6 },
+  toggleRow:     { display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "#6b7280", cursor: "pointer" },
+  pager:         { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 16 },
   empPreview:    { background: "#f0f7ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", marginBottom: 16 },
   empPreviewName:{ fontWeight: 600, fontSize: 14, color: "#1e40af" },
   empPreviewDetail:{ fontSize: 12, color: "#3b82f6", marginTop: 2 },
@@ -374,5 +461,11 @@ const s = {
   toastSuccess:  { background: "#ecfdf5", color: "#065f46", border: "1px solid #6ee7b7" },
   toastError:    { background: "#fef2f2", color: "#991b1b", border: "1px solid #fca5a5" },
 };
+
+const pgBtn = (disabled) => ({
+  padding: "6px 12px", borderRadius: 7, border: "1px solid #e5e7eb",
+  background: "#fff", color: disabled ? "#c8d5e8" : "#334B71",
+  cursor: disabled ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 500,
+});
 
 export default DoctorMaster;
