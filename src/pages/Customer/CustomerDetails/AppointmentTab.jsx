@@ -90,6 +90,7 @@ const AppointmentTab = ({ custId }) => {
         <table className="appt-table">
           <thead>
             <tr>
+              <th>Appointment ID</th>
               <th>Date</th>
               <th>Time</th>
               <th>Service</th>
@@ -97,13 +98,13 @@ const AppointmentTab = ({ custId }) => {
               <th>Therapist</th>
               <th>Payment Type</th>
               <th>Invoice No</th>
-              <th>Added By</th>
+              <th>Created By</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={9} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No records found.</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: "center", padding: 20, color: "#94a3b8" }}>No records found.</td></tr>
             ) : rows.map((a, i) => {
               const id = a.appointmentId || i;
               const statusKey = (a.status || "").toLowerCase().replace(/\s/g, "");
@@ -113,6 +114,7 @@ const AppointmentTab = ({ custId }) => {
               return (
                 <React.Fragment key={id}>
                   <tr>
+                    <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>{a.refId || a.appointmentId || "—"}</td>
                     <td>{a.serviceDate || "—"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>{a.startTime || "—"}{a.endTime ? ` – ${a.endTime}` : ""}</td>
                     <td style={{ maxWidth: 260, whiteSpace: "normal" }}>{a.service || "—"}</td>
@@ -120,7 +122,7 @@ const AppointmentTab = ({ custId }) => {
                     <td>{a.therapist || "—"}</td>
                     <td>{a.paymentType || "—"}</td>
                     <td>{a.invoiceNo || "—"}</td>
-                    <td>{a.addedBy || "—"}</td>
+                    <td>{a.createdBy || a.addedBy || "—"}</td>
                     <td>
                       {hasNote
                         ? <button className="notes-toggle" onClick={() => setExpandedNote(isOpen ? null : id)}>
@@ -132,7 +134,7 @@ const AppointmentTab = ({ custId }) => {
                   </tr>
                   {isOpen && hasNote && (
                     <tr className="note-row">
-                      <td colSpan={9}>
+                      <td colSpan={10}>
                         <div className="note-content">
                           <strong>📝 Note:</strong> {a.notes}
                         </div>

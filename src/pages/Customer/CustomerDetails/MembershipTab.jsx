@@ -118,7 +118,7 @@ const MembershipTab = ({ custId }) => {
       )}
 
       <style>{`
-        .mtab-wrap { font-family:'Segoe UI',system-ui,sans-serif; padding:28px 32px; max-width:1000px; color:#0f172a; background:#f8fafc; }
+        .mtab-wrap { font-family:'Segoe UI',system-ui,sans-serif; padding:28px 32px; max-width:1000px; color:#0f172a; }
         .mtab-header { margin-bottom:20px; }
         .mtab-title { margin:0 0 4px; font-size:22px; font-weight:800; color:#1e293b; }
         .mtab-sub { margin:0; font-size:13px; color:#64748b; }

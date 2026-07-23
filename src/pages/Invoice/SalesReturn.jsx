@@ -809,13 +809,21 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
 };
 
 // ── Main SalesReturn component ────────────────────────────────────────────────
-const SalesReturn = ({ onClose, custId }) => {
-  const [step,        setStep]        = useState("search");
-  const [selectedInv, setSelectedInv] = useState(null);
+// `initialInvoice` lets a caller (e.g. the Customer 360 Invoice tab) launch the
+// return flow against one already-chosen invoice. When supplied we skip the
+// Recall Invoice list entirely and open on item selection. Shape: { invoiceNum, custId }.
+const SalesReturn = ({ onClose, custId, initialInvoice = null }) => {
+  const [step,        setStep]        = useState(initialInvoice ? "items" : "search");
+  const [selectedInv, setSelectedInv] = useState(initialInvoice);
   const [returnData,  setReturnData]  = useState(null);
   const [result,      setResult]      = useState(null);
   const [processing,  setProcessing]  = useState(false);
   const [error,       setError]       = useState("");
+  // Lets the caller distinguish "cancelled" from "a return was actually processed"
+  // so it can refresh its list / show a toast only when something really changed.
+  const [completed,   setCompleted]   = useState(false);
+
+  const handleClose = () => onClose?.(completed);
 
   const getUser = () => {
     try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
@@ -847,6 +855,7 @@ const SalesReturn = ({ onClose, custId }) => {
       const res = await authPost(`${API_BASE_URL}/api/SalesReturn/Process`, payload);
       setResult(res);
       setReturnData(prev => ({ ...prev, refundMethods }));
+      setCompleted(true);
       setStep("done");
     } catch (e) { setError(e.message || "Failed to process return."); }
     finally { setProcessing(false); }
@@ -861,18 +870,18 @@ const SalesReturn = ({ onClose, custId }) => {
 
   return (
     <div className="popouter" style={{ display: "flex", zIndex: 9999 }}>
-      <div className="popovrly" onClick={step === "done" ? onClose : undefined} />
+      <div className="popovrly" onClick={step === "done" ? handleClose : undefined} />
       <div className="popin" style={{
         maxWidth: step === "search" ? 1000 : 700,
         width: "98%", maxHeight: "92vh", overflow: "auto",
         overflowX: step === "search" ? "auto" : "hidden" }}>
         <div className="popuphdr">
-          {step !== "search" && step !== "done" && (
+          {step !== "search" && step !== "done" && !(step === "items" && initialInvoice) && (
             <span style={{ marginRight: 8, cursor: "pointer", fontSize: 16 }}
               onClick={() => setStep(step === "refund" ? "items" : "search")}>←</span>
           )}
           {title}
-          <span className="clsbtn" onClick={onClose}>
+          <span className="clsbtn" onClick={handleClose}>
             <img src={`${import.meta.env.BASE_URL}images/clsic.svg`} alt="Close" />
           </span>
         </div>
@@ -884,17 +893,17 @@ const SalesReturn = ({ onClose, custId }) => {
             </div>
           )}
           {step === "search" && (
-            <RecallInvoiceModal onSelect={handleSelect} onClose={onClose} custId={custId} />
+            <RecallInvoiceModal onSelect={handleSelect} onClose={handleClose} custId={custId} />
           )}
           {step === "items" && selectedInv && (
-            <ReturnItemSelection invoiceNum={selectedInv.invoiceNum} onNext={handleItemsNext} onCancel={onClose} />
+            <ReturnItemSelection invoiceNum={selectedInv.invoiceNum} onNext={handleItemsNext} onCancel={handleClose} />
           )}
           {step === "refund" && returnData && (
             <RefundPaymentMethod
               totalReturn={returnData.totalReturn}
               onFinalize={handleFinalize}
               onBack={() => setStep("items")}
-              onCancel={onClose}
+              onCancel={handleClose}
               loading={processing}
               hasPackageLines={returnData.returnLines?.some(l => l.isPackageRedeemed)}
             />
@@ -903,7 +912,7 @@ const SalesReturn = ({ onClose, custId }) => {
             <ReturnSuccess
               returnInvoiceNum={result.returnInvoiceNum}
               creditNoteNum={result.creditNoteNum}
-              onClose={onClose}
+              onClose={handleClose}
               selectedInv={selectedInv}
               returnData={returnData}
             />

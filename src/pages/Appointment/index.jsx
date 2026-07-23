@@ -14,6 +14,7 @@ import InvoicePrecheckModal from "./InvoicePrecheckModal";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import { CustomerFormPanel } from "../Masters/CustomerMaster";
 import { usePermissions } from "../Settings/usePermissions";
+import ClinicSwitcher from "../../components/ClinicSwitcher";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -1441,7 +1442,9 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             <Link to="/dashboard"  data-tooltip="Go Back" data-tooltip-pos="right">
               <img src={`${import.meta.env.BASE_URL}images/back.svg`} width="24" alt="Back" />
             </Link>
-            <span className="c-name">{user.centerName || "Clinic"}</span>
+            {/* Change Centre — the scheduler has its own chrome, so the app
+                header (and its switcher) never renders on this screen. */}
+            <ClinicSwitcher variant="dark" />
           </div>
           <div className="datepkrdiv">
             <input type="date" value={selectedDate} onChange={e => { setSelectedDate(e.target.value); fetchAppointments(e.target.value); }} />

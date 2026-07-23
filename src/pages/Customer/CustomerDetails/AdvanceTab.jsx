@@ -478,7 +478,7 @@ const AdvanceTab = ({ custId }) => {
       {toast && <div className={`adv-toast ${toast.type}`}>{toast.msg}</div>}
 
       <style>{`
-        .adv-wrap { font-family:'Segoe UI',system-ui,sans-serif; padding:28px 32px; max-width:1240px; color:#0f172a; background:#f8fafc; min-height:100%; }
+        .adv-wrap { font-family:'Segoe UI',system-ui,sans-serif; padding:28px 32px; max-width:1240px; color:#0f172a;  min-height:100%; }
         .adv-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; }
         .adv-title { margin:0 0 4px; font-size:22px; font-weight:800; color:#1e293b; }
         .adv-sub { margin:0; font-size:13px; color:#64748b; }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../../config";
 import { Link } from "react-router-dom";
 import SalesReturn from "../../Invoice/SalesReturn";
@@ -35,7 +35,12 @@ const InvoicesTab = ({ custId, recId }) => {
   const [toDate,             setToDate]              = useState("");
   const [loading,            setLoading]             = useState(false);
   const [error,              setError]               = useState("");
-  const [showReturn,         setShowReturn]          = useState(false);
+  // showReturn is either `null` (closed), `true` (header button → Recall Invoice
+  // list) or an invoice object (row button → open straight on that invoice).
+  const [showReturn,         setShowReturn]          = useState(null);
+  // invoiceNum -> { fullyReturned, partialReturn }, sourced from the SalesReturn
+  // API so the row gating matches the server's own line-level return accounting.
+  const [returnStatus,       setReturnStatus]        = useState({});
   const [toast,              setToast]               = useState(null);
   const [currentPage,        setCurrentPage]         = useState(1);
 
@@ -43,9 +48,37 @@ const InvoicesTab = ({ custId, recId }) => {
   const [returnedInvoices, setReturnedInvoices] = useState(new Set());
   const itemsPerPage = 10;
 
-  useEffect(() => {
+  // Per-invoice return status. Reuses SalesReturn/SearchInvoices, which already
+  // computes fullyReturned / partialReturn by comparing returned line count
+  // against total line count — so the button gating here agrees with what the
+  // return modal will actually let the user do.
+  const loadReturnStatus = useCallback(async () => {
+    if (!custId) return;
+    try {
+      const url = `${API_BASE_URL}/api/SalesReturn/SearchInvoices`
+        + `?searchBy=customerNo&searchValue=${encodeURIComponent(custId)}&includeReturns=false`;
+      const res  = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } });
+      const json = await res.json();
+      const rows = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
+      const map  = {};
+      rows.forEach(r => {
+        if (!r.invoiceNum) return;
+        map[r.invoiceNum] = {
+          fullyReturned: !!r.fullyReturned,
+          partialReturn: !!r.partialReturn,
+        };
+      });
+      setReturnStatus(map);
+    } catch {
+      // Degrade open rather than closed: if status can't be resolved we leave the
+      // Return button visible and let the modal enforce the real guards.
+      setReturnStatus({});
+    }
+  }, [custId]);
+
+  const loadInvoices = useCallback(async () => {
     if (!custId) { setError("Customer ID is missing"); return; }
-    (async () => {
+    {
       setLoading(true); setError("");
       try {
         const res = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerInvoice`, {
@@ -87,8 +120,10 @@ const InvoicesTab = ({ custId, recId }) => {
         setReturnedInvoices(new Set()); // never fully block — let modal handle it
       } catch { setError("An error occurred while fetching invoices"); }
       finally { setLoading(false); }
-    })();
+    }
   }, [custId]);
+
+  useEffect(() => { loadInvoices(); loadReturnStatus(); }, [loadInvoices, loadReturnStatus]);
 
   useEffect(() => {
     let data = [...invoiceData];
@@ -96,7 +131,9 @@ const InvoicesTab = ({ custId, recId }) => {
       data = data.filter(i =>
         i.invoiceNum?.includes(searchQuery) ||
         i.amount?.toString().includes(searchQuery) ||
-        i.paymentMode?.includes(searchQuery)
+        i.paymentMode?.includes(searchQuery) ||
+        i.createdBy?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        i.practitioner?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     if (selectedPaymentMode !== "All Selected")
       data = data.filter(i => i.paymentMode === selectedPaymentMode);
@@ -177,12 +214,12 @@ const InvoicesTab = ({ custId, recId }) => {
                 <tr>
                   <th>Invoice No</th><th>Date</th><th>Type</th>
                   <th className="num">Amount</th><th className="num">Tax</th><th className="num">Rounding</th>
-                  <th>Payment</th><th>Action</th>
+                  <th>Payment</th><th>Created By</th><th>Practitioner</th><th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {currentInvoices.length === 0 ? (
-                  <tr><td colSpan={7} className="inv-empty">No invoices found.</td></tr>
+                  <tr><td colSpan={10} className="inv-empty">No invoices found.</td></tr>
                 ) : currentInvoices.map((item, idx) => (
                   <tr key={idx} className="inv-row">
                     <td><Link to={`/invoice-details/${item.invoiceNum}`} className="inv-link">{item.invoiceNum}</Link></td>
@@ -205,11 +242,34 @@ const InvoicesTab = ({ custId, recId }) => {
                     <td className="num inv-muted">{fmt(item.tax)}</td>
                     <td className="num inv-muted">{fmt(item.roundingOff)}</td>
                     <td><span className="inv-mode">{item.paymentMode}</span></td>
+                    <td className="inv-muted">{item.createdBy || "—"}</td>
+                    <td className="inv-practitioner">{item.practitioner || "—"}</td>
                     <td>
-                      <button onClick={() => setShowReturn(true)}
-                        style={{ padding:"4px 12px", border:"1px solid #334b71", borderRadius:6, background:"#fff", color:"#334b71", fontWeight:700, cursor:"pointer", fontSize:12 }}>
-                        Return
-                      </button>
+                      {(() => {
+                        // A Return document itself is never returnable.
+                        if (item.transType === "Return")
+                          return <span className="inv-muted">—</span>;
+
+                        const st = returnStatus[item.invoiceNum];
+
+                        // Fully returned → no action, just state the outcome.
+                        if (st?.fullyReturned)
+                          return <span className="inv-returned-pill">Returned</span>;
+
+                        // Not returned, or only partially → allow a return.
+                        // Unknown status also lands here (fail-open); the modal
+                        // still enforces the real over-return guards.
+                        return (
+                          <button
+                            className="inv-return-btn"
+                            title={st?.partialReturn
+                              ? "Partially returned — return the remaining items"
+                              : "Return items from this invoice"}
+                            onClick={() => setShowReturn({ invoiceNum: item.invoiceNum, custId })}>
+                            {st?.partialReturn ? "Return balance" : "Return"}
+                          </button>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
@@ -248,17 +308,25 @@ const InvoicesTab = ({ custId, recId }) => {
       {showReturn && (
         <SalesReturn
           custId={custId}
-          onClose={() => {
-            setShowReturn(false);
-            setToast({ msg: "Return processed successfully.", type: "success" });
-            setTimeout(() => setToast(null), 5000);
+          initialInvoice={showReturn === true ? null : showReturn}
+          onClose={(didReturn) => {
+            setShowReturn(null);
+            // Only celebrate when a return was actually processed — closing or
+            // cancelling the modal previously fired the success toast too.
+            if (didReturn) {
+              setToast({ msg: "Return processed successfully.", type: "success" });
+              setTimeout(() => setToast(null), 5000);
+              // Refresh so the new Return row appears and the row gating updates.
+              loadInvoices();
+              loadReturnStatus();
+            }
           }}
         />
       )}
 
       <style>{`
-        .inv-wrap { font-family:'Segoe UI',system-ui,sans-serif; padding:28px 32px; max-width:1100px; color:#0f172a; background:#f8fafc; min-height:100%; }
-        .inv-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; }
+        .inv-wrap { font-family:'Lato',system-ui,sans-serif; padding:20px 32px;  color:#0f172a;  min-height:100%; }
+        .inv-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; padding-right: 50px; }
         .inv-title { margin:0 0 4px; font-size:22px; font-weight:800; color:#1e293b; }
         .inv-sub { margin:0; font-size:13px; color:#64748b; }
         .inv-toast { margin-bottom:14px; padding:11px 16px; border-radius:10px; font-size:13px; font-weight:600; }
@@ -271,7 +339,7 @@ const InvoicesTab = ({ custId, recId }) => {
         .inv-select { height:40px; padding:0 12px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; }
         .inv-daterange { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
         .inv-date-lbl { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#64748b; }
-        .inv-date-input { height:40px; padding:0 10px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; color:#0f172a; font-family:inherit; }
+        .inv-date-input { height:34px; padding:0 10px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; color:#0f172a; font-family:inherit; }
         .inv-date-input:focus { border-color:#334b71; }
         .inv-btn-refresh { height:40px; padding:0 18px; border-radius:10px; border:none; background:#334b71; color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
         .inv-table-wrap { border-radius:14px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 4px 20px rgba(15,23,42,.06); background:#fff; }
@@ -287,6 +355,10 @@ const InvoicesTab = ({ custId, recId }) => {
         .inv-muted { color:#94a3b8; font-weight:500; }
         .num { text-align:right; }
         .inv-mode { display:inline-block; background:#eef2f7; color:#334b71; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:600; }
+        .inv-practitioner { color:#475569; font-size:12.5px; line-height:1.5; max-width:230px; }
+        .inv-return-btn { padding:4px 12px; border:1px solid #334b71; border-radius:6px; background:#fff; color:#334b71; font-weight:700; cursor:pointer; font-size:12px; white-space:nowrap; }
+        .inv-return-btn:hover { background:#334b71; color:#fff; }
+        .inv-returned-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; white-space:nowrap; }
         .inv-empty { text-align:center; padding:40px; color:#94a3b8; font-size:13px; }
         .inv-loading { display:flex; align-items:center; gap:10px; padding:40px 0; color:#64748b; font-size:13px; }
         .inv-spinner { width:18px; height:18px; border-radius:50%; border:2.5px solid #e2e8f0; border-top-color:#334b71; animation:inv-spin .8s linear infinite; }

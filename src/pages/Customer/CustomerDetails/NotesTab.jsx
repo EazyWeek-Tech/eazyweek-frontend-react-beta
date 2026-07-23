@@ -86,7 +86,7 @@ const NotesTab = ({ custId }) => {
     <div className="notes-tab">
       {/* Add Note */}
       <div className="add-note-section">
-        <label className="note-label">Add a Note for this Guest</label>
+        <label className="note-label">Add a Note for this Customer</label>
         <textarea
           className="note-textarea"
           rows={3}
@@ -96,7 +96,7 @@ const NotesTab = ({ custId }) => {
         />
         <div className="note-options">
           {[
-            ["showOnHistory", "Show on opening Guest History"],
+            ["showOnHistory", "Show on opening Customer History"],
             ["showOnCheckin", "Show during check-in"],
             ["showOnBooking", "Show when booking Appointment"],
             ["showOnPayment", "Show when taking payment"],
@@ -149,7 +149,7 @@ const NotesTab = ({ custId }) => {
                     </td>
                     <td style={{ maxWidth: 360, whiteSpace: "normal", lineHeight: 1.5 }}>{n.notes}</td>
                     <td>
-                      {n.showOnHistory  ? <span className="note-type-badge">Guest History</span> : null}
+                      {n.showOnHistory  ? <span className="note-type-badge">Customer History</span> : null}
                       {n.showOnCheckin  ? <span className="note-type-badge">Check-in</span>      : null}
                       {n.showOnBooking  ? <span className="note-type-badge">Booking</span>       : null}
                       {n.showOnPayment  ? <span className="note-type-badge">Payment</span>       : null}
