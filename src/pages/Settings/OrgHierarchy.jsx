@@ -11,7 +11,7 @@ const authGet = async (url) => {
 // ── Brand palette ──────────────────────────────────────────────────────────────
 const ROYAL_BLUE    = "#18396E";  // Legal Entity
 const WARM_CORAL    = "#DD7766";  // Zone
-const MIDNIGHT_NAVY = "#05224C";  // Centre, and text on the coral Zone node
+const MIDNIGHT_NAVY = "#85A2AA";  // Centre, and text on the coral Zone node
 const CONNECTOR     = "#c8d5e8";
 
 // ── Node components ────────────────────────────────────────────────────────────

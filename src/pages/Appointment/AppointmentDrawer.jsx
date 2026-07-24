@@ -91,7 +91,11 @@ const custLabel = (i) => {
   return [name, i.mobile || ""].filter(Boolean).join(" – ");
 };
 
-const CustomerForm = ({ prefill, onChange }) => {
+// lockIdentity: the customer was just created by a lead conversion, so mobile /
+// first name / last name are fixed. Editing them here would also blank `custid`
+// (see handleChange), detaching the booking from the customer the conversion made
+// and breaking the LTR confirm step.
+const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
   const EMPTY = { custid:"", number:"", firstname:"", lastname:"", email:"", gender:"", nationalityCode:"" };
   const [form,    setForm]    = useState(EMPTY);
   const [mobSugg, setMobSugg] = useState([]);
@@ -186,40 +190,47 @@ const CustomerForm = ({ prefill, onChange }) => {
   };
 
   return (
-    <div className="bscdetwrp">
+    <div className={`bscdetwrp${lockIdentity ? " cf-lock" : ""}`}>
       <style>{`
         .cf-natlbl{position:static!important;transform:none!important;display:block;
           font-size:11px;font-weight:600;color:#5b6b85;margin-bottom:4px}
         .cf-nat{width:100%}
+        .cf-lock input:disabled{background:#f4f6fa;color:#5b6b85;cursor:not-allowed;
+          border-color:#dbe4f0;-webkit-text-fill-color:#5b6b85;opacity:1}
       `}</style>
       <div className="frmlgnd">Customer Details</div>
+      {lockIdentity && (
+        <div style={{ margin:"0 0 10px", fontSize:11, color:"#5b6b85", background:"#f1f5fb", border:"1px solid #dbe4f0", borderRadius:6, padding:"6px 9px" }}>
+          Name and mobile are set from the converted lead and can't be changed here.
+        </div>
+      )}
       <form autoComplete="off">
         <input type="hidden" id="custid" value={form.custid} />
         <div className="form-group" style={{ position:"relative" }}>
-          <input type="text" id="number" placeholder=" " autoComplete="one-time-code" value={form.number} onChange={handleChange} maxLength={10} inputMode="numeric" style={{ paddingRight: 28 }} />
+          <input type="text" id="number" placeholder=" " autoComplete="one-time-code" value={form.number} onChange={handleChange} disabled={lockIdentity} maxLength={10} inputMode="numeric" style={{ paddingRight: 28 }} />
           <label htmlFor="number" className="frmlbl">Mobile Number</label>
-          <ClearButton targetId="number" show={!!form.number} />
-          {mobSugg.length > 0 && (
+          {!lockIdentity && <ClearButton targetId="number" show={!!form.number} />}
+          {!lockIdentity && mobSugg.length > 0 && (
             <ul className="suggestions">{mobSugg.map((i,idx) => (
               <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
             ))}</ul>
           )}
         </div>
         <div className="form-group" style={{ position:"relative" }}>
-          <input type="text" id="firstname" placeholder=" " autoComplete="one-time-code" value={form.firstname} onChange={handleChange} style={{ paddingRight: 28 }} />
+          <input type="text" id="firstname" placeholder=" " autoComplete="one-time-code" value={form.firstname} onChange={handleChange} disabled={lockIdentity} style={{ paddingRight: 28 }} />
           <label htmlFor="firstname" className="frmlbl">First Name</label>
-          <ClearButton targetId="firstname" show={!!form.firstname} />
-          {nmSugg.length > 0 && (
+          {!lockIdentity && <ClearButton targetId="firstname" show={!!form.firstname} />}
+          {!lockIdentity && nmSugg.length > 0 && (
             <ul className="suggestions">{nmSugg.map((i,idx) => (
               <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
             ))}</ul>
           )}
         </div>
         <div className="form-group" style={{ position:"relative" }}>
-          <input type="text" id="lastname" placeholder=" " autoComplete="one-time-code" value={form.lastname} onChange={handleChange} style={{ paddingRight: 28 }} />
+          <input type="text" id="lastname" placeholder=" " autoComplete="one-time-code" value={form.lastname} onChange={handleChange} disabled={lockIdentity} style={{ paddingRight: 28 }} />
           <label htmlFor="lastname" className="frmlbl">Last Name</label>
-          <ClearButton targetId="lastname" show={!!form.lastname} />
-          {lnSugg.length > 0 && (
+          {!lockIdentity && <ClearButton targetId="lastname" show={!!form.lastname} />}
+          {!lockIdentity && lnSugg.length > 0 && (
             <ul className="suggestions">{lnSugg.map((i,idx) => (
               <li key={idx} onClick={() => selectSugg(i)}>{custLabel(i)}</li>
             ))}</ul>
@@ -502,6 +513,7 @@ const AppointmentDrawer = ({
   allowPastDates = false,
   defaultStatus = undefined,
   onBooked,   // LTR: fired on a successful new booking → { referenceId, custID, appointmentId }
+  lockCustomerIdentity = false,  // LTR: arrived from a lead conversion — identity is fixed
 }) => {
   const drawerRef    = useRef(null);
   const [height,     setHeight]     = useState(433);
@@ -765,7 +777,7 @@ const AppointmentDrawer = ({
           )}
 
           <div className="apptfrmflx">
-            <CustomerForm key={`cf-${resetKey}`} prefill={customerData} onChange={setCustomerData} />
+            <CustomerForm key={`cf-${resetKey}`} prefill={customerData} onChange={setCustomerData} lockIdentity={lockCustomerIdentity} />
             <ServiceRequestForm key={`sf-${resetKey}`}
               onAddService={handleAddService} resetKey={resetKey}
               initialData={editingSvc} lastEndTime={lastEndTime}
@@ -777,8 +789,21 @@ const AppointmentDrawer = ({
             <button className="submitbtn editbtn" onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Saving…" : "Save Appointment"}
             </button>
-            <button className="restbtn" onClick={onClose}>Cancel</button>
-            <button className="restbtn" onClick={() => { setServiceList([]); setCustomerData(null); setResetKey(Date.now()); }}>Reset</button>
+            <button
+              className="restbtn"
+              disabled={lockCustomerIdentity}
+              title={lockCustomerIdentity ? "Not available for a converted lead — finish or leave the page." : undefined}
+              style={lockCustomerIdentity ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+              onClick={() => { if (lockCustomerIdentity) return; onClose?.(); }}>Cancel</button>
+            <button
+              className="restbtn"
+              disabled={lockCustomerIdentity}
+              title={lockCustomerIdentity ? "Not available for a converted lead — the customer is fixed." : undefined}
+              style={lockCustomerIdentity ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+              onClick={() => {
+                if (lockCustomerIdentity) return;
+                setServiceList([]); setCustomerData(null); setResetKey(Date.now());
+              }}>Reset</button>
           </div>
         </div>
       </div>

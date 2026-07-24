@@ -72,6 +72,10 @@ const PaymentBlock = ({
   recId: recIdFromProp = "",
   packageRedemption = null,   // { recId, packageCode, packageName, purchaseInvoiceNum, purchaseDate, serviceCode, serviceName }
   onRedemptionComplete = null,
+  // Fired after the nationality modal writes a nationality. The page owning the
+  // customer should refresh it so totals recompute — Citizen removes VAT, which
+  // changes every line and the invoice total.
+  onCustomerUpdated = null,
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -314,7 +318,12 @@ const PaymentBlock = ({
             email:     d0?.emailId  || "",
             mobile:    d0?.number   || "",
             number:    d0?.number   || "",
-            status:    String(d0?.nationalityId || "") === "84" ? "Citizen" : "Expat",
+            status:    (() => {
+              // Blank when unknown — defaulting to Expat here silently applies
+              // VAT to a customer who may well be a Citizen.
+              const nid = String(d0?.nationalityId || "");
+              return nid ? (nid === "84" ? "Citizen" : "Expat") : "";
+            })(),
           });
         }
         // Silently skip toast — parent (index.jsx) already handles this data
@@ -332,12 +341,23 @@ const PaymentBlock = ({
     fetchDetails();
   }, [API_BASE_URL, appointmentIdFromUrl, custIdFromUrl, sessionCenterCode, custNameFromUrl]);
 
+  // Nationality captured through the modal below. Applied last so it wins over
+  // a stale status on either the parent prop or the appointment API payload.
+  const [natOverride, setNatOverride] = useState(null);
+
+  /* CUSTOMERTYPE doubles as a lifecycle marker and legitimately holds values
+     like 'New', which is NOT a tax classification. Only Citizen/Expat count;
+     anything else means the Citizen/Expat decision is still unknown and VAT
+     cannot be determined. */
+  const isTaxClassified = (v) => /^(citizen|expat)$/i.test(String(v || '').trim());
+
   // ---------- Effective customer (merge parent + API; parent wins if non-empty) ----------
   const effectiveCustomer = useMemo(() => {
     if (!customer && !apiCustomer) return null;
     // api first -> then parent non-empty wins
-    return mergeNonEmpty(apiCustomer || {}, customer || {});
-  }, [apiCustomer, customer]);
+    const merged = mergeNonEmpty(apiCustomer || {}, customer || {});
+    return natOverride ? { ...merged, ...natOverride } : merged;
+  }, [apiCustomer, customer, natOverride]);
 
   // Derived from effective customer — must be after effectiveCustomer is defined
   const isLoyaltyEnrolled = !!(effectiveCustomer?.isLoyaltyEnrolled ?? customer?.isLoyaltyEnrolled);
@@ -799,6 +819,79 @@ const PaymentBlock = ({
   const submittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /* ── Nationality modal ──────────────────────────────────────────────────────
+     An invoice cannot be issued without knowing Citizen vs Expat, because that
+     decides whether VAT applies. Rather than refusing and sending the user away
+     to Customer Master (losing the cart), the nationality is captured here and
+     the invoice continues.                                                     */
+  const [showNatModal, setShowNatModal] = useState(false);
+  const [natList,      setNatList]      = useState([]);
+  const [natChoice,    setNatChoice]    = useState('');
+  const [savingNat,    setSavingNat]    = useState(false);
+  const [natErr,       setNatErr]       = useState('');
+  const resumeSubmitRef = useRef(false);
+
+  // Nationality master, loaded once the modal is first needed.
+  useEffect(() => {
+    if (!showNatModal || natList.length) return;
+    fetch(`${API_BASE_URL}/api/Master/Nationality`, { headers: { Authorization: `Bearer ${TOKEN()}` } })
+      .then(r => r.json())
+      .then(j => { const l = j?.data ?? j; setNatList(Array.isArray(l) ? l : []); })
+      .catch(() => setNatErr('Could not load the nationality list.'));
+  }, [showNatModal, natList.length]);
+
+  const handleSaveNationality = async () => {
+    const custId = effectiveCustomer?.custId || custIdFromUrl || '';
+    if (!custId || !natChoice || savingNat) return;
+    setSavingNat(true); setNatErr('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Customer/UpdateNationality`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({ custId, centerCode: sessionCenterCode, nationalityId: natChoice }),
+      });
+      const json = await res.json().catch(() => ({}));
+      const data = json?.data ?? json;
+      if (!res.ok || json?.success === false) {
+        setNatErr(json?.message || 'Could not save the nationality.');
+        return;
+      }
+
+      const status  = data?.customerType || '';
+      const patch   = {
+        status,
+        customerType: status,
+        nationalityCode: Number(natChoice),
+        nationalityId:   Number(natChoice),
+      };
+      setNatOverride(patch);
+      onCustomerUpdated?.({ ...(effectiveCustomer || {}), ...patch });
+      setShowNatModal(false);
+      setNatChoice('');
+
+      if (status.toLowerCase() === 'citizen') {
+        /* Citizen means zero VAT, so every line total and the invoice total drop.
+           The payment lines already on screen were entered against the OLD,
+           VAT-inclusive amount, so resuming the submit here would bill the
+           customer more than the invoice is now worth. Stop and let the user
+           re-check the payment against the corrected total. */
+        setFormError(
+          'Nationality saved — this customer is a Citizen, so VAT no longer applies and the total has changed. ' +
+          'Please re-check the payment amount against the new total, then submit again.'
+        );
+        return;
+      }
+
+      // Expat: VAT still applies at the rate already used, so nothing the user
+      // entered changes. Continue straight into the invoice.
+      resumeSubmitRef.current = true;
+    } catch (e) {
+      setNatErr(e?.message || 'Could not save the nationality.');
+    } finally {
+      setSavingNat(false);
+    }
+  };
+
   const handleSubmitInvoice = async () => {
     // Already created an invoice in this session — never submit again (the popup
     // may have been dismissed without resetting). Re-open the success popup instead.
@@ -812,6 +905,17 @@ const PaymentBlock = ({
       setFormError('Please add at least one payment method.');
       return;
     }
+
+    // Citizen vs Expat decides whether VAT applies, and it is derived from the
+    // customer's nationality. With no nationality the totals on screen are a
+    // guess, so the invoice is held and the nationality is captured first.
+    if (!isTaxClassified(effectiveCustomer?.status)) {
+      setFormError('');
+      setNatErr('');
+      setShowNatModal(true);
+      return;
+    }
+
     setFormError('');
 
     /* if (!appointmentIdFromUrl) {
@@ -1148,6 +1252,17 @@ if (result.success) {
       setIsSubmitting(false);
     }
   };
+
+  // Resume the submit the nationality modal interrupted. Runs only once the
+  // saved classification has landed in effectiveCustomer, so the tax is
+  // recomputed against the real status rather than the missing one.
+  useEffect(() => {
+    if (!resumeSubmitRef.current) return;
+    if (!isTaxClassified(effectiveCustomer?.status)) return;
+    resumeSubmitRef.current = false;
+    handleSubmitInvoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveCustomer?.status]);
 
   // ---------- Points transaction helper ----------------------------------------
   const createPointsTransaction = async (transactionType, amount, invoiceNumber, points = 0) => {
@@ -1653,6 +1768,55 @@ if (result.success) {
           <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
             {isSubmitting ? 'Submitting…' : generatedInvoiceNumber ? 'Invoice Generated' : 'Complete Invoice'}
           </button>
+        </div>
+      )}
+
+      {showNatModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
+          <div style={{ background:'#fff', borderRadius:12, padding:24, width:'min(460px, 92vw)', boxShadow:'0 10px 40px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin:'0 0 6px', color:'#0b1b37' }}>Nationality Required</h3>
+            <p style={{ margin:'0 0 4px', fontSize:13, color:'#555' }}>
+              This invoice can't be generated until the customer's nationality is set — it
+              decides whether they are a Citizen or an Expat, and therefore whether VAT applies.
+            </p>
+            <p style={{ margin:'0 0 16px', fontSize:12, color:'#888' }}>
+              Customer: <strong>{effectiveCustomer?.custId || custIdFromUrl || '—'}</strong>
+              {effectiveCustomer?.fullName ? ` — ${effectiveCustomer.fullName}` : ''}
+            </p>
+
+            <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#5b6b85', marginBottom:4 }}>Nationality</label>
+            <select
+              value={natChoice}
+              onChange={e => { setNatChoice(e.target.value); setNatErr(''); }}
+              disabled={savingNat}
+              style={{ width:'100%', height:36, borderRadius:8, border:'1px solid #cfd6e4', padding:'0 8px', fontSize:13, background:'#fff' }}>
+              <option value="">Select nationality…</option>
+              {natList.map(n => {
+                const code = n.code ?? n.id ?? n.NCODE;
+                const nm   = n.name ?? n.NATIONALITYNAME ?? n.label;
+                return <option key={code} value={code}>{nm}</option>;
+              })}
+            </select>
+
+            {natErr && <div style={{ marginTop:10, fontSize:12, color:'#b91c1c' }}>{natErr}</div>}
+
+            <div style={{ display:'flex', gap:12, justifyContent:'flex-end', marginTop:20 }}>
+              <button
+                onClick={() => { setShowNatModal(false); setNatChoice(''); setNatErr(''); }}
+                disabled={savingNat}
+                style={{ border:0, borderRadius:10, padding:'10px 20px', fontWeight:700, cursor:'pointer', background:'#e0e0e0', color:'#333' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveNationality}
+                disabled={!natChoice || savingNat}
+                style={{ border:0, borderRadius:10, padding:'10px 20px', fontWeight:700,
+                  cursor:(!natChoice || savingNat) ? 'not-allowed' : 'pointer',
+                  background:(!natChoice || savingNat) ? '#9aa8bf' : '#0b1b37', color:'#fff' }}>
+                {savingNat ? 'Saving…' : 'Save & Continue'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

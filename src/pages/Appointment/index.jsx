@@ -909,6 +909,12 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const ltrLocation = useLocation();
   const [ltrCtx, setLtrCtx] = useState(null);   // LTR: conversion context from a converted lead
+  // Identity of the customer this visit arrived with from a lead conversion.
+  // Deliberately separate from ltrCtx: ltrCtx is cleared as soon as the drawer
+  // closes (it drives the confirm/revert pair), but the drawer is routinely
+  // closed and reopened while picking a doctor and time slot. Keying the field
+  // lock off ltrCtx therefore unlocked the fields on the second open.
+  const [ltrLockCustId, setLtrLockCustId] = useState("");
   const ltrBookedRef = useRef(false);           // synchronous guard: booked vs cancelled
   const [isDrawerOpen,        setIsDrawerOpen]       = useState(false);
   const [selectedCustomer,    setSelectedCustomer]   = useState(null);
@@ -961,6 +967,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     const st = ltrLocation.state || {};
     if (st.ltrConversion && st.newCustomer) {
       setSelectedCustomer(st.newCustomer);
+      setLtrLockCustId(String(st.newCustomer.custId || st.newCustomer.custid || ""));
       setEditData(null);
       setLtrCtx(st.ltrConversion);
       ltrBookedRef.current = false;
@@ -1628,6 +1635,10 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             setLtrCtx(null);
           }}
           customer={selectedCustomer}
+          lockCustomerIdentity={
+            !!ltrLockCustId &&
+            String(selectedCustomer?.custId || selectedCustomer?.custid || "") === ltrLockCustId
+          }
           timeSlot={selectedTimeSlot}
           doctor={selectedDoctor}
           editAppointment={editData}

@@ -130,8 +130,13 @@ const CustomerSearch = ({
     // Prefer the persisted Citizen/Expat classification (computed at creation
     // from nationality-vs-centre country); fall back to the legacy nationality
     // heuristic only for older records with no stored CUSTOMERTYPE.
-    const persisted = cust.customerType || cust.CUSTOMERTYPE || '';
-    const status    = persisted || (natId === '84' ? 'Citizen' : 'Expat');
+    // CUSTOMERTYPE also doubles as a lifecycle marker and holds values like
+    // 'New', which is NOT a tax classification — treat anything that isn't
+    // Citizen/Expat as unknown. A MISSING nationality is left blank rather than
+    // defaulting to Expat: guessing silently applies VAT to a possible Citizen.
+    const rawType   = String(cust.customerType || cust.CUSTOMERTYPE || '').trim();
+    const persisted = /^(citizen|expat)$/i.test(rawType) ? rawType : '';
+    const status    = persisted || (natId && natId !== '0' ? (natId === '84' ? 'Citizen' : 'Expat') : '');
 
     setSearchText(fullName);
     setName(fullName);
@@ -210,6 +215,57 @@ const CustomerSearch = ({
     finally { setEnrolling(false); }
   };
 
+  // ── Missing nationality: fill it in without leaving the invoice ─────────────
+  // Citizen vs Expat decides whether VAT applies, so an invoice cannot be
+  // completed for a customer with no nationality. Rather than sending the user
+  // to Customer Master and losing the invoice in progress, it is captured here.
+  const [natDraft,   setNatDraft]   = useState('');
+  const [savingNat,  setSavingNat]  = useState(false);
+  const [natError,   setNatError]   = useState('');
+
+  // 'New' (and anything else that isn't Citizen/Expat) is not a tax
+  // classification — treat it as missing so the picker still appears.
+  const hasClassification = /^(citizen|expat)$/i.test(String(nationalityStatus || '').trim());
+  const needsNationality = !!selectedCustomer && !hasClassification;
+
+  const handleSaveNationality = async () => {
+    if (!selectedCustomer?.custId || !natDraft || savingNat) return;
+    setSavingNat(true); setNatError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Customer/UpdateNationality`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN()}` },
+        body: JSON.stringify({
+          custId: selectedCustomer.custId,
+          centerCode: getCenterCode(),
+          nationalityId: natDraft,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      const data = json?.data ?? json;
+      if (!res.ok || json?.success === false) {
+        setNatError(json?.message || 'Could not save the nationality.');
+        return;
+      }
+      const status  = data?.customerType || '';
+      const updated = {
+        ...selectedCustomer,
+        status,
+        customerType: status,
+        nationalityCode: Number(natDraft),
+        nationalityId:   Number(natDraft),
+      };
+      setNationalityStatus(status);
+      setSelectedCustomer(updated);
+      onCustomerSelect?.(updated);
+      setNatDraft('');
+    } catch (e) {
+      setNatError(e?.message || 'Could not save the nationality.');
+    } finally {
+      setSavingNat(false);
+    }
+  };
+
   const isSelected = !!selectedCustomer;
   /* The search box is read-only once a customer is pinned — either because one
      was picked from the dropdown, or because the invoice came from an
@@ -223,9 +279,35 @@ const CustomerSearch = ({
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:10 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
           <div className="sectttl">Customer Search</div>
-          {nationalityStatus && (
+          {hasClassification && (
             <span className={`nstatus ${nationalityStatus.toLowerCase()}`} style={{ fontWeight:'bold' }}>
               Nationality Status: {nationalityStatus}{nationalityName ? ` — ${nationalityName}` : ''}
+            </span>
+          )}
+          {needsNationality && (
+            <span style={{ display:'inline-flex', alignItems:'center', gap:6, flexWrap:'wrap',
+              background:'#fff7ed', border:'1px solid #fed7aa', color:'#9a3412',
+              borderRadius:8, padding:'5px 9px', fontSize:12, fontWeight:600 }}>
+              Nationality missing — Citizen/Expat and VAT can't be determined.
+              <select
+                value={natDraft}
+                onChange={e => { setNatDraft(e.target.value); setNatError(''); }}
+                disabled={savingNat}
+                style={{ height:26, borderRadius:6, border:'1px solid #fed7aa', fontSize:12, padding:'0 6px', background:'#fff' }}>
+                <option value="">Select nationality…</option>
+                {nationalities.map(n => {
+                  const code = n.code ?? n.id ?? n.NCODE;
+                  const nm   = n.name ?? n.NATIONALITYNAME ?? n.label;
+                  return <option key={code} value={code}>{nm}</option>;
+                })}
+              </select>
+              <button type="button" onClick={handleSaveNationality} disabled={!natDraft || savingNat}
+                style={{ height:26, padding:'0 10px', borderRadius:6, border:'none', fontSize:12, fontWeight:700,
+                  background: (!natDraft || savingNat) ? '#d6bfa8' : '#9a3412', color:'#fff',
+                  cursor: (!natDraft || savingNat) ? 'not-allowed' : 'pointer' }}>
+                {savingNat ? 'Saving…' : 'Save'}
+              </button>
+              {natError && <span style={{ fontWeight:500, color:'#b91c1c' }}>{natError}</span>}
             </span>
           )}
         </div>

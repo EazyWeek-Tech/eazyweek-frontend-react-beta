@@ -920,7 +920,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
         <span className="cd-count">{filtered.length>0
           ? <>showing {((page-1)*PAGE_SIZE+1).toLocaleString()}–{Math.min(page*PAGE_SIZE,filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}</>
           : "0 records"}</span>
-        <input className="cd-search" placeholder="Search (Customer, Mobile, Remarks…)"
+        <input className="cd-search" placeholder="Search (Customer, Cust ID, Mobile, Remarks…)"
           value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
       </div>
 
@@ -931,7 +931,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th>Lead ID</th><th>Lead Name</th><th>Mobile</th>
+                <th>Lead ID</th><th>Cust ID</th><th>Lead Name</th><th>Mobile</th>
                 <th>Status</th><th>Disposition</th><th>Appointment ID</th>
                 <th>Follow Up Date</th><th>Follow Up Time</th>
                 <th>Remarks</th><th>Sales Owner</th>
@@ -947,6 +947,14 @@ function ExternalSection({ oppCode, churnKey=0 }) {
                       )}>
                         {r.recid?`LD-EX-${fmtProspectId(r.recid,"").replace("—","")||r.recid}`:"—"}
                       </button>
+                    </td>
+                    <td>
+                      {(r.custID || r.custId)
+                        ? <button className="cd-link" onClick={()=>navigate(
+                            `/opportunity/external/${encodeURIComponent(oppCode)}/lead/${encodeURIComponent(r.recid||"")}`,
+                            {state:{oppCode,row:r}}
+                          )}>{safe(r.custID || r.custId)}</button>
+                        : "—"}
                     </td>
                     <td>{safe(r.custName)}</td>
                     <td>{safe(r.custMobileNo)}</td>
