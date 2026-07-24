@@ -262,6 +262,23 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const RESTRICTED = ["Checked In", "Active", "Completed"];
   const isRestricted = RESTRICTED.includes(status);
 
+  // ── Form-fill window ────────────────────────────────────────────
+  // Before/After-service forms (consent, treatment) belong to the visit itself.
+  // While the appointment is still Booked / Confirmed / Checked In the service
+  // has not started, so the form is not opened — a toast explains when it
+  // becomes available. Customer forms (Medical History) are NOT gated: those
+  // are filled at registration, before the visit.
+  const FORM_LOCK_STATUSES = ["Booked", "Confirmed", "Checked In"];
+  const formsLocked        = FORM_LOCK_STATUSES.includes(status);
+  const FORMS_LOCKED_MSG   = "Forms are to be filled when the appointment is active.";
+  // whenToFill comes from the service mapping; fall back to the status list.
+  const isServiceStageForm = (form) => {
+    const when = form?.whenToFill
+      || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
+      || "";
+    return String(when).trim().toLowerCase() !== "customer";
+  };
+
   const VISIBLE = (() => {
     if (isRestricted) {
       // Once in progress/done — allow progression but not cancel/no-show
@@ -519,7 +536,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 </span>
                 {medHistFilled
                   ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc" }}>✅ Filled</span>
-                  : <span style={{ fontSize:10, fontWeight:700, background:"#fef9c3", color:"#92400e", borderRadius:99, padding:"1px 8px", border:"1px solid #fde68a" }}>⏳ Pending</span>
+                  : <span style={{ fontSize:10, fontWeight:700, background:"#fef9c3", color:"#92400e", borderRadius:99, padding:"1px 8px", border:"1px solid #fde68a" }}> Pending</span>
                 }
               </button>
             );
@@ -534,7 +551,13 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               activeForms.map(form => {
                 const filled = sidebarForms.find(f => f.formCode === form.formCode);
                 const isFilled = filled?.status === "Completed";
+                const isLocked = formsLocked && isServiceStageForm(form);
                 const openForm = () => {
+                  // Button stays visible; the click is intercepted with a toast.
+                  if (isLocked) {
+                    setToast({ message: FORMS_LOCKED_MSG, type: "error" });
+                    return;
+                  }
                   const a = appt || appointment || {};
                   openFormDirect(form.formCode, {
                     customerName:     a.fullName         || "",
@@ -553,6 +576,8 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     </span>
                     {isFilled
                       ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc", whiteSpace:"nowrap" }}>✅ Done</span>
+                      : isLocked
+                      ? <span title={FORMS_LOCKED_MSG} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
                       : <span style={{ fontSize:10, fontWeight:700, background:"#f1f5f9", color:"#6e7b8f", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}>Open</span>
                     }
                   </button>
@@ -601,7 +626,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     border:     `1px solid ${f.status === "Completed" ? "#b3d9cc" : "#fde68a"}`,
                     padding:"1px 7px", borderRadius:99
                   }}>
-                    {f.status === "Completed" ? "✅ Done" : "⏳ Pending"}
+                    {f.status === "Completed" ? "✅ Done" : " Pending"}
                   </span>
                 </div>
               ))
@@ -828,7 +853,7 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
               alignItems:"center", padding:"3px 0", borderBottom:"0.5px solid #f1f5f9" }}>
               <span style={{ color:"#334b71", fontWeight:500 }}>{f.formName}</span>
               <span style={{ color: f.status==="Completed" ? "#166534" : "#94a3b8", fontSize:10, fontWeight:700, marginLeft:8 }}>
-                {f.status === "Completed" ? "✅ Done" : "⏳ Pending"}
+                {f.status === "Completed" ? "✅ Done" : " Pending"}
               </span>
             </div>
           ))}
