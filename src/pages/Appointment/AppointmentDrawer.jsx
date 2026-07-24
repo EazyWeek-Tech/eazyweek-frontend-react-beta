@@ -507,6 +507,17 @@ const ServiceList = ({ data = [], onDelete }) => (
 );
 
 // ── Appointment Drawer ─────────────────────────────────────────────────────────
+/* Local calendar date as YYYY-MM-DD.
+   new Date().toISOString() is UTC, so before 03:00 in KSA (UTC+3) it still
+   reports YESTERDAY — an early-morning booking would default to, and be
+   compared against, the wrong day. This uses the browser's local date. */
+const todayLocal = () => {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+
 const AppointmentDrawer = ({
   isOpen, onClose, timeSlot, doctor, customer,
   editAppointment, selectedDate, onRefreshAppointments,
@@ -517,9 +528,17 @@ const AppointmentDrawer = ({
 }) => {
   const drawerRef    = useRef(null);
   const [height,     setHeight]     = useState(433);
-  const [rescheduleDate, setRescheduleDate] = useState(
-    () => new Date().toISOString().split("T")[0]
-  );
+  const [rescheduleDate, setRescheduleDate] = useState(() => todayLocal());
+  // Date this appointment is booked for. Defaults to the day the scheduler is
+  // showing (which is today on a normal load) and can be changed here without
+  // leaving the drawer.
+  const [bookingDate, setBookingDate] = useState(() => selectedDate || todayLocal());
+
+  // Follow the scheduler when it moves, and reset to a sane value each time the
+  // drawer opens — otherwise a date picked for one booking leaks into the next.
+  useEffect(() => {
+    if (isOpen) setBookingDate(selectedDate || todayLocal());
+  }, [isOpen, selectedDate]);
   const [isResizing, setIsResizing] = useState(false);
   const [resetKey,   setResetKey]   = useState(Date.now());
 
@@ -596,9 +615,9 @@ const AppointmentDrawer = ({
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
 
 
-    const bookingDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
-    const today = new Date().toISOString().split("T")[0];
-    const isBookingPast = bookingDate < today;
+    const bookingDateValue = editAppointment?.isReschedule ? rescheduleDate : bookingDate;
+    const today = todayLocal();
+    const isBookingPast = bookingDateValue < today;
 
     setSubmitting(true);
 
@@ -621,7 +640,7 @@ const AppointmentDrawer = ({
           `${API_BASE_URL}/api/Appointment/SaveAppointment`,
           {
             existingAppointmentId: editAppointment.appointmentId,
-            appointmentDate:       bookingDate,
+            appointmentDate:       bookingDateValue,
             centerCode:            user.centerCode || "",
             custID:                customerData?.custid || "",
             userId:                user.userId || user.employeeCode || "",
@@ -680,7 +699,7 @@ const AppointmentDrawer = ({
 
     const payload = {
       custID:          bookingCustId,
-      appointmentDate: bookingDate,
+      appointmentDate: bookingDateValue,
       userId:          user.userId || user.employeeCode || "",
       centerCode:      user.centerCode || "",
       referenceId:     freshRefId,
@@ -747,10 +766,38 @@ const AppointmentDrawer = ({
               <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
             </svg>
           </div>
+          {/* Appointment date — editable without leaving the drawer. Hidden in
+              reschedule mode, which has its own date input in the banner below. */}
+          {!editAppointment?.isReschedule && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 20px",
+              borderBottom:"1px solid #e6ebf2", flexWrap:"wrap" }}>
+              <label htmlFor="apptBookingDate"
+                style={{ fontSize:12, fontWeight:700, color:"#5b6b85" }}>
+                Appointment Date
+              </label>
+              <input
+                id="apptBookingDate"
+                type="date"
+                value={bookingDate}
+                min={allowPastDates ? undefined : todayLocal()}
+                onChange={e => setBookingDate(e.target.value || todayLocal())}
+                style={{ padding:"5px 10px", border:"1px solid #cfd6e4", borderRadius:6,
+                  fontSize:13, fontFamily:"Lato,sans-serif", background:"#fff", cursor:"pointer" }}
+              />
+              {bookingDate !== todayLocal() && (
+                <button type="button" onClick={() => setBookingDate(todayLocal())}
+                  style={{ border:"none", background:"none", color:"#334b71", fontSize:12,
+                    fontWeight:600, cursor:"pointer", textDecoration:"underline" }}>
+                  Today
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Past date booking banner */}
           {(() => {
-            const bDate = editAppointment?.isReschedule ? rescheduleDate : selectedDate;
-            const tod   = new Date().toISOString().split("T")[0];
+            const bDate = editAppointment?.isReschedule ? rescheduleDate : bookingDate;
+            const tod   = todayLocal();
             return bDate && bDate < tod ? (
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 20px",
                 background:"#fef9c3", borderBottom:"1px solid #fde68a" }}>
