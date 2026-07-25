@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { getFeatureSet } from "../config/licenseConfig";
 
@@ -16,9 +16,12 @@ import { getFeatureSet } from "../config/licenseConfig";
  * longer match. The 80px flow footprint is reproduced here instead, so
  * .rhs-sect { width: calc(100% - 110px) } keeps working unchanged.
  *
- * PROP NOTE: `collapsed` is inherited from the old component, where it mapped
- * to the .expand class -- i.e. truthy means "pinned open", not "collapsed".
- * Same behaviour is preserved here as .is-pinned.
+ * OPEN/CLOSE: the rail opens on hover and closes on the way out. Opening is
+ * driven from React state rather than a CSS :hover rule, because navigating
+ * has to close the rail while the pointer is still sitting on it -- something
+ * :hover cannot express. Passing `collapsed` pins it open (the prop is
+ * inherited from the old component, where it mapped to .expand, so truthy
+ * means "pinned open" despite the name).
  *
  * Paths marked TODO have no route in App.jsx yet; they are wired to the most
  * likely path so the menu renders, but they need confirming.
@@ -53,9 +56,9 @@ const SIDEBAR_CSS = `
   --ez-ink-dim: #a9b8d6;
   --ez-ink-faint: #7f93bb;
   --ez-accent: #dd7766;
-  --ez-hover: rgba(255, 255, 255, 0.07);
+  --ez-hover: #dd7766;
   --ez-active: rgba(255, 255, 255, 0.13);
-  --ez-rule: rgba(255, 255, 255, 0.6);
+  --ez-rule: rgba(255, 255, 255, 0.1);
 
   --ez-rail: 80px;
   --ez-open: 272px;
@@ -89,8 +92,7 @@ const SIDEBAR_CSS = `
   transition: width 0.3s var(--ez-ease), box-shadow 0.3s var(--ez-ease);
 }
 
-.ez-nav:hover .ez-panel,
-.ez-nav.is-pinned .ez-panel {
+.ez-nav.is-open .ez-panel {
   width: var(--ez-open);
   box-shadow: 6px 0 28px rgba(5, 34, 76, 0.22);
 }
@@ -109,7 +111,7 @@ const SIDEBAR_CSS = `
   height: auto;
   transition: transform 0.3s var(--ez-ease-out);
 }
-.ez-nav:is(:hover, .is-pinned) .ez-logo img {
+.ez-nav.is-open .ez-logo img {
   transform: scale(1.05);
 }
 
@@ -165,8 +167,8 @@ const SIDEBAR_CSS = `
   transform: translateX(-6px);
   transition: opacity 0.24s var(--ez-ease) 0.06s, transform 0.3s var(--ez-ease-out) 0.06s;
 }
-.ez-nav:is(:hover, .is-pinned) .ez-group-title::before { opacity: 0; }
-.ez-nav:is(:hover, .is-pinned) .ez-group-title span {
+.ez-nav.is-open .ez-group-title::before { opacity: 0; }
+.ez-nav.is-open .ez-group-title span {
   opacity: 1;
   transform: none;
 }
@@ -220,7 +222,10 @@ const SIDEBAR_CSS = `
   color: #fff;
   background: var(--ez-hover);
 }
-.ez-nav .ez-head:hover::before { transform: scaleY(0.5); }
+.ez-nav .ez-head:hover::before {
+  transform: scaleY(1);
+  background: #fff;
+}
 
 .ez-item.is-open > .ez-head,
 .ez-nav .ez-head.is-active {
@@ -249,7 +254,7 @@ const SIDEBAR_CSS = `
   pointer-events: none;
   transition: opacity 0.24s var(--ez-ease), transform 0.3s var(--ez-ease-out);
 }
-.ez-nav:is(:hover, .is-pinned) .ez-label {
+.ez-nav.is-open .ez-label {
   opacity: 1;
   transform: none;
   pointer-events: auto;
@@ -265,12 +270,20 @@ const SIDEBAR_CSS = `
   transition: transform 0.28s var(--ez-ease-out), opacity 0.2s var(--ez-ease),
     color 0.2s var(--ez-ease);
 }
-.ez-nav:is(:hover, .is-pinned) .ez-chev { opacity: 1; }
+.ez-nav.is-open .ez-chev { opacity: 1; }
 .ez-item.is-open > .ez-head .ez-chev,
 .ez-branch.is-open > .ez-link .ez-chev {
   transform: rotate(180deg);
   color: var(--ez-accent);
 }
+
+/* the module that owns the current page keeps its accent bar even once the
+   menu has closed -- this is the only "you are here" cue in the 80px rail */
+.ez-item.is-current > .ez-head {
+  color: #fff;
+}
+.ez-item.is-current > .ez-head::before { transform: scaleY(1); }
+.ez-item.is-current > .ez-head .ez-icon { color: var(--ez-accent); }
 
 /* ---------- the accordion ----------
    grid-template-rows 0fr -> 1fr animates to the real height with no JS
@@ -288,9 +301,8 @@ const SIDEBAR_CSS = `
   overflow: hidden;
   min-height: 0;
 }
-/* submenus stay shut while the rail is closed — hovering opens the rail,
-   so there is never a state where you need a flyout */
-.ez-nav:not(:hover):not(.is-pinned) .ez-collapse {
+/* submenus stay shut whenever the rail is shut */
+.ez-nav:not(.is-open) .ez-collapse {
   grid-template-rows: 0fr;
 }
 
@@ -352,6 +364,22 @@ const SIDEBAR_CSS = `
 .ez-nav .ez-link.is-active .ez-dot { background: var(--ez-accent); transform: scale(1.5); }
 
 .ez-branch.is-open > .ez-link--branch { color: #fff; }
+
+/* ---------- hover wash ----------
+   The row goes solid coral, so anything inside it that normally carries its
+   own colour -- the rotated chevron, the current-module icon, the active dot
+   -- has to be forced white. Each of these selectors is deliberately one
+   class heavier than the rule it is beating.                               */
+.ez-nav .ez-item .ez-head:hover .ez-icon,
+.ez-nav .ez-item .ez-head:hover .ez-chev,
+.ez-nav .ez-branch .ez-link:hover .ez-chev {
+  color: #fff;
+}
+.ez-nav .ez-link:hover .ez-dot,
+.ez-nav .ez-link.is-active:hover .ez-dot {
+  background: #fff;
+  transform: scale(1.4);
+}
 
 /* ---------- focus + reduced motion ---------- */
 .ez-nav a:focus-visible,
@@ -472,7 +500,7 @@ const NAV_GROUPS = [
           {
             name: "Reports",
             feature: "reporting",
-            children: [{ name: "Case Management Report - Detailed", path: "/case-detailed-report" }],
+            children: [{ name: "Case Mgmt Report - Detailed", path: "/case-detailed-report" }],
           },
         ],
       },
@@ -508,7 +536,7 @@ const NAV_GROUPS = [
           { name: "Payment Report", path: "/reports/payment-report" },
           { name: "Opportunity Report - Detailed", path: "/opportunity/detailed" },
           { name: "Opportunity Report - Summary", path: "/opportunity/summary" },
-          { name: "Case Management Report - Detailed", path: "/case-detailed-report" },
+          { name: "Case Mgmt Report - Detailed", path: "/case-detailed-report" },
           { name: "Audit Report - Detailed", path: "/audit/detailed" },
           { name: "Audit Report - Summary", path: "/audit/summary" },
           { name: "Courtesy Call Report - Detailed", path: "/courtesy-call/report" },
@@ -621,27 +649,53 @@ const pruneByFeatures = (nodes, features) =>
 
 const nodeKey = (prefix, node, i) => `${prefix}/${node.label || node.name || i}`;
 
-/* Collect every branch key that contains the current pathname, so the
-   active page's parents open automatically on load / route change. */
-const branchesFor = (groups, pathname) => {
-  const open = {};
-  const walk = (nodes, prefix) => {
-    let hit = false;
-    nodes.forEach((node, i) => {
-      const key = nodeKey(prefix, node, i);
-      if (node.children) {
-        if (walk(node.children, key)) {
-          open[key] = true;
-          hit = true;
-        }
-      } else if (node.path && (pathname === node.path || pathname.startsWith(node.path + "/"))) {
-        hit = true;
+/* ------------------------------------------------------------------ */
+/* Resolving "which row is the current page"                          */
+/*                                                                    */
+/* NavLink's own isActive cannot do this job here, for two reasons:   */
+/*                                                                    */
+/*   1. Ten routes appear TWICE — the Insights group deliberately     */
+/*      re-lists every report that already lives under its module.    */
+/*      A URL match lights up both copies.                            */
+/*   2. Ten routes are prefixes of others (/audit vs /audit/detailed, */
+/*      /invoice vs /invoice/dashboard, ...). NavLink without `end`   */
+/*      matches on prefix, so "Audit Dashboard" also lights up while  */
+/*      you are on the Audit detailed report.                         */
+/*                                                                    */
+/* So one key is resolved for the whole menu: longest path wins (that */
+/* kills the prefix case), first occurrence wins on a tie (a report   */
+/* highlights in its own module rather than in Insights), and a row   */
+/* the user actually clicked overrides both for as long as the URL    */
+/* still matches it.                                                  */
+/* ------------------------------------------------------------------ */
+const findActive = (groups, pathname) => {
+  let best = null;
+
+  const visit = (node, key, moduleKey) => {
+    if (node.children) {
+      node.children.forEach((child, i) => visit(child, nodeKey(key, child, i), moduleKey));
+      return;
+    }
+    if (!node.path) return;
+    const hit = pathname === node.path || pathname.startsWith(node.path + "/");
+    if (!hit) return;
+    if (!best || node.path.length > best.length) {
+      best = { key, moduleKey, length: node.path.length };
+    }
+  };
+
+  groups.forEach((group, gi) => {
+    group.items.forEach((item, ii) => {
+      const moduleKey = nodeKey(`g${gi}`, item, ii);
+      if (item.children) {
+        item.children.forEach((child, i) => visit(child, nodeKey(moduleKey, child, i), moduleKey));
+      } else {
+        visit(item, moduleKey, moduleKey);
       }
     });
-    return hit;
-  };
-  groups.forEach((g, gi) => walk(g.items, `g${gi}`));
-  return open;
+  });
+
+  return best || {};
 };
 
 const Sidebar = ({ collapsed, currentUser }) => {
@@ -657,15 +711,41 @@ const Sidebar = ({ collapsed, currentUser }) => {
     );
   }, [currentUser]);
 
-  const [open, setOpen] = useState({});
+  const [expandedMenus, setExpandedMenus] = useState({});
+  const [hovering, setHovering] = useState(false);
+  // Set the moment a page link is used. Keeps the rail shut even though the
+  // pointer has not moved off it yet; cleared when the pointer does leave.
+  const [dismissed, setDismissed] = useState(false);
+  // The row the user clicked, remembered so a duplicated route highlights
+  // where they actually clicked rather than at its first occurrence.
+  const [clicked, setClicked] = useState(null);
 
-  // Open the branch that holds the current route.
+  const isOpen = !!collapsed || (hovering && !dismissed);
+
+  const resolved = useMemo(() => findActive(groups, location.pathname), [groups, location.pathname]);
+  const active = clicked && clicked.path === location.pathname ? clicked : resolved;
+
+  // Every navigation closes the menus. Landing on a page fresh leaves them
+  // closed too, since this is the initial state.
   useEffect(() => {
-    setOpen((prev) => ({ ...prev, ...branchesFor(groups, location.pathname) }));
-  }, [location.pathname, groups]);
+    setExpandedMenus({});
+    setDismissed(true);
+  }, [location.pathname]);
+
+  const handleLeave = useCallback(() => {
+    setHovering(false);
+    setDismissed(false);
+    setExpandedMenus({});
+  }, []);
+
+  const openPage = (key, moduleKey, path) => {
+    setClicked({ key, moduleKey, path });
+    setExpandedMenus({});
+    setDismissed(true);
+  };
 
   const toggle = (key, depth) =>
-    setOpen((prev) => {
+    setExpandedMenus((prev) => {
       const wasOpen = !!prev[key];
 
       // Module level: accordion -- opening one closes the rest.
@@ -683,20 +763,20 @@ const Sidebar = ({ collapsed, currentUser }) => {
       return next;
     });
 
-  const renderChildren = (nodes, prefix, depth) => (
+  const renderChildren = (nodes, prefix, depth, moduleKey) => (
     <ul className="ez-sub-list">
       {nodes.map((node, i) => {
         const key = nodeKey(prefix, node, i);
         const style = { "--i": i };
 
         if (node.children) {
-          const isOpen = !!open[key];
+          const branchOpen = !!expandedMenus[key];
           return (
-            <li key={key} className={`ez-branch ${isOpen ? "is-open" : ""}`} style={style}>
+            <li key={key} className={`ez-branch ${branchOpen ? "is-open" : ""}`} style={style}>
               <button
                 type="button"
                 className="ez-link ez-link--branch"
-                aria-expanded={isOpen}
+                aria-expanded={branchOpen}
                 onClick={(e) => {
                   e.stopPropagation();
                   toggle(key, depth);
@@ -708,7 +788,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
               </button>
               <div className="ez-collapse">
                 <div className="ez-collapse-inner">
-                  {renderChildren(node.children, key, depth + 1)}
+                  {renderChildren(node.children, key, depth + 1, moduleKey)}
                 </div>
               </div>
             </li>
@@ -719,7 +799,8 @@ const Sidebar = ({ collapsed, currentUser }) => {
           <li key={key} style={style}>
             <NavLink
               to={node.path}
-              className={({ isActive }) => `ez-link ${isActive ? "is-active" : ""}`}
+              className={`ez-link ${key === active.key ? "is-active" : ""}`}
+              onClick={() => openPage(key, moduleKey, node.path)}
             >
               <span className="ez-dot" />
               <span className="ez-label">{node.name}</span>
@@ -732,8 +813,9 @@ const Sidebar = ({ collapsed, currentUser }) => {
 
   return (
     <aside
-      className={`ez-nav ${collapsed ? "is-pinned" : ""}`}
-      onMouseLeave={() => setOpen(branchesFor(groups, location.pathname))}
+      className={`ez-nav ${isOpen ? "is-open" : ""} ${collapsed ? "is-pinned" : ""}`}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={handleLeave}
     >
       <div className="ez-panel">
         <div className="ez-brand">
@@ -744,10 +826,11 @@ const Sidebar = ({ collapsed, currentUser }) => {
 
         <nav className="ez-scroll">
           <ul className="ez-root">
-            <li className="ez-item">
+            <li className={`ez-item ${location.pathname === "/dashboard" ? "is-current" : ""}`}>
               <NavLink
                 to="/dashboard"
-                className={({ isActive }) => `ez-head ${isActive ? "is-active" : ""}`}
+                className={`ez-head ${location.pathname === "/dashboard" ? "is-active" : ""}`}
+                onClick={() => openPage(null, null, "/dashboard")}
               >
                 <i className="bx bx-home-alt ez-icon" />
                 <span className="ez-label">Home</span>
@@ -763,15 +846,17 @@ const Sidebar = ({ collapsed, currentUser }) => {
               <ul className="ez-root">
                 {group.items.map((item, ii) => {
                   const key = nodeKey(`g${gi}`, item, ii);
-                  const isOpen = !!open[key];
+                  const menuOpen = !!expandedMenus[key];
+                  const isCurrent = key === active.moduleKey;
 
                   // Module with no submenu (Customer 360) -- plain link.
                   if (!item.children) {
                     return (
-                      <li className="ez-item" key={key}>
+                      <li className={`ez-item ${isCurrent ? "is-current" : ""}`} key={key}>
                         <NavLink
                           to={item.path}
-                          className={({ isActive }) => `ez-head ${isActive ? "is-active" : ""}`}
+                          className={`ez-head ${key === active.key ? "is-active" : ""}`}
+                          onClick={() => openPage(key, key, item.path)}
                         >
                           <i className={`bx ${item.icon} ez-icon`} />
                           <span className="ez-label">{item.label}</span>
@@ -781,11 +866,16 @@ const Sidebar = ({ collapsed, currentUser }) => {
                   }
 
                   return (
-                    <li className={`ez-item ${isOpen ? "is-open" : ""}`} key={key}>
+                    <li
+                      className={`ez-item ${menuOpen ? "is-open" : ""} ${
+                        isCurrent ? "is-current" : ""
+                      }`}
+                      key={key}
+                    >
                       <button
                         type="button"
                         className="ez-head"
-                        aria-expanded={isOpen}
+                        aria-expanded={menuOpen}
                         onClick={() => toggle(key, 0)}
                       >
                         <i className={`bx ${item.icon} ez-icon`} />
@@ -795,7 +885,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
 
                       <div className="ez-collapse">
                         <div className="ez-collapse-inner">
-                          {renderChildren(item.children, key, 1)}
+                          {renderChildren(item.children, key, 1, key)}
                         </div>
                       </div>
                     </li>
