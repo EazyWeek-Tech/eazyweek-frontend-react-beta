@@ -356,7 +356,7 @@ export default function LTRFunnelDashboard() {
   const showUpUnavailable = (funnel?.notes || []).some((n) => String(n).toLowerCase().includes("showedup"));
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", padding:"22px 26px", fontFamily:"Lato, system-ui, sans-serif" }}>
+    <div style={{ background:C.bg, minHeight:"100vh", padding:"24px 26px", fontFamily:"Lato, system-ui, sans-serif" }}>
       <style>{`
         .ltrf-top { display:grid; grid-template-columns:minmax(0,2fr) minmax(230px,1fr); gap:16px; margin-bottom:16px; }
         @media (max-width:920px){ .ltrf-top { grid-template-columns:1fr; } }
