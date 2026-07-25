@@ -1,27 +1,21 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { getFeatureSet } from "../config/licenseConfig";
 
 /**
- * EazyWeek navigation.
+ * EazyWeek navigation -- built to EazyWeek_Nav_Prototype.html.
  *
- * Structure comes from Navigation - UI.xlsx (Sheet2): five groups, each holding
- * modules, each module holding pages -- and in three places a third level
- * ("Reports"). The old flat navItems array could not express that, so the tree
- * below is { group -> items -> children -> children }.
+ * Shape from the prototype: a permanently open 280px rail (brand, "Jump to"
+ * search, grouped modules) whose submenus open as a panel anchored to the TOP
+ * of the rail, beside it -- not as an accordion under the row. A module with
+ * a nested group (Invoice -> Reports) renders that group as a labelled
+ * section inside the panel, so there is no second level of expanding.
  *
- * LAYOUT NOTE: this component deliberately does NOT use the .lhs-nav class any
- * more. index.css caps .lhs-nav at max-width:80px and sets overflow:hidden,
- * which would clip this menu. Those rules are left untouched and simply no
- * longer match. The 80px flow footprint is reproduced here instead, so
- * .rhs-sect { width: calc(100% - 110px) } keeps working unchanged.
- *
- * OPEN/CLOSE: the rail opens on hover and closes on the way out. Opening is
- * driven from React state rather than a CSS :hover rule, because navigating
- * has to close the rail while the pointer is still sitting on it -- something
- * :hover cannot express. Passing `collapsed` pins it open (the prop is
- * inherited from the old component, where it mapped to .expand, so truthy
- * means "pinned open" despite the name).
+ * The rail sits closed at 80px and opens to 280px on hover, expanding as an
+ * OVERLAY so the page never reflows. That keeps the 80px flow footprint of the
+ * old .lhs-nav, so index.css needs no change at all -- .rhs-sect can stay at
+ * calc(100% - 110px). This component no longer uses the .lhs-nav class, so
+ * those rules simply stop matching.
  *
  * Paths marked TODO have no route in App.jsx yet; they are wired to the most
  * likely path so the menu renders, but they need confirming.
@@ -35,23 +29,19 @@ const STYLE_ID = "ez-sidebar-styles";
 
 const SIDEBAR_CSS = `
 /* ==========================================================================
-   EazyWeek sidebar
-   --------------------------------------------------------------------------
-   Layout contract with index.css:
-     .ot-wrapper is display:flex, .rhs-sect is width:calc(100% - 110px).
-     So the rail must occupy exactly 80px of flow, the same as the old
-     .lhs-nav, and must EXPAND AS AN OVERLAY on top of the content rather
-     than pushing it — otherwise the page reflows on every hover.
+   EazyWeek sidebar -- matches EazyWeek_Nav_Prototype.html
 
-   .ez-nav (in flow)  = an 80px spacer, never changes width.
-   .ez-panel (fixed)  = the visible rail, 80px -> 272px on hover / when pinned.
+   Shape taken from the prototype recording: a permanently open 280px rail
+   (brand, "Jump to" search, grouped modules) with submenus opening as a panel
+   anchored to the TOP of the rail rather than inline under the row.
 
-   The component no longer carries the .lhs-nav class, so none of the old
-   sidebar rules in index.css apply to it. Nothing there needs deleting.
+   LAYOUT: the rail holds its 280px in normal flow inside .ot-wrapper, so
+   index.css needs one change -- see the note in the component header.
    ========================================================================== */
 
 .ez-nav {
   --ez-field: #2b3f73;
+  --ez-field-deep: #22335f;
   --ez-ink: #e8edf7;
   --ez-ink-dim: #a9b8d6;
   --ez-ink-faint: #7f93bb;
@@ -60,12 +50,15 @@ const SIDEBAR_CSS = `
   --ez-active: rgba(255, 255, 255, 0.13);
   --ez-rule: rgba(255, 255, 255, 0.1);
 
-  --ez-rail: 80px;
-  --ez-open: 272px;
+  --ez-rail: 80px;   /* closed */
+  --ez-w: 280px;     /* open */
+  --ez-flyout-w: 268px;
   --ez-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ez-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* in-flow spacer — matches the old .lhs-nav footprint exactly */
+  /* the in-flow footprint never changes -- only the fixed panel on top of it
+     grows, so opening the rail cannot reflow the page */
+  position: relative;
   flex: 0 0 var(--ez-rail);
   width: var(--ez-rail);
   min-width: var(--ez-rail);
@@ -76,7 +69,6 @@ const SIDEBAR_CSS = `
   font-size: 14px;
 }
 
-/* the visible rail, lifted out of flow so expanding never reflows the page */
 .ez-panel {
   position: fixed;
   top: 0;
@@ -86,41 +78,125 @@ const SIDEBAR_CSS = `
   display: flex;
   flex-direction: column;
   width: var(--ez-rail);
+  overflow: hidden;
   background: var(--ez-field);
   color: var(--ez-ink);
-  overflow: hidden;
   transition: width 0.3s var(--ez-ease), box-shadow 0.3s var(--ez-ease);
 }
-
 .ez-nav.is-open .ez-panel {
-  width: var(--ez-open);
+  width: var(--ez-w);
   box-shadow: 6px 0 28px rgba(5, 34, 76, 0.22);
 }
+
+/* everything that only makes sense once the rail is open */
+.ez-wordmark,
+.ez-nav .ez-search input,
+.ez-kbd,
+.ez-label,
+.ez-nav .ez-chev {
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+  transition: opacity 0.22s var(--ez-ease), transform 0.28s var(--ez-ease-out);
+}
+.ez-nav.is-open .ez-wordmark,
+.ez-nav.is-open .ez-search input,
+.ez-nav.is-open .ez-kbd,
+.ez-nav.is-open .ez-label,
+.ez-nav.is-open .ez-chev {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ez-nav .ez-search input{outline: transparent;}
 
 /* ---------- brand ---------- */
 .ez-brand {
   display: flex;
   align-items: center;
-  height: 64px;
+  gap: 10px;
+  height: 60px;
   padding: 0 20px;
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--ez-rule);
 }
-.ez-nav .ez-logo img {
-  width: 40px;
-  height: auto;
-  transition: transform 0.3s var(--ez-ease-out);
+.ez-nav .ez-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  text-decoration: none;
 }
-.ez-nav.is-open .ez-logo img {
-  transform: scale(1.05);
+.ez-nav .ez-logo img { width: 32px; height: auto; }
+.ez-wordmark {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
+
+/* ---------- "Jump to" search ---------- */
+.ez-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 10px;
+  padding: 10px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background-color 0.18s var(--ez-ease), box-shadow 0.18s var(--ez-ease);
+}
+.ez-search:focus-within {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+.ez-search .bx { font-size: 17px; color: var(--ez-ink-faint);padding:10px 0; }
+.ez-nav .ez-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.ez-nav .ez-search input::placeholder { color: var(--ez-ink-faint); }
+.ez-kbd {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--ez-rule);
+  color: var(--ez-ink-faint);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* closed: the search shrinks to just its icon, and group headings that would
+   truncate to "VIS" / "CU5" become a hairline rule instead */
+.ez-nav:not(.is-open) .ez-search {
+  margin-left: 22px;
+  margin-right: 22px;
+  padding: 0 9px;
+}
+.ez-nav:not(.is-open) .ez-group-title {
+  position: relative;
+  height: 1px;
+  margin: 18px 24px 12px;
+  padding: 0;
+  color: transparent;
+  background: var(--ez-rule);
+  overflow: hidden;
+}
+.ez-nav:not(.is-open) .ez-head { padding-left: 30px; }
 
 /* ---------- scroll area ---------- */
 .ez-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 0 28px;
+  padding: 4px 0 28px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
@@ -130,52 +206,19 @@ const SIDEBAR_CSS = `
   border-radius: 5px;
 }
 
-/* ---------- group headings ----------
-   In rail state the text would truncate to "VIS" / "CU5", so it collapses
-   to a hairline rule instead and fades back in as the rail opens.          */
-.ez-group { position: relative; }
-
+/* ---------- group headings ---------- */
 .ez-group-title {
-  position: relative;
   margin: 16px 0 4px;
   padding: 0 20px;
-  height: 16px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ez-ink-faint);
   white-space: nowrap;
-  overflow: hidden;
-}
-/* the hairline shown while collapsed */
-.ez-group-title::before {
-  content: "";
-  position: absolute;
-  left: 24px;
-  right: 24px;
-  top: 7px;
-  height: 1px;
-  background: var(--ez-rule);
-  opacity: 1;
-  transition: opacity 0.18s var(--ez-ease);
-}
-.ez-group-title span {
-  position: relative;
-  display: inline-block;
-  opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.24s var(--ez-ease) 0.06s, transform 0.3s var(--ez-ease-out) 0.06s;
-}
-.ez-nav.is-open .ez-group-title::before { opacity: 0; }
-.ez-nav.is-open .ez-group-title span {
-  opacity: 1;
-  transform: none;
 }
 
-/* ---------- lists ---------- */
-.ez-root,
-.ez-sub-list {
+.ez-root {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -189,7 +232,7 @@ const SIDEBAR_CSS = `
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 11px 16px 11px 26px;
+  padding: 10px 14px 10px 20px;
   background: none;
   border: 0;
   color: var(--ez-ink-dim);
@@ -198,188 +241,220 @@ const SIDEBAR_CSS = `
   font-weight: 500;
   text-align: left;
   text-decoration: none;
-  cursor: pointer;
   white-space: nowrap;
-  transition: color 0.18s var(--ez-ease), background-color 0.18s var(--ez-ease);
+  cursor: pointer;
+  transition: color 0.16s var(--ez-ease), background-color 0.16s var(--ez-ease);
 }
-
-/* left accent bar — scales in from the centre */
 .ez-nav .ez-head::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 5px;
+  bottom: 5px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--ez-accent);
   transform: scaleY(0);
   transform-origin: center;
+  transition: transform 0.26s var(--ez-ease-out), background-color 0.16s var(--ez-ease);
+}
+.ez-nav .ez-icon {
+  display: block;
+  font-size: 20px;
+  flex: 0 0 20px;
+  line-height: 1;
   transition: transform 0.26s var(--ez-ease-out);
 }
-
-.ez-nav .ez-head:hover {
-  color: #fff;
-  background: var(--ez-hover);
+.ez-label {
+  flex: 1 1 auto;
+  min-width: 0;          /* without this a flex child will not ellipsis */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ez-nav .ez-head:hover::before {
-  transform: scaleY(1);
-  background: #fff;
+.ez-nav .ez-chev {
+  display: block;
+  flex: 0 0 auto;
+  font-size: 17px;
+  color: var(--ez-ink-faint);
+  transition: transform 0.24s var(--ez-ease-out), color 0.16s var(--ez-ease);
 }
 
+/* open module + current module */
 .ez-item.is-open > .ez-head,
 .ez-nav .ez-head.is-active {
   color: #fff;
   background: var(--ez-active);
 }
 .ez-item.is-open > .ez-head::before,
-.ez-nav .ez-head.is-active::before { transform: scaleY(1); }
-
-.ez-nav .ez-icon {
-  display: block;
-  font-size: 22px;
-  flex: 0 0 22px;
-  line-height: 1;
-  transition: transform 0.26s var(--ez-ease-out);
-}
-.ez-nav .ez-head:hover .ez-icon { transform: translateY(-1px) scale(1.08); }
-
-/* labels are hidden in rail state and slide in as it opens */
-.ez-label {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0;
-  transform: translateX(-6px);
-  pointer-events: none;
-  transition: opacity 0.24s var(--ez-ease), transform 0.3s var(--ez-ease-out);
-}
-.ez-nav.is-open .ez-label {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-
-/* chevron */
-.ez-nav .ez-chev {
-  display: block;
-  flex: 0 0 auto;
-  font-size: 18px;
-  color: var(--ez-ink-faint);
-  opacity: 0;
-  transition: transform 0.28s var(--ez-ease-out), opacity 0.2s var(--ez-ease),
-    color 0.2s var(--ez-ease);
-}
-.ez-nav.is-open .ez-chev { opacity: 1; }
-.ez-item.is-open > .ez-head .ez-chev,
-.ez-branch.is-open > .ez-link .ez-chev {
-  transform: rotate(180deg);
-  color: var(--ez-accent);
-}
-
-/* the module that owns the current page keeps its accent bar even once the
-   menu has closed -- this is the only "you are here" cue in the 80px rail */
-.ez-item.is-current > .ez-head {
-  color: #fff;
-}
+.ez-nav .ez-head.is-active::before,
 .ez-item.is-current > .ez-head::before { transform: scaleY(1); }
+.ez-item.is-current > .ez-head { color: #fff; }
 .ez-item.is-current > .ez-head .ez-icon { color: var(--ez-accent); }
+.ez-item.is-open > .ez-head .ez-chev { transform: translateX(2px); color: #fff; }
 
-/* ---------- the accordion ----------
-   grid-template-rows 0fr -> 1fr animates to the real height with no JS
-   measuring and no max-height guess that clips a long submenu.            */
-.ez-collapse {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.32s var(--ez-ease-out);
+/* ---------- flyout panel ----------
+   Anchored to the top of the rail, exactly as in the prototype: it does not
+   follow the hovered row down the list.                                     */
+.ez-flyout {
+  position: fixed;
+  top: 0;
+  bottom: 0;            /* full viewport height, flush with the rail */
+  left: var(--ez-w);
+  z-index: 899;
+  /* only ever shown while the rail is open, so it never floats beside a
+     closed 80px rail */
+  width: var(--ez-flyout-w);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 0 16px;
+  background: #fff;
+  border-right: 1px solid #e4e8f0;
+  box-shadow: 10px 0 30px rgba(5, 34, 76, 0.12);
+
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-10px);
+  transition: opacity 0.2s var(--ez-ease), transform 0.28s var(--ez-ease-out),
+    visibility 0.2s;
 }
-.ez-item.is-open > .ez-collapse,
-.ez-branch.is-open > .ez-collapse {
-  grid-template-rows: 1fr;
-}
-.ez-collapse-inner {
-  overflow: hidden;
-  min-height: 0;
-}
-/* submenus stay shut whenever the rail is shut */
-.ez-nav:not(.is-open) .ez-collapse {
-  grid-template-rows: 0fr;
+.ez-flyout.is-shown {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
 }
 
-/* ---------- submenu links ---------- */
+.ez-flyout-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d7dded transparent;
+}
+.ez-flyout-body::-webkit-scrollbar { width: 5px; }
+.ez-flyout-body::-webkit-scrollbar-thumb { background: #d7dded; border-radius: 5px; }
+
+.ez-flyout-title {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+  padding: 0 18px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c2b4a;
+  border-bottom: 1px solid #eef1f6;
+}
+.ez-flyout-section {
+  margin: 12px 0 2px;
+  padding: 0 18px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8b9ab5;
+}
+.ez-flyout ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .ez-nav .ez-link {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 8px 16px 8px 36px;
-  background: none;
-  border: 0;
-  color: var(--ez-ink-dim);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  text-align: left;
-  text-decoration: none;
+  padding: 9px 18px;
   white-space: nowrap;
-  cursor: pointer;
+  color: #3d4c6b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
 
-  /* staggered reveal — --i is set inline per row */
+  /* staggered reveal -- --i is set inline per row */
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateX(-8px);
   transition:
-    opacity 0.24s var(--ez-ease) calc(var(--i, 0) * 26ms),
-    transform 0.3s var(--ez-ease-out) calc(var(--i, 0) * 26ms),
-    color 0.16s var(--ez-ease),
-    background-color 0.16s var(--ez-ease);
+    opacity 0.22s var(--ez-ease) calc(var(--i, 0) * 24ms),
+    transform 0.28s var(--ez-ease-out) calc(var(--i, 0) * 24ms),
+    color 0.14s var(--ez-ease),
+    background-color 0.14s var(--ez-ease);
 }
-.ez-item.is-open .ez-link,
-.ez-branch.is-open .ez-link {
+.ez-flyout.is-shown .ez-link {
   opacity: 1;
   transform: none;
 }
-.ez-nav .ez-link:hover {
-  color: #fff;
-  background: var(--ez-hover);
-}
-.ez-nav .ez-link.is-active {
-  color: #fff;
-  font-weight: 600;
-}
+.ez-flyout .ez-sub-indent { padding-left: 30px; }
 
-/* third level indents once more */
-.ez-branch .ez-sub-list .ez-link { padding-left: 52px; }
-
-/* marker dot */
+/* submenu rows carry their own icon; the dot is the fallback for any row
+   that has not been given one */
+.ez-nav .ez-subicon {
+  display: block;
+  flex: 0 0 18px;
+  font-size: 17px;
+  line-height: 1;
+  color: #8391ac;
+  transition: color 0.16s var(--ez-ease), transform 0.22s var(--ez-ease-out);
+}
 .ez-dot {
   flex: 0 0 5px;
   height: 5px;
   width: 5px;
+  margin: 0 6px;
   border-radius: 50%;
-  background: var(--ez-ink-faint);
-  transition: background-color 0.18s var(--ez-ease), transform 0.24s var(--ez-ease-out);
+  background: #c3cbdb;
+  transition: background-color 0.16s var(--ez-ease), transform 0.22s var(--ez-ease-out);
 }
-.ez-nav .ez-link:hover .ez-dot { transform: scale(1.4); background: var(--ez-ink); }
+.ez-nav .ez-link.is-active { color: #1c2b4a; font-weight: 600; }
+.ez-nav .ez-link.is-active .ez-subicon { color: var(--ez-accent); }
 .ez-nav .ez-link.is-active .ez-dot { background: var(--ez-accent); transform: scale(1.5); }
 
-.ez-branch.is-open > .ez-link--branch { color: #fff; }
+/* ---------- search results ---------- */
+.ez-empty {
+  padding: 6px 18px 2px;
+  color: #8b9ab5;
+  font-size: 13px;
+}
+.ez-crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42%;
+  margin-left: auto;
+  padding-left: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9aa7c0;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 
 /* ---------- hover wash ----------
-   The row goes solid coral, so anything inside it that normally carries its
-   own colour -- the rotated chevron, the current-module icon, the active dot
-   -- has to be forced white. Each of these selectors is deliberately one
-   class heavier than the rule it is beating.                               */
-.ez-nav .ez-item .ez-head:hover .ez-icon,
-.ez-nav .ez-item .ez-head:hover .ez-chev,
-.ez-nav .ez-branch .ez-link:hover .ez-chev {
+   Rows go solid coral, so anything inside carrying its own colour -- the
+   current-module icon, the active dot, the chevron -- is forced white. Each
+   selector is deliberately one class heavier than the rule it beats.        */
+.ez-nav .ez-head:hover,
+.ez-nav .ez-link:hover {
+  background: var(--ez-hover);
   color: #fff;
 }
-.ez-nav .ez-link:hover .ez-dot,
-.ez-nav .ez-link.is-active:hover .ez-dot {
+.ez-nav .ez-item .ez-head:hover::before {
+  transform: scaleY(1);
+  background: #fff;
+}
+.ez-nav .ez-item .ez-head:hover .ez-icon,
+.ez-nav .ez-item .ez-head:hover .ez-chev {
+  color: #fff;
+}
+.ez-nav .ez-item .ez-head:hover .ez-icon { transform: translateY(-1px) scale(1.06); }
+.ez-nav .ez-flyout .ez-link:hover .ez-subicon,
+.ez-nav .ez-flyout .ez-link.is-active:hover .ez-subicon {
+  color: #fff;
+  transform: scale(1.06);
+}
+.ez-nav .ez-flyout .ez-link:hover .ez-dot,
+.ez-nav .ez-flyout .ez-link.is-active:hover .ez-dot {
   background: #fff;
   transform: scale(1.4);
 }
+.ez-nav .ez-flyout .ez-link:hover .ez-crumb { color: rgba(255, 255, 255, 0.8); }
 
 /* ---------- focus + reduced motion ---------- */
 .ez-nav a:focus-visible,
@@ -387,19 +462,24 @@ const SIDEBAR_CSS = `
   outline: 2px solid var(--ez-accent);
   outline-offset: -2px;
 }
+/* the search box shows focus through its own background + inset ring, so it
+   does not take the accent outline as well */
+.ez-nav .ez-search input:focus,
+.ez-nav .ez-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ez-nav *,
-  .ez-panel {
+  .ez-panel,
+  .ez-flyout {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
 }
 `;
 
-/* useInsertionEffect lands the <style> before layout is read. Read off the
-   React namespace rather than as a named import, so this stays safe on React
-   17 where the export does not exist; it falls back to useEffect. */
 const useStyleEffect =
   typeof React.useInsertionEffect === "function" ? React.useInsertionEffect : useEffect;
 
@@ -414,6 +494,35 @@ const useSidebarStyles = () => {
   }, []);
 };
 
+/* Flatten every reachable page once, for the "Jump to" search. */
+const flattenPages = (groups) => {
+  const out = [];
+  groups.forEach((group, gi) => {
+    group.items.forEach((item, ii) => {
+      const moduleKey = nodeKey(`g${gi}`, item, ii);
+      const walk = (node, key, trail) => {
+        if (node.children) {
+          node.children.forEach((c, i) =>
+            walk(c, nodeKey(key, c, i), [...trail, node.name || node.label])
+          );
+          return;
+        }
+        if (!node.path) return;
+        out.push({
+          key,
+          moduleKey,
+          path: node.path,
+          name: node.name || node.label,
+          icon: node.icon,
+          trail,
+        });
+      };
+      walk(item, moduleKey, []);
+    });
+  });
+  return out;
+};
+
 const NAV_GROUPS = [
   {
     group: "Business Pipeline",
@@ -423,12 +532,12 @@ const NAV_GROUPS = [
         icon: "bx-bell",
         feature: "opportunity",
         children: [
-          { name: "Opportunity Dashboard", path: "/opportunity/dashboard" },
-          { name: "Lead to Revenue Funnel", path: "/ltr-funnel" },
-          { name: "Lead Disposition Rules", path: "/masters/disposition" },
-          { name: "Campaigns", path: "/opportunity" }, // TODO confirm campaigns route
-          { name: "Opportunity Report - Detailed", path: "/opportunity/detailed", feature: "reporting" },
-          { name: "Opportunity Report - Summary", path: "/opportunity/summary", feature: "reporting" },
+          { name: "Opportunity Dashboard", icon: "bx-grid-alt", path: "/opportunity/dashboard" },
+          { name: "Lead to Revenue Funnel", icon: "bx-filter", path: "/ltr-funnel" },
+          { name: "Lead Disposition Rules", icon: "bx-list-check", path: "/masters/disposition" },
+          { name: "Campaigns", icon: "bx-broadcast", path: "/opportunity" }, // TODO confirm campaigns route
+          { name: "Opportunity Report - Detailed", icon: "bx-file", path: "/opportunity/detailed", feature: "reporting" },
+          { name: "Opportunity Report - Summary", icon: "bx-bar-chart-alt-2", path: "/opportunity/summary", feature: "reporting" },
         ],
       },
     ],
@@ -441,8 +550,8 @@ const NAV_GROUPS = [
         icon: "bx-calendar",
         feature: "appointment",
         children: [
-          { name: "Schedule Board", path: "/appointment" },
-          { name: "Appointment Dashboard", path: "/appointment/dashboard" },
+          { name: "Schedule Board", icon: "bx-calendar-check", path: "/appointment" },
+          { name: "Appointment Dashboard", icon: "bx-grid-alt", path: "/appointment/dashboard" },
         ],
       },
       {
@@ -450,16 +559,16 @@ const NAV_GROUPS = [
         icon: "bx-receipt",
         feature: "billing",
         children: [
-          { name: "Create Invoice", path: "/invoice" },
-          { name: "Cash Management", path: "/invoice/cash-management" },
-          { name: "Invoice Dashboard", path: "/invoice/dashboard" },
+          { name: "Create Invoice", icon: "bx-receipt", path: "/invoice" },
+          { name: "Cash Management", icon: "bx-wallet", path: "/invoice/cash-management" },
+          { name: "Invoice Dashboard", icon: "bx-grid-alt", path: "/invoice/dashboard" },
           {
             name: "Reports",
             feature: "reporting",
             children: [
-              { name: "Itemised Sales Report", path: "/reports/itemised-report" },
-              { name: "Liability Report", path: "/reports/liability-report" },
-              { name: "Payment Report", path: "/reports/payment-report" },
+              { name: "Itemised Sales Report", icon: "bx-list-ul", path: "/reports/itemised-report" },
+              { name: "Liability Report", icon: "bx-shield", path: "/reports/liability-report" },
+              { name: "Payment Report", icon: "bx-credit-card", path: "/reports/payment-report" },
             ],
           },
         ],
@@ -469,8 +578,8 @@ const NAV_GROUPS = [
         icon: "bx-file",
         feature: "billing",
         children: [
-          { name: "E-Invoices List Page", path: "/einvoice" },
-          { name: "E-Invoice Dashboard", path: "/einvoice/detailed" }, // TODO confirm dashboard vs detailed
+          { name: "E-Invoices List Page", icon: "bx-list-ul", path: "/einvoice" },
+          { name: "E-Invoice Dashboard", icon: "bx-grid-alt", path: "/einvoice/detailed" }, // TODO confirm dashboard vs detailed
         ],
       },
     ],
@@ -484,8 +593,8 @@ const NAV_GROUPS = [
         icon: "bx-phone-call",
         feature: "courtesyCall",
         children: [
-          { name: "Courtesy Call Queue", path: "/courtesy-call" },
-          { name: "Courtesy Call Report - Detailed", path: "/courtesy-call/report", feature: "reporting" },
+          { name: "Courtesy Call Queue", icon: "bx-phone", path: "/courtesy-call" },
+          { name: "Courtesy Call Report - Detailed", icon: "bx-file", path: "/courtesy-call/report", feature: "reporting" },
         ],
       },
       {
@@ -493,14 +602,14 @@ const NAV_GROUPS = [
         icon: "bx-purchase-tag-alt",
         feature: "caseManagement",
         children: [
-          { name: "Create Case", path: "/cases" },
-          { name: "Case Categories", path: "/case-categories" },
-          { name: "Case Routing Rules", path: "/categories-mapping" },
-          { name: "Escalation & SLA Rules", path: "/case-hierarchy" },
+          { name: "Create Case", icon: "bx-plus-circle", path: "/cases" },
+          { name: "Case Categories", icon: "bx-category", path: "/case-categories" },
+          { name: "Case Routing Rules", icon: "bx-shuffle", path: "/categories-mapping" },
+          { name: "Escalation & SLA Rules", icon: "bx-trending-up", path: "/case-hierarchy" },
           {
             name: "Reports",
             feature: "reporting",
-            children: [{ name: "Case Mgmt Report - Detailed", path: "/case-detailed-report" }],
+            children: [{ name: "Case Mgmt Report - Detailed", icon: "bx-file", path: "/case-detailed-report" }],
           },
         ],
       },
@@ -509,14 +618,14 @@ const NAV_GROUPS = [
         icon: "bx-task",
         feature: "audit",
         children: [
-          { name: "Create Audit", path: "/auditsegmentview" },
-          { name: "Audit Dashboard", path: "/audit" },
+          { name: "Create Audit", icon: "bx-plus-circle", path: "/auditsegmentview" },
+          { name: "Audit Dashboard", icon: "bx-grid-alt", path: "/audit" },
           {
             name: "Reports",
             feature: "reporting",
             children: [
-              { name: "Audit Report - Detailed", path: "/audit/detailed" },
-              { name: "Audit Report - Summary", path: "/audit/summary" },
+              { name: "Audit Report - Detailed", icon: "bx-file", path: "/audit/detailed" },
+              { name: "Audit Report - Summary", icon: "bx-bar-chart-alt-2", path: "/audit/summary" },
             ],
           },
         ],
@@ -531,15 +640,15 @@ const NAV_GROUPS = [
         icon: "bx-bar-chart-alt-2",
         feature: "reporting",
         children: [
-          { name: "Itemised Sales Report", path: "/reports/itemised-report" },
-          { name: "Liability Report", path: "/reports/liability-report" },
-          { name: "Payment Report", path: "/reports/payment-report" },
-          { name: "Opportunity Report - Detailed", path: "/opportunity/detailed" },
-          { name: "Opportunity Report - Summary", path: "/opportunity/summary" },
-          { name: "Case Mgmt Report - Detailed", path: "/case-detailed-report" },
-          { name: "Audit Report - Detailed", path: "/audit/detailed" },
-          { name: "Audit Report - Summary", path: "/audit/summary" },
-          { name: "Courtesy Call Report - Detailed", path: "/courtesy-call/report" },
+          { name: "Itemised Sales Report", icon: "bx-list-ul", path: "/reports/itemised-report" },
+          { name: "Liability Report", icon: "bx-shield", path: "/reports/liability-report" },
+          { name: "Payment Report", icon: "bx-credit-card", path: "/reports/payment-report" },
+          { name: "Opportunity Report - Detailed", icon: "bx-file", path: "/opportunity/detailed" },
+          { name: "Opportunity Report - Summary", icon: "bx-bar-chart-alt-2", path: "/opportunity/summary" },
+          { name: "Case Mgmt Report - Detailed", icon: "bx-file", path: "/case-detailed-report" },
+          { name: "Audit Report - Detailed", icon: "bx-file", path: "/audit/detailed" },
+          { name: "Audit Report - Summary", icon: "bx-bar-chart-alt-2", path: "/audit/summary" },
+          { name: "Courtesy Call Report - Detailed", icon: "bx-file", path: "/courtesy-call/report" },
         ],
       },
     ],
@@ -551,22 +660,22 @@ const NAV_GROUPS = [
         label: "Organisation Structure",
         icon: "bx-network-chart",
         children: [
-          { name: "Legal Entity", path: "/settings/legal-entity" },
-          { name: "Zone Setup", path: "/settings/zone-setup", feature: "multiLocation" },
-          { name: "Centre Setup", path: "/settings/centre-setup" },
-          { name: "Organisation Hierarchy", path: "/settings/org-setup", feature: "multiLocation" },
+          { name: "Legal Entity", icon: "bx-buildings", path: "/settings/legal-entity" },
+          { name: "Zone Setup", icon: "bx-map-alt", path: "/settings/zone-setup", feature: "multiLocation" },
+          { name: "Centre Setup", icon: "bx-building-house", path: "/settings/centre-setup" },
+          { name: "Organisation Hierarchy", icon: "bx-network-chart", path: "/settings/org-setup", feature: "multiLocation" },
         ],
       },
       {
         label: "Master Data",
         icon: "bx-data",
         children: [
-          { name: "Customer", path: "/masters/customers" },
-          { name: "Service", path: "/masters/service" },
-          { name: "Product", path: "/masters/product" },
-          { name: "Package", path: "/masters/packages" },
-          { name: "Employee", path: "/masters/employees" },
-          { name: "Practitioner & Centre Mapping", path: "/masters/practitioners" },
+          { name: "Customer", icon: "bx-user", path: "/masters/customers" },
+          { name: "Service", icon: "bx-spa", path: "/masters/service" },
+          { name: "Product", icon: "bx-box", path: "/masters/product" },
+          { name: "Package", icon: "bx-package", path: "/masters/packages" },
+          { name: "Employee", icon: "bx-id-card", path: "/masters/employees" },
+          { name: "Practitioner & Centre Mapping", icon: "bx-user-pin", path: "/masters/practitioners" },
         ],
       },
       {
@@ -574,60 +683,63 @@ const NAV_GROUPS = [
         icon: "bx-detail",
         feature: "emr",
         children: [
-          { name: "Form Builder", path: "/emr/forms" },
-          { name: "Ready Form Templates", path: "/emr/templates" }, // TODO not built yet
+          { name: "Form Builder", icon: "bx-edit-alt", path: "/emr/forms" },
+          { name: "Ready Form Templates", icon: "bx-copy", path: "/emr/templates" }, // TODO not built yet
         ],
       },
       {
         label: "Shift Management",
         icon: "bx-time",
         children: [
-          { name: "Shift Master", path: "/shift/master" },
-          { name: "Roster", path: "/shift/roster" },
-          { name: "My Shift", path: "/shift/my" },
+          { name: "Shift Master", icon: "bx-time", path: "/shift/master" },
+          { name: "Roster", icon: "bx-calendar-week", path: "/shift/roster" },
+          { name: "My Shift", icon: "bx-user-check", path: "/shift/my" },
         ],
       },
       {
         label: "On Demand Triggers",
         icon: "bx-cloud-download",
-        children: [{ name: "Run - Customer spent vs Customer Type", path: "/on-demand" }],
+        children: [{ name: "Run - Customer spent vs Customer Type", icon: "bx-play-circle", path: "/on-demand" }],
       },
       {
         label: "Data Migration",
         icon: "bx-upload",
         children: [
-          { name: "Upload - Customers", path: "/upload/customers" }, // TODO
-          { name: "Upload - Liabilities", path: "/upload/liabilities" }, // TODO
-          { name: "Upload - Packages", path: "/upload/packages" }, // TODO
-          { name: "Upload - Services", path: "/upload/services" }, // TODO
-          { name: "Upload - Products", path: "/upload/products" }, // TODO
-          { name: "Upload - Centres", path: "/upload/centres" }, // TODO
+          { name: "Upload - Customers", icon: "bx-user", path: "/upload/customers" }, // TODO
+          { name: "Upload - Liabilities", icon: "bx-shield", path: "/upload/liabilities" }, // TODO
+          { name: "Upload - Packages", icon: "bx-package", path: "/upload/packages" }, // TODO
+          { name: "Upload - Services", icon: "bx-spa", path: "/upload/services" }, // TODO
+          { name: "Upload - Products", icon: "bx-box", path: "/upload/products" }, // TODO
+          { name: "Upload - Centres", icon: "bx-building-house", path: "/upload/centres" }, // TODO
         ],
       },
       {
         label: "Settings",
         icon: "bx-cog",
         children: [
-          { name: "Loyalty Setup", path: "/loyalty", feature: "loyalty" },
-          { name: "Security Settings", path: "/settings/security" },
-          { name: "Discount & Promotion", path: "/discounts/manage", feature: "discounts" },
+          { name: "Loyalty Setup", icon: "bx-gift", path: "/loyalty", feature: "loyalty" },
+          { name: "Security Settings", icon: "bx-lock-alt", path: "/settings/security" },
+          { name: "Discount & Promotion", icon: "bx-purchase-tag", path: "/discounts/manage", feature: "discounts" },
         ],
       },
+    ],
+  },
+  {
+    // Renamed from the workbook's "Built-In Integrations" / "Custom
+    // Integration" to match the prototype recording, which also adds Meta ads.
+    group: "Integrations",
+    items: [
       {
-        label: "Integrations",
+        label: "Ready API",
         icon: "bx-plug",
         children: [
-          {
-            name: "Built-In Integrations",
-            children: [
-              { name: "WABA", path: "/integrations/waba" }, // TODO
-              { name: "Instagram (CTWA)", path: "/integrations/instagram" }, // TODO
-              { name: "Website", path: "/integrations/website" }, // TODO
-            ],
-          },
-          { name: "Custom Integration", path: "/integrations/custom" }, // TODO
+          { name: "WhatsApp / WABA", icon: "bxl-whatsapp", path: "/integrations/waba" }, // TODO
+          { name: "Instagram (CTWA)", icon: "bxl-instagram", path: "/integrations/instagram" }, // TODO
+          { name: "Website", icon: "bx-globe", path: "/integrations/website" }, // TODO
+          { name: "Meta ads", icon: "bxl-meta", path: "/integrations/meta-ads" }, // TODO
         ],
       },
+      { label: "Custom API", icon: "bx-code-alt", path: "/integrations/custom" }, // TODO
     ],
   },
 ];
@@ -698,10 +810,11 @@ const findActive = (groups, pathname) => {
   return best || {};
 };
 
-const Sidebar = ({ collapsed, currentUser }) => {
+const Sidebar = ({ currentUser }) => {
   useSidebarStyles();
 
   const location = useLocation();
+  const searchRef = useRef(null);
 
   const groups = useMemo(() => {
     if (!currentUser?.licenseTier) return NAV_GROUPS;
@@ -711,117 +824,174 @@ const Sidebar = ({ collapsed, currentUser }) => {
     );
   }, [currentUser]);
 
-  const [expandedMenus, setExpandedMenus] = useState({});
+  const pages = useMemo(() => flattenPages(groups), [groups]);
+
+  // Which module's panel is showing, and its data.
+  const [openItem, setOpenItem] = useState(null); // { key, item }
+  const [query, setQuery] = useState("");
+  const [clicked, setClicked] = useState(null);
   const [hovering, setHovering] = useState(false);
-  // Set the moment a page link is used. Keeps the rail shut even though the
+  // Set the moment a page link is used. Holds the rail shut even though the
   // pointer has not moved off it yet; cleared when the pointer does leave.
   const [dismissed, setDismissed] = useState(false);
-  // The row the user clicked, remembered so a duplicated route highlights
-  // where they actually clicked rather than at its first occurrence.
-  const [clicked, setClicked] = useState(null);
 
-  const isOpen = !!collapsed || (hovering && !dismissed);
+  const isOpen = hovering && !dismissed;
 
   const resolved = useMemo(() => findActive(groups, location.pathname), [groups, location.pathname]);
   const active = clicked && clicked.path === location.pathname ? clicked : resolved;
 
-  // Every navigation closes the menus. Landing on a page fresh leaves them
-  // closed too, since this is the initial state.
-  useEffect(() => {
-    setExpandedMenus({});
-    setDismissed(true);
-  }, [location.pathname]);
+  const searching = query.trim().length > 0;
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const seen = new Set();
+    return pages
+      .filter((p) => p.name.toLowerCase().includes(q) || p.trail.join(" ").toLowerCase().includes(q))
+      // Ten routes appear in two places (Insights re-lists every report), so
+      // without this every report matched twice. First occurrence wins, which
+      // is the one in its own module.
+      .filter((p) => !seen.has(p.path) && seen.add(p.path))
+      .slice(0, 12);
+  }, [query, pages]);
+
+  // Shuts the panel and clears the search. Deliberately does NOT set
+  // `dismissed` -- this runs on mount via the route effect below, and setting
+  // it here left the rail dismissed before the pointer ever touched it, so the
+  // first hover did nothing until you moved off and back.
+  const closePanel = useCallback(() => {
+    setOpenItem(null);
+    setQuery("");
+  }, []);
 
   const handleLeave = useCallback(() => {
     setHovering(false);
     setDismissed(false);
-    setExpandedMenus({});
+    setOpenItem(null);
+    setQuery("");
   }, []);
+
+  // Every navigation closes the panel and clears the search.
+  useEffect(() => {
+    closePanel();
+  }, [location.pathname, closePanel]);
+
+  // "/" focuses the search box, Escape closes.
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = (e.target.tagName || "").toLowerCase();
+      const typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        setHovering(true);
+        setDismissed(false);
+        searchRef.current?.focus();
+      } else if (e.key === "Escape") {
+        handleLeave();
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleLeave]);
 
   const openPage = (key, moduleKey, path) => {
     setClicked({ key, moduleKey, path });
-    setExpandedMenus({});
-    setDismissed(true);
+    closePanel();
+    setDismissed(true); // hold it shut even though the pointer is still on it
   };
 
-  const toggle = (key, depth) =>
-    setExpandedMenus((prev) => {
-      const wasOpen = !!prev[key];
+  const showPanel = isOpen && (searching || !!openItem);
+  const panelTitle = searching ? "Results" : openItem?.item.label;
 
-      // Module level: accordion -- opening one closes the rest.
-      if (depth === 0) return wasOpen ? {} : { [key]: true };
-
-      // Deeper levels (Reports, Built-In Integrations): independent toggle,
-      // everything already open stays open.
-      const next = { ...prev };
-      if (wasOpen) {
-        // closing a branch closes anything nested inside it
-        Object.keys(next).forEach((k) => k.startsWith(key) && delete next[k]);
-      } else {
-        next[key] = true;
-      }
-      return next;
-    });
-
-  const renderChildren = (nodes, prefix, depth, moduleKey) => (
-    <ul className="ez-sub-list">
-      {nodes.map((node, i) => {
-        const key = nodeKey(prefix, node, i);
-        const style = { "--i": i };
-
-        if (node.children) {
-          const branchOpen = !!expandedMenus[key];
-          return (
-            <li key={key} className={`ez-branch ${branchOpen ? "is-open" : ""}`} style={style}>
-              <button
-                type="button"
-                className="ez-link ez-link--branch"
-                aria-expanded={branchOpen}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggle(key, depth);
-                }}
-              >
-                <span className="ez-dot" />
-                <span className="ez-label">{node.name}</span>
-                <i className="bx bx-chevron-down ez-chev" />
-              </button>
-              <div className="ez-collapse">
-                <div className="ez-collapse-inner">
-                  {renderChildren(node.children, key, depth + 1, moduleKey)}
-                </div>
-              </div>
-            </li>
-          );
-        }
-
-        return (
-          <li key={key} style={style}>
-            <NavLink
-              to={node.path}
-              className={`ez-link ${key === active.key ? "is-active" : ""}`}
-              onClick={() => openPage(key, moduleKey, node.path)}
-            >
-              <span className="ez-dot" />
-              <span className="ez-label">{node.name}</span>
-            </NavLink>
-          </li>
-        );
-      })}
-    </ul>
+  /* One row inside the panel. */
+  const renderLink = (node, key, moduleKey, i, indent, crumb) => (
+    <li key={key}>
+      <NavLink
+        to={node.path}
+        style={{ "--i": i }}
+        className={`ez-link ${indent ? "ez-sub-indent" : ""} ${
+          key === active.key ? "is-active" : ""
+        }`}
+        onClick={() => openPage(key, moduleKey, node.path)}
+      >
+        {node.icon ? (
+          <i className={`bx ${node.icon} ez-subicon`} />
+        ) : (
+          <span className="ez-dot" />
+        )}
+        <span className="ez-label">{node.name || node.label}</span>
+        {crumb ? <span className="ez-crumb">{crumb}</span> : null}
+      </NavLink>
+    </li>
   );
+
+  /* Panel body: either search results, or the open module's children with any
+     nested group rendered as a labelled section rather than a submenu. */
+  const renderPanelBody = () => {
+    if (searching) {
+      if (!results.length) return <p className="ez-empty">No pages match that.</p>;
+      return (
+        <ul>
+          {results.map((r, i) =>
+            renderLink(r, r.key, r.moduleKey, i, false, r.trail[0])
+          )}
+        </ul>
+      );
+    }
+    if (!openItem) return null;
+
+    const { key: moduleKey, item } = openItem;
+    let n = 0;
+    return (
+      <>
+        {item.children.map((child, ci) => {
+          const childKey = nodeKey(moduleKey, child, ci);
+          if (!child.children) {
+            return <ul key={childKey}>{renderLink(child, childKey, moduleKey, n++, false)}</ul>;
+          }
+          return (
+            <div key={childKey}>
+              <p className="ez-flyout-section">{child.name}</p>
+              <ul>
+                {child.children.map((leaf, li) =>
+                  renderLink(leaf, nodeKey(childKey, leaf, li), moduleKey, n++, true)
+                )}
+              </ul>
+            </div>
+          );
+        })}
+      </>
+    );
+  };
 
   return (
     <aside
-      className={`ez-nav ${isOpen ? "is-open" : ""} ${collapsed ? "is-pinned" : ""}`}
+      className={`ez-nav ${isOpen ? "is-open" : ""}`}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={handleLeave}
     >
       <div className="ez-panel">
         <div className="ez-brand">
           <a href="/dashboard" className="sw-logo ez-logo">
-            <img src="/images/smallezywk.png" alt="EazyWeek" />
+            <img src="/images/smallezywk.png" alt="" />
+            <span className="ez-wordmark">eazyweek</span>
           </a>
+        </div>
+
+        <div className="ez-search">
+          <i className="bx bx-search" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={query}
+            placeholder="Jump to..."
+            aria-label="Jump to a page"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpenItem(null);
+            }}
+          />
+          <span className="ez-kbd">/</span>
         </div>
 
         <nav className="ez-scroll">
@@ -829,7 +999,8 @@ const Sidebar = ({ collapsed, currentUser }) => {
             <li className={`ez-item ${location.pathname === "/dashboard" ? "is-current" : ""}`}>
               <NavLink
                 to="/dashboard"
-                className={`ez-head ${location.pathname === "/dashboard" ? "is-active" : ""}`}
+                className="ez-head"
+                onMouseEnter={() => setOpenItem(null)}
                 onClick={() => openPage(null, null, "/dashboard")}
               >
                 <i className="bx bx-home-alt ez-icon" />
@@ -839,23 +1010,22 @@ const Sidebar = ({ collapsed, currentUser }) => {
           </ul>
 
           {groups.map((group, gi) => (
-            <section className="ez-group" key={group.group}>
-              <p className="ez-group-title">
-                <span>{group.group}</span>
-              </p>
+            <section key={group.group}>
+              <p className="ez-group-title">{group.group}</p>
               <ul className="ez-root">
                 {group.items.map((item, ii) => {
                   const key = nodeKey(`g${gi}`, item, ii);
-                  const menuOpen = !!expandedMenus[key];
                   const isCurrent = key === active.moduleKey;
+                  const menuOpen = openItem?.key === key;
 
-                  // Module with no submenu (Customer 360) -- plain link.
+                  // Module with no submenu (Customer 360, Custom API).
                   if (!item.children) {
                     return (
                       <li className={`ez-item ${isCurrent ? "is-current" : ""}`} key={key}>
                         <NavLink
                           to={item.path}
                           className={`ez-head ${key === active.key ? "is-active" : ""}`}
+                          onMouseEnter={() => setOpenItem(null)}
                           onClick={() => openPage(key, key, item.path)}
                         >
                           <i className={`bx ${item.icon} ez-icon`} />
@@ -876,18 +1046,17 @@ const Sidebar = ({ collapsed, currentUser }) => {
                         type="button"
                         className="ez-head"
                         aria-expanded={menuOpen}
-                        onClick={() => toggle(key, 0)}
+                        onMouseEnter={() => {
+                          setQuery("");
+                          setOpenItem({ key, item });
+                        }}
+                        onFocus={() => setOpenItem({ key, item })}
+                        onClick={() => setOpenItem(menuOpen ? null : { key, item })}
                       >
                         <i className={`bx ${item.icon} ez-icon`} />
                         <span className="ez-label">{item.label}</span>
-                        <i className="bx bx-chevron-down ez-chev" />
+                        <i className="bx bx-chevron-right ez-chev" />
                       </button>
-
-                      <div className="ez-collapse">
-                        <div className="ez-collapse-inner">
-                          {renderChildren(item.children, key, 1, key)}
-                        </div>
-                      </div>
                     </li>
                   );
                 })}
@@ -895,6 +1064,11 @@ const Sidebar = ({ collapsed, currentUser }) => {
             </section>
           ))}
         </nav>
+      </div>
+
+      <div className={`ez-flyout ${showPanel ? "is-shown" : ""}`} role="menu">
+        {panelTitle ? <p className="ez-flyout-title">{panelTitle}</p> : null}
+        <div className="ez-flyout-body">{renderPanelBody()}</div>
       </div>
     </aside>
   );
