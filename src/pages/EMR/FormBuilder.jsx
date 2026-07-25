@@ -589,7 +589,7 @@ export default function FormBuilder() {
         <div style={{ display:"flex", gap:6 }}>
           {["build","preview","conditions"].map(m => (
             <button key={m} className={`tab-btn ${mode===m?"active":""}`} onClick={() => setMode(m)}>
-              {m==="build"?"🔧 Build":m==="preview"?"👁 Preview":"🔀 Conditions"}
+              {m==="build"?"🔧 Build":m==="preview"?" Preview":"🔀 Conditions"}
             </button>
           ))}
         </div>

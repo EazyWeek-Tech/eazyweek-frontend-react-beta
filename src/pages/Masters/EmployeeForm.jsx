@@ -448,12 +448,12 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                 <button onClick={() => setShowResetModal(true)}
                   style={{ padding:"9px 16px", border:"1px solid #e2e8f0", borderRadius:8,
                     background:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", color:"#334b71" }}>
-                  🔑 Reset Password
+                   Reset Password
                 </button>
                 <button onClick={handleTerminate}
                   style={{ padding:"9px 16px", border:"1px solid #f0c4c0", borderRadius:8,
                     background:"#fdf3f3", fontSize:13, fontWeight:600, cursor:"pointer", color:"#b91c1c" }}>
-                  ✕ Terminate
+                   Terminate
                 </button>
               </>
             )}
@@ -467,7 +467,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
               style={{ padding:"9px 18px", border:"none", borderRadius:8,
                 background:"#334b71", fontSize:13, fontWeight:700, cursor:"pointer", color:"#fff",
                 opacity: saving ? 0.7 : 1 }}>
-              {saving==="submit" ? "Submitting…" : "✈ Submit"}
+              {saving==="submit" ? "Submitting…" : "Submit"}
             </button>
           </div>
         )}
@@ -477,7 +477,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
       {!isAdmin && (
         <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
           background:"#f0f4fa", border:"1px solid #c8d5e8", color:"#334b71", fontWeight:600 }}>
-          👁 View Only — You can only edit Mobile Phone and Work Phone fields.
+           View Only — You can only edit Mobile Phone and Work Phone fields.
         </div>
       )}
 
@@ -714,8 +714,8 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                     <td style={{ padding:"8px 12px" }}>
                       {isAdmin && (
                         <button onClick={() => delHistoryRow(i)}
-                          style={{ background:"none", border:"none", color:"#b91c1c",
-                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">DELETE</button>
+                          style={{ background:"#b91c1c", border:"none", color:"#fff",
+                            cursor:"pointer", fontSize:12, padding:"5px 10px", borderRadius:"8px" }} title="Remove">Delete</button>
                       )}
                     </td>
                   </tr>
@@ -796,8 +796,8 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                     <td style={{ padding:"8px 12px" }}>
                       {isAdmin && (
                         <button onClick={() => delRoleRow(i)}
-                          style={{ background:"none", border:"none", color:"#b91c1c",
-                            cursor:"pointer", fontSize:16, padding:"2px 6px" }} title="Remove">DELETE</button>
+                          style={{ background:"#b91c1c", border:"none", color:"#fff",
+                            cursor:"pointer", fontSize:12, padding:"10px", borderRadius:"8px" }} title="Remove">Delete</button>
                       )}
                     </td>
                   </tr>

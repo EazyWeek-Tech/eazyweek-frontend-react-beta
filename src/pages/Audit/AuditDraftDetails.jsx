@@ -412,7 +412,7 @@ export default function AuditDraftDetails() {
                   )}
                   {!canWrite && (
                     <span style={{ fontSize:13, color:"#8a94a6", fontStyle:"italic" }}>
-                      👁 View only
+                       View only
                     </span>
                   )}
                 </div>

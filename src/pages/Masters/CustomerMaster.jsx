@@ -79,6 +79,7 @@ const getFirst     = (r) => r.firstName  || "";
 const getLast      = (r) => r.lastName   || "";
 const getPhone     = (r) => r.mobile     || "";
 const getLastVisit = (r) => r.lastVisit  || "";
+const getOnboarded = (r) => r.onboardedDate || "";
 const getCenter    = (r) => r.centerName || "";
 
 const COLUMNS = [
@@ -86,7 +87,10 @@ const COLUMNS = [
   { label: "First Name", field: "first",     get: getFirst },
   { label: "Last Name",  field: "last",      get: getLast },
   { label: "Phone No.",  field: "phone",     get: getPhone },
-  { label: "Last Visit", field: "lastVisit", get: getLastVisit, muted: true },
+  // sortGet: these two render as dd-mm-yyyy but must sort on the yyyy-mm-dd key
+  // the API sends alongside, otherwise the column orders by day of month.
+  { label: "Onboarded Date", field: "onboarded", get: getOnboarded, sortGet: (r) => r.onboardedSort || "", muted: true },
+  { label: "Last Visit", field: "lastVisit", get: getLastVisit, sortGet: (r) => r.lastVisitSort || "", muted: true },
   { label: "Center",     field: "center",    get: getCenter,    muted: true },
   { label: "Actions",    field: null },
 ];
@@ -116,20 +120,24 @@ const CustomerMaster = () => {
   const [sortDir,           setSortDir]           = useState("asc");
   const [page,              setPage]              = useState(1);
   const [pageSize,          setPageSize]          = useState(10);
+  const [listNotice,        setListNotice]        = useState("");
 
   const navigate = useNavigate();
 
   // ── Fetch customer list ───────────────────────────────────────────────────
-  const fetchCustomers = useCallback(async () => {
+  // `silent` refreshes the rows in place without flipping `loading`, so a
+  // post-save refresh leaves the existing table on screen instead of replacing
+  // it with "Loading customers...".
+  const fetchCustomers = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res  = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, { headers: authHeaders() });
       const json = await res.json();
       const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
       setCustomers(list);
       setFilteredCustomers(list);
     } catch { console.error("Failed to fetch customers"); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, []);
 
   // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
@@ -168,10 +176,11 @@ const CustomerMaster = () => {
     if (!sortField) return filteredCustomers;
     const col = COLUMNS.find((c) => c.field === sortField);
     if (!col?.get) return filteredCustomers;
+    const accessor = col.sortGet || col.get;
     const arr = [...filteredCustomers];
     arr.sort((a, b) => {
-      const va = String(col.get(a) ?? "").toLowerCase();
-      const vb = String(col.get(b) ?? "").toLowerCase();
+      const va = String(accessor(a) ?? "").toLowerCase();
+      const vb = String(accessor(b) ?? "").toLowerCase();
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -257,8 +266,15 @@ const CustomerMaster = () => {
       });
       const result = await res.json();
       if (result.success ?? result.Success) {
-        setFormSuccess("Customer saved successfully.");
-        setTimeout(() => { handleCloseForm(); fetchCustomers(); }, 1200);
+        // Close straight away. The old `setTimeout(..., 1200)` added 1.2s of dead
+        // time to every create, and the refresh that followed it blocked the UI
+        // on a full LoadCustomers round trip. Confirmation now lives on the list
+        // page, so the panel can go as soon as the API answers.
+        const newId = result?.data?.custId || result?.data?.CustId || "";
+        handleCloseForm();
+        setListNotice(newId ? `Customer ${newId} saved successfully.` : "Customer saved successfully.");
+        setTimeout(() => setListNotice(""), 4000);
+        fetchCustomers({ silent: true });
       } else {
         setFormError(result.message || "Failed to save customer.");
       }
@@ -268,6 +284,12 @@ const CustomerMaster = () => {
 
   return (
     <div style={{ padding:0, fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#0f172a" }}>
+      {listNotice && (
+        <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13,
+          fontWeight:600, background:"#e6f4ef", border:"1px solid #b3d9cc", color:"#2e7d5e" }}>
+          {listNotice}
+        </div>
+      )}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Customer Master</h2>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -328,7 +350,8 @@ const CustomerMaster = () => {
                   <td style={{ padding:"12px 14px" }}>{getFirst(row)}</td>
                   <td style={{ padding:"12px 14px" }}>{getLast(row)}</td>
                   <td style={{ padding:"12px 14px" }}>{getPhone(row)}</td>
-                  <td style={{ padding:"12px 14px", color:"#64748b" }}>{getLastVisit(row)}</td>
+                  <td style={{ padding:"12px 14px", color:"#64748b" }}>{getOnboarded(row) || "—"}</td>
+                  <td style={{ padding:"12px 14px", color:"#64748b" }}>{getLastVisit(row) || "—"}</td>
                   <td style={{ padding:"12px 14px", color:"#64748b" }}>{getCenter(row)}</td>
                   <td style={{ padding:"12px 14px" }}>
                     <button onClick={() => goToCustomerPage(row)}
@@ -601,7 +624,9 @@ export function CustomerFormPanel({ onSaved, onClose }) {
       const data   = result?.data ?? result;
       if (result.success ?? result.Success) {
         setFormSuccess("Customer saved successfully.");
-        setTimeout(() => onSaved?.({ ...formData, ...data }), 1000);
+        // Hand back immediately. The caller (appointment / invoice quick-create)
+        // owns the confirmation UI, so the old 1s delay only stalled that flow.
+        onSaved?.({ ...formData, ...data });
       } else {
         setFormError(result.message || "Failed to save customer.");
       }

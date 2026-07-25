@@ -279,7 +279,7 @@ export default function ShiftMaster() {
       {!canManage && (
         <div style={{ marginBottom: 14, padding: "10px 16px", borderRadius: 10, fontSize: 13,
           background: "#f0f4fa", border: "1px solid #c8d5e8", color: NAVY, fontWeight: 600 }}>
-          👁 View Only — only Managers/Admins can create or assign shifts.
+           View Only — only Managers/Admins can create or assign shifts.
         </div>
       )}
       {toastBar}
