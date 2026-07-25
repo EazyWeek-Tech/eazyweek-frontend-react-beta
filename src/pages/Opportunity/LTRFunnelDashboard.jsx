@@ -24,6 +24,19 @@ const authHeaders = () => ({ "Content-Type":"application/json", ...(TOKEN() ? { 
 const nfmt = (n) => Number(n || 0).toLocaleString();
 const sar  = (n) => `SAR ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
+// Campaign status lives on CLINIC_OPPORTUNITYSUMMARY.OppStatus — 1 = Active, 2 = Expired.
+// The list endpoint is already called with /1, but the row is re-checked here so an
+// unfiltered or stale row can never reach the dropdown. Returns true / false, or
+// null when the payload carries no recognisable status field.
+const campaignIsActive = (r) => {
+  const v = r?.oppStatus ?? r?.OppStatus ?? r?.status ?? r?.Status ??
+            r?.cStatus   ?? r?.CStatus   ?? r?.campaignStatus ?? r?.CampaignStatus ??
+            r?.oppStatusName ?? r?.statusName;
+  if (v === undefined || v === null || String(v).trim() === "") return null;
+  const s = String(v).trim().toUpperCase();
+  return s === "1" || s === "ACTIVE";
+};
+
 const STAGES = [
   { key:"captured",          label:"Captured",           color:C.navy  },
   { key:"converted",         label:"Converted",          color:C.slate },
@@ -178,7 +191,7 @@ export default function LTRFunnelDashboard() {
   const [loading,   setLoading]   = useState(false);
   const [drill,     setDrill]     = useState(null);
 
-  // Campaign filter options (reuse the active-list the opportunity dashboard uses).
+  // Campaign filter options — ACTIVE campaigns only (OppStatus = 1).
   useEffect(() => {
     let alive = true;
     fetch(`${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/1`, { headers: authHeaders() })
@@ -186,13 +199,22 @@ export default function LTRFunnelDashboard() {
       .then((d) => {
         if (!alive) return;
         const arr = Array.isArray(d) ? d : (d?.data || []);
+        // Active-only: filter on the row's own status. If no row exposes a status
+        // field the filter degrades to a no-op rather than emptying the dropdown.
+        const statusKnown = arr.some((r) => campaignIsActive(r) !== null);
+        if (!statusKnown && arr.length) {
+          console.warn("LTR funnel: campaign list carries no status field — relying on the endpoint's active filter.");
+        }
+        const activeArr = statusKnown ? arr.filter((r) => campaignIsActive(r) === true) : arr;
         const seen = new Set(); const list = [];
-        arr.forEach((r) => {
+        activeArr.forEach((r) => {
           const code = r.oppCode || r.OppCode;
           const name = r.oppName || r.OppName || code;
           if (code && !seen.has(code)) { seen.add(code); list.push({ oppCode: code, oppName: name }); }
         });
         setCampaigns(list);
+        // If the campaign that was selected is no longer active, fall back to ALL.
+        setOppCode((cur) => (cur === "ALL" || list.some((c) => c.oppCode === cur) ? cur : "ALL"));
       })
       .catch(() => {});
     return () => { alive = false; };

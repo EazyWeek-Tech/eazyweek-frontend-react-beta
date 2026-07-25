@@ -269,7 +269,7 @@ export default function ComponentPreview({ component, compact = false, childComp
       return (
         <div style={{ padding:compact?"4px 8px":"8px 12px", background:"#e9edf5",
           borderRadius:6, fontSize:compact?10:12, color:"#334b71", display:"inline-block" }}>
-          ⚡ {config.macroType||"Macro"}
+           {config.macroType||"Macro"}
         </div>
       );
 

@@ -1700,7 +1700,11 @@ const subMediumName = safe(form.subMedium || "Manual");
           const cust = rd.customer || null;
           if (cust && cust.custId) {
             setConvertedCustomer(cust);
-            showToast(`Lead converted - customer ${cust.custId} created`);
+            showToast(
+              cust.existing
+                ? `Converted - linked to customer ${cust.custId}`
+                : `Lead converted - customer ${cust.custId} created`
+            );
             setShowConvertedPopup(true);
             setSaving(false);
             return;
@@ -2011,7 +2015,9 @@ const subMediumName = safe(form.subMedium || "Manual");
           <div className="formGrid2">
             <div className="col">
               <div className="field">
-                <label>Disposition</label>
+                <label>
+                  Disposition <span className="req">*</span>
+                </label>
                 <select className="inp" name="dispositionId" value={form.dispositionId} onChange={onChange} disabled={dispLoading}>
                   {dispositionOptions.map((d) => (
                     <option key={d.value || d.label} value={d.value}>
@@ -2022,7 +2028,9 @@ const subMediumName = safe(form.subMedium || "Manual");
               </div>
 
               <div className="field">
-                <label>Sub-Disposition</label>
+                <label>
+                  Sub-Disposition <span className="req">*</span>
+                </label>
                 <select className="inp" name="subDispositionId" value={form.subDispositionId} onChange={onChange} disabled={subDispLoading || !form.dispositionId}>
                   {subDispositionOptions.map((s) => (
                     <option key={s.value || s.label} value={s.value}>
@@ -2388,16 +2396,20 @@ const subMediumName = safe(form.subMedium || "Manual");
       {showConvertedPopup && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(460px, 92vw)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>Lead Converted</h3>
+            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>
+              {convertedCustomer?.existing ? "Opportunity Converted" : "Lead Converted"}
+            </h3>
             <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
-              The customer has been created
-              {convertedCustomer?.custId ? <> as <strong>{convertedCustomer.custId}</strong></> : null}.
+              {convertedCustomer?.existing ? "This record is linked to customer" : "The customer has been created"}
+              {convertedCustomer?.custId ? <> {convertedCustomer?.existing ? null : "as "}<strong>{convertedCustomer.custId}</strong></> : null}.
               Would you like to book an appointment now?
             </p>
-            <p style={{ margin: "0 0 20px", fontSize: 12, color: "#888" }}>
-              Nationality, date of birth and gender are not set yet — complete them in
-              Customer Master before this customer is billed.
-            </p>
+            {!convertedCustomer?.existing && (
+              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#888" }}>
+                Nationality, date of birth and gender are not set yet — complete them in
+                Customer Master before this customer is billed.
+              </p>
+            )}
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button onClick={handleSkipAppointment} style={{ ...cBtn, background: "#e0e0e0", color: "#333" }}>Cancel</button>
               <button onClick={handleBookAppointment} style={cBtn}>Book Appointment</button>

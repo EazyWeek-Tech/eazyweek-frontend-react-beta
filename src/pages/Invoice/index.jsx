@@ -43,6 +43,7 @@ const InvoicePage = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [suspendedCarts, setSuspendedCarts] = useState([]);
   const [isFinalized, setIsFinalized] = useState(false);
+  const [alreadyPaid, setAlreadyPaid] = useState(null); // null=unchecked, {invoiceNum} when this appointment is already invoiced
   const [toast, setToast] = useState(null);
   const [showReturn,        setShowReturn]        = useState(false);
   const [showPkgBalance,    setShowPkgBalance]    = useState(false);
@@ -197,6 +198,11 @@ const InvoicePage = () => {
                 ...prev,
                 status: prev.status || det?.customerType ||
                         (String(det?.nationalityCode ?? det?.nationalityId ?? "") === "84" ? "Citizen" : "Expat"),
+                // Carry the saved nationality code through so CustomerSearch can
+                // resolve and display the nationality name (textbox + "— <name>"
+                // next to the Citizen/Expat status). Without this the code is
+                // fetched here but dropped, leaving the Nationality box blank.
+                nationalityCode: prev.nationalityCode || det?.nationalityCode || det?.nationalityId || "",
                 isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
                 recId: prev.recId || det?.recId || det?.recid || "",
               }));
@@ -208,6 +214,37 @@ const InvoicePage = () => {
 
     loadCustomerAndItems();
   }, [appointmentIdFromUrl, custidFromUrl, custNameFromUrl]);
+
+  // ── Already-invoiced guard ────────────────────────────────────────────────
+  // The paid invoice stays in browser history under its appointment URL, so
+  // Back (or a refresh / shared link) reopens this page and rebuilds the cart,
+  // letting the same appointment be paid twice. Ask the server whether this
+  // appointment already has a CLOSED invoice; if so, lock the page and clear the
+  // cart. This covers every re-entry path, not just Back.
+  useEffect(() => {
+    if (!appointmentIdFromUrl) { setAlreadyPaid(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+        const r = await fetch(
+          `${API_BASE_URL}/api/Invoice/StatusByAppointment/${encodeURIComponent(appointmentIdFromUrl)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const j = await r.json().catch(() => ({}));
+        const data = j?.data ?? j;
+        if (cancelled) return;
+        if (data?.alreadyInvoiced) {
+          setAlreadyPaid({ invoiceNum: data.invoiceNum || "" });
+          setItems([]);            // nothing left to pay for
+          setIsFinalized(true);    // belt-and-suspenders: disable the action buttons
+        } else {
+          setAlreadyPaid(null);
+        }
+      } catch { /* network failure: fail open, don't block a legitimate invoice */ }
+    })();
+    return () => { cancelled = true; };
+  }, [appointmentIdFromUrl]);
 
   // ── Fire payment notes popup when invoice page loads with a customer ───────
   useEffect(() => {
@@ -382,6 +419,23 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
       </header>
 
       <main className="invoicewrp">
+        {alreadyPaid && (
+          <div style={{ margin:'0 0 16px', padding:'14px 18px', borderRadius:10,
+            background:'#e6f4ef', border:'1px solid #b3d9cc', color:'#2e7d5e',
+            fontSize:14, fontWeight:600, display:'flex', alignItems:'center', gap:12,
+            flexWrap:'wrap' }}>
+            <span>
+              This appointment has already been invoiced
+              {alreadyPaid.invoiceNum ? ` (${alreadyPaid.invoiceNum})` : ''} and paid.
+              It can't be paid again.
+            </span>
+            <button type="button" onClick={() => navigate('/invoice')}
+              style={{ background:'#2e7d5e', color:'#fff', border:'none', borderRadius:8,
+                padding:'7px 16px', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+              New Invoice
+            </button>
+          </div>
+        )}
         <div className="invflex">
           <div className="leftsect">
             <div className="invtopwrp">
@@ -449,6 +503,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
                 nationalityStatus={selectedCustomer?.status}
+                nationalityCode={selectedCustomer?.nationalityCode}
                 lockedCustomer={fromAppointment}
                 membership={memberFlag} />
               <div className="invttlwrp">
@@ -474,6 +529,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               customer={selectedCustomer} recId={selectedCustomer?.recId || recIdFromUrl || ""}
               packageRedemption={packageRedemption} appliedPromotions={appliedPromotions}
               onRemovePromotion={handleRemovePromotion} onRemoveManualDiscount={handleRemoveManualDiscount}
+              alreadyPaid={!!alreadyPaid}
               onRedemptionComplete={() => setPackageRedemption(null)} />
           </aside>
         </div>

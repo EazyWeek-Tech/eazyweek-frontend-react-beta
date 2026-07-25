@@ -33,7 +33,7 @@ export const COMPONENT_TYPES = [
   { type:"signature",    label:"Signature",        icon:"✍", group:"Special" },
   { type:"fileupload",   label:"File / Image",     icon:"📎", group:"Special" },
   { type:"annotation",   label:"Annotation Pad",   icon:"🖊", group:"Special" },
-  { type:"macro",        label:"Macro",            icon:"⚡", group:"Special" },
+  { type:"macro",        label:"Macro",            icon:"", group:"Special" },
   { type:"content",      label:"Static Content",   icon:"📃", group:"Content" },
   { type:"logo",         label:"Logo",             icon:"", group:"Content" },
   { type:"columnlayout", label:"Columns",          icon:"⬜", group:"Layout" },

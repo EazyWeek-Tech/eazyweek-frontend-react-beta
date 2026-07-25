@@ -501,7 +501,7 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
       })();
       return (
         <div style={{ padding:"8px 12px", background:"#e9edf5", borderRadius:8, fontSize:13, color:"#334b71" }}>
-          ⚡ {config.macroType}: <strong>{macroVal}</strong>
+           {config.macroType}: <strong>{macroVal}</strong>
         </div>
       );
 

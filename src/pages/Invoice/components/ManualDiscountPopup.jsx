@@ -14,9 +14,18 @@ const ManualDiscountPopup = ({
   const [toast, setToast] = useState(null);
   const [discountPercent, setDiscountPercent] = useState('');
 
+  // Re-seed the scratchpad every time the popup OPENS, from the live invoice
+  // items. Keying only on `items` failed: removing rows inside the popup empties
+  // manualItems but never touches the parent `items` (removing here doesn't
+  // delete from the real invoice), so on reopen the array reference is unchanged,
+  // the effect doesn't re-run, and the table shows the emptied copy. Depending on
+  // isActive resets the working copy — and the approval flow — on each open.
   useEffect(() => {
+    if (!isActive) return;
     setManualItems(items.map(item => ({ ...item })));
-  }, [items]);
+    setShowApprovalInput(false);
+    setEnteredCode('');
+  }, [isActive, items]);
 
   useEffect(() => {
     const totalPrice = manualItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);

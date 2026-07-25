@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "../../../config";
 import { Link } from "react-router-dom";
 import SalesReturn from "../../Invoice/SalesReturn";
@@ -26,11 +26,33 @@ const toISODate = (d) => {
   return isNaN(dt.getTime()) ? "" : dt.toISOString().split("T")[0];
 };
 
+// The repository joins every payment row on an invoice into one string
+// ("Bank Transfer, Card, Cash, Cheque, Credit Note"), so an invoice settled by
+// split payment must match when ANY of its modes is the selected one. Exact
+// equality dropped those rows entirely.
+// canonMode also folds the Check/Cheque spelling, so the renamed dropdown option
+// still matches rows whose PAYMENTNAME was written with the old spelling.
+const canonMode = (s) => {
+  const t = String(s || "").trim().toLowerCase();
+  return t === "check" ? "cheque" : t;
+};
+
+const invoiceHasPaymentMode = (paymentMode, selected) => {
+  const want = canonMode(selected);
+  return String(paymentMode || "")
+    .split(",")
+    .some((part) => canonMode(part) === want);
+};
+
 const InvoicesTab = ({ custId, recId }) => {
   const [invoiceData,        setInvoiceData]        = useState([]);
   const [filteredInvoices,   setFilteredInvoices]   = useState([]);
   const [searchQuery,        setSearchQuery]         = useState("");
   const [selectedPaymentMode,setSelectedPaymentMode] = useState("All Selected");
+  // Transaction type filter — "All Types" | "Sales" | "Return". Mirrors the
+  // Type column pill, which treats anything that isn't TRANSTYPE='Return' as a
+  // sale (the repository already defaults a null TRANSTYPE to 'Sales').
+  const [selectedType,       setSelectedType]         = useState("All Types");
   const [fromDate,           setFromDate]            = useState("");
   const [toDate,             setToDate]              = useState("");
   const [loading,            setLoading]             = useState(false);
@@ -44,7 +66,38 @@ const InvoicesTab = ({ custId, recId }) => {
   const [toast,              setToast]               = useState(null);
   const [currentPage,        setCurrentPage]         = useState(1);
 
-  const paymentModes = ["All Selected", "Cash", "Card", "Bank Transfer", "Check","Loyalty", "Package Redemption", "Credit Note"];
+  // Payment modes are derived from the invoices actually loaded rather than
+  // hardcoded. The live PAYMENTNAME set contains values the old fixed list never
+  // had (Advance, Advance Redemption, Credit/Debit, Other, Package Redemption
+  // Return), so a hardcoded list silently offered filters that matched nothing
+  // and hid modes the customer had really used. Split-payment invoices arrive as
+  // one comma-joined string, so split before collecting; canonMode collapses the
+  // Check/Cheque spellings — both are present in the data — into one option.
+  const paymentModes = useMemo(() => {
+    const seen = new Map();          // canonical key -> display label
+    invoiceData.forEach((i) => {
+      String(i.paymentMode || "").split(",").forEach((part) => {
+        const label = part.trim();
+        if (!label) return;
+        const key = canonMode(label);
+        if (!seen.has(key)) seen.set(key, key === "cheque" ? "Cheque" : label);
+      });
+    });
+    return ["All Selected", ...Array.from(seen.values()).sort((a, b) => a.localeCompare(b))];
+  }, [invoiceData]);
+
+  // A selection can go stale when the loaded set changes (e.g. moving to another
+  // customer who never used that mode). Left alone the select renders blank and
+  // filters everything out, so fall back to the default.
+  useEffect(() => {
+    if (selectedPaymentMode !== "All Selected" && !paymentModes.includes(selectedPaymentMode))
+      setSelectedPaymentMode("All Selected");
+  }, [paymentModes, selectedPaymentMode]);
+  const transTypes   = [
+    { value: "All Types", label: "All Types" },
+    { value: "Sales",     label: "Sales"     },
+    { value: "Return",    label: "Returns"   },
+  ];
   const [returnedInvoices, setReturnedInvoices] = useState(new Set());
   const itemsPerPage = 10;
 
@@ -136,7 +189,11 @@ const InvoicesTab = ({ custId, recId }) => {
         i.practitioner?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     if (selectedPaymentMode !== "All Selected")
-      data = data.filter(i => i.paymentMode === selectedPaymentMode);
+      data = data.filter(i => invoiceHasPaymentMode(i.paymentMode, selectedPaymentMode));
+    if (selectedType !== "All Types")
+      data = data.filter(i =>
+        selectedType === "Return" ? i.transType === "Return"
+                                  : i.transType !== "Return");
     if (fromDate || toDate) {
       data = data.filter(i => {
         const iso = toISODate(i.invoiceDate);
@@ -148,7 +205,7 @@ const InvoicesTab = ({ custId, recId }) => {
     }
     setFilteredInvoices(data);
     setCurrentPage(1);
-  }, [searchQuery, selectedPaymentMode, fromDate, toDate, invoiceData]);
+  }, [searchQuery, selectedPaymentMode, selectedType, fromDate, toDate, invoiceData]);
 
   const totalSpent    = filteredInvoices.reduce((s, i) => s + (Number(i.amount) || 0), 0);
   const totalTax      = filteredInvoices.reduce((s, i) => s + (Number(i.tax)    || 0), 0);
@@ -184,6 +241,10 @@ const InvoicesTab = ({ custId, recId }) => {
             <input type="text" placeholder="Search invoice, amount or payment mode…" className="inv-search"
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
+          <select className="inv-select" value={selectedType} onChange={e => setSelectedType(e.target.value)}
+            title="Filter by transaction type">
+            {transTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
           <select className="inv-select" value={selectedPaymentMode} onChange={e => setSelectedPaymentMode(e.target.value)}>
             {paymentModes.map((m,i) => <option key={i} value={m}>{m}</option>)}
           </select>
@@ -197,9 +258,9 @@ const InvoicesTab = ({ custId, recId }) => {
                 min={fromDate || undefined} onChange={e => setToDate(e.target.value)} />
             </label>
           </div>
-          {(fromDate || toDate) && (
+          {(fromDate || toDate || selectedType !== "All Types") && (
             <button className="inv-btn-refresh" style={{ background:"#fff", color:"#334b71", border:"1.5px solid #e2e8f0" }}
-              onClick={() => { setFromDate(""); setToDate(""); }}>✕ Clear</button>
+              onClick={() => { setFromDate(""); setToDate(""); setSelectedType("All Types"); }}>✕ Clear</button>
           )}
         </div>
 

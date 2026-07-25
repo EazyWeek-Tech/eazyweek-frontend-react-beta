@@ -3,8 +3,7 @@ import { ClearButton } from "../../components/ClearableInput";
 import { API_BASE_URL } from "../../config";
 import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup";
 import {
-  sanitizeName, sanitizeDigits,
-  loadNationalities, natCodeOf, natNameOf, ensureCustomerId,
+  sanitizeName, sanitizeDigits, ensureCustomerId,
 } from "./customerFields";
 
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -104,14 +103,27 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
 
   const debounce   = useRef(null);
   const prevCustid = useRef("__init__");
+  const formWrapRef = useRef(null);
 
+  const closeSuggestions = () => { setMobSugg([]); setNmSugg([]); setLnSugg([]); };
 
-  // ── Nationality master ────────────────────────────────────────────────────
-  // Optional at booking time. Filling it here saves the receptionist the
-  // pre-check prompt at Make Payment; leaving it blank costs nothing now.
-  const [natList, setNatList] = useState([]);
+  // Close the autocomplete when the user clicks anywhere outside this form.
+  // The lists live inside formWrapRef, so clicking a suggestion still counts as
+  // "inside" and selectSugg runs normally. mousedown (not click) so it settles
+  // before focus moves, and Escape closes it too.
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (formWrapRef.current && !formWrapRef.current.contains(e.target)) closeSuggestions();
+    };
+    const onKey = (e) => { if (e.key === "Escape") closeSuggestions(); };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
-  useEffect(() => { loadNationalities().then(setNatList); }, []);
 
   useEffect(() => {
     if (!prefill) return;
@@ -190,11 +202,8 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
   };
 
   return (
-    <div className={`bscdetwrp${lockIdentity ? " cf-lock" : ""}`}>
+    <div ref={formWrapRef} className={`bscdetwrp${lockIdentity ? " cf-lock" : ""}`}>
       <style>{`
-        .cf-natlbl{position:static!important;transform:none!important;display:block;
-          font-size:11px;font-weight:600;color:#5b6b85;margin-bottom:4px}
-        .cf-nat{width:100%}
         .cf-lock input:disabled{background:#f4f6fa;color:#5b6b85;cursor:not-allowed;
           border-color:#dbe4f0;-webkit-text-fill-color:#5b6b85;opacity:1}
       `}</style>
@@ -241,24 +250,11 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
           <label htmlFor="email" className="frmlbl">Email Address</label>
         </div>
 
-        {/* Nationality — optional here so a walk-in can be booked in seconds.
-            It IS required at billing: Make Payment runs a pre-check and asks for
-            it then (see useInvoicePrecheck). Filling it in now saves that step. */}
-        <div className="form-group">
-          <label htmlFor="nationalityCode" className="frmlbl cf-natlbl">Nationality</label>
-          <select id="nationalityCode" className="cf-nat" value={form.nationalityCode}
-            onChange={e => sync({ ...form, nationalityCode: e.target.value })}>
-            <option value="">Select nationality</option>
-            {natList.map((n, i) => (
-              <option key={`${natCodeOf(n)}-${i}`} value={natCodeOf(n)}>{natNameOf(n)}</option>
-            ))}
-          </select>
-        </div>
 
         <div className="form-group radgrp">
           <label className="frmlbl">Gender</label>
           <div className="rdopts">
-            {["male","female"].map(g => (
+            {["male","female","other"].map(g => (
               <div className="rdbox" key={g}>
                 <input type="radio" id={`g_${g}`} name="gender" value={g}
                   checked={form.gender?.toLowerCase() === g}
@@ -432,22 +428,29 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
             </select>
             {errors.practitioner && <div className="error">{errors.practitioner}</div>}
           </div>
-          <div className="form-group slctgrp">
-            <label>Start Time:</label>
-            <select id="startTime" value={form.startTime} onChange={handleStartChange}>
-              {TIME_SLOTS.map((t,i) => <option key={i} value={t}>{t}</option>)}
-            </select>
+          {/* Duration, Start and End Time share one row. */}
+          <div className="form-group timerow" style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+            <div className="slctgrp" style={{ flex:1 }}>
+              <label>Start Time:</label>
+              <select id="startTime" value={form.startTime} onChange={handleStartChange} style={{ width:"100%" }}>
+                {TIME_SLOTS.map((t,i) => <option key={i} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="slctgrp" style={{ flex:1 }}>
+              <label>Duration:</label>
+              <select id="duration" value={form.duration} onChange={handleDurChange} style={{ width:"100%" }}>
+                {durOpts.map(m => <option key={m} value={m}>{m} mins</option>)}
+              </select>
+            </div>
+            
           </div>
-          <div className="form-group slctgrp">
-            <label>Duration:</label>
-            <select id="duration" value={form.duration} onChange={handleDurChange}>
-              {durOpts.map(m => <option key={m} value={m}>{m} mins</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <input type="text" id="endtm" placeholder=" " value={form.endTime} readOnly />
-            <label htmlFor="endtm" className="frmlbl">End Time</label>
-          </div>
+           <div className="form-group">
+              <div className="slctgrp" style={{ flex:1 }}>
+              <label>End Time:</label>
+              <input type="text" id="endtm" value={form.endTime} readOnly
+                style={{ width:"100%", boxSizing:"border-box" }} />
+            </div>
+           </div>
           <div className="lstfrmsect">
             <div className="form-group slctgrp rmslct">
               <label>Room:</label>
@@ -610,6 +613,26 @@ const AppointmentDrawer = ({
     setResetKey(Date.now());
   }, [customerData, editingIdx]);
 
+  // Closing the drawer (collapse ✕ or Cancel) must not leave the last booking's
+  // customer/services sitting in state — the drawer never unmounts, it only
+  // slides out, so nothing clears itself. We wipe here on the way out rather
+  // than trusting the reopen effect to catch every case.
+  //
+  // Exception: when editing an existing appointment (editAppointment set), the
+  // parent owns that data and re-seeds it on reopen, so we leave it intact and
+  // just hand control back.
+  const closeAndReset = useCallback(() => {
+    if (!editAppointment) {
+      setServiceList([]);
+      setCustomerData(null);
+      setEditingIdx(null);
+      setEditingSvc(null);
+      setLastEndTime("10:00 AM");
+      setResetKey(Date.now());   // remounts both child forms via their key prop
+    }
+    onClose?.();
+  }, [editAppointment, onClose]);
+
   const handleSubmit = async () => {
     if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
@@ -761,7 +784,7 @@ const AppointmentDrawer = ({
       )}
       <div ref={drawerRef} className={`appointdrwr ${isOpen?"expand":""}`} style={{ height:`${height}px` }}>
         <div className="apptfrm flxwrp">
-          <div className="clpse" onClick={onClose}>
+          <div className="clpse" onClick={closeAndReset}>
             <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#000">
               <path d="M480-237 240-477l51-51 189 189 189-189 51 51-240 240Zm0-240L240-717l51-51 189 189 189-189 51 51-240 240Z"/>
             </svg>
@@ -841,7 +864,7 @@ const AppointmentDrawer = ({
               disabled={lockCustomerIdentity}
               title={lockCustomerIdentity ? "Not available for a converted lead — finish or leave the page." : undefined}
               style={lockCustomerIdentity ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-              onClick={() => { if (lockCustomerIdentity) return; onClose?.(); }}>Cancel</button>
+              onClick={() => { if (lockCustomerIdentity) return; closeAndReset(); }}>Cancel</button>
             <button
               className="restbtn"
               disabled={lockCustomerIdentity}
@@ -849,7 +872,9 @@ const AppointmentDrawer = ({
               style={lockCustomerIdentity ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
               onClick={() => {
                 if (lockCustomerIdentity) return;
-                setServiceList([]); setCustomerData(null); setResetKey(Date.now());
+                setServiceList([]); setCustomerData(null);
+                setEditingIdx(null); setEditingSvc(null); setLastEndTime("10:00 AM");
+                setResetKey(Date.now());
               }}>Reset</button>
           </div>
         </div>

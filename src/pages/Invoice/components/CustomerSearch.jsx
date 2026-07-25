@@ -11,6 +11,8 @@ const CustomerSearch = ({
   fullName,
   emailId,
   number,
+  prefillCustid,
+  nationalityCode: nationalityCodeFromProps,
   nationalityStatus: nationalityFromProps,
   // true when the invoice was opened from an appointment — the customer is
   // already decided, so creating a new one here is not allowed.
@@ -33,6 +35,10 @@ const CustomerSearch = ({
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
+  // Once the user saves a nationality inline, its classification is authoritative.
+  // The prefill effect below must not overwrite it with a stale status the parent
+  // round-trips back (which is why the picker used to reappear after saving).
+  const natSavedLocally = useRef(false);
 
   // Prefill from props (appointment mode)
   useEffect(() => {
@@ -41,9 +47,48 @@ const CustomerSearch = ({
       setMobile(number     || '');
       setEmail(emailId     || '');
       setSearchText(fullName || '');
-      if (nationalityFromProps) setNationalityStatus(nationalityFromProps);
+      // Don't clobber a nationality the user just saved here. Only take the
+      // prop's status when we haven't saved locally, or when the prop carries a
+      // real Citizen/Expat classification.
+      if (nationalityFromProps && (!natSavedLocally.current || /^(citizen|expat)$/i.test(String(nationalityFromProps).trim()))) {
+        setNationalityStatus(nationalityFromProps);
+      }
     }
   }, [fullName, emailId, number, nationalityFromProps]);
+
+  // When the invoice is opened from a URL that carries a custId (e.g. redirected
+  // back after saving a nationality), the flat props above fill name/mobile/status
+  // but leave selectedCustomer null — so the Nationality textbox, which reads
+  // selectedCustomer.nationalityCode, stays blank even though the value is saved.
+  // Fetch the full record once and enrich it so the textbox and the "— <name>"
+  // suffix populate. Guarded so it doesn't fight a customer the user just picked.
+  useEffect(() => {
+    const id = prefillCustid || '';
+    if (!id) return;
+    if (selectedCustomer?.custId) return;   // user already has one selected
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN()}` },
+          body: JSON.stringify({ custID: id }),
+        });
+        const j = await r.json();
+        const cust = j?.data ?? j;
+        if (cancelled || !cust || cust.success === false) return;
+        const enriched = buildEnriched(cust);
+        setSelectedCustomer(enriched);
+        natSavedLocally.current = /^(citizen|expat)$/i.test(String(enriched.status || ''));
+        // Only adopt the fetched classification when the props didn't already
+        // supply one, so we never override a status the caller passed in.
+        if (!nationalityFromProps && enriched.status) setNationalityStatus(enriched.status);
+        onCustomerSelect?.(enriched);
+      } catch { /* leave the flat prefill in place on failure */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillCustid]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -65,11 +110,16 @@ const CustomerSearch = ({
   }, []);
 
   // Resolve a stored NATIONALITY_ID (numeric code) to its display name.
+  // Match on every code key the Nationality master is known to use (code / id /
+  // NCODE / nationalityCode) so a shape difference in the master response can't
+  // leave the name blank while the code is valid.
   const resolveNatName = (code) => {
     if (code === undefined || code === null || code === '') return '';
     const c = Number(code);
-    const n = nationalities.find(x => Number(x.code ?? x.id ?? x.NCODE) === c);
-    return n ? (n.name || n.NATIONALITYNAME || '') : '';
+    const n = nationalities.find(
+      x => Number(x.code ?? x.id ?? x.NCODE ?? x.nationalityCode) === c
+    );
+    return n ? (n.name || n.NATIONALITYNAME || n.nationalityName || '') : '';
   };
 
   const getCenterCode = () => {
@@ -93,6 +143,7 @@ const CustomerSearch = ({
       setSelectedCustomer(null);
       setMobile(''); setEmail(''); setName('');
       setNationalityStatus('');
+      natSavedLocally.current = false;
       onCustomerSelect?.(null);
     }
 
@@ -118,13 +169,16 @@ const CustomerSearch = ({
   };
 
   // ── Select handler ─────────────────────────────────────────────────────────
-  const handleSelect = (cust) => {
+  // Build the enriched customer object both the search-select path and the
+  // URL-prefill fetch path use, so a customer arrives with the same shape
+  // (nationalityCode included) however the invoice was opened.
+  const buildEnriched = (cust) => {
     const firstName = cust.firstName || cust.FIRST_NAME || '';
     const lastName  = cust.lastName  || cust.LAST_NAME  || '';
     const fullName  = [firstName, lastName].filter(Boolean).join(' ').trim() || cust.fullName || '';
     const mobile    = cust.mobile    || cust.NUMBER     || cust.number       || cust.mobilePhone || '';
     const email     = cust.email     || cust.EMAIL      || cust.emailId      || '';
-    const custId    = cust.custId    || cust.custid     || cust.CUSTID       || '';
+    const custId    = cust.custId    || cust.custid     || cust.CUSTID       || cust.customerId || '';
     const recId     = cust.recId     || cust.recid      || cust.RECID        || '';
     const natId     = String(cust.nationalityId || cust.NATIONALITY_ID || '');
     // Prefer the persisted Citizen/Expat classification (computed at creation
@@ -137,16 +191,7 @@ const CustomerSearch = ({
     const rawType   = String(cust.customerType || cust.CUSTOMERTYPE || '').trim();
     const persisted = /^(citizen|expat)$/i.test(rawType) ? rawType : '';
     const status    = persisted || (natId && natId !== '0' ? (natId === '84' ? 'Citizen' : 'Expat') : '');
-
-    setSearchText(fullName);
-    setName(fullName);
-    setMobile(mobile);
-    setEmail(email);
-    setNationalityStatus(status);
-    setSuggestions([]);
-    setShowDropdown(false);
-
-    const enriched = {
+    return {
       ...cust,
       custId, custid: custId,
       fullName, firstName, lastName,
@@ -155,7 +200,19 @@ const CustomerSearch = ({
       nationalityCode: cust.nationalityCode ?? cust.nationalityId ?? cust.NATIONALITY_ID ?? '',
       isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false),
     };
+  };
+
+  const handleSelect = (cust) => {
+    const enriched = buildEnriched(cust);
+    setSearchText(enriched.fullName);
+    setName(enriched.fullName);
+    setMobile(enriched.mobile);
+    setEmail(enriched.email);
+    setNationalityStatus(enriched.status);
+    setSuggestions([]);
+    setShowDropdown(false);
     setSelectedCustomer(enriched);
+    natSavedLocally.current = /^(citizen|expat)$/i.test(String(enriched.status || ''));
     onCustomerSelect?.(enriched);
   };
 
@@ -163,6 +220,7 @@ const CustomerSearch = ({
     setSearchText(''); setName(''); setMobile(''); setEmail('');
     setNationalityStatus(''); setSuggestions([]); setShowDropdown(false);
     setSelectedCustomer(null);
+    natSavedLocally.current = false;
     onCustomerSelect?.(null);
   };
 
@@ -192,6 +250,7 @@ const CustomerSearch = ({
     setName(full); setMobile(mob); setEmail(eml);
     setNationalityStatus(status);
     setSelectedCustomer(enriched);
+    natSavedLocally.current = /^(citizen|expat)$/i.test(String(status || ''));
     onCustomerSelect?.(enriched);
   };
 
@@ -247,7 +306,7 @@ const CustomerSearch = ({
         setNatError(json?.message || 'Could not save the nationality.');
         return;
       }
-      const status  = data?.customerType || '';
+      const status  = data?.customerType || (Number(natDraft) === 84 ? 'Citizen' : 'Expat');
       const updated = {
         ...selectedCustomer,
         status,
@@ -255,6 +314,7 @@ const CustomerSearch = ({
         nationalityCode: Number(natDraft),
         nationalityId:   Number(natDraft),
       };
+      natSavedLocally.current = true;
       setNationalityStatus(status);
       setSelectedCustomer(updated);
       onCustomerSelect?.(updated);
@@ -271,7 +331,9 @@ const CustomerSearch = ({
      was picked from the dropdown, or because the invoice came from an
      appointment whose customer has already been seen. */
   const isLocked   = isSelected || lockedCustomer;
-  const nationalityName = resolveNatName(selectedCustomer?.nationalityCode);
+  const nationalityName = resolveNatName(
+    selectedCustomer?.nationalityCode ?? nationalityCodeFromProps
+  );
 
   return (
     <div className="cstsearch">
@@ -374,7 +436,7 @@ const CustomerSearch = ({
             }}
           />
           <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'#9ca3af', pointerEvents:'none' }}>
-            {searching ? '⟳' : lockedCustomer ? '🔒' : isSelected ? '✓' : '🔍'}
+            {searching ? '⟳' : lockedCustomer ? '' : isSelected ? '✓' : '🔍'}
           </span>
         </div>
 

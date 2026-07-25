@@ -76,6 +76,10 @@ const PaymentBlock = ({
   // customer should refresh it so totals recompute — Citizen removes VAT, which
   // changes every line and the invoice total.
   onCustomerUpdated = null,
+  // Set by the invoice page when the server reports this appointment already has
+  // a closed invoice (reached via Back / refresh). Skips the appointment re-fetch
+  // and disables submit so the same appointment can't be paid twice.
+  alreadyPaid = false,
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -266,8 +270,10 @@ const PaymentBlock = ({
 
   // ---------- Fetch Selected Appointment Details based on URL ----------
   useEffect(() => {
-    // Skip if parent already supplied items — avoids duplicate fetch and false error toast
-    const shouldFetch = !!appointmentIdFromUrl && !!custIdFromUrl && !!sessionCenterCode && !invoiceItems?.length;
+    // Skip if parent already supplied items — avoids duplicate fetch and false error toast.
+    // Also skip when this appointment is already invoiced: re-fetching would repopulate
+    // the cart on a Back/refresh and re-enable payment.
+    const shouldFetch = !alreadyPaid && !!appointmentIdFromUrl && !!custIdFromUrl && !!sessionCenterCode && !invoiceItems?.length;
     if (!shouldFetch) return;
 
     const fetchDetails = async () => {
@@ -1765,7 +1771,7 @@ if (result.success) {
 
       {(payments.length > 0 || appliedCreditNotes.length > 0 || appliedAdvances.length > 0 || (isZeroTotal && packageRedemption)) && (
         <div className="frmdiv" style={{ textAlign: 'center' }}>
-          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={!isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
+          <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={alreadyPaid || !isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
             {isSubmitting ? 'Submitting…' : generatedInvoiceNumber ? 'Invoice Generated' : 'Complete Invoice'}
           </button>
         </div>
