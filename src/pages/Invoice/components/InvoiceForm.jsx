@@ -57,6 +57,17 @@ const AutocompleteInput = ({ label, value, onChange, onSelect, suggestions, load
   );
 };
 
+// Pasted text carries characters a SQL LIKE cannot match. HTML collapses runs of
+// whitespace when it renders, so copying a name off the screen yields ONE space
+// where the column holds two; Word/Excel/PDF paste yields non-breaking spaces and
+// zero-width marks. Normalise here; the repositories also match with spaces
+// stripped, so either side alone is enough.
+const normalizeSearch = (v) => String(v || '')
+  .replace(/[\u00A0\u2007\u202F]/g, ' ')     // non-breaking spaces -> plain space
+  .replace(/[\u200B-\u200D\uFEFF]/g, '')     // zero-width joiners / BOM
+  .replace(/\s+/g, ' ')                       // collapse runs, newlines, tabs
+  .trim();
+
 // ── SimpleAutocomplete for product only ──────────────────────────────────────
 const SimpleAutocomplete = ({ field, value, onChange, onSelect, suggestions, fieldFocused }) => (
   <div className="form-group" style={{ position: 'relative' }}>
@@ -140,6 +151,12 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
   const serviceDebounce = useRef(null);
   const packageDebounce = useRef(null);
   const practDebounce   = useRef(null);
+  const productDebounce = useRef(null);
+  // Request sequence per field — a slow earlier response must not overwrite a
+  // newer one (pasting fires a single change, but fast typing overlaps calls).
+  const serviceSeq = useRef(0);
+  const packageSeq = useRef(0);
+  const productSeq = useRef(0);
 
   // Load practitioners on mount
   useEffect(() => {
@@ -174,16 +191,19 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
     // Clear package if service is being typed
     if (value) { setPackageText(''); setSelectedPackage(null); setProductText(''); setSelectedProduct(null); }
     if (serviceDebounce.current) clearTimeout(serviceDebounce.current);
-    if (!value || value.trim().length < 2) { setServiceSuggestions([]); return; }
+    const term = normalizeSearch(value);
+    if (term.length < 2) { setServiceSuggestions([]); return; }
 
     serviceDebounce.current = setTimeout(async () => {
+      const seq = ++serviceSeq.current;
       const centerCode = getCenterCode();
       if (!centerCode) return;
       try {
         setServiceLoading(true);
         const json = await authFetch(
-          `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(value.trim())}/${centerCode}`
+          `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(term)}/${centerCode}`
         );
+        if (seq !== serviceSeq.current) return;   // a newer search already ran
         const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
         setServiceSuggestions(list.map(item => ({
           ...item,
@@ -210,15 +230,18 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
     // Clear service/product if package is being typed
     if (value) { setServiceText(''); setSelectedService(null); setProductText(''); setSelectedProduct(null); }
     if (packageDebounce.current) clearTimeout(packageDebounce.current);
-    if (!value || value.trim().length < 2) { setPackageSuggestions([]); return; }
+    const term = normalizeSearch(value);
+    if (term.length < 2) { setPackageSuggestions([]); return; }
 
     packageDebounce.current = setTimeout(async () => {
+      const seq = ++packageSeq.current;
       const centerCode = getCenterCode();
       try {
         setPackageLoading(true);
         const json = await authFetch(
-          `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(value.trim())}/${centerCode}`
+          `${API_BASE_URL}/api/Package/SearchByName/${encodeURIComponent(term)}/${centerCode}`
         );
+        if (seq !== packageSeq.current) return;   // a newer search already ran
         const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
         setPackageSuggestions(list.map(item => ({
           ...item,
@@ -269,14 +292,24 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
     if (value) { setServiceText(''); setSelectedService(null); setPackageText(''); setSelectedPackage(null); }
 
     const centerCode = getCenterCode();
-    if (!value || value.trim().length < 2 || !centerCode) { setProductSuggestions([]); return; }
-    try {
-      const json = await authFetch(
-        `${API_BASE_URL}/api/Product/SearchByName/${encodeURIComponent(value.trim())}/${centerCode}`
-      );
-      const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-      setProductSuggestions(list.map(item => ({ ...item, type: 'product' })));
-    } catch { setProductSuggestions([]); }
+    if (productDebounce.current) clearTimeout(productDebounce.current);
+    const term = normalizeSearch(value);
+    if (term.length < 2 || !centerCode) { setProductSuggestions([]); return; }
+
+    // Debounced like the service and package searches — this used to fire one
+    // request per keystroke, so responses raced and a slow early one could
+    // overwrite the list with results for a shorter prefix.
+    productDebounce.current = setTimeout(async () => {
+      const seq = ++productSeq.current;
+      try {
+        const json = await authFetch(
+          `${API_BASE_URL}/api/Product/SearchByName/${encodeURIComponent(term)}/${centerCode}`
+        );
+        if (seq !== productSeq.current) return;   // a newer search already ran
+        const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setProductSuggestions(list.map(item => ({ ...item, type: 'product' })));
+      } catch { setProductSuggestions([]); }
+    }, 300);
   };
 
   const handleProductSelect = (item) => {
@@ -299,6 +332,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
         name:             selectedService.serviceName || selectedService.name || '',
         code:             selectedService.serviceCode || selectedService.code || '',
         type:             'service',
+        categoryCode:     selectedService.categoryCode || '',
         price:            parseFloat(selectedService.price ?? 0),
         discount:         0,
         taxpercent:       selectedService.taxPercent ?? '0.00',
@@ -320,6 +354,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
         name:             selectedPackage.packageName || '',
         code:             selectedPackage.packageCode || '',
         type:             'package',
+        categoryCode:     selectedPackage.categoryCode || '',
         itemType:         'package',
         price:            parseFloat(selectedPackage.price ?? 0),
         discount:         0,
@@ -346,6 +381,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
         name:             selectedProduct.productName || selectedProduct.name || '',
         code:             selectedProduct.productCode || '',
         type:             'product',
+        categoryCode:     selectedProduct.categoryCode || '',
         price:            parseFloat(selectedProduct.price || selectedProduct.packageValue || 0),
         discount:         0,
         taxpercent:       selectedProduct.taxPercent ?? '0.00',

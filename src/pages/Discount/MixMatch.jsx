@@ -12,7 +12,7 @@ const todayStr = () => new Date().toISOString().split("T")[0];
 const ITEM_TYPES = ["Service","Product","Package","Category"];
 const MAX_SLOTS  = 4;
 
-const EMPTY_SLOT = () => ({ itemType:"", itemCode:"", itemName:"", minQty:1, discountValue:"" });
+const EMPTY_SLOT = () => ({ itemType:"", itemCode:"", itemName:"", minQty:1, discountValue:0 });
 
 export default function MixMatch() {
   const [searchParams] = useSearchParams();
@@ -112,7 +112,7 @@ export default function MixMatch() {
       try {
         let url = "";
         if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
-        if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}`;
+        if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
         if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
         const data = await authGet(url);
@@ -120,7 +120,7 @@ export default function MixMatch() {
         setItemSuggestions(p => ({ ...p, [type]: list.map(i => {
           let itemCode = "", itemName = "";
           if (type === "Service")  { itemCode = i.serviceCode  || ""; itemName = i.serviceName  || ""; }
-          if (type === "Product")  { itemCode = i.productCode  || ""; itemName = i.productName  || ""; }
+          if (type === "Product")  { itemCode = i.productCode  || i.PRODUCTCODE || ""; itemName = i.productName  || i.PRODUCTNAME || ""; }
           if (type === "Package")  { itemCode = i.packageCode  || i.PACKAGECODE || ""; itemName = i.packageName || i.PACKAGENAME || ""; }
           if (type === "Category") { itemCode = i.categoryCode || i.PCCODE || ""; itemName = i.categoryName || ""; }
           return { itemCode, itemName };
@@ -152,7 +152,7 @@ export default function MixMatch() {
         for (const type of ITEM_TYPES.filter(t => itemTypeChecks[t])) {
           let url = "";
           if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
-          if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}`;
+          if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
           if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
           if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
           const data = await authGet(url);
@@ -160,7 +160,7 @@ export default function MixMatch() {
             // Extract code based on the specific type being searched — avoids categoryCode polluting package results
             let code = "", name = "";
             if (type === "Service")  { code = i.serviceCode  || ""; name = i.serviceName  || ""; }
-            if (type === "Product")  { code = i.productCode  || ""; name = i.productName  || ""; }
+            if (type === "Product")  { code = i.productCode  || i.PRODUCTCODE || ""; name = i.productName  || i.PRODUCTNAME || ""; }
             if (type === "Package")  { code = i.packageCode  || i.PACKAGECODE || ""; name = i.packageName || i.PACKAGENAME || ""; }
             if (type === "Category") { code = i.categoryCode || i.PCCODE || ""; name = i.categoryName || ""; }
             if (code && name) results.push({ itemType: type, itemCode: code, itemName: name });
@@ -219,11 +219,21 @@ export default function MixMatch() {
     const configuredSlots = slots.slice(0, activeSlots).filter(s => s.itemCode);
     if (!configuredSlots.length)       e.slots           = "Please configure at least one item slot in the combination grid.";
     slots.slice(0, activeSlots).forEach((s, i) => {
-      if (s.itemCode && (!s.discountValue || parseFloat(s.discountValue) < 0))
+      // A cleared field means 0 (a trigger-only item), not a missing value.
+      const raw = String(s.discountValue ?? "").trim();
+      const val = raw === "" ? 0 : parseFloat(raw);
+      if (s.itemCode && (Number.isNaN(val) || val < 0))
         e[`slot_${i}`] = `Slot ${i+1}: Discount Value must be 0 or greater.`;
-      if (form.mixMatchValueType === "Percentage" && parseFloat(s.discountValue) > 100)
+      if (form.mixMatchValueType === "Percentage" && val > 100)
         e[`slot_${i}`] = `Slot ${i+1}: Percentage cannot exceed 100.`;
     });
+    // Every slot at 0 = a promotion that can never discount anything. Four live
+    // discounts are already in this state, so block it at the source.
+    if (configuredSlots.length &&
+        !configuredSlots.some(s => parseFloat(s.discountValue || 0) > 0))
+      e.slots = "At least one item in the combination must have a Discount Value above 0 — "
+              + "otherwise the promotion can never discount anything. Leave the trigger items at 0 "
+              + "and set the value on the item that should be discounted.";
     if (form.enableDiscount && action === "draft")
       e.enableDiscount = "Enabled Discounts cannot be saved as Drafts.";
     setErrors(e);
@@ -420,6 +430,9 @@ export default function MixMatch() {
                 <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0", width:100 }}>Min Qty</th>
                 <th style={{ padding:"10px 12px", textAlign:"left", fontWeight:700, fontSize:12, color:"#475569", borderBottom:"1px solid #e2e8f0", width:140 }}>
                   Discount Value {F("mixMatchValueType")==="Percentage"?"(%)":"(SAR)"}
+                  <div style={{ fontSize:10, fontWeight:400, color:"#94a3b8", marginTop:2 }}>
+                    0 = trigger item only
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -470,7 +483,6 @@ export default function MixMatch() {
                         <>
                           <input type="number" min={0} max={F("mixMatchValueType")==="Percentage"?100:undefined}
                             value={slot.discountValue} onChange={e => updateSlot(i, "discountValue", e.target.value)}
-                            placeholder="0"
                             style={{ width:100, padding:"6px 8px", border:`1px solid ${saveAttempted&&errors[`slot_${i}`]?"#b91c1c":"#e2e8f0"}`, borderRadius:6, fontSize:13 }} />
                           {saveAttempted && errors[`slot_${i}`] && <div style={{ color:"#b91c1c", fontSize:10, marginTop:2 }}>{errors[`slot_${i}`]}</div>}
                         </>

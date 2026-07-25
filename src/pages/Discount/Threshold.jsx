@@ -94,7 +94,7 @@ export default function Threshold() {
       try {
         let url = "";
         if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
-        if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}`;
+        if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
         if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
         const data = await authGet(url);
@@ -102,7 +102,7 @@ export default function Threshold() {
         setItemSuggestions(p => ({ ...p, [type]: list.map(i => {
           let itemCode = "", itemName = "";
           if (type === "Service")  { itemCode = i.serviceCode  || ""; itemName = i.serviceName  || ""; }
-          if (type === "Product")  { itemCode = i.productCode  || ""; itemName = i.productName  || ""; }
+          if (type === "Product")  { itemCode = i.productCode  || i.PRODUCTCODE || ""; itemName = i.productName  || i.PRODUCTNAME || ""; }
           if (type === "Package")  { itemCode = i.packageCode  || i.PACKAGECODE || ""; itemName = i.packageName || i.PACKAGENAME || ""; }
           if (type === "Category") { itemCode = i.categoryCode || i.PCCODE || ""; itemName = i.categoryName || ""; }
           return { itemCode, itemName };

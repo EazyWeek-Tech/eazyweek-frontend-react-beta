@@ -108,14 +108,14 @@ export default function SimpleDiscount() {
       try {
         let url = "";
         if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
-        if (type === "Product")  url = `${API_BASE_URL}/api/Master/GetProductByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}`;
+        if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
         if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
         const data = await authGet(url);
         const list = Array.isArray(data) ? data : [];
         const suggestions = list.map(i => ({
-          itemCode: i.serviceCode || i.productCode || i.categoryCode || i.packageCode || i.PACKAGECODE || "",
-          itemName: i.serviceName || i.productName || i.categoryName || i.packageName || i.PACKAGENAME || "",
+          itemCode: i.serviceCode || i.productCode || i.PRODUCTCODE || i.categoryCode || i.packageCode || i.PACKAGECODE || "",
+          itemName: i.serviceName || i.productName || i.PRODUCTNAME || i.categoryName || i.packageName || i.PACKAGENAME || "",
         })).filter(i => i.itemCode && i.itemName);
         setItemSuggestions(p => ({ ...p, [type]: suggestions }));
       } catch { setItemSuggestions(p => ({ ...p, [type]: [] })); }
