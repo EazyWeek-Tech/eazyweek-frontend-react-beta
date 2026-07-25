@@ -13,7 +13,7 @@ const todayYMD = () => { const d = new Date(); return `${d.getFullYear()}-${pad2
 const STATUS_LABEL = { "0": "Pending", "1": "Partially Completed", "2": "Completed" }
 const STATUS_STYLE = {
   "Pending":              { bg: "#FFF8E7", color: "#B45309", dot: "#F59E0B" },
-  "Partially Completed":  { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
+  "Partially Completed":  { bg: "#EFF6FF", color: "#1D4ED8", dot: "#334B71" },
   "Completed":            { bg: "#F0FDF4", color: "#166534", dot: "#22C55E" },
 }
 
@@ -254,7 +254,7 @@ export default function CourtesyCallDashboard() {
         {counts.total > 0 ? (
           <CCDonut centerValue={counts.total} segments={[
             { label:"Completed",           value:counts.completed, color:"#22C55E" },
-            { label:"Partially Completed", value:counts.partial,   color:"#3B82F6" },
+            { label:"Partially Completed", value:counts.partial,   color:"#334B71" },
             { label:"Pending",             value:counts.pending,   color:"#F59E0B" },
           ]} />
         ) : (

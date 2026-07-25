@@ -451,7 +451,7 @@ const s = {
   pager:         { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 16 },
   empPreview:    { background: "#f0f7ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", marginBottom: 16 },
   empPreviewName:{ fontWeight: 600, fontSize: 14, color: "#1e40af" },
-  empPreviewDetail:{ fontSize: 12, color: "#3b82f6", marginTop: 2 },
+  empPreviewDetail:{ fontSize: 12, color: "#334B71", marginTop: 2 },
   infoBox:       { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#166534", marginTop: 4 },
   footerBtn:     { height: 36, padding: "0 20px", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none" },
   primaryBtn:    { background: "#334B71", color: "#fff" },

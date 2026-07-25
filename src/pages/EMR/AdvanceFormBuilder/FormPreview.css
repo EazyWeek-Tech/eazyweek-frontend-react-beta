@@ -289,7 +289,7 @@
 
 .FP-form-field-option.selected {
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #3b82f6;
+  border-color: #334B71;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   font-weight: 600;
 }
@@ -676,7 +676,7 @@
   margin-right: 0.5rem;
   width: 1rem;
   height: 1rem;
-  accent-color: #3b82f6;
+  accent-color: #334B71;
   flex-shrink: r50;
   transform: none; 
 }
@@ -935,7 +935,7 @@
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   color: #1e40af;
   font-weight: 700;
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid #334B71;
 }
 
 .FP-form-field-component input[type="date"] {
@@ -1103,7 +1103,7 @@
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   color: #1e40af;
   font-weight: 700;
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid #334B71;
 }
 
 .FP-form-field-component.FP-form-field-day [data-radix-select-trigger] {
@@ -1171,7 +1171,7 @@
   margin-right: 0.5rem;
   width: 1rem;
   height: 1rem;
-  accent-color: #3b82f6;
+  accent-color: #334B71;
 }
 
 

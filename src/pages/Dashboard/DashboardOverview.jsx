@@ -74,7 +74,7 @@ const DashboardOverview = () => {
 
         .filter-select:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: #334B71;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
@@ -192,7 +192,7 @@ const DashboardOverview = () => {
 
         .audit-bar-fill {
           height: 100%;
-          background: #3b82f6;
+          background: #334B71;
           border-radius: 10px;
           transition: width 0.3s ease;
         }
@@ -285,7 +285,7 @@ const DashboardOverview = () => {
           border-radius: 50%;
           position: relative;
           background: conic-gradient(
-            #3b82f6 0deg 100.8deg,
+            #334B71 0deg 100.8deg,
             #ef4444 100.8deg 247.68deg,
             #f3f4f6 247.68deg 360deg
           );
@@ -332,7 +332,7 @@ const DashboardOverview = () => {
           height: 150px;
           border-radius: 50%;
           background: conic-gradient(
-            #3b82f6 0deg 120deg,
+            #334B71 0deg 120deg,
             #ef4444 120deg 240deg,
             #10b981 240deg 360deg
           );
@@ -557,7 +557,7 @@ const DashboardOverview = () => {
               </div>
               <div className="pie-legend">
                 <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: "#3b82f6" }}></div>
+                  <div className="legend-color" style={{ backgroundColor: "#334B71" }}></div>
                   <span>Courtesy Call Completed</span>
                   <span style={{ marginLeft: "auto", fontWeight: "600" }}>28.0%</span>
                 </div>
@@ -586,7 +586,7 @@ const DashboardOverview = () => {
               </div>
               <div className="pie-legend">
                 <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: "#3b82f6" }}></div>
+                  <div className="legend-color" style={{ backgroundColor: "#334B71" }}></div>
                   <span>WIP</span>
                 </div>
                 <div className="legend-item">
