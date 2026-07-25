@@ -379,7 +379,7 @@ export default function MixMatch() {
               <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#e9edf5",
                 color:"#334b71", border:"1px solid #e2e8f0", padding:"5px 10px", borderRadius:20, fontSize:12, fontWeight:600 }}>
                 <span style={{ fontSize:10, background:"#334b71", color:"#fff", borderRadius:4, padding:"1px 5px" }}>{item.itemType}</span>
-                {item.itemName}
+                {item.itemName} <span style={{ color:"#5c7192", fontWeight:400 }}>({item.itemCode})</span>
                 <button onClick={() => removeApplicableItem(idx)} style={{ background:"none", border:"none", color:"#b91c1c", cursor:"pointer", fontSize:14, lineHeight:1, padding:0 }}>×</button>
               </span>
             ))}
@@ -438,6 +438,9 @@ export default function MixMatch() {
                             disabled={!active}
                             placeholder="Search item…"
                             style={{ width:"100%", padding:"6px 10px", border:"1px solid #e2e8f0", borderRadius:6, fontSize:13, boxSizing:"border-box" }} />
+                          {slot.itemCode && (
+                            <div style={{ fontSize:11, color:"#5c7192", marginTop:3, fontWeight:600 }}>Code: {slot.itemCode}</div>
+                          )}
                           {slotSuggestions[i]?.length > 0 && (
                             <ul style={{ position:"absolute", top:"100%", left:0, right:0, background:"#fff", border:"1px solid #e2e8f0",
                               borderRadius:8, zIndex:999, listStyle:"none", margin:0, padding:"4px 0", maxHeight:160, overflowY:"auto", boxShadow:"0 8px 20px rgba(0,0,0,.1)" }}>
@@ -447,7 +450,7 @@ export default function MixMatch() {
                                   onMouseEnter={e => e.currentTarget.style.background="#f1f5f9"}
                                   onMouseLeave={e => e.currentTarget.style.background="#fff"}>
                                   <span style={{ fontSize:10, background:"#334b71", color:"#fff", borderRadius:3, padding:"1px 4px", marginRight:5 }}>{s.itemType}</span>
-                                  {s.itemName}
+                                  {s.itemName} <span style={{ color:"#94a3b8", fontSize:11 }}>({s.itemCode})</span>
                                 </li>
                               ))}
                             </ul>

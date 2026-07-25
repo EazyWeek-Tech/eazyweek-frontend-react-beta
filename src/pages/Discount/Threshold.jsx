@@ -351,7 +351,7 @@ export default function Threshold() {
               <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#e9edf5",
                 color:"#334b71", border:"1px solid #e2e8f0", padding:"5px 10px", borderRadius:20, fontSize:12, fontWeight:600 }}>
                 <span style={{ fontSize:10, background:"#334b71", color:"#fff", borderRadius:4, padding:"1px 5px" }}>{item.itemType}</span>
-                {item.itemName}
+                {item.itemName} <span style={{ color:"#5c7192", fontWeight:400 }}>({item.itemCode})</span>
                 <button onClick={() => removeItem(idx)} style={{ background:"none", border:"none", color:"#b91c1c", cursor:"pointer", fontSize:14, lineHeight:1, padding:0 }}>×</button>
               </span>
             ))}

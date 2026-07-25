@@ -113,7 +113,12 @@ const InvoiceTable = ({
                   {/* ── Main item row ── */}
                   <tr>
                     <td className="invno">{idx + 1}</td>
-                    <td>{item.name}</td>
+                    <td>
+                      {item.name}
+                      {itemCode && (
+                        <div style={{ fontSize: 11, color: "#888", fontWeight: 400, marginTop: 2 }}>{itemCode}</div>
+                      )}
+                    </td>
                     <td className="qtyno">1</td>
 
                     {isPriceOverride ? (

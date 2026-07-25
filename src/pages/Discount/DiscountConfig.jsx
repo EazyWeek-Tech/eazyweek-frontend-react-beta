@@ -30,7 +30,7 @@ function Styles() {
       .cfg-container { max-width:1100px; margin:0 auto; padding:28px 20px 60px; }
       .cfg-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
       .cfg-title { font-size:24px; line-height: 32px; font-weight:800; color:${theme.darkBlue}; }
-      .view-all { background:#fff; border:1px solid ${theme.border}; padding:8px 12px; border-radius:8px; font-weight:600; color:${theme.navy}; }
+      .view-all { background:#fff; cursor: pointer; border:1px solid ${theme.border}; padding:8px 12px; border-radius:8px; font-weight:600; color:${theme.navy}; }
       .cards-row { display:grid; grid-template-columns: repeat(3, 1fr); gap:18px; margin:16px 0 20px; }
       .opt-card { background:#fff; border:1.5px solid ${theme.border}; border-radius:12px; padding:16px; display:flex; gap:14px; align-items:flex-start; box-shadow:0 2px 10px rgba(13,27,62,.04); cursor:pointer; }
       .opt-card .ic { min-width:45px; min-height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:${theme.navy}; color:#fff; font-weight:800; }

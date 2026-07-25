@@ -163,8 +163,8 @@ export default function DiscountList() {
       <style>{`
         .dl-wrap { font-family:"Lato",sans-serif; background:#f7f9fc; min-height:100vh; color:${theme.text}; }
         .dl-container { max-width:1200px; margin:0 auto; padding:28px 20px 60px; }
-        .dl-topbar { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-        .dl-back { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; border:1px solid ${theme.border}; background:#fff; color:${theme.navy}; font-weight:700; cursor:pointer; }
+        .dl-topbar {  margin-bottom:16px; }
+        .dl-back { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; float:right; border-radius:10px; border:1px solid ${theme.border}; background:${theme.navy}; color:#fff; font-weight:700; cursor:pointer; }
         .dl-title { font-size:34px; font-weight:700; color:${theme.darkBlue}; margin:4px 0 2px; }
         .dl-sub { color:#5b6a85; margin:10px 0 0; }
 
@@ -208,10 +208,10 @@ export default function DiscountList() {
       <div className="dl-container">
         {/* Back */}
         <div className="dl-topbar">
-          <button className="dl-back" onClick={() => navigate("/discounts/configure/simple")}>
-            ← Back to Setup
+          <button className="dl-back" onClick={() => navigate("/dashboard")}>
+             Back to Dashboard
           </button>
-          <button className="refresh-btn" onClick={loadData}>↺ Refresh</button>
+          <br style={{"clear":"both"}}></br>
         </div>
 
         {/* Title */}

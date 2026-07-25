@@ -175,7 +175,7 @@ const Sidebar = ({ collapsed, currentUser }) => {
          { name: "Centre Setup", path: "/settings/centre-setup" },
          { name: "Zone Setup", path: "/settings/zone-setup", feature: "multiLocation" },
           { name: "Organization Hierarchy", path: "/settings/org-setup", feature: "multiLocation" },
-        { name: "Discount", path: "/discounts", feature: "discounts" }
+        { name: "Discount", path: "/discounts/manage", feature: "discounts" }
       ],
     },
   ];
