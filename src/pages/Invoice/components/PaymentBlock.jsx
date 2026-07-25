@@ -54,7 +54,7 @@ const authHeaders = () => {
 const paymentModes = [
   { label: 'Cash',               icon: 'images/cash.svg',      key: 'cash'        },
   { label: 'Credit/Debit',       icon: 'images/cardimg.svg',   key: 'credit'      },
-  { label: 'Check',              icon: 'images/checkbook.svg', key: 'check'       },
+  { label: 'Cheque',              icon: 'images/checkbook.svg', key: 'check'       },
   { label: 'Advance',            icon: 'images/advance.svg',   key: 'advance'     },
   { label: 'Credit Note',        icon: 'images/advance.svg',   key: 'creditnote'  },
   { label: 'Loyalty',            icon: 'images/loyalty.svg',   key: 'loyalty'     },
@@ -1408,7 +1408,7 @@ if (result.success) {
           {activeTab === 'check' && (
             <>
               <div className="frmdiv">
-                <label>Check Number:</label>
+                <label>Cheque Number:</label>
                 <input type="text" id="checkNumber" value={formData.checkNumber || ''} onChange={handleChange} />
               </div>
               <div className="frmdiv">
@@ -1416,7 +1416,7 @@ if (result.success) {
                 <input type="text" id="bankName" value={formData.bankName || ''} onChange={handleChange} />
               </div>
               <div className="frmdiv">
-                <label>Check Date:</label>
+                <label>Cheque Date:</label>
                 <input type="date" id="checkDate" value={formData.checkDate || ''} onChange={handleChange} />
               </div>
             </>

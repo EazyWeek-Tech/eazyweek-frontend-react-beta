@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../config";
 
 /* =============================================================================
@@ -183,10 +183,111 @@ function DrilldownModal({ drill, onClose, onPage }) {
   );
 }
 
+/* ── Campaign multi-select ─────────────────────────────────────────────────────
+   value = array of OppCodes. An empty array means every active campaign (ALL).
+   ──────────────────────────────────────────────────────────────────────────── */
+function CampaignMultiSelect({ campaigns, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [q,    setQ]    = useState("");
+  const boxRef = useRef(null);
+
+  // Close on outside click / Escape (same pattern as the appointment drawer).
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const onKey  = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const sel    = Array.isArray(value) ? value : [];
+  const toggle = (code) => onChange(sel.includes(code) ? sel.filter((c) => c !== code) : [...sel, code]);
+  const term   = q.trim().toLowerCase();
+  const shown  = term
+    ? campaigns.filter((c) => `${c.oppName} ${c.oppCode}`.toLowerCase().includes(term))
+    : campaigns;
+
+  const label =
+    sel.length === 0 ? "All campaigns"
+    : sel.length === 1 ? (campaigns.find((c) => c.oppCode === sel[0])?.oppName || sel[0])
+    : `${sel.length} campaigns selected`;
+
+  const rowStyle = (on) => ({
+    display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer",
+    fontSize:12.5, color:C.text, background:on ? C.navyLt : "transparent",
+  });
+
+  return (
+    <div ref={boxRef} style={{ position:"relative", minWidth:240 }}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10,
+                 padding:"9px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:"#fff",
+                 color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+        <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
+        <span style={{ color:C.sub, fontSize:11 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, zIndex:40, width:320,
+                      background:"#fff", border:`1px solid ${C.border}`, borderRadius:10,
+                      boxShadow:"0 10px 28px rgba(7,29,73,0.14)", overflow:"hidden" }}>
+          <div style={{ padding:"10px 12px", borderBottom:`1px solid ${C.grid}` }}>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search campaigns…" autoFocus
+              style={{ width:"100%", boxSizing:"border-box", padding:"7px 10px", fontSize:12.5,
+                       border:`1px solid ${C.border}`, borderRadius:7, outline:"none", color:C.text }} />
+          </div>
+
+          <div onClick={() => onChange([])} style={{ ...rowStyle(sel.length === 0), fontWeight:700, borderBottom:`1px solid ${C.grid}` }}>
+            <input type="checkbox" readOnly checked={sel.length === 0} style={{ accentColor:C.navy }} />
+            <span>All campaigns</span>
+          </div>
+
+          <div style={{ maxHeight:260, overflowY:"auto" }}>
+            {shown.length === 0 && (
+              <div style={{ padding:"14px 12px", fontSize:12.5, color:C.sub }}>No active campaigns match.</div>
+            )}
+            {shown.map((c) => {
+              const on = sel.includes(c.oppCode);
+              return (
+                <div key={c.oppCode} onClick={() => toggle(c.oppCode)} style={rowStyle(on)}>
+                  <input type="checkbox" readOnly checked={on} style={{ accentColor:C.navy }} />
+                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {c.oppName} <span style={{ color:C.sub }}>({c.oppCode})</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                        padding:"9px 12px", borderTop:`1px solid ${C.grid}`, background:"#fbfcfe" }}>
+            <span style={{ fontSize:11.5, color:C.sub }}>
+              {sel.length === 0 ? "Every active campaign" : `${sel.length} selected`}
+            </span>
+            <div style={{ display:"flex", gap:8 }}>
+              <button type="button" onClick={() => onChange([])}
+                style={{ padding:"5px 12px", borderRadius:7, border:`1px solid ${C.border}`, background:"#fff",
+                         color:C.navy, fontWeight:700, fontSize:12, cursor:"pointer" }}>Clear</button>
+              <button type="button" onClick={() => setOpen(false)}
+                style={{ padding:"5px 14px", borderRadius:7, border:"none", background:C.navy,
+                         color:"#fff", fontWeight:700, fontSize:12, cursor:"pointer" }}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Page ──────────────────────────────────────────────────────────────────── */
 export default function LTRFunnelDashboard() {
   const [campaigns, setCampaigns] = useState([]);
-  const [oppCode,   setOppCode]   = useState("ALL");
+  // Selected campaigns. Empty array = ALL active campaigns.
+  const [oppCodes,  setOppCodes]  = useState([]);
   const [funnel,    setFunnel]    = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [drill,     setDrill]     = useState(null);
@@ -213,29 +314,33 @@ export default function LTRFunnelDashboard() {
           if (code && !seen.has(code)) { seen.add(code); list.push({ oppCode: code, oppName: name }); }
         });
         setCampaigns(list);
-        // If the campaign that was selected is no longer active, fall back to ALL.
-        setOppCode((cur) => (cur === "ALL" || list.some((c) => c.oppCode === cur) ? cur : "ALL"));
+        // Drop any selected campaign that is no longer active (empty = ALL).
+        setOppCodes((cur) => cur.filter((code) => list.some((c) => c.oppCode === code)));
       })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
 
+  // Comma-separated scope for the API; "ALL" when nothing is picked. Also the
+  // effect dependency, so selecting/deselecting refetches exactly once.
+  const oppParam = oppCodes.length ? oppCodes.join(",") : "ALL";
+
   // Funnel data.
   useEffect(() => {
     let alive = true; setLoading(true);
-    fetch(`${API_BASE_URL}/api/Opportunity/Funnel?oppCode=${encodeURIComponent(oppCode)}`, { headers: authHeaders() })
+    fetch(`${API_BASE_URL}/api/Opportunity/Funnel?oppCode=${encodeURIComponent(oppParam)}`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((j) => { if (alive) setFunnel(j?.data || j); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [oppCode]);
+  }, [oppParam]);
 
   const openDrill = async (stage, page = 1) => {
     setDrill({ stage, loading: true, rows: [], page });
     try {
       const r = await fetch(
-        `${API_BASE_URL}/api/Opportunity/FunnelDrilldown?stage=${encodeURIComponent(stage)}&oppCode=${encodeURIComponent(oppCode)}&page=${page}&pageSize=50`,
+        `${API_BASE_URL}/api/Opportunity/FunnelDrilldown?stage=${encodeURIComponent(stage)}&oppCode=${encodeURIComponent(oppParam)}&page=${page}&pageSize=50`,
         { headers: authHeaders() }
       );
       const j = await r.json(); const d = j?.data || j;
@@ -266,11 +371,7 @@ export default function LTRFunnelDashboard() {
           <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>Lead-to-Revenue Funnel</div>
           <div style={{ fontSize:12.5, color:C.sub, marginTop:2 }}>Captured → Converted → Booked → Showed Up → Purchased</div>
         </div>
-        <select value={oppCode} onChange={(e) => setOppCode(e.target.value)}
-          style={{ padding:"9px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, minWidth:220 }}>
-          <option value="ALL">All campaigns</option>
-          {campaigns.map((c) => <option key={c.oppCode} value={c.oppCode}>{c.oppName} ({c.oppCode})</option>)}
-        </select>
+        <CampaignMultiSelect campaigns={campaigns} value={oppCodes} onChange={setOppCodes} />
       </div>
 
       {loading && !funnel ? (
