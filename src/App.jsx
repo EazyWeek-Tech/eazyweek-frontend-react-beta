@@ -398,7 +398,7 @@ if (user && showFirstLogin) {
                     element={<PurchaseCategoryMaster />}
                   />
                   <Route
-                    path="/opportunity"
+                    path="/opportunity/dashboard"
                     element={gate("opportunity", <OpportunityDashboard />)}
                   />
                   <Route path="/einvoice" element={<EInvoiceDashboard />} />
