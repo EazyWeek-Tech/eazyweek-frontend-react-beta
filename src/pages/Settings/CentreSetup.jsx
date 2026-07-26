@@ -189,6 +189,7 @@ export default function CentreSetup() {
   const [contacts,     setContacts]     = useState([]);
   const [logoUrl,      setLogoUrl]      = useState("");
   const [logoPreview,  setLogoPreview]  = useState("");
+  const [logoMimeType, setLogoMimeType] = useState("");
   const [taxItems,     setTaxItems]     = useState([]);
   const [numbering,    setNumbering]    = useState({
     prefixCustomer:"CUST-", prefixInvoice:"INV-", prefixReturn:"SR-",
@@ -242,6 +243,7 @@ export default function CentreSetup() {
         setAddresses(d.addresses?.length ? d.addresses : []);
         setContacts(d.contacts?.length ? d.contacts : []);
         setLogoUrl(d.logoUrl || ""); setLogoPreview(d.logoUrl || "");
+        setLogoMimeType(d.logoMimeType || "");
         setTaxItems(d.tax || []);
         if (d.numbering) setNumbering(d.numbering);
         if (d.setup)     setSetup(s => ({
@@ -295,7 +297,12 @@ export default function CentreSetup() {
           throw new Error("A primary phone number is mandatory.");
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveContacts`, { centerCode: selected, contacts });
       } else if (activeTab === "Logo") {
-        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveLogo`, { centerCode: selected, logoUrl, mimeType:"image/*" });
+        // Derive the real MIME type from the data URI. Works for a freshly
+        // picked file AND for a logo reloaded from the DB, so a re-save of an
+        // existing centre does not send a blank type.
+        const logoMime = /^data:([^;,]+)[;,]/.exec(logoUrl || "")?.[1]?.toLowerCase() || logoMimeType || "";
+        if (logoUrl && !logoMime) throw new Error("Could not determine the image type. Please re-select the file.");
+        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveLogo`, { centerCode: selected, logoUrl, mimeType: logoMime });
       } else if (activeTab === "Tax") {
         // FRD §3.5: if Type is selected, Registration Number is mandatory.
         const incomplete = taxItems.findIndex(t => (t.taxType || "").trim() && !(t.regNumber || "").trim());
@@ -615,19 +622,19 @@ export default function CentreSetup() {
                       </div>
                       <div>
                         <button className="add-btn" onClick={() => fileRef.current?.click()}> Upload Logo</button>
-                        <input type="file" ref={fileRef} accept=".png,.jpg,.jpeg,.svg" style={{ display:"none" }}
+                        <input type="file" ref={fileRef} accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" style={{ display:"none" }}
                           onChange={e => {
                             const file = e.target.files[0]; if (!file) return;
                             const allowed = ["image/jpeg","image/png","image/gif","image/svg+xml","image/webp"];
                             if (!allowed.includes(file.type)) { showToast("Unsupported format. Upload JPG, PNG, GIF, SVG or WebP.","error"); e.target.value=""; return; }
                             if (file.size > 5*1024*1024) { showToast("File exceeds 5MB limit.","error"); e.target.value=""; return; }
                             const reader = new FileReader();
-                            reader.onload = ev => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); };
+                            reader.onload = ev => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); setLogoMimeType(file.type); };
                             reader.readAsDataURL(file);
                           }} />
                         <div style={{ fontSize:11, color:"#94a3b8", marginTop:6 }}>PNG, JPG, or SVG. Recommended square format.</div>
                         {logoPreview && <button className="add-btn" style={{ marginTop:6, color:"#b91c1c", borderColor:"#f0c4c0" }}
-                          onClick={() => { setLogoPreview(""); setLogoUrl(""); }}>Remove</button>}
+                          onClick={() => { setLogoPreview(""); setLogoUrl(""); setLogoMimeType(""); }}>Remove</button>}
                       </div>
                     </div>
                   </div>

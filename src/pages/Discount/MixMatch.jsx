@@ -10,6 +10,8 @@ const authPut  = async (url, body) => { const r = await fetch(url, { method:"PUT
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 const ITEM_TYPES = ["Service","Product","Package","Category"];
+// Per-type cap for the slot dropdown so every ticked type stays visible.
+const PER_TYPE   = 15;
 const MAX_SLOTS  = 4;
 
 const EMPTY_SLOT = () => ({ itemType:"", itemCode:"", itemName:"", minQty:1, discountValue:0 });
@@ -111,7 +113,7 @@ export default function MixMatch() {
     debounceRef.current[type] = setTimeout(async () => {
       try {
         let url = "";
-        if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
+        if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false&limit=200`;
         if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
         if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
         if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
@@ -147,32 +149,52 @@ export default function MixMatch() {
     const u = getUser();
     // Search across all applicable item types
     slotDebounce.current[slotIdx] = setTimeout(async () => {
-      try {
-        const results = [];
-        for (const type of ITEM_TYPES.filter(t => itemTypeChecks[t])) {
-          let url = "";
-          if (type === "Service")  url = `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false`;
-          if (type === "Product")  url = `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
-          if (type === "Category") url = `${API_BASE_URL}/api/Master/Categories`;
-          if (type === "Package")  url = `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
-          const data = await authGet(url);
-          (Array.isArray(data) ? data : []).forEach(i => {
-            // Extract code based on the specific type being searched — avoids categoryCode polluting package results
-            let code = "", name = "";
-            if (type === "Service")  { code = i.serviceCode  || ""; name = i.serviceName  || ""; }
-            if (type === "Product")  { code = i.productCode  || i.PRODUCTCODE || ""; name = i.productName  || i.PRODUCTNAME || ""; }
-            if (type === "Package")  { code = i.packageCode  || i.PACKAGECODE || ""; name = i.packageName || i.PACKAGENAME || ""; }
-            if (type === "Category") { code = i.categoryCode || i.PCCODE || ""; name = i.categoryName || ""; }
-            if (code && name) results.push({ itemType: type, itemCode: code, itemName: name });
-          });
-        }
-        // Also allow selecting from applicable items directly
-        selectedItems.forEach(i => {
-          if (i.itemName.toLowerCase().includes(val.toLowerCase()) && !results.find(r => r.itemCode === i.itemCode))
-            results.push(i);
-        });
-        setSlotSuggestions(p => { const n=[...p]; n[slotIdx]=results.slice(0,10); return n; });
-      } catch { setSlotSuggestions(p => { const n=[...p]; n[slotIdx]=[]; return n; }); }
+      const term        = val.trim().toLowerCase();
+      const activeTypes = ITEM_TYPES.filter(t => itemTypeChecks[t]);
+
+      const urlFor = (type) => {
+        if (type === "Service")  return `${API_BASE_URL}/api/Master/GetServiceByName/${encodeURIComponent(val.trim())}/${u.centerCode||""}?requireCentrePrice=false&limit=${PER_TYPE}`;
+        if (type === "Product")  return `${API_BASE_URL}/api/Product/List?search=${encodeURIComponent(val.trim())}&allEntities=1&status=Active`;
+        if (type === "Package")  return `${API_BASE_URL}/api/Package/List?search=${encodeURIComponent(val.trim())}&allEntities=1`;
+        if (type === "Category") return `${API_BASE_URL}/api/Master/Categories`;
+        return "";
+      };
+
+      // Extract code based on the specific type being searched — avoids categoryCode polluting package results
+      const rowOf = (type, i) => {
+        let code = "", name = "";
+        if (type === "Service")  { code = i.serviceCode  || ""; name = i.serviceName  || ""; }
+        if (type === "Product")  { code = i.productCode  || i.PRODUCTCODE || ""; name = i.productName  || i.PRODUCTNAME || ""; }
+        if (type === "Package")  { code = i.packageCode  || i.PACKAGECODE || ""; name = i.packageName || i.PACKAGENAME || ""; }
+        if (type === "Category") { code = i.categoryCode || i.PCCODE || ""; name = i.categoryName || ""; }
+        return { itemType: type, itemCode: code, itemName: name };
+      };
+
+      // One capped bucket per ticked type. The old version concatenated every type
+      // into one array and then sliced it, so Services — searched first and now
+      // returning up to 200 rows — crowded Products, Packages and Categories out of
+      // the dropdown entirely. Fetched in parallel and independently, so one failing
+      // type no longer blanks the whole list either.
+      const buckets = await Promise.all(activeTypes.map(async (type) => {
+        try {
+          const data = await authGet(urlFor(type));
+          let rows = (Array.isArray(data) ? data : [])
+            .map(i => rowOf(type, i))
+            .filter(r => r.itemCode && r.itemName);
+          // /api/Master/Categories ignores the search term and returns the whole
+          // master, so filter here or 51 rows swamp everything else.
+          if (type === "Category") rows = rows.filter(r => r.itemName.toLowerCase().includes(term));
+          return rows.slice(0, PER_TYPE);
+        } catch { return []; }
+      }));
+
+      const results = buckets.flat();
+      // Also allow selecting from applicable items directly
+      selectedItems.forEach(i => {
+        if (i.itemName.toLowerCase().includes(term) && !results.find(r => r.itemCode === i.itemCode))
+          results.push(i);
+      });
+      setSlotSuggestions(p => { const n=[...p]; n[slotIdx]=results; return n; });
     }, 300);
   };
 

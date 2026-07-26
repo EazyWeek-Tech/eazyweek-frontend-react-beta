@@ -303,7 +303,7 @@ const InvoiceForm = ({ onAddItem, customer, showToast, onClearCart, items = [], 
       const seq = ++productSeq.current;
       try {
         const json = await authFetch(
-          `${API_BASE_URL}/api/Product/SearchByName/${encodeURIComponent(term)}/${centerCode}`
+          `${API_BASE_URL}/api/Product/SearchByName/${encodeURIComponent(term)}/${centerCode}?limit=50`
         );
         if (seq !== productSeq.current) return;   // a newer search already ran
         const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
