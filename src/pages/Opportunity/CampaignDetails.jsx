@@ -74,12 +74,18 @@ const fmtApptOption = (a) => {
 
 // Appointment ID cell — read-only when mapped or not-converted; an editable
 // future-appointments dropdown when the lead is Converted but still Pending (Case B).
-function ApptMapCell({ leadSource, recId, custId, oppCode, disposition, mapped, onLinked }) {
+function ApptMapCell({ leadSource, recId, custId, oppCode, disposition, mapped, onLinked, apptMandatory=true }) {
   const conv = String(disposition || "").trim().toLowerCase().startsWith("converted");
   const [opts, setOpts] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // A booking that already exists always wins — showing NA over a real
+  // Appointment ID would hide data.
   if (mapped) return <span>{mapped}</span>;
+  // Campaign created with "Appt Booking Mandatory = No": the column does not
+  // apply, so nothing is Pending and there is nothing to map.
+  if (apptMandatory === false)
+    return <span className="cd-dash" title="Appointment booking is not mandatory for this campaign">NA</span>;
   if (!conv)  return <span>{"—"}</span>;
   if (!String(custId || "").trim())
     return <span title="No customer linked yet">Pending</span>;
@@ -209,6 +215,49 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 
+// ─── Created / Modified date-range helpers ────────────────────────────────────
+// A blank range means "no filter". Once a range IS set, rows carrying no date
+// are excluded — they cannot satisfy the range.
+const inDateRange = (value, fromISO, toISO) => {
+  if (!fromISO && !toISO) return true;
+  const s = stamp(toMidnight(value));
+  if (isNaN(s)) return false;
+  if (fromISO) { const f = stamp(toMidnight(fromISO)); if (!isNaN(f) && s < f) return false; }
+  if (toISO)   { const t = stamp(toMidnight(toISO));   if (!isNaN(t) && s > t) return false; }
+  return true;
+};
+
+const rangeInvalid = (fromISO, toISO) => {
+  if (!fromISO || !toISO) return false;
+  const f = stamp(toMidnight(fromISO)), t = stamp(toMidnight(toISO));
+  return !isNaN(f) && !isNaN(t) && f > t;
+};
+
+const shiftISO = (days) => {
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + days);
+  return toISODateOnly(d);
+};
+
+// Quick presets shared by every Created / Modified range control
+const RANGE_PRESETS = [
+  { key:"today", label:"Today"        },
+  { key:"7",     label:"Last 7 days"  },
+  { key:"30",    label:"Last 30 days" },
+  { key:"mtd",   label:"This month"   },
+  { key:"ytd",   label:"This year"    },
+];
+
+const presetRange = (key) => {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const today = toISODateOnly(now);
+  if (key === "today") return { from: today,          to: today };
+  if (key === "7")     return { from: shiftISO(-6),   to: today };
+  if (key === "30")    return { from: shiftISO(-29),  to: today };
+  if (key === "mtd")   return { from: toISODateOnly(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
+  if (key === "ytd")   return { from: toISODateOnly(new Date(now.getFullYear(), 0, 1)),              to: today };
+  return { from: "", to: "" };
+};
+
 // ─── Rule type detector ───────────────────────────────────────────────────────
 const detectKind = (ruleCode) => {
   const c = String(ruleCode||"").trim().toUpperCase();
@@ -296,14 +345,119 @@ function SearchableSelect({ options=[], value, onChange, placeholder="All" }) {
   );
 }
 
-// Pagination row
-const Pager = ({ page, totalPages, onPage }) => (
+// ── From/To date range control (Created, Modified, Appointment, Follow Up) ────
+// allowClear={false} keeps a range mandatory — used where the server needs dates.
+function RangeField({ label, from, to, onFrom, onTo, presets=true, allowClear=true, hint="", span=2 }) {
+  const bad    = rangeInvalid(from, to);
+  const active = !!(from || to);
+  const apply  = (key) => { const r = presetRange(key); onFrom(r.from); onTo(r.to); };
+  return (
+    <div className={`cd-fg cd-range ${active?"cd-range-on":""} ${bad?"cd-range-bad":""}`} style={{gridColumn:`span ${span}`}}>
+      <div className="cd-range-head">
+        <label>{label}</label>
+        {active && allowClear && (
+          <button type="button" className="cd-linkbtn cd-linkbtn-sm" title={`Clear ${label}`}
+            onClick={()=>{ onFrom(""); onTo(""); }}>Clear</button>
+        )}
+      </div>
+      <div className="cd-range-body">
+        <input type="date" aria-label={`${label} from`} value={from} onChange={e=>onFrom(e.target.value)} />
+        <span className="cd-range-sep">→</span>
+        <input type="date" aria-label={`${label} to`}   value={to}   onChange={e=>onTo(e.target.value)} />
+      </div>
+      {presets && (
+        <div className="cd-chiprow">
+          {RANGE_PRESETS.map(p => {
+            const r  = presetRange(p.key);
+            const on = from === r.from && to === r.to;
+            return (
+              <button key={p.key} type="button" className={`cd-chip ${on?"cd-chip-on":""}`}
+                onClick={()=>{ if (on) { if (allowClear) apply(""); } else apply(p.key); }}>
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {bad
+        ? <span className="cd-fgnote cd-fgnote-err">“From” is after “To” — nothing will match.</span>
+        : hint ? <span className="cd-fgnote">{hint}</span> : null}
+    </div>
+  );
+}
+
+// ── Collapsible filter panel with active-count badge + Clear all ──────────────
+function FilterPanel({ activeCount=0, onClear, actions=null, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="cd-filters">
+      <div className="cd-filters-bar">
+        <button type="button" className="cd-filters-toggle" onClick={()=>setOpen(o=>!o)}>
+          <span className={`cd-caret ${open?"cd-caret-open":""}`}>▸</span>
+          <span>Filters</span>
+          {activeCount>0 && <span className="cd-badge">{activeCount}</span>}
+        </button>
+        <div className="cd-filters-actions">
+          {actions}
+          {activeCount>0 && onClear && (
+            <button type="button" className="cd-linkbtn" onClick={onClear}>Clear all</button>
+          )}
+        </div>
+      </div>
+      {open && <div className="cd-fgrid">{children}</div>}
+    </div>
+  );
+}
+
+// Status / disposition tag with a light tone cue
+const tagTone = (v) => {
+  const s = norm(v);
+  if (!s) return "";
+  if (s.startsWith("convert")) return "ok";
+  if (s === "closed" || s.includes("lost") || s.includes("fail") || s.includes("not interest")) return "off";
+  if (s === "open" || s === "wip" || s.includes("progress") || s.includes("follow")) return "on";
+  return "";
+};
+const Pill = ({ v }) => {
+  if (v == null || v === "") return <span className="cd-dash">—</span>;
+  const tone = tagTone(v);
+  return <span className={`cd-tag ${tone?`cd-tag-${tone}`:""}`}>{v}</span>;
+};
+
+// Long free text — clamped to one line, full value on hover
+const Clamp = ({ v, w=240 }) => (v == null || v === "")
+  ? <span className="cd-dash">—</span>
+  : <span className="cd-clamp" style={{maxWidth:w}} title={String(v)}>{v}</span>;
+
+// Loading placeholder that keeps the table's shape
+const Skeleton = ({ rows=6, cols=10 }) => (
+  <div className="cd-tablewrap">
+    <table className="cd-table">
+      <tbody>
+        {Array.from({length:rows}).map((_,r)=>(
+          <tr key={r}>{Array.from({length:cols}).map((_,c)=><td key={c}><span className="cd-sk" /></td>)}</tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+// Pagination row (with rows-per-page when onPageSize is supplied)
+const Pager = ({ page, totalPages, onPage, pageSize, onPageSize }) => (
   <div className="cd-pager">
-    <button className="cd-pgbtn" disabled={page<=1} onClick={()=>onPage(1)}>First</button>
-    <button className="cd-pgbtn" disabled={page<=1} onClick={()=>onPage(p=>Math.max(1,p-1))}>Prev</button>
+    {onPageSize && (
+      <span className="cd-pgsize">
+        Rows
+        <select value={pageSize} onChange={e=>{ onPageSize(Number(e.target.value)); onPage(1); }}>
+          {[10,25,50,100].map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+      </span>
+    )}
+    <button className="cd-pgbtn" disabled={page<=1} onClick={()=>onPage(1)}>« First</button>
+    <button className="cd-pgbtn" disabled={page<=1} onClick={()=>onPage(p=>Math.max(1,p-1))}>‹ Prev</button>
     <span className="cd-pginfo">Page <b>{page}</b> / <b>{totalPages}</b></span>
-    <button className="cd-pgbtn" disabled={page>=totalPages} onClick={()=>onPage(p=>Math.min(totalPages,p+1))}>Next</button>
-    <button className="cd-pgbtn" disabled={page>=totalPages} onClick={()=>onPage(totalPages)}>Last</button>
+    <button className="cd-pgbtn" disabled={page>=totalPages} onClick={()=>onPage(p=>Math.min(totalPages,p+1))}>Next ›</button>
+    <button className="cd-pgbtn" disabled={page>=totalPages} onClick={()=>onPage(totalPages)}>Last »</button>
   </div>
 );
 
@@ -336,7 +490,7 @@ const HALF_HOURS = Array.from({length:24},(_, h) =>
   [0,30].map(m => `${String(((h+11)%12)+1).padStart(2,"0")}:${String(m).padStart(2,"0")} ${h<12?"AM":"PM"}`)
 ).flat();
 
-function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
+function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, apptMandatory=true }) {
   const ruleCode = String(header?.oRuleCode||"").trim().toUpperCase();
   const showAppt = ["R1","R2","R3","R4"].includes(ruleCode);   // Appt Date col+filter for R1/R2 too
 
@@ -363,6 +517,13 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   const [apptFrom, setApptFrom] = useState("");
   const [apptTo,   setApptTo]   = useState("");
 
+  // Audit ranges — Created / Modified. Applied to the loaded batch client-side,
+  // same as the follow-up filters below.
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo,   setCreatedTo]   = useState("");
+  const [modFrom,     setModFrom]     = useState("");
+  const [modTo,       setModTo]       = useState("");
+
   const [fuMode,  setFuMode]  = useState("");
   const [fuFrom,  setFuFrom]  = useState("");
   const [fuTo,    setFuTo]    = useState("");
@@ -371,6 +532,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
 
   const [sort, setSort] = useState({ key:"", dir:"asc" });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   const navigate = useNavigate();
 
@@ -397,6 +559,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
         search, status, owner, disp, therapist,
         apptFrom: showAppt ? apptFrom : "",
         apptTo:   showAppt ? apptTo   : "",
+        createdFrom, createdTo, modifiedFrom: modFrom, modifiedTo: modTo,
       }),
     })
       .then(r=>r.json())
@@ -417,12 +580,14 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
       .catch(e=>{ if(alive) setErr(e.message); })
       .finally(()=>{ if(alive) setLoading(false); });
     return()=>{ alive=false; };
-  }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, apptFrom, apptTo, churnKey]);
+  }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, apptFrom, apptTo,
+      createdFrom, createdTo, modFrom, modTo, churnKey]);
 
   // Reset to page 1 when server-side filters change
-  useEffect(()=>{ setServerPage(1); setPage(1); }, [search, status, owner, disp, therapist, apptFrom, apptTo]);
+  useEffect(()=>{ setServerPage(1); setPage(1); },
+    [search, status, owner, disp, therapist, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
   // Reset display page when client filters change
-  useEffect(()=>setPage(1), [disp,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo]);
+  useEffect(()=>setPage(1), [disp,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
 
   // Filter options loaded from server once (not from current page rows)
   const [allOwnerOpts,    setAllOwnerOpts]    = useState([]);
@@ -472,10 +637,18 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   const filterTFrom = to24h(fuTFrom);
   const filterTTo   = to24h(fuTTo);
 
+  const createdBad = rangeInvalid(createdFrom, createdTo);
+  const modBad     = rangeInvalid(modFrom,     modTo);
+
   const filtered = useMemo(()=>{
     let list = rows.slice();
     // apptDate is server-side for R3/R4; followUp date/time remain client-side
     if (fuDateRange?.invalid) return [];   // FU From date after To date → no records
+    if (createdBad || modBad) return [];   // Created / Modified From after To → no records
+    if (createdFrom || createdTo)
+      list = list.filter(r => inDateRange(r?.createddate ?? r?.createdDate, createdFrom, createdTo));
+    if (modFrom || modTo)
+      list = list.filter(r => inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if (fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
@@ -503,12 +676,24 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
       });
     }
     return list;
-  }, [rows,search,status,owner,disp,therapist,showAppt,apptFrom,apptTo,fuDateRange,filterTFrom,filterTTo,sort]);
+  }, [rows,search,status,owner,disp,therapist,showAppt,apptFrom,apptTo,fuDateRange,filterTFrom,filterTTo,sort,
+      createdFrom,createdTo,modFrom,modTo,createdBad,modBad]);
 
   // Server drives total count; client pages within returned batch
   const totalPages = Math.max(1, Math.ceil(serverTotal/SERVER_PAGE_SIZE));
-  const clientTotalPages = Math.max(1, Math.ceil(filtered.length/PAGE_SIZE));
-  const paged = useMemo(()=>filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE), [filtered,page]);
+  const clientTotalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
+  const paged = useMemo(()=>filtered.slice((page-1)*pageSize, page*pageSize), [filtered,page,pageSize]);
+
+  // Filter summary for the panel header
+  const activeCount = [status,owner,disp,therapist,search,apptFrom,apptTo,fuMode,fuFrom,fuTo,
+    fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
+  const clearAll = () => {
+    setStatus(""); setOwner(""); setDisp(""); setTherapist("");
+    setSrchDraft(""); setSearch("");
+    setApptFrom(""); setApptTo("");
+    setFuMode(""); setFuFrom(""); setFuTo(""); setFuTFrom(""); setFuTTo("");
+    setCreatedFrom(""); setCreatedTo(""); setModFrom(""); setModTo("");
+  };
 
   const onSort = (key) => setSort(p => p.key===key?{key,dir:p.dir==="asc"?"desc":"asc"}:{key,dir:"asc"});
   const sortArrow = (k) => sort.key===k?(sort.dir==="asc"?"↑":"↓"):"↕";
@@ -540,87 +725,81 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
   return (
     <div>
       {/* Filters */}
-      <div className="cd-filters">
-        <div className="cd-frow">
-          <div className="cd-fg">
-            <label>Status</label>
-            <select value={status} onChange={e=>setStatus(e.target.value)}>
-              <option value="">All</option>
-              <option>Open</option>
-              <option>Closed</option>
+      <FilterPanel activeCount={activeCount} onClear={clearAll}>
+        <div className="cd-fg">
+          <label>Status</label>
+          <select value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="">All</option>
+            <option>Open</option>
+            <option>Closed</option>
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Sales Owner</label>
+          <select value={owner} onChange={e=>setOwner(e.target.value)}>
+            {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Disposition</label>
+          <select value={disp} onChange={e=>setDisp(e.target.value)}>
+            {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Therapist</label>
+          <select value={therapist} onChange={e=>setTherapist(e.target.value)}>
+            {therapistOpts.map((t,i)=><option key={i} value={t}>{t||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Date</label>
+          <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
+            <option value="">All</option>
+            <option value="0">Today</option>
+            <option value="1">Tomorrow</option>
+            <option value="2">Date Range</option>
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Time</label>
+          <div className="cd-timepair">
+            <select aria-label="Follow up time from" value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)}>
+              <option value="">From —</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
-          </div>
-          <div className="cd-fg">
-            <label>Sales Owner</label>
-            <select value={owner} onChange={e=>setOwner(e.target.value)}>
-              {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
+            <select aria-label="Follow up time to" value={fuTTo} onChange={e=>setFuTTo(e.target.value)}>
+              <option value="">To —</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
-          </div>
-          <div className="cd-fg">
-            <label>Disposition</label>
-            <select value={disp} onChange={e=>setDisp(e.target.value)}>
-              {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Therapist</label>
-            <select value={therapist} onChange={e=>setTherapist(e.target.value)}>
-              {therapistOpts.map((t,i)=><option key={i} value={t}>{t||"All"}</option>)}
-            </select>
-          </div>
-          {showAppt && (
-            <div className="cd-fg cd-wide">
-              <label>Appointment Date</label>
-              <div className="cd-daterange">
-                <input type="date" value={apptFrom} onChange={e=>setApptFrom(e.target.value)} />
-                <span>–</span>
-                <input type="date" value={apptTo}   onChange={e=>setApptTo(e.target.value)} />
-              </div>
-            </div>
-          )}
-          <div className="cd-fg">
-            <label>Follow Up Date</label>
-            <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
-              <option value="">All</option>
-              <option value="0">Today</option>
-              <option value="1">Tomorrow</option>
-              <option value="2">Date Range</option>
-            </select>
-          </div>
-          {fuMode==="2" && (<>
-            <div className="cd-fg"><label>FU From</label><input type="date" value={fuFrom} onChange={e=>setFuFrom(e.target.value)} /></div>
-            <div className="cd-fg"><label>FU To</label><input type="date" value={fuTo} onChange={e=>setFuTo(e.target.value)} /></div>
-            {fuDateRange?.invalid && <div className="cd-fg" style={{alignSelf:"flex-end"}}><span style={{color:"#c33",fontSize:12}}>From date cannot be after To date.</span></div>}
-          </>)}
-          <div className="cd-fg cd-wide">
-            <label>Follow Up Time From</label>
-            <div className="cd-timepair">
-              <select value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)}>
-                <option value="">—</option>
-                {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="cd-fg cd-wide">
-            <label>Follow Up Time To</label>
-            <div className="cd-timepair">
-              <select value={fuTTo} onChange={e=>setFuTTo(e.target.value)}>
-                <option value="">—</option>
-                {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
           </div>
         </div>
-      </div>
+        {fuMode==="2" && (
+          <RangeField label="Follow Up Date Range" presets={false}
+            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        )}
+        {showAppt && (
+          <RangeField label="Appointment Date" presets={false}
+            from={apptFrom} to={apptTo} onFrom={setApptFrom} onTo={setApptTo} />
+        )}
+        <RangeField label="Created Date"
+          from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
+        <RangeField label="Modified Date"
+          from={modFrom} to={modTo} onFrom={setModFrom} onTo={setModTo} />
+      </FilterPanel>
 
       <div className="cd-searchrow">
-        <span className="cd-count">{filtered.length} record(s)</span>
-        <input className="cd-search" placeholder="Search (ID, Name, Phone, Status…)"
-          value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
-        <button className="cd-btn-sec" onClick={exportCSV}>Export CSV</button>
+        <span className="cd-count"><b>{filtered.length.toLocaleString()}</b> record{filtered.length===1?"":"s"}</span>
+        <div className="cd-searchwrap">
+          <span className="cd-searchicon">⌕</span>
+          <input className="cd-search" placeholder="Search ID, name, phone, status…"
+            value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
+          {srchDraft && <button className="cd-searchx" title="Clear search" onClick={()=>setSrchDraft("")}>✕</button>}
+        </div>
+        <button className="cd-btn-sec" onClick={exportCSV}>⭳ Export CSV</button>
       </div>
 
-      {loading && <Loading />}
+      {loading && <Skeleton cols={showAppt?14:13} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && !err && (
         paged.length ? (
@@ -649,14 +828,15 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
                     <td><button className="cd-link" onClick={()=>openRow(r)}>{safe(r.custID)}</button></td>
                     <td>{safe(r.custName)}</td>
                     <td>{safe(r.custMobileNo)}</td>
-                    <td>{safe(r.oppStatus)}</td>
-                    <td>{safe(r.disposition)}</td>
+                    <td><Pill v={r.oppStatus} /></td>
+                    <td><Pill v={r.disposition} /></td>
                     <td><ApptMapCell leadSource="TRANS" recId={r.recid} custId={r.custID} oppCode={oppCode}
+                        apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
                         onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td>{safe(r.__therapist)}</td>
                     {showAppt && <td>{fmtDate(r.appointmentdatetime||r.appointmentDateTime)}</td>}
-                    <td>{safe(r.remarks)}</td>
+                    <td><Clamp v={r.remarks} /></td>
                     <td>{safe(r.salesOwner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifieddate||r.modifiedDate)}</td>
@@ -672,7 +852,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
       <div className="cd-server-pager">
         <span className="cd-count">
           {filtered.length>0
-            ? <>showing {((page-1)*PAGE_SIZE+1).toLocaleString()}–{Math.min(page*PAGE_SIZE,filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}</>
+            ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,filtered.length).toLocaleString()}</b> of {filtered.length.toLocaleString()}</>
             : "no records"}
           {serverTotal>SERVER_PAGE_SIZE && <> · batch {serverPage}/{Math.ceil(serverTotal/SERVER_PAGE_SIZE)} ({serverTotal.toLocaleString()} loaded)</>}
         </span>
@@ -686,14 +866,15 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0 }) {
             onClick={()=>setServerPage(p=>p+1)}>Next →</button>
         </>)}
       </div>
-      <Pager page={page} totalPages={clientTotalPages} onPage={setPage} />
+      <Pager page={page} totalPages={clientTotalPages} onPage={setPage}
+        pageSize={pageSize} onPageSize={setPageSize} />
     </div>
   );
 }
 
 // ─── EXTERNAL section (R7) ────────────────────────────────────────────────────
 
-function ExternalSection({ oppCode, churnKey=0 }) {
+function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const [rows,       setRows]       = useState([]);
   const [apptMap,    setApptMap]    = useState({});   // LTR: recid → { appointmentId, apptStatus }
   useEffect(() => {
@@ -714,8 +895,10 @@ function ExternalSection({ oppCode, churnKey=0 }) {
   const [disp,       setDisp]       = useState(_sf.disp     ?? "");
   const [srchDraft,  setSrchDraft]  = useState(_sf.search   ?? "");
   const [search,     setSearch]     = useState(_sf.search   ?? "");
-  const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());
-  const [toDate,     setToDate]     = useState(_sf.toDate   ?? todayISO());
+  const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());   // Created From (server-side)
+  const [toDate,     setToDate]     = useState(_sf.toDate   ?? todayISO());   // Created To   (server-side)
+  const [modFrom,    setModFrom]    = useState(_sf.modFrom  ?? "");           // Modified From (client-side)
+  const [modTo,      setModTo]      = useState(_sf.modTo    ?? "");           // Modified To   (client-side)
 
   const [fuMode,     setFuMode]     = useState(_sf.fuMode   ?? "");
   const [fuFrom,     setFuFrom]     = useState(_sf.fuFrom   ?? "");
@@ -725,6 +908,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
 
   const [ownerOpts,  setOwnerOpts]  = useState([]);
   const [dispOpts,   setDispOpts]   = useState([]);
+  const [pageSize,   setPageSize]   = useState(PAGE_SIZE);
 
   const navigate = useNavigate();
 
@@ -819,7 +1003,7 @@ function ExternalSection({ oppCode, churnKey=0 }) {
     return()=>{alive=false;};
   },[oppCode,fromDate,toDate,search,status,owner,disp,churnKey]);
 
-  useEffect(()=>setPage(1),[search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo]);
+  useEffect(()=>setPage(1),[search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
 
   const fuDateRange = useMemo(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
@@ -843,8 +1027,13 @@ function ExternalSection({ oppCode, churnKey=0 }) {
   const filterTFrom = to24h(fuTFrom);
   const filterTTo   = to24h(fuTTo);
 
+  const createdBad = rangeInvalid(fromDate, toDate);
+  const modBad     = rangeInvalid(modFrom,  modTo);
+
   const filtered = useMemo(()=>{
     let list=rows.slice();
+    if(createdBad||modBad) return [];   // Created / Modified From after To → no records
+    if(modFrom||modTo) list=list.filter(r=>inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
@@ -858,73 +1047,87 @@ function ExternalSection({ oppCode, churnKey=0 }) {
       return true;
     });
     return list;
-  },[rows,fuDateRange,filterTFrom,filterTTo]);
+  },[rows,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length/PAGE_SIZE));
-  const paged = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
+  const paged = filtered.slice((page-1)*pageSize, page*pageSize);
+
+  const activeCount = [status,owner,disp,search,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
+  const clearAll = () => {
+    setStatus(""); setOwner(""); setDisp(""); setSrchDraft(""); setSearch("");
+    setFuMode(""); setFuFrom(""); setFuTo(""); setFuTFrom(""); setFuTTo("");
+    setModFrom(""); setModTo("");
+  };
   const fuTimeError = !isNaN(timeToMin(filterTFrom)) && !isNaN(timeToMin(filterTTo)) && timeToMin(filterTFrom) > timeToMin(filterTTo);
   useEffect(() => {
-    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, search, fromDate, toDate, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
-  }, [oppCode, status, owner, disp, search, fromDate, toDate, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
+    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
+  }, [oppCode, status, owner, disp, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
 
   return (
     <div>
-      <div className="cd-filters">
-        <div className="cd-frow">
-          <div className="cd-fg">
-            <label>Status</label>
-            <select value={status} onChange={e=>setStatus(e.target.value)}>
-              <option value="">All</option>
-              <option value="Open">Open</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Sales Owner</label>
-            <SearchableSelect options={ownerOpts} value={owner} onChange={setOwner} placeholder="All Owners" />
-          </div>
-          <div className="cd-fg">
-            <label>Disposition</label>
-            <SearchableSelect options={dispOpts} value={disp} onChange={setDisp} placeholder="All Dispositions" />
-          </div>
-          <div className="cd-fg"><label>Created From</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} /></div>
-          <div className="cd-fg"><label>Created To</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} /></div>
-          <div className="cd-fg">
-            <label>Follow Up Date</label>
-            <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
-              <option value="">All</option>
-              <option value="0">Today</option><option value="1">Tomorrow</option><option value="2">Date Range</option>
-            </select>
-          </div>
-          {fuMode==="2" && (<>
-            <div className="cd-fg"><label>FU From</label><input type="date" value={fuFrom} onChange={e=>setFuFrom(e.target.value)} /></div>
-            <div className="cd-fg"><label>FU To</label><input type="date" value={fuTo} onChange={e=>setFuTo(e.target.value)} /></div>
-          </>)}
-          <div className="cd-fg"><label>FU Time From</label>
-            <select value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)}>
-              <option value="">—</option>
-              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="cd-fg"><label>FU Time To</label>
-            <select value={fuTTo} onChange={e=>setFuTTo(e.target.value)}>
-              <option value="">—</option>
-              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          {fuTimeError && <div className="cd-fg" style={{alignSelf:"flex-end"}}><span style={{color:"#c33",fontSize:12}}>FU Time To cannot be earlier than From.</span></div>}
+      <FilterPanel activeCount={activeCount} onClear={clearAll}>
+        <div className="cd-fg">
+          <label>Status</label>
+          <select value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="">All</option>
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
         </div>
-      </div>
+        <div className="cd-fg">
+          <label>Sales Owner</label>
+          <SearchableSelect options={ownerOpts} value={owner} onChange={setOwner} placeholder="All Owners" />
+        </div>
+        <div className="cd-fg">
+          <label>Disposition</label>
+          <SearchableSelect options={dispOpts} value={disp} onChange={setDisp} placeholder="All Dispositions" />
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Date</label>
+          <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
+            <option value="">All</option>
+            <option value="0">Today</option><option value="1">Tomorrow</option><option value="2">Date Range</option>
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Time</label>
+          <div className="cd-timepair">
+            <select aria-label="Follow up time from" value={fuTFrom} onChange={e=>setFuTFrom(e.target.value)}>
+              <option value="">From —</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <select aria-label="Follow up time to" value={fuTTo} onChange={e=>setFuTTo(e.target.value)}>
+              <option value="">To —</option>
+              {HALF_HOURS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {fuTimeError && <span className="cd-fgnote cd-fgnote-err">“To” is earlier than “From”.</span>}
+        </div>
+        {fuMode==="2" && (
+          <RangeField label="Follow Up Date Range" presets={false}
+            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        )}
+        {/* Created range is applied by the server (LoadExternalOppDetails) and is
+            always populated — clearing it would send empty dates. */}
+        <RangeField label="Created Date" allowClear={false}
+          from={fromDate} to={toDate} onFrom={setFromDate} onTo={setToDate} />
+        <RangeField label="Modified Date"
+          from={modFrom} to={modTo} onFrom={setModFrom} onTo={setModTo} />
+      </FilterPanel>
 
       <div className="cd-searchrow">
         <span className="cd-count">{filtered.length>0
-          ? <>showing {((page-1)*PAGE_SIZE+1).toLocaleString()}–{Math.min(page*PAGE_SIZE,filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}</>
+          ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,filtered.length).toLocaleString()}</b> of {filtered.length.toLocaleString()}</>
           : "0 records"}</span>
-        <input className="cd-search" placeholder="Search (Customer, Cust ID, Mobile, Remarks…)"
-          value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
+        <div className="cd-searchwrap">
+          <span className="cd-searchicon">⌕</span>
+          <input className="cd-search" placeholder="Search customer, cust ID, mobile, remarks…"
+            value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
+          {srchDraft && <button className="cd-searchx" title="Clear search" onClick={()=>setSrchDraft("")}>✕</button>}
+        </div>
       </div>
 
-      {loading && <Loading />}
+      {loading && <Skeleton cols={14} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && !err && (
         filtered.length ? (
@@ -958,14 +1161,15 @@ function ExternalSection({ oppCode, churnKey=0 }) {
                     </td>
                     <td>{safe(r.custName)}</td>
                     <td>{safe(r.custMobileNo)}</td>
-                    <td>{safe(r.oppStatus)}</td>
-                    <td>{safe(r.disposition)}</td>
+                    <td><Pill v={r.oppStatus} /></td>
+                    <td><Pill v={r.disposition} /></td>
                     <td><ApptMapCell leadSource="EXTERNAL" recId={r.recid} custId={r.custID||r.custId} oppCode={oppCode}
+                        apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
                         onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td>{fmtDate(r.followUpDate)}</td>
                     <td>{safe(r.__fuLabel)}</td>
-                    <td>{safe(r.remarks)}</td>
+                    <td><Clamp v={r.remarks} /></td>
                     <td>{safe(r.salesOwner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifieddate||r.modifiedDate)}</td>
@@ -977,7 +1181,8 @@ function ExternalSection({ oppCode, churnKey=0 }) {
           </div>
         ) : <EmptyNote />
       )}
-      <Pager page={page} totalPages={totalPages} onPage={setPage} />
+      <Pager page={page} totalPages={totalPages} onPage={setPage}
+        pageSize={pageSize} onPageSize={setPageSize} />
     </div>
   );
 }
@@ -1000,7 +1205,7 @@ const fetchManualPages = async (campaignId) => {
   return items;
 };
 
-function ManualSection({ oppCode, header, churnKey=0 }) {
+function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   // LeadOpp.Campaign_FK = CLINIC_OPPORTUNITYDETAILS.RECID (campaignDetailId)
   // NOT CLINIC_OPPORTUNITYSUMMARY.RECID (recid)
   const campaignRecId = Number(
@@ -1031,10 +1236,17 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
   const [srchDraft,setSrchDraft]=useState("");
   const [search,  setSearch]  = useState("");
 
+  // Audit ranges — the manual list is fetched in full, so both are exact.
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo,   setCreatedTo]   = useState("");
+  const [modFrom,     setModFrom]     = useState("");
+  const [modTo,       setModTo]       = useState("");
+  const [pageSize,    setPageSize]    = useState(PAGE_SIZE);
+
   const navigate = useNavigate();
 
   useEffect(()=>{ const t=setTimeout(()=>setSearch(srchDraft),250); return()=>clearTimeout(t); },[srchDraft]);
-  useEffect(()=>setPage(1),[search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime]);
+  useEffect(()=>setPage(1),[search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime,createdFrom,createdTo,modFrom,modTo,pageSize]);
 
   useEffect(()=>{
     if(!campaignRecId) return;
@@ -1104,8 +1316,14 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
   const onSort = (key) => setSort(p => p.key===key ? {key, dir:p.dir==="asc"?"desc":"asc"} : {key, dir:"asc"});
   const sortArrow = (k) => sort.key===k ? (sort.dir==="asc"?"↑":"↓") : "↕";
 
+  const createdBad = rangeInvalid(createdFrom, createdTo);
+  const modBad     = rangeInvalid(modFrom,     modTo);
+
   const filtered = useMemo(()=>{
     let list=rows.slice();
+    if(createdBad||modBad) return [];   // Created / Modified From after To → no records
+    if(createdFrom||createdTo) list=list.filter(r=>inDateRange(r.createdDate, createdFrom, createdTo));
+    if(modFrom||modTo)         list=list.filter(r=>inDateRange(r.modifiedDate, modFrom, modTo));
     const s=search.trim().toLowerCase();
     if(s)     list=list.filter(r=>(r.__q||"").includes(s));
     if(status)list=list.filter(r=>norm(r.status)===norm(status));
@@ -1128,77 +1346,92 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
       });
     }
     return list;
-  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime,sort]);
+  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime,sort,
+     createdFrom,createdTo,modFrom,modTo,createdBad,modBad]);
 
-  const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
-  const paged=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
+  const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
+  const paged=useMemo(()=>filtered.slice((page-1)*pageSize,page*pageSize),[filtered,page,pageSize]);
+
+  const activeCount = [status,owner,disp,doctorFilter,search,fuMode,fuFrom,fuTo,fuTime,
+    createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
+  const clearAll = () => {
+    setStatus(""); setOwner(""); setDisp(""); setDoctorFilter("");
+    setSrchDraft(""); setSearch("");
+    setFuMode(""); setFuFrom(""); setFuTo(""); setFuTime("");
+    setCreatedFrom(""); setCreatedTo(""); setModFrom(""); setModTo("");
+  };
 
   return (
     <div>
-      <div className="cd-filters">
-        <div className="cd-frow">
-          <div className="cd-fg">
-            <label>Status</label>
-            <select value={status} onChange={e=>setStatus(e.target.value)}>
-              <option value="">All</option>
-              <option>Open</option>
-              <option>Closed</option>
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Sales Owner</label>
-            <select value={owner} onChange={e=>setOwner(e.target.value)}>
-              {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Disposition</label>
-            <select value={disp} onChange={e=>setDisp(e.target.value)}>
-              {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Doctor</label>
-            <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
-              {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
-            </select>
-          </div>
-          <div className="cd-fg">
-            <label>Follow Up Date</label>
-            <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
-              <option value="">All</option>
-              <option value="0">Today</option><option value="1">Tomorrow</option><option value="2">Date Range</option>
-            </select>
-          </div>
-          {fuMode==="2"&&(<>
-            <div className="cd-fg"><label>FU From</label><input type="date" value={fuFrom} onChange={e=>setFuFrom(e.target.value)} /></div>
-            <div className="cd-fg"><label>FU To</label><input type="date" value={fuTo} onChange={e=>setFuTo(e.target.value)} /></div>
-          </>)}
-          <div className="cd-fg">
-            <label>Follow Up Time</label>
-            <select value={fuTime} onChange={e=>setFuTime(e.target.value)}>
-              <option value="">All</option>
-              {HALF_HOURS_12.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+      <FilterPanel activeCount={activeCount} onClear={clearAll} actions={<>
+        <button className="cd-btn-pri cd-btn-sm" onClick={()=>navigate(`/manuallead/${oppCode}`,{state:{oppCode,header}})}>
+          + Add Lead
+        </button>
+        <button className="cd-btn-pri cd-btn-sm" onClick={()=>navigate(`/opportunity/customers`,{state:{oppCode,header}})}>
+          + Add Opportunity
+        </button>
+      </>}>
+        <div className="cd-fg">
+          <label>Status</label>
+          <select value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="">All</option>
+            <option>Open</option>
+            <option>Closed</option>
+          </select>
         </div>
-        <div style={{display:"flex",gap:10,marginTop:10}}>
-          <button className="cd-btn-pri" onClick={()=>navigate(`/manuallead/${oppCode}`,{state:{oppCode,header}})}>
-            + Add Lead
-          </button>
-          <button className="cd-btn-pri" onClick={()=>navigate(`/opportunity/customers`,{state:{oppCode,header}})}>
-            + Add Opportunity
-          </button>
+        <div className="cd-fg">
+          <label>Sales Owner</label>
+          <select value={owner} onChange={e=>setOwner(e.target.value)}>
+            {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
+          </select>
         </div>
-      </div>
+        <div className="cd-fg">
+          <label>Disposition</label>
+          <select value={disp} onChange={e=>setDisp(e.target.value)}>
+            {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Doctor</label>
+          <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
+            {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Date</label>
+          <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
+            <option value="">All</option>
+            <option value="0">Today</option><option value="1">Tomorrow</option><option value="2">Date Range</option>
+          </select>
+        </div>
+        <div className="cd-fg">
+          <label>Follow Up Time</label>
+          <select value={fuTime} onChange={e=>setFuTime(e.target.value)}>
+            <option value="">All</option>
+            {HALF_HOURS_12.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        {fuMode==="2" && (
+          <RangeField label="Follow Up Date Range" presets={false}
+            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        )}
+        <RangeField label="Created Date"
+          from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
+        <RangeField label="Modified Date"
+          from={modFrom} to={modTo} onFrom={setModFrom} onTo={setModTo} />
+      </FilterPanel>
 
       <div className="cd-searchrow">
-        <span className="cd-count">{filtered.length} / {rows.length} record(s)</span>
-        <input className="cd-search" placeholder="Search (Prospect, Customer, Status, Owner…)"
-          value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
+        <span className="cd-count"><b>{filtered.length.toLocaleString()}</b> of {rows.length.toLocaleString()} record{rows.length===1?"":"s"}</span>
+        <div className="cd-searchwrap">
+          <span className="cd-searchicon">⌕</span>
+          <input className="cd-search" placeholder="Search prospect, customer, status, owner…"
+            value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
+          {srchDraft && <button className="cd-searchx" title="Clear search" onClick={()=>setSrchDraft("")}>✕</button>}
+        </div>
       </div>
 
-      {(loading || !campaignRecId) && <Loading />}
+      {(loading || !campaignRecId) && <Skeleton cols={16} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && campaignRecId && !err && (
         paged.length ? (
@@ -1223,14 +1456,15 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
                     <td>{safe(r.name)}</td>
                     <td>{safe(r.mobile)}</td>
                     <td>{safe(r.doctor)}</td>
-                    <td>{safe(r.status)}</td>
+                    <td><Pill v={r.status} /></td>
                     <td>{fmtDate(r.fuDate)}</td>
                     <td>{safe(r.fuTimeLabel)}</td>
-                    <td>{safe(r.disposition)}</td>
+                    <td><Pill v={r.disposition} /></td>
                     <td><ApptMapCell leadSource="MANUAL" recId={r.id} custId={r.custID} oppCode={oppCode}
+                        apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.id)]?.appointmentId}
                         onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
-                    <td>{safe(r.remark)}</td>
+                    <td><Clamp v={r.remark} /></td>
                     <td>{safe(r.owner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifiedDate)}</td>
@@ -1242,7 +1476,8 @@ function ManualSection({ oppCode, header, churnKey=0 }) {
           </div>
         ) : <EmptyNote />
       )}
-      <Pager page={page} totalPages={totalPages} onPage={setPage} />
+      <Pager page={page} totalPages={totalPages} onPage={setPage}
+        pageSize={pageSize} onPageSize={setPageSize} />
     </div>
   );
 }
@@ -1310,6 +1545,25 @@ export default function CampaignDetails() {
   const fromDate = toISODateOnly(header.fromDate) || todayISO();
   const toDate   = toISODateOnly(header.toDate)   || todayISO();
 
+  // Where the campaign sits against today — shown as a chip beside the name
+  const periodState = useMemo(() => {
+    const today = stamp(new Date());
+    const f = stamp(toMidnight(fromDate));
+    const t = stamp(toMidnight(toDate));
+    if (!isNaN(f) && today < f) return { label:"Scheduled", tone:"warn" };
+    if (!isNaN(t) && today > t) return { label:"Ended",     tone:"off"  };
+    return { label:"Active", tone:"ok" };
+  }, [fromDate, toDate]);
+
+  // Campaign's "Appt Booking Mandatory" flag (CLINIC_OPPORTUNITYDETAILS.ApptBookingMandatory,
+  // returned by getCampaign as 0/1). Absent while the header loads → treat as Yes,
+  // the same default the lead forms and the repositories use.
+  const apptMandatory = header.apptBookingMandatory !== 0 && header.apptBookingMandatory !== false;
+
+  const sourceLabel = kind==="manual" ? "Manual Lead"
+                    : kind==="external" ? "External Source"
+                    : "Transaction";
+
   return (
     <>
       <div className="cd-container">
@@ -1317,35 +1571,43 @@ export default function CampaignDetails() {
         <div className="cd-breadcrumb">
           <span className="cd-bclink" onClick={()=>navigate("/opportunity")}>Opportunity</span>
           {" › "}
-          <span className="cd-bccur">Campaign Details</span>
+          <span className="cd-bccur">{safe(header.oppCode, "Campaign Details")}</span>
         </div>
 
         <div className="cd-card">
           {/* Header */}
           <div className="cd-header">
             <div className="cd-headerleft">
-              <div className="cd-pair">
-                <span className="cd-lbl">Campaign Code</span>
-                <span className="cd-pill">{safe(header.oppCode)}</span>
+              <div className="cd-titlerow">
+                <h2 className="cd-title">{safe(header.oppName)}</h2>
+                <span className={`cd-tag cd-tag-${periodState.tone}`}>{periodState.label}</span>
               </div>
-              <div className="cd-pair">
-                <span className="cd-lbl">Campaign Name</span>
-                <span>{safe(header.oppName)}</span>
-              </div>
-              <div className="cd-pair">
-                <span className="cd-lbl">Rule Type</span>
-                <span>{ruleLabel}</span>
-              </div>
-              <div className="cd-pair">
-                <span className="cd-lbl">Campaign Period</span>
-                <span>{fmtDate(fromDate)} – {fmtDate(toDate)}</span>
+              <div className="cd-metagrid">
+                <div className="cd-meta">
+                  <span className="cd-lbl">Campaign Code</span>
+                  <span className="cd-pill">{safe(header.oppCode)}</span>
+                </div>
+                <div className="cd-meta">
+                  <span className="cd-lbl">Rule Type</span>
+                  <span className="cd-metaval" title={ruleLabel}>
+                    {ruleCode && ruleCode !== "MANUAL LEAD" ? `${ruleCode} · ${ruleLabel}` : ruleLabel}
+                  </span>
+                </div>
+                <div className="cd-meta">
+                  <span className="cd-lbl">Campaign Period</span>
+                  <span className="cd-metaval">{fmtDate(fromDate)} → {fmtDate(toDate)}</span>
+                </div>
+                <div className="cd-meta">
+                  <span className="cd-lbl">Prospect Source</span>
+                  <span className="cd-metaval">{sourceLabel}</span>
+                </div>
               </div>
               {hdrLoading && <div className="cd-hint">Loading campaign…</div>}
               {hdrErr     && <div className="cd-hint cd-hint-err">{hdrErr}</div>}
             </div>
             <div className="cd-headerright">
               <button className="cd-btn-pri" onClick={handleGetLatestData} disabled={churning}
-                style={{ minWidth:160, opacity: churning ? 0.7 : 1 }}>
+                title="Re-run the campaign rule and pull any new matching records">
                 {churning ? "⟳ Loading…" : "↻ Get Latest Data"}
               </button>
               <button className="cd-btn-pri" onClick={()=>setAssignOpen(true)}>Assign</button>
@@ -1361,13 +1623,14 @@ export default function CampaignDetails() {
               fromDate={fromDate}
               toDate={toDate}
               churnKey={churnKey}
+              apptMandatory={apptMandatory}
             />
           )}
           {kind === "external" && (
-            <ExternalSection oppCode={oppCode} churnKey={churnKey} />
+            <ExternalSection oppCode={oppCode} churnKey={churnKey} apptMandatory={apptMandatory} />
           )}
           {kind === "manual" && (
-            <ManualSection oppCode={oppCode} header={header} churnKey={churnKey} />
+            <ManualSection oppCode={oppCode} header={header} churnKey={churnKey} apptMandatory={apptMandatory} />
           )}
         </div>
       </div>
@@ -1384,83 +1647,190 @@ export default function CampaignDetails() {
       />
 
       <style>{`
-        .cd-container { padding: 0px; }
-        .cd-breadcrumb { font-size:13px; color:#64748b; margin-bottom:14px; }
-        .cd-bclink { color:#334b71; font-weight:700; cursor:pointer; }
+        .cd-container { padding:0; }
+
+        /* Breadcrumb */
+        .cd-breadcrumb { font-size:12.5px; color:#85A2AA; margin-bottom:12px; }
+        .cd-bclink { color:#18396E; font-weight:800; cursor:pointer; }
         .cd-bclink:hover { text-decoration:underline; }
-        .cd-bccur  { color:#94a3b8; }
+        .cd-bccur  { color:#94a3b8; font-weight:700; }
 
-        .cd-card { background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 10px rgba(0,0,0,.07); }
+        .cd-card { background:#fff; border:1px solid #edf1f7; border-radius:14px; padding:22px 24px 24px;
+          box-shadow:0 1px 2px rgba(5,34,76,.05), 0 10px 28px rgba(5,34,76,.06); }
 
-        .cd-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #e8edf5; }
-        .cd-headerleft { display:grid; gap:8px; }
-        .cd-headerright { display:flex; gap:10px; flex-shrink:0; }
+        /* Header */
+        .cd-header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px;
+          margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid #eef2f8; }
+        .cd-headerleft { flex:1; min-width:0; }
+        .cd-headerright { display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+        .cd-titlerow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .cd-title { margin:0; font-size:20px; line-height:1.2; font-weight:800; color:#05224C; letter-spacing:-.2px; }
+        .cd-metagrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px 22px; }
+        .cd-meta { display:flex; flex-direction:column; gap:3px; min-width:0; }
+        .cd-lbl { font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:#85A2AA; }
+        .cd-metaval { font-size:13.5px; font-weight:600; color:#1f2a3d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cd-pill { align-self:flex-start; background:#eef3ff; color:#18396E; padding:3px 10px; border-radius:20px;
+          font-size:12.5px; font-weight:800; letter-spacing:.3px; }
         .cd-pair { font-size:14px; color:#333; display:flex; gap:10px; align-items:baseline; }
-        .cd-lbl { font-weight:700; color:#475569; min-width:150px; }
-        .cd-pill { background:#eef3ff; color:#334b71; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:700; }
-        .cd-hint { font-size:12px; color:#64748b; }
-        .cd-hint-err { color:#c33; }
+        .cd-hint { font-size:12px; color:#64748b; margin-top:10px; }
+        .cd-hint-err { color:#c0392b; }
 
-        /* Filters */
-        .cd-filters { background:#f7f9fc; border:1px solid #e6eaf2; border-radius:10px; padding:16px; margin-bottom:14px; }
+        /* Filter panel */
+        .cd-filters { background:linear-gradient(180deg,#fbfcfe,#f6f8fc); border:1px solid #e6eaf2;
+          border-radius:12px; margin-bottom:14px; }
+        .cd-filters-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; }
+        .cd-filters-toggle { display:flex; align-items:center; gap:8px; background:none; border:0; padding:0;
+          cursor:pointer; font-size:13px; font-weight:800; color:#05224C; letter-spacing:.2px; }
+        .cd-caret { display:inline-block; color:#85A2AA; font-size:11px; transition:transform .18s ease; }
+        .cd-caret-open { transform:rotate(90deg); }
+        .cd-badge { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px;
+          padding:0 6px; border-radius:20px; background:#18396E; color:#fff; font-size:11px; font-weight:800; }
+        .cd-filters-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .cd-linkbtn { background:none; border:0; color:#c9573f; font-size:12px; font-weight:800; cursor:pointer;
+          padding:4px 6px; border-radius:6px; }
+        .cd-linkbtn:hover { background:#fdeeea; }
+        .cd-linkbtn-sm { font-size:11px; padding:2px 4px; }
+
+        .cd-fgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px 14px;
+          padding:2px 14px 16px; align-items:start; }
+        .cd-fg { display:flex; flex-direction:column; gap:5px; min-width:0; }
+        .cd-fg label { font-size:10.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:#5b6b82; }
+        .cd-fg input, .cd-fg select { height:36px; width:100%; box-sizing:border-box; border:1px solid #dde3ee;
+          border-radius:8px; padding:0 9px; font-size:13px; color:#1f2a3d; background:#fff;
+          transition:border-color .15s ease, box-shadow .15s ease; }
+        .cd-fg input:focus, .cd-fg select:focus { outline:none; border-color:#18396E; box-shadow:0 0 0 3px rgba(24,57,110,.12); }
         .cd-frow { display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-end; }
-        .cd-fg { display:flex; flex-direction:column; gap:5px; min-width:160px; flex:1; max-width:220px; }
-        .cd-fg label { font-size:12px; font-weight:700; color:#475569; }
-        .cd-fg input, .cd-fg select { height:36px; border:1px solid #d7ddea; border-radius:7px; padding:0 10px; font-size:13px; color:#222; background:#fff; width:100%; box-sizing:border-box; }
-        .cd-wide { max-width:280px; }
+        .cd-wide { grid-column:span 2; }
+        .cd-timepair { display:flex; gap:6px; }
+        .cd-timepair select { flex:1; min-width:0; }
         .cd-daterange { display:flex; gap:6px; align-items:center; }
         .cd-daterange input { flex:1; min-width:0; }
-        .cd-timepair { display:flex; gap:6px; }
-        .cd-timepair select { flex:1; }
+
+        /* From → To range control (Created / Modified / Appointment / Follow Up) */
+        .cd-range { background:#fff; border:1px solid #e6eaf2; border-radius:10px; padding:9px 10px 10px; gap:0; }
+        .cd-range-on  { border-color:#b9cbe6; box-shadow:0 0 0 3px rgba(24,57,110,.06); }
+        .cd-range-bad { border-color:#e8b4ae; box-shadow:0 0 0 3px rgba(221,119,102,.14); }
+        .cd-range-head { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px; }
+        .cd-range-body { display:flex; align-items:center; gap:6px; }
+        .cd-range-body input { flex:1; min-width:0; }
+        .cd-range-sep { color:#85A2AA; font-size:12px; }
+        .cd-chiprow { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+        .cd-chip { border:1px solid #e2e8f2; background:#f8fafd; color:#5b6b82; border-radius:20px; padding:3px 9px;
+          font-size:11px; font-weight:700; cursor:pointer; transition:all .15s ease; }
+        .cd-chip:hover { border-color:#b9cbe6; color:#18396E; }
+        .cd-chip-on { background:#18396E; border-color:#18396E; color:#fff; }
+        .cd-fgnote { display:block; margin-top:6px; font-size:11px; color:#7b8798; }
+        .cd-fgnote-err { color:#c0392b; font-weight:700; }
 
         /* Search row */
-        .cd-searchrow { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-        .cd-count { font-size:13px; color:#64748b; white-space:nowrap; }
-        .cd-search { flex:1; max-width:320px; height:36px; border:1px solid #d7ddea; border-radius:7px; padding:0 12px; font-size:13px; color:#222; }
+        .cd-searchrow { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+        .cd-count { font-size:12.5px; color:#64748b; white-space:nowrap; }
+        .cd-count b { color:#05224C; }
+        .cd-searchwrap { position:relative; flex:1; min-width:200px; max-width:340px; }
+        .cd-searchicon { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#85A2AA;
+          font-size:16px; pointer-events:none; }
+        .cd-search { width:100%; box-sizing:border-box; height:36px; border:1px solid #dde3ee; border-radius:8px;
+          padding:0 28px 0 28px; font-size:13px; color:#1f2a3d; transition:border-color .15s ease, box-shadow .15s ease; }
+        .cd-search:focus { outline:none; border-color:#18396E; box-shadow:0 0 0 3px rgba(24,57,110,.12); }
+        .cd-searchx { position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:none;
+          color:#94a3b8; cursor:pointer; font-size:11px; }
+        .cd-searchx:hover { color:#c9573f; }
 
         /* Buttons */
-        .cd-btn-pri { background:#0f2445; color:#fff; border:0; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap; }
-        .cd-btn-pri:hover { opacity:.9; }
-        .cd-btn-sec { background:#334b71; color:#fff; border:0; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap; }
-        .cd-btn-sec:hover { opacity:.9; }
+        .cd-btn-pri { background:#18396E; color:#fff; border:0; border-radius:9px; padding:9px 16px; font-weight:700;
+          cursor:pointer; font-size:13px; white-space:nowrap; box-shadow:0 1px 2px rgba(5,34,76,.18);
+          transition:background .15s ease, transform .05s ease; }
+        .cd-btn-pri:hover:not(:disabled) { background:#05224C; }
+        .cd-btn-pri:active:not(:disabled) { transform:translateY(1px); }
+        .cd-btn-pri:disabled { opacity:.6; cursor:not-allowed; }
+        .cd-btn-sec { background:#fff; color:#18396E; border:1px solid #c9d6e8; border-radius:9px; padding:9px 16px;
+          font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap; transition:all .15s ease; }
+        .cd-btn-sec:hover { background:#f3f7fd; border-color:#18396E; }
+        .cd-btn-sm { padding:6px 12px; font-size:12px; }
 
         /* Table */
-        .cd-tablewrap { overflow-x:auto; border-radius:10px; border:1px solid #e8edf5; }
-        .cd-table { width:100%; border-collapse:collapse; min-width:900px; }
-        .cd-table thead th { background:#f6f8fb; padding:11px 13px; text-align:left; font-size:12px; font-weight:700; color:#475569; border-bottom:1px solid #e8edf5; white-space:nowrap; cursor:pointer; user-select:none; }
-        .cd-table tbody td { padding:11px 13px; font-size:13px; color:#333; border-bottom:1px solid #f0f2f6; vertical-align:middle; white-space:nowrap; }
-        .cd-table tbody tr:hover { background:#fafbfe; }
-        .cd-link { background:none; border:none; padding:0; color:#2b5ec2; font-weight:700; cursor:pointer; font-size:13px; }
+        .cd-tablewrap { overflow:auto; max-height:70vh; border:1px solid #e8edf5; border-radius:12px; background:#fff; }
+        .cd-table { width:100%; min-width:960px; border-collapse:separate; border-spacing:0; }
+        .cd-table thead th { position:sticky; top:0; z-index:2; background:#f4f7fb; padding:10px 13px; text-align:left;
+          font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:#4a5c75;
+          border-bottom:1px solid #e2e8f2; white-space:nowrap; cursor:pointer; user-select:none; }
+        .cd-table thead th:hover { background:#eaf0f9; color:#18396E; }
+        .cd-table tbody td { padding:10px 13px; font-size:13px; color:#2b3648; border-bottom:1px solid #f1f4f9;
+          vertical-align:middle; white-space:nowrap; background:#fff; }
+        .cd-table tbody tr:nth-child(even) td { background:#fcfdff; }
+        .cd-table tbody tr:hover td { background:#f4f8ff; }
+        .cd-table tbody tr:last-child td { border-bottom:0; }
+        .cd-link { background:none; border:none; padding:0; color:#18396E; font-weight:800; cursor:pointer;
+          font-size:13px; text-align:left; }
+        .cd-link:hover { color:#05224C; text-decoration:underline; }
+        .cd-dash { color:#b6c0cf; }
+        .cd-clamp { display:inline-block; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+          vertical-align:bottom; }
+        .cd-tag { display:inline-block; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+          vertical-align:middle; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:800;
+          background:#eef2f8; color:#4a5c75; border:1px solid #e2e8f2; }
+        .cd-tag-ok   { background:#eaf6f1; color:#136f4f; border-color:#cbe9dd; }
+        .cd-tag-on   { background:#eaf1fb; color:#18396E; border-color:#cfdff5; }
+        .cd-tag-off  { background:#fdeeea; color:#a03c2c; border-color:#f6d6cf; }
+        .cd-tag-warn { background:#fdf6e6; color:#8a6410; border-color:#f2e4c0; }
+
+        /* Loading skeleton */
+        .cd-sk { display:block; height:12px; border-radius:6px;
+          background:linear-gradient(90deg,#eef1f6 25%,#f8fafd 37%,#eef1f6 63%); background-size:400% 100%;
+          animation:cd-shimmer 1.3s ease-in-out infinite; }
+        @keyframes cd-shimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
 
         /* Pager */
-        .cd-server-pager { display:flex; align-items:center; gap:10px; margin-top:12px;
-          padding:10px 14px; background:#f7f9fc; border:1px solid #e6eaf2; border-radius:8px; }
-        .cd-pager { display:flex; align-items:center; gap:8px; margin-top:14px; justify-content:flex-end; }
-        .cd-pgbtn { height:32px; padding:0 12px; border:1px solid #d7ddea; border-radius:7px; background:#fff; font-weight:600; cursor:pointer; font-size:13px; }
-        .cd-pgbtn:disabled { opacity:.5; cursor:not-allowed; }
-        .cd-pginfo { font-size:13px; color:#475569; padding:0 6px; }
+        .cd-server-pager { display:flex; align-items:center; gap:10px; margin-top:12px; padding:9px 14px;
+          background:#f7f9fc; border:1px solid #e6eaf2; border-radius:10px; flex-wrap:wrap; }
+        .cd-pager { display:flex; align-items:center; gap:8px; margin-top:14px; justify-content:flex-end; flex-wrap:wrap; }
+        .cd-pgsize { display:flex; align-items:center; gap:6px; margin-right:auto; font-size:12.5px; font-weight:700; color:#5b6b82; }
+        .cd-pgsize select { height:32px; border:1px solid #dde3ee; border-radius:7px; background:#fff; font-size:12.5px; padding:0 6px; }
+        .cd-pgbtn { height:32px; padding:0 12px; border:1px solid #dde3ee; border-radius:8px; background:#fff;
+          font-weight:700; cursor:pointer; font-size:12.5px; color:#334b71; transition:all .15s ease; }
+        .cd-pgbtn:hover:not(:disabled) { border-color:#18396E; color:#18396E; background:#f5f8fd; }
+        .cd-pgbtn:disabled { opacity:.45; cursor:not-allowed; }
+        .cd-pginfo { font-size:12.5px; color:#5b6b82; padding:0 6px; }
 
         /* Misc */
-        .cd-empty { padding:20px; text-align:center; color:#94a3b8; background:#f9fafc; border:1px dashed #e2e8f0; border-radius:8px; margin-top:12px; }
-        .cd-loading { padding:30px; text-align:center; font-size:16px; color:#64748b; }
-        .cd-err { padding:14px; background:#fdf3f3; border:1px solid #f0c4c0; border-radius:8px; color:#b91c1c; margin-top:10px; font-size:13px; }
-        .cd-toast { position:fixed; left:0; right:0; top:28%; margin:0 auto; max-width:480px; background:#0d3d1a; color:#fff; padding:18px 24px; border-radius:10px; font-weight:700; box-shadow:0 8px 24px rgba(0,0,0,.2); z-index:99999; text-align:center; }
+        .cd-empty { padding:28px 20px; text-align:center; font-size:13px; color:#8a97a8; background:#fbfcfe;
+          border:1px dashed #e2e8f0; border-radius:12px; margin-top:12px; }
+        .cd-loading { padding:30px; text-align:center; font-size:15px; color:#64748b; }
+        .cd-err { padding:13px 15px; background:#fdf3f2; border:1px solid #f2cfc9; border-radius:10px; color:#a03c2c;
+          margin-top:10px; font-size:13px; font-weight:600; }
+        .cd-toast { position:fixed; left:0; right:0; top:28%; margin:0 auto; max-width:480px; background:#0d3d1a;
+          color:#fff; padding:18px 24px; border-radius:12px; font-weight:700; box-shadow:0 12px 32px rgba(0,0,0,.22);
+          z-index:99999; text-align:center; }
 
         /* SearchableSelect */
         .ss-wrap { position:relative; width:100%; }
-        .ss-ctrl { display:flex; align-items:center; justify-content:space-between; height:36px; border:1px solid #d7ddea; border-radius:7px; padding:0 10px; background:#fff; cursor:pointer; font-size:13px; user-select:none; box-sizing:border-box; }
-        .ss-ctrl.ss-open { border-color:#334b71; }
+        .ss-ctrl { display:flex; align-items:center; justify-content:space-between; height:36px; border:1px solid #dde3ee;
+          border-radius:8px; padding:0 10px; background:#fff; cursor:pointer; font-size:13px; user-select:none; box-sizing:border-box; }
+        .ss-ctrl.ss-open { border-color:#18396E; box-shadow:0 0 0 3px rgba(24,57,110,.12); }
         .ss-ph { color:#94a3b8; }
-        .ss-acts { display:flex; align-items:center; gap:6px; }
+        .ss-acts { display:flex; align-items:center; gap:6px; color:#85A2AA; font-size:10px; }
         .ss-x { font-size:11px; color:#94a3b8; cursor:pointer; }
-        .ss-x:hover { color:#c33; }
-        .ss-drop { position:absolute; top:calc(100% + 3px); left:0; right:0; background:#fff; border:1px solid #d7ddea; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.1); z-index:9999; }
-        .ss-search { width:100%; box-sizing:border-box; height:32px; border:none; border-bottom:1px solid #e8edf5; padding:0 10px; font-size:13px; outline:none; }
-        .ss-list { max-height:200px; overflow-y:auto; }
+        .ss-x:hover { color:#c9573f; }
+        .ss-drop { position:absolute; top:calc(100% + 3px); left:0; right:0; background:#fff; border:1px solid #dde3ee;
+          border-radius:10px; box-shadow:0 10px 26px rgba(5,34,76,.14); z-index:9999; overflow:hidden; }
+        .ss-search { width:100%; box-sizing:border-box; height:34px; border:none; border-bottom:1px solid #eef2f8;
+          padding:0 10px; font-size:13px; outline:none; }
+        .ss-list { max-height:210px; overflow-y:auto; }
         .ss-item { padding:8px 12px; font-size:13px; cursor:pointer; }
         .ss-item:hover { background:#f1f5ff; }
-        .ss-active { background:#eef3ff; color:#334b71; font-weight:700; }
+        .ss-active { background:#eef3ff; color:#18396E; font-weight:800; }
         .ss-no { padding:10px 12px; font-size:13px; color:#94a3b8; }
+
+        /* Narrow screens */
+        @media (max-width: 900px) {
+          .cd-card { padding:18px 16px 20px; }
+          .cd-header { flex-direction:column; }
+          .cd-headerright { width:100%; justify-content:flex-start; }
+          .cd-fgrid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
+          .cd-range { grid-column:span 1 !important; }
+          .cd-tablewrap { max-height:none; }
+          .cd-searchwrap { max-width:none; }
+        }
       `}</style>
     </>
   );

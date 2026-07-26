@@ -532,7 +532,7 @@ const NAV_GROUPS = [
         icon: "bx-bell",
         feature: "opportunity",
         children: [
-          { name: "Opportunity Dashboard", icon: "bx-grid-alt", path: "/opportunity/dashboard" },
+          { name: "Opportunity Dashboard", icon: "bx-grid-alt", path: "/opportunity" },
           { name: "Lead to Revenue Funnel", icon: "bx-filter", path: "/ltr-funnel" },
           { name: "Lead Disposition Rules", icon: "bx-list-check", path: "/masters/disposition" },
           { name: "Campaigns", icon: "bx-broadcast", path: "/opportunity" }, // TODO confirm campaigns route

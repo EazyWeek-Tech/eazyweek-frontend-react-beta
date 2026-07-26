@@ -150,6 +150,31 @@ const normalizeAmPm = (v) => {
   return s === "PM" ? "PM" : "AM";
 };
 
+/* ─── Master-list cache ───────────────────────────────────────────────────────
+   Disposition / sub-disposition / reason lists are master data — identical for
+   every lead. Without a cache, opening each lead re-fetched all three, so three
+   round trips were paid per lead on top of the detail load. Cached in memory for
+   the tab and in sessionStorage so a remount (back → open next lead) is free.
+   A browser refresh clears it, which is the intended escape hatch after master
+   maintenance.                                                                */
+const MASTER_CACHE = {};
+
+const cachedJson = async (key, url, init) => {
+  if (MASTER_CACHE[key] !== undefined) return MASTER_CACHE[key];
+  try {
+    const hit = sessionStorage.getItem(`nse:${key}`);
+    if (hit) { MASTER_CACHE[key] = JSON.parse(hit); return MASTER_CACHE[key]; }
+  } catch { /* private mode / quota — fall through to the network */ }
+
+  const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`${key} HTTP ${res.status}`);
+  const data = await res.json();
+
+  MASTER_CACHE[key] = data;
+  try { sessionStorage.setItem(`nse:${key}`, JSON.stringify(data)); } catch { /* ignore */ }
+  return data;
+};
+
 const NoShowEntryDetails = () => {
   const { oppCode, custId } = useParams();
   const { state } = useLocation(); // { recId, oppCode, row, header, isManual }
@@ -186,8 +211,13 @@ const [subDispLoading, setSubDispLoading] = useState(false);
 
 
   // ✅ include reasonCode in form
+  // Disposition is seeded from the grid row we were navigated with. The detail
+  // response resolves to the same value (it prefers state.row.disposition over
+  // the API's), so seeding changes nothing about the end state — it just lets the
+  // sub-disposition list load alongside the detail call rather than one round
+  // trip after it.
   const [form, setForm] = useState({
-    disposition: "",
+    disposition: normalizeDispCode(state?.row?.disposition) || "",
     sbdisposition: "",
     reasonCode: "", // ✅ NEW
     remarks: "",
@@ -200,13 +230,11 @@ useEffect(() => {
   const loadDispositions = async () => {
     setDispLoading(true);
     try {
-      const res = await fetch(
+      const data = await cachedJson(
+        `disp:${OPP_TYPE}`,
         `${API_BASE_URL}/api/Opportunity/Dispostion/${encodeURIComponent(OPP_TYPE)}`,
         { method: "GET", headers: { Accept: "application/json, */*", ...AUTH_HEADERS() }, credentials: "include" }
       );
-      if (!res.ok) throw new Error(`Disposition HTTP ${res.status}`);
-
-      const data = await res.json();
       const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
 
       const mapped = (Array.isArray(arr) ? arr : [])
@@ -242,13 +270,11 @@ useEffect(() => {
   const loadSubDispositions = async () => {
     setSubDispLoading(true);
     try {
-      const res = await fetch(
+      const data = await cachedJson(
+        `subdisp:${OPP_TYPE}:${dispCode}`,
         `${API_BASE_URL}/api/Opportunity/SubDispostion/${encodeURIComponent(OPP_TYPE)}/${encodeURIComponent(dispCode)}`,
         { method: "GET", headers: { Accept: "application/json, */*", ...AUTH_HEADERS() }, credentials: "include" }
       );
-      if (!res.ok) throw new Error(`SubDisposition HTTP ${res.status}`);
-
-      const data = await res.json();
       const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
 
       const mapped = (Array.isArray(arr) ? arr : [])
@@ -287,13 +313,11 @@ useEffect(() => {
     const loadReasons = async () => {
       setReasonsLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOpprotunityReason`, {
+        const data = await cachedJson("reasons", `${API_BASE_URL}/api/Opportunity/LoadOpprotunityReason`, {
           method: "GET",
           headers: { Accept: "application/json, */*", ...AUTH_HEADERS() },
           credentials: "include",
         });
-        if (!res.ok) throw new Error(`Reasons HTTP ${res.status}`);
-        const data = await res.json();
 
         const arr = Array.isArray(data) ? data : (data?.data || data?.result || []);
         const mapped = (Array.isArray(arr) ? arr : [])
@@ -512,15 +536,20 @@ setForm((p) => ({
     }
   };
 
-  if (loading) return <div className="load">Loading…</div>;
+  // The appointment details below come from the grid row we were navigated with,
+  // so the page paints straight away instead of sitting on a full-page spinner
+  // for the whole detail round trip.
   if (error && !details) return <div className="load" style={{ color: "#c33" }}>{error}</div>;
 
   // ✅ IMPORTANT: lock based ONLY on API disposition (on load)
   const wasClosedOnLoad = initialDisp === "LS008" || initialDisp === "LS011";
-  const isLocked = wasClosedOnLoad;
+
+  // Inert while the detail call is still in flight: initialDisp is not known yet,
+  // so a closed lead must not be editable for those first few hundred ms.
+  const isLocked = loading || wasClosedOnLoad;
 
   // ✅ Submit hidden ONLY on load condition (no change logic needed, because dropdown is disabled when locked)
-  const hideSubmit = wasClosedOnLoad;
+  const hideSubmit = wasClosedOnLoad || loading;
 
   return (
     <>
@@ -550,6 +579,12 @@ setForm((p) => ({
 
         <fieldset className="fs">
           <legend>Lead Disposition</legend>
+
+          {loading && (
+            <div className="load" style={{ padding: "6px 0 10px", fontSize: 13, color: "#64748b" }}>
+              Loading lead details…
+            </div>
+          )}
 
           <div className="ldform">
             <div className="formrow">

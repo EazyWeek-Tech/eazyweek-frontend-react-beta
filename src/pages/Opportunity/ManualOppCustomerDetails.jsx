@@ -364,103 +364,225 @@ const pickUserIdentity = (u) => {
     recId,
   };
 };
-/** ✅ Session (Bright/Lines/Maxime) resolver for centre preselect */
+/** ✅ Session resolver for centre preselect (Bright / LNS / MXM / Silk ...)
+ *  Returns the ACTIVE centre code the app stores at login and rewrites on
+ *  "Change Centre".
+ *
+ *  Priority:
+ *    1. direct string keys  (loginCode / topCode / centerCode)  ← freshest
+ *    2. session objects     (userSession, session, auth, ...)
+ *    3. logged-in user obj  (user.centerCode)
+ *
+ *  ⚠ The previous version fell through to `raw.trim()` for ANY candidate key
+ *  that merely EXISTED. So `userSession` returned its whole JSON blob and
+ *  `token` returned the JWT — neither matches a centre code or name, which is
+ *  why the Centre preselect silently did nothing on a Lead page load. The
+ *  guards below make sure only a short code/name can ever be returned.
+ */
+const CENTRE_KEY_FIELDS = [
+  "loginCode",
+  "LoginCode",
+  "topCode",
+  "TopCode",
+  "centerCode",
+  "CenterCode",
+  "centreCode",
+  "CentreCode",
+  "center",
+  "centre",
+  "clinicCode",
+  "branchCode",
+  "companyCode",
+];
+
+// A usable centre key is a short code / name — never JSON, never a JWT.
+const looksLikeCentreKey = (v) => {
+  const s = safe(v).trim();
+  if (!s || s.length > 40) return false;
+  if (/[{}\[\]"]/.test(s)) return false;                 // JSON blob
+  if (s.split(".").length === 3 && s.length > 20) return false; // JWT
+  return true;
+};
+
+const pickCentreFromObject = (obj, depth = 0) => {
+  if (!obj || typeof obj !== "object" || depth > 3) return "";
+
+  for (const f of CENTRE_KEY_FIELDS) {
+    if (looksLikeCentreKey(obj[f])) return safe(obj[f]).trim();
+  }
+
+  for (const nest of ["data", "result", "user", "session", "userSession", "payload"]) {
+    const v = pickCentreFromObject(obj[nest], depth + 1);
+    if (v) return v;
+  }
+
+  return "";
+};
+
 const getSessionCentreKey = () => {
-  const candidates = [
-    // common keys you already tried
-    "session",
-    "sessionInfo",
-    "loginSession",
+  const stores = [];
+  try {
+    if (typeof sessionStorage !== "undefined") stores.push(sessionStorage);
+  } catch {}
+  try {
+    if (typeof localStorage !== "undefined") stores.push(localStorage);
+  } catch {}
 
-    // very common in apps
-    "userSession",
-    "auth",
-    "authSession",
-    "token",
-    "login",
-    "loginInfo",
-
-    // sometimes stored as plain text
-    "center",
-    "centre",
-    "centerCode",
-    "clinicCode",
-    "topCode",
-    "loginCode",
-  ];
-
-  const stores = [localStorage, sessionStorage];
-
-  const pickFromObject = (obj) => {
-    if (!obj || typeof obj !== "object") return "";
-
-    // try lots of possible fields + nested
-    const direct =
-      obj.loginCode ||
-      obj.topCode ||
-      obj.centerCode ||
-      obj.centreCode ||
-      obj.center ||
-      obj.centre ||
-      obj.clinicCode ||
-      obj.branchCode ||
-      obj.companyCode ||
-      obj?.data?.loginCode ||
-      obj?.data?.topCode ||
-      obj?.data?.centerCode ||
-      obj?.data?.clinicCode ||
-      obj?.result?.loginCode ||
-      obj?.result?.topCode ||
-      obj?.result?.centerCode ||
-      obj?.result?.clinicCode ||
-      "";
-
-    return safe(direct).trim();
+  const readRaw = (st, k) => {
+    try {
+      return st.getItem(k);
+    } catch {
+      return null;
+    }
   };
 
-  // 1) try known candidate keys
+  const fromJson = (raw) => {
+    const t = safe(raw).trim();
+    if (!t.startsWith("{") && !t.startsWith("[")) return "";
+    try {
+      return pickCentreFromObject(JSON.parse(t));
+    } catch {
+      return "";
+    }
+  };
+
+  // 1) direct string keys — loginCode is rewritten to the ACTIVE centre on switch
+  const DIRECT_KEYS = [
+    "loginCode",
+    "LoginCode",
+    "topCode",
+    "TopCode",
+    "centerCode",
+    "centreCode",
+    "center",
+    "centre",
+    "clinicCode",
+  ];
   for (const st of stores) {
-    for (const key of candidates) {
-      const raw = st.getItem(key);
+    for (const k of DIRECT_KEYS) {
+      const raw = readRaw(st, k);
       if (!raw) continue;
 
-      // if it looks like JSON
-      if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
-        try {
-          const parsed = JSON.parse(raw);
-          const v = pickFromObject(parsed);
-          if (v) return v;
-        } catch {
-          // ignore JSON errors, fall through
-        }
-      }
+      const nested = fromJson(raw);
+      if (nested) return nested;
 
-      // plain text fallback
-      const txt = raw.trim();
-      if (txt) return txt;
+      const t = raw.trim();
+      if (looksLikeCentreKey(t)) return t;
     }
   }
 
-  // 2) scan ALL storage keys (sometimes session stored under random key)
+  // 2) session / user objects (userSession is the one Header.jsx maintains)
+  const OBJECT_KEYS = [
+    "userSession",
+    "session",
+    "sessionInfo",
+    "loginSession",
+    "authSession",
+    "auth",
+    "loginInfo",
+    "user",
+    "userDetails",
+    "currentUser",
+    "authUser",
+    "sessionUser",
+  ];
   for (const st of stores) {
-    for (let i = 0; i < st.length; i++) {
-      const k = st.key(i);
-      const raw = st.getItem(k);
-      if (!raw) continue;
+    for (const k of OBJECT_KEYS) {
+      const v = fromJson(readRaw(st, k));
+      if (v) return v;
+    }
+  }
 
-      // only inspect likely keys
+  // 3) last resort: scan likely-named keys — objects only, never raw text
+  for (const st of stores) {
+    let n = 0;
+    try {
+      n = st.length;
+    } catch {
+      n = 0;
+    }
+    for (let i = 0; i < n; i++) {
+      const k = st.key(i);
+      if (!k) continue;
+
       const nk = norm(k);
-      if (!nk.includes("session") && !nk.includes("login") && !nk.includes("auth") && !nk.includes("center") && !nk.includes("clinic"))
+      if (
+        !nk.includes("session") &&
+        !nk.includes("login") &&
+        !nk.includes("auth") &&
+        !nk.includes("center") &&
+        !nk.includes("centre") &&
+        !nk.includes("clinic")
+      )
         continue;
 
-      if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
-        try {
-          const parsed = JSON.parse(raw);
-          const v = pickFromObject(parsed);
-          if (v) return v;
-        } catch {}
-      }
+      const v = fromJson(readRaw(st, k));
+      if (v) return v;
     }
+  }
+
+  return "";
+};
+
+/** ✅ Centre hints carried by a campaign header / API row / grid row.
+ *  Column names differ between the getCampaign payload (camelCase) and the raw
+ *  SQL projections (UPPERCASE), so read both.
+ */
+const collectCentreHints = (o) => {
+  if (!o || typeof o !== "object") return [];
+  return [
+    o.centerCode,
+    o.CENTERCODE,
+    o.centreCode,
+    o.CENTRECODE,
+    o.clinicCode,
+    o.CLINICCODE,
+    o.clinicLocation,
+    o.ClinicLocation,
+    o.CLINICLOCATION,
+    o.centerName,
+    o.CENTERNAME,
+    o.centreName,
+    o.CENTRENAME,
+    o.center,
+    o.centre,
+  ]
+    .map((v) => safe(v).trim())
+    .filter(Boolean);
+};
+
+/** ✅ Campaign codes are centre-prefixed: "Bright-00522" -> "Bright".
+ *  Only ever used as a hint — it is discarded unless it matches a real option.
+ */
+const centreCodeFromOppCode = (code) => {
+  const s = safe(code).trim();
+  if (!s) return "";
+  const m = s.match(/^([A-Za-z0-9]+)[-_]/);
+  return m ? m[1] : "";
+};
+
+/** ✅ Resolve the first hint that matches a loaded Centre option.
+ *  Option values are recids (ClinicCentre_FK), hints are codes / names / recids.
+ *  Returns "" when nothing matches, so a bad hint can never blank a good value.
+ */
+const resolveCentreOptionValue = (options, hints) => {
+  const opts = (options || []).filter((o) => safe(o?.value).trim());
+  if (!opts.length) return "";
+
+  for (const raw of hints || []) {
+    const txt = safe(raw).trim();
+    if (!txt) continue;
+    const h = norm(txt);
+
+    const match =
+      opts.find((o) => String(o.value) === txt) ||            // already a recid
+      opts.find((o) => norm(o.code) === h) ||                  // Bright / LNS / MXM
+      opts.find((o) => norm(o.label) === h) ||                 // exact centre name
+      (h.length >= 3
+        ? opts.find((o) => norm(o.label).includes(h) || h.includes(norm(o.label)))
+        : null);
+
+    if (match?.value) return String(match.value);
   }
 
   return "";
@@ -562,6 +684,8 @@ const ManualOppCustomerDetails = () => {
   const resolvedOppCode = useMemo(() => getOppCodeFromUrl(params.oppCode, locationObj), [params.oppCode, locationObj.pathname]);
 
   const [campaignRecId, setCampaignRecId] = useState(0);
+  // ✅ Centre of the campaign this lead is being added to (from getCampaign).
+  const [campaignCentreHints, setCampaignCentreHints] = useState([]);
   const [campaignLoading, setCampaignLoading] = useState(false);
   const [leadApi, setLeadApi] = useState(null); // ✅ full GET /getLead/{id} response
 
@@ -969,29 +1093,65 @@ if (!isEdit) {
     loadMaster();
   }, [isEdit]);
 
-  /** Auto-populate Centre from the selected customer (create mode only).
-     The Centre <select> option values are recids (Doctor_FK/ClinicCentre_FK need
-     the recid), but the customer carries a centre CODE ("Bright") / NAME
-     ("Bright Clinics"). Resolve that hint against the loaded options and set the
-     matching recid, so the Centre field shows the customer's clinic instead of
-     staying blank. */
+  /** ✅ Auto-populate Centre (create mode only).
+   *
+   *  The Centre <select> holds RECIDs (ClinicCentre_FK), while every available
+   *  hint is a CODE ("Bright") or a NAME ("Centre A"), so each hint is resolved
+   *  against the loaded options and only an actual match is applied.
+   *
+   *  Hints differ per entry point — which is why this only ever failed on
+   *  "+ Add Lead":
+   *    • + Add Opportunity  -> /manuallead/:oppCode/:custId
+   *                            row / FetchCustomerDetails supply the customer's
+   *                            centre, so hints 1-2 hit. This always worked.
+   *    • + Add Lead         -> /manuallead/:oppCode
+   *                            no customer, no row, and header.clinicLocation
+   *                            does not exist — every old hint was empty, so the
+   *                            field stayed blank. Hints 3-6 cover it.
+   */
   useEffect(() => {
-    if (isEdit) return;
-    if (centerTouchedRef.current) return;
-    if (!centerOptions || centerOptions.length <= 1) return;   // options not loaded yet
+    if (isEdit) return;                                        // getLead supplies clinicCentre_FK
+    if (centerTouchedRef.current) return;                      // user picked one — never override
+    if (!centerOptions || centerOptions.length <= 1) return;    // options not loaded yet
+
     setForm((p) => {
       // already holding a valid option value → leave it
       if (p.centerCode && centerOptions.some((o) => String(o.value) === String(p.centerCode))) return p;
-      const hint = norm(row?.clinicLocation || state?.header?.clinicLocation || p.centerCode);
-      if (!hint) return p;
-      const match =
-        centerOptions.find((o) => norm(o.code) === hint) ||
-        centerOptions.find((o) => norm(o.label) === hint) ||
-        centerOptions.find((o) => norm(o.label).includes(hint) || hint.includes(norm(o.label)));
-      return match?.value ? { ...p, centerCode: String(match.value) } : p;
+
+      const hints = [
+        // 1. the grid row the page was opened from (Opportunity flow)
+        row?.clinicLocation,
+        ...collectCentreHints(row),
+        // 2. the customer's centre already parked in the form by FetchCustomerDetails
+        p.centerCode,
+        // 3. the centre the user is logged in to (requested default)
+        getSessionCentreKey(),
+        // 4. the campaign header passed in navigation state
+        state?.header?.clinicLocation,
+        ...collectCentreHints(state?.header),
+        // 5. the campaign fetched by getCampaign
+        ...campaignCentreHints,
+        // 6. last resort — campaign codes are centre-prefixed ("Bright-00522")
+        centreCodeFromOppCode(resolvedOppCode),
+      ];
+
+      const value = resolveCentreOptionValue(centerOptions, hints);
+
+      // Diagnostic: if Centre is still blank, this shows which hints existed.
+      if (!value) {
+        console.warn("⚠ Centre preselect found no match.", {
+          hints: hints.map((h) => safe(h).trim()).filter(Boolean),
+          sessionCentre: getSessionCentreKey(),
+          options: centerOptions
+            .filter((o) => o.value)
+            .map((o) => ({ code: o.code, name: o.label, recid: o.value })),
+        });
+      }
+
+      return value ? { ...p, centerCode: value } : p;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerOptions, isEdit, form.centerCode]);
+  }, [centerOptions, isEdit, form.centerCode, campaignCentreHints, resolvedOppCode]);
 
  useEffect(() => {
   let alive = true;
@@ -1165,6 +1325,9 @@ if (!isEdit) {
         // campaign list filters on — NOT the summary recid. Mirror CampaignDetails' precedence.
         const recid = toNumberOr0(data?.campaignDetailId ?? data?.recid ?? data?.recId);
         setCampaignRecId(recid);
+        // ✅ "+ Add Lead" arrives with no customer, so the campaign's own centre
+        //    is one of the few reliable hints available on that path.
+        setCampaignCentreHints(collectCentreHints(data));
         // LTR: capture Appt-Booking-Mandatory (default Yes) for Case A routing.
         setApptMandatory(data?.apptBookingMandatory !== 0 && data?.apptBookingMandatory !== false);
       } catch (e) {
@@ -1705,6 +1868,16 @@ const subMediumName = safe(form.subMedium || "Manual");
                 ? `Converted - linked to customer ${cust.custId}`
                 : `Lead converted - customer ${cust.custId} created`
             );
+            // Campaign created with "Appt Booking Mandatory = No" → the conversion
+            // is complete without a booking, so don't offer the dialog at all. The
+            // lead sits under "Pending for Appt Mapping" in the LTR funnel until an
+            // appointment is mapped — exactly where Cancel would have left it.
+            // Prefer the save response; fall back to the campaign fetch.
+            if ((rd?.apptMandatory ?? apptMandatory) === false) {
+              setSaving(false);
+              navigate(-1);
+              return;
+            }
             setShowConvertedPopup(true);
             setSaving(false);
             return;
@@ -1762,6 +1935,12 @@ const subMediumName = safe(form.subMedium || "Manual");
               ? `Lead converted - linked to existing customer ${cust.custId}`
               : `Lead converted - customer ${cust.custId} created`
           );
+          // "Appt Booking Mandatory = No" — see the edit branch above.
+          if ((cd?.apptMandatory ?? apptMandatory) === false) {
+            setSaving(false);
+            navigate(isLead ? -1 : -2);
+            return;
+          }
           setShowConvertedPopup(true);
           setSaving(false);
           return;
