@@ -105,19 +105,24 @@ export default function CourtesyCallDashboard() {
       const json = await res.json()
       const list = json?.data ?? json
       const arr  = Array.isArray(list) ? list : []
-      // Sort by creation time descending — whichever courtesy call was created
-      // last appears first. Falls back to appointmentDate (DD/MM/YYYY) if a row
-      // has no createdDate.
+      // Descending by APPOINTMENT DATE (newest visit first), then by creation
+      // time, then reference ID. Sorting on createdDate alone gave an arbitrary
+      // order because every bulk-generated call shares one CREATEDDATE.
       const parseAppt = (s) => {
         if (!s) return 0
         const [d, m, y] = s.split("/")
-        return new Date(`${y}-${m}-${d}`).getTime()
+        const t = new Date(`${y}-${m}-${d}`).getTime()
+        return Number.isFinite(t) ? t : 0
       }
-      const sortKey = (r) => {
+      const createdKey = (r) => {
         const t = r.createdDate ? new Date(r.createdDate).getTime() : 0
-        return Number.isFinite(t) && t > 0 ? t : parseAppt(r.appointmentDate)
+        return Number.isFinite(t) && t > 0 ? t : 0
       }
-      arr.sort((a, b) => sortKey(b) - sortKey(a))
+      arr.sort((a, b) =>
+        (parseAppt(b.appointmentDate) - parseAppt(a.appointmentDate)) ||
+        (createdKey(b) - createdKey(a)) ||
+        String(b.referenceID || "").localeCompare(String(a.referenceID || ""), undefined, { numeric: true })
+      )
       setData(arr)
     } catch { setData([]) }
     finally { setLoading(false) }
