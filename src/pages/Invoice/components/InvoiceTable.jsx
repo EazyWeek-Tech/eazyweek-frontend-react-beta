@@ -38,10 +38,27 @@ const InvoiceTable = ({
 }) => {
   const isCitizen = customer?.status?.toLowerCase() === 'citizen';
 
-  // Find the single item-level promotion (max 1 per FRD)
-  const itemPromo     = appliedPromotions.find(p => p.applicationLevel === "Item Level");
+  // Item-level promotions. The FRD caps a transaction at one promotion PER LINE
+  // ITEM, not one per invoice — Use Case 5 explicitly allows different lines to
+  // carry different promotions. The previous .find() picked whichever promotion
+  // was applied first and every line was tested against that one, so a second
+  // line's discount was calculated and deducted but its "Promo applied" row
+  // never rendered.
+  const itemPromos    = appliedPromotions.filter(p => p.applicationLevel === "Item Level");
   // All invoice-level promotions
   const invoicePromos = appliedPromotions.filter(p => p.applicationLevel === "Invoice Level");
+
+  // Which promotion is on THIS line. Match on the id the engine stamps onto the
+  // line first; fall back to item code so the row still resolves if the parent
+  // drops the private _promotionId field when it merges state.
+  const promoForLine = (item) => {
+    const code = item.code || item.itemCode || "";
+    return (
+      (item._promotionId && itemPromos.find(p => p.discountId === item._promotionId)) ||
+      (code && itemPromos.find(p => p.itemCode === code)) ||
+      null
+    );
+  };
 
   return (
     <div className="invtable">
@@ -97,12 +114,15 @@ const InvoiceTable = ({
               const tax              = _amt.tax;
               const total            = _amt.total;
 
-              // Check if this item has the item-level promo applied
-              const itemCode = item.code || item.itemCode || "";
-              const hasPromo = itemPromo && (
-                itemPromo.itemCode === itemCode ||
-                item._promotionId === itemPromo.discountId
-              );
+              // Which item-level promotion (if any) is on this line
+              const itemCode  = item.code || item.itemCode || "";
+              const linePromo = promoForLine(item);
+              const hasPromo  = !!linePromo;
+              // Prefer the line's own discount: one promotion can cover several
+              // lines of the same item code, and each line carries its own amount.
+              const promoAmt  = hasPromo
+                ? (discount > 0 ? discount : parseFloat(linePromo.discountAmount) || 0)
+                : 0;
 
               const colSpan = isPriceOverride
                 ? 9
@@ -209,14 +229,14 @@ const InvoiceTable = ({
                           fontSize: 11, color: "#a9a7a7", fontWeight: 600, fontStyle: "italic"
                         }}>
                           <span style={{ fontSize: 13 }}></span>
-                          Promo applied: {itemPromo.discountName}
-                          {itemPromo.discountAmount > 0 && (
+                          Promo applied: {linePromo.discountName}
+                          {promoAmt > 0 && (
                             <span style={{ color: "#a9a7a7", fontWeight: 400 }}>
-                              (-SAR {parseFloat(itemPromo.discountAmount).toFixed(2)})
+                              (-SAR {promoAmt.toFixed(2)})
                             </span>
                           )}
                           <button
-                            onClick={() => onRemovePromotion?.()}
+                            onClick={() => onRemovePromotion?.(linePromo.discountId)}
                             title="Remove promotion from all items"
                             style={{
                               background: "none", border: "none", cursor: "pointer",
