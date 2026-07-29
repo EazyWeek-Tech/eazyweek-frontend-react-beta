@@ -13,10 +13,9 @@ const getUserId     = () => { const u = getUser(); return (u.employeeCode || u.u
 // isEntityLevel:  user logged in at entity level (view-only for all clinics)
 const getAuditRights = () => {
   const u = getUser();
-  const roleCode      = (u.roleCode || "").trim().toUpperCase();
-  const isEntityLevel = u.isEntityLevel === true;
-  const canWrite      = !isEntityLevel && roleCode === "SQ001";
-  return { canWrite, isEntityLevel, roleCode };
+  const isEntityLevel =
+    u.isEntityLevel === true || String(u.isEntityLevel).toLowerCase() === "true";
+  return { canWrite: !isEntityLevel, isEntityLevel };
 };
 
 
