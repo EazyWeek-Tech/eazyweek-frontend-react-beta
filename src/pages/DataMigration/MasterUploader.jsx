@@ -16,11 +16,14 @@ import { useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { API_BASE_URL } from "../../config";
 
-// Confirmed: the JWT is stored at localStorage["token"]. The persisted `user`
-// object holds profile fields only, and `userSession` holds the whole login
-// response envelope — neither carries the token.
+// Mirrors getToken() in usePermissions.jsx — same keys, same order. There is no
+// shared fetch wrapper to reuse; that file keeps its own inline getToken, so
+// matching it is the existing pattern rather than duplication to remove.
 const TOKEN = () =>
-  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  localStorage.getItem("token") ||
+  localStorage.getItem("authToken") ||
+  localStorage.getItem("accessToken") ||
+  "";
 
 const api = async (path, options = {}) => {
   const res = await fetch(`${API_BASE_URL}/api/MasterUpload${path}`, {
@@ -66,6 +69,7 @@ export default function MasterUploader() {
   const [provisionLogins, setProvisionLogins] = useState(true);
   const [showRef, setShowRef] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [skipped, setSkipped] = useState([]);
   const fileRef = useRef(null);
 
   const master = useMemo(() => masters.find((m) => m.key === masterKey), [masters, masterKey]);
@@ -84,6 +88,7 @@ export default function MasterUploader() {
     setFile(null);
     setSheets(null);
     setReport(null);
+    setSkipped([]);
     if (fileRef.current) fileRef.current.value = "";
   }, [masterKey]);
 
@@ -113,22 +118,35 @@ export default function MasterUploader() {
         // Excel serial numbers, so an unformatted date column still works.
         const wb = XLSX.read(buf, { type: "array", cellDates: true });
         const expected = (master?.sheets || []).map((s) => s.name);
+        // Match tabs loosely — ignore case, spaces, underscores and hyphens —
+        // so "Employee Roles" still resolves to the Employee_Roles sheet. A
+        // renamed tab silently contributing zero rows is worse than an error.
+        const key = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, "");
+        const actual = new Map(wb.SheetNames.map((n) => [key(n), n]));
         const found = {};
         const missing = [];
+        const renamed = [];
         for (const name of expected) {
-          const ws = wb.Sheets[name];
-          if (!ws) {
+          const real = actual.get(key(name));
+          if (!real) {
             missing.push(name);
             continue;
           }
-          found[name] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false, blankrows: false });
+          if (real !== name) renamed.push(`"${real}" -> ${name}`);
+          found[name] = XLSX.utils.sheet_to_json(wb.Sheets[real], {
+            defval: "",
+            raw: false,
+            blankrows: false,
+          });
         }
+        setSkipped(missing);
         if (missing.length === expected.length) {
           say(`No matching sheets. This file needs the tabs: ${expected.join(", ")}`, "error");
           setBusy("");
           return;
         }
-        if (missing.length) say(`Skipped missing tab(s): ${missing.join(", ")}`, "warn");
+        if (missing.length) say(`Not in this file: ${missing.join(", ")}. Those tables will be left untouched.`, "warn");
+        else if (renamed.length) say(`Matched renamed tab(s): ${renamed.join(", ")}`, "info");
         setFile(f);
         setSheets(found);
       } catch (e) {
@@ -304,6 +322,15 @@ export default function MasterUploader() {
             ) : report.ok ? (
               <>
                 <strong>{report.summary.rowsValid} row(s) ready.</strong> Nothing has been written yet.
+                {report.sheets.some((s) => s.present === false) && (
+                  <>
+                    {" "}
+                    Only{" "}
+                    {report.sheets.filter((s) => s.present !== false).map((s) => s.name).join(", ")}{" "}
+                    {report.sheets.filter((s) => s.present !== false).length === 1 ? "was" : "were"} found in
+                    this file.
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -340,9 +367,12 @@ export default function MasterUploader() {
             <div key={s.name} className="mu-sheet">
               <h3 className="mu-sheet-h">
                 {s.name}
-                <span className="mu-sheet-meta">
-                  {s.rowsRead} read · {s.rowsValid} valid
-                  {s.errors.length ? ` · ${s.errors.length} error${s.errors.length === 1 ? "" : "s"}` : ""}
+                <span className={`mu-sheet-meta ${s.present === false ? "is-absent" : ""}`}>
+                  {s.present === false
+                    ? "not in this file — this table will be left untouched"
+                    : `${s.rowsRead} read · ${s.rowsValid} valid${
+                        s.errors.length ? ` · ${s.errors.length} error${s.errors.length === 1 ? "" : "s"}` : ""
+                      }`}
                 </span>
               </h3>
               {s.errors.length > 0 && (
@@ -439,6 +469,7 @@ const CSS = `
 .mu-sheet{margin-bottom:22px}
 .mu-sheet-h{display:flex;align-items:baseline;gap:12px;font-size:14px;color:var(--navy);margin:0 0 8px}
 .mu-sheet-meta{font-size:12px;font-weight:400;color:var(--muted)}
+.mu-sheet-meta.is-absent{color:var(--coral);font-weight:600}
 .mu-ref{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;
   background:#fafbfe;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:20px}
 .mu-ref-col h4{margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
