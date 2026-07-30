@@ -1,0 +1,22 @@
+name: Build and deploy Demo Frontend
+on:
+  workflow_dispatch:
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: https://eazyweek-demo-api-e4ccbgfvaneeh0ah.uaenorth-01.azurewebsites.net
+          VITE_IDLE_MINUTES: '120'
+      - name: Deploy dist to Azure
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: eazyweek-demo-web
+          publish-profile: ${{ secrets.AZURE_DEMO_WEB_PUBLISH_PROFILE }}
+          package: dist
