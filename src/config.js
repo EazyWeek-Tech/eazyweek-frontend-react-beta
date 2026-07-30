@@ -1,2 +1,11 @@
 // src/config.js
-export const API_BASE_URL = 'https://eazyweek-beta-api-bdega7b0gza8g8bh.uaenorth-01.azurewebsites.net';
+const url = import.meta.env.VITE_API_BASE_URL;
+
+if (!url) {
+  throw new Error(
+    "VITE_API_BASE_URL was not set at build time. " +
+    "Set it in the deploy workflow's build step, or in .env.local for local dev."
+  );
+}
+
+export const API_BASE_URL = url.replace(/\/+$/, "");
