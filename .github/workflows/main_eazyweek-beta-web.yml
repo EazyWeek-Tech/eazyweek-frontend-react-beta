@@ -1,25 +1,21 @@
 name: Build and deploy
-
 on:
   push:
     branches:
       - main
-
+  workflow_dispatch:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - run: npm install
-
       - run: npm run build
-
+        env:
+          VITE_API_BASE_URL: https://eazyweek-beta-api-bdega7b0gza8g8bh.uaenorth-01.azurewebsites.net
       - name: Deploy dist to Azure
         uses: azure/webapps-deploy@v3
         with:
