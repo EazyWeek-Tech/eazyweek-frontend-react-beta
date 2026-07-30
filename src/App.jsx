@@ -107,6 +107,7 @@ import CashManagement from "./pages/Invoice/CashManagement/CashManagement";
 import SalesReport from "./pages/Reports/SalesReport";
 import LiabilityReport from "./pages/Reports/LiabilityReport";
 import PaymentReport from "./pages/Reports/PaymentReport";
+import MasterUploader from "./pages/DataMigration/MasterUploader";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -343,6 +344,12 @@ if (user && showFirstLogin) {
 <Route path="/opportunity/:oppCode/cancelled/:custId" element={gate("opportunity", <CancelledEntryDetails />)} />
 <Route path="/opportunity/create" element={gate("opportunity", <CreateCampaign />)} />
 <Route path="/ltr-funnel" element={gate("opportunity", <LTRFunnelDashboard />)} />
+
+<Route path="/upload/employees"     element={<MasterUploader />} />
+<Route path="/upload/services"      element={<MasterUploader />} />
+<Route path="/upload/products"      element={<MasterUploader />} />
+<Route path="/upload/packages"      element={<MasterUploader />} />
+<Route path="/upload/practitioners" element={<MasterUploader />} />
 
 
 <Route path="/masters/disposition" element={gate("opportunity", <DispositionMaster />)} />

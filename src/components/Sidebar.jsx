@@ -702,17 +702,19 @@ const NAV_GROUPS = [
         children: [{ name: "Run - Customer spent vs Customer Type", icon: "bx-play-circle", path: "/on-demand" }],
       },
       {
-        label: "Data Migration",
-        icon: "bx-upload",
-        children: [
-          { name: "Upload - Customers", icon: "bx-user", path: "/upload/customers" }, // TODO
-          { name: "Upload - Liabilities", icon: "bx-shield", path: "/upload/liabilities" }, // TODO
-          { name: "Upload - Packages", icon: "bx-package", path: "/upload/packages" }, // TODO
-          { name: "Upload - Services", icon: "bx-spa", path: "/upload/services" }, // TODO
-          { name: "Upload - Products", icon: "bx-box", path: "/upload/products" }, // TODO
-          { name: "Upload - Centres", icon: "bx-building-house", path: "/upload/centres" }, // TODO
-        ],
-      },
+  label: "Data Migration",
+  icon: "bx-upload",
+  children: [
+    { name: "Upload - Employees",     icon: "bx-id-card",         path: "/upload/employees" },
+    { name: "Upload - Services",      icon: "bx-spa",             path: "/upload/services" },
+    { name: "Upload - Products",      icon: "bx-box",             path: "/upload/products" },
+    { name: "Upload - Packages",      icon: "bx-package",         path: "/upload/packages" },
+    { name: "Upload - Practitioners", icon: "bx-user-voice",      path: "/upload/practitioners" },
+    { name: "Upload - Customers",     icon: "bx-user",            path: "/upload/customers" },    // TODO
+    { name: "Upload - Liabilities",   icon: "bx-shield",          path: "/upload/liabilities" },  // TODO
+    { name: "Upload - Centres",       icon: "bx-building-house",  path: "/upload/centres" },      // TODO
+  ],
+},
       {
         label: "Settings",
         icon: "bx-cog",
