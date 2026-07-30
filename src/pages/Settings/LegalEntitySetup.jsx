@@ -7,7 +7,18 @@ import MembershipSection from "./MembershipSection";
 const TOKEN    = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
 const authGet  = async (url) => { const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } }); const j = await r.json(); return j.data ?? j; };
-const authPost = async (url, body) => { const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) }); return r.json(); };
+const authPost = async (url, body) => {
+  const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) });
+  // A large payload (logo) can be rejected by the body parser / proxy with an
+  // HTML error page. r.json() then throws a parse error that hides the real
+  // cause, so read as text first and report the status when it is not JSON.
+  const raw = await r.text();
+  try { return JSON.parse(raw); }
+  catch {
+    const hint = r.status === 413 ? "The file is too large for the server to accept." : (raw.slice(0, 120) || "No response body.");
+    return { success:false, message:`Save failed (HTTP ${r.status}). ${hint}` };
+  }
+};
 
 const TABS = ["General","Address","Contact","Logo","Tax","Setup"];
 const PURPOSES = ["Head Office","Billing","Shipping","Office Branch"];
@@ -49,6 +60,9 @@ export default function LegalEntitySetup() {
   // ── Logo ───────────────────────────────────────────────────────────────────
   const [logoUrl,    setLogoUrl]    = useState("");
   const [logoPreview,setLogoPreview]= useState("");
+  // The picker validated file.type but threw it away, so the save call sent a
+  // hardcoded "image/*" that the API rejects. Hold the real type here.
+  const [logoMimeType, setLogoMimeType] = useState("");
   const fileRef = useRef();
 
   // ── Tax ────────────────────────────────────────────────────────────────────
@@ -77,6 +91,7 @@ export default function LegalEntitySetup() {
         if (le.addresses?.length) setAddresses(le.addresses);
         if (le.contacts?.length)  setContacts(le.contacts);
         if (le.logoUrl)           { setLogoUrl(le.logoUrl); setLogoPreview(le.logoUrl); }
+        if (le.logoMimeType)      setLogoMimeType(le.logoMimeType);
         if (le.tax?.length)       setTaxItems(le.tax);
         if (le.setup)             setSetup(le.setup);
       } else {
@@ -160,7 +175,7 @@ export default function LegalEntitySetup() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); };
+    reader.onload = (ev) => { setLogoPreview(ev.target.result); setLogoUrl(ev.target.result); setLogoMimeType(file.type); };
     reader.readAsDataURL(file);
   };
 
@@ -168,8 +183,13 @@ export default function LegalEntitySetup() {
   const handleSaveLogo = async () => {
     setSaving(true);
     try {
+      // Derive the real MIME type from the data URI. Works for a freshly picked
+      // file AND for a logo reloaded from the DB, so a re-save does not send a
+      // blank type.
+      const logoMime = /^data:([^;,]+)[;,]/.exec(logoUrl || "")?.[1]?.toLowerCase() || logoMimeType || "";
+      if (logoUrl && !logoMime) throw new Error("Could not determine the image type. Please re-select the file.");
       const res = await authPost(`${API_BASE_URL}/api/Settings/LegalEntity/SaveLogo`, {
-        leCode: existing.leCode, logoUrl, mimeType: "image/*",
+        leCode: existing.leCode, logoUrl, mimeType: logoMime,
       });
       if (!res.success) throw new Error(res.message);
       showToast("Logo saved."); setActiveTab("Tax");
@@ -498,7 +518,7 @@ export default function LegalEntitySetup() {
                 <button className="add-btn" onClick={() => fileRef.current?.click()}>⬆ Upload Logo</button>
                 <input type="file" ref={fileRef} accept=".png,.jpg,.jpeg,.svg" style={{ display:"none" }} onChange={handleFileChange} />
                 <div style={{ fontSize:11, color:"#94a3b8", marginTop:6 }}>PNG, JPG, or SVG. Recommended square format.</div>
-                {logoPreview && <button className="add-btn" style={{ marginTop:6, color:"#b91c1c", borderColor:"#f0c4c0" }} onClick={() => { setLogoPreview(""); setLogoUrl(""); }}>Remove</button>}
+                {logoPreview && <button className="add-btn" style={{ marginTop:6, color:"#b91c1c", borderColor:"#f0c4c0" }} onClick={() => { setLogoPreview(""); setLogoUrl(""); setLogoMimeType(""); }}>Remove</button>}
               </div>
             </div>
           </div>
