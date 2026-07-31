@@ -20,6 +20,19 @@ const safeJson = async (res, label) => {
   return res.json();
 };
 
+// Single source of truth for how a currency is rendered anywhere on this page.
+// Suppresses blank symbols and the legacy "?" sentinel so we never print "SAR (?)".
+const currencySymbol = (c) => {
+  const s = String(c?.symbol ?? "").trim();
+  return s && s !== "?" ? s : "";
+};
+
+const formatCurrency = (c) => {
+  if (!c) return "";
+  const sym = currencySymbol(c);
+  return `${c.currencyShortName ?? ""}${sym ? ` (${sym})` : ""}`.trim();
+};
+
 const fetchCurrencies = async () => {
   const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: HEADERS() });
   if (!res.ok) throw new Error(`Failed to load currencies (${res.status})`);
@@ -102,8 +115,24 @@ const saveTier = (form, programId, isEdit) => {
 
 const fetchServices = async () => {
   const res = await fetch(`${API_BASE}/api/Master/LoadService`, { headers: HEADERS() });
-  if (!res.ok) return [];
-  try { const d = await res.json(); return Array.isArray(d) ? d : []; } catch { return []; }
+  if (!res.ok) throw new Error(`Failed to load services (${res.status})`);
+  const json = await safeJson(res, "GET Master/LoadService");
+  // The API returns the standard { success, message, data } envelope; older callers
+  // returned a bare array. Accept either rather than silently yielding [].
+  const rows = Array.isArray(json)            ? json
+             : Array.isArray(json?.data)      ? json.data
+             : Array.isArray(json?.data?.data) ? json.data.data
+             : [];
+  // Normalise id/name casing so a PascalCase or UPPERCASE master payload still binds.
+  return rows
+    .map((s) => ({
+      ...s,
+      recID:           s.recID ?? s.recId ?? s.RECID ?? s.RecID ?? s.serviceId ?? s.SERVICEID,
+      serviceName:     s.serviceName ?? s.SERVICENAME ?? s.ServiceName ?? "",
+      categoryName:    s.categoryName ?? s.CATEGORYNAME ?? s.CategoryName ?? "",
+      subCategoryName: s.subCategoryName ?? s.SUBCATEGORYNAME ?? s.SubCategoryName ?? "",
+    }))
+    .filter((s) => s.recID !== undefined && s.recID !== null);
 };
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -168,7 +197,27 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => { fetchServices().then(setServices); }, []);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesErr, setServicesErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setServicesLoading(true);
+    setServicesErr("");
+    fetchServices()
+      .then((list) => {
+        if (!alive) return;
+        setServices(list);
+        if (!list.length) setServicesErr("No services were returned for this centre.");
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setServices([]);
+        setServicesErr(e?.message || "Could not load services.");
+      })
+      .finally(() => { if (alive) setServicesLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -227,12 +276,12 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
     else if (Number(form.earningAmountSegment) <= 0) e.earningAmountSegment = "Must be > 0";
     if (!form.earnPoints || isNaN(Number(form.earnPoints))) e.earnPoints = "Required";
     else if (Number(form.earnPoints) <= 0) e.earnPoints = "Must be > 0";
-    if (!form.earningCategoryIds?.length) e.earningCategoryIds = "Select at least one service";
+    // Earning Services is optional — a tier with none selected earns on all services.
     if (!form.redeemPoints || isNaN(Number(form.redeemPoints))) e.redeemPoints = "Required";
     else if (Number(form.redeemPoints) <= 0) e.redeemPoints = "Must be > 0";
     if (!form.redeemAmount || isNaN(Number(form.redeemAmount))) e.redeemAmount = "Required";
     else if (Number(form.redeemAmount) <= 0) e.redeemAmount = "Must be > 0";
-    if (!form.redeemCategoryIds?.length) e.redeemCategoryIds = "Select at least one service";
+    // Redemption Services is optional — a tier with none selected redeems against all services.
     return e;
   }, [form, existingTiers, tier]);
 
@@ -251,18 +300,18 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
 
   const showErr = (k) => submitted ? errs[k] : undefined;
 
-  const ServiceSelect = React.memo(({ field, label, selectedIds, onToggle, error }) => {
+  const ServiceSelect = React.memo(({ field, label, selectedIds, onToggle, error, required = false }) => {
     const [search, setSearch] = useState("");
     const [open, setOpen] = useState(false);
     const filtered = useMemo(() =>
       search.trim() ? services.filter(s => s.serviceName?.toLowerCase().includes(search.toLowerCase()) || s.categoryName?.toLowerCase().includes(search.toLowerCase())) : services,
-      [search]
+      [search, services]
     );
-    const selectedServices = useMemo(() => services.filter(s => selectedIds.includes(Number(s.recID))), [selectedIds]);
+    const selectedServices = useMemo(() => services.filter(s => selectedIds.includes(Number(s.recID))), [selectedIds, services]);
 
     return (
       <div style={{ gridColumn: "1 / -1" }}>
-        <label style={{ fontSize: 12, color: C.axis, fontWeight: 600, marginBottom: 6, display: "block" }}>{label} *</label>
+        <label style={{ fontSize: 12, color: C.axis, fontWeight: 600, marginBottom: 6, display: "block" }}>{label}{required ? " *" : ""}</label>
         <div onClick={() => setOpen(v => !v)}
           style={{ height: 38, borderRadius: 8, padding: "0 12px", border: `1px solid ${error ? C.coral : "#d8dee8"}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontSize: 13, color: selectedIds.length ? C.primary : C.axis, fontWeight: selectedIds.length ? 600 : 400, userSelect: "none" }}>
           <span>{selectedIds.length > 0 ? `${selectedIds.length} service${selectedIds.length > 1 ? "s" : ""} selected` : "Select services…"}</span>
@@ -286,7 +335,11 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
                 style={{ height: 32, borderRadius: 7, padding: "0 10px", border: "1px solid #d8dee8", outline: "none", width: "100%", boxSizing: "border-box", fontSize: 13, color: C.primary, fontFamily: "inherit" }} />
             </div>
             <div style={{ maxHeight: 200, overflowY: "auto" }}>
-              {filtered.length === 0 && <div style={{ padding: "10px 12px", color: C.axis, fontSize: 12 }}>No services found</div>}
+              {filtered.length === 0 && (
+                <div style={{ padding: "10px 12px", fontSize: 12, color: servicesErr ? C.coral : C.axis }}>
+                  {servicesLoading ? "Loading services…" : (servicesErr || "No services found")}
+                </div>
+              )}
               {filtered.map(s => {
                 const id = Number(s.recID);
                 const isSelected = selectedIds.includes(id);
@@ -344,7 +397,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
             <Field label="Expiry Days *" error={showErr("expiryDays")}><input style={inputStyle(submitted && errs.expiryDays)} value={form.expiryDays} onChange={set("expiryDays")} placeholder="Days until expiry" inputMode="numeric" /></Field>
             <Field label="Currency">
               <div style={{ height: 40, borderRadius: 10, padding: "0 12px", border: "1px solid #e5ebf3", background: "#f4f7fb", display: "flex", alignItems: "center", gap: 8, color: C.primary, fontWeight: 600, fontSize: 14 }}>
-                <span style={{ fontSize: 13, color: C.axis }}>{selectedCurrency ? `${selectedCurrency.currencyShortName} (${selectedCurrency.symbol})` : "—"}</span>
+                <span style={{ fontSize: 13, color: C.axis }}>{selectedCurrency ? formatCurrency(selectedCurrency) : "—"}</span>
                 <span style={{ marginLeft: "auto", fontSize: 11, color: C.axis, background: "#e5ebf3", padding: "2px 8px", borderRadius: 6 }}>from program</span>
               </div>
             </Field>
@@ -417,7 +470,7 @@ const TiersSection = ({ programId, currencies, programCurrencyId }) => {
 
   const currencyLabel = (id) => {
     const c = currencies.find(c => String(c.currencyId) === String(id));
-    return c ? `${c.currencyShortName} (${c.symbol})` : id;
+    return c ? formatCurrency(c) : id;
   };
 
   return (
@@ -525,8 +578,7 @@ export default function LoyaltyProgramConfig() {
   }, []);
 
   const selectedCurrency = currencies.find((c) => String(c.currencyId) === String(currencyId));
-  const sym = selectedCurrency?.symbol && selectedCurrency.symbol !== "?" ? ` (${selectedCurrency.symbol})` : "";
-  const currencyLabel = selectedCurrency ? `${selectedCurrency.currencyShortName}${sym}` : "—";
+  const currencyLabel = selectedCurrency ? formatCurrency(selectedCurrency) : "—";
 
   const errors = useMemo(() => {
     const e = {};
@@ -664,7 +716,7 @@ export default function LoyaltyProgramConfig() {
                 value={currencyId} onChange={(e) => setCurrencyId(e.target.value)}>
                 <option value="">Select currency…</option>
                 {currencies.map((c) => (
-                  <option key={c.currencyId} value={c.currencyId}>{c.currencyShortName} – {c.currencyFullName}{c.symbol && c.symbol !== "?" ? ` (${c.symbol})` : ""}</option>
+                  <option key={c.currencyId} value={c.currencyId}>{c.currencyShortName} – {c.currencyFullName}{currencySymbol(c) ? ` (${currencySymbol(c)})` : ""}</option>
                 ))}
               </select>
               <span className="lyl-chevron">▾</span>

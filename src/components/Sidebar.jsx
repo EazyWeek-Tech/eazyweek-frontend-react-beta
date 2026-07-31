@@ -27,6 +27,16 @@ import { getFeatureSet } from "../config/licenseConfig";
    ========================================================================== */
 const STYLE_ID = "ez-sidebar-styles";
 
+/* Hover intent.
+   Reaching the panel means travelling diagonally across the rows below the one
+   you started on. With no delay, each row crossed switched the panel and
+   leaving the rail's edge closed it, so the panel changed or vanished before
+   the pointer ever arrived. Opening is quick, switching between modules waits
+   long enough to cross a few rows, and leaving has a grace period. */
+const HOVER_OPEN_MS = 90;
+const HOVER_SWITCH_MS = 220;
+const HOVER_CLOSE_MS = 320;
+
 const SIDEBAR_CSS = `
 /* ==========================================================================
    EazyWeek sidebar -- matches EazyWeek_Nav_Prototype.html
@@ -81,7 +91,7 @@ const SIDEBAR_CSS = `
   overflow: hidden;
   background: var(--ez-field);
   color: var(--ez-ink);
-  transition: width 0.3s var(--ez-ease), box-shadow 0.3s var(--ez-ease);
+  transition: width 0.34s var(--ez-ease), box-shadow 0.34s var(--ez-ease);
 }
 .ez-nav.is-open .ez-panel {
   width: var(--ez-w);
@@ -314,8 +324,8 @@ const SIDEBAR_CSS = `
   opacity: 0;
   visibility: hidden;
   transform: translateX(-10px);
-  transition: opacity 0.2s var(--ez-ease), transform 0.28s var(--ez-ease-out),
-    visibility 0.2s;
+  transition: opacity 0.24s var(--ez-ease), transform 0.34s var(--ez-ease-out),
+    visibility 0.24s;
 }
 .ez-flyout.is-shown {
   opacity: 1;
@@ -839,6 +849,14 @@ const Sidebar = ({ currentUser }) => {
 
   const isOpen = hovering && !dismissed;
 
+  const openTimer = useRef(null);
+  const closeTimer = useRef(null);
+  const stopTimers = useCallback(() => {
+    clearTimeout(openTimer.current);
+    clearTimeout(closeTimer.current);
+  }, []);
+  useEffect(() => stopTimers, [stopTimers]);
+
   const resolved = useMemo(() => findActive(groups, location.pathname), [groups, location.pathname]);
   const active = clicked && clicked.path === location.pathname ? clicked : resolved;
 
@@ -884,6 +902,7 @@ const Sidebar = ({ currentUser }) => {
       const typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
       if (e.key === "/" && !typing) {
         e.preventDefault();
+        clearTimeout(closeTimer.current);
         setHovering(true);
         setDismissed(false);
         searchRef.current?.focus();
@@ -896,7 +915,40 @@ const Sidebar = ({ currentUser }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleLeave]);
 
+  // Hovering a module: cancel any pending close, then schedule the switch.
+  const hoverModule = useCallback(
+    (key, item) => {
+      clearTimeout(closeTimer.current);
+      if (openItem?.key === key) return;
+      clearTimeout(openTimer.current);
+      openTimer.current = setTimeout(
+        () => {
+          setQuery("");
+          setOpenItem({ key, item });
+        },
+        openItem ? HOVER_SWITCH_MS : HOVER_OPEN_MS
+      );
+    },
+    [openItem]
+  );
+
+  // Hovering a row with no submenu (Home, Customer 360, Custom API): close the
+  // panel, but on the same delay, so merely passing over one does not kill it.
+  const hoverLeafRow = useCallback(() => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(() => setOpenItem(null), HOVER_SWITCH_MS);
+  }, []);
+
+  // Arriving at the panel cancels both the pending switch from whichever rows
+  // were crossed on the way, and the pending close.
+  const enterPanel = useCallback(() => {
+    clearTimeout(openTimer.current);
+    clearTimeout(closeTimer.current);
+  }, []);
+
   const openPage = (key, moduleKey, path) => {
+    stopTimers();
     setClicked({ key, moduleKey, path });
     closePanel();
     setDismissed(true); // hold it shut even though the pointer is still on it
@@ -969,8 +1021,14 @@ const Sidebar = ({ currentUser }) => {
   return (
     <aside
       className={`ez-nav ${isOpen ? "is-open" : ""}`}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={handleLeave}
+      onMouseEnter={() => {
+        clearTimeout(closeTimer.current);
+        setHovering(true);
+      }}
+      onMouseLeave={() => {
+        clearTimeout(openTimer.current);
+        closeTimer.current = setTimeout(handleLeave, HOVER_CLOSE_MS);
+      }}
     >
       <div className="ez-panel">
         <div className="ez-brand">
@@ -1002,7 +1060,7 @@ const Sidebar = ({ currentUser }) => {
               <NavLink
                 to="/dashboard"
                 className="ez-head"
-                onMouseEnter={() => setOpenItem(null)}
+                onMouseEnter={hoverLeafRow}
                 onClick={() => openPage(null, null, "/dashboard")}
               >
                 <i className="bx bx-home-alt ez-icon" />
@@ -1027,7 +1085,7 @@ const Sidebar = ({ currentUser }) => {
                         <NavLink
                           to={item.path}
                           className={`ez-head ${key === active.key ? "is-active" : ""}`}
-                          onMouseEnter={() => setOpenItem(null)}
+                          onMouseEnter={hoverLeafRow}
                           onClick={() => openPage(key, key, item.path)}
                         >
                           <i className={`bx ${item.icon} ez-icon`} />
@@ -1048,10 +1106,7 @@ const Sidebar = ({ currentUser }) => {
                         type="button"
                         className="ez-head"
                         aria-expanded={menuOpen}
-                        onMouseEnter={() => {
-                          setQuery("");
-                          setOpenItem({ key, item });
-                        }}
+                        onMouseEnter={() => hoverModule(key, item)}
                         onFocus={() => setOpenItem({ key, item })}
                         onClick={() => setOpenItem(menuOpen ? null : { key, item })}
                       >
@@ -1068,7 +1123,11 @@ const Sidebar = ({ currentUser }) => {
         </nav>
       </div>
 
-      <div className={`ez-flyout ${showPanel ? "is-shown" : ""}`} role="menu">
+      <div
+        className={`ez-flyout ${showPanel ? "is-shown" : ""}`}
+        role="menu"
+        onMouseEnter={enterPanel}
+      >
         {panelTitle ? <p className="ez-flyout-title">{panelTitle}</p> : null}
         <div className="ez-flyout-body">{renderPanelBody()}</div>
       </div>
