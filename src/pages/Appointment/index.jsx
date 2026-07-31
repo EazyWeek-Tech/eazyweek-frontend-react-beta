@@ -865,6 +865,7 @@ const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
 
 const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }) => {
   const val = (k) => typeof countsOverride[k] === "number" ? countsOverride[k] : 0;
+
   const items = [
     { key:"Completed",     icon:"completed.svg",   label:"Completed"      },
     { key:"PaymentPending",icon:"paymentpend.svg",  label:"Payment Pending"},
@@ -873,6 +874,10 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
     { key:"Confirmed",     icon:"confirmed.png",    label:"Confirmed"      },
     { key:"Booked",        icon:"booked.svg",       label:"Booked"         },
   ];
+
+  const totalCount = items
+    .filter(({ key }) => key !== "PaymentPending")
+    .reduce((sum, { key }) => sum + val(key), 0);
   return (
     <div className="fltroptflx">
       {/* <div className="viewfilter">
@@ -887,7 +892,7 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
             style={{ cursor:"pointer" }}
             onClick={() => onFilterChange?.("")}>
             <div className="stimg" style={{ paddingLeft:12, paddingRight:12 }}>All</div>
-            <div className="statno">{Object.values(countsOverride).reduce((a,b)=>a+(typeof b==="number"?b:0),0)}</div>
+            <div className="statno">{totalCount}</div>
           </div>
           {items.map(({ key, icon, label }) => (
             <div key={key}
@@ -1026,16 +1031,17 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   };
 
   const countsOverride = useMemo(() => {
-    const by = (t) => appointments.filter(a => (a.status||"").toLowerCase() === t).length;
-    return {
-      Completed: by("completed"), Confirmed: by("confirmed"), CheckedIn: by("checked in"),
-      Active: by("active"), Booked: by("booked"), Cancelled: by("cancelled"), NoShow: by("no show"),
-      PaymentPending: appointments.filter(a => {
-        const st = (a.status || "").toLowerCase();
-        return Number(a.isPaymentMade) === 0 && st !== "cancelled" && st !== "no show";
-      }).length,
-    };
-  }, [appointments]);
+  const by = (t) => appointments.filter(a => (a.status||"").toLowerCase() === t).length;
+  return {
+    Total: appointments.length,              // ← All pill reads this
+    Completed: by("completed"), Confirmed: by("confirmed"), CheckedIn: by("checked in"),
+    Active: by("active"), Booked: by("booked"), Cancelled: by("cancelled"), NoShow: by("no show"),
+    PaymentPending: appointments.filter(a => {
+      const st = (a.status || "").toLowerCase();
+      return Number(a.isPaymentMade) === 0 && st !== "cancelled" && st !== "no show";
+    }).length,
+  };
+}, [appointments]);
 
   const normalizeTime = (t) => {
     if (!t) return "";

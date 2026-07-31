@@ -34,6 +34,18 @@ const CENTRES = [
 
 const RANGE_KEYS = ["Today", "This Week", "This Month", "QTD", "YTD"];
 
+/* FIXED FIGURES — the only hardcoded numbers left on this page.
+   Claims, purchase orders and vendor balances have no module and no endpoint
+   in EazyWeek yet, so these three tiles carry agreed placeholder values.
+   Replace each `value` with its endpoint field when those modules land; the
+   rendering below needs no change. */
+const PLACEHOLDER_TILES = {
+  unsettledClaims: 36000,
+  openPoCount:     22,
+  openPoValue:     43000,
+  vendorBalance:   30000,
+};
+
 const COLORS = {
   primary: "#18396E",
   accent: "#A7D1CD",
@@ -411,30 +423,37 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     const HOME = L && L.home ? L.home : null;
     const HT = HOME ? HOME.tiles : null;
     const money = (v) => (v == null ? null : fmtSAR(v));
+    const isNeg = (v) => v != null && Number(v) < 0;
     const count = (v) => (v == null ? null : grp(v));
 
     /* ---- Financial tiles A-O (Home_Dashboard_Calculation, "New" tab) ------
        Hero A, then five paired columns. Null -> the tile shows an em dash;
        nothing is ever substituted. */
+    const tile = (key, raw) => ({ key, value: money(raw), negative: isNeg(raw) });
     const tileGroups = HT ? [
-      { top: [{ key: "B", value: money(HT.B_vatCollected) }, { key: "C", value: money(HT.C_refunds) }],
-        bottom: { key: "D", value: money(HT.D_netSales) } },
-      { top: [{ key: "E", value: money(HT.E_totalRevenue) }, { key: "F", value: money(HT.F_vatOnRevenue) }],
-        bottom: { key: "G", value: money(HT.G_netRevenue) } },
-      { top: [{ key: "H", value: money(HT.H_totalLiability) },
-              { key: "I", value: money(HT.I_vatOnLiability) }],
-        bottom: { key: "J", value: money(HT.J_netLiability) } },
-      { top: [{ key: "K", value: money(HT.K_advanceCollected) }, { key: "L", value: money(HT.L_vatOnAdvance) }],
-        bottom: { key: "M", value: money(HT.M_advanceRedeemed) } },
-      { top: [{ key: "N", value: money(HT.N_membershipSales) }, { key: "O", value: money(HT.O_vatOnMembership) }],
-        bottom: null },
+      { top: [tile("B", HT.B_vatCollected),   tile("C", HT.C_refunds)],        bottom: tile("D", HT.D_netSales) },
+      { top: [tile("E", HT.E_totalRevenue),   tile("F", HT.F_vatOnRevenue)],   bottom: tile("G", HT.G_netRevenue) },
+      { top: [tile("H", HT.H_totalLiability), tile("I", HT.I_vatOnLiability)], bottom: tile("J", HT.J_netLiability) },
+      { top: [tile("K", HT.K_advanceCollected), tile("L", HT.L_vatOnAdvance)], bottom: tile("M", HT.M_advanceRedeemed) },
+      { top: [tile("N", HT.N_membershipSales),  tile("O", HT.O_vatOnMembership)], bottom: null },
     ] : [];
 
     /* Not part of A-O, but both were already live before the rework. */
-    const extraTiles = L ? [
-      { label: ar ? "ذمم مدينة قائمة" : "Outstanding receivables", value: money(L.receivables) },
-      { label: ar ? "دفعات مقدمة محتجزة" : "Advance held",         value: money(L.advanceHeld) },
-    ] : [];
+    /* Row 3 — one card per figure, same shape for all five. Receivables and
+       Advance held are live; the last three are placeholders (PLACEHOLDER_TILES). */
+    const supplementaryTiles = [
+      ...(L ? [
+        { label: ar ? "ذمم مدينة قائمة" : "Outstanding receivables", value: money(L.receivables) },
+        { label: ar ? "دفعات مقدمة محتجزة" : "Advance held",         value: money(L.advanceHeld) },
+      ] : []),
+      { label: ar ? "مطالبات غير مسوّاة" : "Unsettled Claims",
+        value: fmtSAR(PLACEHOLDER_TILES.unsettledClaims) },
+      { label: ar ? "أوامر شراء مفتوحة" : "Open PO",
+        value: fmtSAR(PLACEHOLDER_TILES.openPoValue),
+        sub: (ar ? "عدد " : "Count ") + grp(PLACEHOLDER_TILES.openPoCount) },
+      { label: ar ? "أرصدة الموردين" : "Vendor Balance",
+        value: fmtSAR(PLACEHOLDER_TILES.vendorBalance) },
+    ];
 
     /* Hero sparkline — the same exclusion-aware daily series as the tiles. */
     const dailySeries = HOME && Array.isArray(HOME.salesDaily) ? HOME.salesDaily : [];
@@ -565,7 +584,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
 
       // Financial
       totalSales: HT && HT.A_totalSales != null ? fmtSAR(HT.A_totalSales) : DASH,
-      tileGroups, extraTiles, heroSpark, spendRows,
+      tileGroups, supplementaryTiles, heroSpark, spendRows,
 
       // Growth
       growthKpis, funnelStages, funnelRate, endFunnelTiles, revenueFunnel,
@@ -613,8 +632,11 @@ function DashboardLoading({ t }) {
       <div style={{ ...card, marginBottom: 16 }}>
         <div style={{ maxWidth: 420 }}><DashboardLoadingBar label={t.loading} /></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 340px) repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 16 }}>
-        {["hero", "t1", "t2", "t3", "t4", "t5", "t6"].map((k) => <TileSkeleton key={k} />)}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1.3fr) repeat(5, minmax(132px, 1fr))", gridAutoRows: "minmax(104px, auto)", gap: 14, marginBottom: 16 }}>
+        <div style={{ gridColumn: 1, gridRow: "1 / span 3" }}><TileSkeleton /></div>
+        {[1, 2, 3, 4, 5].map((c) => <div key={"r1" + c} style={{ gridColumn: c + 1, gridRow: 1 }}><TileSkeleton /></div>)}
+        {[1, 2, 3, 4].map((c) => <div key={"r2" + c} style={{ gridColumn: c + 1, gridRow: 2 }}><TileSkeleton /></div>)}
+        {[1, 2, 3, 4, 5].map((c) => <div key={"r3" + c} style={{ gridColumn: c + 1, gridRow: 3 }}><TileSkeleton /></div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         {["c1", "c2", "c3"].map((k) => (
@@ -774,11 +796,7 @@ export default function Dashboard() {
         {!d.loading && !d.loadFailed && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#E6F1EC", color: COLORS.pos }}>Live data</span>
-            <span style={{ fontSize: 12, color: "#8b95a2" }}>
-              {d.hasHome
-                ? "Widgets with no endpoint yet are marked, not filled with placeholder figures"
-                : "Financial tiles need /api/Invoice/HomeDashboard deployed"}
-            </span>
+            
           </div>
         )}
 
@@ -794,9 +812,19 @@ export default function Dashboard() {
           {!d.hasHome ? (
             <AwaitingFeed title={d.t.awaiting} height={180} />
           ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 340px) repeat(auto-fit, minmax(160px, 1fr))", gap: 14, alignItems: "stretch" }}>
-            {/* Hero: A — Total Sales */}
-            <div style={{ background: COLORS.primary, color: "#fff", borderRadius: 16, padding: "22px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 30px rgba(24,57,110,0.28)", position: "relative", overflow: "hidden" }}>
+          <div
+            style={{
+              display: "grid",
+              // Explicit 6 columns x 3 rows. auto-fit was letting the browser
+              // choose the track count, so pairs drifted out of alignment and
+              // the last row left dead tracks.
+              gridTemplateColumns: "minmax(250px, 1.3fr) repeat(5, minmax(132px, 1fr))",
+              gridAutoRows: "minmax(104px, auto)",
+              gap: 14,
+            }}
+          >
+            {/* Hero: A — Total Sales, spanning all three rows */}
+            <div style={{ gridColumn: 1, gridRow: "1 / span 3", background: COLORS.primary, color: "#fff", borderRadius: 16, padding: "22px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 30px rgba(24,57,110,0.28)", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,0.16), transparent 60%)", pointerEvents: "none" }} />
               <div style={{ fontSize: 12.5, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{d.t.tile.A}</div>
               <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.05, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>{d.totalSales}</div>
@@ -807,45 +835,43 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Five paired columns: B/C over D, E/F over G, H/I over J, K/L over M, N/O,
-                then the supplementary receivables / advance-held pair. */}
-            {d.tileGroups.map((g, gi) => (
-              <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ ...card, borderRadius: 14, padding: "16px 17px", flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
-                  {g.top.map((tl, ti) => (
-                    <div key={tl.key} style={ti ? { paddingTop: 12, borderTop: "1px solid #eef1f5" } : undefined}>
-                      <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[tl.key]}</div>
-                      <div style={{ fontSize: ti ? 17 : 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums" }}>
-                        {tl.value == null ? "\u2014" : tl.value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {g.bottom && (
-                  <div style={{ ...card, borderRadius: 14, padding: "16px 17px", background: "#F7F9FB" }}>
-                    <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[g.bottom.key]}</div>
-                    <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums", color: COLORS.primary }}>
-                      {g.bottom.value == null ? "\u2014" : g.bottom.value}
+            {/* Row 1 — the paired gross/VAT cards (B+C, E+F, H+I, K+L, N+O) */}
+            {d.tileGroups.map((g, i) => (
+              <div key={"top" + i} style={{ ...card, gridColumn: i + 2, gridRow: 1, borderRadius: 14, padding: "16px 17px", display: "flex", flexDirection: "column", gap: 13 }}>
+                {g.top.map((tl, ti) => (
+                  <div key={tl.key} style={ti ? { paddingTop: 11, borderTop: "1px solid #eef1f5" } : undefined}>
+                    <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[tl.key]}</div>
+                    <div style={{ fontSize: ti ? 17 : 20, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 4, fontVariantNumeric: "tabular-nums", color: tl.negative ? COLORS.neg : undefined }}>
+                      {tl.value == null ? "\u2014" : tl.value}
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             ))}
 
-            {!!d.extraTiles.length && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ ...card, borderRadius: 14, padding: "16px 17px", flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
-                  {d.extraTiles.map((tl, ti) => (
-                    <div key={tl.label} style={ti ? { paddingTop: 12, borderTop: "1px solid #eef1f5" } : undefined}>
-                      <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{tl.label}</div>
-                      <div style={{ fontSize: ti ? 17 : 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums" }}>
-                        {tl.value == null ? "\u2014" : tl.value}
-                      </div>
-                    </div>
-                  ))}
+            {/* Row 2 — the derived net cards. Membership has no net tile, so
+                column 6 is deliberately empty rather than stretched. */}
+            {d.tileGroups.map((g, i) => (g.bottom ? (
+              <div key={"bot" + i} style={{ ...card, gridColumn: i + 2, gridRow: 2, borderRadius: 14, padding: "16px 17px", background: "#F7F9FB", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[g.bottom.key]}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 4, fontVariantNumeric: "tabular-nums", color: g.bottom.negative ? COLORS.neg : COLORS.primary }}>
+                  {g.bottom.value == null ? "\u2014" : g.bottom.value}
                 </div>
               </div>
-            )}
+            ) : null))}
+
+            {/* Row 3 — receivables, advance held and the three placeholder cards */}
+            {d.supplementaryTiles.map((tl, i) => (
+              <div key={tl.label} style={{ ...card, gridColumn: i + 2, gridRow: 3, borderRadius: 14, padding: "16px 17px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{tl.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+                  {tl.value == null ? "\u2014" : tl.value}
+                </div>
+                {tl.sub && (
+                  <div style={{ fontSize: 11.5, color: "#8b95a2", marginTop: 5, fontVariantNumeric: "tabular-nums" }}>{tl.sub}</div>
+                )}
+              </div>
+            ))}
           </div>
           )}
         </section>

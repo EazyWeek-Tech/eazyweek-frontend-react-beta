@@ -51,6 +51,35 @@ const authHeaders = () => {
   };
 };
 
+// ── Practitioner / therapist capture (FRD: sales attribution per line) ────────
+// Quick Cart adds a service/package straight to the cart with no practitioner
+// field, so those lines reach Complete Invoice with THERAPISTCODE/THERAPISTNAME
+// blank and the sale can't be attributed. Rather than blocking the add, the
+// missing lines are collected and filled in one popup just before submit.
+// Remove 'product' from this list if products with "Mapping Sales Person = No"
+// should stay optional at billing (InvoiceForm only forces it when that flag is on).
+const PRACTITIONER_REQUIRED_TYPES = ['service', 'package', 'product'];
+
+const lineNeedsPractitioner = (item) => {
+  const t = String(item?.type || item?.itemType || 'service').trim().toLowerCase();
+  if (!PRACTITIONER_REQUIRED_TYPES.includes(t)) return false;
+  const code = String(item?.practitionerCode || item?.therapistCode || '').trim();
+  const name = String(item?.practitionerName || item?.therapistName || '').trim();
+  return !code && !name;
+};
+
+// Stable identity for a cart line. Index alone drifts if the cart changes while
+// the popup is open; code alone repeats when the same service is copied onto two
+// lines. If a key stops matching, the line simply reads as unassigned again and
+// the popup re-opens — fail-closed, never silently blank.
+const practLineKey = (item, index) =>
+  `${index}|${String(item?.code || item?.itemCode || '').toLowerCase()}|${String(item?.name || item?.itemName || '').toLowerCase()}`;
+
+const practOptionCode = (p) =>
+  String(p?.practitionerCode || p?.id || p?.employeeCode || '').trim();
+const practOptionName = (p) =>
+  String(p?.fullName || p?.name || p?.employeeName || '').trim();
+
 const paymentModes = [
   { label: 'Cash',               icon: 'images/cash.svg',      key: 'cash'        },
   { label: 'Credit/Debit',       icon: 'images/cardimg.svg',   key: 'credit'      },
@@ -80,6 +109,11 @@ const PaymentBlock = ({
   // a closed invoice (reached via Back / refresh). Skips the appointment re-fetch
   // and disables submit so the same appointment can't be paid twice.
   alreadyPaid = false,
+  // Optional. Fired after the practitioner popup fills the blank lines, so the
+  // page owning the cart can mirror the practitioner onto its own items (the
+  // invoice payload does not depend on this — it uses the local merge below).
+  // Payload: [{ index, practitionerCode, practitionerName }]
+  onLinePractitionerUpdate = null,
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -438,6 +472,33 @@ const PaymentBlock = ({
     setAppliedAdvances([]);
   }, [effectiveCustomer?.custId]);
 
+  /* ── Practitioner popup state (Quick Cart lines) ──────────────────────────
+     Declared above the effective-items memo because that memo reads practAssigned. */
+  const [showPractModal, setShowPractModal] = useState(false);
+  const [practList,      setPractList]      = useState([]);
+  const [practLoading,   setPractLoading]   = useState(false);
+  const [practErr,       setPractErr]       = useState('');
+  const [practDraft,     setPractDraft]     = useState({});  // lineKey -> code, in-popup scratchpad
+  const [practAssigned,  setPractAssigned]  = useState({});  // lineKey -> { code, name }, applied
+  const resumeAfterPractRef = useRef(false);
+
+  // Practitioner master for this centre — same endpoint the InvoiceForm dropdown uses.
+  useEffect(() => {
+    if (!showPractModal || practLoading || practList.length) return;
+    if (!sessionCenterCode) { setPractErr('Centre code missing from the session.'); return; }
+    setPractLoading(true);
+    fetch(`${API_BASE_URL}/api/Master/LoadPractitionersByClinic/${encodeURIComponent(sessionCenterCode)}`,
+      { headers: authHeaders() })
+      .then(r => r.json())
+      .then(j => {
+        const list = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+        setPractList(list);
+        if (!list.length) setPractErr('No practitioners are mapped to this centre.');
+      })
+      .catch(() => setPractErr('Could not load the practitioner list.'))
+      .finally(() => setPractLoading(false));
+  }, [showPractModal, practLoading, practList.length, sessionCenterCode]);
+
   // ---------- Effective items (enrich parent items from API by code/name) ----------
   // Membership purchase blocks Loyalty/Advance/Gift Card payment (FRD 5.3 rule 8).
   const cartHasMembership = (invoiceItems || []).some(i => String(i.type || i.itemType || "").toLowerCase() === "membership");
@@ -461,6 +522,24 @@ const PaymentBlock = ({
 
     return invoiceItems || [];
   }, [invoiceItems, apiInvoiceItems]);
+
+  // ---------- Lines as they will be invoiced (practitioner picks merged in) ------
+  // Everything downstream of the popup — totals, linesJson, the print snapshot —
+  // reads this, so a practitioner chosen in the popup lands on the saved line.
+  const itemsForSubmit = useMemo(() => {
+    if (!Object.keys(practAssigned).length) return effectiveInvoiceItems;
+    return effectiveInvoiceItems.map((it, idx) => {
+      const pick = practAssigned[practLineKey(it, idx)];
+      return pick ? { ...it, practitionerCode: pick.code, practitionerName: pick.name } : it;
+    });
+  }, [effectiveInvoiceItems, practAssigned]);
+
+  const missingPractitionerLines = useMemo(
+    () => itemsForSubmit
+      .map((item, index) => ({ item, index, key: practLineKey(item, index) }))
+      .filter(row => lineNeedsPractitioner(row.item)),
+    [itemsForSubmit]
+  );
 
   // ---------- Advance redemption eligibility by cart item type (FRD §3.1 toggles) ----------
   const advBlockedTypes = useMemo(() => {
@@ -922,6 +1001,20 @@ const PaymentBlock = ({
       return;
     }
 
+    // ── Practitioner gate ─────────────────────────────────────────────────────
+    // THERAPISTCODE/THERAPISTNAME are what attribute the sale, and Quick Cart
+    // lines arrive without them. Hold the invoice, collect the missing ones in
+    // the popup, then resume automatically (same pattern as the nationality modal).
+    if (missingPractitionerLines.length > 0) {
+      setFormError('');
+      setPractErr('');
+      setPractDraft(Object.fromEntries(
+        missingPractitionerLines.map(row => [row.key, practDraft[row.key] || ''])
+      ));
+      setShowPractModal(true);
+      return;
+    }
+
     setFormError('');
 
     /* if (!appointmentIdFromUrl) {
@@ -933,7 +1026,7 @@ const PaymentBlock = ({
     const isCitizen = (effectiveCustomer?.status || '').toLowerCase() === 'citizen';
 
     // tax sum based on items we are actually submitting
-    const tax = effectiveInvoiceItems.reduce((sum, i) => {
+    const tax = itemsForSubmit.reduce((sum, i) => {
       const a = computeLineAmounts(i.price, i.discount, i.quantity ?? i.qty ?? 1, i.taxpercent, i.taxIncluded ?? i.taxincluded, isCitizen);
       return sum + a.tax;
     }, 0);
@@ -965,7 +1058,7 @@ const PaymentBlock = ({
     // Lines JSON (ensure itemCode & therapist fields)
     // Each line carries its own appointmentId (= per-line REFERENCEID from CLINIC_BOOKAPPOINTMENT)
     // so CLINIC_APPOINTMENT_INVOICE can match back to the correct appointment line
-    const linesJson = effectiveInvoiceItems.map((item, index) => {
+    const linesJson = itemsForSubmit.map((item, index) => {
       const qty = Number(item.quantity ?? item.qty ?? 1);
       const price = parseFloat(item.price) || 0;
       const discount = parseFloat(item.discount) || 0;
@@ -1130,7 +1223,7 @@ if (result.success) {
           ...appliedAdvances.map(a => ({ mode: 'Advance Redemption', amount: a.amount, date: snapshotDate })),
         ];
         setSubmittedPayments(combinedPaymentLines);
-        setSubmittedInvoiceItems(effectiveInvoiceItems);
+        setSubmittedInvoiceItems(itemsForSubmit);
         setSubmittedTotalAmount(parsedTotalAmount);
 
         const invoiceNum = result.message || '';
@@ -1170,7 +1263,7 @@ if (result.success) {
         }
 
         // ── Record Package Purchases → creates CLINIC_CUSTOMER_PACKAGES rows ──
-        const packageItems = effectiveInvoiceItems.filter(i =>
+        const packageItems = itemsForSubmit.filter(i =>
           (i.type === 'package') || (i.itemType === 'package')
         );
         if (packageItems.length > 0 && invoiceNum) {
@@ -1269,6 +1362,43 @@ if (result.success) {
     handleSubmitInvoice();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCustomer?.status]);
+
+  // Apply the popup's picks to the held lines, then let the resume effect below
+  // re-enter the submit once itemsForSubmit reflects them.
+  const handleApplyPractitioners = () => {
+    const blank = missingPractitionerLines.filter(row => !String(practDraft[row.key] || '').trim());
+    if (blank.length) {
+      setPractErr('Please select a practitioner for every line listed.');
+      return;
+    }
+    const next = { ...practAssigned };
+    const parentUpdates = [];
+    missingPractitionerLines.forEach(row => {
+      const code = String(practDraft[row.key]).trim();
+      const match = practList.find(p => practOptionCode(p) === code);
+      const name = practOptionName(match);
+      next[row.key] = { code, name };
+      parentUpdates.push({ index: row.index, practitionerCode: code, practitionerName: name });
+    });
+    setPractAssigned(next);
+    setShowPractModal(false);
+    setPractErr('');
+    // Mirror onto the parent cart only when the parent actually owns the items —
+    // when they came from this component's own appointment fetch there is nothing
+    // upstream to update, and the indexes would not line up.
+    if (invoiceItems?.length && parentUpdates.length) onLinePractitionerUpdate?.(parentUpdates);
+    resumeAfterPractRef.current = true;
+  };
+
+  // Resume the submit the practitioner popup interrupted. Waits until no line is
+  // missing a practitioner, so the payload carries what the user just picked.
+  useEffect(() => {
+    if (!resumeAfterPractRef.current) return;
+    if (missingPractitionerLines.length > 0) return;
+    resumeAfterPractRef.current = false;
+    handleSubmitInvoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practAssigned]);
 
   // ---------- Points transaction helper ----------------------------------------
   const createPointsTransaction = async (transactionType, amount, invoiceNumber, points = 0) => {
@@ -1774,6 +1904,75 @@ if (result.success) {
           <button className="pribtnblue" onClick={handleSubmitInvoice} disabled={alreadyPaid || !isCompleteEnabled || isSubmitting || !!generatedInvoiceNumber}>
             {isSubmitting ? 'Submitting…' : generatedInvoiceNumber ? 'Invoice Generated' : 'Complete Invoice'}
           </button>
+        </div>
+      )}
+
+      {showPractModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
+          <div style={{ background:'#fff', borderRadius:12, padding:24, width:'min(640px, 94vw)', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 10px 40px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin:'0 0 6px', color:'#0b1b37' }}>Practitioner Required</h3>
+            <p style={{ margin:'0 0 16px', fontSize:13, color:'#555' }}>
+              These lines were added without a practitioner (Quick Cart does not ask for one).
+              Select who performed or sold each item to complete the invoice.
+            </p>
+
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ textAlign:'left', color:'#5b6b85' }}>
+                  <th style={{ padding:'6px 8px', fontWeight:600, width:'46%' }}>Item</th>
+                  <th style={{ padding:'6px 8px', fontWeight:600, width:'14%' }}>Type</th>
+                  <th style={{ padding:'6px 8px', fontWeight:600 }}>Practitioner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingPractitionerLines.map(row => (
+                  <tr key={row.key} style={{ borderTop:'1px solid #eef1f6' }}>
+                    <td style={{ padding:'8px' }}>
+                      {row.item.name || row.item.itemName || row.item.code || '—'}
+                    </td>
+                    <td style={{ padding:'8px', textTransform:'capitalize', color:'#5b6b85' }}>
+                      {String(row.item.type || row.item.itemType || 'service')}
+                    </td>
+                    <td style={{ padding:'8px' }}>
+                      <select
+                        value={practDraft[row.key] || ''}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setPractDraft(prev => ({ ...prev, [row.key]: v }));
+                          setPractErr('');
+                        }}
+                        disabled={practLoading || practList.length === 0}
+                        style={{ width:'100%', height:34, borderRadius:8, border:'1px solid #cfd6e4', padding:'0 8px', fontSize:13, background:'#fff' }}>
+                        <option value="">{practLoading ? 'Loading…' : 'Select practitioner…'}</option>
+                        {practList.map(p => {
+                          const code = practOptionCode(p);
+                          return <option key={code} value={code}>{practOptionName(p) || code}</option>;
+                        })}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {practErr && <div style={{ marginTop:10, fontSize:12, color:'#b91c1c' }}>{practErr}</div>}
+
+            <div style={{ display:'flex', gap:12, justifyContent:'flex-end', marginTop:20 }}>
+              <button
+                onClick={() => { setShowPractModal(false); setPractErr(''); resumeAfterPractRef.current = false; }}
+                style={{ border:0, borderRadius:10, padding:'10px 20px', fontWeight:700, cursor:'pointer', background:'#e0e0e0', color:'#333' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleApplyPractitioners}
+                disabled={practLoading || practList.length === 0}
+                style={{ border:0, borderRadius:10, padding:'10px 20px', fontWeight:700,
+                  cursor:(practLoading || practList.length === 0) ? 'not-allowed' : 'pointer',
+                  background:(practLoading || practList.length === 0) ? '#9aa8bf' : '#0b1b37', color:'#fff' }}>
+                Save &amp; Continue
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
