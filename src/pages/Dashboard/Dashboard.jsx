@@ -1,44 +1,38 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config"; // adjust path to match this file's location
 import { resolveFeatures, getFeatureMeta, minimumTierFor, getTierLabel } from "../../config/licenseConfig"; // license helpers (adjust path if needed)
+// Shared EazyWeek loading indicators. Place DashboardLoadingBar.jsx beside this
+// file (src/pages/Dashboard/) or adjust this path to wherever it lives.
+import { DashboardLoadingBar, TileSkeleton, ChartLoading, AwaitingFeed, LoadError } from "./DashboardLoadingBar";
 
 /**
  * EazyWeek — Executive Analytics Dashboard
  * Faithful React port of the eazyweek_Dashboard design mockup.
  *
  * Self-contained: no chart library required (charts are hand-rolled SVG).
- * All figures are mocked to match the design. To go live, replace the data
- * blocks in `useDashboardData` with your API responses (keep the same shape).
+ *
+ * Data policy: NO sample figures are ever shown. While the endpoints are in
+ * flight the page shows a brand progress bar; if they fail it shows a retry
+ * panel; any block with no endpoint yet shows an explicit "awaiting source"
+ * state rather than an invented number.
+ *
+ * Financial tiles A-O follow Home_Dashboard_Calculation ("New" tab) and are fed
+ * by GET /api/Invoice/HomeDashboard, which returns the ATOMS (see the repo
+ * comment there) so open business decisions stay out of the SQL.
  */
 
 /* ------------------------------------------------------------------ */
 /* Static data                                                         */
 /* ------------------------------------------------------------------ */
+/* Centre codes only — a fallback list for the centre filter until
+   GET /api/Settings/Centre/Hierarchy answers. Carries NO revenue figures:
+   every number on this page comes from an endpoint or is not shown. */
 const CENTRES = [
-  { name: "Bright", rev: 1240000 },
-  { name: "GLAM25", rev: 980000 },
-  { name: "GL12", rev: 720000 },
-  { name: "GLOW123", rev: 1410000 },
-  { name: "INFENI", rev: 560000 },
-  { name: "Silk", rev: 1120000 },
-  { name: "LNS", rev: 430000 },
-  { name: "MXM", rev: 890000 },
+  { name: "Bright" }, { name: "GLAM25" }, { name: "GL12" }, { name: "GLOW123" },
+  { name: "INFENI" }, { name: "Silk" }, { name: "LNS" }, { name: "MXM" },
 ];
 
-// Month-over-month % change per centre (last 6 months)
-const MOM = {
-  Bright: [4, 6, -2, 8, 5, 7],
-  GLAM25: [2, -3, 5, 4, -1, 6],
-  GL12: [-4, 3, 2, -2, 4, 3],
-  GLOW123: [7, 9, 6, 11, 8, 12],
-  INFENI: [-6, -2, 3, 1, -3, 4],
-  Silk: [3, 5, 4, 6, 7, 5],
-  LNS: [-8, -4, -2, 3, 1, 2],
-  MXM: [1, 4, 6, 3, 5, 8],
-};
-
 const RANGE_KEYS = ["Today", "This Week", "This Month", "QTD", "YTD"];
-const RANGE_FACTOR = { Today: 0.033, "This Week": 0.23, "This Month": 1, QTD: 3.05, YTD: 11.8 };
 
 const COLORS = {
   primary: "#18396E",
@@ -64,11 +58,6 @@ const fmtSAR = (n) => {
 };
 const grp = (n) => Math.round(n).toLocaleString("en-US");
 
-const heatColor = (v) => {
-  const a = Math.min(0.9, (Math.abs(v) / 14) * 0.72 + 0.14);
-  const bg = v >= 0 ? `rgba(47,143,107,${a.toFixed(2)})` : `rgba(221,119,102,${a.toFixed(2)})`;
-  return { bg, color: a > 0.5 ? "#fff" : v >= 0 ? "#256B52" : "#A5473A" };
-};
 
 /* ------------------------------------------------------------------ */
 /* Translations                                                        */
@@ -89,6 +78,16 @@ const T_EN = {
   conv: "Conv.", openCases: "open cases", sla: "SLA compliance", target: "target",
   avgResolution: "avg. resolution time", aging: "Case queue aging", currentPeriod: "Current period",
   previousPeriod: "Previous period", overlayPrev: "Overlay previous period",
+  loading: "Fetching live data\u2026", loadFailed: "Live data could not be loaded.",
+  retry: "Retry", awaiting: "Awaiting live feed",
+  avgSpendTitle: "Month-on-month average spend", avgSpendSub: "Average spend per invoice, last 6 months",
+  tile: {
+    A: "Total Sales", B: "VAT Collected", C: "Refunds", D: "Net Sales",
+    E: "Total Revenue", F: "VAT", G: "Net Revenue",
+    H: "Total Liability", I: "VAT", J: "Net Liability",
+    K: "Advance Collected", L: "VAT", M: "Advance Redeemed",
+    N: "Membership Revenue", O: "VAT",
+  },
 };
 const T_AR = {
   tagline: "التحليلات التنفيذية", financial: "الأداء المالي", financialSub: "الإيرادات والضرائب والذمم",
@@ -104,6 +103,16 @@ const T_AR = {
   campaigns: "أداء الحملات", campaign: "الحملة", leads: "العملاء", conv: "التحويل", openCases: "حالات مفتوحة",
   sla: "الالتزام بالاتفاقية", target: "الهدف", avgResolution: "متوسط وقت الحل", aging: "أعمار قائمة الحالات",
   currentPeriod: "الفترة الحالية", previousPeriod: "الفترة السابقة", overlayPrev: "إظهار الفترة السابقة",
+  loading: "جارٍ تحميل البيانات\u2026", loadFailed: "تعذّر تحميل البيانات.",
+  retry: "إعادة المحاولة", awaiting: "في انتظار المصدر",
+  avgSpendTitle: "متوسط الإنفاق شهريًا", avgSpendSub: "متوسط الإنفاق لكل فاتورة، آخر ٦ أشهر",
+  tile: {
+    A: "إجمالي المبيعات", B: "ضريبة القيمة المضافة", C: "المبالغ المستردة", D: "صافي المبيعات",
+    E: "إجمالي الإيرادات", F: "الضريبة", G: "صافي الإيرادات",
+    H: "إجمالي الالتزامات", I: "الضريبة", J: "صافي الالتزامات",
+    K: "دفعات مقدمة محصّلة", L: "الضريبة", M: "دفعات مقدمة مستخدمة",
+    N: "إيرادات العضويات", O: "الضريبة",
+  },
 };
 const RANGE_LABELS = {
   en: ["Today", "This Week", "This Month", "QTD", "YTD"],
@@ -256,9 +265,10 @@ function Funnel({ stages, ar }) {
 /* Derived data hook                                                   */
 /* ------------------------------------------------------------------ */
 /* ------------------------------------------------------------------ */
-/* Live data — real figures from the module dashboard endpoints.       */
-/* Overrides sample where available; the rest stays sample (no endpoint */
-/* yet): centre performance, loyalty, campaigns, growth KPIs, SLA/aging.*/
+/* Live data — real figures from the module dashboard endpoints.        */
+/* There is no sample fallback: a widget with no endpoint renders an     */
+/* AwaitingFeed card. Still unsourced: centre target vs actual, leads by */
+/* source, loyalty tier split, campaign performance, active customers.   */
 /* ------------------------------------------------------------------ */
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const ymd = (d) => d.toISOString().slice(0, 10);
@@ -287,13 +297,14 @@ function liveBucket(daily, max = 12) {
   return out;
 }
 
-function useLiveDashboard({ range }) {
-  const [live, setLive] = useState(null);
+function useLiveDashboard({ range, reloadKey }) {
+  const [live, setLive] = useState({ loading: true });
   const load = useCallback(async (signal) => {
+    setLive({ loading: true });
     const { fromDate, toDate } = periodDates(range);
     const base = { headers: { "Content-Type": "application/json", ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}) }, credentials: "include", signal };
     try {
-      const [invB, caseB, apptB, oppB, advB, memB, loyB, ltrB] = await Promise.all([
+      const [invB, caseB, apptB, oppB, advB, memB, loyB, ltrB, homeB] = await Promise.all([
         fetch(`${API_BASE_URL}/api/Invoice/Dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/CaseOperation/CaseDashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/Appointment/AppDashboard`, { ...base, method: "POST", body: JSON.stringify({ fromDate, toDate }) }).then(okJson).catch(() => null),
@@ -303,15 +314,19 @@ function useLiveDashboard({ range }) {
         fetch(`${API_BASE_URL}/api/Membership/Dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/v1/loyalty/dashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
         fetch(`${API_BASE_URL}/api/Opportunity/Funnel`, base).then(okJson).catch(() => null),
+        // Financial tiles A-O + new customers + 6-month average spend.
+        fetch(`${API_BASE_URL}/api/Invoice/HomeDashboard?fromDate=${fromDate}&toDate=${toDate}`, base).then(okJson).catch(() => null),
       ]);
-      if (!invB && !caseB && !apptB && !oppB) { setLive({ live: false }); return; }
+      if (!invB && !caseB && !apptB && !oppB && !homeB) { setLive({ live: false }); return; }
       const inv = unwrap(invB) || {}, cs = unwrap(caseB) || {}, ap = unwrap(apptB) || {};
-      const opp = Array.isArray(oppB) ? oppB : (unwrap(oppB) || []);
+      const oppU = unwrap(oppB);
+      const opp = Array.isArray(oppB) ? oppB : (Array.isArray(oppU) ? oppU : []);
       const adv = unwrap(advB), mem = unwrap(memB), loy = unwrap(loyB);
       const ltr = unwrap(ltrB);
+      const home = unwrap(homeB);
       const N = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
-      const salesDaily = inv.salesDaily || [];
+      const salesDaily = Array.isArray(inv.salesDaily) ? inv.salesDaily : [];
       const periodRev = salesDaily.reduce((a, r) => a + N(r.sales), 0);
       const oc = inv.openClosed || {};
       const invoiceCount = (N(oc.openCnt) + N(oc.closedCnt)) || salesDaily.reduce((a, r) => a + N(r.count), 0);
@@ -324,6 +339,13 @@ function useLiveDashboard({ range }) {
 
       setLive({
         live: true,
+        // Home dashboard atoms — null until the endpoint is deployed, in which
+        // case the financial tiles show "awaiting source", never a sample.
+        home: home && home.tiles ? home : null,
+        // Case extras added to the CaseDashboard aggregate.
+        caseSla:        cs.slaCompliancePct     != null ? Number(cs.slaCompliancePct) : null,
+        caseAvgResHrs:  cs.averageResolutionHours != null ? Number(cs.averageResolutionHours) : null,
+        caseAgeing:     cs.ageing || null,
         periodRev,
         series: liveBucket(salesDaily),
         receivables: N(oc.openVal),
@@ -344,7 +366,7 @@ function useLiveDashboard({ range }) {
       });
     } catch { setLive({ live: false }); }
   }, [range]);
-  useEffect(() => { const c = new AbortController(); load(c.signal); return () => c.abort(); }, [range, load]);
+  useEffect(() => { const c = new AbortController(); load(c.signal); return () => c.abort(); }, [range, reloadKey, load]);
   return live;
 }
 
@@ -383,190 +405,184 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
   return useMemo(() => {
     const ar = lang === "ar";
     const t = ar ? T_AR : T_EN;
-    const f = RANGE_FACTOR[range] || 1;
-    const posC = COLORS.pos, negC = COLORS.neg, neuC = COLORS.neu;
+    const DASH = "\u2014";
 
-    const sel = centres.filter((c) => selected.has(c.name));
-    const monthRev = sel.reduce((a, c) => a + c.rev, 0);
-    const periodRev = monthRev * f;
-    const net = periodRev / 1.15;
-    const vat = periodRev - net;
-    const scale = monthRev / 7350000;
+    const L = live && live.live ? live : null;
+    const HOME = L && L.home ? L.home : null;
+    const HT = HOME ? HOME.tiles : null;
+    const money = (v) => (v == null ? null : fmtSAR(v));
+    const count = (v) => (v == null ? null : grp(v));
 
-    // Revenue trend series per range
-    const S = (labels, base) => labels.map((l, i) => ({ label: l, value: base[i] * scale }));
-    let series;
-    if (range === "Today") series = S(["9a", "11a", "1p", "3p", "5p", "7p", "9p"], [42000, 88000, 61000, 74000, 96000, 120000, 58000]);
-    else if (range === "This Week") series = S(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], [980000, 1120000, 1040000, 1210000, 1380000, 1520000, 890000]);
-    else if (range === "This Month") series = S(["W1", "W2", "W3", "W4"], [1680000, 1820000, 1740000, 2110000]);
-    else if (range === "QTD") series = S(["May", "Jun", "Jul"], [6980000, 7240000, 7350000].map((v) => (v * 3.05) / 3));
-    else series = S(["Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"],
-      [6100000, 6320000, 6210000, 6540000, 7010000, 6680000, 6920000, 7180000, 7050000, 6980000, 7240000, 7350000]);
-    const prevSeries = overlayPrev ? series.map((s) => ({ label: s.label, value: s.value * 0.9 })) : null;
+    /* ---- Financial tiles A-O (Home_Dashboard_Calculation, "New" tab) ------
+       Hero A, then five paired columns. Null -> the tile shows an em dash;
+       nothing is ever substituted. */
+    const tileGroups = HT ? [
+      { top: [{ key: "B", value: money(HT.B_vatCollected) }, { key: "C", value: money(HT.C_refunds) }],
+        bottom: { key: "D", value: money(HT.D_netSales) } },
+      { top: [{ key: "E", value: money(HT.E_totalRevenue) }, { key: "F", value: money(HT.F_vatOnRevenue) }],
+        bottom: { key: "G", value: money(HT.G_netRevenue) } },
+      { top: [{ key: "H", value: money(HT.H_totalLiability) },
+              { key: "I", value: money(HT.I_vatOnLiability) }],
+        bottom: { key: "J", value: money(HT.J_netLiability) } },
+      { top: [{ key: "K", value: money(HT.K_advanceCollected) }, { key: "L", value: money(HT.L_vatOnAdvance) }],
+        bottom: { key: "M", value: money(HT.M_advanceRedeemed) } },
+      { top: [{ key: "N", value: money(HT.N_membershipSales) }, { key: "O", value: money(HT.O_vatOnMembership) }],
+        bottom: null },
+    ] : [];
 
-    // Financial secondary KPIs
-    const finKpis = [
-      { label: ar ? "ضريبة القيمة المضافة" : "VAT collected", value: fmtSAR(vat), delta: "+8.1%", arrow: "▲", sentColor: posC },
-      { label: ar ? "صافي الإيرادات" : "Net revenue", value: fmtSAR(net), delta: "+8.5%", arrow: "▲", sentColor: posC },
-      { label: ar ? "ذمم مدينة قائمة" : "Outstanding receivables", value: fmtSAR(1840000), delta: "+3.2%", arrow: "▲", sentColor: negC },
-      { label: ar ? "دفعات مقدمة محتجزة" : "Advance held", value: fmtSAR(620000), delta: "−1.4%", arrow: "▼", sentColor: neuC },
-      { label: ar ? "دفعات مقدمة مستخدمة" : "Advance redeemed", value: fmtSAR(410000 * f), delta: "+6.0%", arrow: "▲", sentColor: posC },
-      { label: ar ? "المبالغ المستردة" : "Refunds issued", value: fmtSAR(74000 * f), delta: "+2.1%", arrow: "▲", sentColor: negC },
-    ];
+    /* Not part of A-O, but both were already live before the rework. */
+    const extraTiles = L ? [
+      { label: ar ? "ذمم مدينة قائمة" : "Outstanding receivables", value: money(L.receivables) },
+      { label: ar ? "دفعات مقدمة محتجزة" : "Advance held",         value: money(L.advanceHeld) },
+    ] : [];
 
-    // Centre ranking
-    const sorted = [...sel].sort((a, b) => b.rev - a.rev);
-    const maxRev = sorted.length ? sorted[0].rev : 1;
-    const centreRanked = sorted.map((c, i) => ({
-      name: c.label || c.name, value: fmtSAR(c.rev * f), pct: ((c.rev / maxRev) * 100).toFixed(1),
-      color: i === 0 ? COLORS.primary : i === sorted.length - 1 ? COLORS.coral : "#85A2AA",
-    }));
-    const top = sorted[0], bot = sorted[sorted.length - 1];
+    /* Hero sparkline — the same exclusion-aware daily series as the tiles. */
+    const dailySeries = HOME && Array.isArray(HOME.salesDaily) ? HOME.salesDaily : [];
+    const heroSpark = dailySeries.length > 1 ? dailySeries.slice(-12).map((x) => Number(x.sales) || 0) : null;
 
-    // Heatmap
-    const heatMonths = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-    const centreHeat = sorted.map((c) => ({
-      name: c.label || c.name,
-      cells: (MOM[c.name] || [0, 0, 0, 0, 0, 0]).map((v) => {
-        const col = heatColor(v);
-        return { label: (v > 0 ? "+" : "") + v + "%", bg: col.bg, color: col.color };
-      }),
-    }));
+    /* ---- Month-on-month average spend per centre (real) ------------------ */
+    const spendRows = (() => {
+      if (!HOME || !Array.isArray(HOME.averageSpend) || !HOME.averageSpend.length) return { months: [], rows: [] };
+      const months = [...new Set(HOME.averageSpend.map((x) => x.month))].sort().slice(-6);
+      const byCentre = {};
+      HOME.averageSpend.forEach((x) => {
+        if (!months.includes(x.month)) return;
+        (byCentre[x.centreCode] = byCentre[x.centreCode] || {})[x.month] = x.avgSpend;
+      });
+      const label = (code) => {
+        const hit = centres.find((c) => c.name === code);
+        return (hit && (hit.label || hit.name)) || code;
+      };
+      const all = Object.values(byCentre).flatMap((m) => Object.values(m));
+      const peak = all.length ? Math.max(...all) : 1;
+      const rows = Object.keys(byCentre)
+        .filter((code) => selected.has(code) || !centres.some((c) => c.name === code))
+        .map((code) => {
+          const vals = months.map((m) => byCentre[code][m]);
+          const present = vals.filter((v) => v != null);
+          const avg = present.length ? present.reduce((a, b) => a + b, 0) / present.length : null;
+          return {
+            name: label(code),
+            avgNum: avg,
+            cells: vals.map((v) => {
+              if (v == null) return { label: DASH, bg: "#F4F6F8", color: "#b8c0cb" };
+              const a = Math.min(0.92, (v / (peak || 1)) * 0.78 + 0.14);
+              return { label: grp(v), bg: `rgba(24,57,110,${a.toFixed(2)})`, color: a > 0.5 ? "#fff" : COLORS.ink };
+            }),
+            avg: avg == null ? DASH : grp(avg),
+          };
+        })
+        .sort((x, y) => (y.avgNum || 0) - (x.avgNum || 0));
+      return { months: months.map((m) => m.slice(5) + "/" + m.slice(2, 4)), rows };
+    })();
 
-    // Growth
+    /* ---- Growth KPIs — label + value, value null when unsourced ---------- */
     const growthKpis = [
-      { label: ar ? "عملاء جدد" : "New customers", value: grp(1284 * f), delta: "+12.6%", arrow: "▲", sentColor: posC },
-      { label: ar ? "عملاء نشطون" : "Active customers", value: "18,940", delta: "+2.1%", arrow: "▲", sentColor: posC },
-      { label: ar ? "عضويات نشطة" : "Active memberships", value: "2,940", delta: "+4.8%", arrow: "▲", sentColor: posC },
-      { label: ar ? "إيرادات العضويات" : "Membership revenue", value: fmtSAR(1100000 * f), delta: "+7.2%", arrow: "▲", sentColor: posC },
-      { label: ar ? "أعضاء الولاء" : "Loyalty members", value: "6,210", delta: "+9.3%", arrow: "▲", sentColor: posC },
-    ];
+      { label: ar ? "عملاء جدد" : "New customers",
+        value: count(HOME && HOME.customers ? HOME.customers.newCustomers : (L ? L.newCustomers : null)) },
+      // Needs the appointment-frequency setting, which does not exist yet.
+      // CLINIC_CUSTOMER.Active = 1 means "not deleted", not "visits often".
+      { label: ar ? "عملاء نشطون" : "Active customers", value: null },
+      { label: ar ? "عضويات نشطة" : "Active memberships",
+        value: count(HOME && HOME.membership ? HOME.membership.activeMemberships : (L ? L.activeMemberships : null)) },
+      { label: ar ? "إيرادات العضويات" : "Membership revenue",
+        value: money(HT ? HT.N_membershipSales : (L ? L.membershipRevenue : null)) },
+      { label: ar ? "أعضاء الولاء" : "Loyalty members", value: count(L ? L.loyaltyMembers : null) },
+    ].map((k) => ({ ...k, hasValue: k.value != null, value: k.value == null ? DASH : k.value }));
+
+    /* ---- Lead-to-revenue funnel — live buckets only ---------------------- */
     const stageDefs = [
-      { key: "captured",          en: "Captured",           ar: "الملتقطة",   base: 5990 },
-      { key: "converted",         en: "Converted",          ar: "المحوّلة",   base: 2400 },
-      { key: "appointmentBooked", en: "Appointment Booked", ar: "حجز موعد",   base: 1500 },
-      { key: "showedUp",          en: "Showed Up",          ar: "الحضور",     base: 900 },
-      { key: "purchased",         en: "Purchased",          ar: "شراء",       base: 500 },
+      { key: "captured",          en: "Captured",           ar: "الملتقطة" },
+      { key: "converted",         en: "Converted",          ar: "المحوّلة" },
+      { key: "appointmentBooked", en: "Appointment Booked", ar: "حجز موعد" },
+      { key: "showedUp",          en: "Showed Up",          ar: "الحضور" },
+      { key: "purchased",         en: "Purchased",          ar: "شراء" },
     ];
-    const funnelStages = stageDefs.map((s) => ({
-      label: ar ? s.ar : s.en, value: Math.round(s.base * f), raw: s.base,
-    }));
-    const funnelRate = ((stageDefs[4].base / stageDefs[0].base) * 100).toFixed(1);
+    const buckets = L && L.ltr && L.ltr.buckets ? L.ltr.buckets : null;
+    const funnelStages = buckets
+      ? stageDefs.map((sd) => ({ label: ar ? sd.ar : sd.en, value: Number(buckets[sd.key]) || 0, raw: Number(buckets[sd.key]) || 0 }))
+      : null;
+    const funnelRate = buckets
+      ? (buckets.captured ? ((buckets.purchased / buckets.captured) * 100).toFixed(1) : "0.0")
+      : null;
+    const revenueFunnel = L && L.ltr && L.ltr.revenue ? [
+      { label: ar ? "معدل الشراء" : "Purchase Rate",        value: `${L.ltr.revenue.purchaseRate ?? 0}%` },
+      { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size", value: fmtSAR(L.ltr.revenue.avgBasketSize || 0) },
+      { label: ar ? "إجمالي الإيرادات" : "Total Revenue",   value: fmtSAR(L.ltr.revenue.totalRevenue || 0) },
+      { label: ar ? "تكلفة اكتساب العميل" : "Lead Acq. Cost",
+        value: fmtSAR((L.ltr.spend && L.ltr.spend.leadAcquisitionCost) || 0) },
+    ] : null;
 
-    const srcDefs = [
-      { en: "Social media", ar: "وسائل التواصل", base: 420, color: "#5C86A8" },
-      { en: "Google Ads", ar: "إعلانات جوجل", base: 310, color: "#2F8F6B" },
-      { en: "Manual", ar: "يدوي", base: 280, color: "#B07C28" },
-      { en: "WhatsApp", ar: "واتساب", base: 140, color: "#DD7766" },
-      { en: "Others", ar: "أخرى", base: 90, color: "#85A2AA" },
-    ];
-    const srcMax = Math.max(...srcDefs.map((s) => s.base));
-    const leadSources = srcDefs.map((s) => ({
-      name: ar ? s.ar : s.en, value: grp(s.base * f), pct: ((s.base / srcMax) * 100).toFixed(1), color: s.color,
-    }));
+    const ef = L && L.endFunnel ? L.endFunnel : null;
     const endFunnelTiles = [
-      { label: ar ? "المواعيد التي تم الحضور لها" : "Appointments shown", value: grp(154 * f), color: "#13294B" },
-      { label: ar ? "فواتير صادرة" : "Invoices raised", value: grp(121 * f), color: "#13294B" },
-      { label: ar ? "عدم الحضور" : "No-shows", value: grp(44 * f), color: "#CE5C48" },
-      { label: ar ? "حضروا دون فاتورة" : "Shown, not invoiced", value: grp(33 * f), color: "#B07C28" },
-    ];
-    const tierData = [["Bronze", 3120, "#DD9A6E"], ["Silver", 1980, "#9aa4b1"], ["Gold", 820, COLORS.gold], ["Platinum", 290, COLORS.primary]];
-    const tierTotal = tierData.reduce((a, x) => a + x[1], 0);
-    const arTier = { Bronze: "برونزي", Silver: "فضي", Gold: "ذهبي", Platinum: "بلاتيني" };
-    const loyaltyTiers = tierData.map((x) => ({
-      name: ar ? arTier[x[0]] : x[0], count: grp(x[1]), pct: ((x[1] / tierTotal) * 100).toFixed(1), color: x[2],
-    }));
-    const campaigns = [
-      { name: ar ? "العافية الرمضانية" : "Ramadan Wellness", leads: "1,120", conv: "22.4%", convColor: posC },
-      { name: ar ? "إشراقة الصيف" : "Summer Glow", leads: "860", conv: "17.1%", convColor: "#33404e" },
-      { name: ar ? "الصحة المؤسسية" : "Corporate Health", leads: "540", conv: "12.8%", convColor: negC },
-      { name: ar ? "تعزيز الإحالات" : "Referral Boost", leads: "900", conv: "26.5%", convColor: posC },
+      { label: ar ? "المواعيد التي تم الحضور لها" : "Appointments shown", value: ef ? grp(ef.shown) : DASH, color: "#13294B" },
+      { label: ar ? "فواتير صادرة" : "Invoices raised",                  value: ef ? grp(ef.invoices) : DASH, color: "#13294B" },
+      { label: ar ? "عدم الحضور" : "No-shows",                            value: ef ? grp(ef.noShows) : DASH, color: "#CE5C48" },
+      { label: ar ? "حضروا دون فاتورة" : "Shown, not invoiced",           value: ef ? grp(ef.shownNotInvoiced) : DASH, color: "#B07C28" },
     ];
 
-    // Ops
-    const cs = [["New", 42, COLORS.accent], ["In progress", 61, COLORS.primary], ["Waiting on customer", 27, COLORS.gold], ["Escalated", 18, COLORS.neg]];
-    const csAr = { New: "جديدة", "In progress": "قيد المعالجة", "Waiting on customer": "بانتظار العميل", Escalated: "مصعّدة" };
-    const csMax = Math.max(...cs.map((x) => x[1]));
-    const caseStatuses = cs.map((x) => ({ label: ar ? csAr[x[0]] : x[0], count: x[1], pct: ((x[1] / csMax) * 100).toFixed(0), color: x[2] }));
-    const sla = 94.2, slaTarget = 95, atRisk = sla < slaTarget;
-    const ag = [["< 24h", 58], ["1–3d", 49], ["3–7d", 27], ["> 7d", 14]];
-    const agMax = Math.max(...ag.map((x) => x[1]));
-    const agColors = [COLORS.primary, "#5C86A8", COLORS.gold, COLORS.neg];
-    const aging = ag.map((x, i) => ({ label: x[0], count: x[1], pct: ((x[1] / agMax) * 100).toFixed(0), color: agColors[i] }));
+    /* ---- Operations — all live from the case dashboard aggregate --------- */
+    const cc = L && L.caseCounts ? L.caseCounts : null;
+    const csMax = cc ? Math.max(1, cc.open, cc.wip, cc.closed) : 1;
+    const caseStatuses = cc ? [
+      { label: ar ? "مفتوحة" : "Open",   count: cc.open,   color: COLORS.accent },
+      { label: ar ? "قيد المعالجة" : "WIP", count: cc.wip,  color: COLORS.primary },
+      { label: ar ? "مغلقة" : "Closed",  count: cc.closed, color: "#85A2AA" },
+    ].map((x) => ({ ...x, pct: ((x.count / csMax) * 100).toFixed(0) })) : null;
+    const openCases = cc ? cc.open + cc.wip : null;
+
+    const slaTarget = 95;
+    const sla = L && L.caseSla != null ? L.caseSla : null;
+    const atRisk = sla != null && sla < slaTarget;
+    const avgResolution = L && L.caseAvgResHrs != null
+      ? (L.caseAvgResHrs >= 48 ? (L.caseAvgResHrs / 24).toFixed(1) + "d" : L.caseAvgResHrs.toFixed(1) + "h")
+      : null;
+    const aging = (() => {
+      const a = L && L.caseAgeing ? L.caseAgeing : null;
+      if (!a) return null;
+      const defs = [["< 24h", a.under24h], ["1\u20133d", a.days1to3], ["3\u20137d", a.days3to7], ["> 7d", a.over7d]];
+      const mx = Math.max(1, ...defs.map((x) => Number(x[1]) || 0));
+      const cols = [COLORS.primary, "#5C86A8", COLORS.gold, COLORS.neg];
+      return defs.map((x, i) => ({ label: x[0], count: Number(x[1]) || 0, pct: (((Number(x[1]) || 0) / mx) * 100).toFixed(0), color: cols[i] }));
+    })();
+
+    /* ---- Revenue trend (section 05, currently hidden) ------------------- */
+    const series = dailySeries.map((x) => ({ label: String(x.date).slice(5), value: Number(x.sales) || 0 }));
 
     const allSel = selected.size === centres.length;
 
-    // ── Live overrides (real endpoint data replaces sample where available) ──
-    const L = live && live.live ? live : null;
-    const ePeriodRev = L ? L.periodRev : periodRev;
-    const eNet = ePeriodRev / 1.15, eVat = ePeriodRev - eNet;
-    const eSeries = (L && L.series && L.series.length) ? L.series : series;
-    const ePrevSeries = overlayPrev ? eSeries.map((s) => ({ label: s.label, value: s.value * 0.9 })) : null;
-    const eRevSpark = (L && eSeries.length) ? eSeries.slice(-10).map((s) => (s.value / 1e6)) : [6.1, 6.3, 6.2, 6.5, 7.0, 6.7, 6.9, 7.2, 7.05, 7.35];
-    const eFinKpis = L ? finKpis.map((k, i) => (
-      i === 0 ? { ...k, value: fmtSAR(eVat) } :
-      i === 1 ? { ...k, value: fmtSAR(eNet) } :
-      i === 2 ? { ...k, value: fmtSAR(L.receivables) } :
-      i === 3 ? (L.advanceHeld     == null ? k : { ...k, value: fmtSAR(L.advanceHeld) }) :
-      i === 4 ? (L.advanceRedeemed == null ? k : { ...k, value: fmtSAR(L.advanceRedeemed) }) :
-      i === 5 ? (L.refunds         == null ? k : { ...k, value: fmtSAR(L.refunds) }) : k
-    )) : finKpis;
-    const eGrowthKpis = L ? growthKpis.map((k, i) => (
-      i === 0 ? (L.newCustomers      == null ? k : { ...k, value: grp(L.newCustomers) }) :
-      i === 1 ? (L.activeCustomers   == null ? k : { ...k, value: grp(L.activeCustomers) }) :
-      i === 2 ? (L.activeMemberships == null ? k : { ...k, value: grp(L.activeMemberships) }) :
-      i === 3 ? (L.membershipRevenue == null ? k : { ...k, value: fmtSAR(L.membershipRevenue) }) :
-      i === 4 ? (L.loyaltyMembers    == null ? k : { ...k, value: grp(L.loyaltyMembers) }) : k
-    )) : growthKpis;
-    const ePointsEarned   = (L && L.pointsEarned   != null) ? grp(L.pointsEarned)   : null;
-    const ePointsRedeemed = (L && L.pointsRedeemed != null) ? grp(L.pointsRedeemed) : null;
-    const csMaxL = L ? Math.max(1, L.caseCounts.open, L.caseCounts.wip, L.caseCounts.closed) : 1;
-    const eCaseStatuses = L ? [
-      { label: ar ? "مفتوحة" : "Open", count: L.caseCounts.open, color: COLORS.accent },
-      { label: ar ? "قيد المعالجة" : "WIP", count: L.caseCounts.wip, color: COLORS.primary },
-      { label: ar ? "مغلقة" : "Closed", count: L.caseCounts.closed, color: "#85A2AA" },
-    ].map((x) => ({ ...x, pct: ((x.count / csMaxL) * 100).toFixed(0) })) : caseStatuses;
-    const eOpenCases = L ? (L.caseCounts.open + L.caseCounts.wip) : 148;
-    const eFunnelStages = L?.ltr?.buckets ? stageDefs.map((s) => ({ label: ar ? s.ar : s.en, value: L.ltr.buckets[s.key] || 0, raw: L.ltr.buckets[s.key] || 0 })) : funnelStages;
-    const eFunnelRate = L?.ltr?.buckets ? (L.ltr.buckets.captured ? ((L.ltr.buckets.purchased / L.ltr.buckets.captured) * 100).toFixed(1) : "0.0") : funnelRate;
-    const revenueFunnel = L?.ltr?.revenue ? [
-      { label: ar ? "معدل الشراء" : "Purchase Rate",          value: `${L.ltr.revenue.purchaseRate ?? 0}%` },
-      { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size",   value: fmtSAR(L.ltr.revenue.avgBasketSize || 0) },
-      { label: ar ? "إجمالي الإيرادات" : "Total Revenue",     value: fmtSAR(L.ltr.revenue.totalRevenue || 0) },
-      { label: ar ? "تكلفة اكتساب العميل" : "Lead Acq. Cost", value: fmtSAR((L.ltr.spend && L.ltr.spend.leadAcquisitionCost) || 0) },
-    ] : [
-      { label: ar ? "معدل الشراء" : "Purchase Rate",          value: "21.0%" },
-      { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size",   value: fmtSAR(1450) },
-      { label: ar ? "إجمالي الإيرادات" : "Total Revenue",     value: fmtSAR(377000) },
-      { label: ar ? "تكلفة اكتساب العميل" : "Lead Acq. Cost", value: fmtSAR(83) },
-    ];
-    const efVals = L ? [L.endFunnel.shown, L.endFunnel.invoices, L.endFunnel.noShows, L.endFunnel.shownNotInvoiced] : null;
-    const eEndFunnel = L ? endFunnelTiles.map((tile, i) => ({ ...tile, value: grp(efVals[i]) })) : endFunnelTiles;
-
-
     return {
       ar, t, dir: ar ? "rtl" : "ltr",
-      ranges: RANGE_KEYS.map((k, i) => ({
-        key: k, label: RANGE_LABELS[ar ? "ar" : "en"][i], active: range === k,
-      })),
+      ranges: RANGE_KEYS.map((k, i) => ({ key: k, label: RANGE_LABELS[ar ? "ar" : "en"][i], active: range === k })),
       centreOptions: centres.map((c) => ({ name: c.name, label: c.label || c.name, on: selected.has(c.name) })),
       allSel,
       centreSummary: allSel ? t.allCentres : ar ? selected.size + " مراكز" : selected.size + " centres",
       showCompare: compare,
-      totalRevenue: fmtSAR(ePeriodRev), revDelta: "8.4%", isLive: !!L,
-      revSpark: eRevSpark,
-      citizenPct: 63, expatPct: 37, citizenVal: fmtSAR(ePeriodRev * 0.63),
-      finKpis: eFinKpis, centreRanked,
-      topName: top ? (top.label || top.name) : "—", topVal: top ? fmtSAR(top.rev * f) : "",
-      botName: bot ? (bot.label || bot.name) : "—", botVal: bot ? fmtSAR(bot.rev * f) : "",
-      heatMonths, centreHeat,
-      growthKpis: eGrowthKpis, funnelStages: eFunnelStages, funnelRate: eFunnelRate, loyaltyTiers, leadSources, endFunnelTiles: eEndFunnel, revenueFunnel: revenueFunnel,
-      pointsEarned: ePointsEarned != null ? ePointsEarned : grp(1240000 * f), pointsRedeemed: ePointsRedeemed != null ? ePointsRedeemed : grp(780000 * f), campaigns,
-      openCases: eOpenCases, caseStatuses: eCaseStatuses, sla, slaTarget,
-      slaTag: atRisk ? (ar ? "تحت الخطر" : "At risk") : ar ? "ضمن الهدف" : "On target",
-      slaTagBg: atRisk ? "#F6EBD9" : "#E6F1EC", slaTagColor: atRisk ? "#B07C28" : COLORS.pos,
-      avgResolution: "6.4h", aging,
-      series: eSeries, prevSeries: ePrevSeries, trendRangeLabel: range,
+
+      loading: !!(live && live.loading),
+      loadFailed: !!(live && live.live === false),
+      hasHome: !!HOME,
+
+      // Financial
+      totalSales: HT && HT.A_totalSales != null ? fmtSAR(HT.A_totalSales) : DASH,
+      tileGroups, extraTiles, heroSpark, spendRows,
+
+      // Growth
+      growthKpis, funnelStages, funnelRate, endFunnelTiles, revenueFunnel,
+      pointsEarned:   count(L ? L.pointsEarned : null)   || DASH,
+      pointsRedeemed: count(L ? L.pointsRedeemed : null) || DASH,
+
+      // Operations
+      openCases, caseStatuses, sla, slaTarget,
+      slaTag: sla == null ? null : atRisk ? (ar ? "تحت الخطر" : "At risk") : ar ? "ضمن الهدف" : "On target",
+      slaTagBg: atRisk ? "#F6EBD9" : "#E6F1EC",
+      slaTagColor: atRisk ? "#B07C28" : COLORS.pos,
+      avgResolution, aging,
+
+      // Trend
+      series,
+      prevSeries: overlayPrev && series.length ? null : null, // no previous-period endpoint yet
+      trendRangeLabel: range,
     };
   }, [range, compare, overlayPrev, lang, selected, live, centres]);
 }
@@ -584,26 +600,27 @@ const SectionHeading = ({ num, title, sub }) => (
 
 const card = { background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16, padding: "20px 22px" };
 
-// Placeholder shown in place of a block's data when the tenant's plan lacks the feature.
-function LockedBlock({ feature, ar }) {
-  const meta = getFeatureMeta(feature);
-  const tier = minimumTierFor(feature);
-  const tierLabel = tier ? getTierLabel(tier) : null;
-  const msg = ar ? "قم بالترقية لعرض هذه البيانات" : "Upgrade to view this data";
-  const sub = tierLabel
-    ? (ar ? `متوفّر في باقة ${tierLabel}` : `Available on the ${tierLabel} plan`)
-    : (ar ? "إضافة مخصّصة" : "Custom add-on");
+/* ------------------------------------------------------------------ */
+/* Loading / empty states — shown INSTEAD of sample figures            */
+/* ------------------------------------------------------------------ */
+/* The progress bar, tile skeleton, awaiting-feed and error states all come
+   from the shared DashboardLoadingBar module so every EazyWeek dashboard shows
+   the same indicator. Only the page-level composition lives here.          */
+
+function DashboardLoading({ t }) {
   return (
-    <div style={{ ...card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "44px 24px", minHeight: 190 }}>
-      <div style={{ width: 54, height: 54, borderRadius: "50%", background: "rgba(209,154,62,0.14)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="5" y="10.5" width="14" height="9.5" rx="2" fill={COLORS.gold} />
-          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" stroke={COLORS.gold} strokeWidth="2" fill="none" />
-        </svg>
+    <div>
+      <div style={{ ...card, marginBottom: 16 }}>
+        <div style={{ maxWidth: 420 }}><DashboardLoadingBar label={t.loading} /></div>
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.ink }}>{meta.label}</div>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.primary, marginTop: 9 }}>{msg}</div>
-      <div style={{ fontSize: 12.5, color: "#8b95a2", marginTop: 5 }}>{sub}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 340px) repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 16 }}>
+        {["hero", "t1", "t2", "t3", "t4", "t5", "t6"].map((k) => <TileSkeleton key={k} />)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+        {["c1", "c2", "c3"].map((k) => (
+          <div key={k} style={card}><ChartLoading height={150} label={null} /></div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -618,20 +635,16 @@ export default function Dashboard() {
   const [lang, setLang] = useState("en");
   const [menuOpen, setMenuOpen] = useState(false);
   const [selected, setSelected] = useState(() => new Set(CENTRES.map((c) => c.name)));
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const live = useLiveDashboard({ range });
+  const live = useLiveDashboard({ range, reloadKey });
   const centreDir = useCentreDirectory();
   // Effective centre list: active centres from the hierarchy (name from the
   // API, mock rev kept by code). Falls back to the full static list until the
   // hierarchy has loaded.
   const activeCentres = useMemo(() => {
     if (!centreDir || !centreDir.codes.length) return CENTRES;
-    const byCode = Object.fromEntries(CENTRES.map((c) => [c.name, c]));
-    return centreDir.codes.map((code) => ({
-      name: code,
-      label: centreDir.names[code] || code,
-      rev: byCode[code] ? byCode[code].rev : 0,
-    }));
+    return centreDir.codes.map((code) => ({ name: code, label: centreDir.names[code] || code }));
   }, [centreDir]);
   // Once the hierarchy loads, keep the selection within the active centres.
   useEffect(() => {
@@ -757,56 +770,84 @@ export default function Dashboard() {
       </header>
 
       <main style={{ maxWidth: 1680, margin: "0 auto", padding: "24px 26px 60px" }}>
-        {/* live / sample indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: d.isLive ? "#E6F1EC" : "#F6EBD9", color: d.isLive ? COLORS.pos : "#B07C28" }}>{d.isLive ? "Live data" : "Sample data"}</span>
-          <span style={{ fontSize: 12, color: "#8b95a2" }}>{d.isLive ? "Revenue, cases, funnel & trend are live — centre performance, loyalty & campaigns are sample" : "Showing sample figures"}</span>
-        </div>
+        {/* Data-state strip. No "sample data" state exists any more. */}
+        {!d.loading && !d.loadFailed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#E6F1EC", color: COLORS.pos }}>Live data</span>
+            <span style={{ fontSize: 12, color: "#8b95a2" }}>
+              {d.hasHome
+                ? "Widgets with no endpoint yet are marked, not filled with placeholder figures"
+                : "Financial tiles need /api/Invoice/HomeDashboard deployed"}
+            </span>
+          </div>
+        )}
+
+        {d.loading ? (
+          <DashboardLoading t={d.t} />
+        ) : d.loadFailed ? (
+          <LoadError height={190} message={d.t.loadFailed} retryLabel={d.t.retry} onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : (
+        <>
         {/* ===================== 1. FINANCIAL HEALTH ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="01" title={d.t.financial} />
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 380px) 1fr", gap: 16, alignItems: "stretch" }}>
-            {/* Hero revenue card */}
-            <div style={{ background: COLORS.primary, color: "#fff", borderRadius: 16, padding: "22px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 30px rgba(15,124,138,0.28)", position: "relative", overflow: "hidden" }}>
+          {!d.hasHome ? (
+            <AwaitingFeed title={d.t.awaiting} height={180} />
+          ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 340px) repeat(auto-fit, minmax(160px, 1fr))", gap: 14, alignItems: "stretch" }}>
+            {/* Hero: A — Total Sales */}
+            <div style={{ background: COLORS.primary, color: "#fff", borderRadius: 16, padding: "22px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 30px rgba(24,57,110,0.28)", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,0.16), transparent 60%)", pointerEvents: "none" }} />
-              <div style={{ fontSize: 12.5, fontWeight: 500, color: "rgba(255,255,255,0.82)", letterSpacing: "0.01em" }}>{d.t.totalRevenue}</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 8 }}>
-                <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{d.totalRevenue}</div>
-                {d.showCompare && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: "#c9f7e4", paddingBottom: 4 }}>
-                    <span>▲</span>{d.revDelta}
+              <div style={{ fontSize: 12.5, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{d.t.tile.A}</div>
+              <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.05, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>{d.totalSales}</div>
+              {d.heroSpark && (
+                <div style={{ marginTop: 16, flex: 1, display: "flex", alignItems: "flex-end" }}>
+                  <div style={{ width: "100%" }}><Sparkline vals={d.heroSpark} color={COLORS.accent} /></div>
+                </div>
+              )}
+            </div>
+
+            {/* Five paired columns: B/C over D, E/F over G, H/I over J, K/L over M, N/O,
+                then the supplementary receivables / advance-held pair. */}
+            {d.tileGroups.map((g, gi) => (
+              <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ ...card, borderRadius: 14, padding: "16px 17px", flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+                  {g.top.map((tl, ti) => (
+                    <div key={tl.key} style={ti ? { paddingTop: 12, borderTop: "1px solid #eef1f5" } : undefined}>
+                      <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[tl.key]}</div>
+                      <div style={{ fontSize: ti ? 17 : 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums" }}>
+                        {tl.value == null ? "\u2014" : tl.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {g.bottom && (
+                  <div style={{ ...card, borderRadius: 14, padding: "16px 17px", background: "#F7F9FB" }}>
+                    <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{d.t.tile[g.bottom.key]}</div>
+                    <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums", color: COLORS.primary }}>
+                      {g.bottom.value == null ? "\u2014" : g.bottom.value}
+                    </div>
                   </div>
                 )}
               </div>
-              <div style={{ marginTop: 4, fontSize: 11.5, color: "rgba(255,255,255,0.7)" }}>{d.t.vsPrev}</div>
-              <div style={{ marginTop: 16 }}><Sparkline vals={d.revSpark} color={COLORS.accent} /></div>
-              <div style={{ height: 1, background: "rgba(255,255,255,0.16)", margin: "16px 0 14px" }} />
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)", letterSpacing: "0.02em", marginBottom: 9 }}>{d.t.citizenExpat}</div>
-              <div style={{ display: "flex", height: 9, borderRadius: 6, overflow: "hidden", background: "rgba(255,255,255,0.18)" }}>
-                <div style={{ width: `${d.citizenPct}%`, background: COLORS.accent }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 9, fontSize: 12 }}>
-                <div><span style={{ fontWeight: 700 }}>{d.citizenPct}%</span> <span style={{ color: "rgba(255,255,255,0.75)" }}>{d.t.citizen}</span> · {d.citizenVal}</div>
-                <div style={{ textAlign: "end" }}><span style={{ fontWeight: 700 }}>{d.expatPct}%</span> <span style={{ color: "rgba(255,255,255,0.75)" }}>{d.t.expat}</span></div>
-              </div>
-            </div>
+            ))}
 
-            {/* Secondary financial KPIs */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16 }}>
-              {d.finKpis.map((k, i) => (
-                <div key={i} style={{ ...card, borderRadius: 14, padding: "17px 18px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 12, color: "#7a8593", fontWeight: 500 }}>{k.label}</div>
-                  <div style={{ fontSize: 25, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 8, fontVariantNumeric: "tabular-nums" }}>{k.value}</div>
-                  {d.showCompare && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 9, fontSize: 12.5, fontWeight: 600, color: k.sentColor }}>
-                      <span style={{ fontSize: 10 }}>{k.arrow}</span>{k.delta}
-                      <span style={{ color: "#aeb6c1", fontWeight: 500 }}>{d.t.vsPrevShort}</span>
+            {!!d.extraTiles.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ ...card, borderRadius: 14, padding: "16px 17px", flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+                  {d.extraTiles.map((tl, ti) => (
+                    <div key={tl.label} style={ti ? { paddingTop: 12, borderTop: "1px solid #eef1f5" } : undefined}>
+                      <div style={{ fontSize: 11.5, color: "#7a8593", fontWeight: 500 }}>{tl.label}</div>
+                      <div style={{ fontSize: ti ? 17 : 21, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 5, fontVariantNumeric: "tabular-nums" }}>
+                        {tl.value == null ? "\u2014" : tl.value}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
+          )}
         </section>
 
         {/* ===================== 2. CENTRE PERFORMANCE ===================== */}
@@ -814,51 +855,45 @@ export default function Dashboard() {
           <SectionHeading num="02" title={d.t.centre} />
           {can("multiLocation") ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
-            {/* Ranked bars */}
+            {/* Target vs actual. Both the ranked bars AND the top/bottom performer
+                badges needed a per-centre period figure against a monthly target;
+                the target table does not exist yet, and the badges were reading
+                the old mock revenue, so the whole card is an explicit gap. */}
             <div style={card}>
-              <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-                <div style={{ flex: 1, background: "#E6F1EC", border: "1px solid #C6DDD3", borderRadius: 11, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#2F8F6B" }}>▲ {d.t.topPerformer}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{d.topName} <span style={{ color: "#7a8593", fontWeight: 500, fontSize: 12.5 }}>{d.topVal}</span></div>
-                </div>
-                <div style={{ flex: 1, background: "#FBEEEA", border: "1px solid #F2D8D2", borderRadius: 11, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#CE5C48" }}>▼ {d.t.bottomPerformer}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{d.botName} <span style={{ color: "#7a8593", fontWeight: 500, fontSize: 12.5 }}>{d.botVal}</span></div>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                {d.centreRanked.map((c) => (
-                  <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 74, fontSize: 12.5, fontWeight: 600, color: "#33404e", flex: "none" }}>{c.name}</div>
-                    <div style={{ flex: 1, height: 22, background: "#f2f4f7", borderRadius: 6, overflow: "hidden" }}>
-                      <div style={{ width: `${c.pct}%`, height: "100%", background: c.color, borderRadius: 6 }} />
-                    </div>
-                    <div style={{ width: 84, textAlign: "end", fontSize: 12.5, fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: "none" }}>{c.value}</div>
-                  </div>
-                ))}
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{d.t.centre}</div>
+              <div style={{ fontSize: 11.5, color: "#8b95a2", marginBottom: 15 }}>{d.t.centreSub}</div>
+              <AwaitingFeed title={d.t.awaiting} height={210} />
             </div>
 
-            {/* Heatmap */}
+            {/* Month-on-month average spend — real figures, non-refunded
+                invoices, last 6 months, from GET /api/Invoice/HomeDashboard. */}
             <div style={card}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{d.t.heatTitle}</div>
-              <div style={{ fontSize: 11.5, color: "#8b95a2", marginBottom: 15 }}>{d.t.heatSub}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "78px repeat(6, 1fr)", gap: 6, alignItems: "center" }}>
-                <div />
-                {d.heatMonths.map((m) => (
-                  <div key={m} style={{ fontSize: 10.5, color: "#9aa4b1", textAlign: "center", fontWeight: 500 }}>{m}</div>
-                ))}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                {d.centreHeat.map((row) => (
-                  <div key={row.name} style={{ display: "grid", gridTemplateColumns: "78px repeat(6, 1fr)", gap: 6, alignItems: "center" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#33404e" }}>{row.name}</div>
-                    {row.cells.map((cell, ci) => (
-                      <div key={ci} style={{ height: 30, borderRadius: 6, background: cell.bg, color: cell.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{cell.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{d.t.avgSpendTitle}</div>
+              <div style={{ fontSize: 11.5, color: "#8b95a2", marginBottom: 15 }}>{d.t.avgSpendSub}</div>
+              {!d.spendRows.rows.length ? (
+                <AwaitingFeed title={d.t.awaiting} height={150} />
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: `88px repeat(${d.spendRows.months.length}, 1fr) 62px`, gap: 6, alignItems: "center" }}>
+                    <div />
+                    {d.spendRows.months.map((m) => (
+                      <div key={m} style={{ fontSize: 10.5, color: "#9aa4b1", textAlign: "center", fontWeight: 500 }}>{m}</div>
+                    ))}
+                    <div style={{ fontSize: 10.5, color: "#9aa4b1", textAlign: "center", fontWeight: 700 }}>{ar ? "المتوسط" : "Avg"}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                    {d.spendRows.rows.map((row) => (
+                      <div key={row.name} style={{ display: "grid", gridTemplateColumns: `88px repeat(${d.spendRows.months.length}, 1fr) 62px`, gap: 6, alignItems: "center" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#33404e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</div>
+                        {row.cells.map((cell, ci) => (
+                          <div key={ci} style={{ height: 30, borderRadius: 6, background: cell.bg, color: cell.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{cell.label}</div>
+                        ))}
+                        <div style={{ height: 30, borderRadius: 6, background: COLORS.ink, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{row.avg}</div>
+                      </div>
                     ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           </div>
           ) : <LockedBlock feature="multiLocation" ar={ar} />}
@@ -873,11 +908,9 @@ export default function Dashboard() {
             {d.growthKpis.map((k, i) => (
               <div key={i} style={{ ...card, borderRadius: 14, padding: "16px 18px" }}>
                 <div style={{ fontSize: 12, color: "#7a8593", fontWeight: 500 }}>{k.label}</div>
-                <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 7, fontVariantNumeric: "tabular-nums" }}>{k.value}</div>
-                {d.showCompare && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 7, fontSize: 12.5, fontWeight: 600, color: k.sentColor }}>
-                    <span style={{ fontSize: 10 }}>{k.arrow}</span>{k.delta}
-                  </div>
+                <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 7, fontVariantNumeric: "tabular-nums", color: k.hasValue ? undefined : "#b8c0cb" }}>{k.value}</div>
+                {!k.hasValue && (
+                  <div style={{ fontSize: 10.5, color: "#9aa4b1", marginTop: 6, lineHeight: 1.35 }}>{d.t.awaiting}</div>
                 )}
               </div>
             ))}
@@ -888,10 +921,14 @@ export default function Dashboard() {
             <div style={{ ...card, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{d.t.funnel}</div>
-                <div style={{ fontSize: 12, color: "#7a8593" }}>{d.t.convRate} <span style={{ fontWeight: 700, color: "#2F8F6B", fontSize: 14 }}>{d.funnelRate}%</span></div>
+                {d.funnelRate != null && (
+                  <div style={{ fontSize: 12, color: "#7a8593" }}>{d.t.convRate} <span style={{ fontWeight: 700, color: "#2F8F6B", fontSize: 14 }}>{d.funnelRate}%</span></div>
+                )}
               </div>
               <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
-                <Funnel stages={d.funnelStages} ar={ar} />
+                {d.funnelStages
+                  ? <Funnel stages={d.funnelStages} ar={ar} />
+                  : <AwaitingFeed title={d.t.awaiting} height={300} />}
               </div>
             </div>
 
@@ -899,17 +936,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.leadsBySource}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                  {d.leadSources.map((s, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 92, fontSize: 12.5, fontWeight: 600, color: "#33404e", flex: "none" }}>{s.name}</div>
-                      <div style={{ flex: 1, height: 10, background: "#f2f4f7", borderRadius: 5, overflow: "hidden" }}>
-                        <div style={{ width: `${s.pct}%`, height: "100%", background: s.color, borderRadius: 5 }} />
-                      </div>
-                      <div style={{ width: 42, textAlign: "end", fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", flex: "none" }}>{s.value}</div>
-                    </div>
-                  ))}
-                </div>
+                <AwaitingFeed title={d.t.awaiting} height={132} />
               </div>
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{d.t.endFunnel}</div>
@@ -922,6 +949,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#33404e" }}>{ar ? "مسار الإيرادات" : "Revenue funnel"}</div>
+                {!d.revenueFunnel ? <AwaitingFeed title={d.t.awaiting} height={96} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                   {d.revenueFunnel.map((r, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5 }}>
@@ -930,6 +958,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
 
@@ -950,20 +979,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: "#7a8593", marginBottom: 8 }}>{d.t.tierDist}</div>
-                <div style={{ display: "flex", height: 12, borderRadius: 7, overflow: "hidden" }}>
-                  {d.loyaltyTiers.map((tier, i) => (
-                    <div key={i} style={{ width: `${tier.pct}%`, background: tier.color }} />
-                  ))}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 18px", marginTop: 12 }}>
-                  {d.loyaltyTiers.map((tier, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: 3, background: tier.color }} />
-                      <span style={{ fontWeight: 600 }}>{tier.name}</span>
-                      <span style={{ color: "#8b95a2", fontVariantNumeric: "tabular-nums" }}>{tier.count}</span>
-                    </div>
-                  ))}
-                </div>
+                <AwaitingFeed title={d.t.awaiting} height={96} />
               </div>
               ) : <LockedBlock feature="loyalty" ar={ar} />}
 
@@ -976,13 +992,9 @@ export default function Dashboard() {
                     <span style={{ width: 66, textAlign: "end" }}>{d.t.leads}</span>
                     <span style={{ width: 66, textAlign: "end" }}>{d.t.conv}</span>
                   </div>
-                  {d.campaigns.map((c, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", fontSize: 12.5, padding: "11px 0", borderBottom: "1px solid #f4f6f8" }}>
-                      <span style={{ flex: 1, fontWeight: 600, color: "#33404e" }}>{c.name}</span>
-                      <span style={{ width: 66, textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{c.leads}</span>
-                      <span style={{ width: 66, textAlign: "end", fontWeight: 700, color: c.convColor, fontVariantNumeric: "tabular-nums" }}>{c.conv}</span>
-                    </div>
-                  ))}
+                  <div style={{ paddingTop: 12 }}>
+                    <AwaitingFeed title={d.t.awaiting} height={110} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -999,9 +1011,10 @@ export default function Dashboard() {
             {/* Cases by status */}
             <div style={card}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 16 }}>
-                <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{d.openCases}</div>
+                <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{d.openCases == null ? "\u2014" : d.openCases}</div>
                 <div style={{ fontSize: 12.5, color: "#7a8593" }}>{d.t.openCases}</div>
               </div>
+              {!d.caseStatuses ? <AwaitingFeed title={d.t.awaiting} height={120} /> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {d.caseStatuses.map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1013,25 +1026,34 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
 
             {/* SLA + resolution */}
             <div style={{ ...card, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{d.t.sla}</div>
-                <div style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: d.slaTagBg, color: d.slaTagColor }}>{d.slaTag}</div>
+                {d.slaTag && (
+                  <div style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: d.slaTagBg, color: d.slaTagColor }}>{d.slaTag}</div>
+                )}
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-                <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: d.slaTagColor }}>{d.sla}%</div>
-                <div style={{ fontSize: 11.5, color: "#8b95a2", paddingBottom: 5 }}>{d.t.target} {d.slaTarget}%</div>
-              </div>
-              <div style={{ marginTop: 14, height: 10, background: "#f2f4f7", borderRadius: 6, position: "relative", overflow: "visible" }}>
-                <div style={{ width: `${d.sla}%`, height: "100%", background: d.slaTagColor, borderRadius: 6 }} />
-                <div style={{ position: "absolute", top: -4, insetInlineStart: `${d.slaTarget}%`, width: 2, height: 18, background: "#33404e" }} />
-              </div>
+              {d.sla == null ? (
+                <AwaitingFeed title={d.t.awaiting} height={96} />
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                    <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: d.slaTagColor }}>{d.sla}%</div>
+                    <div style={{ fontSize: 11.5, color: "#8b95a2", paddingBottom: 5 }}>{d.t.target} {d.slaTarget}%</div>
+                  </div>
+                  <div style={{ marginTop: 14, height: 10, background: "#f2f4f7", borderRadius: 6, position: "relative", overflow: "visible" }}>
+                    <div style={{ width: `${Math.min(100, d.sla)}%`, height: "100%", background: d.slaTagColor, borderRadius: 6 }} />
+                    <div style={{ position: "absolute", top: -4, insetInlineStart: `${d.slaTarget}%`, width: 2, height: 18, background: "#33404e" }} />
+                  </div>
+                </>
+              )}
               <div style={{ height: 1, background: "#edf0f3", margin: "18px 0" }} />
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{d.avgResolution}</div>
+                <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: d.avgResolution == null ? "#b8c0cb" : undefined }}>{d.avgResolution == null ? "\u2014" : d.avgResolution}</div>
                 <div style={{ fontSize: 12.5, color: "#7a8593" }}>{d.t.avgResolution}</div>
               </div>
             </div>
@@ -1039,6 +1061,7 @@ export default function Dashboard() {
             {/* Aging */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.aging}</div>
+              {!d.aging ? <AwaitingFeed title={d.t.awaiting} height={130} /> : (
               <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 130 }}>
                 {d.aging.map((a, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%", justifyContent: "flex-end" }}>
@@ -1048,6 +1071,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           </div>
           ) : <LockedBlock feature="caseManagement" ar={ar} />}
@@ -1077,9 +1101,11 @@ export default function Dashboard() {
                 {d.t.overlayPrev}
               </button>
             </div>
-            <div><LineChart series={d.series} prevSeries={d.prevSeries} /></div>
+            <div>{d.series.length > 1 ? <LineChart series={d.series} prevSeries={d.prevSeries} /> : <AwaitingFeed title={d.t.awaiting} height={200} />}</div>
           </div>
         </section>
+        </>
+        )}
       </main>
     </div>
   );

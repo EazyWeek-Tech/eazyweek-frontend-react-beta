@@ -10,9 +10,24 @@ const authDelete = async (url) => {
   const r = await fetch(url, { method:"DELETE", headers:{ Authorization:`Bearer ${TOKEN()}` } });
   return r.json();
 };
-const authPost = async (url, body) => { const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) }); return r.json(); };
+const authPost = async (url, body) => {
+  const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${TOKEN()}` }, body:JSON.stringify(body) });
+  // A large payload (logo) can be rejected by the body parser / proxy with an
+  // HTML error page. r.json() then throws a parse error that hides the real
+  // cause, so read as text first and report the status when it is not JSON.
+  const raw = await r.text();
+  try { return JSON.parse(raw); }
+  catch {
+    const hint = r.status === 413 ? "The file is too large for the server to accept." : (raw.slice(0, 120) || "No response body.");
+    return { success:false, message:`Save failed (HTTP ${r.status}). ${hint}` };
+  }
+};
 
 const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup","Advance"];
+
+// FRD 4.8.2: Purpose is mandatory on every centre address. Same list the Legal
+// Entity screen uses, so both write the identical values to PURPOSE.
+const ADDRESS_PURPOSES = ["Head Office","Billing","Shipping","Office Branch"];
 
 const TAX_TYPES = {
   "Saudi Arabia": ["VAT Number","CR Number","Zakat Registration Number"],
@@ -291,6 +306,9 @@ export default function CentreSetup() {
         if (!addresses.length) throw new Error("At least one address is required.");
         if (!addresses.some(a => a.isPrimary === true))
           throw new Error("A primary address is mandatory.");
+        const noPurpose = addresses.findIndex(a => !(a.purpose || "").trim());
+        if (noPurpose !== -1)
+          throw new Error(`Purpose is required for Address #${noPurpose + 1}.`);
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveAddresses`, { centerCode: selected, addresses });
       } else if (activeTab === "Contact") {
         if (!contacts.some(c => c.isPrimary && c.contactType === "Phone"))
@@ -513,7 +531,7 @@ export default function CentreSetup() {
                         <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Address Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Multiple addresses allowed; one must be marked primary.</div>
                       </div>
-                      <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", isPrimary: p.length === 0 }])}>
+                      <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", purpose: p.length === 0 ? "Head Office" : "Billing", isPrimary: p.length === 0 }])}>
                         + Add Address
                       </button>
                     </div>
@@ -541,6 +559,14 @@ export default function CentreSetup() {
                             style={{ border:"1px solid #e7ecf4", borderRadius:8, padding:"10px 12px", fontSize:13,
                               width:"100%", boxSizing:"border-box", resize:"vertical", outline:"none" }}
                             onChange={e => setAddresses(p => p.map((x,i) => i===idx ? {...x, address:e.target.value} : x))} />
+                        </div>
+                        <div className="field" style={{ marginBottom:10, maxWidth:260 }}>
+                          <label>Purpose *</label>
+                          <select value={a.purpose || ""}
+                            onChange={e => setAddresses(p => p.map((x,i) => i===idx ? {...x, purpose:e.target.value} : x))}>
+                            <option value="">-- Select Purpose --</option>
+                            {ADDRESS_PURPOSES.map(pp => <option key={pp} value={pp}>{pp}</option>)}
+                          </select>
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                           <div style={{ width:44, height:24, borderRadius:24,
