@@ -4,13 +4,19 @@
   import { useLocation, useNavigate, useParams } from "react-router-dom";
   import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
+  import { OPP_THEME_CSS } from "./opportunityTheme";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
   const pad2 = (n) => String(n).padStart(2, "0");
 
-  const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
   const OPP_TYPE = "Transaction";  // R5/R6: use the same dispositions as transaction rules (CLINIC_LEADSTATUS WHERE TRANSTYPE='Transaction') for now
+
+  /** Follow-up belongs to WIP only — any other disposition hides the pair. */
+  const isWipLabel = (label) => {
+    const s = safe(label).trim().toLowerCase();
+    return s === "wip" || s === "work in progress";
+  };
 
   const getTodayInputDate = () => {
     const d = new Date();
@@ -469,13 +475,12 @@ const getCenterFromStorage = () => {
         dispositionId: safe(row?.dispositionCode || ""),
         subDispositionId: safe(row?.subDispositionCode || ""),
 
+        // Follow-up is optional and starts blank — only a genuine (non-placeholder)
+        // stored date shows.
         followUpDate: (() => {
           const d = toInputDate(row?.followUpDate);
-          // default to tomorrow unless a genuine (non-placeholder) date already exists
-          return d && !d.startsWith("1900") && !d.startsWith("0001") ? d : getTomorrowInputDate();
+          return d && !d.startsWith("1900") && !d.startsWith("0001") ? d : "";
         })(),
-
-        followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
 
         medium: safe(row?.medium || ""),          // ✅ text (disabled)
   subMedium: safe(row?.subMedium || ""),    // ✅ text (disabled)
@@ -484,7 +489,7 @@ const getCenterFromStorage = () => {
   subSource: safe(row?.subSource || ""),  // optional
 
   // API returns: followUptime + followUpAMPM
-  followUpTime: toUiTimeLabel(row?.followUptime, row?.followUpAMPM) || DEFAULT_FOLLOWUP_TIME_LABEL,
+  followUpTime: toUiTimeLabel(row?.followUptime, row?.followUpAMPM),
 
 
 
@@ -493,6 +498,15 @@ const getCenterFromStorage = () => {
         remarks: safe(row?.remarks || ""),
       };
     });
+
+    // Follow-up date/time are shown only while the lead is still WIP; for WIP they
+    // are mandatory. Any other disposition hides them (and clears them on change).
+    const isWipSelected = useMemo(() => {
+      const sel = safe(form.dispositionId).trim();
+      if (!sel) return false;
+      const opt = dispositionOptions.find((o) => safe(o.value).trim() === sel);
+      return isWipLabel(opt?.label);
+    }, [dispositionOptions, form.dispositionId]);
 
     // ✅ sessionCenter computed safely
     const [sessionCenter, setSessionCenter] = useState("");
@@ -528,7 +542,7 @@ setSessionCenter(code);
       countryCode: "", nationalityId: "", dateOfBirth: "", gender: "",
     });
     const cInput = { width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #cfd6e4", borderRadius: 8, boxSizing: "border-box" };
-    const cBtn   = { background: "#0b1b37", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
+    const cBtn   = { background: "#18396E", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
 
     useEffect(() => {
       let alive = true;
@@ -902,23 +916,24 @@ if (!hasNone) {
         if (name === "followUpDate") {
     const v = safe(value).trim();
     const min = getTodayInputDate(); // ✅ allow today
-    if (!v) {
-      // if user clears, go back to tomorrow default
-      next.followUpDate = getTomorrowInputDate();
-    } else {
-      // don’t allow selecting before today
-      next.followUpDate = v < min ? min : v;
-    }
+    // Follow-up is optional: clearing the field leaves it blank.
+    // A picked date still may not be before today.
+    next.followUpDate = !v ? "" : v < min ? min : v;
   }
 
-
-        if (name === "followUpTime" && !safe(value).trim()) {
-          next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
-        }
+        // Follow-up time is optional too — "--" stays "--".
 
         // if disposition changes, clear subDisposition immediately (API will repopulate)
         if (name === "dispositionId") {
           next.subDispositionId = "";
+
+          // Moving off WIP hides the follow-up pair — drop any value it held so a
+          // stale date/time is never submitted.
+          const opt = dispositionOptions.find((o) => safe(o.value).trim() === safe(value).trim());
+          if (!isWipLabel(opt?.label)) {
+            next.followUpDate = "";
+            next.followUpTime = "";
+          }
         }
 
         return next;
@@ -946,6 +961,12 @@ if (!hasNone) {
       if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
 
       // Master rule has no external Source — not required here.
+
+      // Mandatory only when the disposition is WIP.
+      if (isWipSelected) {
+        if (!safe(form.followUpDate).trim()) e.followUpDate = "Follow Up Date is required.";
+        if (!safe(form.followUpTime).trim()) e.followUpTime = "Follow Up Time is required.";
+      }
 
       setErrors(e);
       return Object.keys(e).length === 0;
@@ -1042,6 +1063,7 @@ if (!hasNone) {
         // Case B (not mandatory) → treat the save as final (Appointment ID shows Pending).
         if (saveRes && saveRes.convert && saveRes.apptMandatory !== false && safe(resolvedCustID).trim()) {
           const cid = safe(resolvedCustID).trim();
+          const pf  = saveRes?.prefillCustomer || {};
           navigate(APPOINTMENT_ROUTE, { state: {
             ltrConversion: {
               leadSource: saveRes.leadSource || "TRANS",
@@ -1049,12 +1071,18 @@ if (!hasNone) {
               oppCode:    safe(resolvedOppCode).trim(),
               custId:     cid,
             },
+            // prefillCustomer is the customer record behind the lead (resolved by
+            // UpdateOppDetails); the form values are the fallback. The grid row
+            // only ever had a single CustName string, never email or gender.
             newCustomer: {
               custId: cid, custid: cid,
-              firstName: safe(form.firstName).trim(),
-              lastName:  safe(form.lastName).trim(),
-              mobile:    safe(form.mobile).trim(),
-              name:      `${safe(form.firstName).trim()} ${safe(form.lastName).trim()}`.trim(),
+              firstName:   safe(pf.firstName).trim() || safe(form.firstName).trim(),
+              lastName:    safe(pf.lastName).trim()  || safe(form.lastName).trim(),
+              mobile:      safe(pf.mobile).trim()    || safe(form.mobile).trim(),
+              name:        safe(pf.name).trim()      || `${safe(form.firstName).trim()} ${safe(form.lastName).trim()}`.trim(),
+              email:       safe(pf.email).trim()     || safe(form.email).trim(),
+              gender:      safe(pf.gender).trim(),
+              countryCode: safe(pf.countryCode).trim() || safe(form.countryCode).trim(),
             },
           }});
           return;
@@ -1074,7 +1102,7 @@ if (!hasNone) {
   const clientMobile = "9819061936";  
 
     return (
-      <>
+      <div className="ewOpp">
         {toast.show && <div className="toast">{toast.msg}</div>}
 
         <div className="pageWrap">
@@ -1339,9 +1367,11 @@ if (!hasNone) {
                 </div>
               </div>
 
+              {/* Follow-up is a WIP-only field pair. */}
+              {isWipSelected && (
               <div className="col">
                 <div className="field">
-                  <label>Follow Up Date</label>
+                  <label>Follow Up Date *</label>
                   <input
                     type="date"
                     className="inp"
@@ -1350,10 +1380,13 @@ if (!hasNone) {
                     onChange={onChange}
                     min={minFollowUpDate}
                   />
+                  {errors.followUpDate && (
+                    <div className="errText">{errors.followUpDate}</div>
+                  )}
                 </div>
 
                 <div className="field">
-                  <label>Follow Up Time</label>
+                  <label>Follow Up Time *</label>
                   <select
                     className="inp"
                     name="followUpTime"
@@ -1366,8 +1399,12 @@ if (!hasNone) {
                       </option>
                     ))}
                   </select>
+                  {errors.followUpTime && (
+                    <div className="errText">{errors.followUpTime}</div>
+                  )}
                 </div>
               </div>
+              )}
             </div>
 
             <div className="field mtWide">
@@ -1389,230 +1426,18 @@ if (!hasNone) {
               </button>
             )}
 
-            <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+            <button className="btn ghost" onClick={() => navigate(-1)} disabled={saving}>
               Back
             </button>
           </div>
         </div>
 
-        <style jsx="true">{`
-          .toast {
-            position: fixed;
-            right: 18px;
-            top: 40%;
-            background: #c66752;
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 700;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-            z-index: 9999;
-            text-align: center;
-            display: flex;
-            justify-content: center;
-          }
-
-          .pageWrap {
-            padding: 18px 18px 28px;
-            background: #fff;
-          }
-          .pageHeader {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 14px;
-            margin-bottom: 14px;
-          }
-          .pageTitle {
-            font-size: 18px;
-            font-weight: 700;
-            margin: 0 0 10px;
-            color: #1d2a3b;
-          }
-          .subTitle {
-            margin-bottom: 15px;
-            font-size: 12px;
-            color: #7b8798;
-            font-weight: 700;
-          }
-
-          .ssWrap {
-  position: relative;
-  width: 100%;
-}
-.ssWrap.isDisabled {
-  opacity: 0.7;
-}
-.ssMenu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  background: #fff;
-  border: 1px solid #d7dee8;
-  border-radius: 10px;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.12);
-  max-height: 280px;
-  overflow: auto;
-  z-index: 9999;
-}
-.ssItem {
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #eef2f7;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ssItem:last-child {
-  border-bottom: 0;
-}
-.ssItem:hover {
-  background: #f8fafc;
-}
-.ssItem.active {
-  background: #eef2ff;
-}
-.ssItem.muted {
-  cursor: default;
-  color: #6b7280;
-}
-.ssLabel {
-  font-size: 13px;
-  font-weight: 600;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 80%;
-}
-.ssCode {
-  font-size: 12px;
-  font-weight: 800;
-  color: #64748b;
-  flex: 0 0 auto;
-  display:none;
-}
-
-
-          .fs {
-            border: 1px solid #e6ebf2;
-            border-radius: 10px;
-            padding: 14px 14px 16px;
-            margin-bottom: 14px;
-            background: #fff;
-          }
-          .fs legend {
-            padding: 0 8px;
-            font-weight: 800;
-            font-size: 16px;
-            color: #1f2937;
-          }
-
-          .formGrid3 {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 18px;
-            margin-top: 8px;
-          }
-          .formGrid2 {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 18px;
-            margin-top: 8px;
-          }
-
-          .col {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-          }
-          .col .field {
-            min-width: 35%;
-          }
-
-          .field label {
-            display: inline-block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            margin-bottom: 6px;
-          }
-          .req {
-            color: #c62828;
-            font-weight: 900;
-          }
-
-          .inp {
-            width: 100%;
-            height: 40px;
-            border-radius: 8px;
-            border: 1px solid #d7dee8;
-            padding: 0 12px;
-            background: #fff;
-            outline: none;
-          }
-          .inp:focus {
-            border-color: #94a3b8;
-          }
-          .txta {
-            width: 100%;
-            border-radius: 8px;
-            border: 1px solid #d7dee8;
-            padding: 10px 12px;
-            background: #fff;
-            outline: none;
-            resize: vertical;
-          }
-
-          .errText {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #d32f2f;
-            font-weight: 600;
-          }
-          .mtWide {
-            margin-top: 12px;
-          }
-
-          .btnRow {
-            display: flex;
-            gap: 16px;
-            margin-top: 16px;
-          }
-          .btn {
-            background: #0b1b37;
-            color: #fff;
-            border: 0;
-            border-radius: 10px;
-            padding: 11px 26px;
-            font-weight: 700;
-            cursor: pointer;
-          }
-          .btn:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-          }
-          .btn:hover:not(:disabled) {
-            opacity: 0.95;
-          }
-
-          @media (max-width: 1100px) {
-            .formGrid3 {
-              grid-template-columns: 1fr;
-            }
-            .formGrid2 {
-              grid-template-columns: 1fr;
-            }
-          }
-        `}</style>
+        <style jsx="true">{OPP_THEME_CSS}</style>
 
       {showCustomerPopup && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(560px, 92vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>Create Customer</h3>
+            <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>Create Customer</h3>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "#555" }}>
               This lead is being converted. Confirm the details below to add them as a customer.
             </p>
@@ -1657,7 +1482,7 @@ if (!hasNone) {
           </div>
         </div>
       )}
-      </>
+      </div>
     );
   };
 

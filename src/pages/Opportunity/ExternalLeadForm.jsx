@@ -4,13 +4,19 @@
   import { useLocation, useNavigate, useParams } from "react-router-dom";
   import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
+  import { OPP_THEME_CSS } from "./opportunityTheme";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
   const pad2 = (n) => String(n).padStart(2, "0");
 
-  const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
   const OPP_TYPE = "ExternalSource";
+
+  /** Follow-up belongs to WIP only — any other disposition hides the pair. */
+  const isWipLabel = (label) => {
+    const s = safe(label).trim().toLowerCase();
+    return s === "wip" || s === "work in progress";
+  };
 
   const getTodayInputDate = () => {
     const d = new Date();
@@ -463,9 +469,8 @@ const getCenterFromStorage = () => {
         dispositionId: safe(row?.dispositionCode || ""),
         subDispositionId: safe(row?.subDispositionCode || ""),
 
-        followUpDate: toInputDate(row?.followUpDate) || getTomorrowInputDate(),
-
-        followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
+        // Follow-up is optional and starts blank — only a genuine stored date shows.
+        followUpDate: toInputDate(row?.followUpDate),
 
         medium: safe(row?.medium || ""),          // ✅ text (disabled)
   subMedium: safe(row?.subMedium || ""),    // ✅ text (disabled)
@@ -474,7 +479,7 @@ const getCenterFromStorage = () => {
   subSource: safe(row?.subSource || ""),  // optional
 
   // API returns: followUptime + followUpAMPM
-  followUpTime: toUiTimeLabel(row?.followUptime, row?.followUpAMPM) || DEFAULT_FOLLOWUP_TIME_LABEL,
+  followUpTime: toUiTimeLabel(row?.followUptime, row?.followUpAMPM),
 
 
 
@@ -483,6 +488,15 @@ const getCenterFromStorage = () => {
         remarks: safe(row?.remarks || ""),
       };
     });
+
+    // Follow-up date/time are shown only while the lead is still WIP; for WIP they
+    // are mandatory. Any other disposition hides them (and clears them on change).
+    const isWipSelected = useMemo(() => {
+      const sel = safe(form.dispositionId).trim();
+      if (!sel) return false;
+      const opt = dispositionOptions.find((o) => safe(o.value).trim() === sel);
+      return isWipLabel(opt?.label);
+    }, [dispositionOptions, form.dispositionId]);
 
     // ✅ sessionCenter computed safely
     const [sessionCenter, setSessionCenter] = useState("");
@@ -524,7 +538,7 @@ setSessionCenter(code);
     // LTR: conversion context captured on a converting save (Case A routing).
     const [convertCtx, setConvertCtx] = useState(null);
     const [convertedCustomer, setConvertedCustomer] = useState(null);
-    const cBtn   = { background: "#0b1b37", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
+    const cBtn   = { background: "#18396E", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
 
     /** ---------------- Load Sources ---------------- */
   useEffect(() => {
@@ -854,23 +868,24 @@ if (!hasNone) {
         if (name === "followUpDate") {
     const v = safe(value).trim();
     const min = getTodayInputDate(); // ✅ allow today
-    if (!v) {
-      // if user clears, go back to tomorrow default
-      next.followUpDate = getTomorrowInputDate();
-    } else {
-      // don’t allow selecting before today
-      next.followUpDate = v < min ? min : v;
-    }
+    // Follow-up is optional: clearing the field leaves it blank.
+    // A picked date still may not be before today.
+    next.followUpDate = !v ? "" : v < min ? min : v;
   }
 
-
-        if (name === "followUpTime" && !safe(value).trim()) {
-          next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
-        }
+        // Follow-up time is optional too — "--" stays "--".
 
         // if disposition changes, clear subDisposition immediately (API will repopulate)
         if (name === "dispositionId") {
           next.subDispositionId = "";
+
+          // Moving off WIP hides the follow-up pair — drop any value it held so a
+          // stale date/time is never submitted.
+          const opt = dispositionOptions.find((o) => safe(o.value).trim() === safe(value).trim());
+          if (!isWipLabel(opt?.label)) {
+            next.followUpDate = "";
+            next.followUpTime = "";
+          }
         }
 
         return next;
@@ -898,6 +913,12 @@ if (!hasNone) {
       if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
 
       if (!safe(form.source).trim()) e.source = "Source is required.";
+
+      // Mandatory only when the disposition is WIP.
+      if (isWipSelected) {
+        if (!safe(form.followUpDate).trim()) e.followUpDate = "Follow Up Date is required.";
+        if (!safe(form.followUpTime).trim()) e.followUpTime = "Follow Up Time is required.";
+      }
 
       setErrors(e);
       return Object.keys(e).length === 0;
@@ -945,6 +966,7 @@ if (!hasNone) {
 
       setSaving(true);
       try {
+        // Blank follow-up stays blank all the way to the API.
         const { hhmmss, ampm } = toApiFollowUpTimeParts(form.followUpTime);
         const nm = normalizeMobileForApi(form.countryCode, form.mobile);
 
@@ -1038,7 +1060,7 @@ if (!hasNone) {
   const clientMobile = "9819061936";  
 
     return (
-      <>
+      <div className="ewOpp">
         {toast.show && <div className="toast">{toast.msg}</div>}
 
         <div className="pageWrap">
@@ -1067,340 +1089,350 @@ if (!hasNone) {
           </div>
             
 
-            <div className="formGrid3">
-              <div className="col">
-                <div className="field">
-                  <label>
-                    First Name <span className="req">*</span>
-                  </label>
-                  <input
-                    className={`inp ${errors.firstName ? "err" : ""}`}
-                    name="firstName" autoComplete="one-time-code"
-                    value={form.firstName}
-                    onChange={onChange}
-                    placeholder="First Name"
-                  />
-                  {errors.firstName && <div className="errText">{errors.firstName}</div>}
-                </div>
-
-                <div className="field">
-                  <label>
-                    Last Name <span className="req">*</span>
-                  </label>
-                  <input
-                    className={`inp ${errors.lastName ? "err" : ""}`}
-                    name="lastName" autoComplete="one-time-code"
-                    value={form.lastName}
-                    onChange={onChange}
-                    placeholder="Last Name"
-                  />
-                  {errors.lastName && <div className="errText">{errors.lastName}</div>}
-                </div>
-
-                <div className="field">
-                  <label>Country Code</label>
-                  <input
-                    className="inp"
-                    name="countryCode" autoComplete="one-time-code"
-                    value={form.countryCode}
-                    onChange={onChange}
-                    placeholder="Country Code"
-                  />
-                </div>
-
-                <div className="field">
-                  <label>
-                    Mobile <span className="req">*</span>
-                  </label>
-                  <input
-                    className={`inp ${errors.mobile ? "err" : ""}`}
-                    name="mobile" autoComplete="one-time-code"
-                    value={form.mobile}
-                    onChange={onChange}
-                    placeholder="Mobile"
-                  />
-                  {errors.mobile && <div className="errText">{errors.mobile}</div>}
-                </div>
-
-                <div className="field">
-                  <label>Email</label>
-                  <input
-                    className={`inp ${errors.email ? "err" : ""}`}
-                    name="email" autoComplete="one-time-code"
-                    value={form.email}
-                    onChange={onChange}
-                    placeholder="Email"
-                  />
-                  {errors.email && <div className="errText">{errors.email}</div>}
-                </div>
+            {/* Row-major, two columns — same field order/placement as the
+                manual lead form and the previous (pre-retheme) layout. */}
+            <div className="formGrid2">
+              <div className="field">
+                <label>
+                  First Name <span className="req">*</span>
+                </label>
+                <input
+                  className={`inp ${errors.firstName ? "err" : ""}`}
+                  name="firstName" autoComplete="one-time-code"
+                  value={form.firstName}
+                  onChange={onChange}
+                  placeholder="First Name"
+                />
+                {errors.firstName && <div className="errText">{errors.firstName}</div>}
               </div>
 
-              <div className="col">
-                <div className="field">
-                  <label>Preferred Language</label>
-                  <select
-                    className="inp"
-                    name="preferredLanguage"
-                    value={form.preferredLanguage}
-                    onChange={onChange}
-                  >
-                    {langOptions.map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="field">
+                <label>
+                  Last Name <span className="req">*</span>
+                </label>
+                <input
+                  className={`inp ${errors.lastName ? "err" : ""}`}
+                  name="lastName" autoComplete="one-time-code"
+                  value={form.lastName}
+                  onChange={onChange}
+                  placeholder="Last Name"
+                />
+                {errors.lastName && <div className="errText">{errors.lastName}</div>}
+              </div>
 
-                <div className="field">
-                  <label>
-                    Centre <span className="req">*</span>
-                  </label>
-                  <select
-                    className={`inp ${errors.centerCode ? "err" : ""}`}
-                    name="centerCode"
-                    value={form.centerCode}
-                    onChange={onChange}
-                  >
-                    {centerOptions.map((o) => (
-                      <option key={o.value || o.label} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
-                </div>
+              <div className="field">
+                <label>Country Code</label>
+                <input
+                  className="inp"
+                  name="countryCode" autoComplete="one-time-code"
+                  value={form.countryCode}
+                  onChange={onChange}
+                  placeholder="Country Code"
+                />
+              </div>
 
-                <div className="field">
-                  <label>
-                    Interested In <span className="req">*</span>
-                  </label>
-                  <select
-                    className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
-                    name="interestedVerticalCode"
-                    value={form.interestedVerticalCode}
-                    onChange={(e) => {
-                      const code = e.target.value;
-                      const opt = verticalOptions.find((x) => x.value === code);
-                      setForm((p) => ({
-                        ...p,
-                        interestedVerticalCode: code,
-                        interestedVerticalName: opt?.label || "",
-                      }));
-                      setErrors((prev) => {
-                        if (!prev.interestedVerticalCode) return prev;
-                        const { interestedVerticalCode: _, ...rest } = prev;
-                        return rest;
-                      });
-                    }}
-                  >
-                    {verticalOptions.map((o) => (
-                      <option key={o.value || o.label} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.interestedVerticalCode && (
-                    <div className="errText">{errors.interestedVerticalCode}</div>
-                  )}
-                </div>
+              <div className="field">
+                <label>
+                  Mobile <span className="req">*</span>
+                </label>
+                <input
+                  className={`inp ${errors.mobile ? "err" : ""}`}
+                  name="mobile" autoComplete="one-time-code"
+                  value={form.mobile}
+                  onChange={onChange}
+                  placeholder="Mobile"
+                />
+                {errors.mobile && <div className="errText">{errors.mobile}</div>}
+              </div>
 
-                <div className="field">
-                  <label>
-                    Doctor / Therapist <span className="req">*</span>
-                  </label>
-                  <select
-                    className={`inp ${errors.doctor ? "err" : ""}`}
-                    name="doctor"
-                    value={form.doctor}
-                    onChange={(e) => {
-                      const code = e.target.value;
-                      const opt = doctorOptions.find((x) => x.value === code);
-                      setForm((p) => ({
-                        ...p,
-                        doctor: code,
-                        doctorName: opt?.label || "",
-                      }));
-                      setErrors((prev) => {
-                        if (!prev.doctor) return prev;
-                        const { doctor: _, ...rest } = prev;
-                        return rest;
-                      });
-                    }}
-                  >
-                    {doctorOptions.map((d) => (
-                      <option key={d.value || d.label} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.doctor && <div className="errText">{errors.doctor}</div>}
-                </div>
+              <div className="field">
+                <label>Email</label>
+                <input
+                  className={`inp ${errors.email ? "err" : ""}`}
+                  name="email" autoComplete="one-time-code"
+                  value={form.email}
+                  onChange={onChange}
+                  placeholder="Email"
+                />
+                {errors.email && <div className="errText">{errors.email}</div>}
+              </div>
 
-                <div className="field">
-    <label>Medium</label>
-    <input
-      className="inp"
-      name="medium"
-      value={form.medium}
-      onChange={onChange}
-      disabled
-      placeholder="Medium"
-    />
-  </div>
+              {/* Email sits alone on its row — keeps Preferred Language starting
+                  a fresh row on the left. */}
+              <div className="fieldSpacer" aria-hidden="true" />
 
-  <div className="field">
-    <label>Sub Medium</label>
-    <input
-      className="inp"
-      name="subMedium"
-      value={form.subMedium}
-      onChange={onChange}
-      disabled
-      placeholder="Sub Medium"
-    />
-  </div>
+              <div className="field">
+                <label>Preferred Language</label>
+                <select
+                  className="inp"
+                  name="preferredLanguage"
+                  value={form.preferredLanguage}
+                  onChange={onChange}
+                >
+                  {langOptions.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-  <div className="field">
-  <label>
-    Source <span className="req">*</span>
-  </label>
+              <div className="field">
+                <label>
+                  Centre <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.centerCode ? "err" : ""}`}
+                  name="centerCode"
+                  value={form.centerCode}
+                  onChange={onChange}
+                >
+                  {centerOptions.map((o) => (
+                    <option key={o.value || o.label} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
+              </div>
 
-  <select
-    className={`inp ${errors.source ? "err" : ""}`}
-    name="source"
-    value={form.source}
-    onChange={(e) => {
-      const code = e.target.value;
-      setForm((p) => ({
-        ...p,
-        source: code,
-        subSource: "", // reset
-      }));
+              <div className="field">
+                <label>
+                  Doctor / Therapist <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.doctor ? "err" : ""}`}
+                  name="doctor"
+                  value={form.doctor}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const opt = doctorOptions.find((x) => x.value === code);
+                    setForm((p) => ({
+                      ...p,
+                      doctor: code,
+                      doctorName: opt?.label || "",
+                    }));
+                    setErrors((prev) => {
+                      if (!prev.doctor) return prev;
+                      const { doctor: _, ...rest } = prev;
+                      return rest;
+                    });
+                  }}
+                >
+                  {doctorOptions.map((d) => (
+                    <option key={d.value || d.label} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.doctor && <div className="errText">{errors.doctor}</div>}
+              </div>
 
-      setErrors((prev) => {
-        if (!prev.source) return prev;
-        const { source: _, ...rest } = prev;
-        return rest;
-      });
-    }}
-  >
-    {sourceOptions.map((o) => (
-      <option key={o.value || o.label} value={o.value}>
-        {o.label}
-      </option>
-    ))}
-  </select>
+              <div className="field">
+                <label>
+                  Interested In <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
+                  name="interestedVerticalCode"
+                  value={form.interestedVerticalCode}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const opt = verticalOptions.find((x) => x.value === code);
+                    setForm((p) => ({
+                      ...p,
+                      interestedVerticalCode: code,
+                      interestedVerticalName: opt?.label || "",
+                    }));
+                    setErrors((prev) => {
+                      if (!prev.interestedVerticalCode) return prev;
+                      const { interestedVerticalCode: _, ...rest } = prev;
+                      return rest;
+                    });
+                  }}
+                >
+                  {verticalOptions.map((o) => (
+                    <option key={o.value || o.label} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.interestedVerticalCode && (
+                  <div className="errText">{errors.interestedVerticalCode}</div>
+                )}
+              </div>
 
-  {errors.source && <div className="errText">{errors.source}</div>}
-</div>
+              <div className="field">
+                <label>Medium</label>
+                <input
+                  className="inp"
+                  name="medium"
+                  value={form.medium}
+                  onChange={onChange}
+                  disabled
+                  placeholder="Medium"
+                />
+              </div>
 
+              <div className="field">
+                <label>Sub Medium</label>
+                <input
+                  className="inp"
+                  name="subMedium"
+                  value={form.subMedium}
+                  onChange={onChange}
+                  disabled
+                  placeholder="Sub Medium"
+                />
+              </div>
 
-  <div className="field">
-    <label>Subsource</label>
-    <SearchableSingleSelect
-    options={subSourceOptions}
-    value={form.subSource}
-    disabled={!safe(form.source).trim()}
-    placeholder={!safe(form.source).trim() ? "Select Source first" : "Type to search subsource..."}
-    onChange={(val) => setForm((p) => ({ ...p, subSource: val }))}
-  />
+              <div className="field">
+                <label>
+                  Source <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.source ? "err" : ""}`}
+                  name="source"
+                  value={form.source}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    setForm((p) => ({
+                      ...p,
+                      source: code,
+                      subSource: "", // reset
+                    }));
 
+                    setErrors((prev) => {
+                      if (!prev.source) return prev;
+                      const { source: _, ...rest } = prev;
+                      return rest;
+                    });
+                  }}
+                >
+                  {sourceOptions.map((o) => (
+                    <option key={o.value || o.label} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.source && <div className="errText">{errors.source}</div>}
+              </div>
 
-  </div>
+              <div className="field">
+                <label>Subsource</label>
+                <SearchableSingleSelect
+                  options={subSourceOptions}
+                  value={form.subSource}
+                  disabled={!safe(form.source).trim()}
+                  placeholder={!safe(form.source).trim() ? "Select Source first" : "Type to search subsource..."}
+                  onChange={(val) => setForm((p) => ({ ...p, subSource: val }))}
+                />
+              </div>
 
-
-
-                <div className="field">
-                  <label>Other</label>
-                  <input
-                    className="inp"
-                    name="interestedOther"
-                    value={form.interestedOther}
-                    onChange={onChange}
-                  />
-                </div>
+              <div className="field">
+                <label>Other</label>
+                <input
+                  className="inp"
+                  name="interestedOther"
+                  value={form.interestedOther}
+                  onChange={onChange}
+                />
               </div>
             </div>
+
           </fieldset>
 
           <fieldset className="fs">
             <legend>Lead Disposition</legend>
 
+            {/* Same two-column, row-major order: Disposition / Sub-Disposition,
+                then the follow-up pair. */}
             <div className="formGrid2">
-              <div className="col">
-                <div className="field">
-                  <label>
-                    Disposition <span className="req">*</span>
-                  </label>
-                  <select
-                    className={`inp ${errors.dispositionId ? "err" : ""}`}
-                    name="dispositionId"
-                    value={form.dispositionId}
-                    onChange={onChange}
-                  >
-                    {dispositionOptions.map((d) => (
-                      <option key={d.value || d.label} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.dispositionId && <div className="errText">{errors.dispositionId}</div>}
-                </div>
-
-                <div className="field">
-                  <label>
-                    Sub-Disposition <span className="req">*</span>
-                  </label>
-                  <select
-                    className={`inp ${errors.subDispositionId ? "err" : ""}`}
-                    name="subDispositionId"
-                    value={form.subDispositionId}
-                    onChange={onChange}
-                    disabled={!form.dispositionId}
-                  >
-                    {subDispositionOptions.map((s) => (
-                      <option key={s.value || s.label} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.subDispositionId && (
-                    <div className="errText">{errors.subDispositionId}</div>
-                  )}
-                </div>
+              <div className="field">
+                <label>
+                  Disposition <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.dispositionId ? "err" : ""}`}
+                  name="dispositionId"
+                  value={form.dispositionId}
+                  onChange={onChange}
+                >
+                  {dispositionOptions.map((d) => (
+                    <option key={d.value || d.label} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.dispositionId && <div className="errText">{errors.dispositionId}</div>}
               </div>
 
-              <div className="col">
-                <div className="field">
-                  <label>Follow Up Date</label>
-                  <input
-                    type="date"
-                    className="inp"
-                    name="followUpDate"
-                    value={form.followUpDate}
-                    onChange={onChange}
-                    min={minFollowUpDate}
-                  />
-                </div>
-
-                <div className="field">
-                  <label>Follow Up Time</label>
-                  <select
-                    className="inp"
-                    name="followUpTime"
-                    value={form.followUpTime}
-                    onChange={onChange}
-                  >
-                    {TIME_OPTIONS.map((t) => (
-                      <option key={t.value || t.label} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="field">
+                <label>
+                  Sub-Disposition <span className="req">*</span>
+                </label>
+                <select
+                  className={`inp ${errors.subDispositionId ? "err" : ""}`}
+                  name="subDispositionId"
+                  value={form.subDispositionId}
+                  onChange={onChange}
+                  disabled={!form.dispositionId}
+                >
+                  {subDispositionOptions.map((s) => (
+                    <option key={s.value || s.label} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.subDispositionId && (
+                  <div className="errText">{errors.subDispositionId}</div>
+                )}
               </div>
+
+              {/* Follow-up is a WIP-only field pair. */}
+              {isWipSelected && (
+                <>
+                  <div className="field">
+                    <label>
+                      Follow Up Date <span className="req">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      className="inp"
+                      name="followUpDate"
+                      value={form.followUpDate}
+                      onChange={onChange}
+                      min={minFollowUpDate}
+                    />
+                    {errors.followUpDate && (
+                      <div className="errText">{errors.followUpDate}</div>
+                    )}
+                  </div>
+
+                  <div className="field">
+                    <label>
+                      Follow Up Time <span className="req">*</span>
+                    </label>
+                    <select
+                      className="inp"
+                      name="followUpTime"
+                      value={form.followUpTime}
+                      onChange={onChange}
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t.value || t.label} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.followUpTime && (
+                      <div className="errText">{errors.followUpTime}</div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+
 
             <div className="field mtWide">
               <label>Remarks</label>
@@ -1427,230 +1459,18 @@ if (!hasNone) {
               </button>
             )}
 
-            <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+            <button className="btn ghost" onClick={() => navigate(-1)} disabled={saving}>
               Back
             </button>
           </div>
         </div>
 
-        <style jsx="true">{`
-          .toast {
-            position: fixed;
-            right: 18px;
-            top: 40%;
-            background: #c66752;
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 700;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-            z-index: 9999;
-            text-align: center;
-            display: flex;
-            justify-content: center;
-          }
-
-          .pageWrap {
-            padding: 18px 18px 28px;
-            background: #fff;
-          }
-          .pageHeader {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 14px;
-            margin-bottom: 14px;
-          }
-          .pageTitle {
-            font-size: 18px;
-            font-weight: 700;
-            margin: 0 0 10px;
-            color: #1d2a3b;
-          }
-          .subTitle {
-            margin-bottom: 15px;
-            font-size: 12px;
-            color: #7b8798;
-            font-weight: 700;
-          }
-
-          .ssWrap {
-  position: relative;
-  width: 100%;
-}
-.ssWrap.isDisabled {
-  opacity: 0.7;
-}
-.ssMenu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  background: #fff;
-  border: 1px solid #d7dee8;
-  border-radius: 10px;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.12);
-  max-height: 280px;
-  overflow: auto;
-  z-index: 9999;
-}
-.ssItem {
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #eef2f7;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ssItem:last-child {
-  border-bottom: 0;
-}
-.ssItem:hover {
-  background: #f8fafc;
-}
-.ssItem.active {
-  background: #eef2ff;
-}
-.ssItem.muted {
-  cursor: default;
-  color: #6b7280;
-}
-.ssLabel {
-  font-size: 13px;
-  font-weight: 600;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 80%;
-}
-.ssCode {
-  font-size: 12px;
-  font-weight: 800;
-  color: #64748b;
-  flex: 0 0 auto;
-  display:none;
-}
-
-
-          .fs {
-            border: 1px solid #e6ebf2;
-            border-radius: 10px;
-            padding: 14px 14px 16px;
-            margin-bottom: 14px;
-            background: #fff;
-          }
-          .fs legend {
-            padding: 0 8px;
-            font-weight: 800;
-            font-size: 16px;
-            color: #1f2937;
-          }
-
-          .formGrid3 {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 18px;
-            margin-top: 8px;
-          }
-          .formGrid2 {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 18px;
-            margin-top: 8px;
-          }
-
-          .col {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-          }
-          .col .field {
-            min-width: 35%;
-          }
-
-          .field label {
-            display: inline-block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            margin-bottom: 6px;
-          }
-          .req {
-            color: #c62828;
-            font-weight: 900;
-          }
-
-          .inp {
-            width: 100%;
-            height: 40px;
-            border-radius: 8px;
-            border: 1px solid #d7dee8;
-            padding: 0 12px;
-            background: #fff;
-            outline: none;
-          }
-          .inp:focus {
-            border-color: #94a3b8;
-          }
-          .txta {
-            width: 100%;
-            border-radius: 8px;
-            border: 1px solid #d7dee8;
-            padding: 10px 12px;
-            background: #fff;
-            outline: none;
-            resize: vertical;
-          }
-
-          .errText {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #d32f2f;
-            font-weight: 600;
-          }
-          .mtWide {
-            margin-top: 12px;
-          }
-
-          .btnRow {
-            display: flex;
-            gap: 16px;
-            margin-top: 16px;
-          }
-          .btn {
-            background: #0b1b37;
-            color: #fff;
-            border: 0;
-            border-radius: 10px;
-            padding: 11px 26px;
-            font-weight: 700;
-            cursor: pointer;
-          }
-          .btn:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-          }
-          .btn:hover:not(:disabled) {
-            opacity: 0.95;
-          }
-
-          @media (max-width: 1100px) {
-            .formGrid3 {
-              grid-template-columns: 1fr;
-            }
-            .formGrid2 {
-              grid-template-columns: 1fr;
-            }
-          }
-        `}</style>
+        <style jsx="true">{OPP_THEME_CSS}</style>
 
       {showConvertedPopup && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(460px, 92vw)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>Lead Converted</h3>
+            <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>Lead Converted</h3>
             <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
               The customer has been created
               {convertedCustomer?.custId ? <> as <strong>{convertedCustomer.custId}</strong></> : null}.
@@ -1667,7 +1487,7 @@ if (!hasNone) {
           </div>
         </div>
       )}
-      </>
+      </div>
     );
   };
 

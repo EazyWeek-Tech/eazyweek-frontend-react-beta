@@ -3,16 +3,21 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
+import { OPP_THEME_CSS } from "./opportunityTheme";
 
 
 /** ---------------- Helpers ---------------- */
 const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const norm = (v) => safe(v).trim().toLowerCase();
+
+/** Follow-up belongs to WIP only — any other disposition hides the pair. */
+const isWipLabel = (label) => {
+  const s = norm(label);
+  return s === "wip" || s === "work in progress";
+};
 const pad2 = (n) => String(n).padStart(2, "0");
 
 
-/** ✅ Defaults for Follow-up */
-const DEFAULT_FOLLOWUP_TIME_LABEL = "01:30 PM";
 
 // "SS019" -> 19 , "19" -> 19
 const subSourceValueToFk = (v) => {
@@ -206,10 +211,11 @@ const resolveMediumValueFromSeervices = (mediumOptions, seervices) => {
 
 // ✅ Send DATE ONLY (no timezone conversion possible)
 const toFollowUpDateOnly = (yyyyMmDd) => {
+  // Follow-up is optional — a blank field is sent as null, not silently defaulted.
+  const dateStr = safe(yyyyMmDd).trim();
+  if (!dateStr) return null;
   const minAllowed = getTodayInputDate();
-  let dateStr = safe(yyyyMmDd).trim() || minAllowed;
-  if (dateStr < minAllowed) dateStr = minAllowed;
-  return dateStr; // "YYYY-MM-DD"
+  return dateStr < minAllowed ? minAllowed : dateStr; // "YYYY-MM-DD"
 };
 
 // ✅ TimeSpan friendly converter from "hh:mm AM/PM" => "HH:mm:ss" or null
@@ -922,12 +928,21 @@ subSourceName: "",
     dispositionId: "",
     subDispositionId: "",
 
-    // ✅ always tomorrow
-    followUpDate: getTomorrowInputDate(),
-    followUpTime: DEFAULT_FOLLOWUP_TIME_LABEL,
+    // ✅ optional — both start blank, the user fills them in if they want a follow-up
+    followUpDate: "",
+    followUpTime: "",
 
     remarks: "",
   });
+
+  // Follow-up date/time are shown only while the lead is still WIP; for WIP they are
+  // mandatory. Any other disposition hides them (and clears them on change).
+  const isWipSelected = useMemo(() => {
+    const sel = safe(form.dispositionId).trim();
+    if (!sel) return false;
+    const opt = dispositionOptions.find((o) => String(o.value) === sel);
+    return isWipLabel(opt?.label);
+  }, [dispositionOptions, form.dispositionId]);
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -1389,7 +1404,8 @@ if (!isEdit) {
         setForm((p) => {
           const apiDate = toInputDate(data?.followUpDate);
           const min = getTodayInputDate();
-          const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : p.followUpDate || min;
+          // No stored date leaves the field blank rather than defaulting to today.
+          const fixedDate = apiDate ? (apiDate < min ? min : apiDate) : safe(p.followUpDate);
 
           return {
             ...p,
@@ -1414,7 +1430,7 @@ if (!isEdit) {
             mediumCode: mediumValue || p.mediumCode,
 
             followUpDate: fixedDate,
-            followUpTime: parsedTime || p.followUpTime || DEFAULT_FOLLOWUP_TIME_LABEL,
+            followUpTime: parsedTime || safe(p.followUpTime),
 
             remarks: safe(data?.remarks ?? p.remarks),
           };
@@ -1456,19 +1472,24 @@ if (name === "sourceName") {
     setForm((p) => {
       const next = { ...p, [name]: value };
 
-      // ✅ enforce tomorrow minimum on date change
+      // Moving off WIP hides the follow-up pair — drop any value it held so a stale
+      // date/time is never submitted.
+      if (name === "dispositionId") {
+        const opt = dispositionOptions.find((o) => String(o.value) === safe(value).trim());
+        if (!isWipLabel(opt?.label)) {
+          next.followUpDate = "";
+          next.followUpTime = "";
+        }
+      }
+
+      // ✅ optional: clearing leaves it blank; a picked date still respects the minimum
       if (name === "followUpDate") {
   const v = safe(value).trim();
   const min = isEdit ? getTodayInputDate() : getTomorrowInputDate();
-  if (!v) next.followUpDate = min;
-  else next.followUpDate = v < min ? min : v;
+  next.followUpDate = !v ? "" : v < min ? min : v;
 }
 
-
-      // ✅ default time if cleared
-      if (name === "followUpTime" && !safe(value).trim()) {
-        next.followUpTime = DEFAULT_FOLLOWUP_TIME_LABEL;
-      }
+      // ✅ time is optional too — "--" stays "--"
 
       return next;
     });
@@ -1499,6 +1520,12 @@ if (name === "sourceName") {
       e.salesOwner = "Sales Owner not resolved. Please re-login or refresh.";
     }
     if (!safe(form.sourceName).trim()) e.sourceName = "Lead Source is required.";
+
+    // Mandatory only when the disposition is WIP.
+    if (isWipSelected) {
+      if (!safe(form.followUpDate).trim()) e.followUpDate = "Follow Up Date is required.";
+      if (!safe(form.followUpTime).trim()) e.followUpTime = "Follow Up Time is required.";
+    }
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -1591,16 +1618,16 @@ if (name === "sourceName") {
     return isClosedDisposition(dispositionId, dispositionOptions) ? "Closed" : baseStatus;
   };
 
+  // Follow-up is optional — blank in, blank out. Only a filled date is clamped.
   const resolveFollowUpForPayload = (currentForm) => {
       const min = isEdit ? getTodayInputDate() : getTomorrowInputDate();
 
     const dateValRaw = safe(currentForm?.followUpDate).trim();
     const timeVal = safe(currentForm?.followUpTime).trim();
 
-    const dateVal = !dateValRaw ? min : dateValRaw < min ? min : dateValRaw;
-    const finalTime = timeVal || DEFAULT_FOLLOWUP_TIME_LABEL;
+    const dateVal = !dateValRaw ? "" : dateValRaw < min ? min : dateValRaw;
 
-    return { finalDate: dateVal, finalTime };
+    return { finalDate: dateVal, finalTime: timeVal };
   };
 
   /** ---------------- Create / Update ---------------- */
@@ -1659,10 +1686,10 @@ const modifierRecId =
       // ✅ NO UTC
       appointmentDate: nowLocal,
 
-      // ✅ NO UTC + always tomorrow or later
+      // ✅ NO UTC — null when the user left it blank, otherwise today or later
       followUpDate: toFollowUpDateOnly(finalDate),
 
-      followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
+      followUpTime: toTimeSpanOrNull(finalTime),
 
       remarks: form.remarks,
       customerMsg: "",
@@ -1759,10 +1786,10 @@ const subMediumName = safe(form.subMedium || "Manual");
       // ✅ Preserve original appointment date
       appointmentDate: appointmentDateFromApi || null,
 
-      // ✅ NO UTC + always tomorrow or later
+      // ✅ NO UTC — null when the user left it blank, otherwise today or later
       followUpDate: toFollowUpDateOnly(finalDate),
 
-      followUpTime: toTimeSpanOrNull(finalTime || DEFAULT_FOLLOWUP_TIME_LABEL),
+      followUpTime: toTimeSpanOrNull(finalTime),
 
       remarks: form.remarks,
       customerMsg: safe(row?.customerMsg || ""),
@@ -1785,7 +1812,7 @@ const subMediumName = safe(form.subMedium || "Manual");
   };
 
   // dialog styles (kept inline to mirror the external form)
-  const cBtn   = { background: "#0b1b37", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
+  const cBtn   = { background: "#18396E", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
 
   // Dialog action — carry the freshly-created customer into Appointment Booking
   // (LTR Case A, FRD 6.2).
@@ -1962,7 +1989,7 @@ const subMediumName = safe(form.subMedium || "Manual");
 
   /** ---------------- UI ---------------- */
   return (
-    <>
+    <div className="ewOpp">
       {toast.show && <div className="toast">{toast.msg}</div>}
 
       {fuOpen && (
@@ -2046,204 +2073,211 @@ const subMediumName = safe(form.subMedium || "Manual");
         <fieldset className="fs">
           <legend>Lead Details</legend>
 
-          <div className="formGrid3">
-            <div className="col">
-              <div className="field">
-                <label>
-                  First Name <span className="req">*</span>
-                </label>
-                <input className={`inp ${errors.firstName ? "err" : ""}`} name="firstName" autoComplete="one-time-code" value={form.firstName} onChange={onChange} placeholder="First Name" />
-                {errors.firstName && <div className="errText">{errors.firstName}</div>}
-              </div>
-
-              <div className="field">
-                <label>
-                  Last Name <span className="req">*</span>
-                </label>
-                <input className={`inp ${errors.lastName ? "err" : ""}`} name="lastName" autoComplete="one-time-code" value={form.lastName} onChange={onChange} placeholder="Last Name" />
-                {errors.lastName && <div className="errText">{errors.lastName}</div>}
-              </div>
-
-              <div className="field">
-                <label>Country Code</label>
-                <input className="inp" name="countryCode" autoComplete="one-time-code" value={form.countryCode} onChange={onChange} placeholder="Country Code" />
-              </div>
-
-              <div className="field">
-                <label>
-                  Mobile <span className="req">*</span>
-                </label>
-                <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" autoComplete="one-time-code" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
-                {errors.mobile && <div className="errText">{errors.mobile}</div>}
-              </div>
-
-              <div className="field">
-                <label>Email</label>
-                <input className={`inp ${errors.email ? "err" : ""}`} name="email" autoComplete="one-time-code" value={form.email} onChange={onChange} placeholder="Email" />
-                {errors.email && <div className="errText">{errors.email}</div>}
-              </div>
+          {/* Row-major, two columns — the field order matches the previous
+              (pre-retheme) manual lead form exactly. */}
+          <div className="formGrid2">
+            <div className="field">
+              <label>
+                First Name <span className="req">*</span>
+              </label>
+              <input className={`inp ${errors.firstName ? "err" : ""}`} name="firstName" autoComplete="one-time-code" value={form.firstName} onChange={onChange} placeholder="First Name" />
+              {errors.firstName && <div className="errText">{errors.firstName}</div>}
             </div>
 
-            <div className="col">
-              <div className="field">
-                <label>Preferred Language</label>
-                <select className="inp" name="preferredLanguage" value={form.preferredLanguage} onChange={onChange}>
-                  {langOptions.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="field">
+              <label>
+                Last Name <span className="req">*</span>
+              </label>
+              <input className={`inp ${errors.lastName ? "err" : ""}`} name="lastName" autoComplete="one-time-code" value={form.lastName} onChange={onChange} placeholder="Last Name" />
+              {errors.lastName && <div className="errText">{errors.lastName}</div>}
+            </div>
 
-              <div className="field">
-                <label>
-                  Centre <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.centerCode ? "err" : ""}`} name="centerCode" value={form.centerCode} onChange={onChange} disabled={centerLoading}>
-                  {centerOptions.map((o) => (
-                    <option key={o.value || o.label} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
-              </div>
+            <div className="field">
+              <label>Country Code</label>
+              <input className="inp" name="countryCode" autoComplete="one-time-code" value={form.countryCode} onChange={onChange} placeholder="Country Code" />
+            </div>
 
-              <div className="field">
-                <label>
-                  Doctor / Therapist <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.doctor ? "err" : ""}`} name="doctor" value={form.doctor} onChange={onChange} disabled={doctorLoading}>
-                  {doctorOptions.map((d) => (
-                    <option key={d.value || d.label} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.doctor && <div className="errText">{errors.doctor}</div>}
-              </div>
+            <div className="field">
+              <label>
+                Mobile <span className="req">*</span>
+              </label>
+              <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" autoComplete="one-time-code" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
+              {errors.mobile && <div className="errText">{errors.mobile}</div>}
+            </div>
 
-              <div className="field">
-                <label>
-                  Interested In <span className="req">*</span>
-                </label>
-                <select className={`inp ${errors.interestedVerticalCode ? "err" : ""}`} name="interestedVerticalCode" value={form.interestedVerticalCode} onChange={onChange} disabled={verticalLoading}>
-                  {verticalOptions.map((o) => (
-                    <option key={o.value || o.label} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
-              </div>
+            <div className="field">
+              <label>Email</label>
+              <input className={`inp ${errors.email ? "err" : ""}`} name="email" autoComplete="one-time-code" value={form.email} onChange={onChange} placeholder="Email" />
+              {errors.email && <div className="errText">{errors.email}</div>}
+            </div>
 
+            {/* Email sat alone on its row in the old layout — this keeps Preferred
+                Language starting a fresh row on the left. */}
+            <div className="fieldSpacer" aria-hidden="true" />
 
-              <div className="field">
-               <label>Lead Medium</label>
-<input className="inp" name="mediumCode" value={form.mediumCode} disabled />
+            <div className="field">
+              <label>Preferred Language</label>
+              <select className="inp" name="preferredLanguage" value={form.preferredLanguage} onChange={onChange}>
+                {langOptions.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              </div>
+            <div className="field">
+              <label>
+                Centre <span className="req">*</span>
+              </label>
+              <select className={`inp ${errors.centerCode ? "err" : ""}`} name="centerCode" value={form.centerCode} onChange={onChange} disabled={centerLoading}>
+                {centerOptions.map((o) => (
+                  <option key={o.value || o.label} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {errors.centerCode && <div className="errText">{errors.centerCode}</div>}
+            </div>
 
-              <div className="field">
-  <label>Submedium</label>
-  <input className="inp" name="subMedium" value={form.subMedium} disabled />
-</div>
+            <div className="field">
+              <label>
+                Doctor / Therapist <span className="req">*</span>
+              </label>
+              <select className={`inp ${errors.doctor ? "err" : ""}`} name="doctor" value={form.doctor} onChange={onChange} disabled={doctorLoading}>
+                {doctorOptions.map((d) => (
+                  <option key={d.value || d.label} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+              {errors.doctor && <div className="errText">{errors.doctor}</div>}
+            </div>
 
+            <div className="field">
+              <label>
+                Interested In <span className="req">*</span>
+              </label>
+              <select className={`inp ${errors.interestedVerticalCode ? "err" : ""}`} name="interestedVerticalCode" value={form.interestedVerticalCode} onChange={onChange} disabled={verticalLoading}>
+                {verticalOptions.map((o) => (
+                  <option key={o.value || o.label} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {errors.interestedVerticalCode && <div className="errText">{errors.interestedVerticalCode}</div>}
+            </div>
 
-              <div className="field">
-                <label>
-  Lead Source <span className="req">*</span>
-</label>
+            <div className="field">
+              <label>Lead Medium</label>
+              <input className="inp" name="mediumCode" value={form.mediumCode} disabled />
+            </div>
 
-                <select className={`inp ${errors.sourceName ? "err" : ""}`} name="sourceName" value={form.sourceName} onChange={onChange} disabled={sourceLoading}>
-                  {sourceOptions.map((opt) => (
-                    <option key={opt.value || opt.label} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.sourceName && <div className="errText">{errors.sourceName}</div>}
-              </div>
+            <div className="field">
+              <label>Submedium</label>
+              <input className="inp" name="subMedium" value={form.subMedium} disabled />
+            </div>
 
-              <div className="field">
-                <label>Lead Sub-Source</label>
-                <SearchableSingleSelect
-  options={subSourceOptions}
-  value={form.subSourceName}
-  disabled={subSourceLoading || !safe(form.sourceName).trim()}
-  placeholder={!safe(form.sourceName).trim() ? "Select Source first" : "Type to search subsource..."}
-  onChange={(val) => setForm((p) => ({ ...p, subSourceName: val }))}
- />
+            <div className="field">
+              <label>
+                Lead Source <span className="req">*</span>
+              </label>
+              <select className={`inp ${errors.sourceName ? "err" : ""}`} name="sourceName" value={form.sourceName} onChange={onChange} disabled={sourceLoading}>
+                {sourceOptions.map((opt) => (
+                  <option key={opt.value || opt.label} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {errors.sourceName && <div className="errText">{errors.sourceName}</div>}
+            </div>
 
-              </div>
+            <div className="field">
+              <label>Lead Sub-Source</label>
+              <SearchableSingleSelect
+                options={subSourceOptions}
+                value={form.subSourceName}
+                disabled={subSourceLoading || !safe(form.sourceName).trim()}
+                placeholder={!safe(form.sourceName).trim() ? "Select Source first" : "Type to search subsource..."}
+                onChange={(val) => setForm((p) => ({ ...p, subSourceName: val }))}
+              />
+            </div>
 
-
-              
-              <div className="field">
-                <label>Other</label>
-                <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
-              </div>
+            <div className="field">
+              <label>Other</label>
+              <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
             </div>
           </div>
+
         </fieldset>
 
         <fieldset className="fs">
           <legend>Lead Disposition</legend>
 
+          {/* Same two-column, row-major order as the previous form:
+              Disposition / Sub-Disposition, then the follow-up pair. */}
           <div className="formGrid2">
-            <div className="col">
-              <div className="field">
-                <label>
-                  Disposition <span className="req">*</span>
-                </label>
-                <select className="inp" name="dispositionId" value={form.dispositionId} onChange={onChange} disabled={dispLoading}>
-                  {dispositionOptions.map((d) => (
-                    <option key={d.value || d.label} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label>
-                  Sub-Disposition <span className="req">*</span>
-                </label>
-                <select className="inp" name="subDispositionId" value={form.subDispositionId} onChange={onChange} disabled={subDispLoading || !form.dispositionId}>
-                  {subDispositionOptions.map((s) => (
-                    <option key={s.value || s.label} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="field">
+              <label>
+                Disposition <span className="req">*</span>
+              </label>
+              <select className="inp" name="dispositionId" value={form.dispositionId} onChange={onChange} disabled={dispLoading}>
+                {dispositionOptions.map((d) => (
+                  <option key={d.value || d.label} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="col">
-              <div className="field">
-                <label>Follow Up Date</label>
-                <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} min={minFollowUpDate} />
-              </div>
-
-              <div className="field">
-                <label>Follow Up Time</label>
-                <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t.value || t.label} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="fuLinkRow">
-                <button type="button" className="fuLink" onClick={openFollowUpModal}>
-                  Click here to check follow up history
-                </button>
-              </div>
+            <div className="field">
+              <label>
+                Sub-Disposition <span className="req">*</span>
+              </label>
+              <select className="inp" name="subDispositionId" value={form.subDispositionId} onChange={onChange} disabled={subDispLoading || !form.dispositionId}>
+                {subDispositionOptions.map((s) => (
+                  <option key={s.value || s.label} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {/* Follow-up is a WIP-only field pair. */}
+            {isWipSelected && (
+              <>
+                <div className="field">
+                  <label>
+                    Follow Up Date <span className="req">*</span>
+                  </label>
+                  <input type="date" className="inp" name="followUpDate" value={form.followUpDate} onChange={onChange} min={minFollowUpDate} />
+                  {errors.followUpDate && <div className="errText">{errors.followUpDate}</div>}
+                </div>
+
+                <div className="field">
+                  <label>
+                    Follow Up Time <span className="req">*</span>
+                  </label>
+                  <select className="inp" name="followUpTime" value={form.followUpTime} onChange={onChange}>
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t.value || t.label} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.followUpTime && <div className="errText">{errors.followUpTime}</div>}
+                </div>
+              </>
+            )}
+
+            <div className="fuLinkRow mtWide">
+              <button type="button" className="fuLink" onClick={openFollowUpModal} style={{textDecoration:'underline'}}>
+                Click here to check follow up history
+              </button>
+            </div>
+            <br />
           </div>
+
 
           <div className="field mtWide">
             <label>Remarks</label>
@@ -2264,7 +2298,7 @@ const subMediumName = safe(form.subMedium || "Manual");
             </button>
           )}
 
-          <button className="btn" onClick={() => navigate(-1)} disabled={saving}>
+          <button className="btn ghost" onClick={() => navigate(-1)} disabled={saving}>
             Back
           </button>
         </div>
@@ -2272,310 +2306,12 @@ const subMediumName = safe(form.subMedium || "Manual");
 
       {errors.salesOwner && <div className="errText">{errors.salesOwner}</div>}
 
-      <style jsx="true">{`
-        .toast {
-          position: fixed;
-          right: 18px;
-          top: 40%;
-          background: #c66752;
-          color: #fff;
-          padding: 10px 14px;
-          border-radius: 10px;
-          font-size: 13px;
-          font-weight: 700;
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-          z-index: 9999;
-          text-align: center;
-          display: flex;
-          justify-content: center;
-        }
-
-        .pageWrap {
-          padding: 18px 18px 28px;
-          background: #fff;
-        }
-        .pageHeader {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 14px;
-          margin-bottom: 14px;
-        }
-        .pageTitle {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1d2a3b;
-        }
-
-        .ssWrap {
-  position: relative;
-  width: 100%;
-}
-.ssWrap.isDisabled {
-  opacity: 0.7;
-}
-.ssMenu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  background: #fff;
-  border: 1px solid #d7dee8;
-  border-radius: 10px;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.12);
-  max-height: 280px;
-  overflow: auto;
-  z-index: 9999;
-}
-.ssItem {
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #eef2f7;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ssItem:last-child {
-  border-bottom: 0;
-}
-.ssItem:hover {
-  background: #f8fafc;
-}
-.ssItem.active {
-  background: #eef2ff;
-}
-.ssItem.muted {
-  cursor: default;
-  color: #6b7280;
-}
-.ssLabel {
-  font-size: 13px;
-  font-weight: 600;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 80%;
-}
-.ssCode {
-  font-size: 12px;
-  font-weight: 800;
-  color: #64748b;
-  flex: 0 0 auto;
-}
-
-        .subTitle {
-          margin-top: 2px;
-          font-size: 12px;
-          color: #7b8798;
-        }
-        .fs {
-          border: 1px solid #e6ebf2;
-          border-radius: 10px;
-          padding: 14px 14px 16px;
-          margin-bottom: 14px;
-          background: #fff;
-        }
-        .fs legend {
-          padding: 0 8px;
-          font-weight: 800;
-          font-size: 16px;
-          color: #1f2937;
-        }
-        .formGrid3 {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 18px;
-          margin-top: 8px;
-        }
-        .formGrid2 {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 18px;
-          margin-top: 8px;
-        }
-        .col {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-        .col .field {
-          min-width: 35%;
-        }
-        .field label {
-          display: inline-block;
-          font-size: 13px;
-          font-weight: 600;
-          color: #334155;
-          margin-bottom: 6px;
-        }
-        .req {
-          color: #c62828;
-          font-weight: 900;
-        }
-        .inp {
-          width: 100%;
-          height: 40px;
-          border-radius: 8px;
-          border: 1px solid #d7dee8;
-          padding: 0 12px;
-          background: #fff;
-          outline: none;
-        }
-        .inp:focus {
-          border-color: #94a3b8;
-        }
-        .txta {
-          width: 100%;
-          border-radius: 8px;
-          border: 1px solid #d7dee8;
-          padding: 10px 12px;
-          background: #fff;
-          outline: none;
-          resize: vertical;
-        }
-        .errText {
-          margin-top: 6px;
-          font-size: 12px;
-          color: #d32f2f;
-          font-weight: 600;
-        }
-        .mtWide {
-          margin-top: 12px;
-        }
-        .btnRow {
-          display: flex;
-          gap: 16px;
-          margin-top: 16px;
-        }
-        .btn {
-          background: #0b1b37;
-          color: #fff;
-          border: 0;
-          border-radius: 10px;
-          padding: 11px 26px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-        .btn:disabled {
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-        .btn:hover:not(:disabled) {
-          opacity: 0.95;
-        }
-
-        .fuLinkRow {
-          margin: 8px 0 10px;
-          display: flex;
-          justify-content: flex-end;
-        }
-        .fuLink {
-          background: transparent;
-          border: 0;
-          padding: 0;
-          color: #0b1b37;
-          font-weight: 800;
-          font-size: 13px;
-          cursor: pointer;
-          text-decoration: underline;
-        }
-        .fuLink:hover {
-          opacity: 0.85;
-        }
-
-        .modalOverlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.35);
-          z-index: 9998;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
-        }
-        .modalCard {
-          width: min(860px, 96vw);
-          background: #fff;
-          border-radius: 14px;
-          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
-          overflow: hidden;
-        }
-        .modalHeader {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 14px 16px;
-          border-bottom: 1px solid #e6ebf2;
-        }
-        .modalTitle {
-          font-size: 15px;
-          font-weight: 900;
-          color: #1d2a3b;
-        }
-        .modalClose {
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
-          border: 1px solid #e6ebf2;
-          background: #fff;
-          cursor: pointer;
-          font-size: 20px;
-          line-height: 1;
-          font-weight: 900;
-        }
-        .modalClose:hover {
-          background: #f6f8fb;
-        }
-
-        .modalBody {
-          padding: 14px 16px 18px;
-        }
-        .errBox {
-          color: #b42318;
-          font-weight: 800;
-          background: #fff2f2;
-          border: 1px solid #ffd2d2;
-          border-radius: 10px;
-        }
-        .tblWrap {
-          overflow: auto;
-        }
-        .tbl {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-        .tbl th {
-          text-align: left;
-          background: #f6f8fb;
-          border: 1px solid #e6ebf2;
-          padding: 10px 10px;
-          font-weight: 900;
-          color: #1f2937;
-        }
-        .tbl td {
-          border: 1px solid #e6ebf2;
-          padding: 10px 10px;
-          color: #334155;
-          font-weight: 600;
-        }
-
-        @media (max-width: 1100px) {
-          .formGrid3 {
-            grid-template-columns: 1fr;
-          }
-          .formGrid2 {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+      <style jsx="true">{OPP_THEME_CSS}</style>
 
       {showConvertedPopup && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(460px, 92vw)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#0b1b37" }}>
+            <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>
               {convertedCustomer?.existing ? "Opportunity Converted" : "Lead Converted"}
             </h3>
             <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
@@ -2596,7 +2332,7 @@ const subMediumName = safe(form.subMedium || "Manual");
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { OPP_THEME_CSS } from "./opportunityTheme";
 
 /** Bearer auth — app authenticates via Authorization header, not a cookie. */
 const AUTH_HEADERS = () => {
@@ -35,7 +36,6 @@ const HALF_HOURS_1_TO_12_30 = [
   "10:00","10:30","11:00","11:30","12:00","12:30",
 ];
 
-const DEFAULT_TIME = "01:30";
 const DEFAULT_AMPM = "PM";
 
 const todayISO = () => {
@@ -55,6 +55,15 @@ const tomorrowISO = () => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+/** Follow-up belongs to WIP only — any other disposition hides the pair.
+ *  Matched on the master label, with the LS013 code as a fallback. */
+const isWipLabel = (label) => {
+  const t = String(label || "").trim().toLowerCase();
+  return t === "wip" || t === "work in progress";
+};
+const isWipDisp = (code, label) =>
+  isWipLabel(label) || String(code || "").trim().toUpperCase() === "LS013";
+
 const normalizeDispCode = (v) => {
   const s = String(v ?? "").trim();
   if (!s) return "";
@@ -190,10 +199,11 @@ const NoShowEntryDetails = () => {
 
   const [details, setDetails] = useState(null);
 
-  // ✅ requirement defaults:
-  const [followUpDate, setFollowUpDate] = useState(tomorrowISO()); // yyyy-MM-dd
-  const [followUpTime, setFollowUpTime] = useState(DEFAULT_TIME);   // "01:30"
-  const [followUpAmPm, setFollowUpAmPm] = useState(DEFAULT_AMPM);   // "PM"
+  // ✅ Follow-up is optional — date, time and AM/PM all start blank and are only
+  //    filled from a genuine stored value or by the user.
+  const [followUpDate, setFollowUpDate] = useState(""); // yyyy-MM-dd
+  const [followUpTime, setFollowUpTime] = useState(""); // "01:30"
+  const [followUpAmPm, setFollowUpAmPm] = useState(""); // "AM" | "PM"
 
   const [initialDisp, setInitialDisp] = useState(""); // ✅ API disposition on load (normalized)
 
@@ -224,6 +234,16 @@ const [subDispLoading, setSubDispLoading] = useState(false);
   });
 
   const [saving, setSaving] = useState(false);
+
+// Follow-up date/time are shown only while the lead is still WIP; for WIP they are
+// mandatory. Any other disposition hides them (and clears them on change).
+const isWipSelected = useMemo(() => {
+  const sel = String(form?.disposition || "").trim();
+  if (!sel) return false;
+  const opt = dispOptions.find((o) => String(o.value).trim() === sel);
+  return isWipDisp(sel, opt?.label);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [dispOptions, form?.disposition]);
 
 
 useEffect(() => {
@@ -362,14 +382,15 @@ useEffect(() => {
 
         // follow-up date
         const apiDateYMD = parseApiFollowUpDateToYMD(data?.followUpDate);
-        const safeDate = !apiDateYMD || isPastYMD(apiDateYMD) ? tomorrowISO() : apiDateYMD;
-        setFollowUpDate(safeDate);
+        // No stored date (or a stale past one) leaves the field blank rather than
+        // pre-filling tomorrow.
+        setFollowUpDate(!apiDateYMD || isPastYMD(apiDateYMD) ? "" : apiDateYMD);
 
         // time + AM/PM
         const apiTime = String(data?.followUpTime || "").trim();
         const apiAmPm = normalizeAmPm(data?.followUpTimeAmPM);
-        setFollowUpTime(apiTime || DEFAULT_TIME);
-        setFollowUpAmPm((apiTime ? apiAmPm : DEFAULT_AMPM) || DEFAULT_AMPM);
+        setFollowUpTime(apiTime);
+        setFollowUpAmPm(apiTime ? apiAmPm : "");
 const apiDisp = normalizeDispCode(data?.distpositionCode || data?.distpositionName);
 setInitialDisp(apiDisp);
 
@@ -435,6 +456,17 @@ setForm((p) => ({
   const handleChange = (e) => {
   const { name, value } = e.target;
 
+  // Moving off WIP hides the follow-up trio — drop whatever it held so a stale
+  // date/time is never submitted.
+  if (name === "disposition") {
+    const opt = dispOptions.find((o) => String(o.value).trim() === String(value).trim());
+    if (!isWipDisp(value, opt?.label)) {
+      setFollowUpDate("");
+      setFollowUpTime("");
+      setFollowUpAmPm("");
+    }
+  }
+
   setForm((p) => {
     // ✅ when disposition changes, reset only subdisp
     if (name === "disposition") {
@@ -454,9 +486,10 @@ setForm((p) => ({
   remarks: form.remarks,
   oppCode,
   oppStatus,
-  followUpDate: toISODateTimeZ(followUpDate || tomorrowISO()),
-  followUpTime: (followUpTime || DEFAULT_TIME),
-  followUpTimeAmPM: (followUpAmPm || DEFAULT_AMPM),
+  // Blank follow-up is sent through as blank — no silent default.
+  followUpDate: followUpDate ? toISODateTimeZ(followUpDate) : "",
+  followUpTime: followUpTime || "",
+  followUpTimeAmPM: followUpTime ? (followUpAmPm || DEFAULT_AMPM) : "",
 
   subDisposition: form.sbdisposition || "",
   reasonCode: form.reasonCode || "",
@@ -477,28 +510,37 @@ setForm((p) => ({
     return data || {};
   };
 
+  // Blank is valid (follow-up is optional); only a past date blocks submit.
   const ensureValidFollowUpDate = () => {
-    if (!followUpDate) {
-      setFollowUpDate(tomorrowISO());
-      return true;
-    }
+    if (!followUpDate) return true;
     if (isPastYMD(followUpDate)) {
       setError("Follow Up Date cannot be before today.");
-      setFollowUpDate(tomorrowISO());
+      setFollowUpDate("");
       return false;
     }
     return true;
   };
 
+  // Only meaningful once a time has been picked — keeps AM/PM from going out empty.
   const ensureDefaultTime = () => {
-    if (!followUpTime) setFollowUpTime(DEFAULT_TIME);
-    if (!followUpAmPm) setFollowUpAmPm(DEFAULT_AMPM);
+    if (followUpTime && !followUpAmPm) setFollowUpAmPm(DEFAULT_AMPM);
   };
 
   const handleSubmit = async () => {
     if (!form.disposition) {
       setError("Please select a Disposition before submitting.");
       return;
+    }
+    // Follow-up is mandatory only when the disposition is WIP.
+    if (isWipSelected) {
+      if (!followUpDate) {
+        setError("Follow Up Date is required.");
+        return;
+      }
+      if (!followUpTime) {
+        setError("Follow Up Time is required.");
+        return;
+      }
     }
     if (!ensureValidFollowUpDate()) return;
 
@@ -511,6 +553,7 @@ setForm((p) => ({
       // LTR Case A (FRD §6.2): R1–R4 leads already have a customer — on a converting
       // save with booking mandatory, route straight to the Appointment Booking screen.
       const ltrCid = safe(top.custID).trim();
+      const pf = saveRes?.prefillCustomer || {};
       if (saveRes && saveRes.convert && saveRes.apptMandatory !== false && ltrCid) {
         navigate(APPOINTMENT_ROUTE, { state: {
           ltrConversion: {
@@ -519,10 +562,18 @@ setForm((p) => ({
             oppCode:    oppCode,
             custId:     ltrCid,
           },
+          // The lead row only carries one CustName string and no email/gender —
+          // UpdateOppDetails resolves the real customer and returns it as
+          // prefillCustomer, so booking gets the full identity, not just mobile.
           newCustomer: {
             custId: ltrCid, custid: ltrCid,
-            name:   safe(top.custName).trim(),
-            mobile: safe(top.custMobileNo).trim(),
+            firstName:   String(pf.firstName || "").trim(),
+            lastName:    String(pf.lastName  || "").trim(),
+            name:        String(pf.name || top.custName || "").trim(),
+            mobile:      String(pf.mobile || top.custMobileNo || "").trim(),
+            email:       String(pf.email || "").trim(),
+            gender:      String(pf.gender || "").trim(),
+            countryCode: String(pf.countryCode || "").trim(),
           },
         }});
         return;
@@ -552,7 +603,7 @@ setForm((p) => ({
   const hideSubmit = wasClosedOnLoad || loading;
 
   return (
-    <>
+    <div className="ewOpp">
       <div className="wrap">
 
         <div className="titleBlock">
@@ -573,6 +624,27 @@ setForm((p) => ({
               <div className="pair"><span className="lab">Appointment Service :</span> <span className="val">{top.serviceName}</span></div>
               <div className="pair"><span className="lab">Recent Appointment Date :</span> <span className="val">{top.appointmentDate}</span></div>
               <div className="pair"><span className="lab">Appointment with Therapist/Doctors :</span> <span className="val">{top.therapist}</span></div>
+            </div>
+          </div>
+
+          {/* Reason sits with the appointment details rather than the disposition block. */}
+          <div className="ldform">
+            <div className="formrow">
+              <label className="lab" htmlFor="reasonCode">Reason <span className="req">*</span>:</label>
+              <select
+                id="reasonCode"
+                name="reasonCode"
+                value={form.reasonCode}
+                disabled={isLocked || reasonsLoading}
+                onChange={(e) => !isLocked && handleChange(e)}
+                className="inp"
+              >
+                {reasonOptions.map((r) => (
+                  <option key={`rs-${r.code || r.name}`} value={r.code}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </fieldset>
@@ -629,30 +701,14 @@ setForm((p) => ({
 
             </div>
 
-            {/* ✅ NEW: Reasons dropdown (after subdisposition) */}
-            <div className="formrow">
-              <label className="lab" htmlFor="reasonCode">Reason <span className="req">*</span>:</label>
-              <select
-                id="reasonCode"
-                name="reasonCode"
-                value={form.reasonCode}
-                disabled={isLocked || reasonsLoading }
-                onChange={(e) => !isLocked && handleChange(e)}
-                className="inp"
-              >
-                {reasonOptions.map((r) => (
-                  <option key={`rs-${r.code || r.name}`} value={r.code}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
+          {/* Follow-up is a WIP-only field group. */}
+          {isWipSelected && (
           <div className="ldform">
             {/* Follow-up inputs */}
             <div className="formrow">
-              <label className="lab" htmlFor="fuDate">Follow Up Date :</label>
+              <label className="lab" htmlFor="fuDate">Follow Up Date <span className="req">*</span>:</label>
               <input
                 id="fuDate"
                 type="date"
@@ -670,7 +726,7 @@ setForm((p) => ({
                   }
                   if (isPastYMD(v)) {
                     setError("Follow Up Date cannot be before today.");
-                    setFollowUpDate(tomorrowISO());
+                    setFollowUpDate("");
                     return;
                   }
                   setError("");
@@ -680,14 +736,21 @@ setForm((p) => ({
             </div>
 
             <div className="formrow">
-              <label className="lab">Follow Up Time :</label>
+              <label className="lab">Follow Up Time <span className="req">*</span>:</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <select
                   className="inp"
                   style={{ minWidth: 180 }}
                   value={followUpTime}
                   disabled={isLocked}
-                  onChange={(e) => !isLocked && setFollowUpTime(e.target.value)}
+                  onChange={(e) => {
+                    if (isLocked) return;
+                    const v = e.target.value;
+                    setFollowUpTime(v);
+                    // AM/PM only applies when a time is chosen.
+                    if (!v) setFollowUpAmPm("");
+                    else if (!followUpAmPm) setFollowUpAmPm(DEFAULT_AMPM);
+                  }}
                 >
                   <option value="">—</option>
                   {HALF_HOURS_1_TO_12_30.map((t) => (
@@ -702,12 +765,14 @@ setForm((p) => ({
                   disabled={isLocked}
                   onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
                 >
+                  <option value="">—</option>
                   <option value="AM">AM</option>
                   <option value="PM">PM</option>
                 </select>
               </div>
             </div>
           </div>
+          )}
 
           <div className="formrow">
             <label className="lab" htmlFor="remarks">Remarks :</label>
@@ -736,53 +801,12 @@ setForm((p) => ({
               Submit
             </button>
           )}
-          <button className="btn" onClick={() => navigate(-1)}>Back</button>
+          <button className="btn ghost" onClick={() => navigate(-1)}>Back</button>
         </div>
       </div>
 
-      <style jsx="true">{`
-        .pageTitle {
-          font-size: 18px;
-          font-weight: 700;
-          margin: 0 0 30px;
-          color: #1d2a3b;
-        }
-        .wrap { background:#fff; padding:28px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-        .grid { display:flex;  gap:24px; margin-bottom:18px; }
-        .req{color: #f00;}
-        .col { display:grid; gap:12px; min-width: 470px; }
-        .pair { font-size:15px; color:#333; margin: 0 0 20px; }
-        .lab { display:inline-block; min-width:140px; color:#555; font-weight:600; font-size:12px;margin: 0 0 10px; }
-        .val { color:#222; display: flex; align-items: center; padding: 6px 8px; height: 36px; max-width: 530px;  text-overflow: ellipsis; border:1px solid #d8dee9; border-radius:6px; }
-        .formrow { display:flex; align-items:center; gap:12px; margin:12px 0;  }
-        .inp { flex:1; max-width:520px; min-width: 270px; height:36px; padding:6px 8px; border:1px solid #d8dee9; border-radius:6px; background:#fff; }
-        .txta { flex:1; max-width:520px; padding:8px; border:1px solid #d8dee9; border-radius:6px; resize:vertical; }
-        .btnrow { display:flex; gap:14px; margin-top:10px; }
-        .btn { background:#14233c; color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; }
-        .btn:disabled { opacity:.6; cursor:not-allowed; }
-        .btn:hover:not(:disabled) { opacity:.95; }
-        .load { padding:40px; text-align:center; color:#666; }
-        .ldform{display: flex; gap: 40px; align-items: center; flex-wrap: wrap;}
-        .fs {
-          border: 1px solid #e6ebf2;
-          border-radius: 10px;
-          padding: 14px 14px 16px;
-          margin-bottom: 14px;
-          background: #fff;
-        }
-        .fs legend {
-          padding: 0 8px;
-          font-weight: 800;
-          font-size: 16px;
-          color: #1f2937;
-        }
-
-        @media (max-width: 900px) {
-          .grid { grid-template-columns:1fr; }
-          .lab { min-width:160px; }
-        }
-      `}</style>
-    </>
+      <style jsx="true">{OPP_THEME_CSS}</style>
+    </div>
   );
 };
 
