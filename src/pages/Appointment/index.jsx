@@ -913,7 +913,16 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
 
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const ltrLocation = useLocation();
+  const ltrNavigate = useNavigate();
   const [ltrCtx, setLtrCtx] = useState(null);   // LTR: conversion context from a converted lead
+
+  /* LTR: where to send the agent once the booking is settled. Derived from the
+     campaign the lead was opened from (ltrConversion.oppCode), so none of the four
+     lead forms has to pass an extra route. Kept in a ref because the effect below
+     wipes history state immediately to stop a refresh re-triggering the flow. */
+  const ltrReturnRef   = useRef("");     // campaign URL, "" when this is not an LTR visit
+  const ltrReturnedRef = useRef(false);  // hand back at most once per visit
+  const ltrOutcomeRef  = useRef(null);   // { booked, appointmentId, customerName }
   // Identity of the customer this visit arrived with from a lead conversion.
   // Deliberately separate from ltrCtx: ltrCtx is cleared as soon as the drawer
   // closes (it drives the confirm/revert pair), but the drawer is routinely
@@ -976,11 +985,38 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       setEditData(null);
       setLtrCtx(st.ltrConversion);
       ltrBookedRef.current = false;
+
+      const oc = String(st.ltrConversion.oppCode || "").trim();
+      ltrReturnRef.current   = oc ? `/opportunity/${encodeURIComponent(oc)}/details` : "";
+      ltrReturnedRef.current = false;
+      ltrOutcomeRef.current  = null;
+
       setIsDrawerOpen(true);
       // clear history state so a refresh/back does not re-trigger the flow
       try { window.history.replaceState({}, document.title); } catch {}
     }
   }, [ltrLocation.key]);
+
+  /* LTR: return the agent to the campaign they came from once the booking is
+     settled — booked or cancelled — instead of stranding them on the scheduler with
+     only the browser Back button (which takes two presses and lands on the
+     already-converted lead form on the way).
+
+     replace:true drops this visit from history, so a later Back cannot re-enter a
+     booking flow for a lead that is already mapped.
+
+     Called from the drawer's onClose, which fires for BOTH outcomes — the existing
+     revert logic already depends on that, using ltrBookedRef to tell them apart. */
+  const returnToCampaign = () => {
+    const url = ltrReturnRef.current;
+    if (!url || ltrReturnedRef.current) return;
+    ltrReturnedRef.current = true;
+    ltrReturnRef.current   = "";
+    ltrNavigate(url, {
+      replace: true,
+      state: { ltrReturn: ltrOutcomeRef.current || { booked: !!ltrBookedRef.current } },
+    });
+  };
 
   const fetchDoctors = async () => {
     try {
@@ -1624,11 +1660,25 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             if (ltrCtx && !ltrBookedRef.current) {
               authPost(LTR_REVERT_URL, { ...ltrCtx }).catch(() => {});
             }
+            // Hand back BEFORE clearing ltrBookedRef — returnToCampaign falls back to
+            // that flag when the outcome has not been recorded yet.
+            returnToCampaign();   // no-op unless this visit came from a conversion
             setLtrCtx(null); ltrBookedRef.current = false;
           }}
           onBooked={async (info) => {
             // LTR: booking saved → record the Appointment ID against the lead (step 6a)
             ltrBookedRef.current = true;             // synchronous: suppress the revert on close
+            // Set BEFORE the await: onClose fires synchronously after this handler
+            // starts, so anything recorded after the confirm POST lands too late and
+            // the campaign page would announce a cancellation for a real booking.
+            ltrOutcomeRef.current = {
+              booked: true,
+              appointmentId: info?.appointmentId || info?.referenceId || "",
+              customerName: String(
+                selectedCustomer?.name ||
+                `${selectedCustomer?.firstName || ""} ${selectedCustomer?.lastName || ""}`
+              ).trim(),
+            };
             const ctx = ltrCtx;
             if (ctx) {
               try {

@@ -486,6 +486,64 @@ const useCampaignHeader = (oppCode) => {
 // ─── TRANSACTION table (R1-R6) ────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 
+/* ── Per-campaign, per-section view state ───────────────────────────────────────
+   An agent working a campaign opens a lead, converts it, books, and comes back.
+   The section remounts and previously reset to page 1 with every filter cleared,
+   so they had to re-filter and re-find their place on every single lead.
+
+   Filters, paging and scroll are remembered per campaign here. sessionStorage (not
+   local) so it lasts the working session and dies with the tab.
+
+   R7's own filter persistence under cd:extF:<oppCode> predates this and is left
+   exactly as it was — this adds paging and scroll alongside it rather than
+   rewriting a working mechanism. */
+const viewKey  = (section, oppCode) => `cd:view:${section}:${oppCode || ""}`;
+const loadView = (section, oppCode) => {
+  try { return JSON.parse(sessionStorage.getItem(viewKey(section, oppCode)) || "{}") || {}; }
+  catch { return {}; }
+};
+const saveView = (section, oppCode, patch) => {
+  try {
+    sessionStorage.setItem(
+      viewKey(section, oppCode),
+      JSON.stringify({ ...loadView(section, oppCode), ...patch })
+    );
+  } catch { /* private mode / quota — remembering the view is best-effort */ }
+};
+
+/* Restores scroll once the rows are actually on screen; restoring earlier just
+   scrolls a short page back to the top. */
+const useViewScroll = (section, oppCode, ready) => {
+  const doneRef = useRef(false);
+  useEffect(() => {
+    if (!ready || doneRef.current) return;
+    doneRef.current = true;
+    const y = Number(loadView(section, oppCode).scrollY || 0);
+    if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+  }, [ready, section, oppCode]);
+
+  useEffect(() => {
+    let t = 0;
+    const onScroll = () => {
+      if (t) return;
+      t = setTimeout(() => {
+        t = 0;
+        saveView(section, oppCode, { scrollY: Math.round(window.scrollY || 0) });
+      }, 200);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (t) clearTimeout(t); };
+  }, [section, oppCode]);
+};
+
+/* True on every render except the first. The page-reset effects below fire on
+   mount as well as on change, which would wipe a restored page number. */
+const useAfterMount = () => {
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; }, []);
+  return mounted;
+};
+
 const HALF_HOURS = Array.from({length:24},(_, h) =>
   [0,30].map(m => `${String(((h+11)%12)+1).padStart(2,"0")}:${String(m).padStart(2,"0")} ${h<12?"AM":"PM"}`)
 ).flat();
@@ -506,33 +564,36 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
 
-  // Filters
-  const [status,  setStatus]  = useState("");
-  const [owner,   setOwner]   = useState("");
-  const [disp,    setDisp]    = useState("");
-  const [therapist,setTherapist] = useState("");
-  const [search,  setSearch]  = useState("");
-  const [srchDraft,setSrchDraft] = useState("");
+  // Filters — seeded from the remembered view so returning from a lead lands the
+  // agent back on the same filtered page.
+  const _v = loadView("trans", oppCode);
+  const [status,  setStatus]  = useState(_v.status    ?? "");
+  const [owner,   setOwner]   = useState(_v.owner     ?? "");
+  const [disp,    setDisp]    = useState(_v.disp      ?? "");
+  const [therapist,setTherapist] = useState(_v.therapist ?? "");
+  const [search,  setSearch]  = useState(_v.search    ?? "");
+  const [srchDraft,setSrchDraft] = useState(_v.search ?? "");
 
-  const [apptFrom, setApptFrom] = useState("");
-  const [apptTo,   setApptTo]   = useState("");
+  const [apptFrom, setApptFrom] = useState(_v.apptFrom ?? "");
+  const [apptTo,   setApptTo]   = useState(_v.apptTo   ?? "");
 
   // Audit ranges — Created / Modified. Applied to the loaded batch client-side,
   // same as the follow-up filters below.
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo,   setCreatedTo]   = useState("");
-  const [modFrom,     setModFrom]     = useState("");
-  const [modTo,       setModTo]       = useState("");
+  const [createdFrom, setCreatedFrom] = useState(_v.createdFrom ?? "");
+  const [createdTo,   setCreatedTo]   = useState(_v.createdTo   ?? "");
+  const [modFrom,     setModFrom]     = useState(_v.modFrom     ?? "");
+  const [modTo,       setModTo]       = useState(_v.modTo       ?? "");
 
-  const [fuMode,  setFuMode]  = useState("");
-  const [fuFrom,  setFuFrom]  = useState("");
-  const [fuTo,    setFuTo]    = useState("");
-  const [fuTFrom, setFuTFrom] = useState("");
-  const [fuTTo,   setFuTTo]   = useState("");
+  const [fuMode,  setFuMode]  = useState(_v.fuMode  ?? "");
+  const [fuFrom,  setFuFrom]  = useState(_v.fuFrom  ?? "");
+  const [fuTo,    setFuTo]    = useState(_v.fuTo    ?? "");
+  const [fuTFrom, setFuTFrom] = useState(_v.fuTFrom ?? "");
+  const [fuTTo,   setFuTTo]   = useState(_v.fuTTo   ?? "");
 
-  const [sort, setSort] = useState({ key:"", dir:"asc" });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState(_v.sort ?? { key:"", dir:"asc" });
+  const [page, setPage] = useState(Number(_v.page) || 1);
+  const [pageSize, setPageSize] = useState(Number(_v.pageSize) || PAGE_SIZE);
+  const mountedRef = useAfterMount();
 
   const navigate = useNavigate();
 
@@ -544,7 +605,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
 
   const [serverTotal, setServerTotal] = useState(0);
   const SERVER_PAGE_SIZE = 100; // rows per server request
-  const [serverPage, setServerPage] = useState(1);
+  const [serverPage, setServerPage] = useState(Number(_v.serverPage) || 1);
 
   // Fetch current page — ALL filters sent to server
   useEffect(() => {
@@ -583,11 +644,27 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo, churnKey]);
 
-  // Reset to page 1 when server-side filters change
-  useEffect(()=>{ setServerPage(1); setPage(1); },
+  // Reset to page 1 when server-side filters change — but NOT on mount, which would
+  // discard the page number we just restored.
+  useEffect(()=>{ if (!mountedRef.current) return; setServerPage(1); setPage(1); },
     [search, status, owner, disp, therapist, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
   // Reset display page when client filters change
-  useEffect(()=>setPage(1), [disp,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
+  useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
+    [disp,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
+
+  // Remember the view for the trip to a lead and back.
+  useEffect(() => {
+    saveView("trans", oppCode, {
+      status, owner, disp, therapist, search, apptFrom, apptTo,
+      createdFrom, createdTo, modFrom, modTo,
+      fuMode, fuFrom, fuTo, fuTFrom, fuTTo,
+      sort, page, pageSize, serverPage,
+    });
+  }, [oppCode, status, owner, disp, therapist, search, apptFrom, apptTo,
+      createdFrom, createdTo, modFrom, modTo,
+      fuMode, fuFrom, fuTo, fuTFrom, fuTTo, sort, page, pageSize, serverPage]);
+
+  useViewScroll("trans", oppCode, !loading && rows.length > 0);
 
   // Filter options loaded from server once (not from current page rows)
   const [allOwnerOpts,    setAllOwnerOpts]    = useState([]);
@@ -887,9 +964,11 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const [serverTotal,setServerTotal]= useState(0);
   const [loading,    setLoading]    = useState(false);
   const [err,        setErr]        = useState("");
-  const [page,       setPage]       = useState(1);
-
   const _sf = (() => { try { return JSON.parse(sessionStorage.getItem(`cd:extF:${oppCode}`) || "{}") || {}; } catch { return {}; } })();
+  // Paging/scroll live alongside the existing cd:extF filter blob, not inside it.
+  const _v  = loadView("ext", oppCode);
+  const [page,       setPage]       = useState(Number(_v.page) || 1);
+  const mountedRef = useAfterMount();
   const [status,     setStatus]     = useState(_sf.status   ?? "");
   const [owner,      setOwner]      = useState(_sf.owner    ?? "");
   const [disp,       setDisp]       = useState(_sf.disp     ?? "");
@@ -908,7 +987,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
 
   const [ownerOpts,  setOwnerOpts]  = useState([]);
   const [dispOpts,   setDispOpts]   = useState([]);
-  const [pageSize,   setPageSize]   = useState(PAGE_SIZE);
+  const [pageSize,   setPageSize]   = useState(Number(_v.pageSize) || PAGE_SIZE);
 
   const navigate = useNavigate();
 
@@ -916,6 +995,10 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     const t=setTimeout(()=>setSearch(srchDraft),250);
     return()=>clearTimeout(t);
   },[srchDraft]);
+
+  useEffect(() => { saveView("ext", oppCode, { page, pageSize }); }, [oppCode, page, pageSize]);
+
+  useViewScroll("ext", oppCode, !loading && rows.length > 0);
 
   // Load filter options
   useEffect(()=>{
@@ -1003,7 +1086,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     return()=>{alive=false;};
   },[oppCode,fromDate,toDate,search,status,owner,disp,churnKey]);
 
-  useEffect(()=>setPage(1),[search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
+  useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
+    [search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
 
   const fuDateRange = useMemo(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
@@ -1223,30 +1307,44 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   }, [rows]);
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
-  const [page,    setPage]    = useState(1);
+  const _v = loadView("manual", oppCode);
+  const [page,    setPage]    = useState(Number(_v.page) || 1);
 
-  const [status,  setStatus]  = useState("");
-  const [owner,   setOwner]   = useState("");
-  const [disp,    setDisp]    = useState("");
-  const [doctorFilter, setDoctorFilter] = useState("");
-  const [fuMode,  setFuMode]  = useState("");
-  const [fuFrom,  setFuFrom]  = useState("");
-  const [fuTo,    setFuTo]    = useState("");
-  const [fuTime,  setFuTime]  = useState("");
-  const [srchDraft,setSrchDraft]=useState("");
-  const [search,  setSearch]  = useState("");
+  const [status,  setStatus]  = useState(_v.status ?? "");
+  const [owner,   setOwner]   = useState(_v.owner  ?? "");
+  const [disp,    setDisp]    = useState(_v.disp   ?? "");
+  const [doctorFilter, setDoctorFilter] = useState(_v.doctorFilter ?? "");
+  const [fuMode,  setFuMode]  = useState(_v.fuMode ?? "");
+  const [fuFrom,  setFuFrom]  = useState(_v.fuFrom ?? "");
+  const [fuTo,    setFuTo]    = useState(_v.fuTo   ?? "");
+  const [fuTime,  setFuTime]  = useState(_v.fuTime ?? "");
+  const [srchDraft,setSrchDraft]=useState(_v.search ?? "");
+  const [search,  setSearch]  = useState(_v.search  ?? "");
 
   // Audit ranges — the manual list is fetched in full, so both are exact.
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo,   setCreatedTo]   = useState("");
-  const [modFrom,     setModFrom]     = useState("");
-  const [modTo,       setModTo]       = useState("");
-  const [pageSize,    setPageSize]    = useState(PAGE_SIZE);
+  const [createdFrom, setCreatedFrom] = useState(_v.createdFrom ?? "");
+  const [createdTo,   setCreatedTo]   = useState(_v.createdTo   ?? "");
+  const [modFrom,     setModFrom]     = useState(_v.modFrom     ?? "");
+  const [modTo,       setModTo]       = useState(_v.modTo       ?? "");
+  const [pageSize,    setPageSize]    = useState(Number(_v.pageSize) || PAGE_SIZE);
+  const mountedRef = useAfterMount();
 
   const navigate = useNavigate();
 
   useEffect(()=>{ const t=setTimeout(()=>setSearch(srchDraft),250); return()=>clearTimeout(t); },[srchDraft]);
-  useEffect(()=>setPage(1),[search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime,createdFrom,createdTo,modFrom,modTo,pageSize]);
+  useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
+    [search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime,createdFrom,createdTo,modFrom,modTo,pageSize]);
+
+  useEffect(() => {
+    saveView("manual", oppCode, {
+      status, owner, disp, doctorFilter, search,
+      fuMode, fuFrom, fuTo, fuTime,
+      createdFrom, createdTo, modFrom, modTo, page, pageSize,
+    });
+  }, [oppCode, status, owner, disp, doctorFilter, search, fuMode, fuFrom, fuTo, fuTime,
+      createdFrom, createdTo, modFrom, modTo, page, pageSize]);
+
+  useViewScroll("manual", oppCode, !loading && rows.length > 0);
 
   useEffect(()=>{
     if(!campaignRecId) return;
@@ -1498,6 +1596,24 @@ export default function CampaignDetails() {
   const showToast = (msg, type="success") => {
     setToast({ msg, type }); setTimeout(()=>setToast(""), 4000);
   };
+
+  /* Arriving back from a conversion booking (the appointment page hands over
+     state.ltrReturn). Confirming here rather than on the screen the agent was
+     leaving means they read the outcome where they land. History state is
+     cleared straight after so a refresh does not replay the toast. */
+  useEffect(() => {
+    const r = location.state && location.state.ltrReturn;
+    if (!r) return;
+    if (r.booked) {
+      const who = r.customerName ? ` for ${r.customerName}` : "";
+      const ref = r.appointmentId ? ` (${r.appointmentId})` : "";
+      showToast(`✓ Appointment booked${who}.`);
+    } else {
+      showToast("Booking cancelled — the lead is back in WIP.", "error");
+    }
+    try { window.history.replaceState({}, document.title); } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   // Load campaign header
   const { header: apiHeader, loading: hdrLoading, err: hdrErr } = useCampaignHeader(oppCode);
