@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link, useNavigate, Routes, Route, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -77,6 +77,15 @@ const Toast = ({ message, type = "info", onClose }) => {
   return <div className={`toast ${type}`}>{message}</div>;
 };
 
+/* Appointment status → the EMR transition it maps to. Statuses absent from this
+   map (Booked, Confirmed, Cancelled, No Show) never open a form.
+   Keep in sync with WHEN_BY_STATUS in useEMRForms.js. */
+const FORM_GATED_STATUS = {
+  "Checked In": "CheckedIn",
+  "Active":     "Start",
+  "Completed":  "Completed",
+};
+
 // ── Appointment Details Sidebar ────────────────────────────────────────────────
 // Module-level cache — survives re-renders, cleared on page reload
 const _formStatusCache = new Map();
@@ -132,7 +141,6 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [activeFormsLoaded,  setActiveFormsLoaded]  = useState(false);
   // Medical history form — shown if first visit or not filled
   const [showMedHistory,     setShowMedHistory]     = useState(false);
-  const [medHistFilled,      setMedHistFilled]      = useState(false);
 
   // ── Direct form open modal ────────────────────────────────────────────────
   const [directModal,    setDirectModal]    = useState(false);
@@ -145,58 +153,129 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     setDirectModal(true);
   };
 
-  const MED_HIST_CODE = "MED-HIST-001";
+  /* ── Customer (Medical History) form code ─────────────────────────────────
+     Previously hardcoded as "MED-HIST-001". The code differs per database
+     (the demo server stores Medical History as "M001"), so the constant made
+     every lookup silently miss.
+
+     The appointment Forms endpoint gives us the code for this centre — but it
+     only reports customerForm while the form is still OUTSTANDING; once it has
+     been submitted the field comes back null. That is fine for opening a blank
+     form, and it is why the Filled/Pending badge must NOT be derived from this
+     value (see medHistRow below), or a form that was just filled reads as
+     Pending forever. */
+  const [medHistCode, setMedHistCode] = useState("");
+
+  useEffect(() => {
+    const apptIdVal = appointment?.appointmentId;
+    if (!apptIdVal) { setMedHistCode(""); return; }
+    const svcCode = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
+    const custId  = appointment?.custId || "";
+    let cancelled = false;
+    authGet(
+      `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(apptIdVal)}/Forms` +
+      `?serviceCode=${encodeURIComponent(svcCode)}&custId=${encodeURIComponent(custId)}`
+    ).then(d => {
+      if (cancelled) return;
+      const inner = d?.data ?? d;
+      setMedHistCode(inner?.customerForm?.formCode || "");
+    }).catch(() => { if (!cancelled) setMedHistCode(""); });
+    return () => { cancelled = true; };
+  }, [appointment?.appointmentId, appointment?.serviceCode, appointment?.custId]);
+
+  /* ── Medical History status — ONE source of truth ─────────────────────────
+     The badge on the Medical History button and the row in the FORMS list are
+     now read from the same array, so the two sections cannot contradict each
+     other. Previously the badge came from a separate flag gated on medHistCode
+     being non-empty; once the form was submitted the endpoint stopped returning
+     that code, the flag stayed false, and the button showed Pending while the
+     list directly below it showed Done.
+
+     Matching order: the resolved code, then a form named like a medical
+     history, then any customer form on the list. */
+  const medHistRow = useMemo(() => {
+    if (medHistCode) {
+      const byCode = sidebarForms.find(f => f.formCode === medHistCode);
+      if (byCode) return byCode;
+    }
+    const byName = sidebarForms.find(f =>
+      /medical\s*history/i.test(f.formName || "") && f.whenToFill === "Customer");
+    if (byName) return byName;
+    return sidebarForms.find(f => f.whenToFill === "Customer") || null;
+  }, [sidebarForms, medHistCode]);
+
+  const medHistFilled = medHistRow?.status === "Completed";
+
+  /* Opening still needs a code: prefer the one the endpoint gave us for a blank
+     form, fall back to the code on the row matched above — that one is present
+     precisely when the form HAS been submitted, so re-opening a filled form
+     works as well. */
+  const medHistOpenCode = medHistCode || medHistRow?.formCode || "";
+
+  /* ── Shared form-status refresh ───────────────────────────────────────────
+     The same merge (service forms + customer forms) was previously written out
+     three times — in the mount effect and in both FormFillModal onComplete
+     handlers — and the copies had already drifted. One function now, so a fix
+     lands in every caller. Behaviour is unchanged from the mount-effect copy. */
+  const refreshFormStatus = useCallback(async () => {
+    const svcCode = appt?.serviceCode || appointment?.serviceCode
+                 || appointment?.allLines?.[0]?.serviceCode || "";
+    const aId     = appt?.appointmentId || appointment?.appointmentId || "";
+    const custId  = appt?.custId || appointment?.custId || "";
+    if (!aId) return;
+
+    _formStatusCache.delete(`${aId}|${svcCode}`);
+    const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
+    const [statusData, customerData] = await Promise.all([
+      fetchFormStatus(aId, svcCode),
+      custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+    ]);
+
+    const serviceForms = statusData?.forms || [];
+
+    // Merge customer forms (Medical History etc.) into the status list
+    const inner = customerData?.data ?? customerData;
+    const customerForms = [
+      ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+      ...(Array.isArray(inner)                ? inner               : []),
+    ];
+    const customerFormRows = customerForms.map(cf => ({
+      formCode:   cf.formCode,
+      formName:   cf.formName || cf.formCode,
+      whenToFill: "Customer",
+      isMandatory: true,
+      status:     "Completed",   // if it's in the list, it was filled
+    }));
+
+    const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
+    const merged = [
+      ...serviceForms,
+      ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
+    ];
+
+    setSidebarForms(merged);
+
+    const completed = merged.filter(f => f.status === "Completed").length;
+    setSidebarFormStatus(
+      merged.length === 0          ? null
+      : completed === merged.length ? "All Complete"
+      : completed > 0               ? "Partially Filled"
+      :                               "Not Started"
+    );
+  }, [appt, appointment]);
 
   useEffect(() => {
     const svcCode   = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
     const apptIdVal = appointment?.appointmentId;
-    const custId    = appointment?.custId || "";
     if (!apptIdVal || !svcCode) return;
     setSidebarFormsLoading(true);
 
     // 1. Form fill status for service forms + customer forms combined
     const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-    Promise.all([
-      fetchFormStatus(apptIdVal, svcCode),
-      custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-        headers: { Authorization: `Bearer ${tok}` }
-      }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
-    ]).then(([statusData, customerData]) => {
-      const serviceForms = (statusData?.forms || []);
-
-      // Merge customer forms (Medical History etc.) into the status list
-      const inner = customerData?.data ?? customerData;
-      const customerForms = [
-        ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-        ...(Array.isArray(inner)                ? inner               : []),
-      ];
-
-      // Build merged list — customer forms shown as filled if they exist
-      const customerFormRows = customerForms.map(cf => ({
-        formCode:   cf.formCode,
-        formName:   cf.formName || cf.formCode,
-        whenToFill: "Customer",
-        isMandatory: true,
-        status:     "Completed",   // if it's in the list, it was filled
-      }));
-
-      // Combine: service forms first, then customer forms not already in list
-      const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
-      const merged = [
-        ...serviceForms,
-        ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
-      ];
-
-      setSidebarForms(merged);
-
-      // Recalculate overall status including customer forms
-      const completed = merged.filter(f => f.status === "Completed").length;
-      const overall = merged.length === 0         ? null
-                    : completed === merged.length  ? "All Complete"
-                    : completed > 0                ? "Partially Filled"
-                    :                                "Not Started";
-      setSidebarFormStatus(overall);
-    }).finally(() => setSidebarFormsLoading(false));
+    refreshFormStatus().finally(() => setSidebarFormsLoading(false));
 
     // 2. Forms mapped to this specific serviceCode
     fetch(`${API_BASE_URL}/api/EMR/Service/${encodeURIComponent(svcCode)}/Forms`, {
@@ -209,33 +288,18 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       .catch(() => {})
       .finally(() => setActiveFormsLoaded(true));
 
-    // 3. Medical history — show if customer has no prior submissions
-    if (custId) {
-      fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}` }
-      }).then(r => r.ok ? r.json() : null)
-        .then(d => {
-          // Response: { data: { submissions: [], customerForms: [...] } }
-          const inner = d?.data ?? d;
-          const submissions = [
-            ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-            ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
-            ...(Array.isArray(inner)                ? inner               : []),
-          ];
-          const medHistSub  = submissions.find(s => s.formCode === MED_HIST_CODE);
-          setMedHistFilled(!!medHistSub);
-          setShowMedHistory(true); // always show button; indicator shows filled/pending
-          // Auto-open Medical History for first-time customers (no prior submissions at all)
-          if (!medHistSub && submissions.length === 0) {
-            openFormDirect(MED_HIST_CODE, {
-              customerName: appointment?.fullName || appt?.fullName || "",
-            });
-          }
-        }).catch(() => setShowMedHistory(true));
-    } else {
-      setShowMedHistory(true);
-    }
   }, [appointment?.appointmentId, appointment?.serviceCode, appointment?.custId]);
+
+  /* 3. Medical History button visibility.
+        This used to ALSO auto-open the form whenever the sidebar mounted with a
+        customer who had no submissions, regardless of appointment status — that
+        is why forms appeared at unpredictable moments. Opening is now driven
+        purely by the status transition (see handleStatusChange).
+        The Filled/Pending badge is derived from sidebarForms (see medHistRow),
+        so the extra customer-forms fetch this effect used to make is gone. */
+  useEffect(() => {
+    setShowMedHistory(true); // always show; the badge reports filled/pending
+  }, [appointment?.custId]);
 
   // ── Customer Notes — check-in alert ──────────────────────────────────────
   const { NotePopup: CheckinNotePopup, checkNotes: checkCheckinNotes } = useCustomerNotes();
@@ -376,25 +440,38 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       setToast({ message: "Future appointments can only be set to Booked, Confirmed, or Cancelled.", type: "error" });
       return;
     }
-    if (newStatus === "Active" || newStatus === "Completed") {
-      const toStatus    = newStatus === "Active" ? "Start" : "Completed";
+    /* ── Which transitions require forms ──────────────────────────────────────
+       Checked In → the customer form (Medical History)
+       Active     → forms due "Before Service Starts"
+       Completed  → treatment forms due "After Service Starts"
+       Check In was previously not gated at all, which is why Medical History
+       never opened on check-in. */
+    const gatedTo = FORM_GATED_STATUS[newStatus];
+    if (gatedTo) {
       const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
       const canProceed  = await checkAndShowForms({
-        appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode, toStatus,
+        appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode,
+        toStatus: gatedTo,
         macroContext: {
           customerName:     appt?.fullName         || "",
           serviceName:      appt?.serviceName      || "",
           centreName:       user?.centerName       || "",
           practitionerName: appt?.therapistName    || "",
           appointmentDate:  appt?.startDate        || new Date().toISOString(),
+          MobileNumber:     appt?.number           || "",
+          Gender:           appt?.gender           || "",
         },
       });
       if (!canProceed) {
         // Form was shown (sidebar still open since we didn't close it) — user cancelled
         return;
       }
-      // Forms complete — close sidebar so status change is visible on calendar
-      onClose?.();
+      // Pull the fresh fill status before anything else happens on screen.
+      await refreshFormStatus();
+      // Forms complete — close sidebar so status change is visible on calendar.
+      // Check In is the exception: the receptionist stays on the sidebar, and
+      // closing it would hide the very form status she just updated.
+      if (gatedTo !== "CheckedIn") onClose?.();
     }
     setStatus(newStatus);
     sendStatusUpdate(
@@ -519,7 +596,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           {showMedHistory && (() => {
             const a = appt || appointment || {};
             const openMedHist = () => {
-              openFormDirect(MED_HIST_CODE, {
+              if (!medHistOpenCode) {
+                setToast({ message: "Medical History form is not configured for this centre.", type: "error" });
+                return;
+              }
+              openFormDirect(medHistOpenCode, {
                 customerName:     a.fullName         || "",
                 serviceName:      a.serviceName      || "",
                 centreName:       user?.centerName   || "",
@@ -692,43 +773,8 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       {showPrecheck && precheckProps && <InvoicePrecheckModal {...precheckProps} />}
       {showModal && modalProps && <FormFillModal {...modalProps}
         onComplete={() => {
-          // Refresh sidebar form status after consent/treatment form submitted
-          const svcCode = appt?.serviceCode || appointment?.serviceCode || "";
-          const aId     = appt?.appointmentId || appointment?.appointmentId || "";
-          const custId  = appt?.custId || appointment?.custId || "";
-          const key     = `${aId}|${svcCode}`;
-          _formStatusCache.delete(key);
-          const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-          Promise.all([
-            fetchFormStatus(aId, svcCode),
-            custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-              headers: { Authorization: `Bearer ${tok}` }
-            }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
-          ]).then(([statusData, customerData]) => {
-            const serviceForms = statusData?.forms || [];
-            const inner = customerData?.data ?? customerData;
-            const customerForms = [
-              ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-              ...(Array.isArray(inner)                ? inner               : []),
-            ];
-            const customerFormRows = customerForms.map(cf => ({
-              formCode: cf.formCode, formName: cf.formName || cf.formCode,
-              whenToFill: "Customer", isMandatory: true, status: "Completed",
-            }));
-            const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
-            const merged = [
-              ...serviceForms,
-              ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
-            ];
-            setSidebarForms(merged);
-            const completed = merged.filter(f => f.status === "Completed").length;
-            setSidebarFormStatus(
-              merged.length === 0        ? null
-              : completed === merged.length ? "All Complete"
-              : completed > 0               ? "Partially Filled"
-              :                               "Not Started"
-            );
-          });
+          // Refresh sidebar form status after the form is submitted
+          refreshFormStatus();
           // Also resolve the useEMRForms promise so status change proceeds
           modalProps.onComplete?.();
         }}
@@ -743,50 +789,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           macroContext={directMacro}
           onClose={() => { setDirectModal(false); setDirectFormCode(null); }}
           onComplete={() => {
-            const fc = directFormCode;
             setDirectModal(false);
             setDirectFormCode(null);
-            // Refresh form status after submission
-            const svcCode = appt?.serviceCode || appointment?.serviceCode || "";
-            const aId     = appt?.appointmentId || appointment?.appointmentId || "";
-            const custId  = appt?.custId || appointment?.custId || "";
-            const key = `${aId}|${svcCode}`;
-            _formStatusCache.delete(key);
-            const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-            // Refresh both service forms AND customer forms to get accurate merged status
-            Promise.all([
-              fetchFormStatus(aId, svcCode),
-              custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-                headers: { Authorization: `Bearer ${tok}` }
-              }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
-            ]).then(([statusData, customerData]) => {
-              const serviceForms = statusData?.forms || [];
-              const inner = customerData?.data ?? customerData;
-              const customerForms = [
-                ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-                ...(Array.isArray(inner)                ? inner               : []),
-              ];
-              const customerFormRows = customerForms.map(cf => ({
-                formCode:   cf.formCode,
-                formName:   cf.formName || cf.formCode,
-                whenToFill: "Customer",
-                isMandatory: true,
-                status:     "Completed",
-              }));
-              const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
-              const merged = [
-                ...serviceForms,
-                ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
-              ];
-              setSidebarForms(merged);
-              const completed = merged.filter(f => f.status === "Completed").length;
-              const overall = merged.length === 0        ? null
-                            : completed === merged.length ? "All Complete"
-                            : completed > 0               ? "Partially Filled"
-                            :                               "Not Started";
-              setSidebarFormStatus(overall);
-            });
-            if (fc === MED_HIST_CODE) setMedHistFilled(true);
+            // Refresh form status after submission (service + customer forms merged).
+            // The Medical History badge follows sidebarForms, so this one call
+            // updates both the badge and the FORMS list together.
+            refreshFormStatus();
           }}
         />
       )}

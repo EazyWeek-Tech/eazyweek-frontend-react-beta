@@ -344,7 +344,9 @@ const AnnotationPad = ({ assetCode, value, onChange }) => {
 };
 
 // ─── Single Field Renderer (fillable) ─────────────────────────────────────────
-const FieldRenderer = ({ component, value, onChange, conditions, allValues, allComponents = [] }) => {
+// Memoised: without this every keystroke re-renders every field in the form,
+// which is visible lag on an iPad and can drop characters on long forms.
+const FieldRenderer = React.memo(({ component, value, onChange, conditions, allValues, allComponents = [] }) => {
   const { componentType, label, isMandatory, config = {}, componentId } = component;
 
   // Apply conditional visibility
@@ -776,7 +778,8 @@ const FieldRenderer = ({ component, value, onChange, conditions, allValues, allC
     default:
       return null;
   }
-};
+});
+FieldRenderer.displayName = "FieldRenderer";
 
 // ─── Main FormFillModal ───────────────────────────────────────────────────────
 export default function FormFillModal({
@@ -800,6 +803,22 @@ export default function FormFillModal({
   const [loading,    setLoading]    = useState(true);
   const [errors,     setErrors]     = useState({});
   const [toast,      setToast]      = useState(null);
+
+  // ── iPad scrolling ────────────────────────────────────────────────────────
+  const scrollRef = useRef(null);
+
+  /* Lock the page behind the modal. Without this, a swipe that reaches the top
+     or bottom of the form scrolls the appointment grid underneath instead —
+     which on a touch device reads as the form "jumping" under the finger. */
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Advancing to the next form starts at the top of that form, not wherever the
+  // previous one was scrolled to.
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [formIndex]);
 
   const showToast = (msg, type="error") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -1194,8 +1213,35 @@ export default function FormFillModal({
 
   return (
     <div className="popouter" style={{ display:"flex", zIndex:9999 }}>
+      {/* ── iPad / touch sizing ──────────────────────────────────────────────
+          Three separate causes of the "jerking" this fixes:
+          1. font-size below 16px makes Safari zoom the viewport on focus, then
+             leaves it zoomed — the single biggest cause of having to pan around
+             the form on an iPad.
+          2. 90vh is frozen at the full viewport height, so when the keyboard
+             opens the footer sits underneath it and iOS scrolls the whole
+             document to reveal the focused field. dvh tracks the visual
+             viewport; the vh line stays as the fallback for older browsers.
+          3. scroll chaining — a swipe past the end of the form scrolls the page
+             behind it. overscroll-behavior keeps the gesture inside the panel. */}
+      <style>{`
+        .formfill-pop {
+          max-height: 90vh;
+          max-height: 90dvh;
+        }
+        .formfill-pop .popfrm {
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+        @media (pointer: coarse) {
+          .formfill-pop { max-height: 94dvh; }
+          .formfill-pop input,
+          .formfill-pop select,
+          .formfill-pop textarea { font-size: 16px; }
+        }
+      `}</style>
       <div className="popovrly" onClick={onClose} />
-      <div className="popin" style={{ maxWidth:680, width:"95%", maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
+      <div className="popin formfill-pop" style={{ maxWidth:680, width:"95%", display:"flex", flexDirection:"column" }}>
 
         {/* Header */}
         <div className="popuphdr" style={{ flexShrink:0 }}>
@@ -1226,7 +1272,7 @@ export default function FormFillModal({
         )}
 
         {/* Form fields — scrollable */}
-        <div className="popfrm" style={{ flex:1, overflowY:"auto" }}>
+        <div className="popfrm" ref={scrollRef} style={{ flex:1, overflowY:"auto" }}>
           {formDef ? (
             <div>
               {(formDef.components || []).map(comp => (

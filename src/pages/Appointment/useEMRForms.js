@@ -26,6 +26,18 @@ const authGet = async (url) => {
 //   modalProps  → pass to <FormFillModal {...modalProps} /> in your JSX
 //   showModal   → boolean, true when modal should render
 
+/* Which forms each transition owns.
+     CheckedIn → the customer form (Medical History), once per customer
+     Start     → forms due Before Service Starts
+     Completed → treatment forms due After Service Starts
+   A status not in this map never opens a form.
+   Keep in sync with FORM_GATED_STATUS in the appointment screen. */
+const WHEN_BY_STATUS = {
+  CheckedIn: null,                      // customer form only — no service forms
+  Start:     "Before Service Starts",
+  Completed: "After Service Starts",
+};
+
 export const useEMRForms = () => {
   const [modalProps, setModalProps] = useState(null);
   const [resolve,    setResolve]    = useState(null);
@@ -34,12 +46,12 @@ export const useEMRForms = () => {
     appointmentId, serviceCode, custId, centerCode, toStatus,
     macroContext = {},   // EMR-FB-019: { customerName, serviceName, centreName, practitionerName, appointmentDate }
   }) => {
-    if (!["Start", "Completed"].includes(toStatus)) return true;
+    if (!(toStatus in WHEN_BY_STATUS)) return true;
 
-    const whenToFill = toStatus === "Start" ? "Before Service Starts" : "After Service Starts";
+    const whenToFill = WHEN_BY_STATUS[toStatus];
 
     try {
-      // One fetch serves both gates below.
+      // One fetch serves every gate below.
       let apptForms = null;
       if (appointmentId) {
         apptForms = await authGet(
@@ -48,10 +60,16 @@ export const useEMRForms = () => {
         );
       }
 
-      // ── Step 1: On Start, first visit + a Customer Form → show it first ────
-      if (toStatus === "Start" && custId && centerCode &&
-          apptForms?.isFirstVisit && apptForms?.customerForm) {
-        const customerFormFilled = await new Promise((done) => {
+      /* ── Check In: the customer form (Medical History) ─────────────────────
+         This used to hang off the Start transition and additionally require
+         isFirstVisit, so it opened at the wrong moment and never opened at all
+         for a returning customer whose form was never captured. The real
+         question is simply whether the form is still outstanding. */
+      if (toStatus === "CheckedIn") {
+        const cf = apptForms?.customerForm;
+        if (!cf?.formCode || cf.isSubmitted) return true;
+
+        return new Promise((done) => {
           setResolve({ fn: done });
           setModalProps({
             appointmentId,
@@ -61,16 +79,13 @@ export const useEMRForms = () => {
             whenToFill:         null,        // Customer Form has no whenToFill
             isCustomerFormEdit: false,
             existingRecId:      null,        // new fill — not an edit
-            formCodeOverride:   apptForms.customerForm.formCode,
+            formCodeOverride:   cf.formCode,
             macroContext,
           });
         });
-
-        // If practitioner closed without filling → block the status change
-        if (!customerFormFilled) return false;
       }
 
-      /* ── Step 2: consent / treatment forms ─────────────────────────────────
+      /* ── Active / Completed: consent / treatment forms ─────────────────────
          These used to open ONLY when CheckStatusChange answered canProceed:false,
          which the backend decides from isMandatory. Any consent or treatment form
          that was not flagged mandatory therefore never appeared on its own — the

@@ -563,6 +563,38 @@ const PaymentBlock = ({
   }, [effectiveInvoiceItems, advAllow]);
   const advRedeemBlocked = advBlockedTypes.length > 0;
 
+  // ---------- Loyalty redemption ceiling by cart line ----------------------
+  // A line whose master has Allow Loyalty Redemption = No cannot be paid with
+  // points, so the redeemable ceiling is the value of the ELIGIBLE lines only.
+  // Packages store a bit, services store 'Yes'/'No'; a line with no flag at all
+  // stays eligible so legacy carts are unaffected.
+  const isRedeemEligible = (i) => {
+    const v = i.loyaltyRedeem;
+    if (v === undefined || v === null || v === "") return true;
+    const s = String(v).trim().toLowerCase();
+    return !(s === "no" || s === "n" || s === "0" || s === "false");
+  };
+
+  const redeemBlockedLines = useMemo(
+    () => (effectiveInvoiceItems || []).filter(i => !isRedeemEligible(i)),
+    [effectiveInvoiceItems]
+  );
+
+  const redeemableLineValue = useMemo(() => {
+    const citizen = (effectiveCustomer?.status || '').toLowerCase() === 'citizen';
+    return (effectiveInvoiceItems || [])
+      .filter(isRedeemEligible)
+      .reduce((sum, i) => sum + computeLineAmounts(
+        i.price, i.discount, i.quantity ?? i.qty ?? 1,
+        i.taxpercent, i.taxIncluded ?? i.taxincluded, citizen
+      ).total, 0);
+  }, [effectiveInvoiceItems, effectiveCustomer]);
+
+  // Ceiling on the SAR AMOUNT that may be redeemed. Deliberately NOT applied to
+  // pointsForAmount() - that rate is derived from the full balance value and
+  // capping it there would over-deduct points.
+  const maxRedeemSar = Math.max(0, Math.min(loyaltyRedeemableSar, redeemableLineValue));
+
   // ---------- Form helpers ----------
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -628,6 +660,10 @@ const PaymentBlock = ({
         setFormError('No redeemable points available for this customer.');
         return;
       }
+      if (maxRedeemSar <= 0) {
+        setFormError('No item in this invoice is eligible for loyalty redemption.');
+        return;
+      }
 
       const totalPaidSoFar = payments.reduce((s, p) => s + (p.amount || 0), 0);
       const remaining = Math.max(0, parsedTotalAmount - totalPaidSoFar);
@@ -635,8 +671,12 @@ const PaymentBlock = ({
         setFormError(`Amount exceeds remaining balance (SAR ${remaining.toFixed(2)}).`);
         return;
       }
-      if (redeemSar > loyaltyRedeemableSar + 0.01) {
-        setFormError(`Amount exceeds the value of available points (SAR ${loyaltyRedeemableSar.toFixed(2)}).`);
+      if (redeemSar > maxRedeemSar + 0.01) {
+        setFormError(
+          redeemableLineValue < loyaltyRedeemableSar
+            ? `Only SAR ${maxRedeemSar.toFixed(2)} of this invoice is eligible for loyalty redemption.`
+            : `Amount exceeds the value of available points (SAR ${maxRedeemSar.toFixed(2)}).`
+        );
         return;
       }
 
@@ -1606,6 +1646,12 @@ if (result.success) {
                           worth <strong style={{ color: '#334b71' }}>SAR {loyaltyRedeemableSar.toFixed(2)}</strong>
                         </div>
                       )}
+                      {redeemBlockedLines.length > 0 && (
+                        <div style={{ fontSize: 11, color: '#cc6b5c', flexBasis: '100%' }}>
+                          Redeemable on this invoice: <strong>SAR {maxRedeemSar.toFixed(2)}</strong> — 
+                          {redeemBlockedLines.length} item{redeemBlockedLines.length > 1 ? 's' : ''} not eligible for points redemption.
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : !recIdFromUrl_final ? (
@@ -1623,7 +1669,7 @@ if (result.success) {
                       id="redeemAmount"
                       min="0"
                       step="0.01"
-                      max={Math.max(0, loyaltyRedeemableSar)}
+                      max={maxRedeemSar}
                       value={formData.redeemAmount || ''}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1631,7 +1677,7 @@ if (result.success) {
                         setLoyaltyPointsValue(null);
                         setLoyaltyPointsError('');
                       }}
-                      placeholder={loyaltyRedeemableSar > 0 ? `Max SAR ${loyaltyRedeemableSar.toFixed(2)}` : 'Enter amount'}
+                      placeholder={maxRedeemSar > 0 ? `Max SAR ${maxRedeemSar.toFixed(2)}` : 'Enter amount'}
                       style={{ width: '100%' }}
                     />
                     {formData.redeemAmount && parseFloat(formData.redeemAmount) > 0 && loyaltyRedeemableSar > 0 && (
@@ -1639,9 +1685,11 @@ if (result.success) {
                         ≈ {pointsForAmount(formData.redeemAmount).toLocaleString()} pts
                       </span>
                     )}
-                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > loyaltyRedeemableSar + 0.01 && (
+                    {formData.redeemAmount && parseFloat(formData.redeemAmount) > maxRedeemSar + 0.01 && (
                       <span style={{ fontSize: 11, color: '#cc6b5c', marginTop: 3, display: 'block' }}>
-                        Exceeds available points value (SAR {loyaltyRedeemableSar.toFixed(2)})
+                        {redeemableLineValue < loyaltyRedeemableSar
+                          ? `Only SAR ${maxRedeemSar.toFixed(2)} of this invoice is redeemable`
+                          : `Exceeds available points value (SAR ${maxRedeemSar.toFixed(2)})`}
                       </span>
                     )}
                     {loyaltyPointsError && (
