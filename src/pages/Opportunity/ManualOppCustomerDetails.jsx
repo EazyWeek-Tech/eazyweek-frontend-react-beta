@@ -2212,7 +2212,39 @@ const subMediumName = safe(form.subMedium || "Manual");
         </fieldset>
 
         <fieldset className="fs">
-          <legend>Lead Disposition</legend>
+          {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
+              on a rendered legend, so a title-plus-action row cannot be laid out
+              inside one reliably. Matches the other three campaign forms. */}
+          <div className="fsHead" style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}>
+            <div className="fsTitle">Lead Disposition</div>
+            {/* Session history — same control and placement as R1–R7. */}
+            <button
+              type="button"
+              className="fuBtn"
+              onClick={openFollowUpModal}
+              style={{
+                padding: "5px 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1.35,
+                letterSpacing: 0,
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                color: "#fff",
+                background: "#334b71",
+                border: "1px solid #334b71",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              Check Follow Up History
+            </button>
+          </div>
 
           {/* Same two-column, row-major order as the previous form:
               Disposition / Sub-Disposition, then the follow-up pair. */}
@@ -2269,13 +2301,6 @@ const subMediumName = safe(form.subMedium || "Manual");
                 </div>
               </>
             )}
-
-            <div className="fuLinkRow mtWide">
-              <button type="button" className="fuLink" onClick={openFollowUpModal} style={{textDecoration:'underline'}}>
-                Click here to check follow up history
-              </button>
-            </div>
-            <br />
           </div>
 
 

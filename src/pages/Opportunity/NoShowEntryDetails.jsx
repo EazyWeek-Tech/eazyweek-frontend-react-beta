@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import { OPP_THEME_CSS } from "./opportunityTheme";
+import FollowUpHistoryModal from "./FollowUpHistoryModal";
 
 /** Bearer auth — app authenticates via Authorization header, not a cookie. */
 const AUTH_HEADERS = () => {
@@ -234,6 +235,7 @@ const [subDispLoading, setSubDispLoading] = useState(false);
   });
 
   const [saving, setSaving] = useState(false);
+  const [fuOpen, setFuOpen] = useState(false);   // follow-up history modal
 
 // Follow-up date/time are shown only while the lead is still WIP; for WIP they are
 // mandatory. Any other disposition hides them (and clears them on change).
@@ -650,10 +652,42 @@ setForm((p) => ({
         </fieldset>
 
         <fieldset className="fs">
-          <legend>Lead Disposition</legend>
+          {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
+              on a rendered legend, so a title-plus-action row cannot be laid out
+              inside one reliably. Styled to match the other cards’ legends. */}
+          <div className="fsHead" style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}>
+            <div className="fsTitle">Lead Disposition</div>
+            {/* Session history — same trail the manual campaigns already show. */}
+            <button
+              type="button"
+              className="fuBtn"
+              onClick={() => setFuOpen(true)}
+              style={{
+                padding: "5px 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1.35,
+                letterSpacing: 0,
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                color: "#fff",
+                background: "#334b71",
+                border: "1px solid #334b71",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              Check Follow Up History
+            </button>
+          </div>
 
           {loading && (
-            <div className="load" style={{ padding: "6px 0 10px", fontSize: 13, color: "#64748b" }}>
+            <div className="load" style={{ padding: 0, fontSize: 13 }}>
               Loading lead details…
             </div>
           )}
@@ -737,10 +771,9 @@ setForm((p) => ({
 
             <div className="formrow">
               <label className="lab">Follow Up Time <span className="req">*</span>:</label>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="splitRow">
                 <select
                   className="inp"
-                  style={{ minWidth: 180 }}
                   value={followUpTime}
                   disabled={isLocked}
                   onChange={(e) => {
@@ -760,7 +793,6 @@ setForm((p) => ({
 
                 <select
                   className="inp"
-                  style={{ minWidth: 120 }}
                   value={followUpAmPm}
                   disabled={isLocked}
                   onChange={(e) => !isLocked && setFollowUpAmPm(e.target.value)}
@@ -804,6 +836,12 @@ setForm((p) => ({
           <button className="btn ghost" onClick={() => navigate(-1)}>Back</button>
         </div>
       </div>
+
+      <FollowUpHistoryModal
+        open={fuOpen}
+        onClose={() => setFuOpen(false)}
+        oppRecId={state?.recId || getRecId(state?.row)}
+      />
 
       <style jsx="true">{OPP_THEME_CSS}</style>
     </div>

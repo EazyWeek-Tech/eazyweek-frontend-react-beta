@@ -5,6 +5,7 @@
   import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
   import { OPP_THEME_CSS } from "./opportunityTheme";
+  import FollowUpHistoryModal from "./FollowUpHistoryModal";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -403,6 +404,8 @@ const getCenterFromStorage = () => {
     const resolvedCustID = safe(
       row?.custID || row?.custId || params?.custId || params?.custID || ""
     ).trim();
+
+    const [fuOpen, setFuOpen] = useState(false);   // follow-up history modal
 
     const [toast, setToast] = useState({ show: false, msg: "" });
     const showToast = (msg) => {
@@ -1321,7 +1324,39 @@ if (!hasNone) {
           </fieldset>
 
           <fieldset className="fs">
-            <legend>Lead Disposition</legend>
+            {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
+                on a rendered legend, so a title-plus-action row cannot be laid out
+                inside one reliably. Styled to match the other cards’ legends. */}
+            <div className="fsHead" style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}>
+              <div className="fsTitle">Lead Disposition</div>
+              {/* Session history — same trail the manual campaigns already show. */}
+              <button
+                type="button"
+                className="fuBtn"
+                onClick={() => setFuOpen(true)}
+                style={{
+                  padding: "5px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: 1.35,
+                  letterSpacing: 0,
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
+                  color: "#fff",
+                  background: "#334b71",
+                  border: "1px solid #334b71",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                Check Follow Up History
+              </button>
+            </div>
 
             <div className="formGrid2">
               <div className="col">
@@ -1431,6 +1466,12 @@ if (!hasNone) {
             </button>
           </div>
         </div>
+
+        <FollowUpHistoryModal
+          open={fuOpen}
+          onClose={() => setFuOpen(false)}
+          oppRecId={recID}
+        />
 
         <style jsx="true">{OPP_THEME_CSS}</style>
 

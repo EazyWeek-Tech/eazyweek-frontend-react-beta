@@ -34,6 +34,7 @@ export const OPP_THEME_CSS = `
     --ew-surface: #ffffff;
     --ew-surface-2: #f7f9fc;
     --ew-danger: #c0392b;
+    --ew-gap: 18px;      /* one vertical rhythm step, shared by grids and card rows */
     --ew-radius: 14px;
     --ew-radius-sm: 10px;
     --ew-shadow: 0 1px 2px rgba(5, 34, 76, .04), 0 8px 24px rgba(5, 34, 76, .06);
@@ -122,14 +123,47 @@ export const OPP_THEME_CSS = `
 
   .ewOpp .fs > *:not(legend) { clear: both; }
 
+  /* A card can hold several sibling blocks — a grid of fields, a second grid that
+     only appears for WIP, a full-width Remarks row. Those siblings had no margin
+     between them, so rows inside one grid sat 18px apart while rows in different
+     grids sat flush, which reads as uneven. One rhythm step between every direct
+     child matches the gap used inside the grids. */
+  .ewOpp .fs > * + * { margin-top: var(--ew-gap); }
+
+  /* Card header for cards that carry an action beside the title. Used INSTEAD of
+     <legend>, which Chrome lays out itself and will not treat as a flex row.
+     Matches the legend treatment exactly so the two kinds of card look alike. */
+  .ewOpp .fsHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 16px 0 12px;
+    margin: 0 0 18px;
+    border-bottom: 1px solid var(--ew-line);
+  }
+
+  .ewOpp .fsTitle {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ew-blue);
+  }
+
+  /* The header IS the first child now, so it must not also take the rhythm
+     margin the rule above gives every other child. */
+  .ewOpp .fs > .fsHead:first-child { margin-top: 0; }
+
   /* ---------------- Grids ---------------- */
   .ewOpp .pageWrap,
   .ewOpp .wrap,
   .ewOpp .fs { min-width: 0; max-width: 100%; }
 
-  .ewOpp .formGrid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 26px; }
-  .ewOpp .formGrid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 26px; }
-  .ewOpp .grid      { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 26px; margin-bottom: 0; }
+  .ewOpp .formGrid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ew-gap) 26px; margin: 0; }
+  .ewOpp .formGrid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ew-gap) 26px; margin: 0; }
+  .ewOpp .grid      { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--ew-gap) 26px; margin: 0; }
 
   .ewOpp .col {
     display: flex;
@@ -139,6 +173,10 @@ export const OPP_THEME_CSS = `
   }
 
   .ewOpp .mtWide { grid-column: 1 / -1; margin-top: 4px; }
+
+  /* Empty grid cell used to keep a lone field on its own row (e.g. Email in the
+     manual lead form). Collapses once the grid is a single column. */
+  .ewOpp .fieldSpacer { min-width: 0; }
 
   /* ---------------- Fields ---------------- */
   .ewOpp .field,
@@ -241,12 +279,23 @@ export const OPP_THEME_CSS = `
   }
 
   /* Row groups that used to be flex strips */
+  /* auto-fit, not a fixed 2 columns: a block holding a single field (Reason)
+     must still span the full card width, as it did before the retheme. */
   .ewOpp .ldform {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 18px 26px;
+    gap: var(--ew-gap) 26px;
     align-items: start;
+    margin: 10px 0;
   }
+
+  /* Two controls sharing one field slot (Follow Up Time + AM/PM). Proportional
+     rather than fixed widths, so the pair fills its column exactly and cannot
+     overflow it on a narrow screen. */
+  .ewOpp .splitRow { display: flex; gap: 10px; min-width: 0; }
+  .ewOpp .splitRow > .inp { min-width: 0; }
+  .ewOpp .splitRow > .inp:first-child { flex: 2 1 0; }
+  .ewOpp .splitRow > .inp:last-child  { flex: 1 1 0; }
 
   .ewOpp .errText {
     font-size: 12px;
@@ -283,7 +332,7 @@ export const OPP_THEME_CSS = `
     z-index: 5;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content:center;
     gap: 12px;
     margin: 18px 0 0;
     padding: 14px 0 16px;
@@ -399,6 +448,35 @@ export const OPP_THEME_CSS = `
   }
   .ewOpp .fuLink:hover { text-decoration: underline; }
 
+  /* Header action button. letter-spacing / text-transform are reset explicitly:
+     without that it inherits the legend’s uppercase eyebrow styling and renders
+     as "CHECK FOLLOW UP HISTORY" with wide tracking. */
+  .ewOpp .fuBtn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    color: #fff;
+    background: #334b71;
+    border: 1px solid #334b71;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s ease, box-shadow .15s ease;
+  }
+  .ewOpp .fuBtn:hover {
+    background: var(--ew-navy);
+    border-color: var(--ew-navy);
+    box-shadow: 0 2px 8px rgba(5, 34, 76, .18);
+  }
+  .ewOpp .fuBtn:active { transform: translateY(1px); }
+
   /* ---------------- Modal ---------------- */
   .ewOpp .modalOverlay {
     position: fixed;
@@ -495,6 +573,8 @@ export const OPP_THEME_CSS = `
     .ewOpp .btnRow .btn,
     .ewOpp .btnrow .btn { flex: 1; }
     .ewOpp .toast { left: 14px; right: 14px; max-width: none; }
+    .ewOpp .fsHead { flex-wrap: wrap; row-gap: 10px; }
+    .ewOpp .fieldSpacer { display: none; }
   }
 `;
 
