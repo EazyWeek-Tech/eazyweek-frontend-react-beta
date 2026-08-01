@@ -1205,6 +1205,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                     setSelectedTimeSlot(slotTime);
                     setSelectedDoctor(doc);
                     setEditData(null);
+                    setSelectedCustomer(null);
                     if (!has("APPT.CREATE")) { notifyDenied("Your role does not have this right. Contact Admin/Product Team."); return; }
                     setIsDrawerOpen(true);
                   }}>
@@ -1618,7 +1619,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         <AppointmentDrawer
           isOpen={isDrawerOpen}
           onClose={() => {
-            setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null);
+            setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null);setSelectedCustomer(null); setLtrLockCustId("");
             // LTR: drawer closed without a successful booking → revert (Case A step 6b)
             if (ltrCtx && !ltrBookedRef.current) {
               authPost(LTR_REVERT_URL, { ...ltrCtx }).catch(() => {});
