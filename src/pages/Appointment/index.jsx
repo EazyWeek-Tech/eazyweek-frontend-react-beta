@@ -146,10 +146,14 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [directModal,    setDirectModal]    = useState(false);
   const [directFormCode, setDirectFormCode] = useState(null);
   const [directMacro,    setDirectMacro]    = useState({});
+  // "customer" = one standing record per customer (Medical History)
+  // "appointment" = one record per visit (consent / treatment)
+  const [directScope,    setDirectScope]    = useState("appointment");
 
-  const openFormDirect = (formCode, macroCtx = {}) => {
+  const openFormDirect = (formCode, macroCtx = {}, formScope = "appointment") => {
     setDirectFormCode(formCode);
     setDirectMacro(macroCtx);
+    setDirectScope(formScope);
     setDirectModal(true);
   };
 
@@ -326,21 +330,38 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const RESTRICTED = ["Checked In", "Active", "Completed"];
   const isRestricted = RESTRICTED.includes(status);
 
-  // ── Form-fill window ────────────────────────────────────────────
-  // Before/After-service forms (consent, treatment) belong to the visit itself.
-  // While the appointment is still Booked / Confirmed / Checked In the service
-  // has not started, so the form is not opened — a toast explains when it
-  // becomes available. Customer forms (Medical History) are NOT gated: those
-  // are filled at registration, before the visit.
-  const FORM_LOCK_STATUSES = ["Booked", "Confirmed", "Checked In"];
-  const formsLocked        = FORM_LOCK_STATUSES.includes(status);
-  const FORMS_LOCKED_MSG   = "Forms are to be filled when the appointment is active.";
+  /* ── Form-fill window ──────────────────────────────────────────────────────
+     Each form unlocks at the status its stage belongs to:
+       Customer (Medical History)  — never locked; filled at registration
+       Before Service Starts       — from Active onward
+       After Service Starts        — only once the appointment is Completed
+     The old rule locked every service-stage form until Active and then released
+     all of them together, so a treatment form could be opened mid-service.
+     The button stays visible and the click is intercepted with a toast, so the
+     practitioner can see what is coming and when. */
+  const FORM_STAGE_UNLOCK = {
+    "before service starts": ["Active", "Completed"],
+    "after service starts":  ["Completed"],
+  };
+  const FORM_STAGE_MSG = {
+    "before service starts": "This form can be filled once the appointment is Active.",
+    "after service starts":  "This form can be filled once the appointment is marked Completed.",
+  };
+
   // whenToFill comes from the service mapping; fall back to the status list.
-  const isServiceStageForm = (form) => {
-    const when = form?.whenToFill
-      || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
-      || "";
-    return String(when).trim().toLowerCase() !== "customer";
+  const formStageOf = (form) => String(
+    form?.whenToFill
+    || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
+    || ""
+  ).trim().toLowerCase();
+
+  const formLockOf = (form) => {
+    const stage   = formStageOf(form);
+    const allowed = FORM_STAGE_UNLOCK[stage];
+    if (!allowed) return { locked: false, msg: "" };   // customer / unmapped stage
+    return allowed.includes(status)
+      ? { locked: false, msg: "" }
+      : { locked: true, msg: FORM_STAGE_MSG[stage] };
   };
 
   const VISIBLE = (() => {
@@ -608,7 +629,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 appointmentDate:  a.startDate        || new Date().toISOString(),
                 MobileNumber:     a.number           || "",
                 Gender:           a.gender           || "",
-              });
+              }, "customer");   // standing customer record — prefill from it is correct
             };
             return (
               <button onClick={openMedHist} className="cstlnk" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -632,11 +653,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               activeForms.map(form => {
                 const filled = sidebarForms.find(f => f.formCode === form.formCode);
                 const isFilled = filled?.status === "Completed";
-                const isLocked = formsLocked && isServiceStageForm(form);
+                const { locked: isLocked, msg: lockMsg } = formLockOf(form);
                 const openForm = () => {
                   // Button stays visible; the click is intercepted with a toast.
                   if (isLocked) {
-                    setToast({ message: FORMS_LOCKED_MSG, type: "error" });
+                    setToast({ message: lockMsg, type: "error" });
                     return;
                   }
                   const a = appt || appointment || {};
@@ -646,7 +667,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     centreName:       user?.centerName   || "",
                     practitionerName: a.therapistName    || "",
                     appointmentDate:  a.startDate        || new Date().toISOString(),
-                  });
+                  }, "appointment");   // per-visit: never prefill from an earlier appointment
                 };
                 return (
                   <button key={form.formCode} onClick={openForm} className="cstlnk"
@@ -658,7 +679,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     {isFilled
                       ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc", whiteSpace:"nowrap" }}>✅ Done</span>
                       : isLocked
-                      ? <span title={FORMS_LOCKED_MSG} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
+                      ? <span title={lockMsg} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
                       : <span style={{ fontSize:10, fontWeight:700, background:"#f1f5f9", color:"#6e7b8f", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}>Open</span>
                     }
                   </button>
@@ -787,6 +808,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           serviceCode={appt?.serviceCode || appointment?.serviceCode || ""}
           centerCode={centerCode}
           macroContext={directMacro}
+          formScope={directScope}
           onClose={() => { setDirectModal(false); setDirectFormCode(null); }}
           onComplete={() => {
             setDirectModal(false);

@@ -80,6 +80,7 @@ export const useEMRForms = () => {
             isCustomerFormEdit: false,
             existingRecId:      null,        // new fill — not an edit
             formCodeOverride:   cf.formCode,
+            formScope:          "customer",  // standing customer record
             macroContext,
           });
         });

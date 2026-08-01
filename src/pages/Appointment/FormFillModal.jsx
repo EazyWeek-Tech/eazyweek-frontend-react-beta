@@ -794,6 +794,19 @@ export default function FormFillModal({
   isCustomerFormEdit = false,  // true = edit mode from C360
   existingRecId = null,        // recId of customer form row to pre-populate
   formCodeOverride = null,     // formCode when in edit mode
+  /* ── formScope ────────────────────────────────────────────────────────────
+     "customer"    → one record per CUSTOMER (Medical History / intake). Prefill
+                     from an earlier submission is correct: it is the same
+                     standing record being reviewed.
+     "appointment" → one record per VISIT (consent, treatment). Prefill may only
+                     come from THIS appointment; pulling the customer's last
+                     submission would put a previous visit's answers in front of
+                     the practitioner and, worse, save them as today's.
+
+     Scope used to be inferred as "customer whenever whenToFill is absent",
+     which silently swept every sidebar-opened consent/treatment form into the
+     customer bucket — both on load and on submit. Callers now say which. */
+  formScope = null,
 }) {
   const [forms,      setForms]      = useState([]);
   const [formIndex,  setFormIndex]  = useState(0);
@@ -806,7 +819,6 @@ export default function FormFillModal({
 
   // ── iPad scrolling ────────────────────────────────────────────────────────
   const scrollRef = useRef(null);
-
   /* Lock the page behind the modal. Without this, a swipe that reaches the top
      or bottom of the form scrolls the appointment grid underneath instead —
      which on a touch device reads as the form "jumping" under the finger. */
@@ -821,6 +833,13 @@ export default function FormFillModal({
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [formIndex]);
 
   const showToast = (msg, type="error") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  /* Effective scope. An explicit formScope always wins; C360 edit is always a
+     customer form; otherwise fall back to the old inference so any caller not
+     yet passing the prop behaves exactly as before. */
+  const scope = formScope
+    || (isCustomerFormEdit ? "customer" : null)
+    || ((formCodeOverride && !whenToFill) ? "customer" : "appointment");
 
   /* ── Customer detail prefill ─────────────────────────────────────────────
      Any field on any form that asks for something already on the customer
@@ -991,8 +1010,8 @@ export default function FormFillModal({
       return;
     }
 
-    // ── Customer Form path (formCodeOverride set, no whenToFill) ────────────
-    if (formCodeOverride && !whenToFill) {
+    // ── Customer Form path (customer-scoped, opened by code) ────────────────
+    if (formCodeOverride && scope === "customer") {
       const loadCustomer = async () => {
         const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
         if (!def || !def.formCode) throw new Error(`Form ${formCodeOverride} not found or inactive`);
@@ -1027,6 +1046,47 @@ export default function FormFillModal({
       };
       loadCustomer()
         .catch(err => { console.error("[FormFillModal] Customer form load error:", err); showToast(err.message); })
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    /* ── Single service form opened by code (consent / treatment) ────────────
+       Appointment-scoped: the only submission we may prefill from is one made
+       against THIS appointmentId. Previously this fell into the customer branch
+       above, which searched the customer's whole history and handed the
+       practitioner the last visit's answers on a fresh visit. If nothing has
+       been filled for this appointment we start blank — customer-record prefill
+       (name, mobile, DOB) still applies, since that is master data, not a
+       previous answer. */
+    if (formCodeOverride && scope === "appointment") {
+      const loadApptForm = async () => {
+        const def = await authGet(`${API_BASE_URL}/api/EMR/Forms/${formCodeOverride}`);
+        if (!def || !def.formCode) throw new Error(`Form ${formCodeOverride} not found or inactive`);
+        setForms([{ formCode: formCodeOverride, formName: def?.formName || "Form" }]);
+        setFormDef(def);
+
+        if (appointmentId) {
+          try {
+            const params = new URLSearchParams({ serviceCode: serviceCode || "", custId: custId || "" });
+            const data = await authGet(`${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(appointmentId)}/Forms?${params}`);
+            const inner = data?.data ?? data;
+            const row = (inner?.serviceForms || []).find(f => f.formCode === formCodeOverride);
+            const subId = row?.isSubmitted ? (row.submissionId || row.recId) : null;
+            if (subId) {
+              const sub = await authGet(`${API_BASE_URL}/api/EMR/Submissions/${subId}`);
+              if (sub?.responseData && Object.keys(sub.responseData).length > 0) {
+                setValues(sub.responseData);   // this appointment's own answers
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn("[FormFillModal] Could not load this appointment's submission:", e.message);
+          }
+        }
+        setValues(await applyCustomerPrefill(def, getDefaultValues(def?.components)));
+      };
+      loadApptForm()
+        .catch(err => { console.error("[FormFillModal] Service form load error:", err); showToast(err.message); })
         .finally(() => setLoading(false));
       return;
     }
@@ -1146,9 +1206,11 @@ export default function FormFillModal({
     try {
       const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
 
-      // Customer Form: either C360 edit OR first-visit from appointment flow
-      // Detected by: isCustomerFormEdit flag (C360) OR formCodeOverride present with no whenToFill (appointment)
-      const isCustomerFormSubmit = isCustomerFormEdit || (formCodeOverride && !whenToFill);
+      // Customer Form: C360 edit, or a customer-scoped form from the appointment
+      // flow. Anything appointment-scoped goes to /Submit with the appointmentId
+      // attached — routing it to SubmitCustomer stored a per-visit form against
+      // the customer, which is how it reappeared on the next appointment.
+      const isCustomerFormSubmit = scope === "customer";
       if (isCustomerFormSubmit) {
         const res = await authPost(`${API_BASE_URL}/api/EMR/Forms/SubmitCustomer`, {
           formCode:    currentForm.formCode,
