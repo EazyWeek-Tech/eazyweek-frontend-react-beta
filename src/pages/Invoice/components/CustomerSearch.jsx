@@ -175,12 +175,15 @@ const CustomerSearch = ({
   const buildEnriched = (cust) => {
     const firstName = cust.firstName || cust.FIRST_NAME || '';
     const lastName  = cust.lastName  || cust.LAST_NAME  || '';
-    const fullName  = [firstName, lastName].filter(Boolean).join(' ').trim() || cust.fullName || '';
+    const fullName  = [firstName, lastName].filter(Boolean).join(' ').trim() || cust.fullName || cust.preferredName || '';
     const mobile    = cust.mobile    || cust.NUMBER     || cust.number       || cust.mobilePhone || '';
     const email     = cust.email     || cust.EMAIL      || cust.emailId      || '';
     const custId    = cust.custId    || cust.custid     || cust.CUSTID       || cust.customerId || '';
     const recId     = cust.recId     || cust.recid      || cust.RECID        || '';
-    const natId     = String(cust.nationalityId || cust.NATIONALITY_ID || '');
+    // The create-customer response names this nationalityCode while search and
+    // FetchCustomerDetails name it nationalityId — read both, or a customer
+    // created here derives no classification and the picker reappears.
+    const natId     = String(cust.nationalityId || cust.NATIONALITY_ID || cust.nationalityCode || '');
     // Prefer the persisted Citizen/Expat classification (computed at creation
     // from nationality-vs-centre country); fall back to the legacy nationality
     // heuristic only for older records with no stored CUSTOMERTYPE.
@@ -225,33 +228,55 @@ const CustomerSearch = ({
   };
 
   // ── New customer created from the Invoice page ───────────────────────────────
+  // Goes through buildEnriched for the same reason the search and URL-prefill
+  // paths do: it is what turns a nationality into a Citizen/Expat classification.
+  // This used to read saved.customerType straight off the create response, which
+  // carries the lifecycle marker ('New') or nothing at all — never 'Citizen' /
+  // 'Expat' — so status landed blank, the "Nationality missing" banner stayed up
+  // and Complete Invoice re-asked for a nationality that was already saved.
   const handleCustomerCreated = (saved) => {
     setShowAddCustomer(false);
     if (!saved) return;
-    const firstName = saved.firstName || '';
-    const lastName  = saved.lastName  || '';
-    const full      = [firstName, lastName].filter(Boolean).join(' ').trim() || saved.preferredName || '';
-    const mob       = saved.mobilePhone || saved.mobile || '';
-    const eml       = saved.email || '';
-    const custId    = saved.custId || saved.customerId || saved.custid || '';
-    const status    = saved.customerType || '';
 
-    const enriched = {
-      ...saved,
-      custId, custid: custId,
-      fullName: full, firstName, lastName,
-      mobile: mob, number: mob,
-      email: eml, status,
-      recId: saved.recId || saved.recid || '',
-      nationalityCode: saved.nationalityCode ?? saved.nationalityId ?? '',
-      isLoyaltyEnrolled: !!saved.isLoyaltyEnrolled,
-    };
-    setSearchText(full);
-    setName(full); setMobile(mob); setEmail(eml);
-    setNationalityStatus(status);
+    const enriched = buildEnriched(saved);
+    setSearchText(enriched.fullName);
+    setName(enriched.fullName);
+    setMobile(enriched.mobile);
+    setEmail(enriched.email);
+    setNationalityStatus(enriched.status);
     setSelectedCustomer(enriched);
-    natSavedLocally.current = /^(citizen|expat)$/i.test(String(status || ''));
+    natSavedLocally.current = /^(citizen|expat)$/i.test(String(enriched.status || ''));
     onCustomerSelect?.(enriched);
+
+    // The line above derives the classification with the same rule the invoice
+    // insert uses server-side (NATIONALITY_ID 84 = Citizen), so the two already
+    // agree. Re-read the saved record anyway to adopt a stored CUSTOMERTYPE if
+    // creation computed one a different way: a mismatch here is not cosmetic —
+    // billing a stored Citizen as an Expat attaches VAT, and the invoice insert
+    // rejects a Citizen invoice that carries any tax.
+    const newId = enriched.custId;
+    if (!newId) return;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN()}` },
+          body: JSON.stringify({ custID: newId }),
+        });
+        const j = await r.json();
+        const cust = j?.data ?? j;
+        if (!cust || cust.success === false) return;
+        const confirmed = buildEnriched({ ...saved, ...cust });
+        // Only act on a real classification, and only when it actually differs —
+        // a blank or 'New' from the server must not wipe what we just derived.
+        if (!/^(citizen|expat)$/i.test(String(confirmed.status || ''))) return;
+        if (confirmed.status === enriched.status) return;
+        setNationalityStatus(confirmed.status);
+        setSelectedCustomer(confirmed);
+        natSavedLocally.current = true;
+        onCustomerSelect?.(confirmed);
+      } catch { /* keep the locally derived classification on failure */ }
+    })();
   };
 
   // ── Enroll a searched customer into the loyalty program ──────────────────────
