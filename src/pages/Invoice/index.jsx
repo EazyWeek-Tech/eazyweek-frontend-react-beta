@@ -129,6 +129,8 @@ const InvoicePage = () => {
               practitionerName: item.doctorName  || "",
               quantity:         1,
               appointmentId:    item.appointmentId || "",
+              loyaltyAccrual:   item.loyaltyAccrual ?? "Yes",
+              loyaltyRedeem:    item.loyaltyRedeem  ?? "Yes",
             }));
 
             setItems(mappedItems);

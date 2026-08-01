@@ -21,6 +21,17 @@ const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitize
   return { net: base, tax, total: base + tax, rate };
 };
 
+// ── Loyalty accrual eligibility for a cart line ───────────────────────────────
+// Packages store a bit (true/false), services store 'Yes'/'No'. A line with no
+// flag at all defaults to ELIGIBLE, so legacy carts and SP-sourced appointment
+// rows keep earning instead of silently stopping.
+const isAccrualEligible = (i) => {
+  const v = i.loyaltyAccrual;
+  if (v === undefined || v === null || v === "") return true;
+  const s = String(v).trim().toLowerCase();
+  return !(s === "no" || s === "n" || s === "0" || s === "false");
+};
+
 // Split a redemption amount across advances FIFO and return its base/VAT portions,
 // using each advance's own VAT ratio (VATAMOUNT/TOTALAMOUNT). Drives the negative
 // "Advance Redemption" line that reduces the invoice's base & VAT (FRD §5).
@@ -1228,14 +1239,31 @@ if (result.success) {
 
         const invoiceNum = result.message || '';
         setGeneratedInvoiceNumber(invoiceNum);
-        // ── Loyalty points — EARN on cash portion, REDEEMED on loyalty portion ──
+        // ── Loyalty points — EARN on the accrual-eligible portion only ─────────
+        // Lines whose master has Allow Loyalty Accrual = No are excluded from the
+        // earn base. Both the invoice-level discount and the loyalty-paid portion
+        // are allocated proportionally across eligible and non-eligible lines.
         const effectivelyEnrolled = loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled;
         if (recIdFromUrl_final && effectivelyEnrolled) {
           const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
           const loyaltyAmount  = loyaltyPayment ? loyaltyPayment.amount : 0;
-          const earnAmount     = parsedTotalAmount - loyaltyAmount; // exclude loyalty portion
-          if (earnAmount > 0)  await createPointsTransaction('EARN',     earnAmount,     invoiceNum);
-          if (loyaltyPayment)  await createPointsTransaction('REDEEMED', loyaltyAmount,  invoiceNum, loyaltyPayment.points || 0);
+
+          // Per-line gross, using the same helper that produced the invoice total
+          const lineGross = (i) => computeLineAmounts(
+            i.price, i.discount, i.quantity ?? i.qty ?? 1,
+            i.taxpercent, i.taxIncluded ?? i.taxincluded, isCitizen
+          ).total;
+
+          const grossAll      = itemsForSubmit.reduce((s, i) => s + lineGross(i), 0);
+          const grossEligible = itemsForSubmit.filter(isAccrualEligible)
+                                              .reduce((s, i) => s + lineGross(i), 0);
+          const share         = grossAll > 0 ? grossEligible / grossAll : 0;
+
+          // parsedTotalAmount is already net of invoice-level promotions.
+          const earnBase = Math.max(0, (parsedTotalAmount - loyaltyAmount) * share);
+
+          if (earnBase > 0)   await createPointsTransaction('EARN',     earnBase,      invoiceNum);
+          if (loyaltyPayment) await createPointsTransaction('REDEEMED', loyaltyAmount, invoiceNum, loyaltyPayment.points || 0);
         }
         setInvoiceSuccessPopup(true);
 
