@@ -144,7 +144,7 @@ export default function FormList() {
       <style>{`
         .fl-wrap { max-width:1000px; margin:0 auto; padding:28px 20px 60px; }
         .fl-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
-        .fl-title { font-size:22px; font-weight:800; color:#071D49; }
+        .fl-title { font-size:22px; font-weight:800; color:#2b3f73; }
         .fl-sub { font-size:13px; color:#64748b; margin-top:2px; }
         .pri-btn { background:#334b71; color:#fff; border:none; border-radius:10px; padding:10px 22px; font-weight:800; font-size:13px; cursor:pointer; }
         .pri-btn:disabled { opacity:.55; cursor:not-allowed; }
@@ -206,7 +206,7 @@ export default function FormList() {
 
         {/* Form list */}
         <div className="card" style={{ padding:0, overflow:"hidden" }}>
-          <div style={{ padding:"14px 16px", borderBottom:"1px solid #f1f5f9", fontWeight:800, fontSize:14, color:"#071D49" }}>
+          <div style={{ padding:"14px 16px", borderBottom:"1px solid #f1f5f9", fontWeight:800, fontSize:14, color:"#2b3f73" }}>
             Forms {!loading && `(${filtered.length})`}
           </div>
           {loading ? (
@@ -261,7 +261,7 @@ export default function FormList() {
       {showCreate && (
         <div className="overlay" onClick={() => setShowCreate(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight:800, fontSize:17, color:"#071D49", marginBottom:4 }}>Create New Form</div>
+            <div style={{ fontWeight:800, fontSize:17, color:"#2b3f73", marginBottom:4 }}>Create New Form</div>
             <div style={{ fontSize:13, color:"#64748b", marginBottom:20 }}>Form Type is locked after creation.</div>
 
             <div className="field">

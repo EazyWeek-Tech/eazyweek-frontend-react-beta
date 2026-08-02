@@ -549,7 +549,7 @@ const CaseCategoryMappingDashboard = () => {
 
         .actions { display: flex; gap: 10px; }
         .btn { background: #334b71; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.08); transition: background .15s; }
-        .btn:hover { background: #071D49; }
+        .btn:hover { background: #2b3f73; }
         .btn:disabled { opacity: .55; cursor: not-allowed; }
 
         .toolbar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 12px; }

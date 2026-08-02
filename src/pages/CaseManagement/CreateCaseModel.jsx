@@ -1253,7 +1253,7 @@ attachmentFileName: attachmentFileName,
             }
             @keyframes cc-slide-in{ from{ transform:translateX(100%); } to{ transform:translateX(0); } }
             .modal-window .frmttl{
-              margin:0; padding:18px 24px; font-size:18px; font-weight:800; color:#071D49;
+              margin:0; padding:18px 24px; font-size:18px; font-weight:800; color:#2b3f73;
               border-bottom:1px solid #e7ecf4; background:#f8fafc;
               display:flex; align-items:center; justify-content:space-between;
             }

@@ -407,7 +407,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
             <Field label="Points Earned *" error={showErr("earnPoints")}><input style={inputStyle(submitted && errs.earnPoints)} value={form.earnPoints} onChange={set("earnPoints")} placeholder="e.g. 1 point earned" inputMode="decimal" /></Field>
             {form.earningAmountSegment && form.earnPoints && (
               <div style={{ gridColumn: "1 / -1", padding: "6px 10px", background: "#f0f5ff", borderRadius: 8, fontSize: 12, color: C.primary }}>
-                💡 For every <b>{form.earningAmountSegment}</b> spent, earn <b>{form.earnPoints}</b> point(s)
+                 For every <b>{form.earningAmountSegment}</b> spent, earn <b>{form.earnPoints}</b> point(s)
               </div>
             )}
             <ServiceSelect field="earningCategoryIds" label="Earning Services" selectedIds={form.earningCategoryIds ?? []} onToggle={toggleEarn} error={showErr("earningCategoryIds")} />
@@ -417,7 +417,7 @@ const TierModal = ({ programId, tier, currencies, programCurrencyId, existingTie
             <Field label="Redemption Amount (whole no.) *" error={showErr("redeemAmount")}><input style={inputStyle(submitted && errs.redeemAmount)} value={form.redeemAmount} onChange={set("redeemAmount")} placeholder="e.g. 1 (SAR value)" inputMode="numeric" /></Field>
             {form.redeemPoints && form.redeemAmount && (
               <div style={{ gridColumn: "1 / -1", padding: "6px 10px", background: "#f0f5ff", borderRadius: 8, fontSize: 12, color: C.primary }}>
-                💡 <b>{form.redeemPoints}</b> point(s) = <b>{form.redeemAmount}</b> in value
+                 <b>{form.redeemPoints}</b> point(s) = <b>{form.redeemAmount}</b> in value
               </div>
             )}
             <ServiceSelect field="redeemCategoryIds" label="Redemption Services" selectedIds={form.redeemCategoryIds ?? []} onToggle={toggleRedeem} error={showErr("redeemCategoryIds")} />

@@ -500,7 +500,7 @@ if (rawSess) {
           transition: background .15s;
         }
         .btn.save {
-          background: #071D49;
+          background: #2b3f73;
           color: #fff;
         }
         .btn.save:hover { background: #0a285f; }
@@ -508,7 +508,7 @@ if (rawSess) {
           background: #334b71;
           color: #fff;
         }
-        .btn.submit:hover { background: #071D49; }
+        .btn.submit:hover { background: #2b3f73; }
         .btn.close {
           background: #64748b;
           color: #fff;

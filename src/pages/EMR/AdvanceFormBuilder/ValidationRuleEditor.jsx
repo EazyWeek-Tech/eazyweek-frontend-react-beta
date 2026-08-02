@@ -156,7 +156,7 @@ export const ValidationRuleEditor = ({ field, onUpdateRules }) => {
 
       {rules.length > 0 && (
         <div className="text-xs text-muted-foreground FFP-AdvFormBuilder-bg-hover p-2 rounded">
-          💡 Validation rules are checked when the user submits the form
+           Validation rules are checked when the user submits the form
         </div>
       )}
     </div>

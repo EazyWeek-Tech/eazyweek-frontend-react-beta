@@ -41,7 +41,7 @@ export default function SecuritySettings() {
         .secset-tab{appearance:none;background:none;border:none;border-bottom:3px solid transparent;
           padding:12px 16px;font-size:14px;font-weight:700;color:#64748b;cursor:pointer}
         .secset-tab:hover{color:#334b71}
-        .secset-tab-active{color:#071D49;border-bottom-color:#334b71}
+        .secset-tab-active{color:#2b3f73;border-bottom-color:#334b71}
       `}</style>
     </div>
   );

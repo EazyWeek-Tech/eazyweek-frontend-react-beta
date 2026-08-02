@@ -235,12 +235,12 @@ const fetchDetails = async () => {
           .cd-info-cell:last-child { border-right:none; }
           .cd-info-key { font-size:11px; color:#94a3b8; font-weight:700; text-transform:uppercase;
             letter-spacing:.04em; margin-bottom:4px; }
-          .cd-info-val { font-size:14px; color:#071D49; font-weight:600; }
+          .cd-info-val { font-size:14px; color:#2b3f73; font-weight:600; }
           .cd-btn { border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:700;
             cursor:pointer; font-family:Lato,sans-serif; transition:opacity .15s; }
           .cd-btn:disabled { opacity:.55; cursor:not-allowed; }
           .cd-btn-pri { background:#334B71; color:#fff; }
-          .cd-btn-pri:hover:not(:disabled) { background:#071D49; }
+          .cd-btn-pri:hover:not(:disabled) { background:#2b3f73; }
           .cd-btn-sec { background:#f1f5f9; color:#334B71; border:1px solid #e7ecf4; }
           .cd-btn-sec:hover:not(:disabled) { background:#e7ecf4; }
           @media(max-width:640px){ .cd-grid{grid-template-columns:1fr;} .cd-grid-2{grid-template-columns:1fr;} }
@@ -257,7 +257,7 @@ const fetchDetails = async () => {
         {/* Page header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <div>
-            <h1 style={{ fontSize:22, fontWeight:800, color:"#071D49", margin:0 }}>{referenceID}</h1>
+            <h1 style={{ fontSize:22, fontWeight:800, color:"#2b3f73", margin:0 }}>{referenceID}</h1>
             <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>Courtesy Call Details</div>
           </div>
           <div style={{ display:"flex", gap:8 }}>

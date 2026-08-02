@@ -41,10 +41,52 @@ const fetchLoyaltyPrograms = async (pageNumber = 1, pageSize = 10) => {
   } catch (_) { return { data: [], totalRecords: 0, totalPages: 0, pageNumber, pageSize }; }
 };
 
+// Tiers for a single program. programId is passed through to the API so the
+// panel only ever shows the tiers that belong to the row being expanded.
+const fetchTiersByProgram = async (programId) => {
+  const res = await fetch(
+    `${API_BASE}/api/v1/loyalty/tier/get-tier-list?programId=${encodeURIComponent(programId)}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) {
+    const err = new Error(res.status === 403
+      ? "You do not have permission to view tiers."
+      : `Failed to load tiers (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  const json = await res.json();
+  const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+  return list;
+};
+
+const fetchCurrencies = async () => {
+  const res = await fetch(`${API_BASE}/api/LoyaltyProgram/currency/search`, { headers: authHeaders() });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (d) => {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+// Same currency rules as the config page: never print a blank or "?" symbol.
+const currencySymbol = (c) => {
+  const s = String(c?.symbol ?? "").trim();
+  return s && s !== "?" ? s : "";
+};
+const currencyCode = (currencies, id) => {
+  const c = currencies.find(x => String(x.currencyId) === String(id));
+  return c ? (c.currencyShortName || currencySymbol(c) || "") : "";
+};
+const num = (n) => (n == null || n === "" ? null : Number(n).toLocaleString("en-IN"));
+const money = (n, code) => {
+  const v = num(n);
+  if (v == null) return "—";
+  return code ? `${code} ${v}` : v;
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -52,15 +94,75 @@ const Badge = ({ active }) => (
   <span style={{
     display: "inline-flex", alignItems: "center", gap: 5,
     padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-    background: active ? "#e6f4ef" : "#fdf3f3",
-    color: active ? "#2e7d5e" : "#b94a3a",
-    border: `1px solid ${active ? "#b3d9cc" : "#f0c4c0"}`,
+    background: active ? "#DD7766" : "#fdf3f3",
+    color: active ? "#fff" : "#000",
+    border: `1px solid ${active ? "#cc6b5c" : "#f0c4c0"}`,
     letterSpacing: "0.02em", whiteSpace: "nowrap",
   }}>
-    <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#2e7d5e" : "#cc6b5c", display: "inline-block" }} />
+    <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#fff" : "#cc6b5c", display: "inline-block" }} />
     {active ? "Active" : "Inactive"}
   </span>
 );
+
+// Tier block shown inside an expanded program row.
+const TierPanel = ({ state, currencies }) => {
+  const { loading, error, data } = state || {};
+
+  if (loading) {
+    return (
+      <div className="ll-tier-status">
+        <span className="ll-spinner" /> Loading tiers…
+      </div>
+    );
+  }
+  if (error) return <div className="ll-tier-status ll-tier-status-err">{error}</div>;
+  if (!data?.length) return <div className="ll-tier-status">No tiers configured for this program yet.</div>;
+
+  return (
+    <div className="ll-tier-table">
+      <div className="ll-tier-head">
+        <span>Tier</span>
+        <span>Spend Range</span>
+        <span>Earning Rule</span>
+        <span>Redemption Rule</span>
+        <span>Expiry</span>
+      </div>
+      {data.map((t, i) => {
+        const code = currencyCode(currencies, t.currencyId);
+        const earns   = t.earningAmountSegment && t.earnPoints;
+        const redeems = t.redeemPoints && t.redeemAmount;
+        return (
+          <div key={t.tierId} className={`ll-tier-row ${i % 2 ? "alt" : ""}`}>
+            <span className="ll-tier-name-cell">
+              <b>{t.tierName || "—"}</b>
+              {t.tierLevel != null && <em className="ll-tier-level">L{t.tierLevel}</em>}
+            </span>
+
+            <span className="ll-tier-range">
+              {money(t.fromAmount, code)} <i>→</i> {money(t.toAmount, code)}
+            </span>
+
+            <span className="ll-tier-rule">
+              {earns
+                ? <>Earn <b>{num(t.earnPoints)}</b> {Number(t.earnPoints) === 1 ? "point" : "points"} per {money(t.earningAmountSegment, code)} spent</>
+                : "—"}
+            </span>
+
+            <span className="ll-tier-rule">
+              {redeems
+                ? <><b>{num(t.redeemPoints)}</b> {Number(t.redeemPoints) === 1 ? "point" : "points"} = {money(t.redeemAmount, code)}</>
+                : "—"}
+            </span>
+
+            <span className="ll-tier-expiry">
+              {t.expiryDays != null && t.expiryDays !== "" ? `${num(t.expiryDays)} days` : "—"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function LoyaltyListing() {
@@ -72,6 +174,10 @@ export default function LoyaltyListing() {
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [page, setPage] = useState(1);
+  // Tiers are loaded lazily, once per program, and kept for the rest of the visit.
+  const [tierState, setTierState] = useState({});
+  const [currencies, setCurrencies] = useState([]);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
 
   const loadPrograms = (p = 1) => {
     setLoading(true);
@@ -90,6 +196,28 @@ export default function LoyaltyListing() {
   };
 
   useEffect(() => { loadPrograms(1); }, []);
+
+  // Currency + service names are only needed once a row is opened.
+  const loadLookups = () => {
+    if (lookupsLoaded) return;
+    setLookupsLoaded(true);
+    fetchCurrencies().then(setCurrencies).catch(() => {});
+  };
+
+  const toggleExpand = (programId) => {
+    if (expanded === programId) { setExpanded(null); return; }
+    setExpanded(programId);
+    loadLookups();
+    if (tierState[programId]?.data || tierState[programId]?.loading) return;
+
+    setTierState(s => ({ ...s, [programId]: { loading: true, error: null, data: null } }));
+    fetchTiersByProgram(programId)
+      .then(data => setTierState(s => ({ ...s, [programId]: { loading: false, error: null, data } })))
+      .catch(err => {
+        console.error(err);
+        setTierState(s => ({ ...s, [programId]: { loading: false, error: err.message || "Failed to load tiers.", data: null } }));
+      });
+  };
 
   const hasProgram = rows.length > 0;
   const latestProgram = rows[0] ?? null;
@@ -207,7 +335,7 @@ export default function LoyaltyListing() {
           <React.Fragment key={p.programId}>
             <div
               className={`ll-table-row ${expanded === p.programId ? "expanded" : ""}`}
-              onClick={() => setExpanded(expanded === p.programId ? null : p.programId)}
+              onClick={() => toggleExpand(p.programId)}
             >
               {/* Program name */}
               <div className="ll-col">
@@ -258,6 +386,7 @@ export default function LoyaltyListing() {
                 <button
                   className="ll-action-btn ll-expand-btn"
                   title={expanded === p.programId ? "Collapse" : "View details"}
+                  onClick={() => toggleExpand(p.programId)}
                 >
                   <svg
                     width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -285,6 +414,19 @@ export default function LoyaltyListing() {
                       <div className="ll-detail-row"><span>Created</span><b>{fmt(p.createdDate)}</b></div>
                       <div className="ll-detail-row"><span>Modified</span><b>{fmt(p.modifiedDate)}</b></div>
                     </div>
+                  </div>
+
+                  <div className="ll-detail-section">
+                    <div className="ll-detail-label">
+                      Tiers
+                      {tierState[p.programId]?.data?.length > 0 && (
+                        <em className="ll-tier-count">{tierState[p.programId].data.length}</em>
+                      )}
+                    </div>
+                    <TierPanel
+                      state={tierState[p.programId]}
+                      currencies={currencies}
+                    />
                   </div>
                 </div>
                 <div className="ll-detail-footer">
@@ -369,10 +511,10 @@ export default function LoyaltyListing() {
         .ll-btn:hover { transform: translateY(-1px); }
         .ll-btn:active { transform: translateY(0); }
         .ll-btn-primary {
-          background: #A7D1CD; color: #1e3352;
+          background: #DD7766; color: #fff;
           box-shadow: 0 4px 12px rgba(167,209,205,0.4);
         }
-        .ll-btn-primary:hover { background: #bcdedd; box-shadow: 0 6px 16px rgba(167,209,205,0.5); }
+        .ll-btn-primary:hover { background: #85A2AA; box-shadow: 0 6px 16px rgba(167,209,205,0.5); }
         .ll-btn-outline {
           background: rgba(255,255,255,0.12); color: #fff;
           border: 1.5px solid rgba(255,255,255,0.3);
@@ -397,7 +539,7 @@ export default function LoyaltyListing() {
         }
         .ll-table-head {
           display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.8fr 0.7fr;
-          padding: 11px 22px; background: #f0f5ff;
+          padding: 11px 22px; background: #fff;
           border-bottom: 2px solid #e5ebf3;
           font-size: 11px; font-weight: 700; color: #8da0b8;
           text-transform: uppercase; letter-spacing: 0.07em;
@@ -410,7 +552,7 @@ export default function LoyaltyListing() {
           animation: ll-fadein .25s ease both;
         }
         .ll-table-row:nth-child(even) { background: #fafbfe; }
-        .ll-table-row:hover { background: #f0f5ff; box-shadow: inset 3px 0 0 #A7D1CD; }
+        .ll-table-row:hover { background: #fff; box-shadow: inset 3px 0 0 #A7D1CD; }
         .ll-table-row.expanded { background: #eef6f5; border-bottom: none; box-shadow: inset 3px 0 0 #334b71; }
         @keyframes ll-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
@@ -429,8 +571,8 @@ export default function LoyaltyListing() {
         .ll-prog-name { font-size: 14px; font-weight: 700; color: #1e3352; line-height: 1.2; }
         .ll-prog-id {
           font-size: 11px; color: #fff; font-weight: 700; margin-top: 3px;
-          background: #A7D1CD; padding: 1px 7px; border-radius: 999px;
-          display: inline-block; color: #1e3352;
+          background: #DD7766; padding: 1px 7px; border-radius: 999px;
+          display: inline-block; color: #fff;
         }
 
         /* Code chip */
@@ -486,7 +628,7 @@ export default function LoyaltyListing() {
 
         /* Detail panel */
         .ll-detail-panel {
-          background: linear-gradient(135deg, #f0f5ff 0%, #eef6f5 100%);
+          background:#fff;
           border-top: 2px solid #A7D1CD;
           border-bottom: 1px solid #dce6f0;
           padding: 20px 24px;
@@ -511,6 +653,56 @@ export default function LoyaltyListing() {
         .ll-detail-row b { color: #334b71; font-weight: 700; }
         .ll-detail-footer { margin-top: 16px; display: flex; justify-content: flex-end; }
 
+        /* ── Tier block (inside detail panel) ── */
+        .ll-tier-count {
+          font-style: normal; font-size: 10px; font-weight: 800;
+          background: #DD7766; color: #fff;
+          padding: 1px 7px; border-radius: 999px; letter-spacing: 0.04em;
+        }
+        .ll-tier-status {
+          display: flex; align-items: center; gap: 8px;
+          padding: 14px 12px; font-size: 12.5px; color: #6e7b8f;
+          background: rgba(255,255,255,0.8); border: 1px solid #e5ebf3;
+          border-radius: 9px;
+        }
+        .ll-tier-status-err { color: #cc6b5c; background: #fff5f5; border-color: #f0c4c0; }
+        .ll-spinner {
+          width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+          border: 2px solid #dce6f0; border-top-color: #334b71;
+          animation: ll-spin .8s linear infinite;
+        }
+        @keyframes ll-spin { to { transform: rotate(360deg); } }
+
+        .ll-tier-table {
+          border: 1px solid #e5ebf3; border-radius: 10px; overflow: hidden;
+          background: #fff;
+        }
+        .ll-tier-head, .ll-tier-row {
+          display: grid;
+          grid-template-columns: 1.1fr 1.2fr 1.7fr 1.4fr 0.7fr;
+          gap: 10px; padding: 10px 14px; align-items: center;
+        }
+        .ll-tier-head {
+          background: #f4f7fb; border-bottom: 1px solid #e5ebf3;
+          font-size: 10px; font-weight: 800; color: #8da0b8;
+          text-transform: uppercase; letter-spacing: 0.07em;
+        }
+        .ll-tier-row { font-size: 12.5px; color: #6e7b8f; border-bottom: 1px solid #f0f4fa; }
+        .ll-tier-row:last-child { border-bottom: none; }
+        .ll-tier-row.alt { background: #fafbfe; }
+
+        .ll-tier-name-cell { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .ll-tier-name-cell b { color: #1e3352; font-weight: 800; font-size: 13px; }
+        .ll-tier-level {
+          font-style: normal; font-size: 10px; font-weight: 800;
+          color: #334b71; background: #eef2f7; border: 1px solid #dce6f0;
+          padding: 1px 6px; border-radius: 6px;
+        }
+        .ll-tier-range { font-weight: 700; color: #334b71; white-space: nowrap; }
+        .ll-tier-range i { font-style: normal; color: #A7D1CD; font-weight: 800; margin: 0 2px; }
+        .ll-tier-rule b { color: #334b71; font-weight: 800; }
+        .ll-tier-expiry { font-weight: 600; }
+
         /* Pagination */
         .ll-pagination {
           display: flex; align-items: center; justify-content: space-between;
@@ -534,6 +726,8 @@ export default function LoyaltyListing() {
           .ll-table-head { display: none; }
           .ll-table-row { grid-template-columns: 1fr 1fr; gap: 8px; }
           .ll-detail-rows { grid-template-columns: 1fr; }
+          .ll-tier-head { display: none; }
+          .ll-tier-row { grid-template-columns: 1fr; gap: 4px; }
           .ll-page { padding: 16px; }
           .ll-toolbar { padding: 16px; }
         }

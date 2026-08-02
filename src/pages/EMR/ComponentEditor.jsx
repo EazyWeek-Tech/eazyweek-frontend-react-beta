@@ -73,7 +73,7 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
     return (
       <div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ fontWeight:800, fontSize:13, color:"#071D49" }}>
+          <div style={{ fontWeight:800, fontSize:13, color:"#2b3f73" }}>
             🌐 Language Toggle
             <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400, marginTop:1 }}>Auto-managed — always first on form</div>
           </div>
@@ -89,7 +89,7 @@ export default function ComponentEditor({ component, onChange, onClose, isBiling
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-        <div style={{ fontWeight:800, fontSize:13, color:"#071D49" }}>
+        <div style={{ fontWeight:800, fontSize:13, color:"#2b3f73" }}>
           Edit Component
           <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400, marginTop:1 }}>{component.componentType}</div>
         </div>

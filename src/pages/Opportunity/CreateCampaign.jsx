@@ -55,7 +55,7 @@ const validateUploadRows = (rows, centerCode) => {
 
 /* ── Theme ──────────────────────────────────────────────────────────────────── */
 const C = {
-  navy:"#334b71", navyDk:"#071D49", navyLt:"#e9edf5",
+  navy:"#334b71", navyDk:"#2b3f73", navyLt:"#e9edf5",
   border:"#e7ecf4", bg:"#f4f6fa", text:"#10223f", sub:"#64748b",
   green:"#166534", greenBg:"#dcfce7", red:"#b91c1c", redBg:"#fef2f2",
   yellow:"#92400e", yellowBg:"#fef3c7",

@@ -97,7 +97,7 @@ export function useCashShiftGate() {
 
 const C = {
   navy: "#334b71",
-  navyDk: "#071D49",
+  navyDk: "#2b3f73",
   coral: "#cc6b5c",
   slate: "#8da0b8",
   line: "#e3e8ef",

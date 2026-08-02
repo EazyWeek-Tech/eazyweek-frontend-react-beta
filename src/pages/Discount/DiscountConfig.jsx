@@ -12,7 +12,7 @@ import Threshold from "./Threshold.jsx";
 
 const theme = {
   navy: "#334b71",
-  darkBlue: "#071D49",
+  darkBlue: "#2b3f73",
   coral: "#CC6B5C",
   aqua: "#A8D0CF",
   mist: "#E9EDF5",

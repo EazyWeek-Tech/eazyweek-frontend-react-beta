@@ -63,7 +63,7 @@ function CCDonut({ segments, centerValue, size = 176, thickness = 26 }) {
             strokeDasharray={`${len} ${CIRC - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${cx} ${cy})`} />)
           off += len; return el
         })}
-        <text x={cx} y={cy-2} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={30} fontWeight={800} fill="#071D49">{Math.round(centerValue != null ? centerValue : total).toLocaleString()}</text>
+        <text x={cx} y={cy-2} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={30} fontWeight={800} fill="#2b3f73">{Math.round(centerValue != null ? centerValue : total).toLocaleString()}</text>
         <text x={cx} y={cy+18} textAnchor="middle" fontFamily="Lato,sans-serif" fontSize={12} fontWeight={600} fill="#64748b">calls</text>
       </svg>
       <div style={{ display:"flex", flexDirection:"column", gap:12, minWidth:170 }}>
@@ -197,14 +197,14 @@ export default function CourtesyCallDashboard() {
         .cc-tr:last-child td { border-bottom:none; }
         .cc-ref { background:none; border:none; color:#334B71; font-weight:700; font-size:13px;
           cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:2px; }
-        .cc-ref:hover { color:#071D49; }
+        .cc-ref:hover { color:#2b3f73; }
         .cc-inp { border:1px solid #e7ecf4; border-radius:8px; padding:8px 12px; font-size:13px;
           color:#334B71; outline:none; font-family:Lato,sans-serif; background:#fff; width:100%; box-sizing:border-box; }
         .cc-inp:focus { border-color:#334B71; box-shadow:0 0 0 3px rgba(51,75,113,.1); }
         .cc-btn { border:none; border-radius:8px; padding:9px 20px; font-size:13px;
           font-weight:700; cursor:pointer; font-family:Lato,sans-serif; }
         .cc-btn-pri { background:#334B71; color:#fff; }
-        .cc-btn-pri:hover { background:#071D49; }
+        .cc-btn-pri:hover { background:#2b3f73; }
         .cc-btn-sec { background:#f1f5f9; color:#334B71; border:1px solid #e7ecf4; }
         .cc-btn-sec:hover { background:#e7ecf4; }
         .cc-pg { border:1px solid #e7ecf4; border-radius:6px; padding:6px 11px; font-size:13px;
@@ -224,7 +224,7 @@ export default function CourtesyCallDashboard() {
         </div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <h1 style={{ fontSize:22, fontWeight:800, color:"#071D49", margin:0 }}>Courtesy Call</h1>
+            <h1 style={{ fontSize:22, fontWeight:800, color:"#2b3f73", margin:0 }}>Courtesy Call</h1>
             <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>
               {loading ? "Loading…" : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
             </div>
@@ -254,7 +254,7 @@ export default function CourtesyCallDashboard() {
 
       {/* Completion bifurcation — FRD §4.5 */}
       <div className="cc-card" style={{ padding:"20px 22px", marginBottom:16 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:"#071D49" }}>Completion bifurcation</div>
+        <div style={{ fontSize:13, fontWeight:800, color:"#2b3f73" }}>Completion bifurcation</div>
         <div style={{ fontSize:11.5, color:"#64748b", marginTop:3, marginBottom:16 }}>Courtesy calls split by completion status</div>
         {counts.total > 0 ? (
           <CCDonut centerValue={counts.total} segments={[
@@ -367,7 +367,7 @@ export default function CourtesyCallDashboard() {
                       </button>
                     </td>
                     <td className="cc-td" style={{ whiteSpace:"nowrap" }}>{item.appointmentDate || "—"}</td>
-                    <td className="cc-td" style={{ fontWeight:600, color:"#071D49" }}>{item.customerID || "—"}</td>
+                    <td className="cc-td" style={{ fontWeight:600, color:"#2b3f73" }}>{item.customerID || "—"}</td>
                     <td className="cc-td">{item.customerName || "—"}</td>
                     <td className="cc-td" style={{ whiteSpace:"nowrap" }}>{item.mobileNo || "—"}</td>
                     <td className="cc-td">{item.clinicName || "—"}</td>

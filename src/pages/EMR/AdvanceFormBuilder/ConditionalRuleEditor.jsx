@@ -153,7 +153,7 @@ export const ConditionalRuleEditor = ({ field, availableFields, onUpdateRules })
 
       {rules.length > 0 && (
         <div className="text-xs text-muted-foreground .FFP-AdvFormBuilder-bg-hover p-2 rounded">
-          💡 All rules must be satisfied for the field to be visible
+           All rules must be satisfied for the field to be visible
         </div>
       )}
     </div>

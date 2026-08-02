@@ -33,7 +33,7 @@ function getActiveCentre() {
 // ============================================================================
 
 const DENIED_MSG = "Your role does not have this right. Contact Admin/Product Team";
-const C = { coral: "#cc6b5c", navyDk: "#071D49" };
+const C = { coral: "#cc6b5c", navyDk: "#2b3f73" };
 
 const PermCtx = createContext(null);
 

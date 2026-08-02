@@ -203,8 +203,8 @@ const CreateCaseCategory = () => {
         .header-actions { display:flex; gap:10px; }
         .btn { border:none; cursor:pointer; font-weight:700; border-radius:10px; padding:9px 18px; font-size:14px; box-shadow:0 1px 2px rgba(0,0,0,.08); transition:background .15s; }
         .btn.primary { background:#334B71; color:#fff; }
-        .btn.primary:hover { background:#071D49; }
-        .btn.dark { background:#071D49; color:#fff; }
+        .btn.primary:hover { background:#2b3f73; }
+        .btn.dark { background:#2b3f73; color:#fff; }
         .btn.light { background:#fff; border:1px solid #e7ecf4; color:#10223f; box-shadow:none; }
         .btn.light:hover { background:#f4f6fa; }
         .btn.warn { background:#cc6b5c; color:#fff; }

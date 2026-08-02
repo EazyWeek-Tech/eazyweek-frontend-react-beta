@@ -151,7 +151,7 @@ const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
       <div style={S.page}>
         <div style={{ ...S.card, textAlign: "center", maxWidth: 460, margin: "40px auto" }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>✓</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#071D49" }}>Advance Collected</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#2b3f73" }}>Advance Collected</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: "#334b71", margin: "10px 0" }}>{done.advanceNum}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, textAlign: "left", margin: "16px 0", fontSize: 13 }}>
             <Stat label="Customer" value={customer?.fullName || [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || customer?.custId || "—"} />
@@ -181,7 +181,7 @@ const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
     <div style={S.page}>
       <div style={S.headerRow}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#071D49" }}>Customer Advance Payment</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#2b3f73" }}>Customer Advance Payment</div>
           <div style={{ fontSize: 12, color: "#64748b" }}>Collect a prepaid balance. VAT is posted at collection.</div>
         </div>
         {onClose && (
@@ -336,7 +336,7 @@ const S = {
   page: { padding: 20, maxWidth: 900, margin: "0 auto" },
   headerRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 18, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" },
-  sectionTitle: { fontWeight: 800, fontSize: 14, color: "#071D49", marginBottom: 12 },
+  sectionTitle: { fontWeight: 800, fontSize: 14, color: "#2b3f73", marginBottom: 12 },
   label: { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.03em" },
   input: { width: "100%", padding: "9px 12px", border: "1px solid #ced4da", borderRadius: 8, fontSize: 14, boxSizing: "border-box", outline: "none", background: "#fff", fontFamily: "inherit" },
   btnPrimary: { height: 38, padding: "0 18px", borderRadius: 8, border: "none", background: "#334b71", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" },

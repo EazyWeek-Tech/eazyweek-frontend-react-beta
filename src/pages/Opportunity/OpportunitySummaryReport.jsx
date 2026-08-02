@@ -1230,7 +1230,7 @@ if (!fromDate || !toDate) {
 
       <style jsx>{`
         .wrap{font-family:Lato,sans-serif;min-height:100vh;color:#10223f}
-        .title{font-size:22px;font-weight:800;color:#071D49;margin:0 0 6px}
+        .title{font-size:22px;font-weight:800;color:#2b3f73;margin:0 0 6px}
         .breadcrumb{color:#64748b;margin:18px 0;font-size:13px}
         .crumb-link{color:#334b71;cursor:pointer;font-weight:600}
         .crumb-dim{color:#94a3b8}

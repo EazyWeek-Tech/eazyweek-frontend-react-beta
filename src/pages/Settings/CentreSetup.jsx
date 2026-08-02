@@ -147,7 +147,7 @@ const authPost = async (url, payload) => {
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
         <span style={{ fontSize:22 }}></span>
         <div>
-          <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>Create New Centre</div>
+          <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73" }}>Create New Centre</div>
           <div style={{ fontSize:12, color:"#94a3b8" }}>Fill in the details to set up a new centre</div>
         </div>
       </div>
@@ -470,7 +470,7 @@ export default function CentreSetup() {
               {/* Header */}
               <div className="cs-header">
                 <div>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}> {data.centreName}</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73" }}> {data.centreName}</div>
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{data.centerCode} · {data.address}</div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
@@ -512,7 +512,7 @@ export default function CentreSetup() {
                 {/* ── GENERAL TAB ── */}
                 {activeTab === "General" && (
                   <div className="card-inner">
-                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> General Information</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}> General Information</div>
                     <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Primary identification and operational details of the Centre.</div>
                     <div className="grid-2">
                       <div className="field">
@@ -551,7 +551,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Address Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73" }}> Address Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Multiple addresses allowed; one must be marked primary.</div>
                       </div>
                       <button className="add-btn" onClick={() => setAddresses(p => [...p, { description:"", address:"", purpose: p.length === 0 ? "Head Office" : "Billing", isPrimary: p.length === 0 }])}>
@@ -611,7 +611,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Contact Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73" }}> Contact Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Primary phone number is mandatory.</div>
                       </div>
                       <button className="add-btn" onClick={() => setContacts(p => [...p, { description:"", contactType:"Phone", contactValue:"", isPrimary:false }])}>
@@ -662,7 +662,7 @@ export default function CentreSetup() {
                 {/* ── LOGO TAB ── */}
                 {activeTab === "Logo" && (
                   <div className="card-inner">
-                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> Centre Logo</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}> Centre Logo</div>
                     <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Used on invoices, receipts, reports, and customer communications.</div>
                     <div style={{ display:"flex", alignItems:"center", gap:20 }}>
                       <div style={{ width:80, height:80, border:"1px solid #e7ecf4", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:"#f8fafc", overflow:"hidden" }}>
@@ -694,7 +694,7 @@ export default function CentreSetup() {
                   <div className="card-inner">
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:"#071D49" }}> Tax Information</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73" }}> Tax Information</div>
                         <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Statutory registrations. Must comply with local regulations.</div>
                       </div>
                       <button className="add-btn" onClick={() => setTaxItems(p => [...p, { taxType:"", regNumber:"", country:taxCountry }])}>
@@ -733,7 +733,7 @@ export default function CentreSetup() {
                 {/* ── NUMBERING TAB ── */}
                 {activeTab === "Numbering" && (
                   <div className="card-inner">
-                    <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}># Number Sequence Prefixes</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}># Number Sequence Prefixes</div>
                     <div style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>Prefixes used when generating transaction document numbers. Old transactions are not affected when changed.</div>
                     <div className="grid-2">
                       {[
@@ -762,7 +762,7 @@ export default function CentreSetup() {
                   <>
                     {/* Gift Card */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}> Gift Card Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}> Gift Card Configurations</div>
                       <div className="grid-2">
                         <div className="field">
                           <label>Validity in days from purchase *</label>
@@ -781,7 +781,7 @@ export default function CentreSetup() {
 
                     {/* Sales */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}> Sales Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}> Sales Configurations</div>
                       <Toggle value={setup.allowMultiPayment}      onChange={() => setSetup(p=>({...p,allowMultiPayment:!p.allowMultiPayment}))}
                         label="Allow multiple payment methods in a single transaction"
                         sub="Multiple payment methods in a single transaction." />
@@ -800,7 +800,7 @@ export default function CentreSetup() {
 
                     {/* Sales Return */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}> Sales Return Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}> Sales Return Configurations</div>
                       <Toggle value={setup.allowSalesReturn}
                         onChange={() => setSetup(p => ({
                           ...p,
@@ -826,7 +826,7 @@ export default function CentreSetup() {
 
                     {/* Appointment */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>Appointment Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}>Appointment Configurations</div>
                       <Toggle value={setup.allowOnlineBooking} onChange={() => setSetup(p=>({...p,allowOnlineBooking:!p.allowOnlineBooking}))}
                         label="Allow Online Booking" sub="Customers can book appointments online" />
                       <Toggle value={setup.allowCancellation}
@@ -858,7 +858,7 @@ export default function CentreSetup() {
                   <>
                     {/* Advance limits & validity */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>Advance Payment Configurations</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}>Advance Payment Configurations</div>
                       <div className="grid-2">
                         <div className="field">
                           <label>Maximum Advance Cap</label>
@@ -881,7 +881,7 @@ export default function CentreSetup() {
 
                     {/* Redemption scope */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:4 }}>Allow Advance Redemption On</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:4 }}>Allow Advance Redemption On</div>
                       <Toggle value={setup.advAllowRedeemServices} onChange={() => setSetup(p=>({...p,advAllowRedeemServices:!p.advAllowRedeemServices}))}
                         label="Services" sub="Advance balance can be redeemed against service invoices." />
                       <Toggle value={setup.advAllowRedeemPackages} onChange={() => setSetup(p=>({...p,advAllowRedeemPackages:!p.advAllowRedeemPackages}))}
@@ -892,7 +892,7 @@ export default function CentreSetup() {
 
                     {/* Tax handling */}
                     <div className="card-inner">
-                      <div style={{ fontWeight:800, fontSize:14, color:"#071D49", marginBottom:12 }}>Tax Handling</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}>Tax Handling</div>
 
                       {/* Locals (Citizen) */}
                       <Toggle value={setup.advTaxableLocals} onChange={() => setSetup(p=>({...p,advTaxableLocals:!p.advTaxableLocals}))}

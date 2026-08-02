@@ -38,7 +38,7 @@ const ImageCompare = ({ images, onClose }) => {
         maxHeight:"90vh", overflow:"auto" }}>
 
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>🔍 Image Comparison</div>
+          <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73" }}>🔍 Image Comparison</div>
           <button onClick={onClose}
             style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:"#94a3b8" }}>×</button>
         </div>
@@ -190,7 +190,7 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false }) => {
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
           marginBottom:16, flexShrink:0 }}>
           <div>
-            <div style={{ fontWeight:800, fontSize:16, color:"#071D49" }}>{data?.formName || "Form"}</div>
+            <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73" }}>{data?.formName || "Form"}</div>
             <div style={{ fontSize:12, color:"#94a3b8", marginTop:2 }}>
               Submitted: {fmt(data?.submittedAt)} · By: {data?.filledByName || "—"}
             </div>
@@ -354,7 +354,7 @@ const CustomerFormHistory = () => {
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <div>
-          <div style={{ fontWeight:800, fontSize:20, color:"#071D49" }}> EMR Forms</div>
+          <div style={{ fontWeight:800, fontSize:20, color:"#2b3f73" }}> EMR Forms</div>
           <div style={{ fontSize:13, color:"#64748b", marginTop:2 }}>{customerName}</div>
         </div>
         {(data?.images?.length || 0) > 1 && (
@@ -444,7 +444,7 @@ const CustomerFormHistory = () => {
               {/* Header row with Fill button */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
                 padding:"12px 16px", borderBottom:"1px solid #f1f5f9" }}>
-                <div style={{ fontWeight:700, fontSize:13, color:"#071D49" }}>
+                <div style={{ fontWeight:700, fontSize:13, color:"#2b3f73" }}>
                   Customer Medical History
                 </div>
                 <button
@@ -541,7 +541,7 @@ const CustomerFormHistory = () => {
           {/* ── Images Tab ── */}
           {activeTab === "images" && (
             <div className="emr-card">
-              <div style={{ padding:"12px 16px", fontWeight:800, fontSize:14, color:"#071D49",
+              <div style={{ padding:"12px 16px", fontWeight:800, fontSize:14, color:"#2b3f73",
                 borderBottom:"1px solid #f1f5f9" }}>Before / After Images</div>
               {!data?.images?.length ? (
                 <div style={{ textAlign:"center", padding:30, color:"#94a3b8", fontSize:13 }}>
@@ -591,7 +591,7 @@ const CustomerFormHistory = () => {
           alignItems:"center", justifyContent:"center", zIndex:9999 }}>
           <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:480,
             width:"95%", boxShadow:"0 8px 32px rgba(0,0,0,.18)" }}>
-            <div style={{ fontWeight:800, fontSize:16, color:"#071D49", marginBottom:6 }}>
+            <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73", marginBottom:6 }}>
               Select Customer Form
             </div>
             <div style={{ fontSize:13, color:"#64748b", marginBottom:20 }}>

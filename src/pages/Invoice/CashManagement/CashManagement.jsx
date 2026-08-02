@@ -24,7 +24,7 @@ const API_BASE = `${API_ROOT}/api`;
 /* ── C palette / type ────────────────────────────────────────────────────── */
 const C = {
   navy: "#334b71",
-  navyDk: "#071D49",
+  navyDk: "#2b3f73",
   coral: "#cc6b5c",
   gold: "#d4a853",
   slate: "#8da0b8",

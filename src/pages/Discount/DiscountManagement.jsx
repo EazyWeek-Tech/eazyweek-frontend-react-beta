@@ -111,7 +111,7 @@ const DiscountManagement = () => {
           font-size: 2.2rem;
           font-weight: bold;
           margin-bottom: 10px;
-          color: #071D49;
+          color: #2b3f73;
         }
         .dms-subtitle {
           color: #333;
@@ -175,7 +175,7 @@ const DiscountManagement = () => {
           margin-bottom: 12px;
           font-size: 16px;
           font-weight: 700;
-          color: #071D49;
+          color: #2b3f73;
         }
         ul { list-style: none; padding: 0; }
         ul li { margin: 8px 0; position: relative; padding-left: 20px; }

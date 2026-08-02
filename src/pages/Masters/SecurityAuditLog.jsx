@@ -194,7 +194,7 @@ export default function SecurityAuditLog() {
       <style>{`
         .sal-wrap{font-family:Lato,system-ui,sans-serif;color:#10223f;padding:20px;max-width:1100px;margin:0 auto}
         .sal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
-        .sal-title{font-size:22px;font-weight:800;color:#071D49;margin:0}
+        .sal-title{font-size:22px;font-weight:800;color:#2b3f73;margin:0}
         .sal-sub{font-size:12px;color:#64748b;margin-top:4px}
         .sal-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:14px}
         .sal-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;font-weight:600}

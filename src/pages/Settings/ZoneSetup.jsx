@@ -173,7 +173,7 @@ export default function ZoneSetup() {
       <style>{`
         .zs-wrap { max-width:1000px; margin:0 auto; padding:28px 20px 60px; }
         .zs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-        .zs-title { font-size:22px; font-weight:800; color:#071D49; }
+        .zs-title { font-size:22px; font-weight:800; color:#2b3f73; }
         .zs-sub { font-size:13px; color:#64748b; margin-top:2px; }
         .card { background:#fff; border:1px solid #e7ecf4; border-radius:12px; padding:20px; margin-bottom:14px; }
         .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -215,7 +215,7 @@ export default function ZoneSetup() {
 
         {/* Zone List */}
         <div className="card">
-          <div style={{ fontWeight:800, fontSize:15, color:"#071D49", marginBottom:14 }}>
+          <div style={{ fontWeight:800, fontSize:15, color:"#2b3f73", marginBottom:14 }}>
             Zones {!loading && `(${zones.length})`}
           </div>
           {loading ? (
@@ -247,13 +247,13 @@ export default function ZoneSetup() {
         {/* Create / Edit Form */}
         {showForm && (
           <div className="card">
-            <div style={{ fontWeight:800, fontSize:15, color:"#071D49", marginBottom:16 }}>
+            <div style={{ fontWeight:800, fontSize:15, color:"#2b3f73", marginBottom:16 }}>
               {selected ? "✏️ Edit Zone" : "➕ Create Zone"}
             </div>
 
             {/* Basic Info */}
             <div style={{ border:"1px solid #e7ecf4", borderRadius:10, padding:16, marginBottom:14 }}>
-              <div style={{ fontWeight:700, fontSize:13, color:"#071D49", marginBottom:12 }}> Basic Zone Information</div>
+              <div style={{ fontWeight:700, fontSize:13, color:"#2b3f73", marginBottom:12 }}> Basic Zone Information</div>
               <div className="grid-2">
                 <div className="field">
                   <label>Legal Entity Code *</label>
@@ -293,7 +293,7 @@ export default function ZoneSetup() {
             <div style={{ border:"1px solid #e7ecf4", borderRadius:10, padding:16, marginBottom:14 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:"#071D49" }}> Centre Mapping</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#2b3f73" }}> Centre Mapping</div>
                   <div style={{ fontSize:11, color:"#64748b", marginTop:2 }}>Link centres to this zone. Each centre can only belong to one zone.</div>
                 </div>
               </div>

@@ -267,14 +267,14 @@ export default function LegalEntitySetup() {
       <style>{`
         .le-wrap { max-width:900px; margin:0 auto; padding:28px 20px 60px; }
         .le-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-        .le-title { font-size:22px; font-weight:800; color:#071D49; }
+        .le-title { font-size:22px; font-weight:800; color:#2b3f73; }
         .le-sub { font-size:13px; color:#64748b; margin-top:2px; }
         .le-tabs { display:flex; border-bottom:2px solid #e7ecf4; margin-bottom:20px; gap:0; }
         .le-tab { padding:12px 20px; font-weight:700; font-size:13px; cursor:pointer; color:#8da0b8; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all .15s; }
         .le-tab.active { color:#334b71; border-bottom-color:#334b71; }
         .le-tab.disabled { opacity:0.4; cursor:not-allowed; }
         .le-card { background:#fff; border:1px solid #e7ecf4; border-radius:12px; padding:20px; margin-bottom:16px; }
-        .le-card h3 { margin:0 0 4px; font-size:15px; font-weight:800; color:#071D49; }
+        .le-card h3 { margin:0 0 4px; font-size:15px; font-weight:800; color:#2b3f73; }
         .le-card p  { margin:0 0 16px; font-size:12px; color:#64748b; }
         .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
         .field { display:flex; flex-direction:column; gap:5px; }

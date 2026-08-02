@@ -571,7 +571,7 @@ export default function FormBuilder() {
             ← Back
           </button>
           <div>
-            <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}>{form.formName}</div>
+            <div style={{ fontWeight:800, fontSize:15, color:"#2b3f73" }}>{form.formName}</div>
             <div style={{ fontSize:11, color:"#94a3b8" }}>{form.formCode} · {form.formType}</div>
           </div>
           <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700,
@@ -734,7 +734,7 @@ export default function FormBuilder() {
                         ↔ Arabic — RTL
                       </div>
                     )}
-                    <div style={{ fontWeight:800, fontSize:18, color:"#071D49", marginBottom:4 }}>{form.formName}</div>
+                    <div style={{ fontWeight:800, fontSize:18, color:"#2b3f73", marginBottom:4 }}>{form.formName}</div>
                     <div style={{ fontSize:12, color:"#94a3b8", marginBottom:20 }}>{form.formType}</div>
 
                     {getVisibleComponents(previewLang).map(comp => (
@@ -808,7 +808,7 @@ const ConditionsPanel = ({ components, conditions, onChange }) => {
   const removeCond = (i) => onChange(p => p.filter((_,idx) => idx!==i));
   return (
     <div style={{ maxWidth:700, margin:"0 auto" }}>
-      <div style={{ fontWeight:800, fontSize:15, color:"#071D49", marginBottom:4 }}>🔀 Conditional Logic</div>
+      <div style={{ fontWeight:800, fontSize:15, color:"#2b3f73", marginBottom:4 }}>🔀 Conditional Logic</div>
       <div style={{ fontSize:13, color:"#64748b", marginBottom:20 }}>Show or hide components based on field values. Language conditions are auto-managed in Bilingual mode.</div>
       {conditions.length === 0 && <div style={{ textAlign:"center", padding:"40px 0", color:"#94a3b8", fontSize:13 }}>No conditions yet.</div>}
       {conditions.map((cond,i) => (

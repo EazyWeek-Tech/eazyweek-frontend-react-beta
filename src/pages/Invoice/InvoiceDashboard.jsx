@@ -11,7 +11,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
 
 const C = {
-  navy:"#334b71", navyDk:"#071D49", open:"#cc6b5c", wip:"#d4a853", closed:"#8da0b8",
+  navy:"#334b71", navyDk:"#2b3f73", open:"#cc6b5c", wip:"#d4a853", closed:"#8da0b8",
   cvt:"#4a9e8a", grid:"#eef2f7", axis:"#6e7b8f", border:"#e7ecf4", text:"#10223f", sub:"#64748b",
 };
 const FONT = "Lato,sans-serif";

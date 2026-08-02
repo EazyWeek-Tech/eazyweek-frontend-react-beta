@@ -1068,7 +1068,7 @@ const ServiceForm = ({ service = null, onBack, mode = "create" }) => {
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:15, color:"#071D49" }}> EMR Forms</div>
+                  <div style={{ fontWeight:800, fontSize:15, color:"#2b3f73" }}> EMR Forms</div>
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>
                     Map consent/treatment forms to this service. Max 11 forms.
                   </div>

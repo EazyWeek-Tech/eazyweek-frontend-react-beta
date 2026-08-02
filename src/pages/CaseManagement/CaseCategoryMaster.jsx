@@ -296,7 +296,7 @@ const CaseCategoryMaster = () => {
         }
         .header-btn:active { transform: translateY(1px); }
         .create-btn { background-color: #334b71; color: #fff; }
-        .create-btn:hover { background-color: #071D49; }
+        .create-btn:hover { background-color: #2b3f73; }
         .close-btn { background-color:#64748b; color: #fff; }
         .close-btn:hover { background-color:#475569; }
 
@@ -313,7 +313,7 @@ const CaseCategoryMaster = () => {
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          background:#071D49;
+          background:#2b3f73;
           padding: 12px 16px;
         }
         .category-title { font-size: 13px; font-weight: 800; color: #fff; margin: 0; text-transform: uppercase; letter-spacing: .5px; }
