@@ -9,7 +9,9 @@ const C = {
   green:"#166534", greenBg:"#dcfce7", red:"#b91c1c", redBg:"#fef2f2",
 };
 
-const TRANS_TYPES = ["Transaction","ManualLead","ExternalSource"];
+// R1-R7 types only. CLINIC_LEADSTATUS rows with TRANSTYPE='ManualLead' are dead legacy
+// (manual campaigns read the Disposition/Subdisposition tables) and are not listed here.
+const TRANS_TYPES = ["Transaction","ExternalSource"];
 
 /* ── API helpers ─────────────────────────────────────────────────────────────── */
 const TOKEN    = () => localStorage.getItem("token")||sessionStorage.getItem("token")||"";
@@ -147,20 +149,24 @@ function FieldRow({ label, required, children }) {
   );
 }
 
-function ModalInput({ value, onChange, placeholder }) {
+function ModalInput({ value, onChange, placeholder, disabled }) {
   return (
-    <input value={value} onChange={onChange} placeholder={placeholder}
+    <input value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
       style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`,
         borderRadius:8, fontSize:13, fontFamily:"Lato,sans-serif",
-        outline:"none", boxSizing:"border-box" }} />
+        outline:"none", boxSizing:"border-box",
+        background:disabled?"#f4f6fa":"#fff", color:disabled?C.sub:C.text,
+        cursor:disabled?"not-allowed":"text" }} />
   );
 }
 
-function ModalSelect({ value, onChange, options }) {
+function ModalSelect({ value, onChange, options, disabled }) {
   return (
-    <select value={value} onChange={onChange}
+    <select value={value} onChange={onChange} disabled={disabled}
       style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`,
-        borderRadius:8, fontSize:13, fontFamily:"Lato,sans-serif", outline:"none" }}>
+        borderRadius:8, fontSize:13, fontFamily:"Lato,sans-serif", outline:"none",
+        background:disabled?"#f4f6fa":"#fff", color:disabled?C.sub:C.text,
+        cursor:disabled?"not-allowed":"pointer" }}>
       {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
@@ -255,16 +261,38 @@ export default function DispositionMaster() {
   const closeModal = () => setModal(null);
 
   /* Loaders */
-  const loadLeadStatuses    = () => authGet(`${BASE}/LeadStatus${transTypeFilter?`?transType=${transTypeFilter}`:""}`).then(d=>setLeadStatuses(Array.isArray(d)?d:[]));
+  // Always fetch ALL lead statuses. Tab 1's "Filter by Type" is applied client-side, so
+  // it can no longer empty the parent-code dropdown used by the Sub-Dispositions tab.
+  const loadLeadStatuses    = () => authGet(`${BASE}/LeadStatus`).then(d=>setLeadStatuses(Array.isArray(d)?d:[]));
   const loadLeadSubStatuses = () => authGet(`${BASE}/LeadSubStatus${leadCodeFilter?`?leadStatusCode=${leadCodeFilter}`:""}`).then(d=>setLeadSubStatuses(Array.isArray(d)?d:[]));
   const loadDispositions    = () => authGet(`${BASE}/ManualDisposition`).then(d=>setDispositions(Array.isArray(d)?d:[]));
   const loadSubDispositions = () => authGet(`${BASE}/ManualSubDisposition${dispIdFilter?`?dispositionId=${dispIdFilter}`:""}`).then(d=>setSubDispositions(Array.isArray(d)?d:[]));
   const loadRules           = () => authGet(`${BASE}/Rules`).then(d=>setRules(Array.isArray(d)?d:[]));
 
   useEffect(() => { loadLeadStatuses(); loadDispositions(); loadRules(); }, []);
-  useEffect(() => { loadLeadStatuses(); }, [transTypeFilter]);
   useEffect(() => { loadLeadSubStatuses(); }, [leadCodeFilter]);
   useEffect(() => { loadSubDispositions(); }, [dispIdFilter]);
+
+  // Tab 1 view — client-side type filter.
+  const visibleLeadStatuses = useMemo(
+    () => transTypeFilter ? leadStatuses.filter(s=>s.transType===transTypeFilter) : leadStatuses,
+    [leadStatuses, transTypeFilter]
+  );
+
+  /* CLINIC_LEADSTATUS.CODE repeats once per TRANSTYPE, so parent pickers group by CODE
+     and show every type that code covers — otherwise the label picked whichever row
+     happened to come back first. */
+  const parentCodes = useMemo(() => {
+    const map = new Map();
+    leadStatuses.forEach(s => {
+      const e = map.get(s.code) || { code:s.code, name:s.name, types:[] };
+      if (!e.types.includes(s.transType)) e.types.push(s.transType);
+      map.set(s.code, e);
+    });
+    return [...map.values()].sort((a,b)=>a.code.localeCompare(b.code));
+  }, [leadStatuses]);
+
+  const parentLabel = (p) => `${p.code} — ${p.name} (${p.types.join(", ")})`;
 
   /* Saved action */
   const handleSave = async () => {
@@ -358,7 +386,7 @@ export default function DispositionMaster() {
       {activeTab === "leadStatus" && (
         <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
           boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          <SectionHeader title="R1-R7 Dispositions" sub="Used for Transaction, ExternalSource and ManualLead rule types (CLINIC_LEADSTATUS)"
+          <SectionHeader title="R1-R7 Dispositions" sub="CLINIC_LEADSTATUS — Transaction (R1–R6) and ExternalSource (R7). Manual Lead campaigns use their own tabs."
             onAdd={()=>setModal({type:"leadStatus",data:{name:"",code:"",transType:"Transaction",convertIsApplicable:false,active:true}})}
             addLabel="Add Disposition" />
           {/* Filter */}
@@ -378,8 +406,8 @@ export default function DispositionMaster() {
                 <TH>Convert Applicable</TH><TH>Status</TH><TH>Actions</TH>
               </tr></thead>
               <tbody>
-                {leadStatuses.length===0 ? <EmptyRow cols={6}/> :
-                  leadStatuses.map((s,i)=>(
+                {visibleLeadStatuses.length===0 ? <EmptyRow cols={6}/> :
+                  visibleLeadStatuses.map((s,i)=>(
                     <tr key={s.recId} style={{ background:i%2===0?"#fff":"#fafbfd" }}>
                       <TD><span style={{ fontFamily:"monospace", fontWeight:700, color:C.navy }}>{s.code}</span></TD>
                       <TD>{s.name}</TD>
@@ -389,7 +417,7 @@ export default function DispositionMaster() {
                       <TD>
                         <ActionBtn label="Edit" color={C.navy}
                           onClick={()=>setModal({type:"leadStatus",id:s.recId,
-                            data:{name:s.name,transType:s.transType,convertIsApplicable:s.convertIsApplicable,active:s.active}})} />
+                            data:{code:s.code,name:s.name,transType:s.transType,convertIsApplicable:s.convertIsApplicable,active:s.active}})} />
                         <ActionBtn label="Delete" color={C.red}
                           onClick={()=>handleDelete("leadStatus",s.recId,s.name)} />
                       </TD>
@@ -414,7 +442,7 @@ export default function DispositionMaster() {
             <select value={leadCodeFilter} onChange={e=>setLeadCodeFilter(e.target.value)}
               style={{ padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:13, outline:"none" }}>
               <option value="">All</option>
-              {[...new Set(leadStatuses.map(s=>s.code))].map(c=><option key={c} value={c}>{c}</option>)}
+              {parentCodes.map(p=><option key={p.code} value={p.code}>{parentLabel(p)}</option>)}
             </select>
           </div>
           <div style={{ overflowX:"auto" }}>
@@ -431,12 +459,14 @@ export default function DispositionMaster() {
                       <TD><span style={{ background:C.navyLt, color:C.navy, borderRadius:6,
                         padding:"2px 8px", fontSize:11, fontWeight:700 }}>{s.leadStatusCode}</span>
                         {s.parentName && <span style={{ color:C.sub, fontSize:12, marginLeft:6 }}>({s.parentName})</span>}
+                        {s.parentTypes && <span style={{ color:C.sub, fontSize:11, marginLeft:6, fontStyle:"italic" }}>· {s.parentTypes}</span>}
+                        {s.parentCount === 0 && <span style={{ color:C.red, fontSize:11, marginLeft:6, fontWeight:700 }}>· orphaned</span>}
                       </TD>
                       <TD><ActiveBadge active={s.active}/></TD>
                       <TD>
                         <ActionBtn label="Edit" color={C.navy}
                           onClick={()=>setModal({type:"leadSubStatus",id:s.recId,
-                            data:{name:s.name,leadStatusCode:s.leadStatusCode,active:s.active}})} />
+                            data:{code:s.code,name:s.name,leadStatusCode:s.leadStatusCode,active:s.active}})} />
                         <ActionBtn label="Delete" color={C.red}
                           onClick={()=>handleDelete("leadSubStatus",s.recId,s.name)} />
                       </TD>
@@ -528,15 +558,18 @@ export default function DispositionMaster() {
       {modal?.type === "leadStatus" && (
         <Modal title={`${modal.id?"Edit":"Add"} R1-R7 Disposition`} onClose={closeModal}>
           <FieldRow label="Code" required>
-            <ModalInput value={modal.data.code||""} placeholder="e.g. LS015"
+            <ModalInput value={modal.data.code||""} placeholder="e.g. LS015" disabled={!!modal.id}
               onChange={e=>setModal(p=>({...p,data:{...p.data,code:e.target.value}}))} />
+            {modal.id && <div style={{ fontSize:11, color:C.sub, marginTop:4 }}>
+              Code and type are fixed after creation — sub-dispositions are linked by code.
+            </div>}
           </FieldRow>
           <FieldRow label="Name" required>
             <ModalInput value={modal.data.name} placeholder="e.g. Follow Up"
               onChange={e=>setModal(p=>({...p,data:{...p.data,name:e.target.value}}))} />
           </FieldRow>
           <FieldRow label="Transaction Type" required>
-            <ModalSelect value={modal.data.transType}
+            <ModalSelect value={modal.data.transType} disabled={!!modal.id}
               onChange={e=>setModal(p=>({...p,data:{...p.data,transType:e.target.value}}))}
               options={TRANS_TYPES.map(t=>({value:t,label:t}))} />
           </FieldRow>
@@ -575,10 +608,7 @@ export default function DispositionMaster() {
             <ModalSelect value={modal.data.leadStatusCode}
               onChange={e=>setModal(p=>({...p,data:{...p.data,leadStatusCode:e.target.value}}))}
               options={[{value:"",label:"Select parent…"},
-                ...[...new Set(leadStatuses.map(s=>s.code))].map(c=>{
-                  const ls=leadStatuses.find(s=>s.code===c);
-                  return {value:c,label:`${c} — ${ls?.name||""}`};
-                })]} />
+                ...parentCodes.map(p=>({value:p.code,label:parentLabel(p)}))]} />
           </FieldRow>
           {modal.id && <ToggleSwitch value={modal.data.active}
             onChange={()=>setModal(p=>({...p,data:{...p.data,active:!p.data.active}}))}
