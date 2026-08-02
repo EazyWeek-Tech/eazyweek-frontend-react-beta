@@ -17,6 +17,33 @@ import AdvancePayment from './components/AdvancePayment';
 import { useCustomerNotes } from '../../pages/Customer/CustomerDetails/CustomerNotePopup';
 import './styles/InvoicePage.css';
 
+// ── Customer recId ───────────────────────────────────────────────────────
+// The numeric customer key arrives under different spellings depending on which
+// endpoint produced the record (search, FetchCustomerDetails, appointment
+// details). Loyalty is keyed on it, so read every known spelling in one place —
+// a casing miss here silently disables the whole loyalty flow.
+// KEEP IN SYNC with the local copies in PaymentBlock.jsx & CustomerSearch.jsx.
+export const pickRecId = (o) => {
+  if (!o) return "";
+  const v = o.recId ?? o.recid ?? o.RECID ?? o.recID ?? o.RecId ??
+            o.customerRecId ?? o.CUSTOMER_RECID ?? o.custRecId ?? "";
+  return String(v ?? "").trim();
+};
+
+// Peel the response envelope down to a single record. Handles a bare object,
+// { data: {...} }, { data: { data: {...} } } and { data: [ {...} ] } — a customer
+// endpoint that answers with a ONE-ROW ARRAY is indistinguishable from a broken
+// one if you only do `j.data ?? j`, because every field read off it is undefined.
+export const unwrapRecord = (j) => {
+  let d = j;
+  for (let i = 0; i < 4 && d != null; i++) {
+    if (Array.isArray(d)) { d = d[0]; continue; }
+    if (typeof d === 'object' && d.data != null && typeof d.data === 'object') { d = d.data; continue; }
+    break;
+  }
+  return d && typeof d === 'object' && !Array.isArray(d) ? d : null;
+};
+
 // ── VAT rule (KEEP IN SYNC with InvoiceTable.jsx & PaymentBlock.jsx) ───────────
 // base = (price - discount) * qty
 //  • Citizen            → no VAT, price as-is (net = base, tax = 0, total = base)
@@ -145,7 +172,7 @@ const InvoicePage = () => {
               gender:   firstItem.gender  || "",
               status:   firstItem.customerType ||
                         (String(firstItem.nationalityId || firstItem.nationality || "") === "84" ? "Citizen" : "Expat"),
-              recId:    recIdFromUrl || firstItem.recId || "",
+              recId:    recIdFromUrl || pickRecId(firstItem),
               isLoyaltyEnrolled: false,
             };
             setSelectedCustomer(baseCust);
@@ -160,12 +187,12 @@ const InvoicePage = () => {
               })
                 .then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(d => {
-                  const det = d?.data ?? d;
+                  const det = unwrapRecord(d) || {};
                   setSelectedCustomer(prev => ({
                     ...prev,
                     status: det?.customerType || prev.status,
                     isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
-                    recId: prev.recId || det?.recId || det?.recid || "",
+                    recId: prev.recId || pickRecId(det),
                   }));
                 })
                 .catch(() => {}); // non-critical — loyalty just won't show
@@ -195,7 +222,7 @@ const InvoicePage = () => {
           })
             .then(r => r.ok ? r.json() : Promise.reject(r.status))
             .then(d => {
-              const det = d?.data ?? d;
+              const det = unwrapRecord(d) || {};
               setSelectedCustomer(prev => ({
                 ...prev,
                 status: prev.status || det?.customerType ||
@@ -206,7 +233,7 @@ const InvoicePage = () => {
                 // fetched here but dropped, leaving the Nationality box blank.
                 nationalityCode: prev.nationalityCode || det?.nationalityCode || det?.nationalityId || "",
                 isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
-                recId: prev.recId || det?.recId || det?.recid || "",
+                recId: prev.recId || pickRecId(det),
               }));
             })
             .catch(() => {});
@@ -500,8 +527,18 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               onApplyPriceOverride={handleApplyPriceOverride} />
 
             <div className="invtotalblk">
+              {/* onCustomerSelect merges, it does not replace. CustomerSearch's
+                  prefill effect fires on an appointment-sourced invoice and re-emits
+                  the customer; a wholesale replace wiped recId — and with it the
+                  entire loyalty flow — whenever the re-emitted record had none. */}
               <CustomerSearch
-                onCustomerSelect={(cust) => setSelectedCustomer(cust ? { ...cust, custid: cust.custId || cust.custid || "", recId: cust.recId || cust.recid || "", isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? false) } : null)}
+                onCustomerSelect={(cust) => setSelectedCustomer(prev => cust ? {
+                  ...prev,
+                  ...cust,
+                  custid: cust.custId || cust.custid || prev?.custid || "",
+                  recId:  pickRecId(cust) || prev?.recId || "",
+                  isLoyaltyEnrolled: !!(cust.isLoyaltyEnrolled ?? cust.IS_LOYALTY_ENROLLED ?? prev?.isLoyaltyEnrolled ?? false),
+                } : null)}
                 prefillCustid={custidFromUrl} fullName={selectedCustomer?.fullName}
                 emailId={selectedCustomer?.email} number={selectedCustomer?.number}
                 nationalityStatus={selectedCustomer?.status}
@@ -528,7 +565,7 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               showErrToast={(msg) => setToast({ message: msg, type: 'error' })}
               customer={selectedCustomer} />
             <PaymentBlock totalAmount={total.toFixed(2)} invoiceItems={items}
-              customer={selectedCustomer} recId={selectedCustomer?.recId || recIdFromUrl || ""}
+              customer={selectedCustomer} recId={pickRecId(selectedCustomer) || recIdFromUrl || ""}
               packageRedemption={packageRedemption} appliedPromotions={appliedPromotions}
               onRemovePromotion={handleRemovePromotion} onRemoveManualDiscount={handleRemoveManualDiscount}
               alreadyPaid={!!alreadyPaid}

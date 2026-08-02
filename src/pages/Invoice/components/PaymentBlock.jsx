@@ -3,6 +3,34 @@ import { API_BASE_URL } from '../../../config';
 // CreditNoteRedemption modal removed — CN selection is now inline in tab content
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+// ── Customer recId ───────────────────────────────────────────────────────
+// The numeric customer key arrives under different spellings depending on which
+// endpoint produced the record (search, FetchCustomerDetails, appointment
+// details). Loyalty is keyed on it, so read every known spelling in one place —
+// a casing miss here silently disables the whole loyalty flow.
+// KEEP IN SYNC with index.jsx & CustomerSearch.jsx (kept local rather than
+// imported from index.jsx, which would make the import cycle index ↔ components).
+const pickRecId = (o) => {
+  if (!o) return "";
+  const v = o.recId ?? o.recid ?? o.RECID ?? o.recID ?? o.RecId ??
+            o.customerRecId ?? o.CUSTOMER_RECID ?? o.custRecId ?? "";
+  return String(v ?? "").trim();
+};
+
+// Peel the response envelope down to a single record. Handles a bare object,
+// { data: {...} }, { data: { data: {...} } } and { data: [ {...} ] } — a customer
+// endpoint that answers with a ONE-ROW ARRAY is indistinguishable from a broken
+// one if you only do `j.data ?? j`, because every field read off it is undefined.
+const unwrapRecord = (j) => {
+  let d = j;
+  for (let i = 0; i < 4 && d != null; i++) {
+    if (Array.isArray(d)) { d = d[0]; continue; }
+    if (typeof d === 'object' && d.data != null && typeof d.data === 'object') { d = d.data; continue; }
+    break;
+  }
+  return d && typeof d === 'object' && !Array.isArray(d) ? d : null;
+};
+
 // ── VAT rule (KEEP IN SYNC with index.jsx & InvoiceTable.jsx) ─────────────────
 // base = (price - discount) * qty
 //  • Citizen            → no VAT, price as-is
@@ -134,9 +162,13 @@ const PaymentBlock = ({
   const custNameFromUrl = (searchParams.get('custname') || '').trim();
   const appointmentIdFromUrl = (searchParams.get('appointmentid') || appointmentID || '').trim();
   const isPaymentMadeFromUrl = (searchParams.get('isPaymentMade') || '').trim();
-  // recId: prefer prop (passed from parent who has it from customer select or URL), fallback to URL param
+  // recId: prefer prop (passed from parent who has it from customer select or URL), fallback to URL param.
+  // NOTE: on an appointment-sourced invoice the redirect URL carries custid but NOT
+  // recid, and GetSelectedAppDetails doesn't return one either — so this can legitimately
+  // be empty while a customer IS loaded. `loyaltyRecId` below resolves it from custId in
+  // that case; use THAT for anything loyalty-related, never recIdBase.
   const recIdFromUrl = (searchParams.get('recid') || '').trim();
-  const recIdFromUrl_final = recIdFromProp || recIdFromUrl || customer?.recId || "";
+  const recIdBase = recIdFromProp || recIdFromUrl || pickRecId(customer);
 
   // ---------- session user (centerCode/createdBy) ----------
   const sessionUser = useMemo(() => {
@@ -184,6 +216,9 @@ const PaymentBlock = ({
 
   // Loyalty balance state
   const [loyaltyBalance, setLoyaltyBalance] = useState(null);
+  // recId resolved from custId when nothing upstream supplied one (appointment path)
+  const [recIdResolved, setRecIdResolved] = useState('');
+  const [recIdResolving, setRecIdResolving] = useState(false);
   const [loyaltyBalanceLoading, setLoyaltyBalanceLoading] = useState(false);
   const [centerRecId, setCenterRecId] = useState(0);
   const [loyaltyEnrollmentType, setLoyaltyEnrollmentType] = useState('ONREQUEST'); // AUTO | ONREQUEST
@@ -413,20 +448,94 @@ const PaymentBlock = ({
   // Derived from effective customer — must be after effectiveCustomer is defined
   const isLoyaltyEnrolled = !!(effectiveCustomer?.isLoyaltyEnrolled ?? customer?.isLoyaltyEnrolled);
 
+  // The recId every loyalty call must use: whatever came down the prop/URL chain,
+  // else the one resolved from custId below.
+  const loyaltyRecId = recIdBase || recIdResolved;
+
+  // ---------- Resolve recId from custId when the chain didn't supply one ---------
+  // Appointment → invoice redirects carry custid only. Without this the Loyalty tab
+  // reports "select a customer" for a customer that is plainly on screen, loyalty
+  // cannot be used as a payment mode, and — worse — createPointsTransaction returns
+  // early so NO points are earned or redeemed on the invoice, silently.
+  //
+  // Two sources, in order:
+  //   1. FetchCustomerDetails — same call the rest of the page already makes.
+  //   2. GetCustomerBySearchKey — the customer picker's own endpoint. This one is
+  //      KNOWN to return a recId (selecting a customer by hand is what makes loyalty
+  //      work today), so it is the reliable fallback when (1) doesn't carry the column.
+  // Every raw response is logged under [recId] so a shape problem is one glance away.
+  useEffect(() => {
+    const custId = effectiveCustomer?.custId || effectiveCustomer?.custid || custIdFromUrl;
+    if (recIdBase || !custId) { setRecIdResolving(false); return; }
+    let cancelled = false;
+    setRecIdResolving(true);
+
+    const fromDetails = async () => {
+      const r = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ custID: custId }),
+      });
+      if (!r.ok) throw new Error(`FetchCustomerDetails ${r.status}`);
+      const j = await r.json();
+      console.debug('[recId] FetchCustomerDetails raw:', j);
+      return pickRecId(unwrapRecord(j));
+    };
+
+    const fromSearch = async () => {
+      if (!sessionCenterCode) return '';
+      const r = await fetch(
+        `${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(custId)}/${encodeURIComponent(sessionCenterCode)}`,
+        { headers: authHeaders() }
+      );
+      if (!r.ok) throw new Error(`GetCustomerBySearchKey ${r.status}`);
+      const j = await r.json();
+      console.debug('[recId] GetCustomerBySearchKey raw:', j);
+      const list = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+      // Match the exact customer — a search key can legitimately return several rows.
+      const hit = list.find(c =>
+        String(c.custId || c.custid || c.CUSTID || '').trim().toLowerCase() ===
+        String(custId).trim().toLowerCase()
+      ) || (list.length === 1 ? list[0] : null);
+      return pickRecId(hit);
+    };
+
+    (async () => {
+      let rid = '';
+      try { rid = await fromDetails(); }
+      catch (e) { console.warn('[recId] details lookup failed:', e); }
+      if (!rid && !cancelled) {
+        try { rid = await fromSearch(); }
+        catch (e) { console.warn('[recId] search lookup failed:', e); }
+      }
+      if (cancelled) return;
+      setRecIdResolved(rid);
+      setRecIdResolving(false);
+      if (!rid) {
+        // Neither endpoint carries the customer key under any known spelling. This is
+        // a BACKEND gap — the customer SELECT is missing RECID — not something the
+        // frontend can work around. Loyalty stays off for this invoice.
+        console.warn('[recId] unresolved for custId', custId, '— loyalty disabled for this invoice');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [recIdBase, effectiveCustomer?.custId, effectiveCustomer?.custid, custIdFromUrl, sessionCenterCode]);
+
   // ---------- Fetch loyalty balance when loyalty tab opened --------------------
   // Must be after isLoyaltyEnrolled is defined
   useEffect(() => {
     const effectivelyEnrolled = loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled;
-    if (activeTab !== 'loyalty' || !recIdFromUrl_final || !effectivelyEnrolled) return;
+    if (activeTab !== 'loyalty' || !loyaltyRecId || !effectivelyEnrolled) return;
     setLoyaltyBalanceLoading(true);
-    fetch(`${API_BASE_URL}/api/v1/points/balance/${recIdFromUrl_final}`, {
+    fetch(`${API_BASE_URL}/api/v1/points/balance/${loyaltyRecId}`, {
       headers: authHeaders(),
     })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => setLoyaltyBalance(d?.data ?? d))
       .catch(e => console.warn('Loyalty balance fetch failed:', e))
       .finally(() => setLoyaltyBalanceLoading(false));
-  }, [activeTab, recIdFromUrl_final, loyaltyEnrollmentType, isLoyaltyEnrolled]);
+  }, [activeTab, loyaltyRecId, loyaltyEnrollmentType, isLoyaltyEnrolled]);
 
   // ---------- Convert available points → SAR (the redeemable value & rate basis) ----
   // Uses the same points→SAR direction the rest of the app relies on, so we never
@@ -434,9 +543,9 @@ const PaymentBlock = ({
   // full balance we get the per-point rate and can size any entered amount.
   useEffect(() => {
     const avail = loyaltyBalance?.availablePoints ?? 0;
-    if (!recIdFromUrl_final || avail <= 0) { setLoyaltyRedeemableSar(0); return; }
+    if (!loyaltyRecId || avail <= 0) { setLoyaltyRedeemableSar(0); return; }
     let cancelled = false;
-    fetch(`${API_BASE_URL}/api/v1/points/get-points?customerId=${parseInt(recIdFromUrl_final) || 0}&amount=${Math.round(avail)}&TransactionType=REDEEMED`, {
+    fetch(`${API_BASE_URL}/api/v1/points/get-points?customerId=${parseInt(loyaltyRecId) || 0}&amount=${Math.round(avail)}&TransactionType=REDEEMED`, {
       headers: authHeaders(),
     })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -446,7 +555,7 @@ const PaymentBlock = ({
       })
       .catch(() => { if (!cancelled) setLoyaltyRedeemableSar(0); });
     return () => { cancelled = true; };
-  }, [loyaltyBalance, recIdFromUrl_final]);
+  }, [loyaltyBalance, loyaltyRecId]);
 
   // ---------- Load redeemable advance balance when Advance tab activated ----------
   useEffect(() => {
@@ -1284,7 +1393,7 @@ if (result.success) {
         // earn base. Both the invoice-level discount and the loyalty-paid portion
         // are allocated proportionally across eligible and non-eligible lines.
         const effectivelyEnrolled = loyaltyEnrollmentType === 'AUTO' || isLoyaltyEnrolled;
-        if (recIdFromUrl_final && effectivelyEnrolled) {
+        if (loyaltyRecId && effectivelyEnrolled) {
           const loyaltyPayment = payments.find(p => p.mode === 'Loyalty');
           const loyaltyAmount  = loyaltyPayment ? loyaltyPayment.amount : 0;
 
@@ -1470,7 +1579,7 @@ if (result.success) {
 
   // ---------- Points transaction helper ----------------------------------------
   const createPointsTransaction = async (transactionType, amount, invoiceNumber, points = 0) => {
-    if (!recIdFromUrl_final) return;
+    if (!loyaltyRecId) return;
     const now = new Date().toISOString();
     const refMatch = String(invoiceNumber).match(/(\d+)\s*$/);
     const referenceId = refMatch ? parseInt(refMatch[1], 10) : 0;
@@ -1479,8 +1588,8 @@ if (result.success) {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
-          CustomerId:         parseInt(recIdFromUrl_final) || 0,  // customer recId as int
-          MembershipId:       parseInt(recIdFromUrl_final) || 0,  // same — used for tier lookup
+          CustomerId:         parseInt(loyaltyRecId) || 0,  // customer recId as int
+          MembershipId:       parseInt(loyaltyRecId) || 0,  // same — used for tier lookup
           ProgramId:          0,
           TransactionType:    transactionType,
           Amount:             Math.round(amount),   // int — tier segments are whole numbers
@@ -1654,9 +1763,18 @@ if (result.success) {
                       )}
                     </div>
                   </div>
-                ) : !recIdFromUrl_final ? (
-                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}> Select a customer to view loyalty balance.</div>
-                ) : null}
+                ) : !(effectiveCustomer?.custId || effectiveCustomer?.custid || custIdFromUrl) ? (
+                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>Select a customer to view loyalty balance.</div>
+                ) : recIdResolving ? (
+                  <div style={{ fontSize: 13, color: '#6e7b8f', padding: '8px 0' }}>Resolving loyalty account…</div>
+                ) : !loyaltyRecId ? (
+                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>
+                    This customer has no loyalty account reference, so the balance can't be read.
+                    Points will not be earned or redeemed on this invoice.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: '#cc6b5c', padding: '8px 0' }}>Loyalty balance unavailable right now.</div>
+                )}
               </div>}
 
               {/* Points input + convert button */}

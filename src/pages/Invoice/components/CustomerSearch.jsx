@@ -3,6 +3,20 @@ import { API_BASE_URL } from '../../../config';
 // NOTE: adjust this relative path to wherever CustomerMaster.jsx lives in your tree.
 import { CustomerFormPanel } from '../../Masters/CustomerMaster';
 
+// ── Customer recId ───────────────────────────────────────────────────────
+// The numeric customer key arrives under different spellings depending on which
+// endpoint produced the record (search, FetchCustomerDetails, appointment
+// details). Loyalty is keyed on it, so read every known spelling in one place —
+// a casing miss here silently disables the whole loyalty flow.
+// KEEP IN SYNC with index.jsx & CustomerSearch.jsx (kept local rather than
+// imported from index.jsx, which would make the import cycle index ↔ components).
+const pickRecId = (o) => {
+  if (!o) return "";
+  const v = o.recId ?? o.recid ?? o.RECID ?? o.recID ?? o.RecId ??
+            o.customerRecId ?? o.CUSTOMER_RECID ?? o.custRecId ?? "";
+  return String(v ?? "").trim();
+};
+
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
@@ -179,7 +193,8 @@ const CustomerSearch = ({
     const mobile    = cust.mobile    || cust.NUMBER     || cust.number       || cust.mobilePhone || '';
     const email     = cust.email     || cust.EMAIL      || cust.emailId      || '';
     const custId    = cust.custId    || cust.custid     || cust.CUSTID       || cust.customerId || '';
-    const recId     = cust.recId     || cust.recid      || cust.RECID        || '';
+    // Single source of truth for the casing net — see pickRecId in index.jsx.
+    const recId     = pickRecId(cust);
     // The create-customer response names this nationalityCode while search and
     // FetchCustomerDetails name it nationalityId — read both, or a customer
     // created here derives no classification and the picker reappears.
