@@ -5,6 +5,7 @@ import IssuesTab from "./CaseDetails/IssuesTab";
 import SLATab from "./CaseDetails/SLATab";
 import JourneyTab from "./CaseDetails/JourneyTab";
 import ExpenseTab from "./CaseDetails/ExpenseTab";
+import "./CaseDetails/case-tabs.css";
 import Toast from "../../components/Toast";
 import { API_BASE_URL } from "../../config";
 
@@ -1700,110 +1701,80 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
   };
 
   return (
-    <section className="cd-theme">
-      <style>{`
-        .cd-theme{ --navy:#334b71; --navyDk:#071D49; --border:#e7ecf4; --text:#10223f; padding: 20px; border-radius: 12px; background: #fff; }
-        /* form labels + controls only — everything else uses the original CSS */
-        .cd-theme .form-group label{ font-size:12px; font-weight:700; color:var(--navyDk); }
-        .cd-theme .form-group input,
-        .cd-theme .form-group select,
-        .cd-theme .form-group textarea{
-          padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:#fff;
-          font-size:13px; color:var(--text); font-family:inherit; outline:none;
-          transition:border-color .15s, box-shadow .15s;
-        }
-        .cd-theme .form-group input:focus,
-        .cd-theme .form-group select:focus,
-        .cd-theme .form-group textarea:focus{
-          border-color:var(--navy); box-shadow:0 0 0 3px rgba(51,75,113,.12);
-        }
-        .cd-theme .form-group input:disabled,
-        .cd-theme .form-group select:disabled,
-        .cd-theme fieldset[disabled] input,
-        .cd-theme fieldset[disabled] select{
-          background:#f6f8fb; color:#7b8aa3; cursor:not-allowed;
-        }
-      `}</style>
-
+    <section className="cd-shell">
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
 
-      <div className="brdcrmb">
+      <div className="cd-crumb">
         <ul>
           <li>
             <Link to="/cases">Case Management</Link>
           </li>
-          <li className="current">{selectedCaseData.caseNo}</li>
+          <li className="cd-current">{selectedCaseData.caseNo}</li>
         </ul>
       </div>
 
-      <div className="pg-head">
+      <header className="cd-head">
         <div>
-          <h2 className="pg-ttl">{selectedCaseData.caseNo}</h2>
-          {selectedCaseData.centerName && (
-            <div
-              className="pg-clinic"
-              style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginTop: 2 }}
-            >
-              {selectedCaseData.centerName}
-            </div>
-          )}
+          <div className="cd-head-id">
+            <span className="cd-caseno">{selectedCaseData.caseNo}</span>
+            {selectedCaseData.centerName && (
+              <span className="cd-centre">{selectedCaseData.centerName}</span>
+            )}
+          </div>
+          <h2 className="cd-title">
+            {firstNonEmpty(selectedCaseData.title, selectedCaseData.caseNo)}
+          </h2>
         </div>
-        <div className="cs-rhs">
-          <div className="casedet">
-            <div className="csdetval">{selectedCaseData.priority}</div>
-            <div className="csdetlbl">Priority</div>
+
+        <dl className="cd-head-meta">
+          <div className="cd-metacell">
+            <dt>Priority</dt>
+            <dd>
+              <span
+                className={`cd-pri cd-pri--${(selectedCaseData.priority || "").toLowerCase()}`}
+              >
+                {selectedCaseData.priority || "—"}
+              </span>
+            </dd>
           </div>
-          <div className="casedet">
-            <div className="csdetval">{ownerDisplay}</div>
-            <div className="csdetlbl">Owner</div>
+          <div className="cd-metacell">
+            <dt>Owner</dt>
+            <dd title={ownerDisplay}>{ownerDisplay}</dd>
           </div>
-          <div className="casedet">
-            <div className="csdetval">{assignedDisplay}</div>
-            <div className="csdetlbl">Assigned To</div>
+          <div className="cd-metacell">
+            <dt>Assigned to</dt>
+            <dd title={assignedDisplay}>{assignedDisplay}</dd>
           </div>
-        </div>
-      </div>
+          <div className="cd-metacell">
+            <dt>Status</dt>
+            <dd>{uiStatus || status || "—"}</dd>
+          </div>
+        </dl>
+      </header>
 
       {showL2Banner && (
-        <div
-          className="info-banner"
-          style={{
-            margin: "12px 0 0",
-            padding: "10px 12px",
-            border: "1px solid #cfe3ff",
-            background: "#f3f8ff",
-            color: "#0b3d91",
-            borderRadius: 6,
-            fontSize: 14,
-          }}
-        >
-          <strong>Heads up:</strong> This case is currently at <strong>Level 2</strong>. On submit, you can either close
-          the case or reassign it to someone else if more information is needed.
+        <div className="cd-note cd-note--info">
+          <b>Heads up:</b> This case is at <b>Level 2</b>. On submit you can either
+          close it or reassign it to someone else if more information is needed.
         </div>
       )}
 
       {closeLock && (
-  <div
-    className="info-banner"
-    style={{
-      margin: "12px 0",
-      padding: "10px 12px",
-      border: "1px solid #ffe1a6",
-      background: "#fff7e6",
-      color: "#8a4b00",
-      borderRadius: 6,
-      fontSize: 14,
-    }}
-  >
-    <strong>Note:</strong> This case has a 2-level hierarchy and can be closed only at <strong>Level 2</strong>.
-    Please proceed via escalation/assignment to Level 2.
-  </div>
-)}
+        <div className="cd-note cd-note--warn">
+          <b>Note:</b> This case has a 2-level hierarchy and can be closed only at{" "}
+          <b>Level 2</b>. Please proceed via escalation or assignment to Level 2.
+        </div>
+      )}
 
-      <div className="casedetwrp">
-        <div className="casecell">
-          <div className="form-group">
-            <label>Case Disposition{closed ? " *" : ""}{!isResponseFilled && !closed ? " — add a response first" : ""}</label>
+      <div className="cd-controls">
+        <div className="">
+          <div className="cd-field">
+            <label>
+              Case Disposition{closed ? <span className="cd-req"> *</span> : ""}
+              {!isResponseFilled && !closed ? (
+                <span className="cd-hint">add a response first</span>
+              ) : ""}
+            </label>
           <select
   value={disposition}
   disabled={saving || closed || closeLock || !isResponseFilled}
@@ -1881,8 +1852,8 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         </div>
 
         {isComplaintCase && (
-          <div className="casecell">
-            <div className="form-group">
+          <div className="">
+            <div className="cd-field">
               <label>Category Specific Resolution</label>
               <select
                 name="categorySpecificResolution"
@@ -1914,9 +1885,9 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
           </div>
         )}
 
-        <div className="casecell">
-          <div className="casecell">
-            <div className="form-group">
+        <div className="">
+          <div>
+            <div className="cd-field">
               <label>Case Status</label>
               <select
                 value={uiStatus || status} // ✅ NEW: show "Closed" when user selects it
@@ -1997,42 +1968,92 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         </div>
       </div>
 
-      <div className="wizard-progress">
-        <div className="step complete">
-          Created<div className="node"></div>
-        </div>
-        <div className={`step ${status === "Closed" || status === "WIP" ? "complete" : status === "Open" ? "in-progress" : ""}`}>
-          Awaiting Action<div className="node"></div>
-        </div>
-        <div className={`step ${status === "Closed" ? "complete" : status === "WIP" ? "in-progress" : ""}`}>
-          WIP <span>(2 hours)</span>
-          <div className="node"></div>
-        </div>
-        <div className={`step ${status === "Closed" ? "complete" : ""}`}>
-          Closed<div className="node"></div>
-        </div>
-      </div>
+      <ol className="cd-progress">
+        <li className="cd-step cd-step--done">
+          Created<span className="cd-node" />
+        </li>
+        <li
+          className={`cd-step ${
+            status === "Closed" || status === "WIP"
+              ? "cd-step--done"
+              : status === "Open"
+              ? "cd-step--now"
+              : ""
+          }`}
+        >
+          Awaiting action<span className="cd-node" />
+        </li>
+        <li
+          className={`cd-step ${
+            status === "Closed"
+              ? "cd-step--done"
+              : status === "WIP"
+              ? "cd-step--now"
+              : ""
+          }`}
+        >
+          In progress <span>2 hours</span>
+          <span className="cd-node" />
+        </li>
+        <li
+          className={`cd-step ${
+            status === "Closed" ? "cd-step--closed" : ""
+          }`}
+        >
+          Closed<span className="cd-node" />
+        </li>
+      </ol>
 
-      <section className="tabsform">
-        <div className="tab">
-          <span className={`tablinks ${activeTab === "general" ? "active" : ""}`} onClick={() => handleTabClick("general")}>
+      <section className="">
+        <div className="cd-tabbar" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "general"}
+            className={`cd-tablink ${activeTab === "general" ? "is-active" : ""}`}
+            onClick={() => handleTabClick("general")}
+          >
             General
-          </span>
-          <span className={`tablinks ${activeTab === "issues" ? "active" : ""}`} onClick={() => handleTabClick("issues")}>
-            Issues and Responses
-          </span>
-          <span className={`tablinks ${activeTab === "sla" ? "active" : ""}`} onClick={() => handleTabClick("sla")}>
-            SLA Details
-          </span>
-          <span className={`tablinks ${activeTab === "journey" ? "active" : ""}`} onClick={() => handleTabClick("journey")}>
-            Case Journey
-          </span>
-          <span className={`tablinks ${activeTab === "expense" ? "active" : ""}`} onClick={() => handleTabClick("expense")}>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "issues"}
+            className={`cd-tablink ${activeTab === "issues" ? "is-active" : ""}`}
+            onClick={() => handleTabClick("issues")}
+          >
+            Issues and responses
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "sla"}
+            className={`cd-tablink ${activeTab === "sla" ? "is-active" : ""}`}
+            onClick={() => handleTabClick("sla")}
+          >
+            SLA details
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "journey"}
+            className={`cd-tablink ${activeTab === "journey" ? "is-active" : ""}`}
+            onClick={() => handleTabClick("journey")}
+          >
+            Case journey
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "expense"}
+            className={`cd-tablink ${activeTab === "expense" ? "is-active" : ""}`}
+            onClick={() => handleTabClick("expense")}
+          >
             Expense
-          </span>
+          </button>
         </div>
 
-        <div className="tabcontent" style={{ display: "block", position: "relative" }}>
+        <div className="cd-panel">
   <div style={{ display: activeTab === "general" ? "block" : "none" }}>
     <GeneralTab ref={generalRef} data={selectedCaseData} />
   </div>
@@ -2069,15 +2090,15 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
 </div>
 
         {canEditCase && ["general", "issues", "expense"].includes(activeTab) && (
-          <div className="buttongrp mt-3">
+          <div className="cd-actions">
             {showSaveButton && (
-              <button type="button" className="pribtn" onClick={() => handleAction("save")} disabled={saving}>
+              <button type="button" className="cd-btn cd-btn--ghost" onClick={() => handleAction("save")} disabled={saving}>
                 Save
               </button>
             )}
             <button
   type="button"
-  className="secbtn"
+  className="cd-btn cd-btn--primary"
   onClick={(e) => {
     e.preventDefault();
     if (submitClickLockRef.current) return;   // already clicked
@@ -2097,57 +2118,29 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
         <div
           aria-modal="true"
           role="dialog"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="cd-modal"
           onClick={() => setL2DialogOpen(false)}
         >
-          <div
-            style={{
-              width: "min(520px, 92vw)",
-              background: "#fff",
-              borderRadius: 8,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
-              overflow: "hidden",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid #eee" }}>
-              <h3 style={{ margin: 0, fontSize: 18 }}>Submit at Level 2</h3>
+          <div className="cd-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="cd-modal-hd">
+              <h3>Submit at Level 2</h3>
             </div>
 
-            <div style={{ padding: 16 }}>
-              <p style={{ marginTop: 0, color: "#444" }}>
+            <div className="cd-modal-bd">
+              <p>
                 This case is currently assigned to the <strong>Level 2</strong> assignee. Choose how you want to proceed:
               </p>
 
-              <div
-                style={{
-                  display: "grid",
-                  gap: 12,
-                  marginTop: 12,
-                  border: "1px solid #f0f0f0",
-                  borderRadius: 8,
-                  padding: 12,
-                  background: "#fafafa",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Option A: Close the case</div>
-                  <div style={{ fontSize: 13, color: "#555", lineHeight: 2 }}>
+              <div className="cd-opts">
+                <div className="cd-opt">
+                  <div className="cd-opt-ttl">Option A: Close the case</div>
+                  <div className="cd-opt-txt">
                     Closes the case now. Make sure you’ve entered a response, selected a disposition, and (for Complaint
                     cases) selected Category Specific Resolution.
                   </div>
 
                   <button
-                    className="pribtn"
-                    style={{ marginTop: 8 }}
+                    className="cd-btn cd-btn--primary"
                     onClick={async () => {
                       const { respOk, dispOk, csrOk } = checkClosePrereqs();
 
@@ -2178,8 +2171,8 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
                   </button>
                 </div>
 
-                <div style={{ borderTop: "1px dashed #e6e6e6", paddingTop: 12 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                <div className="cd-opt">
+                  <div className="cd-opt-ttl">
                     Option B: Assign to another person (needs more info)
                   </div>
                   {/* placeholder */}
@@ -2187,16 +2180,8 @@ if (actionType !== "save" && treatAsManual && isAssignToCreator) {
               </div>
             </div>
 
-            <div
-              style={{
-                padding: 12,
-                borderTop: "1px solid #eee",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button className="secbtn" onClick={() => setL2DialogOpen(false)}>
+            <div className="cd-modal-ft">
+              <button className="cd-btn cd-btn--ghost" onClick={() => setL2DialogOpen(false)}>
                 Cancel
               </button>
             </div>

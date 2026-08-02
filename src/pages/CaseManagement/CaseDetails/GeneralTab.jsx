@@ -166,195 +166,213 @@ const GeneralTab = forwardRef(({ data }, ref) => {
 };
 
   return (
-    <form className="genform tabform">
+    <form className="cd-form--general cd-form">
       <fieldset disabled="disabled">
-         <div className="form-group">
-        <label htmlFor="title">Case Title</label>
-        <input
-          type="text"
-          id="title"
-          placeholder="Enter Case Title"
-          value={formValues.title || ""}
-          onChange={handleChange}
-        />
-      </div>
 
-      <div className="form-group">
-        <label htmlFor="caseCategory">Case Category</label>
-        <select
-          id="caseCategory"
-          value={formValues.caseCategory || ""}
-          onChange={handleChange}
-          disabled
-        >
-          <option value={formValues.categoryCode}>{formValues.caseCategory}</option>
-        </select>
-      </div>
+        <section className="cd-group">
+          <div className="cd-grid">
+            <div className="cd-field">
+              <label htmlFor="caseCategory">Case Category</label>
+              <select
+                id="caseCategory"
+                value={formValues.caseCategory || ""}
+                onChange={handleChange}
+                disabled
+              >
+                <option value={formValues.categoryCode}>{formValues.caseCategory}</option>
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="subCategory">Case Sub Category</label>
-        <select
-          id="subCategory"
-          value={formValues.subCategory || ""}
-          onChange={handleChange}
-          disabled
-        >
-          <option value={formValues.subCategory}>{formValues.subCategoryName}</option>
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="subCategory">Sub Category</label>
+              <select
+                id="subCategory"
+                value={formValues.subCategory || ""}
+                onChange={handleChange}
+                disabled
+              >
+                <option value={formValues.subCategory}>{formValues.subCategoryName}</option>
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="subSubCategory">Case Sub Sub Category</label>
-        <select
-          id="subSubCategory"
-          value={formValues.subSubCategory || ""}
-          onChange={handleChange}
-          disabled
-        >
-          <option value={formValues.subSubCategory}>{formValues.subSubCategoryName}</option>
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="subSubCategory">Sub Sub Category</label>
+              <select
+                id="subSubCategory"
+                value={formValues.subSubCategory || ""}
+                onChange={handleChange}
+                disabled
+              >
+                <option value={formValues.subSubCategory}>{formValues.subSubCategoryName}</option>
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="subSubSubCategory">Case Sub Sub Sub Category</label>
-        <select
-          id="subSubSubCategory"
-          value={formValues.subSubSubCategory || ""}
-          onChange={handleChange}
-          disabled
-        >
-          <option value={formValues.subSubSubCategory}>
-            {formValues.subSubSubCategoryName}
-          </option>
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="subSubSubCategory">Sub Sub Sub Category</label>
+              <select
+                id="subSubSubCategory"
+                value={formValues.subSubSubCategory || ""}
+                onChange={handleChange}
+                disabled
+              >
+                <option value={formValues.subSubSubCategory}>
+                  {formValues.subSubSubCategoryName}
+                </option>
+              </select>
+            </div>
+          </div>
+        </section>
 
-      <div className="form-group">
-        <label htmlFor="medium">Case Medium</label>
-        <select id="medium" value={formValues.medium || ""} onChange={handleChange}>
-          <option value="">Select Medium</option>
-          {caseMediums
-            .filter((m) => m.name !== "< - Select one - >")
-            .map((m) => (
-              <option key={m.code || m.name} value={trim(m.code || m.name)}>
-                {m.name?.trim() || m.code}
-              </option>
-            ))}
-        </select>
-      </div>
+        <section className="cd-group">
+          <div className="cd-grid">
+            <div className="cd-field cd-span">
+              <label htmlFor="title">Case Title</label>
+              <input
+                type="text"
+                id="title"
+                placeholder="Enter Case Title"
+                value={formValues.title || ""}
+                onChange={handleChange}
+              />
+            </div>
 
-      <div className="form-group">
-  <label htmlFor="source">Case Source</label>
-  {(() => {
-    const currentSource = trim(formValues.sourceName || formValues.source); // NAME
-    const hasSourceOption = caseSources.some((s) => trim(s.value) === currentSource);
+            <div className="cd-field">
+              <label htmlFor="medium">Case Medium</label>
+              <select id="medium" value={formValues.medium || ""} onChange={handleChange}>
+                <option value="">Select Medium</option>
+                {caseMediums
+                  .filter((m) => m.name !== "< - Select one - >")
+                  .map((m) => (
+                    <option key={m.code || m.name} value={trim(m.code || m.name)}>
+                      {m.name?.trim() || m.code}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
-    return (
-      <select id="source" value={currentSource} onChange={handleChange}>
-        <option value="">Select Source</option>
+            <div className="cd-field">
+              <label htmlFor="source">Case Source</label>
+              {(() => {
+                const currentSource = trim(formValues.sourceName || formValues.source); // NAME
+                const hasSourceOption = caseSources.some((s) => trim(s.value) === currentSource);
 
-        {!hasSourceOption && currentSource && (
-          <option value={currentSource}>{currentSource}</option>
-        )}
+                return (
+                  <select id="source" value={currentSource} onChange={handleChange}>
+                    <option value="">Select Source</option>
 
-        {caseSources.map((s, i) => (
-          <option key={i} value={trim(s.value)}>
-            {s.name}
-          </option>
-        ))}
-      </select>
-    );
-  })()}
-</div>
+                    {!hasSourceOption && currentSource && (
+                      <option value={currentSource}>{currentSource}</option>
+                    )}
 
-      <div className="form-group">
-        <label htmlFor="priority">Priority</label>
-        <select id="priority" value={formValues.priority || ""} onChange={handleChange}>
-          <option value="">Select Priority</option>
-          <option value="Low">Low</option>
-          <option value="Normal">Normal</option>
-          <option value="High">High</option>
-        </select>
-      </div>
+                    {caseSources.map((s, i) => (
+                      <option key={i} value={trim(s.value)}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="customer">Customer</label>
-        <select
-          id="customer"
-          value={formValues.customer || formValues.customerId || ""}
-          onChange={(e) => {
-            const id = e.target.value;
-            const found = customerOptions.find((c) => getCustId(c) === id);
-            setFormValues((prev) => ({
-              ...prev,
-              customer: id,                 // store ID for POST (custID)
-              customerId: id,
-              customerName: getCustName(found) || prev.customerName || "",
-            }));
-          }}
-        >
-          <option value="">Select Customer</option>
-          {customerOptions.length === 0 &&
-            (formValues.customer || formValues.customerId) &&
-            formValues.customerName && (
-              <option value={formValues.customer || formValues.customerId}>
-                {formValues.customerName}
-              </option>
-            )}
-          {customerOptions.map((cust, i) => (
-            <option key={i} value={getCustId(cust)}>
-              {getCustName(cust) || getCustId(cust)}
-            </option>
-          ))}
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="priority">Priority</label>
+              <select id="priority" value={formValues.priority || ""} onChange={handleChange}>
+                <option value="">Select Priority</option>
+                <option value="Low">Low</option>
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+          </div>
+        </section>
 
-      <div className="form-group">
-        <label htmlFor="product">Product</label>
-        <select id="product" value={formValues.productCode || ""} onChange={handleChange}>
-          <option value={formValues.productCode}>{formValues.product}</option>
-        </select>
-      </div>
+        <section className="cd-group">
+          <div className="cd-grid">
+            <div className="cd-field">
+              <label htmlFor="customer">Customer</label>
+              <select
+                id="customer"
+                value={formValues.customer || formValues.customerId || ""}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const found = customerOptions.find((c) => getCustId(c) === id);
+                  setFormValues((prev) => ({
+                    ...prev,
+                    customer: id,                 // store ID for POST (custID)
+                    customerId: id,
+                    customerName: getCustName(found) || prev.customerName || "",
+                  }));
+                }}
+              >
+                <option value="">Select Customer</option>
+                {customerOptions.length === 0 &&
+                  (formValues.customer || formValues.customerId) &&
+                  formValues.customerName && (
+                    <option value={formValues.customer || formValues.customerId}>
+                      {formValues.customerName}
+                    </option>
+                  )}
+                {customerOptions.map((cust, i) => (
+                  <option key={i} value={getCustId(cust)}>
+                    {getCustName(cust) || getCustId(cust)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="service">Service</label>
-        <select id="service" value={formValues.service || ""} onChange={handleChange}>
-          <option value="">Select Service</option>
-          {services
-            .filter((s) => s.code !== "< - Select one - >")
-            .map((s, i) => (
-              <option key={i} value={s.code}>
-                {s.name?.trim() || s.code}
-              </option>
-            ))}
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="product">Product</label>
+              <select id="product" value={formValues.productCode || ""} onChange={handleChange}>
+                <option value={formValues.productCode}>{formValues.product}</option>
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="serviceCategory">Service Category</label>
-        <select
-          id="serviceCategory"
-          value={formValues.serviceCategory || ""}
-          onChange={handleChange}
-        >
-          <option value="">Select Category</option>
-          {serviceCategories.map((c, i) => (
-            <option key={i} value={c.categoryCode}>
-              {c.categoryName}
-            </option>
-          ))}
-        </select>
-      </div>
+            <div className="cd-field">
+              <label htmlFor="service">Service</label>
+              <select id="service" value={formValues.service || ""} onChange={handleChange}>
+                <option value="">Select Service</option>
+                {services
+                  .filter((s) => s.code !== "< - Select one - >")
+                  .map((s, i) => (
+                    <option key={i} value={s.code}>
+                      {s.name?.trim() || s.code}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
-      <div className="form-group">
-        <label htmlFor="createdBy">Created By</label>
-        <input type="text" id="createdBy" value={formValues.createdBy || ""} disabled />
-      </div>
+            <div className="cd-field">
+              <label htmlFor="serviceCategory">Service Category</label>
+              <select
+                id="serviceCategory"
+                value={formValues.serviceCategory || ""}
+                onChange={handleChange}
+              >
+                <option value="">Select Category</option>
+                {serviceCategories.map((c, i) => (
+                  <option key={i} value={c.categoryCode}>
+                    {c.categoryName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
-      <div className="form-group">
-        <label htmlFor="createdDate">Created Date</label>
-        <input type="text" id="createdDate" value={formValues.createdDate || ""} disabled />
-      </div>
+        <section className="cd-group">
+          <div className="cd-grid">
+            <div className="cd-field">
+              <label htmlFor="createdBy">Created By</label>
+              <input type="text" id="createdBy" value={formValues.createdBy || ""} disabled />
+            </div>
+
+            <div className="cd-field">
+              <label htmlFor="createdDate">Created Date</label>
+              <input type="text" id="createdDate" value={formValues.createdDate || ""} disabled />
+            </div>
+          </div>
+        </section>
+
       </fieldset>
     </form>
   );

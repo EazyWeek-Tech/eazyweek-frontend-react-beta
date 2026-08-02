@@ -712,419 +712,336 @@ const computedCc = useMemo(() => {
 
     // ------------------------- JSX -------------------------
     return (
-      <form className="issueform tabform">
-        <div className="form-group">
-          <label>Issue Description</label>
-          <textarea
-            name="issueDescription"
-            value={formValues.issueDescription || ""}
-            onChange={handleChange}
-            rows="5"
-          />
-        </div>
+      <form className="cd-form--issues cd-form">
 
-       <div className="form-group">
-  <label>Attachment</label>
+        <section className="cd-group">
+          <h3 className="cd-eyebrow">The issue</h3>
+          <div className="cd-grid">
+            <div className="cd-field cd-span">
+              <label>Issue Description</label>
+              <textarea
+                name="issueDescription"
+                value={formValues.issueDescription || ""}
+                onChange={handleChange}
+                rows="5"
+              />
+            </div>
 
-  {attachment?.attachmentBase64 ? (
-    <div style={{ marginTop: 10 }}>
-      {attachment.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-        <>
-          
-          <a
-            href={attachment.attachmentBase64}
-            download={attachment.fileName}
-            style={{ color: "#0d6486", fontWeight: 600 }}
-          >
-            📎 {attachment.fileName}
-          </a>
-        </>
-      ) : (
-        <a
-          href={attachment.attachmentBase64}
-          download={attachment.fileName}
-          style={{ color: "#0d6486", fontWeight: 600 }}
-        >
-          📎 {attachment.fileName}
-        </a>
-      )}
-    </div>
-  ) : (
-    <div
-      style={{
-        marginTop: 10,
-        color: "#6b7280",
-        fontStyle: "italic",
-      }}
-    >
-      No attachment was added during case creation.
-    </div>
-  )}
-</div>
+            <div className="cd-field cd-span">
+              <label>Attachment</label>
+              {attachment?.attachmentBase64 ? (
+                <a
+                  className="cd-file"
+                  href={attachment.attachmentBase64}
+                  download={attachment.fileName}
+                >
+                  <span className="cd-file-icon" aria-hidden="true">&#128206;</span>
+                  <span className="cd-file-name">{attachment.fileName}</span>
+                  <span className="cd-file-act">Download</span>
+                </a>
+              ) : (
+                <div className="cd-file cd-file--none">
+                  No attachment was added when the case was created.
+                </div>
+              )}
+            </div>
 
-         <div className="form-group">
-          <label>First Time Resolution</label>
-          <textarea
-            name="firstTimeResolution"
-            value={formValues.firstTimeResolution || ""}
-            onChange={handleChange}
-            rows="5"
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Client Threat</label>
-          <select
-            name="clientThreat"
-            value={formValues.clientThreat || ""}
-            onChange={handleChange}
-            disabled
-          >
-            <option value="">-- Select --</option>
-            <option value="Legal">Legal</option>
-            <option value="Verbal">Verbal</option>
-            <option value="Written">Written</option>
-            <option value="Physical">Physical</option>
-             <option value="NA">NA</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-  <label>Therapist</label>
-
-  <select
-    name="therapistCode"
-    value={formValues.therapistCode || ""}
-    onChange={handleChange}
-    disabled
-    onFocus={() => {
-      // fetch list when user opens dropdown (fast & avoids unnecessary calls)
-      if (!therapists.length) fetchTherapists();
-    }}
-  >
-    <option value="">-- Select Therapist --</option>
-
-    {/* ✅ If we have a therapistCode from API but it's not in dropdown list yet */}
-    {!!formValues.therapistCode &&
-      !therapists.some((t) => normCode(t.code) === normCode(formValues.therapistCode)) && (
-        <option value={formValues.therapistCode}>
-          {formValues.therapistName || formValues.therapistCode}
-        </option>
-      )}
-
-    {therapists.map((t) => (
-      <option key={t.code || t.name} value={t.code}>
-        {t.name}
-      </option>
-    ))}
-  </select>
-</div>
-
-        <div className="form-group">
-          <label>
-            Add Response <span style={{ color: "#d33" }}>*</span>
-          </label>
-          <textarea
-            name="response"
-            value={formValues.response || ""}
-            onChange={handleChange}
-            rows="5"
-            aria-invalid={responseIsEmpty}
-            placeholder="Type your response to move the case forward…"
-          />
-        </div>
-
-        
-
-        <div className="form-group">
-          <label>Current Assignee</label>
-          <input
-            type="text"
-            name="currentAssignee"
-            value={currentAssigneeDisplay || ""}
-            disabled
-            readOnly
-          />
-        </div>
-
-        <div className="form-group">
-          <label
-            title={hierTooltip || undefined}
-            style={{ display: "flex", alignItems: "center", gap: 8 }}
-          >
-            Next Assignee
-            {!hierLoading && hierErr && (
-              <span
-                style={{ fontSize: 12, color: "#b91c1c", marginLeft: 4 }}
+            <div className="cd-field">
+              <label>Client Threat</label>
+              <select
+                name="clientThreat"
+                value={formValues.clientThreat || ""}
+                onChange={handleChange}
+                disabled
               >
-                (no hierarchy)
-              </span>
-            )}
+                <option value="">-- Select --</option>
+                <option value="Legal">Legal</option>
+                <option value="Verbal">Verbal</option>
+                <option value="Written">Written</option>
+                <option value="Physical">Physical</option>
+                <option value="NA">NA</option>
+              </select>
+            </div>
 
-            {/* Stage chip: Level 1 / Level 2 */}
-            {stageLabel && (
-              <span
-                className="qaLevelChip"
-                style={{
-                  marginLeft: 8,
-                  padding: "2px 6px",
-                  borderRadius: 999,
-                  background: "#eef2ff",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "#4f46e5",
-                  textTransform: "uppercase",
-                  border: "1px solid #e0e7ff",
+            <div className="cd-field">
+              <label>Therapist</label>
+              <select
+                name="therapistCode"
+                value={formValues.therapistCode || ""}
+                onChange={handleChange}
+                disabled
+                onFocus={() => {
+                  // fetch list when user opens dropdown (fast & avoids unnecessary calls)
+                  if (!therapists.length) fetchTherapists();
                 }}
               >
-                {stageLabel}
+                <option value="">-- Select Therapist --</option>
+
+                {!!formValues.therapistCode &&
+                  !therapists.some((t) => normCode(t.code) === normCode(formValues.therapistCode)) && (
+                    <option value={formValues.therapistCode}>
+                      {formValues.therapistName || formValues.therapistCode}
+                    </option>
+                  )}
+
+                {therapists.map((t) => (
+                  <option key={t.code || t.name} value={t.code}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="cd-field cd-span">
+              <label>First Time Resolution</label>
+              <textarea
+                name="firstTimeResolution"
+                value={formValues.firstTimeResolution || ""}
+                onChange={handleChange}
+                rows="5"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="cd-group cd-group--accent">
+          <h3 className="cd-eyebrow">
+            Move the case forward
+            {stageLabel && <span className="cd-chip">{stageLabel}</span>}
+          </h3>
+
+          <div className="cd-grid">
+            <div className="cd-field cd-span">
+              <label>
+                Add Response <span className="cd-req">*</span>
+              </label>
+              <textarea
+                name="response"
+                value={formValues.response || ""}
+                onChange={handleChange}
+                rows="5"
+                aria-invalid={responseIsEmpty}
+                placeholder="Type your response to move the case forward…"
+              />
+            </div>
+
+            <div className="cd-field">
+              <label>Current Assignee</label>
+              <input
+                type="text"
+                name="currentAssignee"
+                value={currentAssigneeDisplay || ""}
+                disabled
+                readOnly
+              />
+            </div>
+
+            <div className="cd-field">
+              <label title={hierTooltip || undefined}>
+                Next Assignee
+                {!hierLoading && hierErr && (
+                  <span className="cd-flag">no hierarchy</span>
+                )}
+              </label>
+
+              <select
+                name="assignToCode"
+                value={formValues.assignToCode || ""}
+                onChange={handleChange}
+              >
+                <option value="">
+                  {formValues.assignToCode ? "Select User" : "Assign To"}
+                </option>
+
+                {formValues.assignToCode &&
+                  !employees.some(
+                    (e) => e.employeeCode === formValues.assignToCode
+                  ) && (
+                    <option value={formValues.assignToCode}>
+                      {formValues.assignedTo || formValues.assignToCode}
+                    </option>
+                  )}
+
+                {employees.map((emp, index) => (
+                  <option key={index} value={emp.employeeCode}>
+                    {emp.employeeName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* ---------------- QC Panel (L1/L2 + CC + Current Level) ---------------- */}
+          {(l1Emp || l2Emp || hierarchy) && (
+            <div className="cd-qc cd-qc">
+              <div className="cd-qc-hd">
+                <div className="cd-qc-ttl">
+                  QC Info{" "}
+                  {stageLabel && (
+                    <span className="cd-chip">Current Level: {stageLabel}</span>
+                  )}
+                </div>
+
+                {/* helpful QC flags */}
+                <div className="cd-qc-state">
+                  {hierLoading ? (
+                    <span>Loading hierarchy…</span>
+                  ) : hierErr ? (
+                    <span className="cd-qc-err">{hierErr}</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="cd-qc-grid">
+                <div>
+                  <div className="cd-qc-lbl">Level 1 Assignee</div>
+                  <div className="cd-qc-val">
+                    {l1Emp
+                      ? `${l1Emp.employeeName} (${l1Emp.employeeCode})`
+                      : hierarchy?.firstAssignement || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="cd-qc-lbl">Level 2 Assignee</div>
+                  <div className="cd-qc-val">
+                    {l2Emp
+                      ? `${l2Emp.employeeName} (${l2Emp.employeeCode})`
+                      : hierarchy?.secondAssignement || "-"}
+                  </div>
+                </div>
+
+                <div className="cd-span">
+                  <div className="cd-qc-lbl">CC (Auto from hierarchy)</div>
+                  <div className="cd-qc-val">{computedCc || "-"}</div>
+                </div>
+
+                <div>
+                  <div className="cd-qc-lbl">Current Assignee (for QC)</div>
+                  <div className="cd-qc-val">{currentAssigneeDisplay || "-"}</div>
+                  <div className="cd-qc-sub">Code: {currentAssigneeCode || "-"}</div>
+                </div>
+
+                <div>
+                  <div className="cd-qc-lbl">Current Assignee Matches</div>
+                  <div className="cd-qc-val">
+                    {curIsL2 ? "Level 2 Assignee" : curIsL1 ? "Level 1 Assignee" : "Other"}
+                  </div>
+                  <div className="cd-qc-sub">
+                    {level === 2
+                      ? "Case currently treated as Level 2"
+                      : "Case currently treated as Level 1"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ---------------- /QC Panel ---------------- */}
+        </section>
+
+        <section className="cd-group">
+          <h3 className="cd-eyebrow">
+            Response history
+            {responses.length > 0 && (
+              <span className="cd-num">
+                {responses.length} {responses.length === 1 ? "entry" : "entries"}
               </span>
             )}
-          </label>
+          </h3>
 
-          <select
-            name="assignToCode"
-            value={formValues.assignToCode || ""}
-            onChange={handleChange}
-          >
-            <option value="">
-              {formValues.assignToCode ? "Select User" : "Assign To"}
-            </option>
-
-            {formValues.assignToCode &&
-              !employees.some(
-                (e) => e.employeeCode === formValues.assignToCode
-              ) && (
-                <option value={formValues.assignToCode}>
-                  {formValues.assignedTo || formValues.assignToCode}
-                </option>
-              )}
-
-            {employees.map((emp, index) => (
-              <option key={index} value={emp.employeeCode}>
-                {emp.employeeName}
-              </option>
-            ))}
-          </select>
-        </div>
-                    {/* ---------------- QC Panel (L1/L2 + CC + Current Level) ---------------- */}
-        {(l1Emp || l2Emp || hierarchy) && (
-          <div
-            className="qcPanel"
-            style={{
-              margin: "12px 0",
-              padding: "10px 12px",
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              background: "#fafafa",
-              display:"block"
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ fontWeight: 700, display: 'none' }}>
-                QC Info{" "}
-                {stageLabel && (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      padding: "2px 8px",
-                      borderRadius: 999,
-                      background: "#eef2ff",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#4f46e5",
-                      textTransform: "uppercase",
-                      border: "1px solid #e0e7ff",
-                    }}
-                  >
-                    Current Level: {stageLabel}
-                  </span>
-                )}
-              </div>
-
-              {/* helpful QC flags */}
-              <div style={{ fontSize: 12, color: "#374151" }}>
-                {hierLoading ? (
-                  <span>Loading hierarchy…</span>
-                ) : hierErr ? (
-                  <span style={{ color: "#b91c1c" }}>{hierErr}</span>
-                ) : null}
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 10,
-                display: "none",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 10,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Level 1 Assignee
-                </div>
-                <div style={{ fontWeight: 600 }}>
-                  {l1Emp
-                    ? `${l1Emp.employeeName} (${l1Emp.employeeCode})`
-                    : hierarchy?.firstAssignement || "-"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Level 2 Assignee
-                </div>
-                <div style={{ fontWeight: 600 }}>
-                  {l2Emp
-                    ? `${l2Emp.employeeName} (${l2Emp.employeeCode})`
-                    : hierarchy?.secondAssignement || "-"}
-                </div>
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  CC (Auto from hierarchy)
-                </div>
-                <div style={{ fontWeight: 600, wordBreak: "break-word" }}>
-                  {computedCc || "-"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Current Assignee (for QC)
-                </div>
-                <div style={{ fontWeight: 600 }}>
-                  {currentAssigneeDisplay || "-"}
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  Code: {currentAssigneeCode || "-"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Current Assignee Matches
-                </div>
-                <div style={{ fontWeight: 600 }}>
-                  {curIsL2 ? "Level 2 Assignee" : curIsL1 ? "Level 1 Assignee" : "Other"}
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  {/* extra QC detail */}
-                  {level === 2
-                    ? "Case currently treated as Level 2"
-                    : "Case currently treated as Level 1"}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* ---------------- /QC Panel ---------------- */}
-
-        <div className="tablewrp">
-          <table cellSpacing={0} className="respTable">
-            <thead>
-              <tr className="Hrline">
-                <th width="160">Response #</th>
-                <th>Details</th>
-                <th>Response By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {responses.length > 0 ? (
-                responses.map((res, idx) => (
-                  <tr key={idx} className="Hrline">
-                    <td>{idx + 1}</td>
-                    <td>{res.responseDetails || res.details}</td>
-                    <td>{res.responseBy || "-"}</td>
+          {responses.length > 0 ? (
+            <div className="cd-tablewrap">
+              <table cellSpacing={0} className="cd-table">
+                <thead>
+                  <tr className="cd-row">
+                    <th width="80">#</th>
+                    <th>Details</th>
+                    <th width="200">Response By</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="3" style={{ textAlign: "center" }}>
-                    No responses available.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {responses.map((res, idx) => (
+                    <tr key={idx} className="cd-row">
+                      <td>{String(idx + 1).padStart(2, "0")}</td>
+                      <td>{res.responseDetails || res.details}</td>
+                      <td>{res.responseBy || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="cd-empty">
+              No responses yet. The first one lands here once you submit.
+            </div>
+          )}
+        </section>
 
-        <div className="emaildiv">
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              name="email"
-              value={formValues.email || ""}
-              readOnly
-              title="Auto-filled from the selected Next Assignee"
-              style={{ background: "#f1f5f9", cursor: "not-allowed" }}
-            />
+        <section className="cd-group">
+          <h3 className="cd-eyebrow">Notification</h3>
+
+          <div className="cd-mailgrid">
+            <div className="cd-field">
+              <label>To</label>
+              <input
+                type="email"
+                name="email"
+                value={formValues.email || ""}
+                readOnly
+                title="Auto-filled from the selected Next Assignee"
+              />
+              <p className="cd-help">Filled from the Next Assignee above.</p>
+            </div>
+
+            <div className="cd-field">
+              <label>CC</label>
+              <input
+                type="text"
+                name="cc"
+                value={formValues.cc || ""}
+                readOnly
+                title="Configured group CC (not editable)"
+              />
+              <p className="cd-help">Group CC configured on the hierarchy.</p>
+            </div>
+
+            <div className="cd-field cd-span">
+              <label>More CC</label>
+              <textarea
+                name="moreCc"
+                value={formValues.moreCc || ""}
+                onChange={handleChange}
+                rows="3"
+                onBlur={() => {
+                  const raw = (formValues.moreCc || "").replace(/,+$/g, "");
+                  const parts = splitEmails(raw);
+                  const valid = parts.filter(isEmail);
+                  const invalid = parts.filter((p) => !isEmail(p));
+                  setMoreCcError(
+                    invalid.length ? `Ignored invalid email(s): ${invalid.join(", ")}` : ""
+                  );
+                  setFormValues((prev) => ({
+                    ...prev,
+                    moreCc: normalizeEmailList(valid.join(",")),
+                  }));
+                }}
+              />
+              <p className="cd-help">The case owner is already included.</p>
+              {moreCcError && <p className="cd-error">{moreCcError}</p>}
+            </div>
+
+            <div className="cd-field cd-span">
+              <label>Remarks</label>
+              <textarea
+                name="remarks"
+                value={formValues.remarks || ""}
+                onChange={handleChange}
+                rows="3"
+              />
+            </div>
           </div>
+        </section>
 
-          <div className="form-group">
-            <label>CC</label>
-            <input
-              type="text"
-              name="cc"
-              value={formValues.cc || ""}
-              readOnly
-              title="Configured group CC (not editable)"
-              style={{ background: "#f1f5f9", cursor: "not-allowed" }}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>More CC (Case Owner Email is prefilled in the More CC field)</label>
-           <textarea
-  name="moreCc"
-  value={formValues.moreCc || ""}
-  onChange={handleChange}
-  rows="5"
-  onBlur={() => {
-    const raw = (formValues.moreCc || "").replace(/,+$/g, "");
-    const parts = splitEmails(raw);
-    const valid = parts.filter(isEmail);
-    const invalid = parts.filter((p) => !isEmail(p));
-    setMoreCcError(
-      invalid.length ? `Ignored invalid email(s): ${invalid.join(", ")}` : ""
-    );
-    setFormValues((prev) => ({
-      ...prev,
-      moreCc: normalizeEmailList(valid.join(",")),
-    }));
-  }}
-/>
-            {moreCcError && (
-              <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 4 }}>
-                {moreCcError}
-              </div>
-            )}
-
-
-
-          </div>
-
-          <div className="form-group">
-            <label>Remarks</label>
-            <textarea
-              name="remarks"
-              value={formValues.remarks || ""}
-              onChange={handleChange}
-              rows="5"
-            />
-          </div>
-        </div>
       </form>
     );
   }

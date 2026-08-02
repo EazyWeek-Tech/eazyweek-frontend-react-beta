@@ -1,0 +1,1266 @@
+@import url("https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap");
+
+/* ==========================================================================
+   EazyWeek — Case Details
+   Page header + General / Issues / SLA / Journey / Expense tabs.
+
+   COLOUR RULE: the only colour values in this file are the eight EazyWeek
+   brand hexes and #FFFFFF. Every tint, hairline and muted tone is one of
+   those eight at reduced alpha — nothing is hand-picked.
+
+   Text is Midnight Navy (three strengths) or Royal Blue, both of which clear
+   4.5:1 on white. Coral, Seafoam, Cream, Peach, Blush and Blue Grey do the
+   signalling through fills, borders, dots and rails rather than through type,
+   which is what keeps the palette exact and the text legible at 10px.
+
+   New classes are prefixed `cd-`. The LEGACY BRIDGE section restyles
+   GeneralTab / IssuesTab through their existing markup.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Tokens
+   -------------------------------------------------------------------------- */
+:root {
+  /* The eight, verbatim */
+  --cd-royal:     #18396E;   /* Royal Blue      */
+  --cd-navy:      #05224C;   /* Midnight Navy   */
+  --cd-coral:     #DD7766;   /* Warm Coral      */
+  --cd-blush:     #FF9F9D;   /* Soft Blush Pink */
+  --cd-seafoam:   #A7D1CD;   /* Seafoam Teal    */
+  --cd-bluegrey:  #85A2AA;   /* Blue Grey       */
+  --cd-cream:     #F3DCB0;   /* Warm Cream      */
+  --cd-peach:     #EDAF90;   /* Soft Peach      */
+
+  /* Same eight as channels, so every tint below is provably one of them */
+  --cd-royal-rgb:    24, 57, 110;
+  --cd-navy-rgb:     5, 34, 76;
+  --cd-coral-rgb:    221, 119, 102;
+  --cd-blush-rgb:    255, 159, 157;
+  --cd-seafoam-rgb:  167, 209, 205;
+  --cd-bluegrey-rgb: 133, 162, 170;
+  --cd-cream-rgb:    243, 220, 176;
+  --cd-peach-rgb:    237, 175, 144;
+
+  /* Type colours. Midnight Navy clears 4.5:1 on every lighter brand colour
+     (5.1:1 Coral, 8.0:1 Blush, 8.3:1 Peach, 9.4:1 Seafoam, 11:1 Cream,
+     5.8:1 Blue Grey) and white clears 11.4:1 on Royal Blue — so the fills
+     below run at full strength rather than as washes. */
+  --cd-ink:      var(--cd-navy);
+  --cd-ink-2:    rgba(var(--cd-navy-rgb), 0.82);
+  --cd-mute:     rgba(var(--cd-navy-rgb), 0.62);
+  --cd-on-dark:  #FFFFFF;
+  --cd-on-dark-2: rgba(255, 255, 255, 0.72);
+
+  /* Chrome */
+  --cd-surface: #FFFFFF;
+  --cd-canvas:  rgba(var(--cd-seafoam-rgb), 0.22);
+  --cd-line:    rgba(var(--cd-bluegrey-rgb), 0.55);
+  --cd-line-2:  var(--cd-bluegrey);
+
+  /* State fills — solid brand, navy or white type on top */
+  --cd-royal-tint: rgba(var(--cd-royal-rgb), 0.10);
+  --cd-royal-line: rgba(var(--cd-royal-rgb), 0.45);
+  --cd-coral-tint: rgba(var(--cd-coral-rgb), 0.30);
+  --cd-coral-line: var(--cd-coral);
+  --cd-blush-tint: rgba(var(--cd-blush-rgb), 0.45);
+  --cd-teal-tint:  rgba(var(--cd-seafoam-rgb), 0.45);
+  --cd-teal-soft:  rgba(var(--cd-seafoam-rgb), 0.20);
+  --cd-cream-tint: rgba(var(--cd-cream-rgb), 0.60);
+  --cd-peach-tint: rgba(var(--cd-peach-rgb), 0.45);
+  --cd-scrim:      rgba(var(--cd-navy-rgb), 0.55);
+
+  /* Type — Lato throughout; weights 400 / 700 / 900 only (no 500/600 in Lato) */
+  --cd-font: "Lato", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+
+  /* Rhythm */
+  --cd-r:   8px;
+  --cd-r-s: 5px;
+}
+
+/* Shared micro-label: uppercase, tracked out. Lato's caps are the signature. */
+.cd-shell .cd-eyebrow,
+.cd-shell .cd-person-role,
+.cd-shell .cd-stage-lbl,
+.cd-shell .cd-badge,
+.cd-shell .cd-drop-txt,
+.cd-shell .cd-origin-lbl,
+.cd-shell .cd-fact dt,
+.cd-shell .cd-cc-btn,
+.cd-shell .cd-more,
+.cd-shell .cd-cur {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   2. Page shell + header
+   -------------------------------------------------------------------------- */
+.cd-shell {
+  font-family: var(--cd-font);
+  color: var(--cd-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--cd-surface);
+  border-radius: 12px;
+  padding: 18px 22px 22px;
+}
+
+.cd-shell .cd-crumb { margin: 0 0 14px; }
+.cd-shell .cd-crumb ul {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+.cd-shell .cd-crumb li + li::before {
+  content: "/";
+  color: var(--cd-mute);
+  margin-right: 8px;
+}
+.cd-shell .cd-crumb a { color: var(--cd-royal); text-decoration: none; font-weight: 700; }
+.cd-shell .cd-crumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cd-shell .cd-crumb .current { color: var(--cd-mute); }
+
+.cd-shell .cd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-radius: var(--cd-r);
+  background: var(--cd-royal);
+  color: var(--cd-on-dark);
+  border-bottom: 4px solid var(--cd-seafoam);
+}
+
+.cd-shell .cd-head-id { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+.cd-shell .cd-caseno {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--cd-on-dark-2);
+}
+.cd-shell .cd-centre {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--cd-navy);
+  background: var(--cd-seafoam);
+  border-radius: var(--cd-r-s);
+  padding: 2px 9px;
+}
+.cd-shell .cd-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  color: var(--cd-on-dark);
+  max-width: 46ch;
+}
+
+.cd-shell .cd-head-meta {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--cd-r);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 0;
+}
+.cd-shell .cd-metacell {
+  padding: 8px 16px;
+  min-width: 108px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+.cd-shell .cd-metacell:first-child { border-left: 0; }
+.cd-shell .cd-metacell dt {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cd-on-dark-2);
+  margin: 0 0 3px;
+}
+.cd-shell .cd-metacell dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-on-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* Priority reads by fill, not by text colour */
+.cd-shell .cd-pri {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 0;
+  color: var(--cd-navy);
+  background: var(--cd-bluegrey);
+}
+.cd-shell .cd-pri--high { background: var(--cd-coral); color: var(--cd-on-dark); }
+.cd-shell .cd-pri--normal { background: var(--cd-peach); }
+.cd-shell .cd-pri--low { background: var(--cd-seafoam); }
+
+/* --------------------------------------------------------------------------
+   3. Notices
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-note {
+  margin: 14px 0 0;
+  padding: 11px 14px 11px 13px;
+  border: 0;
+  border-left: 4px solid var(--cd-bluegrey);
+  border-radius: 0 var(--cd-r) var(--cd-r) 0;
+  background: var(--cd-canvas);
+  font-size: 13px;
+  color: var(--cd-ink-2);
+}
+.cd-shell .cd-note b { font-weight: 700; color: var(--cd-navy); }
+.cd-shell .cd-note--info {
+  border-color: var(--cd-seafoam);
+  border-left-color: var(--cd-royal);
+  background: var(--cd-seafoam);
+  color: var(--cd-navy);
+}
+.cd-shell .cd-note--warn {
+  border-color: var(--cd-peach);
+  border-left-color: var(--cd-coral);
+  background: var(--cd-cream);
+  color: var(--cd-navy);
+}
+
+/* --------------------------------------------------------------------------
+   4. Disposition / status control bar
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px 18px;
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: var(--cd-r);
+  background: var(--cd-canvas);
+}
+.cd-shell .cd-controls .cd-field > label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+  margin-bottom: 5px;
+}
+.cd-shell .cd-hint {
+  display: inline-block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--cd-on-dark);
+  background: var(--cd-coral);
+  border: 0;
+  border-radius: var(--cd-r-s);
+  padding: 0 6px;
+  margin-left: 6px;
+}
+.cd-shell .cd-req { color: var(--cd-coral); font-weight: 900; }
+
+/* --------------------------------------------------------------------------
+   5. Progress rail
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-progress {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  margin: 22px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.cd-shell .cd-step {
+  position: relative;
+  padding-top: 26px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cd-mute);
+}
+.cd-shell .cd-step span {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--cd-mute);
+}
+.cd-shell .cd-step::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 50%;
+  height: 3px;
+  background: var(--cd-line);
+}
+.cd-shell .cd-step::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  right: 0;
+  height: 3px;
+  background: var(--cd-line);
+}
+.cd-shell .cd-step:first-child::before,
+.cd-shell .cd-step:last-child::after { background: transparent; }
+
+.cd-shell .cd-node {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--cd-surface);
+  border: 3px solid var(--cd-bluegrey);
+  z-index: 1;
+}
+
+.cd-shell .cd-step--done { color: var(--cd-royal); }
+.cd-shell .cd-step--done .cd-node { background: var(--cd-royal); border-color: var(--cd-royal); }
+.cd-shell .cd-step--done::before,
+.cd-shell .cd-step--done::after { background: var(--cd-royal); }
+
+.cd-shell .cd-step--now { color: var(--cd-navy); }
+.cd-shell .cd-step--now .cd-node {
+  background: var(--cd-peach);
+  border-color: var(--cd-coral);
+  box-shadow: 0 0 0 5px var(--cd-cream);
+}
+.cd-shell .cd-step--now::before { background: var(--cd-royal); }
+
+.cd-shell .cd-step--closed { color: var(--cd-navy); }
+.cd-shell .cd-step--closed .cd-node { background: var(--cd-seafoam); border-color: var(--cd-seafoam); }
+
+/* --------------------------------------------------------------------------
+   6. Tab bar + actions
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-tabbar {
+  display: flex;
+  gap: 2px;
+  margin: 22px 0 0;
+  border-bottom: 3px solid var(--cd-seafoam);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.cd-shell .cd-tablink {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-mute);
+  padding: 11px 15px;
+  white-space: nowrap;
+}
+.cd-shell .cd-tablink { border-radius: var(--cd-r) var(--cd-r) 0 0; }
+.cd-shell .cd-tablink:hover { color: var(--cd-royal); background: var(--cd-canvas); }
+.cd-shell .cd-tablink.is-active {
+  color: var(--cd-on-dark);
+  background: var(--cd-royal);
+  border-bottom-color: var(--cd-royal);
+}
+.cd-shell .cd-tablink.is-active:hover { background: var(--cd-royal); }
+.cd-shell .cd-tablink:focus-visible { outline: 2px solid var(--cd-royal); outline-offset: -2px; border-radius: 3px; }
+
+.cd-shell .cd-panel { display: block; position: relative; padding-top: 4px; }
+
+.cd-shell .cd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--cd-line);
+}
+.cd-shell .cd-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 9px 20px;
+  border-radius: var(--cd-r-s);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.cd-shell .cd-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.cd-shell .cd-btn--primary { background: var(--cd-royal); color: var(--cd-surface); border-color: var(--cd-royal); }
+.cd-shell .cd-btn--primary:not(:disabled):hover { background: var(--cd-navy); border-color: var(--cd-navy); }
+.cd-shell .cd-btn--ghost { background: var(--cd-seafoam); color: var(--cd-navy); border-color: var(--cd-seafoam); }
+.cd-shell .cd-btn--ghost:not(:disabled):hover { background: var(--cd-bluegrey); border-color: var(--cd-bluegrey); }
+.cd-shell .cd-btn:focus-visible { outline: 2px solid var(--cd-royal); outline-offset: 2px; }
+
+/* --------------------------------------------------------------------------
+   7. Level 2 decision dialog
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-modal {
+  position: fixed;
+  inset: 0;
+  background: var(--cd-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.cd-shell .cd-modal-card {
+  width: min(520px, 92vw);
+  background: var(--cd-surface);
+  border-radius: 12px;
+  border: 1px solid var(--cd-line);
+  box-shadow: 0 18px 40px rgba(var(--cd-navy-rgb), 0.22);
+  overflow: hidden;
+  font-family: var(--cd-font);
+  color: var(--cd-ink);
+}
+.cd-shell .cd-modal-hd {
+  padding: 14px 18px;
+  border-bottom: 0;
+  background: var(--cd-navy);
+}
+.cd-shell .cd-modal-hd h3 { margin: 0; font-size: 16px; font-weight: 900; color: var(--cd-on-dark); }
+.cd-shell .cd-modal-bd { padding: 18px; }
+.cd-shell .cd-modal-bd > p { margin: 0; font-size: 13px; color: var(--cd-ink-2); }
+.cd-shell .cd-opts { display: grid; gap: 0; margin-top: 14px; }
+.cd-shell .cd-opt {
+  border: 1px solid var(--cd-line);
+  border-radius: var(--cd-r);
+  padding: 13px 15px;
+  background: var(--cd-canvas);
+}
+.cd-shell .cd-opt + .cd-opt { margin-top: 10px; }
+.cd-shell .cd-opt-ttl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+  margin-bottom: 6px;
+}
+.cd-shell .cd-opt-txt { font-size: 13px; color: var(--cd-ink-2); line-height: 1.55; }
+.cd-shell .cd-opt .cd-btn { margin-top: 11px; }
+.cd-shell .cd-modal-ft {
+  padding: 12px 18px;
+  border-top: 1px solid var(--cd-line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   8. Tab shell + shared pieces
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-tab {
+  font-family: var(--cd-font);
+  color: var(--cd-ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 6px 0 26px;
+}
+
+.cd-shell .cd-eyebrow {
+  font-size: 10px;
+  color: var(--cd-mute);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.cd-shell .cd-eyebrow { color: var(--cd-royal); }
+.cd-shell .cd-eyebrow .cd-num { font-weight: 400; letter-spacing: 0.06em; }
+
+.cd-shell .cd-section { margin-top: 26px; }
+.cd-shell .cd-section:first-child { margin-top: 4px; }
+
+.cd-shell .cd-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+.cd-shell .cd-empty {
+  border: 0;
+  border-radius: var(--cd-r);
+  padding: 22px 18px;
+  text-align: center;
+  color: var(--cd-mute);
+  background: var(--cd-canvas);
+  font-size: 13px;
+}
+
+.cd-shell .cd-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 24px;
+  margin: 0;
+}
+.cd-shell .cd-fact {
+  padding: 8px 0;
+  min-width: 0;
+  border-bottom: 1px solid var(--cd-line);
+}
+.cd-shell .cd-fact dt { font-size: 9.5px; color: var(--cd-mute); margin: 0 0 3px; }
+.cd-shell .cd-fact dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-navy);
+  overflow-wrap: anywhere;
+}
+.cd-shell .cd-fact dd:empty::after { content: "—"; color: var(--cd-mute); font-weight: 400; }
+
+/* --------------------------------------------------------------------------
+   9. Person node — SLA planned lane and actual lane
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cd-shell .cd-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--cd-navy);
+  border: 0;
+}
+.cd-shell .cd-person-txt { min-width: 0; }
+.cd-shell .cd-person-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cd-shell .cd-person-name:empty::after {
+  content: "Not configured";
+  color: var(--cd-mute);
+  font-weight: 400;
+  font-style: italic;
+}
+.cd-shell .cd-person-role { font-size: 9.5px; color: var(--cd-mute); margin-top: 1px; }
+
+/* role is carried by the avatar fill: Royal = handler, Blush = escalation,
+   Seafoam = who actually held it */
+.cd-shell .cd-person--handler  .cd-avatar { background: var(--cd-royal); color: var(--cd-on-dark); }
+.cd-shell .cd-person--escalate .cd-avatar { background: var(--cd-coral); color: var(--cd-on-dark); }
+.cd-shell .cd-person--actual   .cd-avatar { background: var(--cd-seafoam); }
+
+/* --------------------------------------------------------------------------
+   10. SLA — planned route (dashed = intended, not yet real)
+   -------------------------------------------------------------------------- */
+/* Shared rail — planned and actual read the same way.
+   Planned links are dashed (an intention), actual links are solid (a fact). */
+.cd-shell .cd-lane,
+.cd-shell .cd-flow {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding: 4px 0 12px;
+}
+.cd-shell .cd-flow { align-items: center; }
+.cd-shell .cd-lane::-webkit-scrollbar,
+.cd-shell .cd-flow::-webkit-scrollbar { height: 4px; }
+.cd-shell .cd-lane::-webkit-scrollbar-thumb,
+.cd-shell .cd-flow::-webkit-scrollbar-thumb {
+  background: rgba(var(--cd-bluegrey-rgb), 0.5);
+  border-radius: 2px;
+}
+
+.cd-shell .cd-link {
+  flex: 0 0 auto;
+  min-width: 110px;
+  padding: 0 8px;
+  margin-top: 14px;
+  text-align: center;
+}
+.cd-shell .cd-link-lbl {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-mute);
+  white-space: nowrap;
+  margin-bottom: 6px;
+}
+.cd-shell .cd-link-rule {
+  height: 0;
+  border-top: 3px dashed var(--cd-bluegrey);
+}
+
+/* ---- Stage: assignee on the main line, escalation on a branch below ---- */
+.cd-shell .cd-branch { flex: 0 0 auto; }
+
+.cd-shell .cd-fallback {
+  display: flex;
+  align-items: flex-start;
+  padding-left: 22px;
+}
+/* the elbow: down out of the assignee box, then right into the fallback */
+.cd-shell .cd-fallback-arm {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 30px;
+  margin-top: -4px;
+  border-left: 3px dashed var(--cd-coral);
+  border-bottom: 3px dashed var(--cd-coral);
+  border-bottom-left-radius: 12px;
+}
+.cd-shell .cd-fallback-body { padding-top: 14px; }
+.cd-shell .cd-fallback-lbl {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cd-on-dark);
+  background: var(--cd-coral);
+  border-radius: 999px;
+  padding: 3px 11px;
+  margin: 0 0 6px 10px;
+  white-space: nowrap;
+}
+
+.cd-shell .cd-terminus {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cd-navy);
+  background: var(--cd-seafoam);
+  border-radius: 999px;
+  padding: 7px 15px;
+  white-space: nowrap;
+}
+
+
+/* --------------------------------------------------------------------------
+   11. SLA — actual route (solid, carrying measured time)
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-flow { display: flex; align-items: stretch; overflow-x: auto; padding-bottom: 6px; }
+.cd-shell .cd-flow::-webkit-scrollbar { height: 6px; }
+.cd-shell .cd-flow::-webkit-scrollbar-thumb { background: var(--cd-line-2); border-radius: 3px; }
+
+.cd-shell .cd-origin {
+  flex: 0 0 auto;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 4px;
+}
+/* the actual route is centre-aligned, so no top offset there */
+.cd-shell .cd-flow .cd-origin,
+.cd-shell .cd-flow .cd-link { margin-top: 0; }
+.cd-shell .cd-origin-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--cd-royal);
+}
+.cd-shell .cd-origin-lbl { font-size: 10px; color: var(--cd-royal); }
+
+.cd-shell .cd-seg {
+  flex: 0 0 auto;
+  align-self: center;
+  min-width: 100px;
+  padding: 0 10px;
+  text-align: center;
+}
+.cd-shell .cd-seg-rule { height: 4px; background: var(--cd-seafoam); border-radius: 2px; margin-top: 6px; }
+.cd-shell .cd-seg-time {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--cd-navy);
+  white-space: nowrap;
+  border-radius: var(--cd-r-s);
+  padding: 1px 6px;
+}
+.cd-shell .cd-seg-target {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--cd-mute);
+  white-space: nowrap;
+  margin-top: 3px;
+}
+/* over the configured window — Warm Coral takes the rule and the chip */
+.cd-shell .cd-seg--over .cd-seg-rule { height: 5px; background: var(--cd-coral); }
+.cd-shell .cd-seg--over .cd-seg-time {
+  background: var(--cd-coral);
+  color: var(--cd-on-dark);
+  font-weight: 900;
+  padding: 1px 8px;
+}
+.cd-shell .cd-seg--over .cd-seg-target { color: var(--cd-navy); font-weight: 700; }
+
+.cd-shell .cd-stop {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--cd-r);
+  padding: 9px 14px;
+  min-width: 176px;
+  background: var(--cd-canvas);
+}
+.cd-shell .cd-stop--handler { background: var(--cd-royal-tint); }
+.cd-shell .cd-stop--esc     { background: var(--cd-coral-tint); }
+.cd-shell .cd-stop--actual  { background: var(--cd-teal-soft); align-self: center; }
+.cd-shell .cd-stop-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--cd-mute);
+  margin-top: 6px;
+}
+.cd-shell .cd-stop--current {
+  background: var(--cd-teal-tint);
+  box-shadow: inset 3px 0 0 var(--cd-royal);
+}
+
+/* --------------------------------------------------------------------------
+   12. Journey — vertical timeline
+   -------------------------------------------------------------------------- */
+/* A journey entry is a comment: author avatar, one meta line, message bubble. */
+.cd-shell .cd-thread { list-style: none; margin: 0; padding: 0; }
+
+.cd-shell .cd-cmt {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--cd-line);
+}
+.cd-shell .cd-cmt:first-child { border-top: 0; padding-top: 4px; }
+
+.cd-shell .cd-cmt-avatar {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--cd-navy);
+  background: var(--cd-bluegrey);
+}
+.cd-shell .cd-cmt-main { min-width: 0; flex: 1; }
+
+.cd-shell .cd-cmt-hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.cd-shell .cd-cmt-author { font-size: 13px; font-weight: 700; color: var(--cd-navy); }
+.cd-shell .cd-cmt-to { color: var(--cd-mute); }
+.cd-shell .cd-cmt-to .cd-addr { color: var(--cd-ink-2); }
+.cd-shell .cd-cmt-step {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cd-mute);
+}
+.cd-shell .cd-cmt-subject {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--cd-navy);
+  overflow-wrap: anywhere;
+}
+
+/* the bubble — square corner at top left, pointing back at the avatar */
+.cd-shell .cd-cmt-bubble {
+  margin-top: 7px;
+  padding: 10px 13px;
+  border-radius: 3px 10px 10px 10px;
+  background: var(--cd-canvas);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--cd-navy);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cd-shell .cd-cmt-bubble--empty {
+  color: var(--cd-mute);
+  font-style: italic;
+  white-space: normal;
+}
+
+/* stage identity: Royal opens, Coral escalates, Seafoam closes */
+.cd-shell .cd-cmt--start .cd-cmt-avatar { background: var(--cd-royal); color: var(--cd-on-dark); }
+.cd-shell .cd-cmt--start .cd-badge      { background: var(--cd-royal); color: var(--cd-on-dark); }
+
+.cd-shell .cd-cmt--esc .cd-cmt-avatar   { background: var(--cd-coral); color: var(--cd-on-dark); }
+.cd-shell .cd-cmt--esc .cd-badge        { background: var(--cd-coral); color: var(--cd-on-dark); }
+.cd-shell .cd-cmt--esc .cd-cmt-bubble   { background: var(--cd-coral-tint); }
+
+.cd-shell .cd-cmt--end .cd-cmt-avatar   { background: var(--cd-seafoam); }
+.cd-shell .cd-cmt--end .cd-badge        { background: var(--cd-seafoam); }
+.cd-shell .cd-cmt--end .cd-cmt-bubble   { background: var(--cd-teal-tint); }
+
+.cd-shell .cd-cmt--resp .cd-badge       { background: var(--cd-cream); }
+
+.cd-shell .cd-cc { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.cd-shell .cd-cc-btn {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+  background: var(--cd-royal-tint);
+  border: 0;
+  border-radius: var(--cd-r-s);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.cd-shell .cd-cc-btn:hover { background: var(--cd-royal); color: var(--cd-on-dark); }
+.cd-shell .cd-cc-list { padding: 7px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.cd-shell .cd-cc-pill {
+  font-size: 11px;
+  color: var(--cd-ink-2);
+  background: var(--cd-canvas);
+  border-radius: var(--cd-r-s);
+  padding: 2px 8px;
+  overflow-wrap: anywhere;
+}
+
+.cd-shell .cd-tl-body--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cd-shell .cd-more {
+  display: inline-block;
+  margin-top: 6px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+
+/* --------------------------------------------------------------------------
+   13. Expense — ledger
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-ledger {
+  border: 0;
+  border-radius: var(--cd-r);
+  background: var(--cd-surface);
+  overflow: hidden;
+  max-width: 560px;
+}
+.cd-shell .cd-ledger-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--cd-line);
+}
+.cd-shell .cd-ledger-row label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--cd-ink-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cd-shell .cd-ledger-key {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cd-royal);
+  background: var(--cd-royal-tint);
+  border: 1px solid var(--cd-royal-line);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.cd-shell .cd-amount { flex: 0 0 150px; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.cd-shell .cd-cur { font-size: 10px; color: var(--cd-mute); }
+.cd-shell .cd-ledger-row input {
+  width: 110px;
+  text-align: right;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--cd-navy);
+  padding: 6px 9px;
+  border: 1px solid var(--cd-line-2);
+  border-radius: var(--cd-r-s);
+  background: var(--cd-surface);
+}
+.cd-shell .cd-ledger-row input:focus {
+  outline: 2px solid var(--cd-royal);
+  outline-offset: 1px;
+  border-color: var(--cd-royal);
+}
+.cd-shell .cd-ledger-row--total {
+  border-bottom: 0;
+  background: var(--cd-royal);
+  border-top: 0;
+}
+.cd-shell .cd-ledger-row--total label { font-weight: 700; color: var(--cd-on-dark); }
+.cd-shell .cd-ledger-row--total .cd-cur { color: var(--cd-on-dark-2); }
+.cd-shell .cd-ledger-row--total .cd-ledger-key {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: transparent;
+  color: var(--cd-on-dark);
+}
+.cd-shell .cd-ledger-row--total input {
+  font-size: 16px;
+  font-weight: 900;
+  border-color: transparent;
+  background: transparent;
+  color: var(--cd-on-dark);
+  -webkit-text-fill-color: var(--cd-on-dark);
+}
+
+/* --------------------------------------------------------------------------
+   14. LEGACY BRIDGE — GeneralTab / IssuesTab through their existing markup
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-form { font-family: var(--cd-font); color: var(--cd-ink); font-size: 13.5px; }
+
+.cd-shell .cd-form--general,
+.cd-shell .cd-form--issues { display: block; padding: 6px 0 26px; }
+.cd-shell .cd-form--general > fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+/* Grouped section — the shared layout for General and Issues */
+.cd-shell .cd-group { margin-top: 24px; }
+.cd-shell .cd-group:first-of-type { margin-top: 4px; }
+.cd-shell .cd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 18px;
+  align-items: start;
+}
+.cd-shell .cd-span { grid-column: 1 / -1; }
+
+/* the response section is the one the user acts in, so it gets a frame */
+.cd-shell .cd-group--accent {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.cd-shell .cd-group--accent > .cd-eyebrow { margin-top: 0; }
+
+.cd-shell .cd-chip {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-navy);
+  background: var(--cd-cream);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-left: 8px;
+}
+.cd-shell .cd-flag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cd-on-dark);
+  background: var(--cd-coral);
+  border-radius: var(--cd-r-s);
+  padding: 1px 7px;
+  margin-left: 7px;
+}
+.cd-shell .cd-help {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--cd-mute);
+}
+.cd-shell .cd-error {
+  margin: 5px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cd-on-dark);
+  background: var(--cd-coral);
+  border-radius: var(--cd-r-s);
+  padding: 3px 8px;
+  display: inline-block;
+}
+
+/* attachment */
+.cd-shell .cd-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  border-left: 4px solid var(--cd-seafoam);
+  border-radius: 0 var(--cd-r) var(--cd-r) 0;
+  background: var(--cd-canvas);
+  color: var(--cd-navy);
+  text-decoration: none;
+  font-size: 13px;
+}
+.cd-shell .cd-file:hover { border-left-color: var(--cd-royal); background: var(--cd-teal-tint); }
+.cd-shell .cd-file-icon { font-size: 15px; }
+.cd-shell .cd-file-name { font-weight: 700; overflow-wrap: anywhere; }
+.cd-shell .cd-file-act {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cd-on-dark);
+  background: var(--cd-royal);
+  border-radius: var(--cd-r-s);
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.cd-shell .cd-file--none {
+  border-left-color: var(--cd-bluegrey);
+  color: var(--cd-mute);
+  font-style: italic;
+}
+
+/* QC panel */
+.cd-shell .cd-qc {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.cd-shell .cd-qc-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cd-shell .cd-qc-ttl {
+  display: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+}
+.cd-shell .cd-qc-state { font-size: 12px; color: var(--cd-ink-2); }
+.cd-shell .cd-qc-err {
+  color: var(--cd-on-dark);
+  background: var(--cd-coral);
+  border-radius: var(--cd-r-s);
+  padding: 2px 8px;
+  font-weight: 700;
+}
+.cd-shell .cd-qc-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.cd-shell .cd-qc-lbl {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-mute);
+}
+.cd-shell .cd-qc-val { font-weight: 700; overflow-wrap: anywhere; }
+.cd-shell .cd-qc-sub { font-size: 11px; color: var(--cd-mute); margin-top: 2px; }
+
+.cd-shell .cd-form .cd-field { min-width: 0; }
+.cd-shell .cd-form .cd-field > label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-royal);
+  margin-bottom: 5px;
+}
+.cd-shell .cd-form .cd-field input,
+.cd-shell .cd-form .cd-field select,
+.cd-shell .cd-form .cd-field textarea,
+.cd-shell .cd-controls .cd-field select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  color: var(--cd-navy);
+  background: var(--cd-surface);
+  border: 1px solid var(--cd-line-2);
+  border-radius: var(--cd-r-s);
+  padding: 8px 10px;
+}
+.cd-shell .cd-form .cd-field textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+.cd-shell .cd-form .cd-field input:focus,
+.cd-shell .cd-form .cd-field select:focus,
+.cd-shell .cd-form .cd-field textarea:focus,
+.cd-shell .cd-controls .cd-field select:focus {
+  outline: 2px solid var(--cd-royal);
+  outline-offset: 1px;
+  border-color: var(--cd-royal);
+}
+.cd-shell .cd-form .cd-field [aria-invalid="true"] {
+  border-color: var(--cd-coral);
+  background: var(--cd-coral-tint);
+}
+
+/* Read-only fields are data, not broken inputs */
+.cd-shell .cd-form fieldset[disabled] .cd-field input,
+.cd-shell .cd-form fieldset[disabled] .cd-field select,
+.cd-shell .cd-form .cd-field input[disabled],
+.cd-shell .cd-form .cd-field select[disabled],
+.cd-shell .cd-form .cd-field input[readonly] {
+  background: var(--cd-canvas);
+  border-color: var(--cd-line);
+  color: var(--cd-navy);
+  opacity: 1;
+  -webkit-text-fill-color: var(--cd-navy);
+  cursor: default;
+}
+.cd-shell .cd-controls .cd-field select:disabled {
+  background: var(--cd-surface);
+  color: var(--cd-mute);
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+/* Issues tab: response history */
+.cd-shell .cd-tablewrap {
+  grid-column: 1 / -1;
+  border: 0;
+  border-radius: var(--cd-r);
+  overflow: hidden;
+  margin: 6px 0;
+}
+.cd-shell .cd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cd-shell .cd-table thead th {
+  text-align: left;
+  padding: 9px 14px;
+  background: var(--cd-royal);
+  border-bottom: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cd-on-dark);
+}
+.cd-shell .cd-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--cd-line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.cd-shell .cd-table tbody tr:last-child td { border-bottom: 0; }
+.cd-shell .cd-table tbody tr:hover td { background: var(--cd-canvas); }
+.cd-shell .cd-table tbody td:first-child {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--cd-mute);
+}
+
+.cd-shell .cd-mailgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px 18px;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--cd-r);
+  background: var(--cd-canvas);
+}
+.cd-shell .cd-qc { grid-column: 1 / -1; }
+.cd-shell .cd-chip { letter-spacing: 0.1em; font-weight: 700; }
+
+/* --------------------------------------------------------------------------
+   15. Quality floor
+   -------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .cd-shell { padding: 14px; }
+  .cd-shell .cd-head-meta { width: 100%; }
+  .cd-shell .cd-metacell { flex: 1; min-width: 0; }
+  .cd-shell .cd-title { font-size: 18px; }
+  .cd-shell .cd-progress { grid-auto-flow: row; grid-auto-columns: auto; }
+  .cd-shell .cd-step { padding: 7px 0 7px 26px; text-align: left; }
+.cd-shell .cd-step::before,
+  .cd-shell .cd-step::after { display: none; }
+  .cd-shell .cd-node { top: 50%; left: 6px; transform: translate(-50%, -50%); }
+  .cd-shell .cd-stop { min-width: 150px; }
+  .cd-shell .cd-seg { min-width: 82px; }
+  .cd-shell .cd-ledger-row { flex-wrap: wrap; }
+  .cd-shell .cd-amount { flex-basis: 100%; justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-shell * { transition: none !important; animation: none !important; }
+}
+
+.cd-shell .cd-cc-btn:focus-visible,
+.cd-shell .cd-more:focus-visible {
+  outline: 2px solid var(--cd-royal);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media print {
+  .cd-shell .cd-flow { overflow: visible; flex-wrap: wrap; }
+  .cd-shell .cd-cc-list { display: flex !important; }
+.cd-shell .cd-tl-body--clamped { -webkit-line-clamp: unset; display: block; }
+  .cd-shell .cd-more, .cd-shell .cd-cc-btn, .cd-shell .cd-actions, .cd-shell .cd-tabbar { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   16. Load-order guard
+   The app stylesheet may be injected after this file. Everything above is
+   scoped under .cd-shell (two classes) so it outranks single-class legacy
+   rules regardless of order. These few reset properties the old Case Details
+   CSS set on elements that are now ours.
+   -------------------------------------------------------------------------- */
+.cd-shell .cd-tabbar,
+.cd-shell .cd-progress,
+.cd-shell .cd-panel,
+.cd-shell .cd-actions {
+  float: none;
+  width: auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: visible;
+  list-style: none;
+}
+.cd-shell .cd-tabbar { justify-content: flex-start; }
+.cd-shell .cd-tablink { flex: 0 0 auto; text-align: center; }
+.cd-shell .cd-step { list-style: none; height: auto; width: auto; }
+.cd-shell .cd-node { content: none; }
+.cd-shell .cd-node::before,
+.cd-shell .cd-node::after { content: none; display: none; }
+.cd-shell .cd-panel > div { min-height: 0; }

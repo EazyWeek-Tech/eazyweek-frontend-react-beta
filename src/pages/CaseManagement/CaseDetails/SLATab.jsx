@@ -2,6 +2,103 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from "rea
 import { useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../../config";
 
+/* ---------------------------------------------------------------
+   Display helpers
+   --------------------------------------------------------------- */
+
+const trim = (s) => (s ?? "").toString().trim();
+
+// "AB" from "Nahlah Hassan Altayeb"; falls back to first two chars.
+const initials = (name) => {
+  const parts = trim(name).replace(/^dr\.?\s*/i, "").split(/\s+/).filter(Boolean);
+  if (!parts.length) return "–";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// SLA hours arrive either as a single value ("1") or a range ("24-48").
+// The upper bound is what the escalation service compares against.
+const parseWindow = (raw) => {
+  const s = trim(raw);
+  if (!s) return { label: "", hours: null };
+
+  const parts = s.split("-").map((p) => parseFloat(p.trim())).filter((n) => !isNaN(n));
+  if (!parts.length) return { label: s, hours: null };
+
+  const upper = parts[parts.length - 1];
+  const hourText = parts.join("–") + " hr";
+  const days = parts.map((h) => Math.round(h / 24));
+  const dayText =
+    upper >= 24 ? ` (${[...new Set(days)].join("–")} ${upper >= 48 ? "days" : "day"})` : "";
+
+  return { label: hourText + dayText, hours: upper };
+};
+
+// Which configured window governs each hop of the actual route.
+// Hop 1 is the first handoff out of creation (Level 1 window); every later
+// hop sits inside the Level 2 window. Change here if the mapping shifts.
+const windowForHop = (hopIndex, first, second) => (hopIndex <= 1 ? first : second);
+
+const formatDuration = (totalMinutes) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) return `${hours} hr ${minutes} min`;
+  if (hours > 0) return `${hours} hr`;
+  if (minutes > 0) return `${minutes} min`;
+  return "0 min";
+};
+
+const Person = ({ name, role, variant }) => (
+  <div className={`cd-person cd-person--${variant}`}>
+    <div className="cd-avatar">{initials(name)}</div>
+    <div className="cd-person-txt">
+      <div className="cd-person-name">{trim(name)}</div>
+      <div className="cd-person-role">{role}</div>
+    </div>
+  </div>
+);
+
+// One connector on the rail. `escalation` switches it to the dashed coral
+// treatment and puts the SLA window on it, since the window is what triggers
+// the hop to the escalation contact.
+const Link = ({ label }) => (
+  <div className="cd-link">
+    <div className="cd-link-lbl">{label}</div>
+    <div className="cd-link-rule" />
+  </div>
+);
+
+// One level of the hierarchy. The assignee sits on the main line; the
+// escalation contact hangs off it on a branch, because escalation is what
+// happens when nothing happens — not the next step forward.
+const Stage = ({ level, assignee, escalation, slaLabel }) => (
+  <div className="cd-branch">
+    <div className="cd-stop cd-stop--handler">
+      <Person name={assignee} role={`Level ${level} assignee`} variant="handler" />
+    </div>
+
+    <div className="cd-fallback">
+      <span className="cd-fallback-arm" aria-hidden="true" />
+      <div className="cd-fallback-body">
+        <div className="cd-fallback-lbl">
+          If no response in {slaLabel || "the configured window"}
+        </div>
+        <div className="cd-stop cd-stop--esc">
+          <Person
+            name={escalation}
+            role={`Level ${level} escalation`}
+            variant="escalate"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+/* ---------------------------------------------------------------
+   Component
+   --------------------------------------------------------------- */
+
 const SLATab = forwardRef((_, ref) => {
   const { caseNumber } = useParams();
   const [ideal, setIdeal] = useState({});
@@ -10,20 +107,9 @@ const SLATab = forwardRef((_, ref) => {
     caseCategory: "",
     subCategory: "",
     subSubCategory: "",
-    subSubSubCategory: ""
+    subSubSubCategory: "",
   });
-const convertHoursRangeToDays = (hourRange) => {
-  if (!hourRange) return "";
-  const parts = hourRange.split("-").map(h => parseInt(h.trim(), 10));
-  if (parts.some(isNaN)) return hourRange; // return as-is if parsing fails
-  return parts.map(h => Math.round(h / 24)).join("-");
-};
 
-const getSecondValueFromRange = (range) => {
-  if (!range) return "";
-  const parts = range.split("-").map(p => p.trim());
-  return parts[1] || "";
-};
   useImperativeHandle(ref, () => ({
     getSLAData: () => ({
       slaIdeal: ideal,
@@ -34,19 +120,19 @@ const getSecondValueFromRange = (range) => {
   useEffect(() => {
     const fetchSLA = async () => {
       try {
-         const response = await fetch(
-    `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`,
-    {
-      method: "GET",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    }
-  );
+        const response = await fetch(
+          `${API_BASE_URL}/api/CaseOperation/CaseDetails/${caseNumber}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          }
+        );
 
-  if (response.status === 401) {
-    console.error("401 Unauthorized: Not logged in / cookie not sent");
-    return;
-  }
+        if (response.status === 401) {
+          console.error("401 Unauthorized: Not logged in / cookie not sent");
+          return;
+        }
 
         const raw = await response.json();
         const data = raw?.data ?? raw;
@@ -58,13 +144,13 @@ const getSecondValueFromRange = (range) => {
 
         setIdeal({
           initial: firstSlaName,
-          // ✅ If L1 escalation name is empty, fall back to L2 assignee
+          // If L1 escalation name is empty, fall back to L2 assignee
           mid: firstSlaEName || secondSlaName,
           late: secondSlaName || firstSlaEName,
-          // ✅ If L2 escalation name is empty, fall back to L2 assignee
+          // If L2 escalation name is empty, fall back to L2 assignee
           final: secondSlaEName || secondSlaName,
           firstSlaHours: data.firstSlaHours?.trim() || "",
-          secondSlaHours: data.secondSlaHours?.trim() || ""
+          secondSlaHours: data.secondSlaHours?.trim() || "",
         });
 
         setCategoryData({
@@ -78,63 +164,51 @@ const getSecondValueFromRange = (range) => {
       }
     };
 
-
     const fetchActualSLA = async () => {
       try {
-    const res = await fetch(`${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`);
-    const rawA = await res.json();
-    const data = Array.isArray(rawA) ? rawA : (rawA?.data ?? []);
+        const res = await fetch(
+          `${API_BASE_URL}/api/CaseOperation/CaseResponse/${caseNumber}/ActualResponse`
+        );
+        const rawA = await res.json();
+        const data = Array.isArray(rawA) ? rawA : (rawA?.data ?? []);
 
-    if (Array.isArray(data)) {
-      // ✅ For SLA: show all non-draft rows but deduplicate consecutive 
-      // same-person blocks and skip rows where response is empty
-      // (empty rows are placeholder rows for owner/assignee tracking)
-      const submitted = data.filter((entry) => !entry.isDraft);
-      
-      // Build deduplicated list — keep one entry per person per handoff
-      // ✅ Deduplicate consecutive same-person blocks only
-      // Keeps repeated people if they appear again after someone else
-      const deduped = [];
-      let lastCaseWith = null;
-      for (const entry of submitted) {
-        const key = entry.caseWith || "";
-        if (key !== lastCaseWith) {
-          deduped.push(entry);
-          lastCaseWith = key;
-        }
-      }
+        if (Array.isArray(data)) {
+          // Show all non-draft rows, deduplicating consecutive same-person blocks.
+          const submitted = data.filter((entry) => !entry.isDraft);
 
-      setActualList(
-        deduped.map((entry, index, arr) => {
-          // ✅ diffHours = time FROM previous entry TO this entry
-          // index 0 (first block) gets empty — no value between Creation and first block
-          // index 1+ gets time from previous block to this block
-          let diffDisplay = "";
-          if (index > 0) {
-            const prev = new Date(arr[index - 1].caseReceiveDate);
-            const current = new Date(entry.caseReceiveDate);
-            const totalMinutes = Math.round((current - prev) / (1000 * 60));
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-
-            if (hours > 0 && minutes > 0) {
-              diffDisplay = `${hours} hr ${minutes} min`;
-            } else if (hours > 0) {
-              diffDisplay = `${hours} hr`;
-            } else if (minutes > 0) {
-              diffDisplay = `${minutes} min`;
-            } else {
-              diffDisplay = "0 min";
+          const deduped = [];
+          let lastCaseWith = null;
+          for (const entry of submitted) {
+            const key = entry.caseWith || "";
+            if (key !== lastCaseWith) {
+              deduped.push(entry);
+              lastCaseWith = key;
             }
           }
-          return {
-            caseWith: entry.caseWith || "",
-            timestamp: formatDateTime(entry.caseReceiveDate),
-            diffHours: diffDisplay,
-          };
-        })
-      );
-    }
+
+          setActualList(
+            deduped.map((entry, index, arr) => {
+              // Time FROM the previous entry TO this one. Index 0 has no
+              // predecessor, so it carries no elapsed value.
+              let diffDisplay = "";
+              let diffMinutes = null;
+
+              if (index > 0) {
+                const prev = new Date(arr[index - 1].caseReceiveDate);
+                const current = new Date(entry.caseReceiveDate);
+                diffMinutes = Math.round((current - prev) / (1000 * 60));
+                diffDisplay = formatDuration(diffMinutes);
+              }
+
+              return {
+                caseWith: entry.caseWith || "",
+                timestamp: formatDateTime(entry.caseReceiveDate),
+                diffHours: diffDisplay,
+                diffMinutes,
+              };
+            })
+          );
+        }
       } catch (err) {
         console.error("Failed to fetch actual SLA:", err);
       }
@@ -156,103 +230,120 @@ const getSecondValueFromRange = (range) => {
     fetchActualSLA();
   }, [caseNumber]);
 
-  useEffect(() => {
-  if (!ideal || Object.keys(ideal).length === 0) return;
-
-  console.group("🟦 SLA Ideal Values");
-  console.log("Initial SLA Name:", ideal.initial);
-  console.log("Mid SLA Name:", ideal.mid);
-  console.log("Late SLA Name:", ideal.late);
-  console.log("Final SLA Name:", ideal.final);
-  console.log("First SLA Hours:", ideal.firstSlaHours);
-  console.log("Second SLA Hours:", ideal.secondSlaHours);
-  console.groupEnd();
-}, [ideal]);
-
+  const first = parseWindow(ideal.firstSlaHours);
+  const second = parseWindow(ideal.secondSlaHours);
 
   return (
-    <div className="slaform tabform">
-      <div className="form-group">
-        <label htmlFor="category">Category</label>
-        <input type="text" id="category" value={categoryData.caseCategory} readOnly />
-      </div>
-      <div className="form-group">
-        <label htmlFor="subcategory">Sub Category</label>
-        <input type="text" id="subcategory" value={categoryData.subCategory} readOnly />
-      </div>
-      <div className="form-group">
-        <label htmlFor="subsubcategory">Sub Sub Category</label>
-        <input type="text" id="subsubcategory" value={categoryData.subSubCategory} readOnly />
-      </div>
-      <div className="form-group">
-        <label htmlFor="subsubsubcategory">Sub Sub Sub Category</label>
-        <input type="text" id="subsubsubcategory" value={categoryData.subSubSubCategory} readOnly />
-      </div>
+    <div className="cd-tab slaform">
+      {/* ---------- Classification ---------- */}
+      <section className="cd-section">
+        <h3 className="cd-eyebrow">Category</h3>
+        <dl className="cd-facts">
+          <div className="cd-fact">
+            <dt>Category</dt>
+            <dd>{categoryData.caseCategory}</dd>
+          </div>
+          <div className="cd-fact">
+            <dt>Sub category</dt>
+            <dd>{categoryData.subCategory}</dd>
+          </div>
+          <div className="cd-fact">
+            <dt>Sub sub category</dt>
+            <dd>{categoryData.subSubCategory}</dd>
+          </div>
+          <div className="cd-fact">
+            <dt>Sub sub sub category</dt>
+            <dd>{categoryData.subSubSubCategory}</dd>
+          </div>
+        </dl>
+      </section>
 
-      <div className="sla-tables">
-        <div className="section-title">Ideal</div>
-        <table className="tblstyle">
-          <tbody>
-            <tr>
-              <td rowSpan="2">Creation</td>
-              <td rowSpan="2" width="100">{ideal.firstSlaHours}<hr className="tmline" /></td>
-              <td className="small-label">1st level Assignment</td>
-              <td rowSpan="2" width="100">{ideal.secondSlaHours}<hr className="tmline" /></td>
-            </tr>
-            <tr>
-              <td rowSpan="2">
-                <div className="box blue">
-                  <input type="text" value={ideal.initial} readOnly />
-                </div>
-                <div className="inflex">
-                                    <div className="small-label">&gt;{getSecondValueFromRange(ideal.firstSlaHours)}</div>
+      {/* ---------- Planned route ---------- */}
+      <section className="cd-section">
+        <h3 className="cd-eyebrow">Planned route</h3>
 
-                  <div className="arrow-down"></div>
-                </div>
-                <div className="box red">
-                  <input type="text" value={ideal.mid} readOnly />
-                </div>
-              </td>
-              <td>
-                <div className="box blue">
-                  <input type="text" value={ideal.late} readOnly />
-                </div>
-                <div className="inflex">
-                  <div className="arrow-down"></div>
-                  <div className="small-label">{convertHoursRangeToDays(ideal.secondSlaHours)}</div>
-                </div>
-                <div className="box red">
-                  <input type="text" value={ideal.final} readOnly />
-                </div>
-                <div className="inflex">
-                  <div className="end-label">End</div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div className="cd-lane cd-lane--planned">
+          <div className="cd-origin">
+            <span className="cd-origin-dot" />
+            <span className="cd-origin-lbl">Created</span>
+          </div>
 
-        <div className="section-title">Actual</div>
-        <div className="actual-flow">
-          <div className="flow-label">Creation</div>
-          <div className="flow-line"></div>
-          {actualList.map((item, index) => (
-            <div key={index} className="flow-item">
-              <div className="flow-time">
-                {item.diffHours}
+          <Link label="assigned to" />
 
-                <div>
-                  <hr className="tmline" />
-                </div>
-              </div>
-              <div className="box blue">
-                <input type="text" value={item.caseWith} readOnly />
-              </div>
-              {index !== actualList.length - 1 && <div className="flow-line"></div>}
-            </div>
-          ))}
+          <Stage
+            level="1"
+            assignee={ideal.initial}
+            escalation={ideal.mid}
+            slaLabel={first.label}
+          />
+
+          <Link label="then level 2" />
+
+          <Stage
+            level="2"
+            assignee={ideal.late}
+            escalation={ideal.final}
+            slaLabel={second.label}
+          />
+
+          <Link label="then" />
+          <div className="cd-terminus">Close</div>
         </div>
-      </div>
+      </section>
+
+      {/* ---------- Actual route ---------- */}
+      <section className="cd-section">
+        <h3 className="cd-eyebrow">Actual route</h3>
+
+        {actualList.length === 0 ? (
+          <div className="cd-empty">
+            No handoffs recorded yet. The route fills in as the case is assigned.
+          </div>
+        ) : (
+          <div className="cd-flow">
+            <div className="cd-origin">
+              <span className="cd-origin-dot" />
+              <span className="cd-origin-lbl">Created</span>
+            </div>
+
+            {actualList.map((item, index) => {
+              const target =
+                index === 0 ? null : windowForHop(index, first, second);
+              const over =
+                target?.hours != null &&
+                item.diffMinutes != null &&
+                item.diffMinutes > target.hours * 60;
+
+              return (
+                <React.Fragment key={index}>
+                  {index > 0 && (
+                    <div className={`cd-seg${over ? " cd-seg--over" : ""}`}>
+                      <div className="cd-seg-time">{item.diffHours}</div>
+                      <div className="cd-seg-rule" />
+                      {target?.label && (
+                        <div className="cd-seg-target">target {target.label}</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div
+                    className={`cd-stop cd-stop--actual${
+                      index === actualList.length - 1 ? " cd-stop--current" : ""
+                    }`}
+                  >
+                    <Person
+                      name={item.caseWith}
+                      role={index === actualList.length - 1 ? "With now" : "Handled"}
+                      variant="actual"
+                    />
+                    <div className="cd-stop-time">{item.timestamp}</div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 });

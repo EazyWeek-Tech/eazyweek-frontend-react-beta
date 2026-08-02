@@ -189,6 +189,20 @@ export default function CentreSetup() {
   const { has, guard, notifyDenied } = usePermissions();
   const requireAccess = makeRequireAccess({ has, guard, notifyDenied });
 
+  // FRD 4.8.2 access: Centre Setup is available to Admin / Product Team at the
+  // CENTRE level (own centre only) and at the LEGAL ENTITY level (all centres).
+  // Creating and deleting a Centre remain Legal Entity level only. Declared
+  // before the hooks below so the early return never sits between them.
+  const _setupUser   = getUser();
+  const _setupRole   = (_setupUser.role || _setupUser.userRole || _setupUser.securityRole || "").toLowerCase().replace(/\s+/g, "");
+  const _isEntityUser  = isEntityLevel();
+  const _canViewSetup  = ["admin", "productteam"].includes(_setupRole);
+  const _canManageCentres = _canViewSetup && _isEntityUser;   // + New / Delete Centre
+  // Own centre, used only to narrow the sidebar — the API is the real scope.
+  const _ownCentre = String(
+    _setupUser.centreCode || _setupUser.centerCode || _setupUser.topCode || _setupUser.TopCode || ""
+  ).trim().toLowerCase();
+
   const [centres,      setCentres]      = useState([]);
   const [selected,     setSelected]     = useState(null); // centerCode
   const [data,         setData]         = useState(null);
@@ -241,8 +255,12 @@ export default function CentreSetup() {
       authGet(`${API_BASE_URL}/api/Settings/Centre/List`),
       authGet(`${API_BASE_URL}/api/Settings/LegalEntity`),
     ]).then(([cs, le]) => {
-      setCentres(Array.isArray(cs) ? cs : []);
+      const list = Array.isArray(cs) ? cs : [];
+      setCentres(list);
       if (le?.leCode) setLegalEntities([le]);
+      // A centre-level user has exactly one centre to configure — open it
+      // rather than showing a one-item picker.
+      if (!_isEntityUser && list.length === 1) setSelected(list[0].centerCode);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -349,18 +367,19 @@ export default function CentreSetup() {
   const taxCountry = _entityLE.country || CURRENCY_TO_COUNTRY[_entityLE.currency] || "Saudi Arabia";
   const availableTaxTypes = TAX_TYPES[taxCountry] || [];
 
-  // Entity-level-only screen. At a centre, everyone (including Admin /
-  // Product Team) is blocked; only Admin / Product Team at the Legal Entity
-  // level may access it.
-  const _setupUser = getUser();
-  const _setupRole = (_setupUser.role || _setupUser.userRole || _setupUser.securityRole || "").toLowerCase().replace(/\s+/g, "");
-  const _canViewSetup = ["admin", "productteam"].includes(_setupRole) && isEntityLevel();
+  // Centre-level users only ever see their own centre in the sidebar. The
+  // /List endpoint already scopes this server-side; the filter is a fallback
+  // for the case where the centre cannot be read off the stored user object.
+  const visibleCentres = (_isEntityUser || !_ownCentre)
+    ? centres
+    : centres.filter(c => String(c.centerCode || "").trim().toLowerCase() === _ownCentre);
+
   if (!_canViewSetup) return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
       <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
       <div style={{ fontSize:13, color:"#64748b", textAlign:"center", maxWidth:400 }}>
-        Centre Setup is available at the Legal Entity level only.<br/>
-        This area is restricted to <strong>Admin</strong> and <strong>Product Team</strong> users.
+        Centre Setup is restricted to <strong>Admin</strong> and
+        <strong> Product Team</strong> users.
       </div>
     </div>
   );
@@ -401,15 +420,17 @@ export default function CentreSetup() {
         <div className="cs-sidebar">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <h3 style={{ margin:0 }}> Centres</h3>
+            {_canManageCentres && (
               <button onClick={() => requireAccess("MDM.CENTRE_CREATE", () => { setSelected(null); setData(null); setIsCreating(true); })}
                 style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:6,
                   padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>
                 + New
               </button>
+            )}
           </div>
           {loading ? <div style={{ fontSize:12, color:"#94a3b8" }}>Loading…</div> :
-            centres.length === 0 ? <div style={{ fontSize:12, color:"#94a3b8" }}>No centres found.</div> :
-            centres.map(c => (
+            visibleCentres.length === 0 ? <div style={{ fontSize:12, color:"#94a3b8" }}>No centres found.</div> :
+            visibleCentres.map(c => (
               <button key={c.centerCode}
                 className={`cs-centre-btn ${selected === c.centerCode ? "active" : ""}`}
                 onClick={() => { setSelected(c.centerCode); setIsCreating(false); }}>
@@ -453,12 +474,14 @@ export default function CentreSetup() {
                   <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{data.centerCode} · {data.address}</div>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
+                  {_canManageCentres && (
                     <button onClick={() => requireAccess("MDM.CENTRE_DELETE", handleDeleteCentre)}
                       style={{ padding:"9px 16px", background:"#fef2f2", color:"#b91c1c",
                         border:"1px solid #fecaca", borderRadius:10, fontWeight:700,
                         fontSize:13, cursor:"pointer" }}>
                        Delete Centre
                     </button>
+                  )}
                   <button className="save-btn" onClick={handleSave} disabled={saving}>
                     {saving ? "Saving…" : " Save Centre"}
                   </button>

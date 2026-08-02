@@ -386,7 +386,7 @@ export default function DispositionMaster() {
       {activeTab === "leadStatus" && (
         <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
           boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          <SectionHeader title="R1-R7 Dispositions" sub="CLINIC_LEADSTATUS — Transaction (R1–R6) and ExternalSource (R7). Manual Lead campaigns use their own tabs."
+          <SectionHeader title="R1-R7 Dispositions" sub="Transaction (R1–R6) and ExternalSource (R7). Manual Lead campaigns use their own tabs."
             onAdd={()=>setModal({type:"leadStatus",data:{name:"",code:"",transType:"Transaction",convertIsApplicable:false,active:true}})}
             addLabel="Add Disposition" />
           {/* Filter */}
@@ -433,7 +433,7 @@ export default function DispositionMaster() {
       {activeTab === "leadSubStatus" && (
         <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
           boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          <SectionHeader title="R1-R7 Sub-Dispositions" sub="CLINIC_LEADSUBSTATUS — linked to parent dispositions by CODE"
+          <SectionHeader title="R1-R7 Sub-Dispositions" sub="Linked to parent dispositions by CODE"
             onAdd={()=>setModal({type:"leadSubStatus",data:{name:"",code:"",leadStatusCode:"",active:true}})}
             addLabel="Add Sub-Disposition" />
           <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`,
@@ -482,7 +482,7 @@ export default function DispositionMaster() {
       {activeTab === "disposition" && (
         <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
           boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          <SectionHeader title="Manual Lead Dispositions" sub="Dispositions table — used exclusively for Manual Lead campaigns"
+          <SectionHeader title="Manual Lead Dispositions" sub="Used exclusively for Manual Lead campaigns"
             onAdd={()=>setModal({type:"disposition",data:{dispositionName:"",isActive:true}})}
             addLabel="Add Disposition" />
           <div style={{ overflowX:"auto" }}>
@@ -515,7 +515,7 @@ export default function DispositionMaster() {
       {activeTab === "subDisposition" && (
         <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
           boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          <SectionHeader title="Manual Lead Sub-Dispositions" sub="SubDispositions table — linked to Manual Lead dispositions"
+          <SectionHeader title="Manual Lead Sub-Dispositions" sub="Linked to Manual Lead dispositions"
             onAdd={()=>setModal({type:"subDisposition",data:{subDispositionName:"",dispositionId:"",isActive:true}})}
             addLabel="Add Sub-Disposition" />
           <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`,
