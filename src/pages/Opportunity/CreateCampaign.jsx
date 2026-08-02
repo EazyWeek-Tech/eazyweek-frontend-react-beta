@@ -571,9 +571,10 @@ export default function CreateCampaign() {
     if (!general.fromDate)          e.fromDate   = "From Date is required.";
     if (general.ruleType === "1" && !general.toDate)
       e.toDate = "To Date is required for Static campaigns.";
+    // A single-day campaign is valid, so equal dates pass — only To before From fails.
     if (general.ruleType === "1" && general.toDate && general.fromDate
-        && new Date(general.toDate) <= new Date(general.fromDate))
-      e.toDate = "To Date must be after From Date.";
+        && new Date(general.toDate) < new Date(general.fromDate))
+      e.toDate = "To Date cannot be before From Date.";
     const spendRaw = String(general.campaignSpend ?? "").trim().replace(/,/g, "");
     if (spendRaw !== "") {
       const spendNum = Number(spendRaw);

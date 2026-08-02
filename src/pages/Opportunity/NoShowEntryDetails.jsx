@@ -629,10 +629,12 @@ setForm((p) => ({
             </div>
           </div>
 
-          {/* Reason sits with the appointment details rather than the disposition block. */}
+          {/* Reason sits with the appointment details rather than the disposition block.
+              Optional — a blank reason is sent through as "" with no silent default,
+              the same way a blank follow-up is handled. */}
           <div className="ldform">
             <div className="formrow">
-              <label className="lab" htmlFor="reasonCode">Reason <span className="req">*</span>:</label>
+              <label className="lab" htmlFor="reasonCode">Reason :</label>
               <select
                 id="reasonCode"
                 name="reasonCode"
@@ -827,7 +829,7 @@ setForm((p) => ({
           {!hideSubmit && (
             <button
   className="btn"
-  disabled={saving || !form.disposition || !form.sbdisposition || !form.reasonCode}
+  disabled={saving || !form.disposition || !form.sbdisposition}
   onClick={handleSubmit}
 > 
               Submit

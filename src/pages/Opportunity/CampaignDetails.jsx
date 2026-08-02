@@ -204,6 +204,22 @@ const safe = (v, fb="—") => (v==null||v==="") ? fb : v;
 
 const norm = (v) => String(v??"").trim().toLowerCase();
 
+/* Sales Owner. A lead stays unclaimed until someone actually edits and submits its
+   form, so a blank owner is a real state rather than missing data — it is shown and
+   filtered as "Unassigned". The filter carries a sentinel value so it can never be
+   confused with a real employee who happens to be called Unassigned. */
+const UNASSIGNED_VALUE   = "__UNASSIGNED__";
+const UNASSIGNED_LABEL   = "Unassigned";
+const isUnassignedOwner  = (v) => !String(v ?? "").trim();
+const ownerLabel         = (v) => (isUnassignedOwner(v) ? UNASSIGNED_LABEL : String(v).trim());
+const ownerOptionLabel   = (v, allLabel="All") =>
+  v === UNASSIGNED_VALUE ? UNASSIGNED_LABEL : (v || allLabel);
+// [UNASSIGNED, ...real owners] — for SearchableSelect, which supplies its own "All"
+const withUnassigned     = (opts) =>
+  [UNASSIGNED_VALUE, ...new Set((opts||[]).map(o=>String(o??"").trim()).filter(Boolean))];
+// ["", UNASSIGNED, ...real owners] — for a native <select>, where "" is the All row
+const withAllAndUnassigned = (opts) => ["", ...withUnassigned(opts)];
+
 const fmtProspectId = (n, prefix="LD") => {
   const x = Number(n);
   if (!Number.isFinite(x)||x<=0) return "—";
@@ -300,7 +316,7 @@ const ErrMsg = ({ msg }) =>
   <div className="cd-err">{msg}</div>;
 
 // Simple searchable select used in R7 filters
-function SearchableSelect({ options=[], value, onChange, placeholder="All" }) {
+function SearchableSelect({ options=[], value, onChange, placeholder="All", labelOf=(o)=>o }) {
   const [open, setOpen] = useState(false);
   const [q, setQ]       = useState("");
   const ref             = useRef(null);
@@ -313,13 +329,13 @@ function SearchableSelect({ options=[], value, onChange, placeholder="All" }) {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return s ? options.filter(o => o.toLowerCase().includes(s)) : options;
+    return s ? options.filter(o => String(labelOf(o)).toLowerCase().includes(s)) : options;
   }, [options, q]);
 
   return (
     <div className="ss-wrap" ref={ref}>
       <div className={`ss-ctrl ${open?"ss-open":""}`} onClick={() => setOpen(o=>!o)}>
-        <span className={!value?"ss-ph":""}>{value||placeholder}</span>
+        <span className={!value?"ss-ph":""}>{value ? labelOf(value) : placeholder}</span>
         <span className="ss-acts">
           {value && <span className="ss-x" onClick={(e)=>{e.stopPropagation();onChange("");setOpen(false);}}>✕</span>}
           <span>{open?"▲":"▼"}</span>
@@ -334,7 +350,7 @@ function SearchableSelect({ options=[], value, onChange, placeholder="All" }) {
             {filtered.map((o,i) => (
               <div key={i} className={`ss-item ${value===o?"ss-active":""}`}
                 onClick={()=>{onChange(o);setOpen(false);setQ("");}}>
-                {o}
+                {labelOf(o)}
               </div>
             ))}
             {!filtered.length && <div className="ss-no">No results</div>}
@@ -634,7 +650,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
           __apptStamp: stamp(toMidnight(r?.appointmentdatetime||r?.appointmentDateTime||"")),
           __fuStamp:   stamp(toMidnight(r?.followUpDate||r?.followupdate||"")),
           __fuMin:     (()=>{const raw=(r?.followUptime||r?.followUpTime||"").toString().trim();const m=raw.match(/^(\d{1,2}):(\d{2})/);if(!m)return NaN;let h=Number(m[1])%12;if((r?.followUpAMPM||r?.followupampm||"").toString().trim().toUpperCase()==="PM")h+=12;return h*60+Number(m[2]);})(),
-          __q: [r?.custID,r?.custName,r?.custMobileNo,r?.oppStatus,r?.salesOwner,r?.disposition,
+          __q: [r?.custID,r?.custName,r?.custMobileNo,r?.oppStatus,ownerLabel(r?.salesOwner),r?.disposition,
                 r?.therapistname,r?.therapistName].map(x=>(x??"").toString().toLowerCase()).join("|"),
         })));
       })
@@ -688,7 +704,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   }, [oppCode, fromDate, toDate]);
 
   // Fall back to page rows if options endpoint not yet loaded
-  const ownerOpts    = allOwnerOpts.length    > 1 ? allOwnerOpts    : ["", ...new Set(rows.map(r=>r?.salesOwner||"").filter(Boolean))];
+  const ownerOpts    = withAllAndUnassigned(allOwnerOpts.length > 1 ? allOwnerOpts : rows.map(r=>r?.salesOwner));
   const dispOpts     = allDispOpts.length     > 1 ? allDispOpts     : ["", ...new Set(rows.map(r=>r?.disposition||"").filter(Boolean))];
   const therapistOpts= allTherapistOpts.length> 1 ? allTherapistOpts: ["", ...new Set(rows.map(r=>r?.__therapist||"").filter(Boolean))];
 
@@ -791,7 +807,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
     const lines=[hdrs.join(","),...filtered.map(r=>[
       fmtProspectId(r.recid),r.custID,r.custName,r.custMobileNo,r.oppStatus,r.disposition,
       r.__therapist, ...(showAppt?[fmtDate(r.appointmentdatetime)]:[] ),
-      r.remarks,r.salesOwner,r.modifiedBy,fmtDate(r.modifieddate),fmtDate(r.createddate),
+      r.remarks,ownerLabel(r.salesOwner),r.modifiedBy,fmtDate(r.modifieddate),fmtDate(r.createddate),
     ].map(esc).join(","))];
     const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);
@@ -814,7 +830,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
         <div className="cd-fg">
           <label>Sales Owner</label>
           <select value={owner} onChange={e=>setOwner(e.target.value)}>
-            {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
+            {ownerOpts.map((o,i)=><option key={i} value={o}>{ownerOptionLabel(o)}</option>)}
           </select>
         </div>
         <div className="cd-fg">
@@ -914,7 +930,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
                     <td>{safe(r.__therapist)}</td>
                     {showAppt && <td>{fmtDate(r.appointmentdatetime||r.appointmentDateTime)}</td>}
                     <td><Clamp v={r.remarks} /></td>
-                    <td>{safe(r.salesOwner)}</td>
+                    <td>{ownerLabel(r.salesOwner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifieddate||r.modifiedDate)}</td>
                     <td>{fmtDate(r.createddate)}</td>
@@ -1020,7 +1036,9 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         oppCode, fromDate, toDate,
         pageNumber:1, pageSize:5000,   // fetch full set; filter + paginate client-side (like R1-R6)
         searchTerm:search, statusFilter:status,
-        ownerFilter:owner, dispFilter:disp,
+        // Unassigned has no server-side representation — clear the filter and apply it
+        // below, which works because this endpoint returns the whole set anyway.
+        ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
       }),
     })
       .then(r=>r.json())
@@ -1117,6 +1135,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const filtered = useMemo(()=>{
     let list=rows.slice();
     if(createdBad||modBad) return [];   // Created / Modified From after To → no records
+    if(owner === UNASSIGNED_VALUE) list=list.filter(r=>isUnassignedOwner(r?.salesOwner));
     if(modFrom||modTo) list=list.filter(r=>inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
@@ -1131,7 +1150,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       return true;
     });
     return list;
-  },[rows,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
+  },[rows,owner,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
   const paged = filtered.slice((page-1)*pageSize, page*pageSize);
@@ -1160,7 +1179,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         </div>
         <div className="cd-fg">
           <label>Sales Owner</label>
-          <SearchableSelect options={ownerOpts} value={owner} onChange={setOwner} placeholder="All Owners" />
+          <SearchableSelect options={withUnassigned(ownerOpts)} value={owner} onChange={setOwner}
+            labelOf={(o)=>ownerOptionLabel(o)} placeholder="All Owners" />
         </div>
         <div className="cd-fg">
           <label>Disposition</label>
@@ -1254,7 +1274,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
                     <td>{fmtDate(r.followUpDate)}</td>
                     <td>{safe(r.__fuLabel)}</td>
                     <td><Clamp v={r.remarks} /></td>
-                    <td>{safe(r.salesOwner)}</td>
+                    <td>{ownerLabel(r.salesOwner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifieddate||r.modifiedDate)}</td>
                     <td>{fmtDate(r.createddate||r.createdDate)}</td>
@@ -1381,7 +1401,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
           createdDate: x?.createdDate||"",
           __fuStamp: stamp(toMidnight(x?.followUpDate||"")),
           __q: [_prospectId,_prospectType,_doctor,x?.leadOpp_ID,x?.customerName,x?.custName,x?.custID,x?.mobile,x?.mobileNumber,
-            x?.status,x?.disposition,x?.saleOwner,x?.salesOwner]
+            x?.status,x?.disposition,ownerLabel(x?.saleOwner||x?.salesOwner)]
             .map(v=>(v??"").toString().toLowerCase()).join("|"),
         });}));
       })
@@ -1390,7 +1410,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
     return()=>{alive=false;};
   },[campaignRecId, churnKey]);
 
-  const ownerOpts = useMemo(()=>["", ...new Set(rows.map(r=>r.owner).filter(Boolean))],[rows]);
+  const ownerOpts = useMemo(()=>withAllAndUnassigned(rows.map(r=>r.owner)),[rows]);
   const dispOpts  = useMemo(()=>["", ...new Set(rows.map(r=>r.disposition).filter(Boolean))],[rows]);
   const doctorOpts= useMemo(()=>["", ...new Set(rows.map(r=>r.doctor).filter(Boolean))],[rows]);
 
@@ -1425,7 +1445,9 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
     const s=search.trim().toLowerCase();
     if(s)     list=list.filter(r=>(r.__q||"").includes(s));
     if(status)list=list.filter(r=>norm(r.status)===norm(status));
-    if(owner) list=list.filter(r=>norm(r.owner)===norm(owner));
+    if(owner) list=list.filter(r=> owner === UNASSIGNED_VALUE
+      ? isUnassignedOwner(r.owner)
+      : norm(r.owner)===norm(owner));
     if(disp)  list=list.filter(r=>norm(r.disposition)===norm(disp));
     if(doctorFilter) list=list.filter(r=>norm(r.doctor)===norm(doctorFilter));
     if(fuDateRange)list=list.filter(r=>{
@@ -1480,7 +1502,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
         <div className="cd-fg">
           <label>Sales Owner</label>
           <select value={owner} onChange={e=>setOwner(e.target.value)}>
-            {ownerOpts.map((o,i)=><option key={i} value={o}>{o||"All"}</option>)}
+            {ownerOpts.map((o,i)=><option key={i} value={o}>{ownerOptionLabel(o)}</option>)}
           </select>
         </div>
         <div className="cd-fg">
@@ -1563,7 +1585,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
                         disposition={r.disposition} mapped={apptMap[String(r.id)]?.appointmentId}
                         onLinked={(id,aid)=>setApptMap(p=>({...p,[String(id)]:{appointmentId:aid,apptStatus:"Booked"}}))} /></td>
                     <td><Clamp v={r.remark} /></td>
-                    <td>{safe(r.owner)}</td>
+                    <td>{ownerLabel(r.owner)}</td>
                     <td>{safe(r.modifiedBy)}</td>
                     <td>{fmtDate(r.modifiedDate)}</td>
                     <td>{fmtDate(r.createdDate)}</td>
