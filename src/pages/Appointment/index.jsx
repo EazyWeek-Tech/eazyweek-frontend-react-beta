@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, Routes, Route, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -15,6 +15,7 @@ import { useCustomerNotes } from "../Customer/CustomerDetails/CustomerNotePopup"
 import { CustomerFormPanel } from "../Masters/CustomerMaster";
 import { usePermissions } from "../Settings/usePermissions";
 import ClinicSwitcher from "../../components/ClinicSwitcher";
+import AppointmentSearch from "./AppointmentSearch";
 import './index.css'
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -44,6 +45,70 @@ const authGet = async (url) => {
   }
   return json.data ?? json;
 };
+/* ── LTR: safety net for a conversion the agent walked away from ────────────
+   The drawer's onClose is the normal settle point and handles both outcomes,
+   but it only fires when the drawer is actually closed. An agent who presses
+   browser Back, clicks a sidebar link or closes the tab leaves the lead sitting
+   at Converted with no booking behind it — exactly the state the revert exists
+   to prevent, and one that Case B (booking not mandatory) reaches far more often
+   than Case A ever did.
+
+   The revert is SCHEDULED rather than fired inline because React StrictMode runs
+   an effect's cleanup once immediately after the first mount in development. A
+   revert fired straight from that cleanup would un-convert the lead the instant
+   the agent arrived. Re-mounting cancels the pending revert, so the dev
+   double-invoke is a no-op while a genuine unmount still reverts. */
+/* 0, not a real delay. StrictMode runs create → destroy → create synchronously
+   within one commit, so a timer scheduled in destroy is always cancelled by the
+   re-create before any macrotask can run — the guard costs nothing. A longer
+   window was a mistake: pressing browser Back navigates straight to the lead
+   form, whose detail GET then raced the delayed revert and could read the row
+   while it was still Converted. */
+const LTR_REVERT_GRACE_MS = 0;
+
+/* Build marker — same idea as the ">>> leadopp.repository LOADED" line that
+   exposed a stale backend deploy. If this does not appear in the console when
+   the Appointment page loads, the browser is running an older bundle and none
+   of the revert handling below exists in it. */
+const LTR_BUILD = "ltr-revert-net-v2";
+console.log(`>>> Appointment/index.jsx LOADED — ${LTR_BUILD}`);
+const ltrPendingReverts   = new Map();   // "SOURCE:recId" -> timeout id
+
+/* keepalive: the request has to outlive this view (and, on pagehide, the
+   document). A plain fetch is cancelled when the page goes away. */
+const ltrRevertNow = (ctx) => {
+  try {
+    console.log("[LTR] revert →", ctx);
+    fetch(LTR_REVERT_URL, {
+      method:    "POST",
+      keepalive: true,
+      headers:   { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+      body:      JSON.stringify(ctx),
+    })
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        // Loud on purpose: this call used to be fire-and-forget, so a 500 from
+        // the revert was invisible and looked identical to it never firing.
+        if (!r.ok || j?.success === false) console.error("[LTR] revert FAILED", r.status, j);
+        else console.log("[LTR] revert ok", j);
+      })
+      .catch((e) => console.error("[LTR] revert request error", e));
+  } catch (e) { console.error("[LTR] revert threw during teardown", e); }
+};
+
+const ltrCancelPendingRevert = (key) => {
+  const t = ltrPendingReverts.get(key);
+  if (t) { clearTimeout(t); ltrPendingReverts.delete(key); }
+};
+
+const ltrSchedulePendingRevert = (key, ctx) => {
+  ltrCancelPendingRevert(key);
+  ltrPendingReverts.set(key, setTimeout(() => {
+    ltrPendingReverts.delete(key);
+    ltrRevertNow(ctx);
+  }, LTR_REVERT_GRACE_MS));
+};
+
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
   catch { return {}; }
@@ -75,15 +140,6 @@ const getStatusClass = (s) => {
 const Toast = ({ message, type = "info", onClose }) => {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return <div className={`toast ${type}`}>{message}</div>;
-};
-
-/* Appointment status → the EMR transition it maps to. Statuses absent from this
-   map (Booked, Confirmed, Cancelled, No Show) never open a form.
-   Keep in sync with WHEN_BY_STATUS in useEMRForms.js. */
-const FORM_GATED_STATUS = {
-  "Checked In": "CheckedIn",
-  "Active":     "Start",
-  "Completed":  "Completed",
 };
 
 // ── Appointment Details Sidebar ────────────────────────────────────────────────
@@ -141,145 +197,71 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [activeFormsLoaded,  setActiveFormsLoaded]  = useState(false);
   // Medical history form — shown if first visit or not filled
   const [showMedHistory,     setShowMedHistory]     = useState(false);
+  const [medHistFilled,      setMedHistFilled]      = useState(false);
 
   // ── Direct form open modal ────────────────────────────────────────────────
   const [directModal,    setDirectModal]    = useState(false);
   const [directFormCode, setDirectFormCode] = useState(null);
   const [directMacro,    setDirectMacro]    = useState({});
-  // "customer" = one standing record per customer (Medical History)
-  // "appointment" = one record per visit (consent / treatment)
-  const [directScope,    setDirectScope]    = useState("appointment");
 
-  const openFormDirect = (formCode, macroCtx = {}, formScope = "appointment") => {
+  const openFormDirect = (formCode, macroCtx = {}) => {
     setDirectFormCode(formCode);
     setDirectMacro(macroCtx);
-    setDirectScope(formScope);
     setDirectModal(true);
   };
 
-  /* ── Customer (Medical History) form code ─────────────────────────────────
-     Previously hardcoded as "MED-HIST-001". The code differs per database
-     (the demo server stores Medical History as "M001"), so the constant made
-     every lookup silently miss.
-
-     The appointment Forms endpoint gives us the code for this centre — but it
-     only reports customerForm while the form is still OUTSTANDING; once it has
-     been submitted the field comes back null. That is fine for opening a blank
-     form, and it is why the Filled/Pending badge must NOT be derived from this
-     value (see medHistRow below), or a form that was just filled reads as
-     Pending forever. */
-  const [medHistCode, setMedHistCode] = useState("");
-
-  useEffect(() => {
-    const apptIdVal = appointment?.appointmentId;
-    if (!apptIdVal) { setMedHistCode(""); return; }
-    const svcCode = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
-    const custId  = appointment?.custId || "";
-    let cancelled = false;
-    authGet(
-      `${API_BASE_URL}/api/EMR/Appointment/${encodeURIComponent(apptIdVal)}/Forms` +
-      `?serviceCode=${encodeURIComponent(svcCode)}&custId=${encodeURIComponent(custId)}`
-    ).then(d => {
-      if (cancelled) return;
-      const inner = d?.data ?? d;
-      setMedHistCode(inner?.customerForm?.formCode || "");
-    }).catch(() => { if (!cancelled) setMedHistCode(""); });
-    return () => { cancelled = true; };
-  }, [appointment?.appointmentId, appointment?.serviceCode, appointment?.custId]);
-
-  /* ── Medical History status — ONE source of truth ─────────────────────────
-     The badge on the Medical History button and the row in the FORMS list are
-     now read from the same array, so the two sections cannot contradict each
-     other. Previously the badge came from a separate flag gated on medHistCode
-     being non-empty; once the form was submitted the endpoint stopped returning
-     that code, the flag stayed false, and the button showed Pending while the
-     list directly below it showed Done.
-
-     Matching order: the resolved code, then a form named like a medical
-     history, then any customer form on the list. */
-  const medHistRow = useMemo(() => {
-    if (medHistCode) {
-      const byCode = sidebarForms.find(f => f.formCode === medHistCode);
-      if (byCode) return byCode;
-    }
-    const byName = sidebarForms.find(f =>
-      /medical\s*history/i.test(f.formName || "") && f.whenToFill === "Customer");
-    if (byName) return byName;
-    return sidebarForms.find(f => f.whenToFill === "Customer") || null;
-  }, [sidebarForms, medHistCode]);
-
-  const medHistFilled = medHistRow?.status === "Completed";
-
-  /* Opening still needs a code: prefer the one the endpoint gave us for a blank
-     form, fall back to the code on the row matched above — that one is present
-     precisely when the form HAS been submitted, so re-opening a filled form
-     works as well. */
-  const medHistOpenCode = medHistCode || medHistRow?.formCode || "";
-
-  /* ── Shared form-status refresh ───────────────────────────────────────────
-     The same merge (service forms + customer forms) was previously written out
-     three times — in the mount effect and in both FormFillModal onComplete
-     handlers — and the copies had already drifted. One function now, so a fix
-     lands in every caller. Behaviour is unchanged from the mount-effect copy. */
-  const refreshFormStatus = useCallback(async () => {
-    const svcCode = appt?.serviceCode || appointment?.serviceCode
-                 || appointment?.allLines?.[0]?.serviceCode || "";
-    const aId     = appt?.appointmentId || appointment?.appointmentId || "";
-    const custId  = appt?.custId || appointment?.custId || "";
-    if (!aId) return;
-
-    _formStatusCache.delete(`${aId}|${svcCode}`);
-    const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-
-    const [statusData, customerData] = await Promise.all([
-      fetchFormStatus(aId, svcCode),
-      custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
-        headers: { Authorization: `Bearer ${tok}` }
-      }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
-    ]);
-
-    const serviceForms = statusData?.forms || [];
-
-    // Merge customer forms (Medical History etc.) into the status list
-    const inner = customerData?.data ?? customerData;
-    const customerForms = [
-      ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
-      ...(Array.isArray(inner)                ? inner               : []),
-    ];
-    const customerFormRows = customerForms.map(cf => ({
-      formCode:   cf.formCode,
-      formName:   cf.formName || cf.formCode,
-      whenToFill: "Customer",
-      isMandatory: true,
-      status:     "Completed",   // if it's in the list, it was filled
-    }));
-
-    const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
-    const merged = [
-      ...serviceForms,
-      ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
-    ];
-
-    setSidebarForms(merged);
-
-    const completed = merged.filter(f => f.status === "Completed").length;
-    setSidebarFormStatus(
-      merged.length === 0          ? null
-      : completed === merged.length ? "All Complete"
-      : completed > 0               ? "Partially Filled"
-      :                               "Not Started"
-    );
-  }, [appt, appointment]);
+  const MED_HIST_CODE = "MED-HIST-001";
 
   useEffect(() => {
     const svcCode   = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
     const apptIdVal = appointment?.appointmentId;
+    const custId    = appointment?.custId || "";
     if (!apptIdVal || !svcCode) return;
     setSidebarFormsLoading(true);
 
     // 1. Form fill status for service forms + customer forms combined
     const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-    refreshFormStatus().finally(() => setSidebarFormsLoading(false));
+    Promise.all([
+      fetchFormStatus(apptIdVal, svcCode),
+      custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+    ]).then(([statusData, customerData]) => {
+      const serviceForms = (statusData?.forms || []);
+
+      // Merge customer forms (Medical History etc.) into the status list
+      const inner = customerData?.data ?? customerData;
+      const customerForms = [
+        ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+        ...(Array.isArray(inner)                ? inner               : []),
+      ];
+
+      // Build merged list — customer forms shown as filled if they exist
+      const customerFormRows = customerForms.map(cf => ({
+        formCode:   cf.formCode,
+        formName:   cf.formName || cf.formCode,
+        whenToFill: "Customer",
+        isMandatory: true,
+        status:     "Completed",   // if it's in the list, it was filled
+      }));
+
+      // Combine: service forms first, then customer forms not already in list
+      const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
+      const merged = [
+        ...serviceForms,
+        ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
+      ];
+
+      setSidebarForms(merged);
+
+      // Recalculate overall status including customer forms
+      const completed = merged.filter(f => f.status === "Completed").length;
+      const overall = merged.length === 0         ? null
+                    : completed === merged.length  ? "All Complete"
+                    : completed > 0                ? "Partially Filled"
+                    :                                "Not Started";
+      setSidebarFormStatus(overall);
+    }).finally(() => setSidebarFormsLoading(false));
 
     // 2. Forms mapped to this specific serviceCode
     fetch(`${API_BASE_URL}/api/EMR/Service/${encodeURIComponent(svcCode)}/Forms`, {
@@ -292,18 +274,33 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       .catch(() => {})
       .finally(() => setActiveFormsLoaded(true));
 
+    // 3. Medical history — show if customer has no prior submissions
+    if (custId) {
+      fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}` }
+      }).then(r => r.ok ? r.json() : null)
+        .then(d => {
+          // Response: { data: { submissions: [], customerForms: [...] } }
+          const inner = d?.data ?? d;
+          const submissions = [
+            ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+            ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
+            ...(Array.isArray(inner)                ? inner               : []),
+          ];
+          const medHistSub  = submissions.find(s => s.formCode === MED_HIST_CODE);
+          setMedHistFilled(!!medHistSub);
+          setShowMedHistory(true); // always show button; indicator shows filled/pending
+          // Auto-open Medical History for first-time customers (no prior submissions at all)
+          if (!medHistSub && submissions.length === 0) {
+            openFormDirect(MED_HIST_CODE, {
+              customerName: appointment?.fullName || appt?.fullName || "",
+            });
+          }
+        }).catch(() => setShowMedHistory(true));
+    } else {
+      setShowMedHistory(true);
+    }
   }, [appointment?.appointmentId, appointment?.serviceCode, appointment?.custId]);
-
-  /* 3. Medical History button visibility.
-        This used to ALSO auto-open the form whenever the sidebar mounted with a
-        customer who had no submissions, regardless of appointment status — that
-        is why forms appeared at unpredictable moments. Opening is now driven
-        purely by the status transition (see handleStatusChange).
-        The Filled/Pending badge is derived from sidebarForms (see medHistRow),
-        so the extra customer-forms fetch this effect used to make is gone. */
-  useEffect(() => {
-    setShowMedHistory(true); // always show; the badge reports filled/pending
-  }, [appointment?.custId]);
 
   // ── Customer Notes — check-in alert ──────────────────────────────────────
   const { NotePopup: CheckinNotePopup, checkNotes: checkCheckinNotes } = useCustomerNotes();
@@ -330,38 +327,21 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const RESTRICTED = ["Checked In", "Active", "Completed"];
   const isRestricted = RESTRICTED.includes(status);
 
-  /* ── Form-fill window ──────────────────────────────────────────────────────
-     Each form unlocks at the status its stage belongs to:
-       Customer (Medical History)  — never locked; filled at registration
-       Before Service Starts       — from Active onward
-       After Service Starts        — only once the appointment is Completed
-     The old rule locked every service-stage form until Active and then released
-     all of them together, so a treatment form could be opened mid-service.
-     The button stays visible and the click is intercepted with a toast, so the
-     practitioner can see what is coming and when. */
-  const FORM_STAGE_UNLOCK = {
-    "before service starts": ["Active", "Completed"],
-    "after service starts":  ["Completed"],
-  };
-  const FORM_STAGE_MSG = {
-    "before service starts": "This form can be filled once the appointment is Active.",
-    "after service starts":  "This form can be filled once the appointment is marked Completed.",
-  };
-
+  // ── Form-fill window ────────────────────────────────────────────
+  // Before/After-service forms (consent, treatment) belong to the visit itself.
+  // While the appointment is still Booked / Confirmed / Checked In the service
+  // has not started, so the form is not opened — a toast explains when it
+  // becomes available. Customer forms (Medical History) are NOT gated: those
+  // are filled at registration, before the visit.
+  const FORM_LOCK_STATUSES = ["Booked", "Confirmed", "Checked In"];
+  const formsLocked        = FORM_LOCK_STATUSES.includes(status);
+  const FORMS_LOCKED_MSG   = "Forms are to be filled when the appointment is active.";
   // whenToFill comes from the service mapping; fall back to the status list.
-  const formStageOf = (form) => String(
-    form?.whenToFill
-    || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
-    || ""
-  ).trim().toLowerCase();
-
-  const formLockOf = (form) => {
-    const stage   = formStageOf(form);
-    const allowed = FORM_STAGE_UNLOCK[stage];
-    if (!allowed) return { locked: false, msg: "" };   // customer / unmapped stage
-    return allowed.includes(status)
-      ? { locked: false, msg: "" }
-      : { locked: true, msg: FORM_STAGE_MSG[stage] };
+  const isServiceStageForm = (form) => {
+    const when = form?.whenToFill
+      || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
+      || "";
+    return String(when).trim().toLowerCase() !== "customer";
   };
 
   const VISIBLE = (() => {
@@ -461,38 +441,25 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       setToast({ message: "Future appointments can only be set to Booked, Confirmed, or Cancelled.", type: "error" });
       return;
     }
-    /* ── Which transitions require forms ──────────────────────────────────────
-       Checked In → the customer form (Medical History)
-       Active     → forms due "Before Service Starts"
-       Completed  → treatment forms due "After Service Starts"
-       Check In was previously not gated at all, which is why Medical History
-       never opened on check-in. */
-    const gatedTo = FORM_GATED_STATUS[newStatus];
-    if (gatedTo) {
+    if (newStatus === "Active" || newStatus === "Completed") {
+      const toStatus    = newStatus === "Active" ? "Start" : "Completed";
       const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
       const canProceed  = await checkAndShowForms({
-        appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode,
-        toStatus: gatedTo,
+        appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode, toStatus,
         macroContext: {
           customerName:     appt?.fullName         || "",
           serviceName:      appt?.serviceName      || "",
           centreName:       user?.centerName       || "",
           practitionerName: appt?.therapistName    || "",
           appointmentDate:  appt?.startDate        || new Date().toISOString(),
-          MobileNumber:     appt?.number           || "",
-          Gender:           appt?.gender           || "",
         },
       });
       if (!canProceed) {
         // Form was shown (sidebar still open since we didn't close it) — user cancelled
         return;
       }
-      // Pull the fresh fill status before anything else happens on screen.
-      await refreshFormStatus();
-      // Forms complete — close sidebar so status change is visible on calendar.
-      // Check In is the exception: the receptionist stays on the sidebar, and
-      // closing it would hide the very form status she just updated.
-      if (gatedTo !== "CheckedIn") onClose?.();
+      // Forms complete — close sidebar so status change is visible on calendar
+      onClose?.();
     }
     setStatus(newStatus);
     sendStatusUpdate(
@@ -617,11 +584,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           {showMedHistory && (() => {
             const a = appt || appointment || {};
             const openMedHist = () => {
-              if (!medHistOpenCode) {
-                setToast({ message: "Medical History form is not configured for this centre.", type: "error" });
-                return;
-              }
-              openFormDirect(medHistOpenCode, {
+              openFormDirect(MED_HIST_CODE, {
                 customerName:     a.fullName         || "",
                 serviceName:      a.serviceName      || "",
                 centreName:       user?.centerName   || "",
@@ -629,7 +592,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                 appointmentDate:  a.startDate        || new Date().toISOString(),
                 MobileNumber:     a.number           || "",
                 Gender:           a.gender           || "",
-              }, "customer");   // standing customer record — prefill from it is correct
+              });
             };
             return (
               <button onClick={openMedHist} className="cstlnk" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -653,11 +616,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               activeForms.map(form => {
                 const filled = sidebarForms.find(f => f.formCode === form.formCode);
                 const isFilled = filled?.status === "Completed";
-                const { locked: isLocked, msg: lockMsg } = formLockOf(form);
+                const isLocked = formsLocked && isServiceStageForm(form);
                 const openForm = () => {
                   // Button stays visible; the click is intercepted with a toast.
                   if (isLocked) {
-                    setToast({ message: lockMsg, type: "error" });
+                    setToast({ message: FORMS_LOCKED_MSG, type: "error" });
                     return;
                   }
                   const a = appt || appointment || {};
@@ -667,7 +630,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     centreName:       user?.centerName   || "",
                     practitionerName: a.therapistName    || "",
                     appointmentDate:  a.startDate        || new Date().toISOString(),
-                  }, "appointment");   // per-visit: never prefill from an earlier appointment
+                  });
                 };
                 return (
                   <button key={form.formCode} onClick={openForm} className="cstlnk"
@@ -679,7 +642,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     {isFilled
                       ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc", whiteSpace:"nowrap" }}>✅ Done</span>
                       : isLocked
-                      ? <span title={lockMsg} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
+                      ? <span title={FORMS_LOCKED_MSG} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
                       : <span style={{ fontSize:10, fontWeight:700, background:"#f1f5f9", color:"#6e7b8f", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}>Open</span>
                     }
                   </button>
@@ -794,8 +757,43 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       {showPrecheck && precheckProps && <InvoicePrecheckModal {...precheckProps} />}
       {showModal && modalProps && <FormFillModal {...modalProps}
         onComplete={() => {
-          // Refresh sidebar form status after the form is submitted
-          refreshFormStatus();
+          // Refresh sidebar form status after consent/treatment form submitted
+          const svcCode = appt?.serviceCode || appointment?.serviceCode || "";
+          const aId     = appt?.appointmentId || appointment?.appointmentId || "";
+          const custId  = appt?.custId || appointment?.custId || "";
+          const key     = `${aId}|${svcCode}`;
+          _formStatusCache.delete(key);
+          const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+          Promise.all([
+            fetchFormStatus(aId, svcCode),
+            custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+              headers: { Authorization: `Bearer ${tok}` }
+            }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+          ]).then(([statusData, customerData]) => {
+            const serviceForms = statusData?.forms || [];
+            const inner = customerData?.data ?? customerData;
+            const customerForms = [
+              ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+              ...(Array.isArray(inner)                ? inner               : []),
+            ];
+            const customerFormRows = customerForms.map(cf => ({
+              formCode: cf.formCode, formName: cf.formName || cf.formCode,
+              whenToFill: "Customer", isMandatory: true, status: "Completed",
+            }));
+            const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
+            const merged = [
+              ...serviceForms,
+              ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
+            ];
+            setSidebarForms(merged);
+            const completed = merged.filter(f => f.status === "Completed").length;
+            setSidebarFormStatus(
+              merged.length === 0        ? null
+              : completed === merged.length ? "All Complete"
+              : completed > 0               ? "Partially Filled"
+              :                               "Not Started"
+            );
+          });
           // Also resolve the useEMRForms promise so status change proceeds
           modalProps.onComplete?.();
         }}
@@ -808,15 +806,52 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           serviceCode={appt?.serviceCode || appointment?.serviceCode || ""}
           centerCode={centerCode}
           macroContext={directMacro}
-          formScope={directScope}
           onClose={() => { setDirectModal(false); setDirectFormCode(null); }}
           onComplete={() => {
+            const fc = directFormCode;
             setDirectModal(false);
             setDirectFormCode(null);
-            // Refresh form status after submission (service + customer forms merged).
-            // The Medical History badge follows sidebarForms, so this one call
-            // updates both the badge and the FORMS list together.
-            refreshFormStatus();
+            // Refresh form status after submission
+            const svcCode = appt?.serviceCode || appointment?.serviceCode || "";
+            const aId     = appt?.appointmentId || appointment?.appointmentId || "";
+            const custId  = appt?.custId || appointment?.custId || "";
+            const key = `${aId}|${svcCode}`;
+            _formStatusCache.delete(key);
+            const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+            // Refresh both service forms AND customer forms to get accurate merged status
+            Promise.all([
+              fetchFormStatus(aId, svcCode),
+              custId ? fetch(`${API_BASE_URL}/api/EMR/Customer/${encodeURIComponent(custId)}/Forms`, {
+                headers: { Authorization: `Bearer ${tok}` }
+              }).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+            ]).then(([statusData, customerData]) => {
+              const serviceForms = statusData?.forms || [];
+              const inner = customerData?.data ?? customerData;
+              const customerForms = [
+                ...(Array.isArray(inner?.customerForms) ? inner.customerForms : []),
+                ...(Array.isArray(inner)                ? inner               : []),
+              ];
+              const customerFormRows = customerForms.map(cf => ({
+                formCode:   cf.formCode,
+                formName:   cf.formName || cf.formCode,
+                whenToFill: "Customer",
+                isMandatory: true,
+                status:     "Completed",
+              }));
+              const serviceFormCodes = new Set(serviceForms.map(f => f.formCode));
+              const merged = [
+                ...serviceForms,
+                ...customerFormRows.filter(cf => !serviceFormCodes.has(cf.formCode)),
+              ];
+              setSidebarForms(merged);
+              const completed = merged.filter(f => f.status === "Completed").length;
+              const overall = merged.length === 0        ? null
+                            : completed === merged.length ? "All Complete"
+                            : completed > 0               ? "Partially Filled"
+                            :                               "Not Started";
+              setSidebarFormStatus(overall);
+            });
+            if (fc === MED_HIST_CODE) setMedHistFilled(true);
           }}
         />
       )}
@@ -960,6 +995,11 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   // lock off ltrCtx therefore unlocked the fields on the second open.
   const [ltrLockCustId, setLtrLockCustId] = useState("");
   const ltrBookedRef = useRef(false);           // synchronous guard: booked vs cancelled
+  // True once the drawer has settled the conversion itself (booked OR cancelled).
+  // The walked-away safety net below stands down when this is set — onClose and
+  // onBooked have already called confirm/revert, and ltrBookedRef alone cannot be
+  // used for that because onClose resets it before the effect cleanup runs.
+  const ltrSettledRef = useRef(false);
   const [isDrawerOpen,        setIsDrawerOpen]       = useState(false);
   const [selectedCustomer,    setSelectedCustomer]   = useState(null);
   const [selectedTimeSlot,    setSelectedTimeSlot]   = useState(null);
@@ -1014,10 +1054,20 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       setLtrLockCustId(String(st.newCustomer.custId || st.newCustomer.custid || ""));
       setEditData(null);
       setLtrCtx(st.ltrConversion);
-      ltrBookedRef.current = false;
+      ltrBookedRef.current  = false;
+      ltrSettledRef.current = false;
+      console.log("[LTR] conversion armed — leaving without booking will revert", st.ltrConversion);
 
+      // Guard the campaign code: an oppCode is CENTRECODE-NNNNN. A stray path
+      // segment ("edit") would build /opportunity/edit/details and land the agent
+      // on a campaign that does not exist. Better to stay put than to redirect
+      // somewhere wrong.
       const oc = String(st.ltrConversion.oppCode || "").trim();
-      ltrReturnRef.current   = oc ? `/opportunity/${encodeURIComponent(oc)}/details` : "";
+      const validOc = /^[A-Za-z0-9]+-\d+$/.test(oc);
+      ltrReturnRef.current   = validOc ? `/opportunity/${encodeURIComponent(oc)}/details` : "";
+      if (oc && !validOc) {
+        console.warn("[LTR] unusable oppCode for return navigation:", oc);
+      }
       ltrReturnedRef.current = false;
       ltrOutcomeRef.current  = null;
 
@@ -1048,6 +1098,33 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     });
   };
 
+  /* LTR: revert a conversion abandoned by leaving the page rather than closing
+     the drawer. Covers SPA navigation (effect cleanup) and tab close / hard
+     refresh (pagehide). See the helpers at the top of the file for why the
+     cleanup path schedules instead of firing. */
+  useEffect(() => {
+    if (!ltrCtx) return;
+    const key = `${String(ltrCtx.leadSource || "").toUpperCase()}:${ltrCtx.leadRecId}`;
+    ltrCancelPendingRevert(key);   // mounted (or re-mounted) — nothing to revert yet
+
+    // pagehide, not beforeunload: Safari/iOS fires it reliably, and the
+    // Appointment module is used mostly on iPad.
+    const onPageHide = () => {
+      if (ltrBookedRef.current || ltrSettledRef.current) return;
+      ltrCancelPendingRevert(key);
+      ltrRevertNow(ltrCtx);
+    };
+    window.addEventListener("pagehide", onPageHide);
+
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      // The drawer already settled it — leave it alone.
+      if (ltrBookedRef.current || ltrSettledRef.current) return;
+      console.log("[LTR] left the page without booking — scheduling revert for", key);
+      ltrSchedulePendingRevert(key, ltrCtx);
+    };
+  }, [ltrCtx]);
+
   const fetchDoctors = async () => {
     try {
       const data = await authGet(`${API_BASE_URL}/api/Master/LoadAllPractioner/${user.centerCode||""}`);
@@ -1073,15 +1150,24 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     } catch (e) { console.error(e); }
   };
 
+  // Returns the mapped rows as well as setting state — the board search needs the
+  // new day's lines synchronously to open the sidebar on a hit from another date,
+  // and cannot wait for the state update to land.
+  // NOTE: `searchtext` is accepted by the endpoint but has no effect. getAppointments
+  // passes it to SpGetAppointmentDetails, then overrides the SP rows with a direct
+  // date+centre query that carries no search predicate. Board search goes through
+  // /SearchAppointments instead.
   const fetchAppointments = async (date) => {
     try {
       const data = await authPost(`${API_BASE_URL}/api/Appointment/GetAppDetails`, {
         appointmentdate: date, searchtext: "", centerCode: user.centerCode || "",
       });
-      setAppointments((Array.isArray(data) ? data : []).map(a => ({
+      const rows = (Array.isArray(data) ? data : []).map(a => ({
         ...a, starttime: a.startTime, doctorname: a.doctorName, isPaymentMade: a.isPaymentMade ?? 0,
-      })));
-    } catch (e) { console.error(e); }
+      }));
+      setAppointments(rows);
+      return rows;
+    } catch (e) { console.error(e); return []; }
   };
 
   useEffect(() => { fetchDoctors(); fetchAppointments(selectedDate); }, [selectedDate]);
@@ -1176,6 +1262,29 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         {Number(appt.isPaymentMade) > 0 && <div className="paidst">Paid</div>}
       </div>
     );
+  };
+
+  /* Board search hit → move the board to that appointment's date and open its
+     details sidebar. Every line of a booking carries its own REFERENCEID, so
+     allLines is gathered exactly the way openSidebar does it.
+     If the row is not on the refetched day (a practitioner login only ever sees
+     their own column, for instance) we still open the sidebar off the search hit
+     rather than swallowing the click. */
+  const openApptFromSearch = async (hit) => {
+    if (!hit) return;
+    const d = hit.appointmentDate || selectedDate;
+    let rows = appointments;
+    if (d && d !== selectedDate) {
+      setSelectedDate(d);
+      rows = await fetchAppointments(d);
+    }
+    const match = rows.find(a => a.appointmentId === hit.appointmentId);
+    const base  = match || {
+      ...hit, starttime: hit.startTime, doctorname: hit.doctorName,
+      isPaymentMade: hit.isPaymentMade ?? 0,
+    };
+    setSelectedAppointment({ ...base, allLines: rows.filter(a => a.appointmentId === base.appointmentId) });
+    setIsSidebarOpen(true);
   };
 
   const openSidebar = (appt) => {
@@ -1555,6 +1664,17 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
             <input type="date" value={selectedDate} onChange={e => { setSelectedDate(e.target.value); fetchAppointments(e.target.value); }} />
           </div>
           <div className="actbtnsdiv">
+             {/* Board search — Appt ID / customer name / mobile / invoice no, across
+                ALL dates. The old box here only searched the customer master and
+                could not surface a booking at all. */}
+            <AppointmentSearch
+              centerCode={user.centerCode || ""}
+              canBook={!isDoctorRole}
+              onOpenAppointment={openApptFromSearch}
+              onBookCustomer={item => guard("APPT.CREATE", () => {
+                setSelectedCustomer(item); setEditData(null); setIsDrawerOpen(true);
+              })}
+            />
             <Link to="/dashboard"  data-tooltip="Dashboard" data-tooltip-pos="right">
               <img src={`${import.meta.env.BASE_URL}images/homeicon.svg`} width="24" alt="Home" />
             </Link>
@@ -1578,25 +1698,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                 My Appointments
               </span>
             )}
-            <div className="search-container" style={{ position:"relative" }}>
-              <input type="text" placeholder="Search..." value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); fetchSuggestions(e.target.value); }} />
-              {suggestions.length > 0 && (
-                <div className="suggestionssrc" ref={suggestRef}>
-                  <ul>
-                    {suggestions.map((item, idx) => (
-                      <li key={idx} style={{ cursor:"pointer", padding:"4px 8px", display:"flex", justifyContent:"space-between", alignItems:"center" }}
-                        onClick={() => { setSearchTerm(`${item.firstName} - ${item.mobile}`); setSuggestions([]); }}>
-                        <span>{item.firstName} – {item.mobile}</span>
-                        <span onClick={e => { e.stopPropagation(); guard("APPT.CREATE", () => { setSelectedCustomer(item); setIsDrawerOpen(true); setSuggestions([]); setSearchTerm(""); }); }} className="bookappt">
-                          <img src={`${import.meta.env.BASE_URL}images/addapptblk.svg`} alt="Book" />
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+           
           </div>
         </div>
       </header>
@@ -1685,10 +1787,19 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
         <AppointmentDrawer
           isOpen={isDrawerOpen}
           onClose={() => {
+            // Stand the walked-away net down ONLY when this handler actually owns
+            // the outcome, i.e. ltrCtx is still here. Setting it unconditionally
+            // meant a close with ltrCtx already cleared did nothing AND suppressed
+            // the net, leaving the lead stuck at Converted. Set before the reset
+            // below, which clears ltrBookedRef ahead of the effect cleanup.
+            if (ltrCtx) ltrSettledRef.current = true;
             setIsDrawerOpen(false); setEditData(null); setSelectedTimeSlot(null);setSelectedCustomer(null); setLtrLockCustId("");
             // LTR: drawer closed without a successful booking → revert (Case A step 6b)
             if (ltrCtx && !ltrBookedRef.current) {
-              authPost(LTR_REVERT_URL, { ...ltrCtx }).catch(() => {});
+              console.log("[LTR] drawer closed without booking — reverting", ltrCtx);
+              authPost(LTR_REVERT_URL, { ...ltrCtx })
+                .then((r) => console.log("[LTR] revert ok", r))
+                .catch((e) => console.error("[LTR] revert FAILED", e?.status, e?.serverMessage || e?.message || e));
             }
             // Hand back BEFORE clearing ltrBookedRef — returnToCampaign falls back to
             // that flag when the outcome has not been recorded yet.
@@ -1697,7 +1808,8 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
           }}
           onBooked={async (info) => {
             // LTR: booking saved → record the Appointment ID against the lead (step 6a)
-            ltrBookedRef.current = true;             // synchronous: suppress the revert on close
+            ltrBookedRef.current  = true;            // synchronous: suppress the revert on close
+            ltrSettledRef.current = true;            // and the walked-away net below
             // Set BEFORE the await: onClose fires synchronously after this handler
             // starts, so anything recorded after the confirm POST lands too late and
             // the campaign page would announce a cancellation for a real booking.

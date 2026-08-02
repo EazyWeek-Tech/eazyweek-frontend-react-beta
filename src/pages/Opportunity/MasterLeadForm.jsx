@@ -6,6 +6,7 @@
   import CallButton from "../../components/CallButton";
   import { OPP_THEME_CSS } from "./opportunityTheme";
   import FollowUpHistoryModal from "./FollowUpHistoryModal";
+import ConvertedApptDialog from "./ConvertedApptDialog";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -406,6 +407,10 @@ const getCenterFromStorage = () => {
     ).trim();
 
     const [fuOpen, setFuOpen] = useState(false);   // follow-up history modal
+
+    // LTR Case B (FRD §6.3) — booking not mandatory: hold the ready-built
+    // Appointment-screen navigate state while the agent answers the dialog.
+    const [pendingBooking, setPendingBooking] = useState(null);
 
     const [toast, setToast] = useState({ show: false, msg: "" });
     const showToast = (msg) => {
@@ -1061,13 +1066,12 @@ if (!hasNone) {
 
         const saveRes = await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
 
-        // LTR Case A (FRD §6.2): Master leads already have a customer — on a converting
-        // save with booking mandatory, route straight to the Appointment Booking screen.
-        // Case B (not mandatory) → treat the save as final (Appointment ID shows Pending).
-        if (saveRes && saveRes.convert && saveRes.apptMandatory !== false && safe(resolvedCustID).trim()) {
+        // LTR conversion routing (FRD §6.2 / §6.3). Master leads already have a
+        // customer, so the only question is whether a booking is required.
+        if (saveRes && saveRes.convert && safe(resolvedCustID).trim()) {
           const cid = safe(resolvedCustID).trim();
           const pf  = saveRes?.prefillCustomer || {};
-          navigate(APPOINTMENT_ROUTE, { state: {
+          const bookingState = {
             ltrConversion: {
               leadSource: saveRes.leadSource || "TRANS",
               leadRecId:  String(saveRes.leadRecId || recID),
@@ -1087,7 +1091,20 @@ if (!hasNone) {
               gender:      safe(pf.gender).trim(),
               countryCode: safe(pf.countryCode).trim() || safe(form.countryCode).trim(),
             },
-          }});
+          };
+
+          // Case A — booking mandatory: no dialog, straight to the booking screen.
+          // Leaving it without saving reverts the lead to WIP (Appointment/index.jsx).
+          if (saveRes.apptMandatory !== false) {
+            navigate(APPOINTMENT_ROUTE, { state: bookingState });
+            return;
+          }
+
+          // Case B — booking not mandatory: ask. Yes routes to the same screen (and
+          // carries the same revert-on-abandon rule); No leaves the lead Converted
+          // with Appointment ID = Pending, mapped later from Campaign Details.
+          setPendingBooking(bookingState);
+          setSaving(false);
           return;
         }
 
@@ -1471,6 +1488,16 @@ if (!hasNone) {
           open={fuOpen}
           onClose={() => setFuOpen(false)}
           oppRecId={recID}
+        />
+
+        {/* LTR Case B (FRD §6.3) — only reached when the campaign has
+            Appt Booking Mandatory = No. */}
+        <ConvertedApptDialog
+          open={!!pendingBooking}
+          custId={safe(resolvedCustID).trim()}
+          existing
+          onBook={() => { const st = pendingBooking; setPendingBooking(null); navigate(APPOINTMENT_ROUTE, { state: st }); }}
+          onSkip={() => { setPendingBooking(null); showToast("Saved successfully"); navigate(-1); }}
         />
 
         <style jsx="true">{OPP_THEME_CSS}</style>

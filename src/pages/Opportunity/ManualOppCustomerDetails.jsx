@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
 import { OPP_THEME_CSS } from "./opportunityTheme";
+import ConvertedApptDialog from "./ConvertedApptDialog";
 
 
 /** ---------------- Helpers ---------------- */
@@ -64,10 +65,19 @@ const getOppCodeFromUrl = (paramsOppCode, location) => {
   const direct = safe(paramsOppCode).trim();
   if (direct) return direct;
 
+  /* The EDIT route is /manuallead/edit/:leadOppId — it carries no campaign code,
+     so the segment after "manuallead" is the literal word "edit". Reading it as
+     an oppCode produced URLs like /opportunity/edit/details, which is why a
+     converted manual lead did not land back on its campaign. The campaign page
+     passes the real code in navigate state, so prefer that. */
+  const fromState = safe(location?.state?.oppCode).trim();
+  if (fromState) return fromState;
+
   const parts = (location?.pathname || "").split("/").filter(Boolean);
   // expecting: ["manuallead", "Bright-00522", "BRI197?"]
   const idx = parts.findIndex((p) => norm(p) === "manuallead");
-  return idx >= 0 ? safe(parts[idx + 1]).trim() : "";
+  const next = idx >= 0 ? safe(parts[idx + 1]).trim() : "";
+  return norm(next) === "edit" ? "" : next;
 };
 
 /** ✅ Local date/time formatter (NO UTC / NO 'Z') */
@@ -687,7 +697,12 @@ const ManualOppCustomerDetails = () => {
   // LTR: mount path of the Appointment module.  VERIFY against your router.
   const APPOINTMENT_ROUTE = "/appointment";
 
-  const resolvedOppCode = useMemo(() => getOppCodeFromUrl(params.oppCode, locationObj), [params.oppCode, locationObj.pathname]);
+  const resolvedOppCode = useMemo(
+    () => getOppCodeFromUrl(params.oppCode, locationObj),
+    // state matters now (see getOppCodeFromUrl) — the pathname alone is not enough
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [params.oppCode, locationObj.pathname, locationObj.state?.oppCode]
+  );
 
   const [campaignRecId, setCampaignRecId] = useState(0);
   // ✅ Centre of the campaign this lead is being added to (from getCampaign).
@@ -1814,17 +1829,20 @@ const subMediumName = safe(form.subMedium || "Manual");
   // dialog styles (kept inline to mirror the external form)
   const cBtn   = { background: "#18396E", color: "#fff", border: 0, borderRadius: 10, padding: "10px 22px", fontWeight: 700, cursor: "pointer" };
 
-  // Dialog action — carry the freshly-created customer into Appointment Booking
-  // (LTR Case A, FRD 6.2).
-  const handleBookAppointment = () => {
-    const newCustId = convertedCustomer?.custId || "";
-    setShowConvertedPopup(false);
-    if (!newCustId) { navigate(-1); return; }
+  // Route to Appointment Booking with the converted lead's customer.
+  // Called two ways: directly after a converting save when the campaign has
+  // Appt Booking Mandatory = Yes (no dialog — FRD 6.2 Case A), and from the
+  // dialog's Yes button when it is No (FRD 6.3). Both take the customer and the
+  // context as arguments because setState has not flushed on the direct path.
+  const goToBooking = (custIdArg, ctxArg) => {
+    const newCustId = String(custIdArg || convertedCustomer?.custId || "").trim();
+    const ctx = ctxArg || convertCtx;
+    if (!newCustId) { navigate(isEdit ? -1 : (isLead ? -1 : -2)); return; }
     navigate(APPOINTMENT_ROUTE, { state: {
       ltrConversion: {
-        leadSource: convertCtx?.leadSource || "MANUAL",
-        leadRecId:  convertCtx?.leadRecId || String(numericLeadOppId || ""),
-        oppCode:    convertCtx?.oppCode || safe(resolvedOppCode).trim(),
+        leadSource: ctx?.leadSource || "MANUAL",
+        leadRecId:  ctx?.leadRecId || String(numericLeadOppId || ""),
+        oppCode:    ctx?.oppCode || safe(resolvedOppCode).trim(),
         custId:     newCustId,
       },
       newCustomer: {
@@ -1837,8 +1855,16 @@ const subMediumName = safe(form.subMedium || "Manual");
     }});
   };
 
-  // Dialog action — skip booking. The lead stays Converted and shows under
-  // "Pending for Appt Mapping" in the LTR funnel until an appointment is mapped.
+  // Dialog action — Yes. Same destination and same revert-on-abandon rule as the
+  // mandatory path: leaving the booking screen unsaved puts the lead back to
+  // WIP + "Appointment Booking Failed".
+  const handleBookAppointment = () => {
+    setShowConvertedPopup(false);
+    goToBooking();
+  };
+
+  // Dialog action — No. The lead stays Converted with Appointment ID = Pending
+  // and is mapped later from the Appointment ID dropdown on Campaign Details.
   const handleSkipAppointment = () => {
     setShowConvertedPopup(false);
     navigate(isEdit ? -1 : (isLead ? -1 : -2));
@@ -1867,13 +1893,17 @@ const subMediumName = safe(form.subMedium || "Manual");
         // updateLead returns { success, message, data:{ convert, customer, customerError } }
         const rd = saveRes?.data ?? saveRes;
         if (rd?.convert) {
-          // LTR: remember conversion context for post-customer routing (Case A).
-          setConvertCtx({
-            apptMandatory,
+          // LTR: conversion context for post-customer routing. Prefer the save
+          // response's flag over the campaign fetch, and keep a local copy — the
+          // direct (mandatory) route below runs before setState has flushed.
+          const mandatory = (rd?.apptMandatory ?? apptMandatory) !== false;
+          const ctx = {
+            apptMandatory: mandatory,
             leadSource: "MANUAL",
             leadRecId:  String(numericLeadOppId || ""),
             oppCode:    safe(resolvedOppCode).trim(),
-          });
+          };
+          setConvertCtx(ctx);
 
           if (rd.customerError) {
             // Lead converted but the customer write failed — never fail silently.
@@ -1895,18 +1925,15 @@ const subMediumName = safe(form.subMedium || "Manual");
                 ? `Converted - linked to customer ${cust.custId}`
                 : `Lead converted - customer ${cust.custId} created`
             );
-            // Campaign created with "Appt Booking Mandatory = No" → the conversion
-            // is complete without a booking, so don't offer the dialog at all. The
-            // lead sits under "Pending for Appt Mapping" in the LTR funnel until an
-            // appointment is mapped — exactly where Cancel would have left it.
-            // Prefer the save response; fall back to the campaign fetch.
-            if ((rd?.apptMandatory ?? apptMandatory) === false) {
-              setSaving(false);
-              navigate(-1);
-              return;
-            }
-            setShowConvertedPopup(true);
             setSaving(false);
+
+            // Case A (FRD 6.2) — booking mandatory: no dialog at all, go straight
+            // to the Appointment screen. The conversion only sticks if a booking
+            // is saved there; abandoning it reverts the lead to WIP.
+            if (mandatory) { goToBooking(cust.custId, ctx); return; }
+
+            // Case B (FRD 6.3) — booking not mandatory: ask.
+            setShowConvertedPopup(true);
             return;
           }
         }
@@ -1936,12 +1963,15 @@ const subMediumName = safe(form.subMedium || "Manual");
       // Created directly as Converted — same flow as converting from the edit
       // screen: the customer already exists, so confirm it and offer booking.
       if (cd?.convert) {
-        setConvertCtx({
-          apptMandatory,
+        // Same as the edit branch: response flag wins, local copy for the direct route.
+        const mandatory = (cd?.apptMandatory ?? apptMandatory) !== false;
+        const ctx = {
+          apptMandatory: mandatory,
           leadSource: "MANUAL",
           leadRecId:  String(cd?.leadOppId || ""),
           oppCode:    safe(resolvedOppCode).trim(),
-        });
+        };
+        setConvertCtx(ctx);
 
         if (cd.customerError) {
           alert(
@@ -1962,14 +1992,13 @@ const subMediumName = safe(form.subMedium || "Manual");
               ? `Lead converted - linked to existing customer ${cust.custId}`
               : `Lead converted - customer ${cust.custId} created`
           );
-          // "Appt Booking Mandatory = No" — see the edit branch above.
-          if ((cd?.apptMandatory ?? apptMandatory) === false) {
-            setSaving(false);
-            navigate(isLead ? -1 : -2);
-            return;
-          }
-          setShowConvertedPopup(true);
           setSaving(false);
+
+          // Case A — booking mandatory: straight to the Appointment screen.
+          if (mandatory) { goToBooking(cust.custId, ctx); return; }
+
+          // Case B — booking not mandatory: ask.
+          setShowConvertedPopup(true);
           return;
         }
       }
@@ -2333,30 +2362,16 @@ const subMediumName = safe(form.subMedium || "Manual");
 
       <style jsx="true">{OPP_THEME_CSS}</style>
 
-      {showConvertedPopup && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(460px, 92vw)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>
-              {convertedCustomer?.existing ? "Opportunity Converted" : "Lead Converted"}
-            </h3>
-            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
-              {convertedCustomer?.existing ? "This record is linked to customer" : "The customer has been created"}
-              {convertedCustomer?.custId ? <> {convertedCustomer?.existing ? null : "as "}<strong>{convertedCustomer.custId}</strong></> : null}.
-              Would you like to book an appointment now?
-            </p>
-            {!convertedCustomer?.existing && (
-              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#888" }}>
-                Nationality, date of birth and gender are not set yet — complete them in
-                Customer Master before this customer is billed.
-              </p>
-            )}
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={handleSkipAppointment} style={{ ...cBtn, background: "#e0e0e0", color: "#333" }}>Cancel</button>
-              <button onClick={handleBookAppointment} style={cBtn}>Book Appointment</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* LTR Case B (FRD 6.3) — only reached when the campaign has
+          Appt Booking Mandatory = No. */}
+      <ConvertedApptDialog
+        open={showConvertedPopup}
+        custId={convertedCustomer?.custId || ""}
+        existing={!!convertedCustomer?.existing}
+        showProfileNote={!convertedCustomer?.existing}
+        onBook={handleBookAppointment}
+        onSkip={handleSkipAppointment}
+      />
     </div>
   );
 };

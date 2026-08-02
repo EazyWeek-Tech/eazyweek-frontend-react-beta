@@ -73,19 +73,23 @@ const fmtApptOption = (a) => {
 };
 
 // Appointment ID cell — read-only when mapped or not-converted; an editable
-// future-appointments dropdown when the lead is Converted but still Pending (Case B).
+// future-appointments dropdown when the lead is Converted but still Pending.
+//
+// This dropdown is the Case B (FRD §6.3) landing spot: with Appt Booking Mandatory
+// = No the agent can convert and decline the booking, which leaves the lead
+// Converted with Appointment ID = Pending until it is mapped from here. It stays
+// available on mandatory campaigns too — a converted lead should never be stuck
+// at Pending with no way to fix it if the auto-link missed.
+//
+// (This replaces the old "NA" rendering for non-mandatory campaigns. Under the
+// new conversion rules those are exactly the rows that DO need mapping.)
 function ApptMapCell({ leadSource, recId, custId, oppCode, disposition, mapped, onLinked, apptMandatory=true }) {
   const conv = String(disposition || "").trim().toLowerCase().startsWith("converted");
   const [opts, setOpts] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // A booking that already exists always wins — showing NA over a real
-  // Appointment ID would hide data.
+  // A booking that already exists always wins.
   if (mapped) return <span>{mapped}</span>;
-  // Campaign created with "Appt Booking Mandatory = No": the column does not
-  // apply, so nothing is Pending and there is nothing to map.
-  if (apptMandatory === false)
-    return <span className="cd-dash" title="Appointment booking is not mandatory for this campaign">NA</span>;
   if (!conv)  return <span>{"—"}</span>;
   if (!String(custId || "").trim())
     return <span title="No customer linked yet">Pending</span>;
@@ -115,7 +119,9 @@ function ApptMapCell({ leadSource, recId, custId, oppCode, disposition, mapped, 
       onMouseDown={load}
       onFocus={load}
       onChange={(e) => pick(e.target.value)}
-      title="Map a future appointment (Converted lead)"
+      title={apptMandatory === false
+        ? "Appointment mapping pending — pick one of this customer's future appointments"
+        : "Map a future appointment (Converted lead)"}
       style={{ maxWidth: 180, fontSize: 12, padding: "4px 6px" }}
     >
       <option value="">{busy ? "Loading\u2026" : "Pending — map…"}</option>
@@ -181,6 +187,10 @@ const fmt12h = (hhmmss, ampm) => {
 const to12hLabel = (s) => {
   const t = String(s ?? "").trim();
   if (!t) return "";
+  // A blank follow-up is stored as a zero time on some rows, not as NULL, which
+  // rendered as "12:00 AM" next to an empty Follow Up Date. Midnight is never a
+  // real choice — the picker only offers 01:00–12:30 — so treat it as blank.
+  if (/^0{1,2}:00(:00)?$/.test(t)) return "";
   let m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (m) return `${String(m[1]).padStart(2,"0")}:${m[2]} ${m[3].toUpperCase()}`;
   m = t.match(/T(\d{2}):(\d{2})/) || t.match(/^(\d{1,2}):(\d{2})/);

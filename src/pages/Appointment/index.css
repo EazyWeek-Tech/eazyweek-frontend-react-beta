@@ -65,7 +65,7 @@ body{background:var(--bg);color:var(--text);}
 }
 .apptimg:hover,.apptstgs:hover{background:rgba(255,255,255,.28);}
 
-.actbtnsdiv .search-container{position:relative;display:none;}
+.actbtnsdiv .search-container{position:relative;top:15px;}
 .search-container input{
   background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
   padding:7px 12px;width:190px;border-radius:var(--r);

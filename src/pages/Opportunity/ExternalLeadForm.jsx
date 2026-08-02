@@ -6,6 +6,7 @@
   import CallButton from "../../components/CallButton";
   import { OPP_THEME_CSS } from "./opportunityTheme";
   import FollowUpHistoryModal from "./FollowUpHistoryModal";
+import ConvertedApptDialog from "./ConvertedApptDialog";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -927,17 +928,20 @@ if (!hasNone) {
       return Object.keys(e).length === 0;
     };
 
-    // Dialog action — carry the freshly-created customer into Appointment Booking
-    // (LTR Case A, FRD §6.2).
-    const handleBookAppointment = () => {
-      const newCustId = convertedCustomer?.custId || "";
-      setShowConvertedPopup(false);
+    // Route to Appointment Booking with the converted lead's customer.
+    // Called two ways: directly after a converting save when the campaign has
+    // Appt Booking Mandatory = Yes (no dialog — FRD §6.2 Case A), and from the
+    // dialog's Yes button when it is No (FRD §6.3). Both take the customer and
+    // context as arguments because setState has not flushed on the direct path.
+    const goToBooking = (custIdArg, ctxArg) => {
+      const newCustId = String(custIdArg || convertedCustomer?.custId || "").trim();
+      const ctx = ctxArg || convertCtx;
       if (!newCustId) { navigate(-1); return; }
       navigate(APPOINTMENT_ROUTE, { state: {
         ltrConversion: {
-          leadSource: convertCtx?.leadSource || "EXTERNAL",
-          leadRecId:  convertCtx?.leadRecId || String(recID),
-          oppCode:    convertCtx?.oppCode || safe(resolvedOppCode).trim(),
+          leadSource: ctx?.leadSource || "EXTERNAL",
+          leadRecId:  ctx?.leadRecId || String(recID),
+          oppCode:    ctx?.oppCode || safe(resolvedOppCode).trim(),
           custId:     newCustId,
         },
         newCustomer: {
@@ -950,8 +954,16 @@ if (!hasNone) {
       }});
     };
 
-    // Dialog action — skip booking. The lead stays Converted and shows under
-    // "Pending for Appt Mapping" in the LTR funnel until an appointment is mapped.
+    // Dialog action — Yes. Same destination and same revert-on-abandon rule as
+    // the mandatory path: leaving the booking screen unsaved puts the lead back
+    // to WIP + "Appointment Booking Failed".
+    const handleBookAppointment = () => {
+      setShowConvertedPopup(false);
+      goToBooking();
+    };
+
+    // Dialog action — No. The lead stays Converted with Appointment ID = Pending
+    // and is mapped later from the Appointment ID dropdown on Campaign Details.
     const handleSkipAppointment = () => {
       setShowConvertedPopup(false);
       navigate(-1);
@@ -1013,13 +1025,16 @@ if (!hasNone) {
 
         // Converting disposition → the save already created the customer.
         if (saveRes && saveRes.convert) {
-          // LTR: remember whether this campaign mandates appointment booking (Case A)
-          setConvertCtx({
+          // LTR: remember whether this campaign mandates appointment booking.
+          // Held in a local too — the direct (mandatory) route below runs before
+          // this setState has flushed.
+          const ctx = {
             apptMandatory: saveRes.apptMandatory !== false,
             leadSource:    saveRes.leadSource || "EXTERNAL",
             leadRecId:     String(saveRes.leadRecId || recID),
             oppCode:       safe(resolvedOppCode).trim(),
-          });
+          };
+          setConvertCtx(ctx);
 
           if (saveRes.customerError) {
             // Lead converted but the customer write failed — never fail silently.
@@ -1037,8 +1052,15 @@ if (!hasNone) {
           if (cust && cust.custId) {
             setConvertedCustomer(cust);
             showToast(`Lead converted - customer ${cust.custId} created`);
-            setShowConvertedPopup(true);
             setSaving(false);
+
+            // Case A (FRD §6.2) — booking mandatory: no dialog at all, go straight
+            // to the Appointment screen. The conversion only sticks if a booking is
+            // saved there; abandoning it reverts the lead to WIP.
+            if (ctx.apptMandatory) { goToBooking(cust.custId, ctx); return; }
+
+            // Case B (FRD §6.3) — booking not mandatory: ask.
+            setShowConvertedPopup(true);
             return;
           }
 
@@ -1508,26 +1530,15 @@ if (!hasNone) {
 
         <style jsx="true">{OPP_THEME_CSS}</style>
 
-      {showConvertedPopup && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "min(460px, 92vw)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>Lead Converted</h3>
-            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
-              The customer has been created
-              {convertedCustomer?.custId ? <> as <strong>{convertedCustomer.custId}</strong></> : null}.
-              Would you like to book an appointment now?
-            </p>
-            <p style={{ margin: "0 0 20px", fontSize: 12, color: "#888" }}>
-              Nationality, date of birth and gender are not set yet — complete them in
-              Customer Master before this customer is billed.
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={handleSkipAppointment} style={{ ...cBtn, background: "#e0e0e0", color: "#333" }}>Cancel</button>
-              <button onClick={handleBookAppointment} style={cBtn}>Book Appointment</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* LTR Case B (FRD §6.3) — only reached when the campaign has
+          Appt Booking Mandatory = No. */}
+      <ConvertedApptDialog
+        open={showConvertedPopup}
+        custId={convertedCustomer?.custId || ""}
+        showProfileNote
+        onBook={handleBookAppointment}
+        onSkip={handleSkipAppointment}
+      />
       </div>
     );
   };
