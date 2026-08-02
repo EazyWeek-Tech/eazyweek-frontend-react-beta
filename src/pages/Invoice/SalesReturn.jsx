@@ -260,6 +260,10 @@ const RecallInvoiceModal = ({ onSelect, onClose, custId }) => {
 };
 
 // ── STEP 4 — Return Item Selection ───────────────────────────────────────────
+// Currency rounding helper — keeps VAT splits at 2dp so the header totals the
+// repository derives from these lines match the line figures exactly.
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
   const [data,     setData]     = useState(null);
   const [reasons,  setReasons]  = useState([]);
@@ -335,16 +339,34 @@ const ReturnItemSelection = ({ invoiceNum, onNext, onCancel }) => {
     if (allReturned) { setErrors({ lines: "All items on this invoice have already been returned." }); return; }
     const returnLines = Object.keys(selected).map(lineNo => {
       const line = data.lines.find(l => l.lineNo === Number(lineNo));
+      // The amount the cashier types is GROSS (it is capped at availableAmt, which
+      // is derived from FINALAMOUNT). Split it back into net + VAT using the
+      // ORIGINAL line's own ratio, so the return carries the same tax that was
+      // charged: an Expat line returns its VAT, a Citizen (zero-VAT) line returns 0,
+      // and a partial return gets a proportional share. Previously salesAmount was
+      // set to the gross figure and taxAmount hardcoded to 0, so the return document
+      // was written with NETPRICE = gross and TAX = 0 and the tax column read 0.
+      const grossReturn = line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned) || 0;
+      const origGross   = parseFloat(line.amtPaid   || 0);   // original FINALAMOUNT
+      const origTax     = parseFloat(line.taxAmount || 0);   // original TAXAMOUNT
+      const taxReturned =
+        grossReturn > 0 && origGross > 0 && origTax > 0
+          ? round2(origTax * (grossReturn / origGross))
+          : 0;
+      // Net is derived by subtraction so net + tax is always exactly the amount
+      // refunded — no rounding drift between the header and the lines.
+      const netReturned = round2(grossReturn - taxReturned);
+
       return {
         lineNo:            Number(lineNo),
         itemCode:          line.itemCode,
         itemName:          line.itemName,
         itemType:          line.itemType,
         qtyReturned:       parseInt(selected[lineNo].qtyReturned),
-        amtReturned:       line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
-        salesAmount:       line.isPackageRedeemed ? 0 : parseFloat(selected[lineNo].amtReturned),
+        amtReturned:       grossReturn,
+        salesAmount:       netReturned,
         isPackageRedeemed: line.isPackageRedeemed || false,
-        taxAmount:         0,
+        taxAmount:         taxReturned,
       };
     });
     const totalReturn = returnLines.reduce((s, l) => s + l.amtReturned, 0);
@@ -717,7 +739,7 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
           <td style="border:1px solid #000;padding:6px">${item.itemName}</td>
           <td style="border:1px solid #000;padding:6px">${item.quantity ?? 1}</td>
           <td style="border:1px solid #000;padding:6px">-${Math.abs(item.salesAmount ?? 0).toFixed(2)}</td>
-          <td style="border:1px solid #000;padding:6px">-${Math.abs(item.taxamount  ?? 0).toFixed(2)}</td>
+          <td style="border:1px solid #000;padding:6px">-${Math.abs(item.taxAmount ?? item.taxamount ?? 0).toFixed(2)}</td>
           <td style="border:1px solid #000;padding:6px">-${Math.abs(item.finalAmount ?? 0).toFixed(2)}</td>
         </tr>`).join("");
 

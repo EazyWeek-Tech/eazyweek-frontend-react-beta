@@ -93,7 +93,7 @@ const InvoiceDetails = () => {
                 {isReturn ? "-" : ""}{Math.abs(item.salesAmount ?? 0).toFixed(2)}
               </td>
               <td style={{ color: isReturn ? "#b91c1c" : undefined }}>
-                {isReturn ? "-" : ""}{Math.abs(item.taxamount ?? 0).toFixed(2)}
+                {isReturn ? "-" : ""}{Math.abs(item.taxAmount ?? item.taxamount ?? 0).toFixed(2)}
               </td>
               <td style={{ color: isReturn ? "#b91c1c" : undefined, fontWeight: 700 }}>
                 {isReturn ? "-" : ""}{Math.abs(item.finalAmount ?? 0).toFixed(2)}
