@@ -442,6 +442,18 @@ const PaymentBlock = ({
     if (!customer && !apiCustomer) return null;
     // api first -> then parent non-empty wins
     const merged = mergeNonEmpty(apiCustomer || {}, customer || {});
+
+    /* …except for `status`. mergeNonEmpty only asks whether the parent's value is
+       non-empty, and CUSTOMERTYPE legitimately holds lifecycle values like 'New'.
+       A parent status of 'New' is non-empty, so it won the merge and buried the
+       Citizen/Expat the appointment API had already worked out — and the invoice
+       then asked for a nationality that was on file. Only a real tax class may
+       displace another real tax class. */
+    if (!isTaxClassified(merged.status)) {
+      const classified = [customer?.status, apiCustomer?.status].find(isTaxClassified);
+      if (classified) merged.status = classified;
+    }
+
     return natOverride ? { ...merged, ...natOverride } : merged;
   }, [apiCustomer, customer, natOverride]);
 
@@ -1137,6 +1149,41 @@ const PaymentBlock = ({
     }
   };
 
+  /* Read Citizen/Expat straight off the customer master. Used as a second look
+     before the nationality modal is raised. Prefers a persisted Citizen/Expat
+     over the nationality code, and reads every spelling the customer endpoints
+     use for the code — SaveCustomer returns nationalityCode, FetchCustomerDetails
+     nationalityId, the raw row NATIONALITY_ID — because a value written under one
+     name and read under another is exactly how this went wrong. */
+  const readCustomerClassification = async () => {
+    const custId = effectiveCustomer?.custId || effectiveCustomer?.custid || custIdFromUrl;
+    if (!custId) return { status: '', natCode: '' };
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/Customer/FetchCustomerDetails`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ custID: custId }),
+      });
+      if (!r.ok) return { status: '', natCode: '' };
+      const det = unwrapRecord(await r.json()) || {};
+
+      const rawType = String(det.customerType ?? det.CUSTOMERTYPE ?? '').trim();
+      const natCode = String(
+        det.nationalityCode ?? det.nationalityId ?? det.NATIONALITY_ID ?? det.NATIONALITYCODE ?? ''
+      ).trim();
+
+      const persisted = isTaxClassified(rawType) ? rawType : '';
+      const derived   = natCode && natCode !== '0' ? (natCode === '84' ? 'Citizen' : 'Expat') : '';
+      const status    = persisted || derived;
+
+      console.debug('[nationality] re-read before modal:', { custId, rawType, natCode, status });
+      return { status, natCode };
+    } catch (e) {
+      console.warn('[nationality] re-read failed:', e?.message);
+      return { status: '', natCode: '' };
+    }
+  };
+
   const handleSubmitInvoice = async () => {
     // Already created an invoice in this session — never submit again (the popup
     // may have been dismissed without resetting). Re-open the success popup instead.
@@ -1155,6 +1202,40 @@ const PaymentBlock = ({
     // customer's nationality. With no nationality the totals on screen are a
     // guess, so the invoice is held and the nationality is captured first.
     if (!isTaxClassified(effectiveCustomer?.status)) {
+      /* Before asking again, re-read the customer record. The nationality may
+         have been added moments ago by the pre-check on the appointment sidebar
+         ("Save & Continue to Payment"), which writes through SaveCustomer — a
+         different field set from the one the appointment payload carried into
+         this page. Without this the receptionist is asked for the same
+         nationality twice in the same click-through. */
+      const fresh = await readCustomerClassification();
+      if (fresh.status) {
+        const patch = {
+          status:          fresh.status,
+          customerType:    fresh.status,
+          nationalityCode: fresh.natCode,
+          nationalityId:   fresh.natCode,
+        };
+        setNatOverride(patch);
+        onCustomerUpdated?.({ ...(effectiveCustomer || {}), ...patch });
+
+        if (fresh.status.toLowerCase() === 'citizen') {
+          /* Same hazard as the modal path: Citizen means no VAT, so every total
+             on screen has just dropped and any payment already entered was sized
+             against the old amount. Stop rather than bill the difference. */
+          setFormError(
+            'This customer is a Citizen, so VAT does not apply and the total has changed. ' +
+            'Please re-check the payment amount against the new total, then submit again.'
+          );
+          return;
+        }
+
+        // Expat: the rate already used still applies, so resume once the status
+        // has landed in effectiveCustomer.
+        resumeSubmitRef.current = true;
+        return;
+      }
+
       setFormError('');
       setNatErr('');
       setShowNatModal(true);

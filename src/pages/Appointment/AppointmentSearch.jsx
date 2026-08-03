@@ -239,8 +239,7 @@ const AppointmentSearch = ({
         }}
         style={{
           width: "100%", height: 34, boxSizing: "border-box",
-          padding: term ? "6px 26px 6px 10px" : "6px 10px",
-          background: "#fff", color: "#25344B",
+          padding: term ? "6px 26px 6px 10px" : "6px 10px", color: "#25344B",
           border: "1px solid #C8D5E8", borderRadius: 6,
           fontSize: 12, fontFamily: "Lato,sans-serif", outline: "none",
           display: "block", opacity: 1, visibility: "visible",

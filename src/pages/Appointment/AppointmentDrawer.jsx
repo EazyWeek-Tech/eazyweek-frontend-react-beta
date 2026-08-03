@@ -283,10 +283,32 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
 
   useEffect(() => {
     const user = getUser();
-    if (!user.centerCode) return;
-    authGet(`${API_BASE_URL}/api/Master/LoadRoom/${user.centerCode}`)
-      .then(d => setRooms(Array.isArray(d) ? d : []))
-      .catch(() => setRooms([]));
+    if (!user.centerCode) {
+      console.warn("[rooms] no centerCode on the session — room list not loaded");
+      return;
+    }
+    /* Centre codes are free text and several contain a space ("Centriq Clinics"),
+       so the code goes in the path encoded. Unencoded it produced a URL the route
+       did not match, and the failure then vanished into an empty catch — which is
+       what an empty Room dropdown with no error looks like. */
+    authGet(`${API_BASE_URL}/api/Master/LoadRoom/${encodeURIComponent(user.centerCode)}`)
+      .then(d => {
+        // authGet already unwraps { data }, but a paged or wrapped shape would
+        // arrive as an object and silently become [].
+        const list = Array.isArray(d) ? d
+                   : Array.isArray(d?.data)    ? d.data
+                   : Array.isArray(d?.rooms)   ? d.rooms
+                   : Array.isArray(d?.recordset) ? d.recordset
+                   : [];
+        if (!list.length) {
+          console.warn("[rooms] LoadRoom returned nothing usable for", user.centerCode, "- raw:", d);
+        }
+        setRooms(list);
+      })
+      .catch(e => {
+        console.error("[rooms] LoadRoom failed for", user.centerCode, "-", e?.message || e);
+        setRooms([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -351,7 +373,10 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   const handleChange = (e) => {
     const { id, value } = e.target;
     if (id === "room") {
-      const rm = rooms.find(r => (r.RoomNo??r.roomNo) === value || String(r.id) === String(value));
+      const rm = rooms.find(r =>
+        String(r.id ?? r.ROOMCODE ?? r.CCODE ?? "") === String(value) ||
+        String(r.roomNo ?? r.RoomNo ?? r.ROOMNO ?? "") === String(value)
+      );
       setForm(p => ({ ...p, room: value, equipment: rm?.Equipment ?? rm?.equipment ?? "N/A", roomDisplay: rm?.RoomNo ?? rm?.roomNo ?? value }));
     } else { setForm(p => ({ ...p, [id]: value })); }
   };
@@ -456,7 +481,14 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
               <label>Room:</label>
               <select id="room" value={form.room} onChange={handleChange}>
                 <option value="">Select Room</option>
-                {rooms.map((r,i) => <option key={i} value={r.id}>{r.roomNo??r.RoomNo}</option>)}
+                {rooms.map((r, i) => {
+                  // The API maps these to id/roomNo, but read the raw spellings
+                  // too so a shape change shows as a working list, not a blank one.
+                  const label = r.roomNo ?? r.RoomNo ?? r.ROOMNO ?? r.roomName ?? r.name ?? "";
+                  const value = r.id ?? r.ROOMCODE ?? r.CCODE ?? label;
+                  if (!label) return null;   // a blank option is worse than no option
+                  return <option key={value || i} value={value}>{label}</option>;
+                })}
               </select>
             </div>
             <span className="notebtn tooltip" data-tooltip="Add Note" onClick={() => setShowNote(true)}>

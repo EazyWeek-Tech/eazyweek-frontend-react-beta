@@ -26,6 +26,18 @@ const validDate = (yyyyMmDd) => {
   return yyyyMmDd <= new Date().toISOString().slice(0, 10);
 };
 
+// Read-only display of a stored date (e.g. the loyalty opt-in stamp).
+// Reuses formatDateForInput so the 0001/1900 "empty date" sentinels render blank.
+const formatDateForDisplay = (val) => {
+  const s = formatDateForInput(val);
+  if (!s) return "";
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt.getTime())
+    ? ""
+    : dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+
 // ─── Master data (loaded from API) ────────────────────────────────────────────
 // Fallback static lists used until API loads
 const PHONE_CODES = ["+966","+91","+971","+1","+44","+20","+92","+62","+60"].map(c=>({value:c,label:c}));
@@ -102,22 +114,25 @@ const GeneralTab = ({ customer }) => {
     if (errors[name]) setErrors(p => ({ ...p, [name]: "" }));
   };
 
+  /* Email, Gender and Date of Birth are OPTIONAL on Customer 360.
+     Reception often has only a name and a mobile number at the point of
+     creation, and blocking the save on the rest just produces junk values.
+     Format is still validated when a value IS supplied, so a typed email or
+     birth date can't be saved malformed. */
   const validate = () => {
     const e = {};
     if (!String(form.firstName   || "").trim()) e.firstName   = "Required";
     if (!String(form.lastName    || "").trim()) e.lastName    = "Required";
     if (!String(form.mobilePhone || "").trim()) e.mobilePhone = "Required";
-    if (!String(form.gender      || "").trim()) e.gender      = "Required";
-    if (!String(form.email       || "").trim()) {
-      e.email = "Required";
-    } else {
+
+    const email = String(form.email || "").trim();
+    if (email) {
       const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRx.test(form.email.trim())) e.email = "Enter a valid email address";
+      if (!emailRx.test(email)) e.email = "Enter a valid email address";
     }
 
     const dob = formatDateForInput(form.birthDay);
-    if (!dob)               e.birthDay = "Required";
-    else if (!validDate(dob)) e.birthDay = "Must be a valid past date";
+    if (dob && !validDate(dob)) e.birthDay = "Must be a valid past date";
 
     const ann = formatDateForInput(form.anniversary);
     if (ann && !validDate(ann)) e.anniversary = "Must be a valid past date";
@@ -188,6 +203,8 @@ const GeneralTab = ({ customer }) => {
     }
   };
 
+  const loyaltySince = formatDateForDisplay(form.loyaltyEnrolledDate);
+
   const chk = (name, label) => (
     <label className="gt-chk-label">
       <input type="checkbox" name={name}
@@ -224,7 +241,7 @@ const GeneralTab = ({ customer }) => {
             <F label="Preferred Name">
               <Inp name="preferredName" value={form.preferredName} onChange={handleChange} />
             </F>
-            <F label="Email" required error={errors.email}>
+            <F label="Email" error={errors.email}>
               <Inp name="email" type="email" value={form.email} onChange={handleChange}
                 placeholder="customer@example.com" />
             </F>
@@ -246,10 +263,10 @@ const GeneralTab = ({ customer }) => {
             <F label="Work Phone">
               <Inp name="workPhone" value={form.workPhone} onChange={handleChange} />
             </F>
-            <F label="Gender" required error={errors.gender}>
+            <F label="Gender" error={errors.gender}>
               <Sel name="gender" value={form.gender} onChange={handleChange} options={GENDERS} />
             </F>
-            <F label="Date of Birth" required error={errors.birthDay}>
+            <F label="Date of Birth" error={errors.birthDay}>
               <Inp name="birthDay" type="date"
                 value={formatDateForInput(form.birthDay)} onChange={handleChange}
                 max={new Date().toISOString().slice(0,10)} />
@@ -273,8 +290,12 @@ const GeneralTab = ({ customer }) => {
           {/* Preferences checkboxes */}
           <div className="gt-chk-grid">
             {chk("isLoyaltyEnrolled",       "Opt for Loyalty")}
-
-
+            {/* LOYALTY_ENROLLED_DATE is stamped server-side the first time the
+                flag is switched on — read-only here, so it can't be back-dated
+                from the form. Blank until the record is re-fetched after save. */}
+            {!!form.isLoyaltyEnrolled && !!loyaltySince && (
+              <span className="gt-chk-note">Opted in on {loyaltySince}</span>
+            )}
           </div>
         </Card>
 
@@ -375,6 +396,9 @@ const CSS = `
   .gt-chk-grid { display:flex; flex-wrap:wrap; gap:20px; }
   .gt-chk-label { display:flex; align-items:center; gap:8px;
     font-size:13.5px; color:#1a1f2e; cursor:pointer; }
+  .gt-chk-note { display:inline-flex; align-items:center; height:20px;
+    padding:0 10px; border-radius:999px; background:#eef2f7;
+    border:1px solid #dde1ea; font-size:12px; color:#6b7280; }
 
   .gt-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
   .gt-btn { height:40px; padding:0 28px; border-radius:8px;

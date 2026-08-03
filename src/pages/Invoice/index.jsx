@@ -188,9 +188,34 @@ const InvoicePage = () => {
                 .then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(d => {
                   const det = unwrapRecord(d) || {};
+
+                  /* Citizen/Expat, resolved the same way normalizeCustomer does.
+                     This branch used to take det.customerType at face value, but
+                     CUSTOMERTYPE doubles as a lifecycle marker and holds values
+                     like 'New' — which is not a tax class, yet is non-empty
+                     enough to win every downstream merge. It also never looked at
+                     the nationality code, so a nationality just saved by the
+                     appointment pre-check (which writes nationalityCode) left the
+                     status unclassified and the invoice asked for it a second
+                     time. Prefer a persisted Citizen/Expat, fall back to the
+                     code, and leave it blank rather than guessing — blank lets
+                     PaymentBlock's own resolution win instead of blocking it. */
+                  const rawType   = String(det?.customerType ?? det?.CUSTOMERTYPE ?? "").trim();
+                  const persisted = /^(citizen|expat)$/i.test(rawType) ? rawType : "";
+                  const natCode   = String(
+                    det?.nationalityCode ?? det?.nationalityId ?? det?.NATIONALITY_ID ?? ""
+                  ).trim();
+                  const derived   = natCode && natCode !== "0"
+                    ? (natCode === "84" ? "Citizen" : "Expat")
+                    : "";
+
                   setSelectedCustomer(prev => ({
                     ...prev,
-                    status: det?.customerType || prev.status,
+                    status: persisted || derived
+                            || (/^(citizen|expat)$/i.test(String(prev.status || "")) ? prev.status : ""),
+                    // Carry the code so CustomerSearch can show the nationality
+                    // name, and so nothing downstream has to re-fetch it.
+                    nationalityCode: prev.nationalityCode || natCode || "",
                     isLoyaltyEnrolled: !!(det?.isLoyaltyEnrolled ?? det?.IS_LOYALTY_ENROLLED ?? false),
                     recId: prev.recId || pickRecId(det),
                   }));

@@ -200,7 +200,17 @@ const SIDEBAR_LAYOUT_CSS = `
 .smdiv .apptcdet.custdiv .csttopdiv { flex: 1 1 auto; min-width: 0; }
 .smdiv .apptcdet.custdiv .cstnm,
 .smdiv .apptcdet.custdiv .cstno,
-.smdiv .apptcdet.custdiv .cstid { min-width: 0; overflow-wrap: anywhere; }
+.smdiv .apptcdet.custdiv .cstid,
+.smdiv .apptcdet.custdiv .cstapptid { min-width: 0; overflow-wrap: anywhere; }
+
+/* Appointment ID line under the customer id */
+.smdiv .apptcdet.custdiv .cstapptid {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334b71;
+  letter-spacing: .2px;
+  margin-top: 2px;
+}
 .smdiv .apptcdet.custdiv .cdtprof { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .smdiv .apptcdet.custdiv .cdtprof .cstlnk {
   max-width: 100%; box-sizing: border-box;
@@ -298,14 +308,35 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
      The code is now read from whatever /api/EMR/Customer/{custId}/Forms actually
      returns for this environment, matched on the form NAME. The literal stays as
      the fallback so beta behaves exactly as before if the lookup comes back empty. */
+  /* Known codes for this form across environments, newest first. Probed against
+     the form master when the two lookups above find nothing, so a 404 on one
+     code is corrected automatically instead of leaving the form unopenable.
+     A code that exists nowhere costs one failed GET and is then given up on. */
+  const MED_HIST_CANDIDATES = ["M001", "MED-HIST-001"];
   const MED_HIST_CODE_DEFAULT = "MED-HIST-001";
   const [medHistCode, setMedHistCode] = useState(MED_HIST_CODE_DEFAULT);
   // Ref mirror: the Checked In handler reads it in the same tick as the status
   // change, before a state update would have landed.
   const medHistCodeRef = useRef(MED_HIST_CODE_DEFAULT);
   const MED_HIST_CODE = medHistCode;
+  /* False while the code is still the untested fallback. The fallback is a guess
+     from another environment, so auto-opening it would put an empty modal on
+     screen with no form behind it. Nothing opens itself until this is true. */
+  const medHistResolvedRef = useRef(false);
+
+  /* CLINIC_EMR_FORMS.FORMTYPE is the stable key: 'Customer' marks the form filled
+     once at registration, which is Medical History. Checked before the name,
+     because FORMTYPE survives a rename and the name does not — the form is
+     "Medical History & Intake Form" on the current master, and the next centre
+     to seed one may word it differently again.
+
+     The name check stays as the fallback for any environment where FORMTYPE is
+     not carried through the API response. */
+  const formTypeOf = (f) =>
+    String(f?.formType || f?.FORMTYPE || f?.type || "").trim().toLowerCase();
 
   const looksLikeMedicalHistory = (f) => {
+    if (formTypeOf(f) === "customer") return true;
     const name = String(f?.formName || f?.name || f?.title || f?.FORMNAME || "").toLowerCase();
     return name.includes("medical") && (name.includes("history") || name.includes("hist"));
   };
@@ -388,13 +419,23 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           // Resolve this environment's code for Medical History by name, falling
           // back to the beta literal. Logged so a mismatch is obvious from the
           // console instead of looking like "the form just doesn't open here".
-          const resolved = submissions.find(looksLikeMedicalHistory)?.formCode
-                        || submissions.find(f => f?.formCode === MED_HIST_CODE_DEFAULT)?.formCode
-                        || MED_HIST_CODE_DEFAULT;
-          console.log("[EMR] Medical History code resolved to:", resolved,
-            "| codes available:", submissions.map(f => f?.formCode).filter(Boolean).join(", ") || "(none)");
+          const hit = submissions.find(looksLikeMedicalHistory)?.formCode
+                   || submissions.find(f => f?.formCode === MED_HIST_CODE_DEFAULT)?.formCode
+                   || "";
+          const resolved = hit || MED_HIST_CODE_DEFAULT;
+          if (hit) {
+            console.log("[EMR] Medical History code resolved to:", resolved,
+              "| codes available:", submissions.map(f => f?.formCode).filter(Boolean).join(", ") || "(none)");
+          } else {
+            console.warn(
+              "[EMR] Medical History is not in this customer's form list. Falling back to",
+              MED_HIST_CODE_DEFAULT, "which may not exist in this environment.",
+              "| codes available:", submissions.map(f => f?.formCode).filter(Boolean).join(", ") || "(none)"
+            );
+          }
           setMedHistCode(resolved);
-          medHistCodeRef.current = resolved;
+          medHistCodeRef.current    = resolved;
+          medHistResolvedRef.current = !!hit;
 
           const medHistSub  = submissions.find(s => s.formCode === resolved);
           setMedHistFilled(!!medHistSub);
@@ -463,13 +504,35 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
      had before the after-service split, so a new whenToFill value can never make
      a form MORE locked than it used to be. */
   const formStage = (form) => {
-    const when = String(
-      form?.whenToFill
-      || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
-      || ""
-    ).trim().toLowerCase();
-    if (!when || when.includes("customer")) return when ? "customer" : "before";
+    const mapped = sidebarForms.find(f => f.formCode === form?.formCode) || {};
+    const when = String(form?.whenToFill || mapped.whenToFill || "").trim().toLowerCase();
+
+    // 1. An explicit whenToFill on the service mapping always wins — it is the
+    //    field someone deliberately set for this service.
+    if (when.includes("customer")) return "customer";
     if (when.includes("after") || when.includes("post") || when.includes("treatment")) return "after";
+    if (when.includes("before") || when.includes("consent")) return "before";
+
+    /* 2. No usable whenToFill — read the form master instead. FORMTYPE separates
+          'Customer' from 'Consent/Treatment', but NOT consent from treatment:
+          both share one combined value, so it cannot tell us whether the form is
+          due at Active or at Completed. The master's own naming does — treatment
+          forms are named "… Treatment Form" and coded T001/T002/T003, against
+          C001–C004 for consent. Falling back to that keeps the Completed gate
+          working on data where whenToFill was never populated.
+
+          This is a convention, not a constraint, so it will drift the first time
+          someone codes a treatment form outside the T-series. The durable fix is
+          either to populate WHENTOFILL on the service mapping or to split
+          FORMTYPE into separate Consent and Treatment values. */
+    const type = formTypeOf(form) || formTypeOf(mapped);
+    if (type === "customer") return "customer";
+
+    const name = String(form?.formName || form?.name || mapped.formName || "").toLowerCase();
+    const code = String(form?.formCode || "").trim().toUpperCase();
+    if (name.includes("treatment") || /^T\d/.test(code)) return "after";
+
+    // 3. Anything unrecognised keeps the old behaviour: unlocked from Active.
     return "before";
   };
 
@@ -485,6 +548,63 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   };
   const formLockMsg = (form) =>
     formStage(form) === "after" ? AFTER_FORMS_MSG : FORMS_LOCKED_MSG;
+
+  /* Second chance at the code. The customer-forms endpoint only lists forms
+     already assigned to this customer, so on a fresh environment — or a customer
+     who has never had one raised — Medical History simply is not in it. The
+     service-forms list is the other place the same form appears, so it is worth
+     a look before giving up and falling back to another environment's literal. */
+  useEffect(() => {
+    if (medHistResolvedRef.current) return;
+    if (!Array.isArray(activeForms) || !activeForms.length) return;
+    const hit = activeForms.find(looksLikeMedicalHistory)?.formCode;
+    if (!hit) return;
+    console.log("[EMR] Medical History code resolved from the service form list:", hit);
+    setMedHistCode(hit);
+    medHistCodeRef.current     = hit;
+    medHistResolvedRef.current = true;
+  }, [activeForms]);
+
+  /* Last resort: ask the form master directly. Medical History is a Customer-type
+     form, so it is not mapped to a service and may not be in either list above —
+     on a customer who has never had one raised, both lookups legitimately come
+     back empty and the code is still unknown. Rather than guess, try each known
+     code and keep the first the API actually returns a definition for. */
+  useEffect(() => {
+    if (medHistResolvedRef.current) return;
+    if (!activeFormsLoaded) return;   // let the two list lookups go first
+    let cancelled = false;
+
+    (async () => {
+      const tok = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+      for (const code of MED_HIST_CANDIDATES) {
+        if (cancelled || medHistResolvedRef.current) return;
+        try {
+          const r = await fetch(`${API_BASE_URL}/api/EMR/Forms/${encodeURIComponent(code)}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (!r.ok) { console.debug(`[EMR] form master probe: ${code} → ${r.status}`); continue; }
+          const def = (await r.json())?.data ?? null;
+          if (!def || (Array.isArray(def) && !def.length)) continue;
+          if (cancelled) return;
+          console.log("[EMR] Medical History code resolved from the form master:", code);
+          setMedHistCode(code);
+          medHistCodeRef.current     = code;
+          medHistResolvedRef.current = true;
+          return;
+        } catch (e) {
+          console.debug(`[EMR] form master probe failed for ${code}:`, e?.message);
+        }
+      }
+      console.warn(
+        "[EMR] Medical History could not be resolved. None of these exist here:",
+        MED_HIST_CANDIDATES.join(", "),
+        "— check FORMCODE in CLINIC_EMR_FORMS for the row with FORMTYPE 'Customer'."
+      );
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeFormsLoaded, medHistCode]);
 
   /* ── After-service forms on Completed ──────────────────────────────────────
      Marking the appointment Completed is the moment the treatment record is due,
@@ -676,8 +796,17 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           // Medical History belongs to check-in: the customer is at the desk and
           // the form is filled with them. Only presented when there is no
           // submission on file — a returning customer is not asked again.
-          if (medHistPendingRef.current && !medHistFilled) {
-            console.log("[EMR] Checked In — presenting Medical History");
+          if (medHistPendingRef.current && !medHistFilled && !medHistResolvedRef.current) {
+            // Better to show nothing than an empty modal built on a code this
+            // environment does not have. The button in the panel still works, so
+            // reception is not blocked — and this line says exactly what is wrong.
+            console.warn(
+              "[EMR] Checked In — skipping Medical History auto-open: no form code",
+              "resolved for this environment (fallback is", MED_HIST_CODE_DEFAULT + ").",
+              "Check the form master for a form named 'Medical History'."
+            );
+          } else if (medHistPendingRef.current && !medHistFilled) {
+            console.log("[EMR] Checked In — presenting Medical History:", medHistCodeRef.current);
             // Next tick, so the check-in notes popup is not fighting the modal.
             setTimeout(() => {
               openFormDirect(medHistCodeRef.current, {
@@ -814,6 +943,11 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               {appt?.fullName || ""}
               <div className="cstno">{appt?.number || "—"}</div>
               <div className="cstid">{appt?.custId || "—"}</div>
+              {/* Appointment ID sits with the customer identifiers so it can be
+                  read or quoted without going back to the board card. */}
+              <div className="cstapptid" title={appt?.appointmentId || ""}>
+                {appt?.appointmentId || "—"}
+              </div>
               {memberFlag && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:6, padding:"3px 10px", borderRadius:999, background:"linear-gradient(135deg,#6d4c9e,#8b5cf6)", color:"#fff", fontSize:11, fontWeight:700, width:"fit-content", whiteSpace:"nowrap" }}
                   title={memberFlag.programName || "Active member"}>

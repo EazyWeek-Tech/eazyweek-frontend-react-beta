@@ -87,6 +87,14 @@ const LoyaltyTab = ({ custId, recId }) => {
     </div>
   );
 
+  // Opt-in date comes from CLINIC_CUSTOMER.LOYALTY_ENROLLED_DATE. Members who
+  // pre-date that column fall back to their first points transaction, which the
+  // API flags as an estimate so the card doesn't present it as a hard date.
+  const enrolledOn  = balance?.enrolledDate ? fmt(balance.enrolledDate) : "";
+  const enrolledTxt = enrolledOn
+    ? `Opted in on ${enrolledOn}${balance?.enrolledDateEstimated ? " (from first transaction)" : ""}`
+    : "Opt-in date not recorded";
+
   const availPts    = balance?.availablePoints ?? 0;
   const redeemedPts = balance?.redeemedPoints  ?? 0;
   const expiredPts  = balance?.expiredPoints   ?? 0;
@@ -116,6 +124,9 @@ const LoyaltyTab = ({ custId, recId }) => {
                 <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Available Points</div>
                 <div style={{ fontSize: 36, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{availPts.toLocaleString()}</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 5 }}>pts available to use</div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, padding: "4px 11px", borderRadius: 999, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>
+                  {enrolledTxt}
+                </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                 <span style={{ background: "rgba(167,209,205,0.2)", border: "1px solid rgba(167,209,205,0.35)", color: "#A7D1CD", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
