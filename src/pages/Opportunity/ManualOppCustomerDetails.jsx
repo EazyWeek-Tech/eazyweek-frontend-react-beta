@@ -1744,10 +1744,14 @@ const subMediumName = safe(form.subMedium || "Manual");
     const typeForUpdate = apiType || "Lead";
 
     // ✅ LOCK customer FK to original API record (prevents 10151 -> 0)
+    // The `type === "lead" ? 0` shortcut used to sit here and was wrong once
+    // conversion started auto-creating customers: a converted Lead DOES carry a
+    // Customer_FK, and sending 0 made the backend blank it on every later save —
+    // which lost the CustID and let the next conversion mint a second customer.
+    // Send whatever the record actually has, whatever the Prospect Type says.
+    // (The backend now COALESCEs too, so 0 is never destructive either way.)
     const customerFkForUpdate =
-      norm(typeForUpdate) === "lead"
-        ? 0
-        : (toNumberOr0(originalCustomerRecIdFromApi) || toNumberOr0(leadApi?.customer_FK) || 0);
+      toNumberOr0(originalCustomerRecIdFromApi) || toNumberOr0(leadApi?.customer_FK) || 0;
 
     // ✅ LOCK campaign FK to original API record (prevents 1108 -> 0)
     const campaignFkForUpdate =
