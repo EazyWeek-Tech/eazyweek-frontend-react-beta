@@ -883,11 +883,16 @@ export default function FormFillModal({
      Name", "Guardian Name" and "Emergency Contact Number" would all be filled
      with the patient's own details — worse than leaving them blank. */
   const NOT_THE_CUSTOMER = new RegExp([
+    // "Dr's Name" normalises to "drs name" — the literal "doctor" never matched
+    // it, so the broad `name` rule caught it and filled the field with the
+    // PATIENT's name. Word-bounded so "address" (a-d-d-r-e-s-s) is untouched.
+    "\\bdrs?\\b","\\bmd\\b",
     "doctor","physician","practitioner","therapist","clinician","nurse","staff",
+    "consultant","surgeon","specialist","director",
     "provider","witness","guardian","attendant","relative","relation","emergency",
     "next kin","kin","referr","referred by","signature","service","treatment",
     "centre","center","clinic","branch","company","insurance","policy","employer",
-    "طبيب","خدمة","مركز","عيادة","شاهد","ولي","طوارئ","توقيع",
+    "طبيب","استشاري","خدمة","مركز","عيادة","شاهد","ولي","طوارئ","توقيع",
   ].join("|"));
 
   // Order matters: the narrow rules must run before the broad "name" rule.
@@ -907,6 +912,62 @@ export default function FormFillModal({
     // Broadest last: any remaining label that is essentially "name".
     ["fullName",    (t) => /\bname\b|اسم/.test(t)],
   ];
+
+  /* ── Staff fields → the logged-in user ─────────────────────────────────────
+     A field asking for the doctor / medical practitioner / director is asking
+     who is treating the customer, which is whoever is signed in. Before this,
+     NOT_THE_CUSTOMER only stopped those fields being filled with the PATIENT's
+     name; nothing filled them at all.
+
+     Deliberately narrower than NOT_THE_CUSTOMER: witness, guardian, relative and
+     emergency contact are still nobody's business to guess, and "therapist" is
+     left out because that means the practitioner ASSIGNED to the appointment,
+     not the person at the keyboard. */
+  const STAFF_ROLE = new RegExp([
+    "\\bdrs?\\b","\\bmd\\b","doctor","physician","practitioner","clinician",
+    "consultant","surgeon","specialist","director","طبيب","استشاري",
+  ].join("|"));
+
+  /* A staff label that asks for something other than a name. Needed because the
+     staff matcher treats a bare role ("Medical Director") as a full-name field,
+     which would otherwise swallow "Doctor's Licence No". */
+  const STAFF_NOT_A_NAME =
+    /signature|stamp|initial|licen|registration|\b(id|no|number|code)\b|date|time|designation|special(i)?ty|department|remarks|notes|توقيع/;
+
+  const matchStaffField = (label) => {
+    const t = norm(label);
+    if (!t) return "";
+    if (!STAFF_ROLE.test(t)) return "";
+    if (STAFF_NOT_A_NAME.test(t)) return "";
+    if (/(first|given) name|الاسم الاول|الاسم الأول/.test(t)) return "firstName";
+    if (/(last|family|sur) ?name|اسم العائلة|العائلة/.test(t)) return "lastName";
+    return "fullName";   // "Dr's Name", "Doctor", "Medical Director", "اسم الطبيب"
+  };
+
+  /* The logged-in user's name. macroContext wins when the caller supplied it
+     (the appointment sidebar does); otherwise read the stored session object,
+     which is spelled differently depending on which login response wrote it.
+     Last resort is splitting a single concatenated name: last whitespace token
+     is the family name, everything before it is the given name. */
+  const staffNameMap = (() => {
+    let u = {};
+    try { u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
+    catch { u = {}; }
+
+    const rawFull = macroContext.doctorName || macroContext.userName
+                 || u.fullName || u.employeeName || u.name || u.userName || "";
+    const parts = String(rawFull).trim().split(/\s+/).filter(Boolean);
+    const splitFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] || "");
+    const splitLast  = parts.length > 1 ? parts[parts.length - 1] : "";
+
+    const firstName = macroContext.doctorFirstName || u.firstName || u.firstname || splitFirst || "";
+    const lastName  = macroContext.doctorLastName  || u.lastName  || u.lastname  || splitLast  || "";
+    return {
+      fullName: (rawFull || `${firstName} ${lastName}`).trim(),
+      firstName,
+      lastName,
+    };
+  })();
 
   const matchCustomerField = (label) => {
     const t = norm(label);
@@ -965,8 +1026,15 @@ export default function FormFillModal({
       if (out[comp.componentId] !== undefined && out[comp.componentId] !== "") continue;
 
       const explicit = comp.config?.customerField || comp.config?.prefillFrom || comp.config?.mapTo;
-      const key = explicit || matchCustomerField(comp.label);
-      const val = key ? map[key] : "";
+
+      // Staff first: a doctor/director label is blocked by NOT_THE_CUSTOMER, so
+      // without this it would fall through and stay blank. An explicit mapping
+      // in the form builder still wins over both heuristics.
+      const staffKey = explicit ? "" : matchStaffField(comp.label);
+      const key = staffKey || explicit || matchCustomerField(comp.label);
+      const val = staffKey ? (staffNameMap[staffKey] || "")
+                : key      ? map[key]
+                : "";
       if (!val) { if (!key) unmatched.push(comp.label); continue; }
 
       if (comp.componentType === "dropdown" || comp.componentType === "radio") {
@@ -976,7 +1044,7 @@ export default function FormFillModal({
       } else {
         out[comp.componentId] = val;
       }
-      filled.push(`${comp.label} <- ${key}`);
+      filled.push(`${comp.label} <- ${staffKey ? `user.${key}` : key}`);
     }
 
     /* Diagnostic: if a customer-detail field is still blank, its label did not

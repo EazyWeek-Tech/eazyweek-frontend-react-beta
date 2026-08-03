@@ -288,7 +288,27 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     setDirectModal(true);
   };
 
-  const MED_HIST_CODE = "MED-HIST-001";
+  /* ── Medical History form code ─────────────────────────────────────────────
+     This was hardcoded to "MED-HIST-001", which is the code on beta. Other
+     environments carry their own code for the same form (demo uses a short code),
+     so the literal matched nothing there: the "already filled" lookup never hit,
+     and openFormDirect was handed a code with no definition behind it — hence the
+     form opening on beta and not on demo.
+
+     The code is now read from whatever /api/EMR/Customer/{custId}/Forms actually
+     returns for this environment, matched on the form NAME. The literal stays as
+     the fallback so beta behaves exactly as before if the lookup comes back empty. */
+  const MED_HIST_CODE_DEFAULT = "MED-HIST-001";
+  const [medHistCode, setMedHistCode] = useState(MED_HIST_CODE_DEFAULT);
+  // Ref mirror: the Checked In handler reads it in the same tick as the status
+  // change, before a state update would have landed.
+  const medHistCodeRef = useRef(MED_HIST_CODE_DEFAULT);
+  const MED_HIST_CODE = medHistCode;
+
+  const looksLikeMedicalHistory = (f) => {
+    const name = String(f?.formName || f?.name || f?.title || f?.FORMNAME || "").toLowerCase();
+    return name.includes("medical") && (name.includes("history") || name.includes("hist"));
+  };
 
   useEffect(() => {
     const svcCode   = appointment?.serviceCode || appointment?.allLines?.[0]?.serviceCode || "";
@@ -365,7 +385,18 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
             ...(Array.isArray(inner?.submissions)   ? inner.submissions   : []),
             ...(Array.isArray(inner)                ? inner               : []),
           ];
-          const medHistSub  = submissions.find(s => s.formCode === MED_HIST_CODE);
+          // Resolve this environment's code for Medical History by name, falling
+          // back to the beta literal. Logged so a mismatch is obvious from the
+          // console instead of looking like "the form just doesn't open here".
+          const resolved = submissions.find(looksLikeMedicalHistory)?.formCode
+                        || submissions.find(f => f?.formCode === MED_HIST_CODE_DEFAULT)?.formCode
+                        || MED_HIST_CODE_DEFAULT;
+          console.log("[EMR] Medical History code resolved to:", resolved,
+            "| codes available:", submissions.map(f => f?.formCode).filter(Boolean).join(", ") || "(none)");
+          setMedHistCode(resolved);
+          medHistCodeRef.current = resolved;
+
+          const medHistSub  = submissions.find(s => s.formCode === resolved);
           setMedHistFilled(!!medHistSub);
           setShowMedHistory(true); // always show button; indicator shows filled/pending
           // NOTE: Medical History used to auto-open here for a first-time customer,
@@ -466,14 +497,98 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const isFormFilled = (formCode) =>
     sidebarForms.find(f => f.formCode === formCode)?.status === "Completed";
 
+  /* ── Form prefill values ───────────────────────────────────────────────────
+     Two rules:
+       • customer / client / patient fields  → the appointment's customer
+       • doctor / medical practitioner /
+         director fields                    → the logged-in user
+     Both split into first and last name.
+
+     Name splitting follows the same convention handleEdit already uses: the LAST
+     whitespace-separated token is the last name, everything before it is the
+     first name. That is the best available split — CLINIC_BOOKAPPOINTMENT stores
+     the customer as a single concatenated FULLNAME — so a customer whose family
+     name is two words ("Al Qahtani") splits one token short. If that matters,
+     the fix is to return FIRST_NAME / LAST_NAME separately from
+     GetSelectedAppDetails rather than to guess harder here.
+
+     The keys are deliberately generous: FormFillModal matches a form field to a
+     macro by name, and the same concept is labelled differently across forms
+     (Client Name, Customer Name, Patient Name). An unmatched key costs nothing. */
+  const splitName = (full) => {
+    const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { first: "", last: "" };
+    if (parts.length === 1) return { first: parts[0], last: "" };
+    return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
+  };
+
   const formMacroContext = () => {
     const a = appt || appointment || {};
+    const u = user || {};
+
+    // Customer: prefer real first/last fields if the record ever carries them,
+    // otherwise split the concatenated name.
+    const custSplit = splitName(a.fullName);
+    const custFirst = a.firstName || custSplit.first;
+    const custLast  = a.lastName  || custSplit.last;
+    const custFull  = (a.fullName || `${custFirst} ${custLast}`).trim();
+
+    // Logged-in user: the stored session object is spelled differently depending
+    // on which login response wrote it, so read every known variant.
+    const userFullRaw = u.fullName || u.employeeName || u.name || u.userName || "";
+    const userSplit   = splitName(userFullRaw);
+    const userFirst   = u.firstName || u.firstname || u.FIRSTNAME || userSplit.first;
+    const userLast    = u.lastName  || u.lastname  || u.LASTNAME  || userSplit.last;
+    const userFull    = (userFullRaw || `${userFirst} ${userLast}`).trim();
+
     return {
-      customerName:     a.fullName      || "",
-      serviceName:      a.serviceName   || "",
-      centreName:       user?.centerName || "",
+      // ── Customer / client / patient ────────────────────────────────────────
+      customerName:        custFull,
+      customerFirstName:   custFirst,
+      customerLastName:    custLast,
+      clientName:          custFull,
+      clientFirstName:     custFirst,
+      clientLastName:      custLast,
+      patientName:         custFull,
+      patientFirstName:    custFirst,
+      patientLastName:     custLast,
+      // Bare First/Last on a clinical form means the customer, not the staff member.
+      firstName:           custFirst,
+      lastName:            custLast,
+      fullName:            custFull,
+
+      // ── Logged-in user: doctor / medical practitioner / director ───────────
+      doctorName:                    userFull,
+      doctorFirstName:               userFirst,
+      doctorLastName:                userLast,
+      medicalPractitioner:           userFull,
+      medicalPractitionerName:       userFull,
+      medicalPractitionerFirstName:  userFirst,
+      medicalPractitionerLastName:   userLast,
+      directorName:                  userFull,
+      directorFirstName:             userFirst,
+      directorLastName:              userLast,
+      medicalDirector:               userFull,
+      medicalDirectorName:           userFull,
+      medicalDirectorFirstName:      userFirst,
+      medicalDirectorLastName:       userLast,
+      userName:                      userFull,
+      userFirstName:                 userFirst,
+      userLastName:                  userLast,
+      employeeCode:                  u.employeeCode || "",
+
+      // ── Appointment context (unchanged) ────────────────────────────────────
+      // practitionerName still means the practitioner ASSIGNED to the
+      // appointment, which is what it meant before. therapistName is an alias.
       practitionerName: a.therapistName || "",
+      therapistName:    a.therapistName || "",
+      serviceName:      a.serviceName   || "",
+      centreName:       u.centerName    || "",
       appointmentDate:  a.startDate     || new Date().toISOString(),
+      appointmentId:    a.appointmentId || "",
+      custId:           a.custId        || "",
+      MobileNumber:     a.number        || "",
+      Gender:           a.gender        || "",
     };
   };
 
@@ -565,7 +680,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
             console.log("[EMR] Checked In — presenting Medical History");
             // Next tick, so the check-in notes popup is not fighting the modal.
             setTimeout(() => {
-              openFormDirect(MED_HIST_CODE, {
+              openFormDirect(medHistCodeRef.current, {
                 ...formMacroContext(),
                 MobileNumber: appt?.number || appointment?.number || "",
                 Gender:       appt?.gender || appointment?.gender || "",
@@ -639,13 +754,8 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
       const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
       const canProceed  = await checkAndShowForms({
         appointmentId: apptId, serviceCode, custId: appt?.custId || "", centerCode, toStatus,
-        macroContext: {
-          customerName:     appt?.fullName         || "",
-          serviceName:      appt?.serviceName      || "",
-          centreName:       user?.centerName       || "",
-          practitionerName: appt?.therapistName    || "",
-          appointmentDate:  appt?.startDate        || new Date().toISOString(),
-        },
+        // Same prefill set as every other form entry point — see formMacroContext.
+        macroContext: formMacroContext(),
       });
       if (!canProceed) {
         // Form was shown (sidebar still open since we didn't close it) — user cancelled
@@ -777,15 +887,9 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           {showMedHistory && (() => {
             const a = appt || appointment || {};
             const openMedHist = () => {
-              openFormDirect(MED_HIST_CODE, {
-                customerName:     a.fullName         || "",
-                serviceName:      a.serviceName      || "",
-                centreName:       user?.centerName   || "",
-                practitionerName: a.therapistName    || "",
-                appointmentDate:  a.startDate        || new Date().toISOString(),
-                MobileNumber:     a.number           || "",
-                Gender:           a.gender           || "",
-              });
+              // formMacroContext already carries customer, practitioner, centre,
+              // date, mobile and gender — plus the first/last name splits.
+              openFormDirect(MED_HIST_CODE, formMacroContext());
             };
             return (
               <button onClick={openMedHist} className="cstlnk" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -1045,7 +1149,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                             :                               "Not Started";
               setSidebarFormStatus(overall);
             });
-            if (fc === MED_HIST_CODE) { setMedHistFilled(true); medHistPendingRef.current = false; }
+            if (fc === MED_HIST_CODE || fc === medHistCodeRef.current) { setMedHistFilled(true); medHistPendingRef.current = false; }
             // If Completed queued more than one after-service form, open the next.
             openNextAfterServiceForm();
           }}
