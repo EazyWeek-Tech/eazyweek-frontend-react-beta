@@ -10,9 +10,35 @@ const authGet = async (url) => {
   const j = await r.json(); return j.data ?? j;
 };
 
+const authPost = async (url, body) => {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` },
+    body: JSON.stringify(body || {}),
+  });
+  const j = await r.json(); return j.data ?? j;
+};
+
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })
   : "—";
+
+// Customer Master writes 1900-01-01 when DOB is left blank — that is a
+// placeholder, not a birth date, and it must not print on a clinical form.
+const isPlaceholderDate = (d) => {
+  if (!d) return true;
+  const t = new Date(d);
+  if (Number.isNaN(t.getTime())) return false;
+  return t.getFullYear() <= 1900;
+};
+
+// DOB comes back in a few shapes depending on the source — don't turn an
+// already-formatted date into "Invalid Date".
+const fmtLoose = (d) => {
+  if (!d) return "";
+  const t = new Date(d);
+  return Number.isNaN(t.getTime()) ? String(d) : fmt(d);
+};
 
 const fmtDT = (d) => d
   ? new Date(d).toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric",
@@ -97,13 +123,27 @@ const loadAnnotationAssets = async () => {
 const normType = (t) => String(t || "").toLowerCase().replace(/[\s_-]/g, "");
 
 const SKIP_TYPES    = new Set(["logo","macro","spacer","divider","separator","pagebreak","button","submit"]);
-const TEXTBLOCK     = new Set(["content","paragraph","html","richtext","text","statictext","note","instruction","terms","consenttext"]);
+// Static copy only — NOT "text", which the form builder uses for a text INPUT.
+// Anything here that turns out to hold an answer is rendered as a field instead
+// (see renderField), so a rich-text input never prints as its own label.
+const TEXTBLOCK     = new Set(["content","paragraph","statictext","html","richtext","instruction",
+  "instructions","terms","consenttext","disclaimer","infotext","info","description"]);
 const SECTION_TYPES = new Set(["section","sectionheader","heading","header","title","subheading","subtitle",
   "group","groupbox","panel","fieldset","container","columns","column","row","grid","tabs","step","repeater","block"]);
 const ANNOT_TYPES   = new Set(["annotation","annotations","bodymap","bodychart","bodydiagram","body","facemap",
   "facechart","facediagram","diagram","drawing","canvas","sketch","imageannotation","marking","markup","imagemarker"]);
 const SIG_TYPES     = new Set(["signature","sign","esign","drawsignature"]);
 const LONG_TYPES    = new Set(["textarea","longtext","multiline","richtexteditor","comments","remarks","table","grid"]);
+// Layout scaffolding from the builder — the container is meaningful, its name
+// ("Columns", "Row", "Section 1") is not, so it never becomes a printed heading.
+const GENERIC_LABELS = new Set(["columns","column","row","rows","section","sections","container",
+  "grid","panel","group","block","step","tabs","tab","layout","div","wrapper","field","fields"]);
+const isGenericLabel = (label, type) => {
+  const l = String(label || "").trim().toLowerCase().replace(/\s*\d+$/, "");
+  if (!l) return true;
+  return GENERIC_LABELS.has(l.replace(/[\s_-]/g, "")) || l.replace(/[\s_-]/g, "") === normType(type);
+};
+const cleanLabel = (label) => String(label || "").replace(/\s*[:：]\s*$/, "").trim();
 
 const looksLikeImage = (s) =>
   typeof s === "string" &&
@@ -345,7 +385,7 @@ const ValueView = ({ comp, value, assets }) => {
 };
 
 // ─── The printable sheet — same markup on screen and on paper ─────────────────
-const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }) => {
+const PrintSheet = ({ data, formDef, assets, brand, patient, custId, meta }) => {
   const components = formDef?.components || [];
 
   const { roots, kids } = useMemo(() => {
@@ -370,6 +410,28 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
   const textOf = (comp) =>
     _pick(comp?.config || {}, ["text","content","html","body","value","description","label"]) || comp?.label || "";
 
+  // Some forms carry Patient / D.O.B / Gender / Doctor fields that the fill
+  // screen shows but doesn't persist, so they come back blank. Fall back to the
+  // record we already have rather than printing a dash on a clinical document.
+  const autoFill = (comp) => {
+    const t = normType(comp.componentType);
+    if (ANNOT_TYPES.has(t) || SIG_TYPES.has(t)) return "";
+    const l = String(comp.label || "").toLowerCase();
+    if (!l || /(sign|signature|initial)/.test(l)) return "";
+
+    // Doctor first — "Dr's Name" also matches /name/, and it must never take
+    // the patient's name.
+    if (/(doctor|physician|practitioner|therapist|consultant|provider|performed by|treated by|dr\.?\b|dr'?s)/.test(l))
+      return data?.practitionerName || data?.filledByName || "";
+    if (/(d\.?\s?o\.?\s?b|date of birth|birth ?date|dob)/.test(l))
+      return isPlaceholderDate(patient?.dob) ? "" : fmtLoose(patient?.dob);
+    if (/\b(gender|sex)\b/.test(l))          return patient?.gender || "";
+    if (/(mobile|phone|contact no|contact number)/.test(l)) return patient?.mobile || "";
+    if (/(patient|client|customer)/.test(l) && !/(id|code|number|email|type)/.test(l))
+      return patient?.name || "";
+    return "";
+  };
+
   const isWide = (comp, val) => {
     const t = normType(comp.componentType);
     if (ANNOT_TYPES.has(t) || SIG_TYPES.has(t) || LONG_TYPES.has(t)) return true;
@@ -383,7 +445,11 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
     const t = normType(comp.componentType);
     if (SKIP_TYPES.has(t)) return null;
 
-    if (TEXTBLOCK.has(t)) {
+    const answered = !isEmptyVal(maybeParse(responses[comp.componentId]));
+
+    // A component only prints as static copy when it carries no answer — a
+    // rich-text or free-text INPUT must never print as its own label.
+    if (TEXTBLOCK.has(t) && !answered) {
       const html = textOf(comp);
       if (!html) return null;
       const clean = String(html).replace(/<script[\s\S]*?<\/script>/gi, "");
@@ -398,11 +464,13 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
       <div key={comp.componentId}
         className={`ps-field ps-avoid${isWide(comp, val) ? " ps-wide" : ""}`}>
         <div className="ps-label">
-          {comp.label || comp.componentId}
+          {cleanLabel(comp.label) || comp.componentId}
           {comp.isMandatory ? <span className="ps-req">*</span> : null}
         </div>
         <div className="ps-value">
-          <ValueView comp={comp} value={responses[comp.componentId]} assets={assets} />
+          {answered
+            ? <ValueView comp={comp} value={responses[comp.componentId]} assets={assets} />
+            : (autoFill(comp) || <ValueView comp={comp} value={undefined} assets={assets} />)}
         </div>
       </div>
     );
@@ -416,11 +484,12 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
       const inner = children.map(renderNode).filter(Boolean);
       const flat  = [];
       inner.forEach(n => Array.isArray(n) ? flat.push(...n) : flat.push(n));
-      if (!flat.length && !comp.label) return null;
+      const heading = isGenericLabel(comp.label, comp.componentType) ? "" : cleanLabel(comp.label);
+      if (!flat.length && !heading) return null;
       return (
         <section className="ps-section" key={comp.componentId}>
-          {comp.label ? <h2 className="ps-section-title">{comp.label}</h2> : null}
-          <div className="ps-grid">{flat}</div>
+          {heading ? <h2 className="ps-section-title">{heading}</h2> : null}
+          {flat.length ? <div className="ps-grid">{flat}</div> : null}
         </section>
       );
     }
@@ -442,7 +511,7 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
       flushBucket();
       const node = renderNode(c);
       if (node) body.push(node);
-    } else if (TEXTBLOCK.has(t)) {
+    } else if (TEXTBLOCK.has(t) && isEmptyVal(maybeParse(responses[c.componentId]))) {
       flushBucket();
       const node = renderField(c);
       if (node) body.push(node);
@@ -453,15 +522,21 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
   });
   flushBucket();
 
+  const centreName = patient?.centreName || brand?.name || brand?.centerCode || "";
+
   const metaRows = [
-    ["Patient",         customerName || "—"],
+    ["Patient",         patient?.name || "—"],
     ["Customer ID",     custId || data?.custId || "—"],
-    ["Service",         meta?.serviceName || ""],
+    ["Mobile",          patient?.mobile || ""],
+    ["Gender",          patient?.gender || ""],
+    ["Date of Birth",   isPlaceholderDate(patient?.dob) ? "" : fmtLoose(patient?.dob)],
+    ["Service",         meta?.serviceName || data?.serviceName || ""],
+    ["Practitioner",    data?.practitionerName || meta?.practitionerName || ""],
     ["Appointment Ref", meta?.appointmentId || data?.appointmentId || ""],
     ["Submitted On",    fmtDT(data?.submittedAt)],
-    ["Filled By",       data?.filledByName || "—"],
-    ["Centre",          brand?.name || brand?.centerCode || ""],
-    ["Version",         meta?.version ? `v${meta.version}` : ""],
+    ["Filled By",       data?.filledByName || meta?.filledByName || "—"],
+    ["Centre",          centreName],
+    ["Version",         meta?.version || data?.version ? `v${meta?.version || data?.version}` : ""],
   ].filter(([, v]) => v !== "" && v !== null && v !== undefined);
 
   return (
@@ -470,9 +545,9 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
         <div className="ps-brand">
           {brand?.logo
             ? <img className="ps-logo" src={brand.logo} alt="" />
-            : <div className="ps-logo-fallback">{brand?.name || brand?.centerCode || "Clinic"}</div>}
+            : <div className="ps-logo-fallback">{centreName || "Clinic"}</div>}
           <div>
-            <div className="ps-centre">{brand?.name || brand?.centerCode || ""}</div>
+            <div className="ps-centre">{centreName}</div>
             {brand?.address ? <div className="ps-addr">{brand.address}</div> : null}
           </div>
         </div>
@@ -500,7 +575,7 @@ const PrintSheet = ({ data, formDef, assets, brand, customerName, custId, meta }
         <div>
           {data?.formName}{data?.formCode ? ` · ${data.formCode}` : ""} · Submitted {fmtDT(data?.submittedAt)} by {data?.filledByName || "—"}
         </div>
-        <div>Printed {fmtDT(new Date())} · {customerName || ""}{custId ? ` (${custId})` : ""}</div>
+        <div>Printed {fmtDT(new Date())} · {patient?.name || ""}{custId ? ` (${custId})` : ""}</div>
       </footer>
     </div>
   );
@@ -723,6 +798,7 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false,
   const [data,    setData]    = useState(null);
   const [formDef, setFormDef] = useState(null);
   const [assets,  setAssets]  = useState([]);
+  const [custExtra, setCustExtra] = useState(null);   // Customer-master fallback
   const [brand,   setBrand]   = useState({ logo:"", name:"", address:"", centerCode });
   const [loading, setLoading] = useState(true);
   const frameRef   = useRef(null);
@@ -776,6 +852,18 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false,
         setFormDef(def);
         setAssets(ast || []);
         setBrand(br || {});
+
+        // Older backends don't return the patient block on the submission —
+        // fall back to the customer master so the header is never blank.
+        if (!sub?.customerName) {
+          const id = custId || sub?.custId;
+          if (id) {
+            const cust = await authPost(
+              `${API_BASE_URL}/api/Customer/FetchCustomerDetails`, { custID: id }
+            ).catch(() => null);
+            if (alive) setCustExtra(cust || null);
+          }
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -812,10 +900,22 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false,
     return () => cancelAnimationFrame(id);
   }, [autoPrint, loading]);
 
+  const patient = useMemo(() => {
+    const full = [custExtra?.firstName, custExtra?.middleName, custExtra?.lastName]
+      .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    return {
+      name:       data?.customerName   || full                    || customerName || "",
+      mobile:     data?.customerMobile || custExtra?.mobilePhone   || "",
+      gender:     data?.customerGender || custExtra?.gender        || "",
+      dob:        data?.customerDob    || custExtra?.birthDay      || "",
+      centreName: data?.centreName     || custExtra?.centerName    || "",
+    };
+  }, [data, custExtra, customerName]);
+
   const sheet = (
     <PrintSheet
       data={data} formDef={formDef} assets={assets} brand={brand}
-      customerName={customerName} custId={custId} meta={meta}
+      patient={patient} custId={custId} meta={meta}
     />
   );
 
@@ -832,7 +932,7 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false,
           <div>
             <div style={{ fontWeight:800, fontSize:16, color:"#2b3f73" }}>{data?.formName || "Form"}</div>
             <div style={{ fontSize:12, color:"#94a3b8", marginTop:2 }}>
-              {customerName ? `${customerName} · ` : ""}Submitted {fmt(data?.submittedAt)} · By {data?.filledByName || "—"}
+              {patient.name ? `${patient.name} · ` : ""}Submitted {fmt(data?.submittedAt)} · By {data?.filledByName || meta?.filledByName || "—"}
             </div>
           </div>
           <button onClick={onClose}
@@ -853,7 +953,7 @@ const SubmissionViewer = ({ submissionId, onClose, autoPrint = false,
             style={{ background: loading ? "#94a3b8" : "#334b71", color:"#fff", border:"none",
               borderRadius:8, padding:"9px 18px", fontWeight:700, fontSize:13,
               cursor: loading ? "not-allowed" : "pointer" }}>
-            🖨 Print
+             Print
           </button>
           <button onClick={onClose}
             style={{ background:"#fff", border:"1px solid #e7ecf4", borderRadius:8,
@@ -926,7 +1026,7 @@ const CustomerFormHistory = () => {
   const thStyle = {
     padding:"9px 12px", fontWeight:700, fontSize:11, color:"#64748b",
     textTransform:"uppercase", letterSpacing:"0.05em", borderBottom:"2px solid #e7ecf4",
-    textAlign:"left", background:"#f8fafc",
+    textAlign:"left", background:"#f8fafc", whiteSpace: "nowrap"
   };
   const tdStyle = {
     padding:"12px", fontSize:13, borderBottom:"1px solid #f1f5f9",
@@ -971,7 +1071,7 @@ const CustomerFormHistory = () => {
             style={{ background:"#2e7d5e", color:"#fff", border:"none", borderRadius:8,
               padding:"9px 18px", fontWeight:700, fontSize:13, cursor:"pointer" }}
             onClick={() => setShowCompare(true)}>
-            🔍 Compare Images
+             Compare Images
           </button>
         )}
       </div>
@@ -1023,8 +1123,9 @@ const CustomerFormHistory = () => {
                         ? { background:"#e9edf5", color:"#334b71" }
                         : { background:"#e6f4ef", color:"#2e7d5e" };
                       const rowMeta = {
-                        serviceName:   s.serviceName || "",
+                        serviceName:   s.serviceName  || "",
                         appointmentId: s.appointmentId || "",
+                        filledByName:  s.filledByName || s.filledBy || "",
                       };
                       return (
                         <tr key={s.submissionId}>
@@ -1040,7 +1141,7 @@ const CustomerFormHistory = () => {
                           <td style={tdStyle}>
                             <ActionBtn label="View"
                               onClick={() => setViewSub({ id: s.submissionId, meta: rowMeta })} />
-                            <ActionBtn label="🖨 Print" variant="print"
+                            <ActionBtn label=" Print" variant="print"
                               onClick={() => setPrintSub({ id: s.submissionId, meta: rowMeta })} />
                           </td>
                         </tr>
@@ -1135,9 +1236,13 @@ const CustomerFormHistory = () => {
                         </td>
                         <td style={tdStyle}>
                           <ActionBtn label="View"
-                            onClick={() => setViewSub({ id: cf.recId, meta: { version: cf.version } })} />
-                          <ActionBtn label="🖨 Print" variant="print"
-                            onClick={() => setPrintSub({ id: cf.recId, meta: { version: cf.version } })} />
+                            onClick={() => setViewSub({ id: cf.recId, meta: {
+                              version: cf.version,
+                              filledByName: cf.filledByName || cf.filledBy || "" } })} />
+                          <ActionBtn label=" Print" variant="print"
+                            onClick={() => setPrintSub({ id: cf.recId, meta: {
+                              version: cf.version,
+                              filledByName: cf.filledByName || cf.filledBy || "" } })} />
                           {/* Edit only allowed on latest version — FRD Rule 17 */}
                           {cf.isLatest && (
                             <ActionBtn label="Edit" variant="edit"
