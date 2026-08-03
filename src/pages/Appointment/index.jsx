@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, Routes, Route, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 
@@ -160,6 +160,80 @@ const fetchFormStatus = (appointmentId, serviceCode) => {
    }).catch(() => ({}));
 };
 
+const BOARD_FOCUS_CSS = `
+/* ── Scheduler board: focus ring on the appointment currently open in the
+   details sidebar. Paired with the scrollIntoView in the effect below, this is
+   what stops the board "losing" the card you were working on after a status
+   update. ─────────────────────────────────────────────────────────────────*/
+.appcell-v2.is-focused {
+  outline: 2px solid #334B71;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px rgba(51, 75, 113, .18);
+  z-index: 5 !important;
+}
+`;
+
+const SIDEBAR_LAYOUT_CSS = `
+/* ── Appointment details sidebar: narrow-width layout fix ──────────────────
+   The sidebar rows (customer header, title row, Status + Payment) are flex
+   rows in index.css with no wrap and no min-width:0 on the children, so once
+   the panel is narrower than their intrinsic width the Status <select> gets
+   squeezed to nothing and the Payment block / Customer Profile button spill
+   past the panel edge (seen on iPad and split-view widths).
+
+   Kept as an embedded <style> in this file rather than index.css so the
+   module ships self-contained. Rendered at the BOTTOM of the sidebar tree so
+   it lands after index.css in the cascade; the selectors are also scoped to
+   .smdiv and more specific than the originals, so !important is only used on
+   the few declarations that must beat an existing fixed width.
+
+   All of these are no-ops at desktop width — flex-wrap only wraps when the
+   content actually overflows. ──────────────────────────────────────────── */
+
+.smdiv .resizable { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
+.smdiv .apptblk,
+.smdiv .apptcdet,
+.smdiv .apptactdiv { box-sizing: border-box; max-width: 100%; }
+
+/* Customer header — name block + Customer Profile button */
+.smdiv .apptcdet.custdiv { flex-wrap: wrap; gap: 8px; }
+.smdiv .apptcdet.custdiv .csttopdiv { flex: 1 1 auto; min-width: 0; }
+.smdiv .apptcdet.custdiv .cstnm,
+.smdiv .apptcdet.custdiv .cstno,
+.smdiv .apptcdet.custdiv .cstid { min-width: 0; overflow-wrap: anywhere; }
+.smdiv .apptcdet.custdiv .cdtprof { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.smdiv .apptcdet.custdiv .cdtprof .cstlnk {
+  max-width: 100%; box-sizing: border-box;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+
+/* Title row — "Appointment Details" + Reschedule/Delete */
+.smdiv .apptblk .hdflx { flex-wrap: wrap; gap: 8px; align-items: center; }
+.smdiv .apptblk .hdflx .dethead { min-width: 0; }
+.smdiv .apptblk .hdflx .acticons { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Status + Payment row — the actual break in the screenshot */
+.smdiv .apptsts.appflx {
+  display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end;
+}
+.smdiv .apptsts.appflx .form-group.slctgrp {
+  flex: 1 1 160px; min-width: 150px; max-width: 100%;
+}
+.smdiv .apptsts.appflx .form-group.slctgrp select {
+  width: 100% !important; min-width: 0 !important; max-width: 100%;
+  box-sizing: border-box;
+}
+.smdiv .apptsts.appflx .detaildiv.pytmd { flex: 0 0 auto; min-width: 0; }
+.smdiv .apptsts.appflx .detaildiv.pytmd .appdtlbl,
+.smdiv .apptsts.appflx .detaildiv.pytmd .appdtval { white-space: nowrap; }
+
+/* Detail rows — long service names must wrap, not push the panel wider */
+.smdiv .aptdetailwrp .dtntime { min-width: 0; }
+.smdiv .aptdetailwrp .dtntime .icondiv { flex: 0 0 auto; }
+.smdiv .aptdetailwrp .dtntime .detaildiv { min-width: 0; flex: 1 1 auto; }
+.smdiv .aptdetailwrp .dtntime .appdtval { overflow-wrap: anywhere; word-break: break-word; }
+`;
+
 const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, onRefresh, onStatusUpdated }) => {
   const navigate = useNavigate();
   const [appt,   setAppt]   = useState(appointment || null);
@@ -203,6 +277,10 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
   const [directModal,    setDirectModal]    = useState(false);
   const [directFormCode, setDirectFormCode] = useState(null);
   const [directMacro,    setDirectMacro]    = useState({});
+
+  // Set when the customer-forms lookup lands: true when Medical History has no
+  // submission yet, so the Checked In handler knows to present it.
+  const medHistPendingRef = useRef(true);
 
   const openFormDirect = (formCode, macroCtx = {}) => {
     setDirectFormCode(formCode);
@@ -290,12 +368,13 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           const medHistSub  = submissions.find(s => s.formCode === MED_HIST_CODE);
           setMedHistFilled(!!medHistSub);
           setShowMedHistory(true); // always show button; indicator shows filled/pending
-          // Auto-open Medical History for first-time customers (no prior submissions at all)
-          if (!medHistSub && submissions.length === 0) {
-            openFormDirect(MED_HIST_CODE, {
-              customerName: appointment?.fullName || appt?.fullName || "",
-            });
-          }
+          // NOTE: Medical History used to auto-open here for a first-time customer,
+          // i.e. the moment the sidebar was opened — before anyone had decided the
+          // customer was actually in the building. It now opens on Checked In (see
+          // sendStatusUpdate), which is the point in the flow the form belongs to.
+          // This branch only records whether it is already filled; medHistPendingRef
+          // carries that to the status handler without waiting for a state read.
+          medHistPendingRef.current = !medHistSub;
         }).catch(() => setShowMedHistory(true));
     } else {
       setShowMedHistory(true);
@@ -344,17 +423,103 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
     return String(when).trim().toLowerCase() !== "customer";
   };
 
+  /* ── Which stage does a form belong to? ────────────────────────────────────
+     Three buckets, read off whenToFill from the service mapping:
+       customer → Medical History and friends, filled at registration, never gated
+       before   → "Before Service Starts" (consent) — opens once the service is Active
+       after    → "After Service Starts" / treatment — opens ONLY at Completed
+     Anything unrecognised falls into `before`, which is the behaviour these forms
+     had before the after-service split, so a new whenToFill value can never make
+     a form MORE locked than it used to be. */
+  const formStage = (form) => {
+    const when = String(
+      form?.whenToFill
+      || sidebarForms.find(f => f.formCode === form?.formCode)?.whenToFill
+      || ""
+    ).trim().toLowerCase();
+    if (!when || when.includes("customer")) return when ? "customer" : "before";
+    if (when.includes("after") || when.includes("post") || when.includes("treatment")) return "after";
+    return "before";
+  };
+
+  const AFTER_FORMS_MSG = "Treatment forms open once the appointment is marked Completed.";
+
+  // Treatment / after-service forms are the record of what was actually done, so
+  // they stay locked through Active and open only on Completed.
+  const isFormLocked = (form) => {
+    const stage = formStage(form);
+    if (stage === "customer") return false;
+    if (stage === "after")    return status !== "Completed";
+    return formsLocked;                       // before-service: unlocked from Active
+  };
+  const formLockMsg = (form) =>
+    formStage(form) === "after" ? AFTER_FORMS_MSG : FORMS_LOCKED_MSG;
+
+  /* ── After-service forms on Completed ──────────────────────────────────────
+     Marking the appointment Completed is the moment the treatment record is due,
+     so the form is PRESENTED rather than silently auto-completed. Anything still
+     unfilled goes in a queue; each one opens in turn as the previous is
+     submitted. A form the user closes without submitting is simply left pending
+     — the button in the panel is unlocked by then, so it can be opened again. */
+  const afterFormQueueRef = useRef([]);
+
+  const isFormFilled = (formCode) =>
+    sidebarForms.find(f => f.formCode === formCode)?.status === "Completed";
+
+  const formMacroContext = () => {
+    const a = appt || appointment || {};
+    return {
+      customerName:     a.fullName      || "",
+      serviceName:      a.serviceName   || "",
+      centreName:       user?.centerName || "",
+      practitionerName: a.therapistName || "",
+      appointmentDate:  a.startDate     || new Date().toISOString(),
+    };
+  };
+
+  const openNextAfterServiceForm = () => {
+    const next = afterFormQueueRef.current.shift();
+    if (next) openFormDirect(next.formCode, formMacroContext());
+    return !!next;
+  };
+
+  const pendingAfterServiceForms = () =>
+    activeForms.filter(f => formStage(f) === "after" && !isFormFilled(f.formCode));
+
+  /* ── Status options ────────────────────────────────────────────────────────
+     Trimming starts at Checked In. While the appointment is still Booked or
+     Confirmed the full list stays available, because nothing has happened yet and
+     reception may need to move it either way. From Checked In onwards the visit
+     runs forward only and everything earlier in the sequence is dropped — at
+     Active, Booked/Confirmed/Checked In disappear; at Completed only Completed is
+     left. Cancelled and No Show are not part of the sequence (rank -1), so they
+     are never removed by this rule — the existing RESTRICTED branch is what
+     withdraws them once the visit is underway. */
+  const STATUS_ORDER = ["Booked", "Confirmed", "Checked In", "Active", "Completed"];
+  const rankOf = (s) => STATUS_ORDER.indexOf(String(s || "").trim());
+
   const VISIBLE = (() => {
-    if (isRestricted) {
+    const base = isRestricted
       // Once in progress/done — allow progression but not cancel/no-show
-      return ["Checked In", "Active", "Completed"];
-    }
-    if (isFuture) {
+      ? ["Checked In", "Active", "Completed"]
+      : isFuture
       // Future — only pre-appointment statuses
-      return ["Booked", "Confirmed", "Cancelled"];
-    }
-    // Past or today — full range including Completed (for walk-ins / past bookings)
-    return ["Booked", "Confirmed", "Checked In", "Active", "Completed", "Cancelled", "No Show"];
+      ? ["Booked", "Confirmed", "Cancelled"]
+      // Past or today — full range including Completed (for walk-ins / past bookings)
+      : ["Booked", "Confirmed", "Checked In", "Active", "Completed", "Cancelled", "No Show"];
+
+    const currentRank = rankOf(status);
+    const TRIM_FROM   = rankOf("Checked In");
+    // Below Checked In — or an unranked/unrecognised status (blank, "Confirm",
+    // Cancelled, No Show, rank -1) — leave the list exactly as it is.
+    if (currentRank < TRIM_FROM) return base;
+
+    const forward = base.filter(s => {
+      const r = rankOf(s);
+      return r < 0 || r >= currentRank;       // keep the current one and everything after
+    });
+    // Never hand the select an empty list, and never drop the value it is bound to.
+    return forward.includes(status) ? forward : [status, ...forward];
   })();
 
   useEffect(() => {
@@ -392,6 +557,21 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           const custId = appt?.custId || appointment?.custId;
           console.log("[index.jsx] Checked In — firing notes for custId:", custId);
           if (custId) await checkCheckinNotes(custId, "checkin");
+
+          // Medical History belongs to check-in: the customer is at the desk and
+          // the form is filled with them. Only presented when there is no
+          // submission on file — a returning customer is not asked again.
+          if (medHistPendingRef.current && !medHistFilled) {
+            console.log("[EMR] Checked In — presenting Medical History");
+            // Next tick, so the check-in notes popup is not fighting the modal.
+            setTimeout(() => {
+              openFormDirect(MED_HIST_CODE, {
+                ...formMacroContext(),
+                MobileNumber: appt?.number || appointment?.number || "",
+                Gender:       appt?.gender || appointment?.gender || "",
+              });
+            }, 0);
+          }
         }
 
         // ── On Completed: mark all EMR forms as complete + generate courtesy call
@@ -399,8 +579,21 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
           const serviceCode = appt?.serviceCode || appt?.allLines?.[0]?.serviceCode || "";
           const custId      = appt?.custId || appointment?.custId || "";
 
-          // Mark any unfilled forms as auto-completed so badge shows "All Complete"
-          if (apptId && serviceCode) {
+          // Treatment / after-service forms are due exactly now, so show them.
+          // MarkFormsComplete is deliberately NOT called while any of them are
+          // outstanding — auto-completing them would tick the badge for a
+          // treatment record nobody filled, which is the whole thing this
+          // status gate exists to prevent.
+          const pendingAfter = pendingAfterServiceForms();
+          if (pendingAfter.length) {
+            afterFormQueueRef.current = pendingAfter.slice();
+            console.log("[EMR] Completed — presenting after-service forms:",
+              pendingAfter.map(f => f.formCode).join(", "));
+            // Next tick: let the status state and toast settle before the modal opens.
+            setTimeout(() => openNextAfterServiceForm(), 0);
+          } else if (apptId && serviceCode) {
+            // Nothing outstanding at this stage — keep the original behaviour so
+            // the badge reads "All Complete".
             authPost(`${API_BASE_URL}/api/EMR/Appointment/MarkFormsComplete`, {
               appointmentId: apptId,
               serviceCode,
@@ -616,11 +809,12 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
               activeForms.map(form => {
                 const filled = sidebarForms.find(f => f.formCode === form.formCode);
                 const isFilled = filled?.status === "Completed";
-                const isLocked = formsLocked && isServiceStageForm(form);
+                const isLocked = isFormLocked(form);
+                const lockMsg  = formLockMsg(form);
                 const openForm = () => {
                   // Button stays visible; the click is intercepted with a toast.
                   if (isLocked) {
-                    setToast({ message: FORMS_LOCKED_MSG, type: "error" });
+                    setToast({ message: lockMsg, type: "error" });
                     return;
                   }
                   const a = appt || appointment || {};
@@ -642,7 +836,7 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                     {isFilled
                       ? <span style={{ fontSize:10, fontWeight:700, background:"#dcfce7", color:"#166534", borderRadius:99, padding:"1px 8px", border:"1px solid #b3d9cc", whiteSpace:"nowrap" }}>✅ Done</span>
                       : isLocked
-                      ? <span title={FORMS_LOCKED_MSG} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
+                      ? <span title={lockMsg} style={{ fontSize:10, fontWeight:700, background:"#f8fafc", color:"#94a3b8", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}> Locked</span>
                       : <span style={{ fontSize:10, fontWeight:700, background:"#f1f5f9", color:"#6e7b8f", borderRadius:99, padding:"1px 8px", border:"1px solid #e5ebf3", whiteSpace:"nowrap" }}>Open</span>
                     }
                   </button>
@@ -851,11 +1045,17 @@ const AppointmentDetailsSide = ({ appointment, onClose, onEdit, onReschedule, on
                             :                               "Not Started";
               setSidebarFormStatus(overall);
             });
-            if (fc === MED_HIST_CODE) setMedHistFilled(true);
+            if (fc === MED_HIST_CODE) { setMedHistFilled(true); medHistPendingRef.current = false; }
+            // If Completed queued more than one after-service form, open the next.
+            openNextAfterServiceForm();
           }}
         />
       )}
       {CheckinNotePopup}
+
+      {/* Layout fix for this panel at narrow widths — see SIDEBAR_LAYOUT_CSS.
+          Rendered last so it wins the cascade against index.css. */}
+      <style>{SIDEBAR_LAYOUT_CSS}</style>
     </div>
   );
 };
@@ -867,6 +1067,21 @@ const STATUS_STYLE = {
 };
 
 
+
+/* Appointment ID (REFERENCEID, e.g. Apt-2026-08-00009) rendered on every board
+   card so staff can read/quote the id straight off the grid instead of opening
+   the details sidebar. Cards are narrow, so the line truncates with an ellipsis
+   and carries the full id in a title tooltip. */
+const ApptIdLine = ({ id, size = 10 }) => {
+  if (!id) return null;
+  return (
+    <div className="av2-apptid" title={id}
+      style={{ fontSize:size, fontWeight:600, color:"#6B7A90", letterSpacing:".2px",
+        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:1 }}>
+      {id}
+    </div>
+  );
+};
 
 const EMRStatusBadge = ({ appointmentId, serviceCode }) => {
   const [status, setStatus] = React.useState(null);
@@ -1251,6 +1466,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     return (
       <div className={`appcell-v2 ${sc}`} onClick={onOpen}>
         <div className="av2-name">{appt.fullName}</div>
+        <ApptIdLine id={appt.appointmentId} />
         <div className="av2-svc">{appt.serviceName || "—"}</div>
         <div className={`aptst ${sc}`} style={{marginTop:2}}>
           <span/>{appt.status || "Booked"}
@@ -1293,6 +1509,52 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     setIsSidebarOpen(true);
   };
 
+  /* ── Keeping the board where the user left it ──────────────────────────────
+     A status update refetches the whole day, which replaces `appointments` and
+     re-renders the grid. The primary fix is rendering DoctorView/TimeView as
+     calls rather than elements (see the render block), so the scroll container
+     is no longer destroyed. This ref is the backstop: it remembers the last
+     scroll offsets and puts them back if the container ever does come back at
+     0/0 with a position worth restoring — e.g. after a view switch or any
+     future change that remounts the grid. */
+  const gridRef       = useRef(null);
+  const gridScrollRef = useRef({ left: 0, top: 0 });
+
+  const onGridScroll = (e) => {
+    const el = e.currentTarget;
+    gridScrollRef.current = { left: el.scrollLeft, top: el.scrollTop };
+  };
+
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const { left, top } = gridScrollRef.current;
+    // Only correct a container that came back reset — never fight a user who
+    // deliberately scrolled back to the start.
+    if (el.scrollLeft === 0 && left > 0) el.scrollLeft = left;
+    if (el.scrollTop  === 0 && top  > 0) el.scrollTop  = top;
+  }, [appointments, viewMode, activeFilter]);
+
+  /* Bring the appointment being viewed into view and ring it. Runs when the
+     sidebar target changes (including a hit from the cross-date board search,
+     which lands on a card that may be far right on the timeline). `nearest`
+     means an already-visible card is left exactly where it is. */
+  const focusedApptId = isSidebarOpen ? (selectedAppointment?.appointmentId || "") : "";
+
+  useEffect(() => {
+    if (!focusedApptId) return;
+    const el = gridRef.current?.querySelector(
+      `[data-appt-id="${(window.CSS && CSS.escape) ? CSS.escape(focusedApptId) : focusedApptId}"]`
+    );
+    if (!el) return;
+    // rAF: let the grid finish laying out after a refetch before measuring.
+    const id = requestAnimationFrame(() => {
+      try { el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" }); }
+      catch { el.scrollIntoView(false); }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [focusedApptId, viewMode, appointments]);
+
   // ── Filtered appointments for grid display ───────────────────────────────
   const filteredAppointments = useMemo(() => {
     if (!activeFilter) return appointments;
@@ -1333,7 +1595,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   }, [doctors, filteredAppointments]);
 
   const DoctorView = () => (
-    <div className="grid-outer">
+    <div className="grid-outer" ref={gridRef} onScroll={onGridScroll}>
       <table className="cal-table" style={{ tableLayout:"fixed" }}>
         <thead>
           <tr>
@@ -1443,7 +1705,8 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
 
                       return (
                         <div key={appt.appointmentId + idx}
-                          className={`appcell-v2 ${sc}`}
+                          data-appt-id={appt.appointmentId}
+                          className={`appcell-v2 ${sc}${focusedApptId && focusedApptId === appt.appointmentId ? " is-focused" : ""}`}
                           onClick={() => openSidebar(appt)}
                           style={{
                             position:"absolute",
@@ -1459,6 +1722,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                               <span/>{appt.status || "Booked"}
                             </div>
                           </div>
+                          <ApptIdLine id={appt.appointmentId} size={9} />
                           <div className="av2-svc" style={{ fontSize:10, marginTop:2 }}>{appt.serviceName}</div>
                           <EMRStatusBadge
                             appointmentId={appt.appointmentId}
@@ -1503,7 +1767,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
     const baseMins = toMins(timeSlots[0]);
 
     return (
-      <div className="grid-outer">
+      <div className="grid-outer" ref={gridRef} onScroll={onGridScroll}>
         <table className="cal-table">
           <thead>
             <tr>
@@ -1611,7 +1875,8 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
 
                       return (
                         <div key={appt.appointmentId + idx}
-                          className={`appcell-v2 ${sc}`}
+                          data-appt-id={appt.appointmentId}
+                          className={`appcell-v2 ${sc}${focusedApptId && focusedApptId === appt.appointmentId ? " is-focused" : ""}`}
                           onClick={() => openSidebar(appt)}
                           style={{
                             position:"absolute",
@@ -1629,6 +1894,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                               <span/>{appt.status || "Booked"}
                             </div>
                           </div>
+                          <ApptIdLine id={appt.appointmentId} size={9} />
                           {heightPx > 40 && <div className="av2-svc" style={{ fontSize:10, marginTop:2 }}>{appt.serviceName}</div>}
                           <EMRStatusBadge
                             appointmentId={appt.appointmentId}
@@ -1749,7 +2015,18 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
       </div>
 
       {/* View toggle + grid */}
-      {viewMode === "doctor" ? <DoctorView /> : <TimeView />}
+      {/* Called as plain functions, NOT rendered as <DoctorView /> / <TimeView />.
+          Both are defined inside this component, so their function identity is
+          new on every render — React treated that as a different component type
+          and threw away the whole grid subtree each time, which is why the board
+          scrolled back to the top-left after a status update (a fresh .grid-outer
+          node starts at scrollLeft 0) and why re-renders were expensive on iPad.
+          Calling them inlines their JSX into this tree, so React reconciles the
+          existing DOM instead of rebuilding it. Neither uses hooks, so this is
+          safe. */}
+      {viewMode === "doctor" ? DoctorView() : TimeView()}
+
+      <style>{BOARD_FOCUS_CSS}</style>
 
       {isSidebarOpen && selectedAppointment && (
         <AppointmentDetailsSide

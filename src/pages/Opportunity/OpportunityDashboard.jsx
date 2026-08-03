@@ -522,23 +522,9 @@ const OpportunityDashboard = () => {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, flexWrap:"wrap", gap:12 }}>
         <div>
           <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}> Opportunity Dashboard</div>
-          
+           <PeriodFilter range={range} onPick={setRange} />
         </div>
-        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
-          <PeriodFilter range={range} onPick={setRange} />
-          <button onClick={() => guard("OPP.CAMPAIGN_NAME_EDIT", handleEditOppName)} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
-            borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-             Edit Opp Name
-          </button>
-          <button onClick={() => guard("OPP.EXPIRING_CAMPAIGN", handleExpireCampaign)} style={{ padding:"9px 16px", border:`1px solid #fcd34d`,
-            borderRadius:8, background:"#fef9c7", color:"#92400e", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-             Expire Campaign
-          </button>
-          <button onClick={() => guard("OPP.CAMPAIGN_CREATION", handleCreateNewCampaign)} style={{ padding:"9px 18px", background:C.navy,
-            color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            + Create Campaign
-          </button>
-        </div>
+       
       </div>
 
       {range === "Custom Range" && (
@@ -643,6 +629,25 @@ const OpportunityDashboard = () => {
       {/* Table card */}
       <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
         boxShadow:"0 1px 6px rgba(0,0,0,.05)", overflow:"hidden" }}>
+
+
+          <div style={{display:'flex', justifyContent:'flex-end', padding: '10px'}}>
+             <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+         
+          <button onClick={() => guard("OPP.CAMPAIGN_NAME_EDIT", handleEditOppName)} style={{ padding:"9px 16px", border:`1px solid ${C.border}`,
+            borderRadius:8, background:"#fff", color:C.navy, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+             Edit Campaign Name
+          </button>
+          <button onClick={() => guard("OPP.EXPIRING_CAMPAIGN", handleExpireCampaign)} style={{ padding:"9px 16px", border:`1px solid #fcd34d`,
+            borderRadius:8, background:"#fef9c7", color:"#92400e", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+             Expire Campaign
+          </button>
+          <button onClick={() => guard("OPP.CAMPAIGN_CREATION", handleCreateNewCampaign)} style={{ padding:"9px 18px", background:C.navy,
+            color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            + Create Campaign
+          </button>
+        </div>
+          </div>
 
         {/* Toolbar */}
         <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`,

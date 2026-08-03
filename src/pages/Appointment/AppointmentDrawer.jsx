@@ -497,7 +497,7 @@ const ServiceList = ({ data = [], onDelete }) => (
                 <td>{entry.service.duration}</td>
                 <td>
                   <button className="tblbtn delete" onClick={() => onDelete(idx)}>
-                    <img src={`${import.meta.env.BASE_URL}images/deletewt.svg`} alt="Delete" />
+                    Delete
                   </button>
                 </td>
               </tr>

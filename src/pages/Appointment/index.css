@@ -423,11 +423,11 @@ body{background:var(--bg);color:var(--text);}
 }
 .srvctbl td{padding:4px 10px;border-bottom:1px solid var(--border);color:var(--text-md);font-size:12px;}
 .srvctbl tr:hover td{background:#f8fafc;}
-.tblbtn.delete{
-  background:#fef2f2;border:1px solid #fecaca;border-radius:var(--r-sm);
+.tblbtn{
+  background:#790303;border:1px solid #fecaca;border-radius:var(--r-sm);
   padding:4px 8px;cursor:pointer;display:inline-flex;align-items:center;
 }
-.tblbtn.delete img{width:12px;}
+.tblbtn.delete {color:#fff;}
 .noadded{font-size:13px;font-weight:600;color:var(--text-md);padding:20px 16px;}
 
 .drwr-actions{
