@@ -388,7 +388,7 @@ export default function LTRFunnelDashboard() {
                 </div>
               )}
             </Card>
-            <Card title="Awaiting / lost">
+            <Card title="Campaign KPI">
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 <BadgeStat label="Pending appointment mapping" value={nfmt(badges.pendingApptMapping)} accent={C.gold} onClick={() => openDrill("pending")} />
                 <BadgeStat label="Dropped / Lost" value={nfmt(badges.droppedLost)} accent={C.coral} onClick={() => openDrill("lost")} />

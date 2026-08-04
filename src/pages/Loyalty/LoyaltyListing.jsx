@@ -104,8 +104,26 @@ const Badge = ({ active }) => (
   </span>
 );
 
-// Tier block shown inside an expanded program row.
-const TierPanel = ({ state, currencies }) => {
+// Derived rates, guarded against the divide-by-zero a half-filled tier produces.
+const perPointCost = (segment, points) =>
+  Number(segment) > 0 && Number(points) > 0 ? Number(segment) / Number(points) : null;
+const pointWorth = (amount, points) =>
+  Number(amount) > 0 && Number(points) > 0 ? Number(amount) / Number(points) : null;
+const rate = (v) => (v == null ? null : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 }));
+
+// One metric inside the selected tier's pane. `accent` colours the top rule.
+const TierStat = ({ accent, label, value, sub, note }) => (
+  <div className="ll-stat" style={{ "--ll-stat-accent": accent }}>
+    <div className="ll-stat-label">{label}</div>
+    <div className="ll-stat-value">{value}</div>
+    {sub  && <div className="ll-stat-sub">{sub}</div>}
+    {note && <div className="ll-stat-note">{note}</div>}
+  </div>
+);
+
+// Tier block shown inside an expanded program row. Tiers are tabs — one tab per
+// tier, ordered by level — and the selected tab shows that tier in full.
+const TierPanel = ({ state, currencies, active = 0, onSelect }) => {
   const { loading, error, data } = state || {};
 
   if (loading) {
@@ -118,48 +136,113 @@ const TierPanel = ({ state, currencies }) => {
   if (error) return <div className="ll-tier-status ll-tier-status-err">{error}</div>;
   if (!data?.length) return <div className="ll-tier-status">No tiers configured for this program yet.</div>;
 
+  // Level is the tier's real order, so it drives the tab order too.
+  const tiers = [...data].sort((a, b) => (a.tierLevel ?? 0) - (b.tierLevel ?? 0));
+  const idx   = Math.min(Math.max(Number(active) || 0, 0), tiers.length - 1);
+  const t     = tiers[idx];
+  const code  = currencyCode(currencies, t.currencyId);
+
+  const earns   = t.earningAmountSegment && t.earnPoints;
+  const redeems = t.redeemPoints && t.redeemAmount;
+  const perPt   = earns   ? perPointCost(t.earningAmountSegment, t.earnPoints) : null;
+  const worth   = redeems ? pointWorth(t.redeemAmount, t.redeemPoints)         : null;
+
+  const earnCount   = t.earningCategoryIds?.length ?? 0;
+  const redeemCount = t.redeemCategoryIds?.length  ?? 0;
+
+  // Up/Down are the natural axis for a vertical rail; Left/Right kept so the
+  // muscle memory from the old horizontal strip still works.
+  const onTabKey = (e) => {
+    const fwd  = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const back = e.key === "ArrowUp"   || e.key === "ArrowLeft";
+    if (!fwd && !back) return;
+    e.preventDefault();
+    const next = fwd
+      ? (idx + 1) % tiers.length
+      : (idx - 1 + tiers.length) % tiers.length;
+    onSelect?.(next);
+  };
+
   return (
-    <div className="ll-tier-table">
-      <div className="ll-tier-head">
-        <span>Tier</span>
-        <span>Spend Range</span>
-        <span>Earning Rule</span>
-        <span>Redemption Rule</span>
-        <span>Expiry</span>
+    <div className="ll-tier-layout" onClick={(e) => e.stopPropagation()}>
+
+      {/* Tabs — one per tier, stacked as a rail down the left */}
+      <div className="ll-tier-tabs" role="tablist" aria-orientation="vertical" aria-label="Tiers">
+        {tiers.map((x, i) => {
+          const xCode = currencyCode(currencies, x.currencyId);
+          return (
+            <button
+              key={x.tierId}
+              role="tab"
+              type="button"
+              aria-selected={i === idx}
+              tabIndex={i === idx ? 0 : -1}
+              title={x.tierName || `Tier ${i + 1}`}
+              className={`ll-tier-tab ${i === idx ? "active" : ""}`}
+              onClick={() => onSelect?.(i)}
+              onKeyDown={onTabKey}
+            >
+              <span className="ll-tier-tab-lvl">L{x.tierLevel ?? i + 1}</span>
+              <span className="ll-tier-tab-text">
+                <span className="ll-tier-tab-name">{x.tierName || `Tier ${i + 1}`}</span>
+                <span className="ll-tier-tab-range">
+                  {money(x.fromAmount, xCode)} – {money(x.toAmount, xCode)}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
-      {data.map((t, i) => {
-        const code = currencyCode(currencies, t.currencyId);
-        const earns   = t.earningAmountSegment && t.earnPoints;
-        const redeems = t.redeemPoints && t.redeemAmount;
-        return (
-          <div key={t.tierId} className={`ll-tier-row ${i % 2 ? "alt" : ""}`}>
-            <span className="ll-tier-name-cell">
-              <b>{t.tierName || "—"}</b>
-              {t.tierLevel != null && <em className="ll-tier-level">L{t.tierLevel}</em>}
-            </span>
 
-            <span className="ll-tier-range">
-              {money(t.fromAmount, code)} <i>→</i> {money(t.toAmount, code)}
-            </span>
-
-            <span className="ll-tier-rule">
-              {earns
-                ? <>Earn <b>{num(t.earnPoints)}</b> {Number(t.earnPoints) === 1 ? "point" : "points"} per {money(t.earningAmountSegment, code)} spent</>
-                : "—"}
-            </span>
-
-            <span className="ll-tier-rule">
-              {redeems
-                ? <><b>{num(t.redeemPoints)}</b> {Number(t.redeemPoints) === 1 ? "point" : "points"} = {money(t.redeemAmount, code)}</>
-                : "—"}
-            </span>
-
-            <span className="ll-tier-expiry">
-              {t.expiryDays != null && t.expiryDays !== "" ? `${num(t.expiryDays)} days` : "—"}
-            </span>
+      {/* Selected tier */}
+      <div className="ll-tier-pane" role="tabpanel">
+        <div className="ll-tier-pane-head">
+          <div className="ll-tier-pane-title">
+            <span className="ll-tier-pane-name">{t.tierName || "—"}</span>
+            {t.tierLevel != null && <span className="ll-tier-pane-lvl">Level {t.tierLevel}</span>}
           </div>
-        );
-      })}
+          <div className="ll-tier-pane-range">
+            <div className="ll-tier-pane-range-label">Spend range</div>
+            <div className="ll-tier-pane-range-value">
+              {money(t.fromAmount, code)} <i>→</i> {money(t.toAmount, code)}
+            </div>
+          </div>
+        </div>
+
+        <div className="ll-stat-grid">
+          <TierStat
+            accent="#DD7766"
+            label="Earning"
+            value={earns ? `${num(t.earnPoints)} ${Number(t.earnPoints) === 1 ? "point" : "points"}` : "Not set"}
+            sub={earns ? `per ${money(t.earningAmountSegment, code)} spent` : "No earning rule on this tier"}
+            note={perPt ? `1 point per ${code ? code + " " : ""}${rate(perPt)}` : null}
+          />
+          <TierStat
+            accent="#18396E"
+            label="Redemption"
+            value={redeems ? money(t.redeemAmount, code) : "Not set"}
+            sub={redeems ? `for every ${num(t.redeemPoints)} ${Number(t.redeemPoints) === 1 ? "point" : "points"}` : "No redemption rule on this tier"}
+            note={worth ? `1 point is worth ${code ? code + " " : ""}${rate(worth)}` : null}
+          />
+          <TierStat
+            accent="#85A2AA"
+            label="Points expiry"
+            value={t.expiryDays != null && t.expiryDays !== "" ? num(t.expiryDays) : "Never"}
+            sub={t.expiryDays != null && t.expiryDays !== "" ? "days from the date earned" : "Points do not expire"}
+          />
+        </div>
+
+        <div className="ll-tier-meta">
+          <span className="ll-tier-meta-item">Currency <b>{code || "—"}</b></span>
+          <span className="ll-tier-meta-item">
+            Earning services <b>{earnCount ? `${earnCount} selected` : "All"}</b>
+          </span>
+          <span className="ll-tier-meta-item">
+            Redemption services <b>{redeemCount ? `${redeemCount} selected` : "All"}</b>
+          </span>
+          <span className="ll-tier-meta-item">Status <b>{t.isActive ? "Active" : "Inactive"}</b></span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -178,6 +261,8 @@ export default function LoyaltyListing() {
   const [tierState, setTierState] = useState({});
   const [currencies, setCurrencies] = useState([]);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
+  // Which tier tab is open, per program, so reopening a row restores the choice.
+  const [tierTab, setTierTab] = useState({});
 
   const loadPrograms = (p = 1) => {
     setLoading(true);
@@ -426,6 +511,8 @@ export default function LoyaltyListing() {
                     <TierPanel
                       state={tierState[p.programId]}
                       currencies={currencies}
+                      active={tierTab[p.programId] ?? 0}
+                      onSelect={(i) => setTierTab(s => ({ ...s, [p.programId]: i }))}
                     />
                   </div>
                 </div>
@@ -553,7 +640,7 @@ export default function LoyaltyListing() {
         }
         .ll-table-row:nth-child(even) { background: #fafbfe; }
         .ll-table-row:hover { background: #fff; box-shadow: inset 3px 0 0 #A7D1CD; }
-        .ll-table-row.expanded { background: #eef6f5; border-bottom: none; box-shadow: inset 3px 0 0 #334b71; }
+        .ll-table-row.expanded { background: #fff; border-bottom: none; box-shadow: inset 3px 0 0 #334b71; }
         @keyframes ll-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
         .ll-col { display: flex; align-items: center; }
@@ -653,7 +740,9 @@ export default function LoyaltyListing() {
         .ll-detail-row b { color: #334b71; font-weight: 700; }
         .ll-detail-footer { margin-top: 16px; display: flex; justify-content: flex-end; }
 
-        /* ── Tier block (inside detail panel) ── */
+        /* ── Tier block (inside detail panel) ──────────────────────────────
+           Palette for this block only: Royal Blue #18396E, Warm Coral #DD7766,
+           Blue Grey #85A2AA and white. */
         .ll-tier-count {
           font-style: normal; font-size: 10px; font-weight: 800;
           background: #DD7766; color: #fff;
@@ -661,47 +750,117 @@ export default function LoyaltyListing() {
         }
         .ll-tier-status {
           display: flex; align-items: center; gap: 8px;
-          padding: 14px 12px; font-size: 12.5px; color: #6e7b8f;
-          background: rgba(255,255,255,0.8); border: 1px solid #e5ebf3;
+          padding: 14px 12px; font-size: 12.5px; color: #85A2AA;
+          background: #fff; border: 1px solid rgba(133,162,170,0.35);
           border-radius: 9px;
         }
-        .ll-tier-status-err { color: #cc6b5c; background: #fff5f5; border-color: #f0c4c0; }
+        .ll-tier-status-err { color: #DD7766; background: #fff; border-color: rgba(221,119,102,0.45); }
         .ll-spinner {
           width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
-          border: 2px solid #dce6f0; border-top-color: #334b71;
+          border: 2px solid rgba(133,162,170,0.35); border-top-color: #18396E;
           animation: ll-spin .8s linear infinite;
         }
         @keyframes ll-spin { to { transform: rotate(360deg); } }
 
-        .ll-tier-table {
-          border: 1px solid #e5ebf3; border-radius: 10px; overflow: hidden;
-          background: #fff;
-        }
-        .ll-tier-head, .ll-tier-row {
-          display: grid;
-          grid-template-columns: 1.1fr 1.2fr 1.7fr 1.4fr 0.7fr;
-          gap: 10px; padding: 10px 14px; align-items: center;
-        }
-        .ll-tier-head {
-          background: #f4f7fb; border-bottom: 1px solid #e5ebf3;
-          font-size: 10px; font-weight: 800; color: #8da0b8;
-          text-transform: uppercase; letter-spacing: 0.07em;
-        }
-        .ll-tier-row { font-size: 12.5px; color: #6e7b8f; border-bottom: 1px solid #f0f4fa; }
-        .ll-tier-row:last-child { border-bottom: none; }
-        .ll-tier-row.alt { background: #fafbfe; }
+        /* Rail + pane sit side by side; the rail is the tab list. */
+        .ll-tier-layout { display: flex; align-items: flex-start; gap: 14px; }
 
-        .ll-tier-name-cell { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-        .ll-tier-name-cell b { color: #1e3352; font-weight: 800; font-size: 13px; }
-        .ll-tier-level {
-          font-style: normal; font-size: 10px; font-weight: 800;
-          color: #334b71; background: #eef2f7; border: 1px solid #dce6f0;
-          padding: 1px 6px; border-radius: 6px;
+        /* Tabs — one per tier, stacked vertically */
+        .ll-tier-tabs {
+          display: flex; flex-direction: column; gap: 4px;
+          flex: 0 0 214px; width: 214px;
+          padding: 4px;
+          background: rgba(133,162,170,0.14);
+          border-radius: 12px;
         }
-        .ll-tier-range { font-weight: 700; color: #334b71; white-space: nowrap; }
-        .ll-tier-range i { font-style: normal; color: #A7D1CD; font-weight: 800; margin: 0 2px; }
-        .ll-tier-rule b { color: #334b71; font-weight: 800; }
-        .ll-tier-expiry { font-weight: 600; }
+        .ll-tier-tab {
+          position: relative; width: 100%;
+          display: flex; align-items: center; gap: 10px;
+          padding: 11px 13px; border: none; border-radius: 9px;
+          background: transparent; color: #85A2AA;
+          font-family: inherit; font-size: 13px; font-weight: 700;
+          text-align: left; cursor: pointer;
+          transition: background .18s, color .18s, box-shadow .18s;
+        }
+        .ll-tier-tab:hover { background: rgba(255,255,255,0.8); color: #18396E; }
+        .ll-tier-tab.active {
+          background: #18396E; color: #fff;
+          box-shadow: 0 4px 12px rgba(24,57,110,0.28);
+        }
+        /* Coral marker on the leading edge — the vertical equivalent of an
+           underline, and the only thing that moves as you change tiers. */
+        .ll-tier-tab.active::before {
+          content: ""; position: absolute; left: 0; top: 9px; bottom: 9px;
+          width: 3px; border-radius: 0 3px 3px 0; background: #DD7766;
+        }
+        .ll-tier-tab:focus-visible { outline: 2px solid #DD7766; outline-offset: 2px; }
+        .ll-tier-tab-lvl {
+          flex-shrink: 0; font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+          padding: 2px 7px; border-radius: 999px;
+          background: rgba(133,162,170,0.25); color: #18396E;
+        }
+        .ll-tier-tab.active .ll-tier-tab-lvl { background: #DD7766; color: #fff; }
+        .ll-tier-tab-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .ll-tier-tab-range {
+          font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+          color: #85A2AA; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
+        }
+        .ll-tier-tab:hover .ll-tier-tab-range { color: #18396E; }
+        .ll-tier-tab.active .ll-tier-tab-range { color: rgba(255,255,255,0.66); }
+        .ll-tier-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Selected tier */
+        .ll-tier-pane {
+          flex: 1 1 auto; min-width: 0;
+          background: #fff; border: 1px solid rgba(133,162,170,0.35);
+          border-radius: 12px; overflow: hidden;
+          animation: ll-fadein .2s ease both;
+        }
+        .ll-tier-pane-head {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 16px; flex-wrap: wrap;
+          padding: 15px 18px; background: #18396E; color: #fff;
+        }
+        .ll-tier-pane-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .ll-tier-pane-name { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+        .ll-tier-pane-lvl {
+          font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+          text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+          background: #DD7766; color: #fff;
+        }
+        .ll-tier-pane-range { text-align: right; }
+        .ll-tier-pane-range-label {
+          font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
+          text-transform: uppercase; color: rgba(255,255,255,0.62); margin-bottom: 3px;
+        }
+        .ll-tier-pane-range-value { font-size: 14px; font-weight: 700; white-space: nowrap; }
+        .ll-tier-pane-range-value i { font-style: normal; color: #DD7766; font-weight: 800; margin: 0 6px; }
+
+        .ll-stat-grid {
+          display: grid; grid-template-columns: repeat(3, 1fr);
+          gap: 1px; background: rgba(133,162,170,0.35);
+        }
+        .ll-stat {
+          background: #fff; padding: 16px 18px;
+          border-top: 3px solid var(--ll-stat-accent, #85A2AA);
+        }
+        .ll-stat-label {
+          font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
+          text-transform: uppercase; color: #85A2AA; margin-bottom: 8px;
+        }
+        .ll-stat-value { font-size: 22px; font-weight: 800; color: #18396E; line-height: 1.1; }
+        .ll-stat-sub { font-size: 12.5px; color: #85A2AA; font-weight: 600; margin-top: 5px; }
+        .ll-stat-note { font-size: 11px; color: #DD7766; font-weight: 700; margin-top: 7px; }
+
+        .ll-tier-meta {
+          display: flex; flex-wrap: wrap; gap: 8px 22px;
+          padding: 12px 18px;
+          border-top: 1px solid rgba(133,162,170,0.35);
+          background: rgba(133,162,170,0.07);
+        }
+        .ll-tier-meta-item { font-size: 12px; font-weight: 600; color: #85A2AA; }
+        .ll-tier-meta-item b { color: #18396E; font-weight: 800; margin-left: 6px; }
 
         /* Pagination */
         .ll-pagination {
@@ -726,8 +885,17 @@ export default function LoyaltyListing() {
           .ll-table-head { display: none; }
           .ll-table-row { grid-template-columns: 1fr 1fr; gap: 8px; }
           .ll-detail-rows { grid-template-columns: 1fr; }
-          .ll-tier-head { display: none; }
-          .ll-tier-row { grid-template-columns: 1fr; gap: 4px; }
+          .ll-tier-layout { flex-direction: column; }
+          .ll-tier-tabs {
+            flex: 0 0 auto; width: 100%; flex-direction: row;
+            overflow-x: auto; scrollbar-width: none;
+          }
+          .ll-tier-tabs::-webkit-scrollbar { display: none; }
+          .ll-tier-tab { flex: 0 0 auto; }
+          .ll-tier-tab.active::before { top: auto; bottom: 0; left: 9px; right: 9px; width: auto; height: 3px; border-radius: 3px 3px 0 0; }
+          .ll-tier-pane { width: 100%; }
+          .ll-stat-grid { grid-template-columns: 1fr; }
+          .ll-tier-pane-range { text-align: left; }
           .ll-page { padding: 16px; }
           .ll-toolbar { padding: 16px; }
         }

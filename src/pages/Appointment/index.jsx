@@ -207,7 +207,7 @@ const SIDEBAR_LAYOUT_CSS = `
 .smdiv .apptcdet.custdiv .cstapptid {
   font-size: 11px;
   font-weight: 700;
-  color: #334b71;
+  color: #fff;
   letter-spacing: .2px;
   margin-top: 2px;
 }

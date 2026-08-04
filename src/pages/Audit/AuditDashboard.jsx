@@ -12,9 +12,16 @@
 //        → submitted audits (ISDRAFT=0) with auditSegment, auditScore, submittedDate
 //   POST /api/Audit/LoadDraftAudits/1  → current draft audits
 // Period filter drives the donut + segment bar; the score trend shows a rolling
-// 6-month window ending at the period end. Offline → sample figures.
-import { useState, useEffect, useMemo, useCallback } from "react";
+// 6-month window ending at the period end.
+//
+// Data policy: NO sample figures are ever shown. While the endpoints are in
+// flight the page shows the shared EazyWeek progress bar; if they fail it shows
+// a retry panel. Every figure here comes from an endpoint or is not rendered.
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { API_BASE_URL } from "../../config";
+// Shared EazyWeek loading indicators (same module Dashboard.jsx uses).
+// This file assumes src/pages/Audit/ -> src/pages/Dashboard/; adjust if it moves.
+import { DashboardLoadingBar, TileSkeleton, ChartLoading, LoadError } from "../Dashboard/DashboardLoadingBar";
 
 /* ── palette ─────────────────────────────────────────────────────────────── */
 const C = {
@@ -30,15 +37,17 @@ const CAT_COLORS = [C.navy, C.cvt, C.wip, C.open, C.closed, "#7b6fb0", "#A7D1CD"
 
 /* ── auth ───────────────────────────────────────────────────────────────── */
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-const apiPost = (url, body) => fetch(url, {
-  method:"POST", credentials:"include",
+const apiPost = (url, body, signal) => fetch(url, {
+  method:"POST", credentials:"include", signal,
   headers:{ "Content-Type":"application/json", ...(TOKEN() ? { Authorization:`Bearer ${TOKEN()}` } : {}) },
   body: JSON.stringify(body || {}),
 });
 const asArray = (d) => Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d ? [d] : []));
 
 /* ── dates ──────────────────────────────────────────────────────────────── */
-const iso = (d) => d.toISOString().slice(0,10);
+// Local calendar parts, NOT toISOString(): at UTC+3 any local time before 03:00
+// rolls the date back a day, so "Current Date" would ask the API for yesterday.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const parseDMY = (s) => {
   if (!s) return null;
@@ -168,48 +177,51 @@ function ScoreLine({ points, height = 240 }) {
   );
 }
 
-/* ── sample fallback (offline preview) ──────────────────────────────────── */
-const MOCK = {
-  submitted: 75, draft: 21,
-  segments: [
-    { label:"Hygiene", value:28 }, { label:"Service Quality", value:24 },
-    { label:"Safety", value:19 }, { label:"Compliance", value:15 },
-  ],
-  trend: [
-    { label:"Feb", value:82 }, { label:"Mar", value:85 }, { label:"Apr", value:81 },
-    { label:"May", value:88 }, { label:"Jun", value:90 }, { label:"Jul", value:91 },
-  ],
-  avgScore: 86,
+/* ── data hook ──────────────────────────────────────────────────────────── */
+/* Nothing is rendered from this shape until `ready` is true — no figure on the
+   page is ever invented. */
+const EMPTY = {
+  ready:false, donut:[], donutTotal:0, segmentBar:[], trend:[],
+  avgScore:null, submitted:null, draft:null,
 };
 
-/* ── data hook ──────────────────────────────────────────────────────────── */
 function useAuditDashboard({ range, customFrom, customTo }) {
   const [rows, setRows]   = useState(null);   // submitted rows (wide window) | null
   const [drafts, setDrafts] = useState(null); // draft rows | null
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [updatedAt, setUpdatedAt] = useState(null);
+  // Sequence guard: a fast range switch must not let the OLDER response land
+  // last and repaint stale figures over the newer ones.
+  const seqRef = useRef(0);
+
+  // Custom Range half-entered or reversed: there is nothing to ask the API for.
+  const awaitingInput = !periodBounds(range, customFrom, customTo);
 
   const load = useCallback(async (signal) => {
-    setLoading(true); setErr("");
     const b = periodBounds(range, customFrom, customTo);
-    if (!b) { setLoading(false); return; }
+    if (!b) { seqRef.current++; setRows(null); setDrafts(null); setErr(""); setLoading(false); return; }
+    const seq = ++seqRef.current;
+    setLoading(true); setErr("");
     // Widen the fetch to cover a rolling 6-month window for the score trend.
     const trendStart = new Date(b.end); trendStart.setMonth(trendStart.getMonth() - 5); trendStart.setDate(1);
     const from = new Date(Math.min(b.start.getTime(), trendStart.getTime()));
     try {
       const [sumRes, draftRes] = await Promise.all([
-        apiPost(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { fromDate: iso(from), toDate: iso(b.end), dateFlag: "1" }),
-        apiPost(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {}),
+        apiPost(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { fromDate: iso(from), toDate: iso(b.end), dateFlag: "1" }, signal),
+        apiPost(`${API_BASE_URL}/api/Audit/LoadDraftAudits/1`, {}, signal),
       ]);
       if (!sumRes.ok) throw new Error(`HTTP ${sumRes.status}`);
-      setRows(asArray(await sumRes.json().catch(()=>[])));
-      setDrafts(draftRes && draftRes.ok ? asArray(await draftRes.json().catch(()=>[])) : []);
-      setUpdatedAt(new Date());
+      const nextRows   = asArray(await sumRes.json().catch(()=>[]));
+      const nextDrafts = draftRes && draftRes.ok ? asArray(await draftRes.json().catch(()=>[])) : [];
+      if (seq !== seqRef.current) return;   // superseded by a newer request
+      setRows(nextRows); setDrafts(nextDrafts); setUpdatedAt(new Date());
     } catch (e) {
-      if (e?.name === "AbortError") return;
-      setErr(e?.message || "Failed to load"); setRows(null); setDrafts(null); setUpdatedAt(new Date());
-    } finally { setLoading(false); }
+      if (e?.name === "AbortError" || seq !== seqRef.current) return;
+      setErr(e?.message || "Failed to load"); setRows(null); setDrafts(null); setUpdatedAt(null);
+    } finally {
+      if (seq === seqRef.current) setLoading(false);
+    }
   }, [range, customFrom, customTo]);
 
   useEffect(() => {
@@ -219,18 +231,10 @@ function useAuditDashboard({ range, customFrom, customTo }) {
   }, [range, customFrom, customTo, load]);
 
   const data = useMemo(() => {
-    const live = Array.isArray(rows);
-    const b = periodBounds(range, customFrom, customTo) || periodBounds("Current Month");
-
-    if (!live) {
-      return {
-        live:false,
-        donut:[{ label:"Submitted", value:MOCK.submitted, color:C.cvt }, { label:"Draft", value:MOCK.draft, color:C.wip }],
-        donutTotal: MOCK.submitted + MOCK.draft,
-        segmentBar: MOCK.segments.map((s,i)=>({ ...s, color:CAT_COLORS[i%CAT_COLORS.length] })),
-        trend: MOCK.trend, avgScore: MOCK.avgScore, submitted: MOCK.submitted, draft: MOCK.draft,
-      };
-    }
+    const b = periodBounds(range, customFrom, customTo);
+    // Not fetched yet, failed, or no usable period: render nothing rather than
+    // anything invented. The caller shows the loader / retry panel instead.
+    if (!Array.isArray(rows) || !b) return EMPTY;
 
     // Submitted rows within the selected period (by submittedDate)
     const inPeriod = rows.filter(r => { const d = parseDMY(r.submittedDate) || parseDMY(r.auditDate); return d && d >= b.start && d <= b.end; });
@@ -262,13 +266,13 @@ function useAuditDashboard({ range, customFrom, customTo }) {
     const trend = buckets.map(bk => ({ label:bk.label, value: bk.cnt ? Math.round(bk.sum/bk.cnt) : null }));
 
     return {
-      live:true,
+      ready:true,
       donut:[{ label:"Submitted", value:submitted, color:C.cvt }, { label:"Draft", value:draft, color:C.wip }],
       donutTotal: submitted + draft, segmentBar, trend, avgScore, submitted, draft,
     };
   }, [rows, drafts, range, customFrom, customTo]);
 
-  return { data, loading, err, updatedAt, reload: () => load() };
+  return { data, loading, err, awaitingInput, updatedAt, reload: () => load() };
 }
 
 /* ── UI helpers ─────────────────────────────────────────────────────────── */
@@ -287,12 +291,33 @@ const Empty = ({ text }) => (
   <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:180, color:"#9aa4b1", fontSize:13, textAlign:"center", padding:"0 8px" }}>{text}</div>
 );
 
+/* ── loading state — shown INSTEAD of sample figures ─────────────────────── */
+/* Mirrors the real layout (4 KPI tiles, 2 charts, 1 trend) so the page does not
+   jump when the response lands. */
+const AuditDashboardLoading = () => (
+  <div>
+    <div style={{ ...card, marginBottom:16 }}>
+      <div style={{ maxWidth:420 }}><DashboardLoadingBar label="Fetching audit data…" /></div>
+    </div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:16 }}>
+      {[0,1,2,3].map((k) => <TileSkeleton key={k} />)}
+    </div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:16, marginBottom:16 }}>
+      <div style={card}><ChartLoading height={210} label={null} /></div>
+      <div style={card}><ChartLoading height={210} label={null} /></div>
+    </div>
+    <div style={{ marginBottom:24 }}>
+      <div style={card}><ChartLoading height={230} label={null} /></div>
+    </div>
+  </div>
+);
+
 /* ── main ───────────────────────────────────────────────────────────────── */
 const AuditDashboard = () => {
   const [range, setRange] = useState("Current Month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const { data, loading, err, updatedAt, reload } = useAuditDashboard({ range, customFrom, customTo });
+  const { data, loading, err, awaitingInput, updatedAt, reload } = useAuditDashboard({ range, customFrom, customTo });
   const lastUpdated = updatedAt ? updatedAt.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "—";
   const invalidCustom = range === "Custom Range" && customFrom && customTo && new Date(customTo) < new Date(customFrom);
 
@@ -336,21 +361,29 @@ const AuditDashboard = () => {
 
       {/* status line */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
-        <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20, background:data.live?"#E6F1EC":"#F6EBD9", color:data.live?C.cvt:"#B07C28" }}>
-          {loading ? "Loading…" : data.live ? "Live data" : "Sample data"}
+        <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20,
+          background: err ? "#FDF0EC" : data.ready ? "#E6F1EC" : "#EEF2F7",
+          color:      err ? "#B0503A" : data.ready ? C.cvt    : C.sub }}>
+          {loading ? "Loading…" : err ? "Not loaded" : data.ready ? "Live data" : "No data"}
         </span>
         <span style={{ fontSize:12, color:C.sub }}>Last updated {lastUpdated}</span>
-        {err && !data.live && <span style={{ fontSize:11.5, color:"#b0704f" }}>API unreachable — showing sample figures</span>}
         <button onClick={reload} style={{ marginLeft:"auto", cursor:"pointer", fontFamily:FONT, fontSize:12, fontWeight:600, padding:"6px 12px", borderRadius:9, background:"#fff", color:C.navy, border:`1px solid ${C.border}` }}>Refresh</button>
       </div>
 
+      {/* Body — loader while in flight, retry panel on failure, real figures once
+          the response lands. Never a placeholder number. */}
+      {loading ? <AuditDashboardLoading />
+      : err ? <LoadError height={220} message="Could not load audit data." retryLabel="Retry" onRetry={reload} />
+      : awaitingInput ? <div style={card}><Empty text="Choose a From and To date to load the audit dashboard." /></div>
+      : (
+      <>
       {/* KPI strip */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:16 }}>
         {[
           { l:"Submitted", v:data.submitted, c:C.cvt },
           { l:"Draft",     v:data.draft,     c:C.wip },
           { l:"Total",     v:data.donutTotal, c:C.navy },
-          { l:"Avg score", v:data.avgScore == null ? "—" : data.avgScore, c:C.navyDk },
+          { l:"Avg score", v:data.avgScore == null ? "—" : data.avgScore, c:C.navyDk }, // — = no scored audits, not "not loaded"
         ].map((k) => (
           <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}>
             <div style={{ fontSize:26, fontWeight:800, color:k.c }}>{typeof k.v === "number" ? grp(k.v) : k.v}</div>
@@ -375,6 +408,8 @@ const AuditDashboard = () => {
           {data.trend.some(p => p.value != null) ? <ScoreLine points={data.trend} /> : <Empty text="No scored audits to trend yet." />}
         </CardShell>
       </div>
+      </>
+      )}
     </div>
   );
 };

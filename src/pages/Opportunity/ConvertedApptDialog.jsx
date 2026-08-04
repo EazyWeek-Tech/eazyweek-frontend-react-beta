@@ -44,27 +44,21 @@ export default function ConvertedApptDialog({
   return (
     <div style={OVERLAY}>
       <div style={CARD}>
-        <h3 style={{ margin: "0 0 4px", color: "#05224C" }}>
+        <h3 style={{ margin: "0 0 15px", fontSize: "18px", fontWeight:"bold",  color: "#05224C", textAlign: "center" }}>
           {existing ? "Opportunity Converted" : "Lead Converted"}
         </h3>
 
-        <p style={{ margin: "0 0 8px", fontSize: 13, color: "#555" }}>
+        <p style={{ margin: "0 0 15px", fontSize: 15, lineHeight:"24px", color: "#555" }}>
           {existing ? "This record is linked to customer" : "The customer has been created"}
           {cid ? <> {existing ? null : "as "}<strong>{cid}</strong></> : null}.
           {" "}Would you like to book an appointment now?
         </p>
 
-        {showProfileNote && (
-          <p style={{ margin: "0 0 8px", fontSize: 12, color: "#888" }}>
-            Nationality, date of birth and gender are not set yet — complete them in
-            Customer Master before this customer is billed.
-          </p>
-        )}
-
+      
         {/* The agent has to know that opening the booking screen and walking away
             costs them the conversion — that is the whole difference between the
             two buttons. */}
-        <p style={{ margin: "0 0 20px", fontSize: 12, color: "#888" }}>
+        <p style={{ margin: "0 0 20px", fontSize: 15, lineHeight:"24px", color: "#888" }}>
           Choose <strong>No</strong> to keep the lead Converted and map an appointment
           later from the Appointment ID column. If you choose <strong>Yes</strong> and
           then leave without saving a booking, the lead goes back to WIP.
