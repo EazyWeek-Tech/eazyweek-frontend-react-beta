@@ -4,8 +4,14 @@
 //   - Status-wise count ......... Donut (Completed/Scheduled/No-show/Cancelled) [Fig 4]
 //   - No-show / cancellation .... 2-line trend over the period                  [Fig 5]
 //   - Practitioner utilization .. Vertical bars vs. a target line               [Fig 6]
+//
+// Data policy: no sample figures. While the endpoint is in flight the page
+// shows the shared EazyWeek progress bar and tile skeletons; if it fails it
+// shows a retry panel. Every number on the page comes from the response.
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+// Shared loading indicators (src/pages/Dashboard/DashboardLoadingBar.jsx).
+import { DashboardLoadingBar, TileSkeleton, ChartLoading, LoadError } from "../Dashboard/DashboardLoadingBar";
 
 const C = {
   navy:"#334b71", navyDk:"#2b3f73", open:"#cc6b5c", wip:"#d4a853", closed:"#8da0b8",
@@ -130,19 +136,6 @@ function UtilBars({ rows, target = 80, height = 270 }) {
   );
 }
 
-const MOCK = {
-  status: { completed: 380, scheduled: 147, noShow: 49, cancelled: 36, total: 612 },
-  trend: [
-    { label:"W1", noShowRate:9, cancelRate:6 }, { label:"W2", noShowRate:8, cancelRate:7 },
-    { label:"W3", noShowRate:11, cancelRate:5 }, { label:"W4", noShowRate:7, cancelRate:6 },
-    { label:"W5", noShowRate:6, cancelRate:8 }, { label:"W6", noShowRate:8, cancelRate:5 },
-  ],
-  practitioners: [
-    { name:"A. Rossi", value:92 }, { name:"J. Doe", value:78 }, { name:"M. Chen", value:85 },
-    { name:"R. Malhotra", value:64 }, { name:"S. Iyer", value:71 },
-  ],
-};
-
 function useApptDashboard({ range, customFrom, customTo }) {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -168,16 +161,21 @@ function useApptDashboard({ range, customFrom, customTo }) {
 
   useEffect(() => { const ctrl = new AbortController(); load(ctrl.signal); return () => ctrl.abort(); }, [range, customFrom, customTo, load]);
 
+  /* Everything below is null/empty until the endpoint answers — the page
+     renders skeletons and empty states rather than invented figures. */
   const data = useMemo(() => {
-    const live = !!raw && raw.status;
-    const st = live ? raw.status : MOCK.status;
-    const trend = live ? bucketize((raw.daily||[]).map(x=>({ date:x.date, total:num(x.total), noShow:num(x.noShow), cancelled:num(x.cancelled) }))) : MOCK.trend;
-    const pracRows = live ? (raw.practitioners||[]).slice(0,8).map(p=>({ name:p.name, value:num(p.utilization) })) : MOCK.practitioners;
+    const src = raw && (raw.status || raw.daily || raw.practitioners) ? raw : null;
+    if (!src) return { ready:false, status:null, trend:[], practitioners:[] };
+    const st = src.status || {};
     return {
-      live: !!live,
-      status: { completed:num(st.completed), scheduled:num(st.scheduled), noShow:num(st.noShow), cancelled:num(st.cancelled), total:num(st.total) || (num(st.completed)+num(st.scheduled)+num(st.noShow)+num(st.cancelled)) },
-      trend: trend.length ? trend : MOCK.trend,
-      practitioners: pracRows,
+      ready: true,
+      status: {
+        completed:num(st.completed), scheduled:num(st.scheduled),
+        noShow:num(st.noShow), cancelled:num(st.cancelled),
+        total: num(st.total) || (num(st.completed)+num(st.scheduled)+num(st.noShow)+num(st.cancelled)),
+      },
+      trend: bucketize((src.daily||[]).map(x=>({ date:x.date, total:num(x.total), noShow:num(x.noShow), cancelled:num(x.cancelled) }))),
+      practitioners: (src.practitioners||[]).slice(0,8).map(p=>({ name:p.name, value:num(p.utilization) })),
     };
   }, [raw]);
 
@@ -205,6 +203,15 @@ export default function AppointmentDashboard() {
   const lastUpdated = updatedAt ? updatedAt.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "—";
   const invalid = range === "Custom Range" && customFrom && customTo && new Date(customTo) < new Date(customFrom);
   const st = data.status;
+  const DASH = "\u2014";
+  const failed = !loading && !!err && !data.ready;
+  /* One place decides what a card body shows: bar while fetching, retry panel
+     on failure, the chart when there is something to draw, empty state after. */
+  const body = (h, has, chart, emptyText) =>
+    loading ? <ChartLoading height={h} />
+    : failed ? <LoadError height={h} message="Live data could not be loaded." onRetry={reload} />
+    : has ? chart
+    : <Empty text={emptyText} />;
 
   return (
     <div style={{ fontFamily:FONT, minHeight:"100vh", color:C.text, padding:"4px 0 40px" }}>
@@ -227,35 +234,44 @@ export default function AppointmentDashboard() {
       )}
 
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
-        <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20, background:data.live?"#E6F1EC":"#F6EBD9", color:data.live?C.cvt:"#B07C28" }}>{loading?"Loading…":data.live?"Live data":"Sample data"}</span>
-        <span style={{ fontSize:12, color:C.sub }}>Last updated {lastUpdated}</span>
-        {err && !data.live && <span style={{ fontSize:11.5, color:"#b0704f" }}>API unreachable — showing sample figures</span>}
+        {loading ? (
+          <div style={{ width:240 }}><DashboardLoadingBar height={5} /></div>
+        ) : (
+          <>
+            <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20, background:failed?"#FDF0EC":"#E6F1EC", color:failed?C.open:C.cvt }}>{failed?"No live data":"Live data"}</span>
+            <span style={{ fontSize:12, color:C.sub }}>Last updated {lastUpdated}</span>
+            {failed && <span style={{ fontSize:11.5, color:"#b0704f" }}>{err}</span>}
+          </>
+        )}
         <button onClick={reload} style={{ marginLeft:"auto", cursor:"pointer", fontFamily:FONT, fontSize:12, fontWeight:600, padding:"6px 12px", borderRadius:9, background:"#fff", color:C.navy, border:`1px solid ${C.border}` }}>Refresh</button>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:16 }}>
-        {[{l:"Total",v:st.total,c:C.navy},{l:"Completed",v:st.completed,c:C.cvt},{l:"Scheduled",v:st.scheduled,c:C.navy},{l:"No-show",v:st.noShow,c:C.open},{l:"Cancelled",v:st.cancelled,c:C.wip}].map(k=>(
-          <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}><div style={{ fontSize:26, fontWeight:800, color:k.c }}>{grp(k.v)}</div><div style={{ fontSize:12.5, color:C.sub, fontWeight:600, marginTop:4 }}>{k.l}</div></div>
-        ))}
+        {loading ? [0,1,2,3,4].map(i=><TileSkeleton key={i} />) :
+          [{l:"Total",v:st?st.total:null,c:C.navy},{l:"Completed",v:st?st.completed:null,c:C.cvt},{l:"Scheduled",v:st?st.scheduled:null,c:C.navy},{l:"No-show",v:st?st.noShow:null,c:C.open},{l:"Cancelled",v:st?st.cancelled:null,c:C.wip}].map(k=>(
+            <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}><div style={{ fontSize:26, fontWeight:800, color:k.v==null?"#b8c0cb":k.c }}>{k.v==null?DASH:grp(k.v)}</div><div style={{ fontSize:12.5, color:C.sub, fontWeight:600, marginTop:4 }}>{k.l}</div></div>
+          ))}
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:16 }}>
         <CardShell title="Status-wise count" sub="Completed · Scheduled · No-show · Cancelled">
-          {st.total>0 ? <Donut centerValue={st.total} segments={[
-            { label:"Completed", value:st.completed, color:C.cvt },
-            { label:"Scheduled", value:st.scheduled, color:C.navy },
-            { label:"No-show",   value:st.noShow,    color:C.open },
-            { label:"Cancelled", value:st.cancelled, color:C.wip },
-          ]} /> : <Empty text="No appointments in the selected period." />}
+          {body(200, !!st && st.total>0, st ? (
+            <Donut centerValue={st.total} segments={[
+              { label:"Completed", value:st.completed, color:C.cvt },
+              { label:"Scheduled", value:st.scheduled, color:C.navy },
+              { label:"No-show",   value:st.noShow,    color:C.open },
+              { label:"Cancelled", value:st.cancelled, color:C.wip },
+            ]} />
+          ) : null, "No appointments in the selected period.")}
         </CardShell>
         <CardShell title="No-show / cancellation trend" sub="Rates over the selected period">
-          {data.trend.length ? <TrendLines points={data.trend} /> : <Empty text="No appointments to trend." />}
+          {body(240, data.trend.length > 0, <TrendLines points={data.trend} />, "No appointments to trend.")}
         </CardShell>
       </div>
 
       <div style={{ marginBottom:24 }}>
         <CardShell title="Practitioner utilization" sub="Completed / total per practitioner vs. an 80% target">
-          {data.practitioners.length ? <UtilBars rows={data.practitioners} target={80} /> : <Empty text="No practitioner activity in the selected period." />}
+          {body(270, data.practitioners.length > 0, <UtilBars rows={data.practitioners} target={80} />, "No practitioner activity in the selected period.")}
         </CardShell>
       </div>
     </div>

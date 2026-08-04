@@ -3,12 +3,19 @@
 // Source: GET /api/Invoice/Dashboard  (+ GET /api/EInvoice/LoadEInvoice for status).
 //   - Sales trend .......... line + area                                  [Fig 7]
 //   - VAT .................. KPI tile, total for the selected period
-//   - Sale by item type .... horizontal bars, Refunds negative/red        [Fig 8]
+//   - Sale by item type .... horizontal bars off a zero axis, sales-value
+//                            scale on the x-axis; Refunds negative/red     [Fig 8]
 //   - Discount ............. daily discount bars (Promotion vs Manual split
 //                            not stored separately — see note; BR-07)     [Fig 9]
 //   - E-invoice status ..... Total / Success / Failed stacked bar (BR-08)  [Fig 10]
+//
+// Data policy: no sample figures. While the endpoints are in flight the page
+// shows the shared EazyWeek progress bar and tile skeletons; if they fail it
+// shows a retry panel. Every number on the page comes from the response.
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+// Shared loading indicators (src/pages/Dashboard/DashboardLoadingBar.jsx).
+import { DashboardLoadingBar, TileSkeleton, ChartLoading, LoadError } from "../Dashboard/DashboardLoadingBar";
 
 const C = {
   navy:"#334b71", navyDk:"#2b3f73", open:"#cc6b5c", wip:"#d4a853", closed:"#8da0b8",
@@ -22,6 +29,7 @@ const fmtSAR = (n) => { const v=Number(n)||0; const a=Math.abs(v); if(a>=1e6) re
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const iso = (d) => d.toISOString().slice(0,10);
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const niceScale = (max, ticks=4) => { const raw=max/ticks||1; const mag=Math.pow(10,Math.floor(Math.log10(raw||1))); const norm=raw/mag; const step=(norm<=1?1:norm<=2?2:norm<=5?5:10)*mag; return { niceMax:Math.ceil(max/step)*step||step, step }; };
 
 function periodBounds(range, f, t) {
   const today = new Date();
@@ -48,11 +56,20 @@ function bucketSeries(daily, key, max = 12) {
   }
   return out;
 }
+
+// Refund/return keys are matched FIRST — otherwise an itemType like
+// "Advance Refund" hits the `advance` substring and lands in the Advance bucket
+// with a negative amount, which is what painted Advance red.
 const ITEM_MAP = [
-  { keys:["service"],  label:"Service" }, { keys:["package"], label:"Package" },
-  { keys:["product"],  label:"Products" }, { keys:["advance"], label:"Advance" },
-  { keys:["gift"],     label:"Gift Card" }, { keys:["refund"], label:"Refunds" },
+  { keys:["refund","return"], label:"Refunds" },
+  { keys:["service"],         label:"Service" },
+  { keys:["package"],         label:"Package" },
+  { keys:["product"],         label:"Products" },
+  { keys:["advance"],         label:"Advance" },
+  { keys:["gift"],            label:"Gift Card" },
 ];
+const ITEM_ORDER = ["Service","Package","Products","Advance","Gift Card","Refunds"];
+
 function normalizeItemTypes(rows) {
   const acc = {};
   rows.forEach(r => {
@@ -61,8 +78,12 @@ function normalizeItemTypes(rows) {
     const label = hit ? hit.label : (r.itemType ? r.itemType : "Other");
     acc[label] = (acc[label]||0) + num(r.amount);
   });
-  return ITEM_MAP.map(m => ({ label:m.label, value: acc[m.label]||0, refund:m.label==="Refunds" }))
-    .map(x => x.refund ? { ...x, value: -Math.abs(x.value) } : x);
+  return ITEM_ORDER.map(label => {
+    const refund = label === "Refunds";
+    const v = acc[label] || 0;
+    // Refunds always sit left of the zero axis; every other type keeps its own sign.
+    return { label, refund, value: refund ? -Math.abs(v) : v };
+  });
 }
 
 /* Line + area (sales) */
@@ -86,39 +107,56 @@ function AreaLine({ points, height = 240 }) {
   );
 }
 
-/* Horizontal bars (signed — refunds negative) */
+/* Horizontal bars — Fig 8: signed, zero axis, value scale along the bottom.
+   Colour comes from the row's category (refund), never from the sign. */
 function HBars({ rows, height }) {
-  const W=620, labelW=94, valW=82, rowH=34, pt=8, pb=8;
-  const H = height || pt+pb+rows.length*rowH;
-  const plotL=labelW, plotR=W-valW, plotW=plotR-plotL;
-  const vals=rows.map(r=>r.value);
-  const maxPos=Math.max(0, ...vals, 1);
-  const maxNeg=Math.max(0, ...vals.map(v=>-v));
-  const hasNeg=maxNeg>0;
-  const zeroX=hasNeg ? plotL + (maxNeg/(maxPos+maxNeg))*plotW : plotL;
-  const scale=plotW/((maxPos+(hasNeg?maxNeg:0))||1);
+  const W=660, labelW=104, pr=20, pt=10, rowH=40, axisH=52, barH=22;
+  const plotH=rows.length*rowH, H=height || pt+plotH+axisH;
+  const plotL=labelW, plotW=(W-pr)-plotL, baseY=pt+plotH;
+
+  const maxPos=Math.max(0, ...rows.map(r=>r.value));
+  const maxNeg=Math.max(0, ...rows.map(r=>-r.value));
+  const { step }=niceScale(Math.max(maxPos,1), 6);
+  const hi=Math.ceil(maxPos/step)*step || step;
+  const lo=-Math.ceil(maxNeg/step)*step;
+  const span=(hi-lo)||1;
+  const X=(v)=>plotL+((v-lo)/span)*plotW;
+  const zeroX=X(0);
+
+  const ticks=[]; for(let v=lo; v<=hi+1e-6; v+=step) ticks.push(v);
+  const tick=(v)=>{ const a=Math.abs(v), s=v<0?"-":"";
+    if(a>=1e6) return `${s}${(a/1e6).toFixed(a>=1e7?0:1)}M`;
+    if(a>=1e3) return `${s}${(a/1e3).toFixed(a>=1e4?0:1)}k`;
+    return `${s}${grp(a)}`; };
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:"block", height:"auto" }}>
-      {hasNeg && <line x1={zeroX} y1={pt} x2={zeroX} y2={H-pb} stroke={C.border} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
+      <line x1={plotL} y1={baseY} x2={W-pr} y2={baseY} stroke={C.border} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      {ticks.map((v,i)=>(
+        <text key={"t"+i} x={X(v)} y={baseY+20} textAnchor="middle" fontFamily={FONT} fontSize={11} fill={C.axis}>{tick(v)}</text>
+      ))}
+      <text x={plotL+plotW/2} y={H-8} textAnchor="middle" fontFamily={FONT} fontSize={11.5} fill={C.sub}>Sales value (SAR)</text>
+
       {rows.map((r,i)=>{
-        const y=pt+i*rowH+(rowH-16)/2, bh=16;
-        const w=Math.abs(r.value)*scale;
-        const x=r.value<0 ? zeroX-w : zeroX;
-        const col=r.value<0 ? C.open : C.navy;
+        const y=pt+i*rowH+(rowH-barH)/2;
+        const x=X(Math.min(0,r.value)), w=Math.abs(X(r.value)-zeroX);
         return (
           <g key={i}>
-            <text x={labelW-12} y={y+bh/2+4} textAnchor="end" fontFamily={FONT} fontSize={12} fill={C.text} fontWeight={600}>{r.label}</text>
-            <rect x={x} y={y} width={Math.max(1,w)} height={bh} rx={3} fill={col} />
-            <text x={W-valW+10} y={y+bh/2+4} textAnchor="start" fontFamily={FONT} fontSize={11.5} fontWeight={700} fill={r.value<0?C.open:C.text}>{fmtSAR(r.value)}</text>
+            <text x={labelW-14} y={y+barH/2+4} textAnchor="end" fontFamily={FONT} fontSize={12.5} fill={C.text} fontWeight={600}>{r.label}</text>
+            <rect x={x} y={y} width={Math.max(1,w)} height={barH} fill={r.refund?C.open:C.navy}>
+              <title>{`${r.label}: ${fmtSAR(r.value)}`}</title>
+            </rect>
           </g>
         );
       })}
+
+      {/* drawn last so it sits on top of the bars */}
+      <line x1={zeroX} y1={pt} x2={zeroX} y2={baseY} stroke={C.axis} strokeWidth={1} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
 
 /* Vertical bars (discount) */
-const niceScale = (max, ticks=4) => { const raw=max/ticks||1; const mag=Math.pow(10,Math.floor(Math.log10(raw||1))); const norm=raw/mag; const step=(norm<=1?1:norm<=2?2:norm<=5?5:10)*mag; return { niceMax:Math.ceil(max/step)*step||step, step }; };
 function VBars({ rows, height = 220, color = C.navy }) {
   const W=640, pl=66, pr=14, pt=20, pb=40, plotW=W-pl-pr, plotH=height-pt-pb;
   const { niceMax, step } = niceScale(Math.max(1,...rows.map(r=>r.value)));
@@ -157,15 +195,6 @@ function EInvoiceBar({ success, failed }) {
   );
 }
 
-const MOCK = {
-  salesDaily: Array.from({length:7},(_,i)=>({ date:`2026-07-0${i+1}`, sales:[3200,4100,3800,4600,5200,4900,2650][i] })),
-  openClosed: { openCnt:38, openVal:210000, closedCnt:164, closedVal:980000 },
-  vatTotal: 3711,
-  itemType: [{itemType:"service",amount:172000},{itemType:"package",amount:98000},{itemType:"products",amount:52000},{itemType:"advance",amount:38000},{itemType:"gift card",amount:16000},{itemType:"refund",amount:9000}],
-  discountDaily: Array.from({length:7},(_,i)=>({ date:`2026-07-0${i+1}`, discount:[1200,1450,980,1600,1300,1100,900][i] })),
-  einvoice: { success:268, failed:14 },
-};
-
 function useInvoiceDashboard({ range, customFrom, customTo }) {
   const [raw, setRaw] = useState(null);
   const [ein, setEin] = useState(null);
@@ -198,21 +227,21 @@ function useInvoiceDashboard({ range, customFrom, customTo }) {
 
   useEffect(() => { const ctrl=new AbortController(); load(ctrl.signal); return ()=>ctrl.abort(); }, [range, customFrom, customTo, load]);
 
+  /* Everything below is null/empty until the endpoint answers — the page
+     renders skeletons and empty states rather than invented figures. */
   const data = useMemo(() => {
-    const live = !!raw && (raw.salesDaily || raw.openClosed);
-    const src = live ? raw : MOCK;
-    const oc = src.openClosed || { openCnt:0, openVal:0, closedCnt:0, closedVal:0 };
-    const totalSales = (src.salesDaily||[]).reduce((a,r)=>a+num(r.sales),0);
-    const einData = live ? (ein || { success:0, failed:0 }) : MOCK.einvoice;
+    const src = raw && (raw.salesDaily || raw.openClosed || raw.itemType) ? raw : null;
+    if (!src) return { ready:false, salesTrend:[], totalSales:null, vatTotal:null, invoiceCount:null, itemType:[], discountTrend:[], einvoice:null };
+    const oc = src.openClosed || {};
     return {
-      live: !!live,
+      ready: true,
       salesTrend: bucketSeries(src.salesDaily||[], "sales"),
-      totalSales,
+      totalSales: (src.salesDaily||[]).reduce((a,r)=>a+num(r.sales),0),
       vatTotal: num(src.vatTotal),
-      openClosed: { openCnt:num(oc.openCnt), openVal:num(oc.openVal), closedCnt:num(oc.closedCnt), closedVal:num(oc.closedVal) },
-      itemType: normalizeItemTypes(src.itemType||[]),
+      invoiceCount: num(oc.openCnt) + num(oc.closedCnt),
+      itemType: (src.itemType||[]).length ? normalizeItemTypes(src.itemType) : [],
       discountTrend: bucketSeries(src.discountDaily||[], "discount"),
-      einvoice: einData,
+      einvoice: ein,
     };
   }, [raw, ein]);
 
@@ -233,7 +262,15 @@ export default function InvoiceDashboard() {
   const { data, loading, err, updatedAt, reload } = useInvoiceDashboard({ range, customFrom, customTo });
   const lastUpdated = updatedAt ? updatedAt.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "—";
   const invalid = range === "Custom Range" && customFrom && customTo && new Date(customTo) < new Date(customFrom);
-  const oc = data.openClosed;
+  const DASH = "\u2014";
+  const failed = !loading && !!err && !data.ready;
+  /* One place decides what a card body shows: bar while fetching, retry panel
+     on failure, the chart when there is something to draw, empty state after. */
+  const body = (h, has, chart, emptyText) =>
+    loading ? <ChartLoading height={h} />
+    : failed ? <LoadError height={h} message="Live data could not be loaded." onRetry={reload} />
+    : has ? chart
+    : <Empty text={emptyText} />;
 
   return (
     <div style={{ fontFamily:FONT, minHeight:"100vh", color:C.text, padding:"4px 0 40px" }}>
@@ -256,33 +293,42 @@ export default function InvoiceDashboard() {
       )}
 
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
-        <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20, background:data.live?"#E6F1EC":"#F6EBD9", color:data.live?C.cvt:"#B07C28" }}>{loading?"Loading…":data.live?"Live data":"Sample data"}</span>
-        <span style={{ fontSize:12, color:C.sub }}>Last updated {lastUpdated}</span>
-        {err && !data.live && <span style={{ fontSize:11.5, color:"#b0704f" }}>API unreachable — showing sample figures</span>}
+        {loading ? (
+          <div style={{ width:240 }}><DashboardLoadingBar height={5} /></div>
+        ) : (
+          <>
+            <span style={{ fontSize:11.5, fontWeight:700, padding:"3px 10px", borderRadius:20, background:failed?"#FDF0EC":"#E6F1EC", color:failed?C.open:C.cvt }}>{failed?"No live data":"Live data"}</span>
+            <span style={{ fontSize:12, color:C.sub }}>Last updated {lastUpdated}</span>
+            {failed && <span style={{ fontSize:11.5, color:"#b0704f" }}>{err}</span>}
+          </>
+        )}
         <button onClick={reload} style={{ marginLeft:"auto", cursor:"pointer", fontFamily:FONT, fontSize:12, fontWeight:600, padding:"6px 12px", borderRadius:9, background:"#fff", color:C.navy, border:`1px solid ${C.border}` }}>Refresh</button>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:16 }}>
-        {[{l:"Total sales",v:fmtSAR(data.totalSales),c:C.navy},{l:"Invoices",v:grp(oc.openCnt+oc.closedCnt),c:C.navyDk},{l:"VAT",v:fmtSAR(data.vatTotal),c:C.wip}].map(k=>(
-          <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}><div style={{ fontSize:23, fontWeight:800, color:k.c }}>{k.v}</div><div style={{ fontSize:12.5, color:C.sub, fontWeight:600, marginTop:4 }}>{k.l}</div></div>
-        ))}
+        {loading ? [0,1,2].map(i=><TileSkeleton key={i} />) :
+          [{l:"Total sales",v:data.totalSales==null?null:fmtSAR(data.totalSales),c:C.navy},
+           {l:"Invoices",   v:data.invoiceCount==null?null:grp(data.invoiceCount),c:C.navyDk},
+           {l:"VAT",        v:data.vatTotal==null?null:fmtSAR(data.vatTotal),c:C.wip}].map(k=>(
+            <div key={k.l} style={{ ...card, borderRadius:14, padding:"15px 18px" }}><div style={{ fontSize:23, fontWeight:800, color:k.v==null?"#b8c0cb":k.c }}>{k.v==null?DASH:k.v}</div><div style={{ fontSize:12.5, color:C.sub, fontWeight:600, marginTop:4 }}>{k.l}</div></div>
+          ))}
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:16, alignItems:"start" }}>
         <CardShell title="Sales trend" sub="Invoice value over the selected period">
-          {data.salesTrend.length ? <AreaLine points={data.salesTrend} /> : <Empty text="No sales in the selected period." />}
+          {body(240, data.salesTrend.length > 0, <AreaLine points={data.salesTrend} />, "No sales in the selected period.")}
         </CardShell>
         <CardShell title="Sale by item type" sub="Service · Package · Products · Advance · Gift Card · Refunds">
-          <HBars rows={data.itemType} />
+          {body(254, data.itemType.length > 0, <HBars rows={data.itemType} />, "No billed items in the selected period.")}
         </CardShell>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))", gap:16, marginBottom:24 }}>
         <CardShell title="Discount" sub="Total discount over the period — Promotion vs. Manual split pending source (BR-07)">
-          {data.discountTrend.length ? <VBars rows={data.discountTrend} color={C.wip} /> : <Empty text="No discounts in the selected period." />}
+          {body(220, data.discountTrend.length > 0, <VBars rows={data.discountTrend} color={C.wip} />, "No discounts in the selected period.")}
         </CardShell>
         <CardShell title="E-invoice status" sub="Total · Success · Failed (BR-08)">
-          <EInvoiceBar success={num(data.einvoice.success)} failed={num(data.einvoice.failed)} />
+          {body(150, !!data.einvoice, data.einvoice ? <EInvoiceBar success={num(data.einvoice.success)} failed={num(data.einvoice.failed)} /> : null, "No e-invoices in the selected period.")}
         </CardShell>
       </div>
     </div>
