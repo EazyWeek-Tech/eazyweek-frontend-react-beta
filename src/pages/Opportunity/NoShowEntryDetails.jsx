@@ -5,6 +5,8 @@ import { API_BASE_URL } from "../../config";
 import { OPP_THEME_CSS } from "./opportunityTheme";
 import FollowUpHistoryModal from "./FollowUpHistoryModal";
 import ConvertedApptDialog from "./ConvertedApptDialog";
+import LeadScorePanel from "./LeadScorePanel";
+import { LEAD_SOURCE, saveLeadScoreSafe } from "./leadScoreConfig";
 
 /** Bearer auth — app authenticates via Authorization header, not a cookie. */
 const AUTH_HEADERS = () => {
@@ -237,6 +239,11 @@ const [subDispLoading, setSubDispLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [fuOpen, setFuOpen] = useState(false);   // follow-up history modal
+
+  // Lead Score. The panel beside Lead Disposition reports its state up here, so
+  // Submit can be gated on all four parameters being answered and the score
+  // written once the lead update itself has succeeded.
+  const [leadScore, setLeadScore] = useState(null);
 
   // LTR Case B (FRD 6.3) — booking not mandatory: hold the ready-built
   // Appointment-screen navigate state while the agent answers the dialog.
@@ -483,6 +490,14 @@ setForm((p) => ({
   });
 };
 
+  // The score trail stores the labels the agent saw, not the LS codes — see
+  // leadscore.repository for why (the two disposition masters resolve
+  // differently and a CODE repeats per TRANSTYPE).
+  const labelOfDisp = (v) =>
+    dispOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
+  const labelOfSubDisp = (v) =>
+    subDispOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
+
   const buildUpdatePayload = () => {
     const recID = state?.recId || getRecId(state?.row);
     const oppStatus = oppStatusFromDisposition(form.disposition);
@@ -538,6 +553,11 @@ setForm((p) => ({
       setError("Please select a Disposition before submitting.");
       return;
     }
+    // All four Lead Score parameters are mandatory.
+    if (!leadScore?.complete) {
+      setError("Please answer all four Lead Score parameters before submitting.");
+      return;
+    }
     // Follow-up is mandatory only when the disposition is WIP.
     if (isWipSelected) {
       if (!followUpDate) {
@@ -557,6 +577,22 @@ setForm((p) => ({
     setError("");
     try {
       const saveRes = await callUpdate();
+
+      // Record the scoring session. Deliberately after the lead update: the save
+      // has already committed by this point, so a score write that fails is
+      // logged and nothing more — it can never cost the agent their work.
+      await saveLeadScoreSafe({
+        leadSource:       LEAD_SOURCE.TRANS,
+        leadRecId:        state?.recId || getRecId(state?.row),
+        oppCode,
+        levels:           leadScore?.levels,
+        disposition:      labelOfDisp(form.disposition),
+        subDisposition:   labelOfSubDisp(form.sbdisposition),
+        remarks:          form.remarks,
+        followUpDate:     followUpDate || "",
+        followUpTime:     followUpTime || "",
+        followUpTimeAmPM: followUpTime ? (followUpAmPm || DEFAULT_AMPM) : "",
+      });
       // LTR conversion routing (FRD §6.2 / §6.3). R1–R4 leads already have a
       // customer, so the only question is whether a booking is required.
       const ltrCid = safe(top.custID).trim();
@@ -671,6 +707,9 @@ setForm((p) => ({
           </div>
         </fieldset>
 
+        {/* Lead Disposition and Lead Score sit side by side. .lsRow ships with
+            LeadScorePanel and collapses to one column below 1100px. */}
+        <div className="lsRow">
         <fieldset className="fs">
           {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
               on a rendered legend, so a title-plus-action row cannot be laid out
@@ -843,11 +882,20 @@ setForm((p) => ({
           {error && <div style={{ color: "#c33", margin: "8px 0" }}>{error}</div>}
         </fieldset>
 
+        <LeadScorePanel
+          leadSource={LEAD_SOURCE.TRANS}
+          leadRecId={state?.recId || getRecId(state?.row)}
+          oppCode={oppCode}
+          locked={isLocked}
+          onChange={setLeadScore}
+        />
+        </div>
+
         <div className="btnrow">
           {!hideSubmit && (
             <button
   className="btn"
-  disabled={saving || !form.disposition || !form.sbdisposition}
+  disabled={saving || !form.disposition || !form.sbdisposition || !leadScore?.complete}
   onClick={handleSubmit}
 > 
               Submit

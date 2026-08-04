@@ -5,6 +5,8 @@ import { API_BASE_URL } from "../../config";
   import CallButton from "../../components/CallButton";
 import { OPP_THEME_CSS } from "./opportunityTheme";
 import ConvertedApptDialog from "./ConvertedApptDialog";
+import LeadScorePanel from "./LeadScorePanel";
+import { LEAD_SOURCE, saveLeadScoreSafe } from "./leadScoreConfig";
 
 
 /** ---------------- Helpers ---------------- */
@@ -1874,6 +1876,41 @@ const subMediumName = safe(form.subMedium || "Manual");
     navigate(isEdit ? -1 : (isLead ? -1 : -2));
   };
 
+  /* Lead Score.
+     The panel beside Lead Disposition reports its state up here so Submit can be
+     gated on all four parameters, and so the score can be written once the lead
+     itself has saved. On the CREATE route the lead has no RECID yet, so the
+     panel opens blank and the score is written against the id the create call
+     returns. */
+  const [leadScore, setLeadScore] = useState(null);
+
+  // The score trail stores the labels the agent saw, not the master ids.
+  const labelOfDisp = (v) =>
+    dispositionOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
+  const labelOfSubDisp = (v) =>
+    subDispositionOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
+
+  /* Saves the scoring session against whichever id the lead ended up with —
+     numericLeadOppId on edit, the create response's leadOppId on create. Runs
+     after the lead save has committed, so a failure here is logged and nothing
+     more. followUpTime is held as "01:30 PM" on this form, so it is split back
+     into time + meridiem to match how the other three campaigns store it. */
+  const recordLeadScore = async (leadRecId) => {
+    const [fuTime, fuAmPm] = safe(form.followUpTime).trim().split(/\s+/);
+    await saveLeadScoreSafe({
+      leadSource:       LEAD_SOURCE.MANUAL,
+      leadRecId,
+      oppCode:          safe(resolvedOppCode).trim(),
+      levels:           leadScore?.levels,
+      disposition:      labelOfDisp(form.dispositionId),
+      subDisposition:   labelOfSubDisp(form.subDispositionId),
+      remarks:          safe(form.remarks),
+      followUpDate:     safe(form.followUpDate).trim(),
+      followUpTime:     fuTime || "",
+      followUpTimeAmPM: fuAmPm || "",
+    });
+  };
+
   const handleSubmit = async () => {
     if (isEdit && isClosed) {
       showToast("A Closed Lead/Opportunity cannot be updated.");
@@ -1890,10 +1927,17 @@ const subMediumName = safe(form.subMedium || "Manual");
       return;
     }
 
+    // All four Lead Score parameters are mandatory.
+    if (!leadScore?.complete) {
+      alert("Please answer all four Lead Score parameters before submitting.");
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEdit) {
         const saveRes = await updateLeadOpp();
+        await recordLeadScore(numericLeadOppId);
         // updateLead returns { success, message, data:{ convert, customer, customerError } }
         const rd = saveRes?.data ?? saveRes;
         if (rd?.convert) {
@@ -1948,6 +1992,9 @@ const subMediumName = safe(form.subMedium || "Manual");
       const apiRes = await createLeadOpp("Open");
       // createOpp returns { success, message, data:{ leadOppId, convert, customer, customerError } }
       const cd = apiRes?.data ?? apiRes;
+
+      // The lead only just got its RECID — score it against that.
+      await recordLeadScore(cd?.leadOppId);
 
       try {
         const saved = {
@@ -2244,6 +2291,9 @@ const subMediumName = safe(form.subMedium || "Manual");
 
         </fieldset>
 
+        {/* Lead Disposition and Lead Score sit side by side. .lsRow ships with
+            LeadScorePanel and collapses to one column below 1100px. */}
+        <div className="lsRow">
         <fieldset className="fs">
           {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
               on a rendered legend, so a title-plus-action row cannot be laid out
@@ -2343,6 +2393,15 @@ const subMediumName = safe(form.subMedium || "Manual");
           </div>
         </fieldset>
 
+        <LeadScorePanel
+          leadSource={LEAD_SOURCE.MANUAL}
+          leadRecId={numericLeadOppId}
+          oppCode={safe(resolvedOppCode).trim()}
+          locked={lockForm}
+          onChange={setLeadScore}
+        />
+        </div>
+
         <div className="btnRow">
           {lockForm && (
             <div style={{ alignSelf: "center", marginRight: "auto", fontSize: 13, color: "#8a6d3b", background: "#fcf8e3", border: "1px solid #faebcc", borderRadius: 8, padding: "8px 12px" }}>
@@ -2351,7 +2410,7 @@ const subMediumName = safe(form.subMedium || "Manual");
           )}
 
           {!lockForm && (
-            <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading || (isEdit && !leadApi)}>
+            <button className="btn" onClick={handleSubmit} disabled={saving || leadLoading || (isEdit && !leadApi) || !leadScore?.complete}>
               {isEdit ? "Update" : "Submit"}
             </button>
           )}

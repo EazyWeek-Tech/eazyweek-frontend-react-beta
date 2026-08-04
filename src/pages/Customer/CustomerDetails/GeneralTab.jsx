@@ -40,7 +40,37 @@ const formatDateForDisplay = (val) => {
 
 // ─── Master data (loaded from API) ────────────────────────────────────────────
 // Fallback static lists used until API loads
-const PHONE_CODES = ["+966","+91","+971","+1","+44","+20","+92","+62","+60"].map(c=>({value:c,label:c}));
+/* Dial codes.
+   The NEW-customer form sources its dial codes from the RestCountries lookup,
+   so a customer can be created with any code in the world. This tab used to
+   hold a hardcoded list of nine, which meant a stored code outside that list
+   had no matching <option>: a controlled <select> with an unmatched value
+   silently falls back to the placeholder, so the code "disappeared" on
+   Customer 360 even though it was sitting in CLINIC_CUSTOMER.PHONE_CODE.
+   Two defences below: a wider list, and normalizeDialCode + phoneCodeOptions
+   (in the component) which injects whatever the record actually holds so the
+   stored value always renders, whatever it is. */
+const PHONE_CODES = [
+  "+966","+971","+973","+974","+965","+968","+962","+961","+964","+967",
+  "+20","+212","+213","+216","+218","+249","+252","+253",
+  "+91","+92","+880","+94","+977","+960","+93",
+  "+63","+62","+60","+65","+66","+84","+95","+673",
+  "+1","+44","+33","+49","+39","+34","+31","+32","+41","+43","+46","+47","+45","+358","+351","+30","+353",
+  "+7","+90","+98","+972","+27","+234","+254","+251","+233","+256",
+  "+86","+81","+82","+852","+886","+61","+64","+55","+52","+54","+880",
+].filter((c, i, a) => a.indexOf(c) === i).map(c => ({ value: c, label: c }));
+
+/* Stored codes are not guaranteed to be in "+966" shape — older rows and other
+   entry points may hold "966", "00966" or "+966 " with padding. Normalise both
+   sides before comparing so an equivalent code matches its option instead of
+   rendering blank. */
+const normalizeDialCode = (val) => {
+  const raw = String(val ?? "").replace(/[\s\u00A0()-]/g, "");
+  if (!raw) return "";
+  const digits = raw.replace(/^\+/, "").replace(/^00/, "");
+  if (!digits) return "";
+  return `+${digits}`;
+};
 const GENDERS     = [{value:"Male",label:"Male"},{value:"Female",label:"Female"},{value:"Other",label:"Other"}];
 
 const F = ({ label, required, error, children, span2, span3 }) => (
@@ -80,8 +110,29 @@ const GeneralTab = ({ customer }) => {
   };
 
   useEffect(() => {
-    if (customer) setForm({ ...customer });
+    if (customer) setForm({ ...customer, phoneCode: normalizeDialCode(customer.phoneCode) });
   }, [customer]);
+
+  /* Always include the customer's own dial code as a selectable option, even if
+     it is not in PHONE_CODES. Without this the <select> renders the placeholder
+     and a plain Save would then write "" back over a perfectly good code. */
+  const phoneCodeOptions = React.useMemo(() => {
+    const current = normalizeDialCode(form.phoneCode);
+    if (!current || PHONE_CODES.some(p => p.value === current)) return PHONE_CODES;
+    return [{ value: current, label: current }, ...PHONE_CODES];
+  }, [form.phoneCode]);
+
+  /* Same guard for Country: COUNTRY_ID is stored as an int, but the value key
+     LoadCountry returns is not guaranteed to be that int. If the stored code has
+     no match in the loaded list, keep it visible (labelled with COUNTRY_NAME when
+     the record carries one) rather than dropping it to "Select". */
+  const countryOptions = React.useMemo(() => {
+    const current = form.countryCode;
+    if (!current || Number(current) === 0) return countries;
+    if (countries.some(c => String(c.value) === String(current))) return countries;
+    const label = String(form.countryName || "").trim() || `Country #${current}`;
+    return [{ value: current, label }, ...countries];
+  }, [countries, form.countryCode, form.countryName]);
 
   // Load master lists — only when token is available
   useEffect(() => {
@@ -248,10 +299,10 @@ const GeneralTab = ({ customer }) => {
             <F label="Mobile Phone" required error={errors.mobilePhone}>
               <div style={{ display:"flex", gap:6 }}>
                 <select className="gt-select" name="phoneCode"
-                  value={form.phoneCode||""} onChange={handleChange}
+                  value={normalizeDialCode(form.phoneCode)} onChange={handleChange}
                   style={{ width:90, flexShrink:0 }}>
                   <option value="">--</option>
-                  {PHONE_CODES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  {phoneCodeOptions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
                 <Inp name="mobilePhone" value={form.mobilePhone} onChange={handleChange}
                   style={{ flex:1 }} className={errors.mobilePhone?"gt-input gt-error":"gt-input"} />
@@ -323,7 +374,7 @@ const GeneralTab = ({ customer }) => {
             </F>
             <F label="Country">
               <Sel name="countryCode" value={form.countryCode}
-                onChange={handleChange} options={countries} />
+                onChange={handleChange} options={countryOptions} />
             </F>
 
           </div>

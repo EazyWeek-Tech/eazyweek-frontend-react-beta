@@ -7,6 +7,8 @@
   import { OPP_THEME_CSS } from "./opportunityTheme";
   import FollowUpHistoryModal from "./FollowUpHistoryModal";
 import ConvertedApptDialog from "./ConvertedApptDialog";
+import LeadScorePanel from "./LeadScorePanel";
+import { LEAD_SOURCE, saveLeadScoreSafe } from "./leadScoreConfig";
 
   /** ---------------- Helpers ---------------- */
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
@@ -454,6 +456,17 @@ const getCenterFromStorage = () => {
     const minFollowUpDate = useMemo(() => getTodayInputDate(), []);
 
     const [isSubmitHidden, setIsSubmitHidden] = useState(false);
+
+    // Lead Score. The panel beside Lead Disposition reports its state up here, so
+    // Submit can be gated on all four parameters being answered and the score
+    // written once the lead update itself has succeeded.
+    const [leadScore, setLeadScore] = useState(null);
+
+    // The score trail stores the labels the agent saw, not the LS codes.
+    const labelOfDisp = (v) =>
+      dispositionOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
+    const labelOfSubDisp = (v) =>
+      subDispositionOptions.find((o) => String(o.value).trim() === String(v || "").trim())?.label || "";
 
     const [form, setForm] = useState(() => {
       const custName = safe(row?.custName);
@@ -1022,6 +1035,11 @@ if (!hasNone) {
         alert("Submit blocked by validation. Check required fields.");
         return;
       }
+      // All four Lead Score parameters are mandatory.
+      if (!leadScore?.complete) {
+        alert("Please answer all four Lead Score parameters before submitting.");
+        return;
+      }
 
       setSaving(true);
       try {
@@ -1065,6 +1083,22 @@ if (!hasNone) {
         console.log("UpdateOppDetails payload", payload, "typeof oppStatus:", typeof payload.oppStatus);
 
         const saveRes = await postJson(`${API_BASE_URL}/api/Opportunity/UpdateOppDetails`, payload);
+
+        // Record the scoring session. Deliberately after the lead update: the
+        // save has already committed, so a score write that fails is logged and
+        // nothing more — it can never cost the agent their work.
+        await saveLeadScoreSafe({
+          leadSource:       LEAD_SOURCE.TRANS,
+          leadRecId:        recID,
+          oppCode:          safe(resolvedOppCode).trim(),
+          levels:           leadScore?.levels,
+          disposition:      labelOfDisp(form.dispositionId),
+          subDisposition:   labelOfSubDisp(form.subDispositionId),
+          remarks:          safe(form.remarks),
+          followUpDate:     toApiFollowUpDateISO(form.followUpDate),
+          followUpTime:     hhmmss,
+          followUpTimeAmPM: ampm,
+        });
 
         // LTR conversion routing (FRD §6.2 / §6.3). Master leads already have a
         // customer, so the only question is whether a booking is required.
@@ -1340,6 +1374,9 @@ if (!hasNone) {
             </div>
           </fieldset>
 
+          {/* Lead Disposition and Lead Score sit side by side. .lsRow ships with
+              LeadScorePanel and collapses to one column below 1100px. */}
+          <div className="lsRow">
           <fieldset className="fs">
             {/* Card header. A plain div, not a <legend>: Chrome imposes its own layout
                 on a rendered legend, so a title-plus-action row cannot be laid out
@@ -1471,9 +1508,18 @@ if (!hasNone) {
             </div>
           </fieldset>
 
+          <LeadScorePanel
+            leadSource={LEAD_SOURCE.TRANS}
+            leadRecId={recID}
+            oppCode={safe(resolvedOppCode).trim()}
+            locked={isSubmitHidden}
+            onChange={setLeadScore}
+          />
+          </div>
+
           <div className="btnRow">
             {!isSubmitHidden && (
-              <button className="btn" onClick={handleSubmit} disabled={saving}>
+              <button className="btn" onClick={handleSubmit} disabled={saving || !leadScore?.complete}>
                 {saving ? "Saving..." : "Submit"}
               </button>
             )}

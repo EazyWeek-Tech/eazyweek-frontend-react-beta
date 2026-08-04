@@ -15,6 +15,7 @@ import { API_BASE_URL } from "../../config";
 const C = {
   navy:"#334b71", navyDk:"#2b3f73", navyLt:"#e9edf5",
   coral:"#cc6b5c", gold:"#d4a853", slate:"#8da0b8", green:"#4a9e8a",
+  hot:"#dd7766",
   grid:"#eef2f7", axis:"#6e7b8f", border:"#e7ecf4",
   bg:"#f4f6fa", text:"#10223f", sub:"#64748b",
 };
@@ -121,10 +122,58 @@ function BadgeStat({ label, value, accent, onClick }) {
   );
 }
 
+/* ── Loading placeholders ─────────────────────────────────────────────────────
+   The funnel aggregate is a heavy multi-source query, so the first paint can be
+   several seconds out. Rather than a single centred spinner that hides the whole
+   page, the real blocks are laid out at their real sizes with their content
+   shimmering — the page never jumps when the numbers land, and it is obvious
+   which parts are still filling in.
+
+   A REFRESH (changing the campaign filter with data already on screen) is
+   treated differently: the previous numbers stay visible and dimmed instead of
+   being replaced by placeholders, because a stale figure the user can still read
+   beats an empty box. */
+function Sk({ w = "100%", h = 12, r = 6, style }) {
+  return <div className="ltrf-sk" style={{ width:w, height:h, borderRadius:r, ...style }} />;
+}
+
+function FunnelSkeleton() {
+  return (
+    <div style={{ padding:"6px 0" }}>
+      {[100, 86, 72, 58, 44].map((w, i) => (
+        <div key={i} style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+          <Sk w={`${w}%`} h={62} r={4} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BadgeSkeleton() {
+  return (
+    <div style={{ flex:1, minWidth:150, background:"#fff", border:`1px solid ${C.border}`,
+      borderLeft:`4px solid ${C.grid}`, borderRadius:10, padding:"12px 14px", boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
+      <Sk w="70%" h={9} />
+      <Sk w="42%" h={17} style={{ marginTop:8 }} />
+    </div>
+  );
+}
+
+function MetricSkeletons({ n }) {
+  return Array.from({ length:n }, (_, i) => (
+    <div key={i} style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,
+      padding:"16px 18px", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+      <Sk w="60%" h={9} />
+      <Sk w="45%" h={20} style={{ marginTop:10 }} />
+    </div>
+  ));
+}
+
 /* ── Drill-down modal ──────────────────────────────────────────────────────── */
 const COLS = [
   ["prospectId", "Prospect ID"], ["customerName", "Customer"], ["salesOwner", "Sales Owner"],
-  ["disposition", "Disposition"], ["appointmentId", "Appointment ID"], ["appointmentStatus", "Appt Status"],
+  ["disposition", "Disposition"], ["leadScore", "Lead Score"],
+  ["appointmentId", "Appointment ID"], ["appointmentStatus", "Appt Status"],
   ["purchased", "Purchased"], ["createdDate", "Created"],
 ];
 function DrilldownModal({ drill, onClose, onPage }) {
@@ -160,7 +209,13 @@ function DrilldownModal({ drill, onClose, onPage }) {
                       <td key={k} style={{ padding:"8px 12px", color:C.text, whiteSpace:"nowrap" }}>
                         {k === "purchased"
                           ? (r.purchased ? `Yes${r.invoiceNum ? ` (${r.invoiceNum})` : ""}` : "—")
-                          : (r[k] || "—")}
+                          : k === "leadScore"
+                            // Unscored leads are the normal case until the panel
+                            // has been through a chase cycle — show a dash, not 0.
+                            ? (r.leadScore === null || r.leadScore === undefined
+                                ? "—"
+                                : `${r.leadScore}${r.scoreBand ? ` (${r.scoreBand})` : ""}`)
+                            : (r[k] || "—")}
                       </td>
                     ))}
                   </tr>
@@ -348,6 +403,11 @@ export default function LTRFunnelDashboard() {
     } catch { setDrill({ stage, loading: false, rows: [], page }); }
   };
 
+  // First paint with nothing to show yet → placeholders. A refetch with data
+  // already on screen → keep the old numbers, dimmed, and let the bar say why.
+  const isInitial  = loading && !funnel;
+  const refreshing = loading && !!funnel;
+
   const b = funnel?.buckets || {};
   const badges = funnel?.badges || {};
   const appt = funnel?.appointment || {};
@@ -364,24 +424,57 @@ export default function LTRFunnelDashboard() {
         .ltrf-band { cursor:pointer; }
         .ltrf-band polygon { transition:opacity .15s; }
         .ltrf-band:hover polygon { opacity:0.86; }
+
+        /* Placeholder shimmer. Kept low-contrast so a half-loaded page reads as
+           "not ready yet", never as real data. */
+        .ltrf-sk {
+          background:linear-gradient(90deg, #eef1f7 25%, #e2e7f0 37%, #eef1f7 63%);
+          background-size:400% 100%;
+          animation:ltrf-shimmer 1.3s ease-in-out infinite;
+        }
+        @keyframes ltrf-shimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
+
+        /* Indeterminate bar under the header — the one signal that covers BOTH
+           the first load and a filter refresh. */
+        .ltrf-prog { height:3px; background:${C.navyLt}; border-radius:3px; overflow:hidden; margin-bottom:14px; }
+        .ltrf-prog span { display:block; height:100%; width:40%; background:${C.navy}; border-radius:3px;
+          animation:ltrf-slide 1.1s ease-in-out infinite; }
+        @keyframes ltrf-slide {
+          0%   { transform:translateX(-100%); }
+          100% { transform:translateX(310%); }
+        }
+
+        .ltrf-dim { opacity:.5; pointer-events:none; transition:opacity .15s ease; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .ltrf-sk, .ltrf-prog span { animation:none; }
+          .ltrf-prog span { width:100%; }
+        }
       `}</style>
       {/* Header + filter */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12, marginBottom:20 }}>
         <div>
           <div style={{ fontWeight:800, fontSize:22, color:C.navyDk }}>Lead-to-Revenue Funnel</div>
-          <div style={{ fontSize:12.5, color:C.sub, marginTop:2 }}>Captured → Converted → Booked → Showed Up → Purchased</div>
+          <div style={{ fontSize:12.5, color:C.sub, marginTop:2 }}>
+            Captured → Converted → Booked → Showed Up → Purchased
+            {loading && (
+              <span style={{ marginLeft:10, color:C.navy, fontWeight:700 }}>
+                {isInitial ? "Loading…" : "Updating…"}
+              </span>
+            )}
+          </div>
         </div>
         <CampaignMultiSelect campaigns={campaigns} value={oppCodes} onChange={setOppCodes} />
       </div>
 
-      {loading && !funnel ? (
-        <div style={{ padding:60, textAlign:"center", color:C.sub }}>Loading funnel…</div>
-      ) : (
+      {loading && <div className="ltrf-prog"><span /></div>}
+
+      <div className={refreshing ? "ltrf-dim" : undefined}>
         <>
           {/* Section 1 — Lead funnel + badges */}
           <div className="ltrf-top">
-            <Card title="Lead funnel" sub="Click any band to see the leads behind it">
-              <FunnelChart buckets={b} onStage={openDrill} />
+            <Card title="Lead funnel" sub={isInitial ? "Loading the leads behind each stage…" : "Click any band to see the leads behind it"}>
+              {isInitial ? <FunnelSkeleton /> : <FunnelChart buckets={b} onStage={openDrill} />}
               {showUpUnavailable && (
                 <div style={{ fontSize:11.5, color:C.gold, marginTop:8, textAlign:"center" }}>
                   Showed-Up pending Appointment-master verification — other stages are live.
@@ -390,8 +483,20 @@ export default function LTRFunnelDashboard() {
             </Card>
             <Card title="Campaign KPI">
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {isInitial && <><BadgeSkeleton /><BadgeSkeleton /><BadgeSkeleton /></>}
+                {!isInitial && <>
+                {/* Hot leads — latest lead score in the Hot band (75-100). Reads a
+                    dash rather than 0 until CLINIC_LEADSCORE exists, so an
+                    un-migrated database can't be mistaken for "no hot leads". */}
+                <BadgeStat
+                  label="Hot leads"
+                  value={badges.hotLeadsAvailable === false ? "—" : nfmt(badges.hotLeads)}
+                  accent={C.hot}
+                  onClick={badges.hotLeadsAvailable === false ? undefined : () => openDrill("hot")}
+                />
                 <BadgeStat label="Pending appointment mapping" value={nfmt(badges.pendingApptMapping)} accent={C.gold} onClick={() => openDrill("pending")} />
                 <BadgeStat label="Dropped / Lost" value={nfmt(badges.droppedLost)} accent={C.coral} onClick={() => openDrill("lost")} />
+                </>}
               </div>
             </Card>
           </div>
@@ -399,21 +504,25 @@ export default function LTRFunnelDashboard() {
           {/* Section 2 — Appointment funnel */}
           <div style={{ fontSize:12, fontWeight:800, color:C.navyDk, textTransform:"uppercase", letterSpacing:".05em", margin:"18px 2px 10px" }}>Appointment funnel</div>
           <div className="ltrf-metrics" style={{ marginBottom:8 }}>
-            <Metric label="Show-Up Rate" value={`${appt.showUpRate ?? 0}%`} accent={C.green} />
-            <Metric label="No-shows" value={nfmt(appt.noShows)} accent={C.coral} />
+            {isInitial ? <MetricSkeletons n={2} /> : <>
+              <Metric label="Show-Up Rate" value={`${appt.showUpRate ?? 0}%`} accent={C.green} />
+              <Metric label="No-shows" value={nfmt(appt.noShows)} accent={C.coral} />
+            </>}
           </div>
 
           {/* Section 3 — Revenue funnel */}
           <div style={{ fontSize:12, fontWeight:800, color:C.navyDk, textTransform:"uppercase", letterSpacing:".05em", margin:"18px 2px 10px" }}>Revenue funnel</div>
           <div className="ltrf-metrics">
-            <Metric label="Purchase Rate" value={`${rev.purchaseRate ?? 0}%`} accent={C.green} />
-            <Metric label="Average Basket Size" value={sar(rev.avgBasketSize)} accent={C.navy} />
-            <Metric label="Total Revenue" value={sar(rev.totalRevenue)} accent={C.navy} />
-            <Metric label="Campaign Spend" value={sar(spend.campaignSpend)} accent={C.slate} />
-            <Metric label="Lead Acquisition Cost" value={sar(spend.leadAcquisitionCost)} accent={C.gold} />
+            {isInitial ? <MetricSkeletons n={5} /> : <>
+              <Metric label="Purchase Rate" value={`${rev.purchaseRate ?? 0}%`} accent={C.green} />
+              <Metric label="Average Basket Size" value={sar(rev.avgBasketSize)} accent={C.navy} />
+              <Metric label="Total Revenue" value={sar(rev.totalRevenue)} accent={C.navy} />
+              <Metric label="Campaign Spend" value={sar(spend.campaignSpend)} accent={C.slate} />
+              <Metric label="Lead Acquisition Cost" value={sar(spend.leadAcquisitionCost)} accent={C.gold} />
+            </>}
           </div>
         </>
-      )}
+      </div>
 
       <DrilldownModal drill={drill} onClose={() => setDrill(null)} onPage={(p) => openDrill(drill.stage, p)} />
     </div>

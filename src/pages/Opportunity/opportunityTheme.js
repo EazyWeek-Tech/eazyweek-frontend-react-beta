@@ -130,6 +130,8 @@ export const OPP_THEME_CSS = `
      child matches the gap used inside the grids. */
   .ewOpp .fs > * + * { margin-top: var(--ew-gap); }
 
+  .ewOpp .fs .lsItem{margin-top: 0;}
+
   /* Card header for cards that carry an action beside the title. Used INSTEAD of
      <legend>, which Chrome lays out itself and will not treat as a flex row.
      Matches the legend treatment exactly so the two kinds of card look alike. */

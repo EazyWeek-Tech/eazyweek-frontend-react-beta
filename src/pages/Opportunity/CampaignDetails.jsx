@@ -326,6 +326,67 @@ const ErrMsg = ({ msg }) =>
   <div className="cd-err">{msg}</div>;
 
 // Simple searchable select used in R7 filters
+/* ── Lead Score ───────────────────────────────────────────────────────────────
+   Bands and colours match the score panel on the lead forms, so a lead that
+   reads HOT LEAD on the form reads Hot here. The grids carry the LATEST score
+   for each lead (CLINIC_LEADSCORE's newest row), not a running average.
+
+   "Not scored" is a first-class filter value rather than an absence: until a
+   campaign has been through a chase cycle most leads have no score, and
+   finding those is the point. */
+const SCORE_FILTER_OPTIONS = [
+  { value:"",         label:"All" },
+  { value:"Hot",      label:"Hot" },
+  { value:"Warm",     label:"Warm" },
+  { value:"Cold",     label:"Cold" },
+  { value:"UNSCORED", label:"Not scored" },
+];
+
+const SCORE_COLORS = {
+  hot:  { bg:"#dd7766", fg:"#fff" },
+  warm: { bg:"#c98a2e", fg:"#fff" },
+  cold: { bg:"#85a2aa", fg:"#fff" },
+};
+
+const bandKey = (r) => String(r?.scoreBand ?? "").trim().toLowerCase();
+
+/** Row passes the picked band. "" = no filter, UNSCORED = never scored. */
+const matchesScoreBand = (r, band) => {
+  if (!band) return true;
+  const b = bandKey(r);
+  return band === "UNSCORED" ? !b : b === String(band).toLowerCase();
+};
+
+/** Score + band, e.g. 82 HOT. An unscored lead shows a dash, not a zero. */
+function ScoreCell({ row }) {
+  const b = bandKey(row);
+  const s = row?.leadScore;
+  if (!b && (s === null || s === undefined || s === "")) return <>—</>;
+  const c = SCORE_COLORS[b] || { bg:"#94a3b8", fg:"#fff" };
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
+      {(s === null || s === undefined || s === "") ? null : <b>{s}</b>}
+      {b && (
+        <span style={{ background:c.bg, color:c.fg, borderRadius:3, padding:"2px 7px",
+          fontSize:10, fontWeight:800, letterSpacing:".04em" }}>
+          {b.toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ScoreFilter({ value, onChange }) {
+  return (
+    <div className="cd-fg">
+      <label>Lead Score</label>
+      <select value={value} onChange={e=>onChange(e.target.value)}>
+        {SCORE_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function SearchableSelect({ options=[], value, onChange, placeholder="All", labelOf=(o)=>o }) {
   const [open, setOpen] = useState(false);
   const [q, setQ]       = useState("");
@@ -596,6 +657,9 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const [status,  setStatus]  = useState(_v.status    ?? "");
   const [owner,   setOwner]   = useState(_v.owner     ?? "");
   const [disp,    setDisp]    = useState(_v.disp      ?? "");
+  // Lead Score band. Sent to the server: this grid is server-paged, so filtering
+  // it here would only filter the batch on screen rather than the campaign.
+  const [scoreBand, setScoreBand] = useState(_v.scoreBand ?? "");
   const [therapist,setTherapist] = useState(_v.therapist ?? "");
   const [search,  setSearch]  = useState(_v.search    ?? "");
   const [srchDraft,setSrchDraft] = useState(_v.search ?? "");
@@ -643,7 +707,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       body: JSON.stringify({
         oppCode, fromDate, toDate,
         page: serverPage, pageSize: SERVER_PAGE_SIZE,
-        search, status, owner, disp, therapist,
+        search, status, owner, disp, therapist, scoreBand,
         apptFrom: showAppt ? apptFrom : "",
         apptTo:   showAppt ? apptTo   : "",
         createdFrom, createdTo, modifiedFrom: modFrom, modifiedTo: modTo,
@@ -667,26 +731,26 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       .catch(e=>{ if(alive) setErr(e.message); })
       .finally(()=>{ if(alive) setLoading(false); });
     return()=>{ alive=false; };
-  }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, apptFrom, apptTo,
+  }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo, churnKey]);
 
   // Reset to page 1 when server-side filters change — but NOT on mount, which would
   // discard the page number we just restored.
   useEffect(()=>{ if (!mountedRef.current) return; setServerPage(1); setPage(1); },
-    [search, status, owner, disp, therapist, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
+    [search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
   // Reset display page when client filters change
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [disp,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
+    [disp,scoreBand,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
 
   // Remember the view for the trip to a lead and back.
   useEffect(() => {
     saveView("trans", oppCode, {
-      status, owner, disp, therapist, search, apptFrom, apptTo,
+      status, owner, disp, therapist, scoreBand, search, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo,
       fuMode, fuFrom, fuTo, fuTFrom, fuTTo,
       sort, page, pageSize, serverPage,
     });
-  }, [oppCode, status, owner, disp, therapist, search, apptFrom, apptTo,
+  }, [oppCode, status, owner, disp, therapist, scoreBand, search, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo,
       fuMode, fuFrom, fuTo, fuTFrom, fuTTo, sort, page, pageSize, serverPage]);
 
@@ -767,7 +831,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
     }
     if (sort.key) {
       const dir=sort.dir==="asc"?1:-1;
-      const numericKey = sort.key==="recid";
+      const numericKey = sort.key==="recid" || sort.key==="leadScore";
       list=[...list].sort((a,b)=>{
         if (numericKey) {
           const an=Number(a?.[sort.key])||0, bn=Number(b?.[sort.key])||0;
@@ -787,11 +851,18 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const clientTotalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
   const paged = useMemo(()=>filtered.slice((page-1)*pageSize, page*pageSize), [filtered,page,pageSize]);
 
+  /* Backstop for the whole pattern above: every filter is supposed to reset the
+     page, but that relies on a hand-maintained dependency list, and one filter
+     was missed the moment a new one was added. This catches it structurally —
+     if the current page no longer exists after filtering, go back to page 1. */
+  useEffect(() => { if (page > clientTotalPages) setPage(1); }, [page, clientTotalPages]);
+
+
   // Filter summary for the panel header
-  const activeCount = [status,owner,disp,therapist,search,apptFrom,apptTo,fuMode,fuFrom,fuTo,
+  const activeCount = [status,owner,disp,scoreBand,therapist,search,apptFrom,apptTo,fuMode,fuFrom,fuTo,
     fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
-    setStatus(""); setOwner(""); setDisp(""); setTherapist("");
+    setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setTherapist("");
     setSrchDraft(""); setSearch("");
     setApptFrom(""); setApptTo("");
     setFuMode(""); setFuFrom(""); setFuTo(""); setFuTFrom(""); setFuTTo("");
@@ -811,11 +882,12 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   };
 
   const exportCSV = () => {
-    const hdrs=["ProspectID","CustID","CustName","Mobile","Status","Disposition","Therapist",
+    const hdrs=["ProspectID","CustID","CustName","Mobile","Status","Disposition","LeadScore","LeadType","Therapist",
       showAppt?"ApptDate":"","Remarks","SalesOwner","ModifiedBy","ModifiedDate","CreatedDate"].filter(Boolean);
     const esc=(v)=>{const s=String(v??"");return (s.includes(",")||s.includes('"'))?`"${s.replace(/"/g,'""')}"`:s;};
     const lines=[hdrs.join(","),...filtered.map(r=>[
       fmtProspectId(r.recid),r.custID,r.custName,r.custMobileNo,r.oppStatus,r.disposition,
+      r.leadScore ?? "", r.scoreBand ?? "",
       r.__therapist, ...(showAppt?[fmtDate(r.appointmentdatetime)]:[] ),
       r.remarks,ownerLabel(r.salesOwner),r.modifiedBy,fmtDate(r.modifieddate),fmtDate(r.createddate),
     ].map(esc).join(","))];
@@ -849,6 +921,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
             {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
           </select>
         </div>
+        <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
           <label>Therapist</label>
           <select value={therapist} onChange={e=>setTherapist(e.target.value)}>
@@ -902,7 +975,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
         <button className="cd-btn-sec" onClick={exportCSV}>⭳ Export CSV</button>
       </div>
 
-      {loading && <Skeleton cols={showAppt?14:13} />}
+      {loading && <Skeleton cols={showAppt?15:14} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && !err && (
         paged.length ? (
@@ -915,6 +988,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
                 <th onClick={()=>onSort("custMobileNo")}>Mobile {sortArrow("custMobileNo")}</th>
                 <th onClick={()=>onSort("oppStatus")}>Status {sortArrow("oppStatus")}</th>
                 <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th>
+                <th onClick={()=>onSort("leadScore")}>Lead Score {sortArrow("leadScore")}</th>
                 <th>Appointment ID</th>
                 <th onClick={()=>onSort("__therapist")}>Therapist {sortArrow("__therapist")}</th>
                 {showAppt && <th onClick={()=>onSort("appointmentdatetime")}>Appt Date {sortArrow("appointmentdatetime")}</th>}
@@ -933,6 +1007,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
                     <td>{safe(r.custMobileNo)}</td>
                     <td><Pill v={r.oppStatus} /></td>
                     <td><Pill v={r.disposition} /></td>
+                    <td><ScoreCell row={r} /></td>
                     <td><ApptMapCell leadSource="TRANS" recId={r.recid} custId={r.custID} oppCode={oppCode}
                         apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
@@ -998,6 +1073,9 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const [status,     setStatus]     = useState(_sf.status   ?? "");
   const [owner,      setOwner]      = useState(_sf.owner    ?? "");
   const [disp,       setDisp]       = useState(_sf.disp     ?? "");
+  // Lead Score band. Client-side here: the page already pulls the whole campaign
+  // and filters it in the browser, so the band goes through the same path.
+  const [scoreBand,  setScoreBand]  = useState(_sf.scoreBand ?? "");
   const [srchDraft,  setSrchDraft]  = useState(_sf.search   ?? "");
   const [search,     setSearch]     = useState(_sf.search   ?? "");
   const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());   // Created From (server-side)
@@ -1115,7 +1193,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   },[oppCode,fromDate,toDate,search,status,owner,disp,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [search,status,owner,disp,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
+    [search,status,owner,disp,scoreBand,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
 
   const fuDateRange = useMemo(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
@@ -1146,6 +1224,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     let list=rows.slice();
     if(createdBad||modBad) return [];   // Created / Modified From after To → no records
     if(owner === UNASSIGNED_VALUE) list=list.filter(r=>isUnassignedOwner(r?.salesOwner));
+    if(scoreBand) list=list.filter(r=>matchesScoreBand(r, scoreBand));
     if(modFrom||modTo) list=list.filter(r=>inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
@@ -1160,21 +1239,28 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       return true;
     });
     return list;
-  },[rows,owner,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
+  },[rows,owner,scoreBand,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
   const paged = filtered.slice((page-1)*pageSize, page*pageSize);
 
-  const activeCount = [status,owner,disp,search,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
+  /* Backstop for the whole pattern above: every filter is supposed to reset the
+     page, but that relies on a hand-maintained dependency list, and one filter
+     was missed the moment a new one was added. This catches it structurally —
+     if the current page no longer exists after filtering, go back to page 1. */
+  useEffect(() => { if (page > totalPages) setPage(1); }, [page, totalPages]);
+
+
+  const activeCount = [status,owner,disp,scoreBand,search,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
-    setStatus(""); setOwner(""); setDisp(""); setSrchDraft(""); setSearch("");
+    setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setSrchDraft(""); setSearch("");
     setFuMode(""); setFuFrom(""); setFuTo(""); setFuTFrom(""); setFuTTo("");
     setModFrom(""); setModTo("");
   };
   const fuTimeError = !isNaN(timeToMin(filterTFrom)) && !isNaN(timeToMin(filterTTo)) && timeToMin(filterTFrom) > timeToMin(filterTTo);
   useEffect(() => {
-    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
-  }, [oppCode, status, owner, disp, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
+    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, scoreBand, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
+  }, [oppCode, status, owner, disp, scoreBand, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
 
   return (
     <div>
@@ -1196,6 +1282,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
           <label>Disposition</label>
           <SearchableSelect options={dispOpts} value={disp} onChange={setDisp} placeholder="All Dispositions" />
         </div>
+        <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
           <label>Follow Up Date</label>
           <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
@@ -1241,7 +1328,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         </div>
       </div>
 
-      {loading && <Skeleton cols={14} />}
+      {loading && <Skeleton cols={15} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && !err && (
         filtered.length ? (
@@ -1249,7 +1336,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
             <table className="cd-table">
               <thead><tr>
                 <th>Lead ID</th><th>Cust ID</th><th>Lead Name</th><th>Mobile</th>
-                <th>Status</th><th>Disposition</th><th>Appointment ID</th>
+                <th>Status</th><th>Disposition</th><th>Lead Score</th><th>Appointment ID</th>
                 <th>Follow Up Date</th><th>Follow Up Time</th>
                 <th>Remarks</th><th>Sales Owner</th>
                 <th>Modified By</th><th>Modified Date</th><th>Created Date</th>
@@ -1277,6 +1364,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
                     <td>{safe(r.custMobileNo)}</td>
                     <td><Pill v={r.oppStatus} /></td>
                     <td><Pill v={r.disposition} /></td>
+                    <td><ScoreCell row={r} /></td>
                     <td><ApptMapCell leadSource="EXTERNAL" recId={r.recid} custId={r.custID||r.custId} oppCode={oppCode}
                         apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.recid)]?.appointmentId}
@@ -1343,6 +1431,8 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   const [status,  setStatus]  = useState(_v.status ?? "");
   const [owner,   setOwner]   = useState(_v.owner  ?? "");
   const [disp,    setDisp]    = useState(_v.disp   ?? "");
+  // Lead Score band. Client-side: this grid fetches every page up front.
+  const [scoreBand, setScoreBand] = useState(_v.scoreBand ?? "");
   const [doctorFilter, setDoctorFilter] = useState(_v.doctorFilter ?? "");
   const [fuMode,  setFuMode]  = useState(_v.fuMode ?? "");
   const [fuFrom,  setFuFrom]  = useState(_v.fuFrom ?? "");
@@ -1363,15 +1453,15 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
 
   useEffect(()=>{ const t=setTimeout(()=>setSearch(srchDraft),250); return()=>clearTimeout(t); },[srchDraft]);
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [search,status,owner,disp,doctorFilter,fuMode,fuFrom,fuTo,fuTime,createdFrom,createdTo,modFrom,modTo,pageSize]);
+    [search,status,owner,disp,scoreBand,doctorFilter,fuMode,fuFrom,fuTo,fuTime,createdFrom,createdTo,modFrom,modTo,pageSize]);
 
   useEffect(() => {
     saveView("manual", oppCode, {
-      status, owner, disp, doctorFilter, search,
+      status, owner, disp, scoreBand, doctorFilter, search,
       fuMode, fuFrom, fuTo, fuTime,
       createdFrom, createdTo, modFrom, modTo, page, pageSize,
     });
-  }, [oppCode, status, owner, disp, doctorFilter, search, fuMode, fuFrom, fuTo, fuTime,
+  }, [oppCode, status, owner, disp, scoreBand, doctorFilter, search, fuMode, fuFrom, fuTo, fuTime,
       createdFrom, createdTo, modFrom, modTo, page, pageSize]);
 
   useViewScroll("manual", oppCode, !loading && rows.length > 0);
@@ -1404,6 +1494,8 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
           fuTime: (x?.followUpTime||"").toString(),
           fuTimeLabel: to12hLabel(x?.followUpTime),
           disposition:(x?.disposition||"").toString(),
+          leadScore: (x?.leadScore === null || x?.leadScore === undefined) ? null : x.leadScore,
+          scoreBand: (x?.scoreBand||"").toString(),
           remark:(x?.remark||x?.remarks||"").toString(),
           owner: (x?.saleOwner||x?.salesOwner||"").toString(),
           modifiedBy:(x?.modifiedBy||"").toString(),
@@ -1459,6 +1551,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
       ? isUnassignedOwner(r.owner)
       : norm(r.owner)===norm(owner));
     if(disp)  list=list.filter(r=>norm(r.disposition)===norm(disp));
+    if(scoreBand) list=list.filter(r=>matchesScoreBand(r, scoreBand));
     if(doctorFilter) list=list.filter(r=>norm(r.doctor)===norm(doctorFilter));
     if(fuDateRange)list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
@@ -1467,7 +1560,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
     if(fuTime)list=list.filter(r=>norm(r.fuTimeLabel)===norm(fuTime));
     if(sort.key){
       const dir=sort.dir==="asc"?1:-1;
-      const numericKey=sort.key==="id";
+      const numericKey=sort.key==="id" || sort.key==="leadScore";
       list=[...list].sort((a,b)=>{
         if(numericKey){const an=Number(a?.[sort.key])||0,bn=Number(b?.[sort.key])||0;return (an-bn)*dir;}
         const av=(a?.[sort.key]??"").toString().toLowerCase();
@@ -1476,16 +1569,23 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
       });
     }
     return list;
-  },[rows,search,status,owner,disp,doctorFilter,fuDateRange,fuTime,sort,
+  },[rows,search,status,owner,disp,scoreBand,doctorFilter,fuDateRange,fuTime,sort,
      createdFrom,createdTo,modFrom,modTo,createdBad,modBad]);
 
   const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
   const paged=useMemo(()=>filtered.slice((page-1)*pageSize,page*pageSize),[filtered,page,pageSize]);
 
-  const activeCount = [status,owner,disp,doctorFilter,search,fuMode,fuFrom,fuTo,fuTime,
+  /* Backstop for the whole pattern above: every filter is supposed to reset the
+     page, but that relies on a hand-maintained dependency list, and one filter
+     was missed the moment a new one was added. This catches it structurally —
+     if the current page no longer exists after filtering, go back to page 1. */
+  useEffect(() => { if (page > totalPages) setPage(1); }, [page, totalPages]);
+
+
+  const activeCount = [status,owner,disp,scoreBand,doctorFilter,search,fuMode,fuFrom,fuTo,fuTime,
     createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
-    setStatus(""); setOwner(""); setDisp(""); setDoctorFilter("");
+    setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setDoctorFilter("");
     setSrchDraft(""); setSearch("");
     setFuMode(""); setFuFrom(""); setFuTo(""); setFuTime("");
     setCreatedFrom(""); setCreatedTo(""); setModFrom(""); setModTo("");
@@ -1521,6 +1621,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
             {dispOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
           </select>
         </div>
+        <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
           <label>Doctor</label>
           <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
@@ -1561,7 +1662,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
         </div>
       </div>
 
-      {(loading || !campaignRecId) && <Skeleton cols={16} />}
+      {(loading || !campaignRecId) && <Skeleton cols={17} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && campaignRecId && !err && (
         paged.length ? (
@@ -1570,7 +1671,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
               <thead><tr>
                 <th onClick={()=>onSort("id")}>Prospect ID {sortArrow("id")}</th><th onClick={()=>onSort("prospectType")}>Prospect Type {sortArrow("prospectType")}</th><th onClick={()=>onSort("custID")}>Cust ID {sortArrow("custID")}</th><th onClick={()=>onSort("name")}>Name {sortArrow("name")}</th><th onClick={()=>onSort("mobile")}>Mobile {sortArrow("mobile")}</th><th onClick={()=>onSort("doctor")}>Doctor {sortArrow("doctor")}</th>
                 <th onClick={()=>onSort("status")}>Status {sortArrow("status")}</th><th onClick={()=>onSort("fuDate")}>Follow Up Date {sortArrow("fuDate")}</th><th onClick={()=>onSort("fuTimeLabel")}>Follow Up Time {sortArrow("fuTimeLabel")}</th>
-                <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th><th>Appointment ID</th><th onClick={()=>onSort("remark")}>Remarks {sortArrow("remark")}</th><th onClick={()=>onSort("owner")}>Sales Owner {sortArrow("owner")}</th>
+                <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th><th onClick={()=>onSort("leadScore")}>Lead Score {sortArrow("leadScore")}</th><th>Appointment ID</th><th onClick={()=>onSort("remark")}>Remarks {sortArrow("remark")}</th><th onClick={()=>onSort("owner")}>Sales Owner {sortArrow("owner")}</th>
                 <th onClick={()=>onSort("modifiedBy")}>Modified By {sortArrow("modifiedBy")}</th><th onClick={()=>onSort("modifiedDate")}>Modified Date {sortArrow("modifiedDate")}</th><th onClick={()=>onSort("createdDate")}>Created Date {sortArrow("createdDate")}</th>
               </tr></thead>
               <tbody>
@@ -1590,6 +1691,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
                     <td>{fmtDate(r.fuDate)}</td>
                     <td>{safe(r.fuTimeLabel)}</td>
                     <td><Pill v={r.disposition} /></td>
+                    <td><ScoreCell row={r} /></td>
                     <td><ApptMapCell leadSource="MANUAL" recId={r.id} custId={r.custID} oppCode={oppCode}
                         apptMandatory={apptMandatory}
                         disposition={r.disposition} mapped={apptMap[String(r.id)]?.appointmentId}
