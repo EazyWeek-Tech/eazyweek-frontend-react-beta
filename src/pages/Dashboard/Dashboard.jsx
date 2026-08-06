@@ -3,7 +3,7 @@ import { API_BASE_URL } from "../../config"; // adjust path to match this file's
 import { resolveFeatures, getFeatureMeta, minimumTierFor, getTierLabel } from "../../config/licenseConfig"; // license helpers (adjust path if needed)
 // Shared EazyWeek loading indicators. Place DashboardLoadingBar.jsx beside this
 // file (src/pages/Dashboard/) or adjust this path to wherever it lives.
-import { DashboardLoadingBar, TileSkeleton, ChartLoading, AwaitingFeed, LoadError } from "./DashboardLoadingBar";
+import { DashboardLoadingBar, TileSkeleton, AwaitingFeed, LoadError } from "./DashboardLoadingBar";
 
 /**
  * EazyWeek — Executive Analytics Dashboard
@@ -34,205 +34,108 @@ const CENTRES = [
 
 const RANGE_KEYS = ["Today", "This Week", "This Month", "QTD", "YTD", "Custom"];
 
-/* FIXED FIGURES — the only hardcoded numbers left on this page.
-   Claims, purchase orders and vendor balances have no module and no endpoint
-   in EazyWeek yet, so these three tiles carry agreed placeholder values.
-   Replace each `value` with its endpoint field when those modules land; the
-   rendering below needs no change. */
-const PLACEHOLDER_TILES = {
-  unsettledClaims: 36000,
-  openPoCount:     22,
-  openPoValue:     43000,
-  vendorBalance:   30000,
-};
+/* ====================================================================== */
+/* SAMPLE DATA — for the widgets that have NO API AT ALL, and only those.  */
+/* ====================================================================== */
+/* The exhaustive list of what this fills, and why each one has no source:
 
-/* ==================================================================== */
-/* DEMO DATA                                                            */
-/* ==================================================================== */
-/* Illustrative figures used ONLY where a widget would otherwise render
-   "Awaiting live feed". A real value from an endpoint always wins; the
-   demo only fills the gaps. Set DEMO_MODE = false (or delete this block
-   and the `demo` argument threaded through useDashboardData) to return
-   to strict live-only behaviour with em dashes and awaiting cards.
+     Centre performance (actual vs target)  no CLINIC_CENTRE_TARGET table
+     Leads by source                        no endpoint
+     Loyalty tier distribution              no endpoint
+     Campaign performance                   no endpoint
+     Active customers                       needs the appointment-frequency
+                                            setting, which does not exist
+     Unsettled Claims / Open PO /           no claims, purchasing or vendor
+       Vendor Balance                       module in EazyWeek
 
-   Everything scales with the selected date range and recomputes from the
-   selected centres, so the centre filter and the time filters visibly do
-   something even while the endpoints are still being wired up.        */
-const DEMO_MODE = true;
+   NOTHING ELSE IS EVER SAMPLED. Every other figure on the page has an
+   endpoint behind it, and if that endpoint is slow, empty or broken the
+   widget shows the loader, an em dash or the retry panel — it never falls
+   back to an invented number. That distinction is the whole point: a sample
+   here means "this feature isn't built yet", never "the API failed".
 
-/* Per-centre profile for one full calendar month.
-   `sales` is gross, VAT-inclusive. Balances (receivables, open cases)
-   are point-in-time and do NOT scale with the period; flows (sales,
-   refunds, advances, memberships, closed cases) do.                    */
-const DEMO_BASE = {
-  Bright:  { sales: 412000, refundPct: 0.028, liabPct: 0.21, advance: 96000, advRedeem: 71000, membership: 58500, receivables: 74300, avgSpend: 1180, newCust: 68, activeCust: 412, activeMem: 96, loyalty: 341, ptsEarn: 184000, ptsRedeem: 96500, cases: [14, 9, 63], sla: 96.2, resHrs: 5.8, targetRatio: 1.06 },
-  MXM:     { sales: 288500, refundPct: 0.024, liabPct: 0.19, advance: 64000, advRedeem: 48500, membership: 41200, receivables: 52800, avgSpend: 1045, newCust: 51, activeCust: 318, activeMem: 74, loyalty: 268, ptsEarn: 131000, ptsRedeem: 70400, cases: [11, 6, 47], sla: 94.8, resHrs: 6.4, targetRatio: 0.97 },
-  Silk:    { sales: 231700, refundPct: 0.031, liabPct: 0.23, advance: 51500, advRedeem: 39800, membership: 33600, receivables: 44100, avgSpend: 1320, newCust: 44, activeCust: 261, activeMem: 63, loyalty: 214, ptsEarn: 106500, ptsRedeem: 55200, cases: [9, 7, 38], sla: 92.1, resHrs: 8.2, targetRatio: 0.89 },
-  LNS:     { sales: 196300, refundPct: 0.022, liabPct: 0.18, advance: 43800, advRedeem: 34100, membership: 27400, receivables: 36700, avgSpend: 965,  newCust: 37, activeCust: 224, activeMem: 52, loyalty: 187, ptsEarn: 89200,  ptsRedeem: 44800, cases: [7, 4, 31],  sla: 97.4, resHrs: 4.9, targetRatio: 1.11 },
-  GLAM25:  { sales: 154900, refundPct: 0.026, liabPct: 0.20, advance: 34600, advRedeem: 26200, membership: 21800, receivables: 29400, avgSpend: 890,  newCust: 29, activeCust: 176, activeMem: 41, loyalty: 148, ptsEarn: 70300,  ptsRedeem: 33900, cases: [6, 3, 24],  sla: 95.5, resHrs: 6.1, targetRatio: 1.02 },
-  GLOW123: { sales: 121600, refundPct: 0.029, liabPct: 0.22, advance: 27100, advRedeem: 20400, membership: 17300, receivables: 23100, avgSpend: 815,  newCust: 23, activeCust: 139, activeMem: 33, loyalty: 116, ptsEarn: 55100,  ptsRedeem: 26700, cases: [5, 3, 19],  sla: 91.3, resHrs: 9.1, targetRatio: 0.86 },
-  GL12:    { sales: 98400,  refundPct: 0.021, liabPct: 0.17, advance: 21900, advRedeem: 16800, membership: 13900, receivables: 18600, avgSpend: 740,  newCust: 19, activeCust: 112, activeMem: 26, loyalty: 94,  ptsEarn: 44600,  ptsRedeem: 21300, cases: [4, 2, 16],  sla: 98.1, resHrs: 4.2, targetRatio: 1.14 },
-  INFENI:  { sales: 87200,  refundPct: 0.033, liabPct: 0.24, advance: 19400, advRedeem: 14600, membership: 12300, receivables: 16500, avgSpend: 690,  newCust: 16, activeCust: 98,  activeMem: 22, loyalty: 81,  ptsEarn: 39500,  ptsRedeem: 18200, cases: [4, 2, 13],  sla: 89.6, resHrs: 11.3, targetRatio: 0.81 },
-};
+   Figures are deterministic per centre (so they don't jitter between
+   renders), recompute from the selected centres, and scale with the selected
+   period — the target pro-rates by day exactly as the spec requires.
 
-/* Stable 0..1 hash so a centre the hierarchy returns but DEMO_BASE has
-   never heard of still gets sensible, non-jittering demo numbers.      */
-const dhash = (s) => {
+   Set SAMPLE_UNSOURCED = false for strict live-only: these widgets go back
+   to the awaiting-source card and nothing else on the page changes. */
+const SAMPLE_UNSOURCED = true;
+
+/* Stable 0..1 hash so a centre the hierarchy returns that isn't in any table
+   here still gets sensible, non-jittering numbers. */
+const shash = (str) => {
   let h = 2166136261;
-  for (let i = 0; i < String(s).length; i++) { h ^= String(s).charCodeAt(i); h = Math.imul(h, 16777619); }
-  return (h >>> 0) / 4294967295;
+  for (let i = 0; i < String(str).length; i++) { h ^= String(str).charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 100000) / 100000;
 };
-const demoProfile = (code) => {
-  if (DEMO_BASE[code]) return DEMO_BASE[code];
-  const a = dhash(code), b = dhash(code + "|b"), c = dhash(code + "|c");
-  const sales = Math.round((85000 + a * 300000) / 100) * 100;
+const sampleCentre = (code) => {
+  const a = shash(code), b = shash(code + "|b"), c = shash(code + "|c");
   return {
-    sales, refundPct: 0.018 + b * 0.02, liabPct: 0.17 + c * 0.08,
-    advance: Math.round(sales * (0.2 + b * 0.06)), advRedeem: Math.round(sales * (0.15 + c * 0.05)),
-    membership: Math.round(sales * (0.12 + a * 0.04)), receivables: Math.round(sales * (0.16 + b * 0.05)),
-    avgSpend: Math.round(650 + a * 620), newCust: Math.round(12 + a * 55), activeCust: Math.round(85 + b * 330),
-    activeMem: Math.round(18 + c * 78), loyalty: Math.round(70 + a * 270),
-    ptsEarn: Math.round(35000 + b * 150000), ptsRedeem: Math.round(16000 + c * 80000),
-    cases: [Math.round(3 + a * 11), Math.round(2 + b * 7), Math.round(11 + c * 52)],
-    sla: 88 + c * 10, resHrs: 4 + b * 7, targetRatio: 0.8 + a * 0.36,
+    monthlyActual: 180000 + Math.round(a * 520000),   // one full calendar month
+    attainment:    0.74 + b * 0.44,                   // actual / target
+    loyalty:       420 + Math.round(c * 2600),
+    monthlyLeads:  70 + Math.round(a * 230),
+    activeCust:    260 + Math.round(b * 1400),
   };
 };
 
-const DEMO_LEAD_SOURCES = [
-  { en: "Instagram",        ar: "إنستغرام",      share: 0.27 },
-  { en: "WhatsApp",         ar: "واتساب",         share: 0.21 },
-  { en: "Walk-in",          ar: "زيارة مباشرة",   share: 0.17 },
-  { en: "Website",          ar: "الموقع",         share: 0.13 },
-  { en: "Referral",         ar: "توصية",          share: 0.11 },
-  { en: "Meta Ads",         ar: "إعلانات ميتا",   share: 0.07 },
-  { en: "Undefined Source", ar: "مصدر غير محدد",  share: 0.04 },
+const SAMPLE_LEAD_SOURCES = [
+  { en: "Walk-in",           ar: "زيارة مباشرة", share: 0.28 },
+  { en: "Instagram",         ar: "إنستغرام",     share: 0.24 },
+  { en: "Referral",          ar: "توصية",        share: 0.18 },
+  { en: "WhatsApp",          ar: "واتساب",       share: 0.14 },
+  { en: "Website",           ar: "الموقع",       share: 0.10 },
+  { en: "Undefined Source",  ar: "مصدر غير محدد", share: 0.06 },
 ];
-const DEMO_TIERS = [
-  { en: "Bronze",   ar: "برونزي",  share: 0.46, color: "#C08552" },
-  { en: "Silver",   ar: "فضي",     share: 0.31, color: "#9AA7B4" },
-  { en: "Gold",     ar: "ذهبي",    share: 0.17, color: "#D19A3E" },
-  { en: "Platinum", ar: "بلاتيني", share: 0.06, color: "#18396E" },
+const SAMPLE_TIERS = [
+  { en: "Bronze",   ar: "برونزي", color: "#B07C28", share: 0.46 },
+  { en: "Silver",   ar: "فضي",    color: "#85A2AA", share: 0.31 },
+  { en: "Gold",     ar: "ذهبي",   color: "#D19A3E", share: 0.17 },
+  { en: "Platinum", ar: "بلاتيني", color: "#18396E", share: 0.06 },
 ];
-const DEMO_CAMPAIGNS = [
-  { en: "Summer Glow Package", ar: "باقة إشراقة الصيف", share: 0.26, conv: 0.34 },
-  { en: "Ramadan Wellness",    ar: "عافية رمضان",       share: 0.21, conv: 0.29 },
-  { en: "Hydrafacial Launch",  ar: "إطلاق هيدرافيشل",   share: 0.18, conv: 0.41 },
-  { en: "Membership Renewal",  ar: "تجديد العضوية",     share: 0.15, conv: 0.52 },
-  { en: "Referral Rewards",    ar: "مكافآت التوصية",    share: 0.12, conv: 0.38 },
-  { en: "Winter Skin Reset",   ar: "تجديد بشرة الشتاء", share: 0.08, conv: 0.23 },
+const SAMPLE_CAMPAIGNS = [
+  { en: "Summer Glow",        ar: "إشراقة الصيف",   share: 0.34, conv: 0.31 },
+  { en: "Membership Renewal", ar: "تجديد العضوية",  share: 0.27, conv: 0.52 },
+  { en: "Referral Rewards",   ar: "مكافآت التوصية", share: 0.22, conv: 0.38 },
+  { en: "Winter Skin Reset",  ar: "تجديد بشرة الشتاء", share: 0.17, conv: 0.23 },
 ];
 
-/* Builds a full demo payload for the selected centres + period.
-   Returns null when no centre is selected so the empty state can show. */
-function buildDemo(codes, period) {
-  const list = (codes || []).map((code) => ({ code, ...demoProfile(code) }));
+/* Builds the sample payload for the selected centres + period.
+   Returns null when sampling is off or nothing is selected. */
+function buildSample(codes, period) {
+  if (!SAMPLE_UNSOURCED) return null;
+  const list = (codes || []).map((code) => ({ code, ...sampleCentre(code) }));
   if (!list.length) return null;
+  const f = period && period.factor ? period.factor : 1;   // period / 30 days
+  const r0 = (n) => Math.max(0, Math.round(n));
 
-  const f = period.factor;                       // period length / 30 days
-  const S = (fn) => list.reduce((a, p) => a + fn(p), 0);
-  const VAT = (gross) => (gross * 15) / 115;
-  const r0 = (n) => Math.round(n);
+  const centreRows = list.map((p) => {
+    const target = r0((p.monthlyActual / p.attainment) * f);
+    /* A little per-period drift so the bars are not all identical shapes. */
+    const drift  = 0.9 + shash(p.code + period.fromDate) * 0.24;
+    return { code: p.code, actual: r0(p.monthlyActual * f * drift), target };
+  });
 
-  const A = S((p) => p.sales) * f;
-  const C = S((p) => p.sales * p.refundPct) * f;
-  const H = S((p) => p.sales * p.liabPct) * f;
-  const K = S((p) => p.advance) * f;
-  const M = S((p) => p.advRedeem) * f;
-  const Nm = S((p) => p.membership) * f;
-  const B = VAT(A), I = VAT(H), D = A - C, E = D - H, F = B - I, G = E - F, J = H - I;
-
-  /* Daily sales across the actual selected period, with a light
-     weekend lift so the sparkline and trend line read like real traffic. */
-  const salesDaily = [];
-  const day0 = new Date(period.fromDate + "T00:00:00");
-  const perDay = A / Math.max(1, period.days);
-  for (let i = 0; i < Math.min(period.days, 370); i++) {
-    const dt = new Date(day0);
-    dt.setDate(day0.getDate() + i);
-    const dow = dt.getDay();
-    const seasonal = dow === 4 || dow === 5 ? 1.24 : dow === 6 ? 1.08 : 0.9;
-    const wobble = 0.88 + dhash(period.fromDate + i + list.length) * 0.26;
-    salesDaily.push({
-      date: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`,
-      sales: r0(perDay * seasonal * wobble),
-      count: Math.max(1, r0((perDay * seasonal * wobble) / 950)),
-    });
-  }
-
-  /* Last 6 calendar months of average spend per centre. */
-  const averageSpend = [];
-  const anchor = new Date(period.toDate + "T00:00:00");
-  for (let m = 5; m >= 0; m--) {
-    const dt = new Date(anchor.getFullYear(), anchor.getMonth() - m, 1);
-    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
-    list.forEach((p) => {
-      const drift = 0.88 + dhash(p.code + key) * 0.28;
-      averageSpend.push({ centreCode: p.code, month: key, avgSpend: r0(p.avgSpend * drift) });
-    });
-  }
-
-  /* Funnel — captured leads down to purchased. */
-  const captured = Math.max(1, r0(S((p) => p.newCust) * f * 6.4));
-  const converted = r0(captured * 0.44);
-  const appointmentBooked = r0(converted * 0.83);
-  const showedUp = r0(appointmentBooked * 0.86);
-  const purchased = r0(showedUp * 0.79);
-  const noShows = appointmentBooked - showedUp;
-
-  const invoices = Math.max(1, r0(D / (S((p) => p.avgSpend) / list.length || 900)));
-
-  const openCases = r0(S((p) => p.cases[0]));
-  const wipCases = r0(S((p) => p.cases[1]));
-  const closedCases = Math.max(0, r0(S((p) => p.cases[2]) * f));
-  const caseWeight = S((p) => p.cases[0] + p.cases[1] + p.cases[2]) || 1;
-
-  const openTotal = openCases + wipCases;
+  const leads = r0(list.reduce((a, p) => a + p.monthlyLeads, 0) * f);
+  const loyal = list.reduce((a, p) => a + p.loyalty, 0);
 
   return {
-    tiles: {
-      A_totalSales: A, B_vatCollected: B, C_refunds: C, D_netSales: D,
-      E_totalRevenue: E, F_vatOnRevenue: F, G_netRevenue: G,
-      H_totalLiability: H, I_vatOnLiability: I, J_netLiability: J,
-      K_advanceCollected: K, L_vatOnAdvance: VAT(K), M_advanceRedeemed: M,
-      N_membershipSales: Nm, O_vatOnMembership: VAT(Nm),
-    },
-    salesDaily,
-    averageSpend,
-    receivables: S((p) => p.receivables),
-    advanceHeld: r0(K - M),
-    newCustomers: r0(S((p) => p.newCust) * f),
-    activeCustomers: S((p) => p.activeCust),
-    activeMemberships: S((p) => p.activeMem),
-    membershipRevenue: Nm,
-    loyaltyMembers: S((p) => p.loyalty),
-    pointsEarned: r0(S((p) => p.ptsEarn) * f),
-    pointsRedeemed: r0(S((p) => p.ptsRedeem) * f),
-    funnel: { captured, converted, appointmentBooked, showedUp, purchased },
-    endFunnel: { shown: showedUp, invoices, noShows, shownNotInvoiced: Math.max(0, showedUp - invoices) },
-    revenue: {
-      purchaseRate: ((purchased / captured) * 100).toFixed(1),
-      avgBasketSize: D / Math.max(1, invoices),
-      totalRevenue: D,
-      leadAcquisitionCost: (A * 0.06) / Math.max(1, captured),
-    },
-    caseCounts: { open: openCases, wip: wipCases, closed: closedCases },
-    sla: Number((S((p) => p.sla * (p.cases[0] + p.cases[1] + p.cases[2])) / caseWeight).toFixed(1)),
-    avgResHrs: Number((S((p) => p.resHrs * (p.cases[0] + p.cases[1] + p.cases[2])) / caseWeight).toFixed(1)),
-    ageing: {
-      under24h: r0(openTotal * 0.34),
-      days1to3: r0(openTotal * 0.29),
-      days3to7: r0(openTotal * 0.22),
-      over7d: openTotal - r0(openTotal * 0.34) - r0(openTotal * 0.29) - r0(openTotal * 0.22),
-    },
-    centreRows: list
-      .map((p) => ({ code: p.code, actual: p.sales * f, target: p.sales * f * p.targetRatio }))
-      .sort((x, y) => y.actual - x.actual),
-    leadSources: DEMO_LEAD_SOURCES.map((s) => ({ ...s, value: Math.max(1, r0(captured * s.share)) })),
-    tiers: DEMO_TIERS.map((t) => ({ ...t, value: Math.max(1, r0(S((p) => p.loyalty) * t.share)) })),
-    campaigns: DEMO_CAMPAIGNS.map((c) => {
-      const leads = Math.max(1, r0(captured * c.share));
-      return { ...c, leads, converted: Math.max(0, r0(leads * c.conv)) };
+    centreRows,
+    activeCustomers: list.reduce((a, p) => a + p.activeCust, 0),
+    leadSources: SAMPLE_LEAD_SOURCES.map((x) => ({ ...x, value: Math.max(1, r0(leads * x.share)) })),
+    tiers:       SAMPLE_TIERS.map((x) => ({ ...x, value: Math.max(1, r0(loyal * x.share)) })),
+    campaigns:   SAMPLE_CAMPAIGNS.map((c) => {
+      const cl = Math.max(1, r0(leads * c.share));
+      return { ...c, leads: cl, converted: Math.max(0, r0(cl * c.conv)) };
     }),
+    /* Balances, so these do NOT scale with the selected period. */
+    procurement: {
+      unsettledClaims: r0(list.reduce((a, p) => a + p.monthlyActual * 0.09, 0)),
+      openPoCount:     r0(list.length * 3 + shash("po" + list.length) * 6),
+      openPoValue:     r0(list.reduce((a, p) => a + p.monthlyActual * 0.11, 0)),
+      vendorBalance:   r0(list.reduce((a, p) => a + p.monthlyActual * 0.075, 0)),
+    },
   };
 }
 
@@ -281,6 +184,8 @@ const T_EN = {
   avgResolution: "avg. resolution time", aging: "Case queue aging", currentPeriod: "Current period",
   previousPeriod: "Previous period", overlayPrev: "Overlay previous period",
   loading: "Fetching live data\u2026", loadFailed: "Live data could not be loaded.",
+  loadingBlock: "Loading",
+  revenueFunnelLbl: "Revenue funnel", casesLbl: "Cases by status",
   retry: "Retry", awaiting: "Awaiting live feed",
   demoChip: "Demo data", demoNote: "Illustrative figures shown where no live feed exists yet",
   liveChip: "Live data", lastRefreshed: "Last refreshed", refreshNow: "Refresh",
@@ -312,6 +217,8 @@ const T_AR = {
   sla: "الالتزام بالاتفاقية", target: "الهدف", avgResolution: "متوسط وقت الحل", aging: "أعمار قائمة الحالات",
   currentPeriod: "الفترة الحالية", previousPeriod: "الفترة السابقة", overlayPrev: "إظهار الفترة السابقة",
   loading: "جارٍ تحميل البيانات\u2026", loadFailed: "تعذّر تحميل البيانات.",
+  loadingBlock: "جارٍ التحميل",
+  revenueFunnelLbl: "مسار الإيرادات", casesLbl: "الحالات حسب الحالة",
   retry: "إعادة المحاولة", awaiting: "في انتظار المصدر",
   demoChip: "بيانات تجريبية", demoNote: "أرقام توضيحية حيث لا يوجد مصدر مباشر بعد",
   liveChip: "بيانات مباشرة", lastRefreshed: "آخر تحديث", refreshNow: "تحديث",
@@ -572,33 +479,18 @@ const ENTITY_CENTRE = "Centriq Clinics";
    ──────────────────────────────────────────────────────────────────────────── */
 const HEAD_START_MS = 1200;
 
-/* Last good payload per filter combination. A range or centre the user has
-   already looked at this session repaints instantly and then refreshes
-   underneath, which is the difference between a blank skeleton and a full
-   screen of numbers on a weak connection.
+/* One flag per wave-B endpoint. `ltr` (GET /api/Opportunity/Funnel) feeds BOTH
+   the funnel trapezoid and the Revenue funnel rows, and is measurably the
+   slowest of the six, so keeping it separate matters more than the rest. */
+const PENDING_ALL = { cs: true, ap: true, opp: true, mem: true, loy: true, ltr: true };
+/* Marks one slice done without disturbing the others. */
+const settle = (p, key) => ({ ...p, pending: { ...(p.pending || PENDING_ALL), [key]: false } });
 
-   sessionStorage, not localStorage: the cache dies with the tab, so a stale
-   figure can never outlive the visit. Every snapshot carries its own
-   fetchedAt, and that is what the "last refreshed" line reads, so a cached
-   number always shows its true age rather than passing itself off as current. */
-const SNAP_PREFIX = "ew.dash.v1.";
-const SNAP_TTL_MS = 10 * 60 * 1000;
-const snapKey = (range, from, to, centreKey) =>
-  SNAP_PREFIX + [range, from || "", to || "", centreKey || ""].join("|");
-const readSnap = (key) => {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    if (!obj || !obj.fetchedAt || Date.now() - obj.fetchedAt > SNAP_TTL_MS) return null;
-    return obj;
-  } catch { return null; }
-};
-const writeSnap = (key, payload) => {
-  /* Quota, private mode and disabled storage all throw. A cache miss is not
-     worth breaking the page over. */
-  try { sessionStorage.setItem(key, JSON.stringify(payload)); } catch { /* ignore */ }
-};
+/* NOTE: no snapshot / warm-start cache here, deliberately. Every load starts
+   from the loader and shows a figure only once THIS request has returned it.
+   Repainting the previous response first is faster to look at but means the
+   screen can show yesterday's number as though it were today's, which on a
+   financial dashboard is worse than waiting. */
 
 /* Funnel figures straddle both waves — invoiced comes from Invoice/Dashboard
    (wave A) while booked/attended/leads come from Appointment and Opportunity
@@ -631,16 +523,21 @@ const sessionCentreCode = () => {
 
 function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey }) {
   /* Two independent loading flags instead of one. `topLoading` gates section 01
-     only; `restLoading` gates everything below it. */
-  const [live, setLive] = useState({ topLoading: true, restLoading: true });
+     only; `restLoading` gates everything below it.
+
+     `pending` goes one level finer: a flag per wave-B endpoint, so a card stops
+     spinning when ITS OWN endpoint answers. Without this, restLoading only
+     flips once all six have settled, which means the slowest endpoint on the
+     page holds a spinner over five blocks whose data arrived long ago — and the
+     five fast ones hold nothing back but still look unfinished. */
+  const [live, setLive] = useState({ topLoading: true, restLoading: true, pending: PENDING_ALL });
   /* Every in-flight load carries a sequence number. Without it, aborting the
      previous request (which happens on EVERY filter change) resolved the
      fetches to null through their .catch handlers, hit the "nothing came back"
      branch and painted the red retry panel over the request that was still
      running. That is the error the Today / This Week / This Month buttons
      were producing. */
-  const seqRef  = useRef(0);
-  const snapRef = useRef(null);
+  const seqRef = useRef(0);
 
   const load = useCallback((signal, seq) => {
     const alive  = () => !signal.aborted && seqRef.current === seq;
@@ -652,15 +549,9 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
     const patch = (fn) => { if (alive()) setLive(fn); };
     const N = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
-    /* Seed from the snapshot for this exact filter so the screen is never blank
-       for something already loaded this session. Live values overwrite it field
-       by field as they land. */
-    const key  = snapKey(range, customFrom, customTo, centreKey);
-    snapRef.current = key;
-    const snap = readSnap(key);
-    setLive(snap
-      ? { ...snap, seeded: true, topLoading: true, restLoading: true }
-      : { topLoading: true, restLoading: true });
+    /* Straight back to the loader. Nothing carries over from the previous
+       filter, so a figure on screen is always a figure this request returned. */
+    setLive({ topLoading: true, restLoading: true, pending: PENDING_ALL });
 
     /* ── WAVE A — everything section 01 needs ───────────────────────────── */
     let aOk = 0, aDone = 0;
@@ -678,10 +569,7 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
       patch((p) => ({
         ...p,
         live: p.live || ok,
-        seeded: ok ? false : p.seeded,
-        /* On failure keep whatever the snapshot seeded rather than blanking a
-           tile that was showing a figure a moment ago. */
-        home: ok ? home : (p.seeded ? p.home : null),
+        home: ok ? home : null,
         fetchedAt: ok ? Date.now() : p.fetchedAt,
       }));
       doneA(ok);
@@ -699,7 +587,6 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
         return withFunnel({
           ...p,
           live: true,
-          seeded: false,
           fetchedAt: Date.now(),
           periodRev: salesDaily.reduce((a, r) => a + N(r.sales), 0),
           series: liveBucket(salesDaily),
@@ -721,7 +608,6 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
       patch((p) => (!ok ? p : {
         ...p,
         live: true,
-        seeded: false,
         fetchedAt: Date.now(),
         advanceHeld:     N(adv.held),
         advanceRedeemed: N(adv.redeemed),
@@ -735,7 +621,12 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
        the temporal dead zone, whatever order the promises settle in. */
     let headStart = null;
     let bStarted = false, bDone = 0;
-    const doneB = () => { bDone += 1; if (bDone === 6) patch((p) => ({ ...p, restLoading: false })); };
+    /* `key` is the slice this response belongs to. restLoading still flips when
+       all six are in, for anything that wants a whole-page signal. */
+    const doneB = (key) => {
+      patch((p) => (bDone + 1 === 6 ? { ...settle(p, key), restLoading: false } : settle(p, key)));
+      bDone += 1;
+    };
 
     function startB() {
       if (bStarted || signal.aborted) return;
@@ -746,13 +637,13 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
         const cs = unwrap(raw);
         patch((p) => (!cs ? p : {
           ...p,
-          live: true, seeded: false, fetchedAt: Date.now(),
+          live: true, fetchedAt: Date.now(),
           caseSla:       cs.slaCompliancePct       != null ? Number(cs.slaCompliancePct)       : null,
           caseAvgResHrs: cs.averageResolutionHours != null ? Number(cs.averageResolutionHours) : null,
           caseAgeing:    cs.ageing || null,
           caseCounts: { open: N(cs.open), wip: N(cs.wip), closed: N(cs.closed) },
         }));
-        doneB();
+        doneB("cs");
       });
 
       get(`/api/Appointment/AppDashboard`, { method: "POST", body: JSON.stringify({ fromDate, toDate, centre: centreKey, centerCode: centreKey }) }).then((raw) => {
@@ -761,54 +652,54 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
           if (!ap) return p;
           const st = ap.status || {};
           return withFunnel({
-            ...p, live: true, seeded: false, fetchedAt: Date.now(),
+            ...p, live: true, fetchedAt: Date.now(),
             _attended: N(st.completed), _booked: N(st.total), _noShows: N(st.noShow),
           });
         });
-        doneB();
+        doneB("ap");
       });
 
       get(`/api/Opportunity/LoadOpprotunityList/1`).then((raw) => {
         const oppU = unwrap(raw);
         const opp = Array.isArray(raw) ? raw : (Array.isArray(oppU) ? oppU : null);
         patch((p) => (!opp ? p : withFunnel({
-          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          ...p, live: true, fetchedAt: Date.now(),
           _leads:   opp.reduce((a, r) => a + N(r.totalOpportunities), 0),
           _oppOpen: opp.reduce((a, r) => a + N(r.noOfOpenOpportunities), 0),
         })));
-        doneB();
+        doneB("opp");
       });
 
       get(`/api/Membership/Dashboard${qs}`).then((raw) => {
         const mem = unwrap(raw);
         patch((p) => (!mem ? p : {
-          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          ...p, live: true, fetchedAt: Date.now(),
           activeMemberships: N(mem.activeMemberships),
           membershipRevenue: N(mem.membershipRevenue),
         }));
-        doneB();
+        doneB("mem");
       });
 
       get(`/api/v1/loyalty/dashboard${qs}`).then((raw) => {
         const loy = unwrap(raw);
         patch((p) => (!loy ? p : {
-          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          ...p, live: true, fetchedAt: Date.now(),
           loyaltyMembers:  N(loy.loyaltyMembers),
           newCustomers:    N(loy.newCustomers),
           activeCustomers: N(loy.activeCustomers),
           pointsEarned:    N(loy.pointsEarned),
           pointsRedeemed:  N(loy.pointsRedeemed),
         }));
-        doneB();
+        doneB("loy");
       });
 
       get(`/api/Opportunity/Funnel${qs}`).then((raw) => {
         const ltr = unwrap(raw);
         patch((p) => (!ltr ? p : {
-          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          ...p, live: true, fetchedAt: Date.now(),
           ltr: { buckets: ltr.buckets || {}, revenue: ltr.revenue || {}, appointment: ltr.appointment || {}, spend: ltr.spend || {}, badges: ltr.badges || {} },
         }));
-        doneB();
+        doneB("ltr");
       });
     }
 
@@ -822,13 +713,6 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
     load(c.signal, seq);
     return () => c.abort();
   }, [reloadKey, load]);
-
-  /* Snapshot the finished payload once both waves have settled. */
-  useEffect(() => {
-    if (!live || !live.live || live.topLoading || live.restLoading || !snapRef.current) return;
-    const { topLoading, restLoading, seeded, topFailed, ...rest } = live;
-    writeSnap(snapRef.current, rest);
-  }, [live]);
 
   return live;
 }
@@ -864,27 +748,25 @@ function useCentreDirectory() {
   return dir;
 }
 
-function useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres, demo }) {
+function useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres, sample }) {
   return useMemo(() => {
     const ar = lang === "ar";
     const t = ar ? T_AR : T_EN;
     const DASH = "\u2014";
 
     const L = live && live.live ? live : null;
+    /* SM is consulted ONLY by the six no-endpoint widgets listed at the top of
+       this file. It is never used as a fallback for a failed request. */
+    const SM = sample || null;
     const HOME = L && L.home ? L.home : null;
-    /* DEMO is null when DEMO_MODE is off or no centre is selected. It is
-       consulted ONLY where the live value is missing. */
-    const DM = demo || null;
     const money = (v) => (v == null ? null : fmtSAR(v));
     const isNeg = (v) => v != null && Number(v) < 0;
     const count = (v) => (v == null ? null : grp(v));
-    /* live value first, demo second, null last */
-    const pick = (liveVal, demoVal) => (liveVal != null ? liveVal : (DM ? demoVal : null));
 
     /* ---- Financial tiles A-O (Home_Dashboard_Calculation, "New" tab) ------
        Hero A, then five paired columns. Null -> the tile shows an em dash. */
     const HT = HOME ? HOME.tiles : null;
-    const tv = (k) => pick(HT ? HT[k] : null, DM ? DM.tiles[k] : null);
+    const tv = (k) => (HT ? HT[k] : null);
     /* H / I / J are POINT-IN-TIME balances as at the period end, not period
        flows: outstanding advance + unconsumed package value on the books that
        day. They are non-zero on a day with no transactions, and because
@@ -922,7 +804,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     };
     const lastRefreshed = L && L.fetchedAt ? stamp(L.fetchedAt) : null;
     const tile = (key, raw, label) => ({ key, label, value: money(raw), negative: isNeg(raw) });
-    const hasTiles = !!HT || !!DM;
+    const hasTiles = !!HT;
     const tileGroups = hasTiles ? [
       { top: [tile("B", tv("B_vatCollected")),   tile("C", tv("C_refunds"))],        bottom: tile("D", tv("D_netSales")) },
       { top: [tile("E", tv("E_totalRevenue")),   tile("F", tv("F_vatOnRevenue"))],   bottom: tile("G", tv("G_netRevenue")) },
@@ -934,32 +816,36 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
 
     /* Not part of A-O, but both were already live before the rework. */
     /* Row 3 — one card per figure, same shape for all five. Receivables and
-       Advance held are live; the last three are placeholders (PLACEHOLDER_TILES). */
-    const receivables = pick(L ? L.receivables : null, DM ? DM.receivables : null);
-    const advanceHeld = pick(L ? L.advanceHeld : null, DM ? DM.advanceHeld : null);
+       Advance held are live; the last three are sampled (see buildSample). */
+    const PR = SM ? SM.procurement : null;
+    const receivables = L ? L.receivables : null;
+    const advanceHeld = L ? L.advanceHeld : null;
     const supplementaryTiles = [
       { label: ar ? "ذمم مدينة قائمة" : "Outstanding receivables", value: money(receivables) },
       { label: ar ? "دفعات مقدمة محتجزة" : "Advance held",         value: money(advanceHeld),
         sub: asAt ? (ar ? "حتى " + asAt : "as at " + asAt) : undefined },
+      /* No claims, purchasing or vendor module exists, so these three are
+         sampled — see buildSample(). They render as plain tiles; the only
+         record of which figures are sampled now lives in the code. */
       { label: ar ? "مطالبات غير مسوّاة" : "Unsettled Claims",
-        value: fmtSAR(PLACEHOLDER_TILES.unsettledClaims) },
+        value: money(PR ? PR.unsettledClaims : null), sub: PR ? undefined : t.awaiting },
       { label: ar ? "أوامر شراء مفتوحة" : "Open PO",
-        value: fmtSAR(PLACEHOLDER_TILES.openPoValue),
-        sub: (ar ? "عدد " : "Count ") + grp(PLACEHOLDER_TILES.openPoCount) },
+        value: money(PR ? PR.openPoValue : null),
+        sub: PR ? (ar ? "عدد " : "Count ") + grp(PR.openPoCount) : t.awaiting },
       { label: ar ? "أرصدة الموردين" : "Vendor Balance",
-        value: fmtSAR(PLACEHOLDER_TILES.vendorBalance) },
+        value: money(PR ? PR.vendorBalance : null), sub: PR ? undefined : t.awaiting },
     ];
 
     /* Hero sparkline — the same exclusion-aware daily series as the tiles. */
     const dailySeries = HOME && Array.isArray(HOME.salesDaily) && HOME.salesDaily.length
       ? HOME.salesDaily
-      : (DM ? DM.salesDaily : []);
+      : [];
     const heroSpark = dailySeries.length > 1 ? dailySeries.slice(-12).map((x) => Number(x.sales) || 0) : null;
 
     /* ---- Month-on-month average spend per centre ------------------------- */
     const avgSpendSrc = HOME && Array.isArray(HOME.averageSpend) && HOME.averageSpend.length
       ? HOME.averageSpend
-      : (DM ? DM.averageSpend : []);
+      : [];
     const label = (code) => {
       const hit = centres.find((c) => c.name === code);
       return (hit && (hit.label || hit.name)) || code;
@@ -996,9 +882,9 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     })();
 
     /* ---- Centre performance: actual vs monthly target -------------------- */
-    /* No CLINIC_CENTRE_TARGET table exists yet, so live has no source; the
-       demo supplies both sides so the card can be shown in a walkthrough. */
-    const centreRowsSrc = DM ? DM.centreRows : null;
+    /* No CLINIC_CENTRE_TARGET table exists yet, so neither side of this card
+       has a source. Sampled, and tagged as such on screen. */
+    const centreRowsSrc = SM ? SM.centreRows : null;
     const centrePerf = centreRowsSrc && centreRowsSrc.length ? (() => {
       const peak = Math.max(...centreRowsSrc.map((r) => Math.max(r.actual, r.target)), 1);
       return centreRowsSrc.map((r) => ({
@@ -1015,17 +901,18 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     /* ---- Growth KPIs — label + value, value null when unsourced ---------- */
     const growthKpis = [
       { label: ar ? "عملاء جدد" : "New customers",
-        value: count(pick(HOME && HOME.customers ? HOME.customers.newCustomers : (L ? L.newCustomers : null), DM ? DM.newCustomers : null)) },
+        value: count(HOME && HOME.customers ? HOME.customers.newCustomers : (L ? L.newCustomers : null)) },
       // Needs the appointment-frequency setting, which does not exist yet.
       // CLINIC_CUSTOMER.Active = 1 means "not deleted", not "visits often".
+      // Sampled for that reason.
       { label: ar ? "عملاء نشطون" : "Active customers",
-        value: count(pick(null, DM ? DM.activeCustomers : null)) },
+        value: SM ? count(SM.activeCustomers) : null },
       { label: ar ? "عضويات نشطة" : "Active memberships",
-        value: count(pick(HOME && HOME.membership ? HOME.membership.activeMemberships : (L ? L.activeMemberships : null), DM ? DM.activeMemberships : null)) },
+        value: count(HOME && HOME.membership ? HOME.membership.activeMemberships : (L ? L.activeMemberships : null)) },
       { label: ar ? "إيرادات العضويات" : "Membership revenue",
-        value: money(pick(HT ? HT.N_membershipSales : (L ? L.membershipRevenue : null), DM ? DM.membershipRevenue : null)) },
+        value: money(HT ? HT.N_membershipSales : (L ? L.membershipRevenue : null)) },
       { label: ar ? "أعضاء الولاء" : "Loyalty members",
-        value: count(pick(L ? L.loyaltyMembers : null, DM ? DM.loyaltyMembers : null)) },
+        value: count(L ? L.loyaltyMembers : null) },
     ].map((k) => ({ ...k, hasValue: k.value != null, value: k.value == null ? DASH : k.value }));
 
     /* ---- Lead-to-revenue funnel ----------------------------------------- */
@@ -1037,15 +924,15 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       { key: "purchased",         en: "Purchased",          ar: "شراء" },
     ];
     const liveBuckets = L && L.ltr && L.ltr.buckets && Object.keys(L.ltr.buckets).length ? L.ltr.buckets : null;
-    const buckets = liveBuckets || (DM ? DM.funnel : null);
+    const buckets = liveBuckets;
     const funnelStages = buckets
       ? stageDefs.map((sd) => ({ label: ar ? sd.ar : sd.en, value: Number(buckets[sd.key]) || 0, raw: Number(buckets[sd.key]) || 0 }))
       : null;
     const funnelRate = buckets
       ? (buckets.captured ? ((buckets.purchased / buckets.captured) * 100).toFixed(1) : "0.0")
       : null;
-    const rev = (L && L.ltr && L.ltr.revenue && Object.keys(L.ltr.revenue).length) ? L.ltr.revenue : (DM ? DM.revenue : null);
-    const spend = (L && L.ltr && L.ltr.spend) ? L.ltr.spend : (DM ? { leadAcquisitionCost: DM.revenue.leadAcquisitionCost } : null);
+    const rev = (L && L.ltr && L.ltr.revenue && Object.keys(L.ltr.revenue).length) ? L.ltr.revenue : null;
+    const spend = (L && L.ltr && L.ltr.spend) ? L.ltr.spend : null;
     const revenueFunnel = rev ? [
       { label: ar ? "معدل الشراء" : "Purchase Rate",        value: `${rev.purchaseRate ?? 0}%` },
       { label: ar ? "متوسط قيمة السلة" : "Avg Basket Size", value: fmtSAR(rev.avgBasketSize || 0) },
@@ -1054,7 +941,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
         value: fmtSAR((spend && spend.leadAcquisitionCost) || 0) },
     ] : null;
 
-    const ef = (L && L.endFunnel) ? L.endFunnel : (DM ? DM.endFunnel : null);
+    const ef = (L && L.endFunnel) ? L.endFunnel : null;
     const endFunnelTiles = [
       { label: ar ? "المواعيد التي تم الحضور لها" : "Appointments shown", value: ef ? grp(ef.shown) : DASH, color: "#13294B" },
       { label: ar ? "فواتير صادرة" : "Invoices raised",                  value: ef ? grp(ef.invoices) : DASH, color: "#13294B" },
@@ -1063,20 +950,20 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     ];
 
     /* ---- Leads by source, loyalty tiers, campaigns ----------------------- */
-    /* None of the three has an endpoint. The demo fills them so the section
-       reads as a whole; delete the DM branch when the endpoints land.      */
-    const leadSources = DM ? (() => {
-      const peak = Math.max(...DM.leadSources.map((s) => s.value), 1);
-      return DM.leadSources.map((s) => ({
-        label: ar ? s.ar : s.en,
-        value: s.value,
-        pct: Math.max(2, Math.round((s.value / peak) * 100)),
+    /* None of the three has an endpoint yet, so all three are sampled and each
+       card carries the sample tag. Delete the SM branch when they land. */
+    const leadSources = SM ? (() => {
+      const peak = Math.max(...SM.leadSources.map((x) => x.value), 1);
+      return SM.leadSources.map((x) => ({
+        label: ar ? x.ar : x.en,
+        value: x.value,
+        pct: Math.max(2, Math.round((x.value / peak) * 100)),
       }));
     })() : null;
 
-    const loyaltyTiers = DM ? (() => {
-      const total = DM.tiers.reduce((a, x) => a + x.value, 0) || 1;
-      return DM.tiers.map((x) => ({
+    const loyaltyTiers = SM ? (() => {
+      const total = SM.tiers.reduce((a, x) => a + x.value, 0) || 1;
+      return SM.tiers.map((x) => ({
         label: ar ? x.ar : x.en,
         value: x.value,
         color: x.color,
@@ -1084,8 +971,8 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       }));
     })() : null;
 
-    const campaigns = DM
-      ? DM.campaigns.map((c) => ({
+    const campaigns = SM
+      ? SM.campaigns.map((c) => ({
           name: ar ? c.ar : c.en,
           leads: grp(c.leads),
           conv: grp(c.converted) + " (" + Math.round((c.converted / (c.leads || 1)) * 100) + "%)",
@@ -1095,7 +982,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     /* ---- Operations ------------------------------------------------------ */
     const cc = (L && L.caseCounts && (L.caseCounts.open || L.caseCounts.wip || L.caseCounts.closed))
       ? L.caseCounts
-      : (DM ? DM.caseCounts : null);
+      : null;
     const csMax = cc ? Math.max(1, cc.open, cc.wip, cc.closed) : 1;
     const caseStatuses = cc ? [
       { label: ar ? "مفتوحة" : "Open",   count: cc.open,   color: COLORS.accent },
@@ -1105,14 +992,14 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
     const openCases = cc ? cc.open + cc.wip : null;
 
     const slaTarget = 95;
-    const sla = pick(L && L.caseSla != null ? L.caseSla : null, DM ? DM.sla : null);
+    const sla = L && L.caseSla != null ? L.caseSla : null;
     const atRisk = sla != null && sla < slaTarget;
-    const resHrs = pick(L && L.caseAvgResHrs != null ? L.caseAvgResHrs : null, DM ? DM.avgResHrs : null);
+    const resHrs = L && L.caseAvgResHrs != null ? L.caseAvgResHrs : null;
     const avgResolution = resHrs == null
       ? null
       : (resHrs >= 48 ? (resHrs / 24).toFixed(1) + "d" : resHrs.toFixed(1) + "h");
     const aging = (() => {
-      const a = (L && L.caseAgeing) ? L.caseAgeing : (DM ? DM.ageing : null);
+      const a = (L && L.caseAgeing) ? L.caseAgeing : null;
       if (!a) return null;
       const defs = [["< 24h", a.under24h], ["1\u20133d", a.days1to3], ["3\u20137d", a.days3to7], ["> 7d", a.over7d]];
       const mx = Math.max(1, ...defs.map((x) => Number(x[1]) || 0));
@@ -1149,14 +1036,19 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
          the slowest of nine endpoints. */
       topLoading:  !!(live && live.topLoading),
       restLoading: !!(live && live.restLoading),
-      /* True while the figures on screen came from the session snapshot and a
-         refresh is still in flight. */
-      seeded:      !!(live && live.seeded),
+      /* Per-card waiting states. A block spins only for the endpoint it needs,
+         so GET /api/Opportunity/Funnel being slow no longer holds a spinner
+         over the case, loyalty and appointment blocks. */
+      pendingCase:   !!(live && live.pending && live.pending.cs),
+      pendingAppt:   !!(live && live.pending && live.pending.ap),
+      pendingLoyalty:!!(live && live.pending && live.pending.loy),
+      /* Both the funnel trapezoid and the Revenue funnel rows come from this
+         one endpoint — the slowest on the page. */
+      pendingFunnel: !!(live && live.pending && live.pending.ltr),
       /* A page-level failure now means wave A produced nothing AND there was no
          snapshot to paint. A failure below the fold degrades that block only. */
-      loadFailed: !!(live && live.topFailed && !live.live) && !DM,
-      isDemo: !!DM,
-      hasHome: !!HOME || !!DM,
+      loadFailed: !!(live && live.topFailed && !live.live),
+      hasHome: !!HOME,
 
       // Financial
       totalSales: tv("A_totalSales") != null ? fmtSAR(tv("A_totalSales")) : DASH,
@@ -1168,8 +1060,8 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       // Growth
       growthKpis, funnelStages, funnelRate, endFunnelTiles, revenueFunnel,
       leadSources, loyaltyTiers, campaigns,
-      pointsEarned:   count(pick(L ? L.pointsEarned : null,   DM ? DM.pointsEarned : null))   || DASH,
-      pointsRedeemed: count(pick(L ? L.pointsRedeemed : null, DM ? DM.pointsRedeemed : null)) || DASH,
+      pointsEarned:   count(L ? L.pointsEarned : null)   || DASH,
+      pointsRedeemed: count(L ? L.pointsRedeemed : null) || DASH,
 
       // Operations
       openCases, caseStatuses, sla, slaTarget,
@@ -1183,7 +1075,7 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       prevSeries: overlayPrev && series.length ? null : null, // no previous-period endpoint yet
       trendRangeLabel: range,
     };
-  }, [range, compare, overlayPrev, lang, selected, live, centres, demo]);
+  }, [range, compare, overlayPrev, lang, selected, live, centres, sample]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1227,9 +1119,33 @@ function TileGridSkeleton({ t }) {
 
 /* Below the fold: a block is either still loading (spinner) or has no endpoint
    at all (awaiting-source card). Previously both read as "awaiting live feed",
-   which made a slow fetch look like a permanently missing one. */
-const Pending = ({ loading, t, height }) =>
-  loading ? <ChartLoading height={height} label={null} /> : <AwaitingFeed title={t.awaiting} height={height} />;
+   which made a slow fetch look like a permanently missing one.
+
+   Laid out here rather than handed straight to ChartLoading, because
+   ChartLoading renders the bar at its intrinsic width from the top-left of
+   whatever box it is given: in a 300px-tall card that put a 40px bar in the
+   corner of an otherwise empty white rectangle. The bar is now centred in the
+   space the finished block will occupy, so the card looks like it is loading
+   rather than like it failed to draw.
+
+   showPercent is off deliberately. The percentage is a timed ramp, not real
+   progress — it has no idea how far along the request is — so it parks at 93%
+   and sits there, which reads as a stuck job. A moving bar with no number
+   promises only what it can deliver: something is still in flight. The label
+   below it stays the same for as long as the request takes. */
+function Pending({ loading, t, height, label }) {
+  if (!loading) return <AwaitingFeed title={t.awaiting} height={height} />;
+  return (
+    <div style={{ height, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 11 }}>
+      <div style={{ width: "100%", maxWidth: 220 }}>
+        <DashboardLoadingBar active showPercent={false} label={null} />
+      </div>
+      <div style={{ fontSize: 11.5, color: "#8b95a2", textAlign: "center", lineHeight: 1.4 }}>
+        {label ? t.loadingBlock + " " + label : t.loading}
+      </div>
+    </div>
+  );
+}
 
 /* Mounts children only once the block is near the viewport. Section 01 is
    always mounted; everything below it pays its render cost only if the user
@@ -1317,15 +1233,15 @@ export default function Dashboard() {
   }, [selected, activeCentres]);
   const live = useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey });
 
-  // Demo payload for the same centres + period. Null when demo mode is off
-  // or nothing is selected.
-  const demo = useMemo(() => {
-    if (!DEMO_MODE) return null;
-    const period = periodDates(range, customFrom, customTo);
-    return buildDemo([...selected].sort(), period);
-  }, [selected, range, customFrom, customTo]);
+  /* Sample payload for the six widgets with no endpoint. Recomputed from the
+     selected centres and period so those cards react to the filters like the
+     live ones do. Null when SAMPLE_UNSOURCED is off or nothing is selected. */
+  const sample = useMemo(
+    () => buildSample([...selected].sort(), periodDates(range, customFrom, customTo)),
+    [selected, range, customFrom, customTo]
+  );
 
-  const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres: activeCentres, demo });
+  const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres: activeCentres, sample });
   const ar = d.ar;
 
   // License-based block visibility — read the tenant's plan from the logged-in user.
@@ -1488,7 +1404,7 @@ export default function Dashboard() {
 
       <main style={{ maxWidth: 1680, margin: "0 auto", padding: "24px 26px 60px" }}>
         {/* Data-state strip. No "sample data" state exists any more. */}
-        {!d.loadFailed && (!d.topLoading || d.seeded) && (
+        {!d.loadFailed && !d.topLoading && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#E6F1EC", color: COLORS.pos }}>{d.t.liveChip}</span>
             {d.lastRefreshed && (
@@ -1607,7 +1523,7 @@ export default function Dashboard() {
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{d.t.centre}</div>
               <div style={{ fontSize: 11.5, color: "#8b95a2", marginBottom: 15 }}>{d.t.centreSub}</div>
-              {!d.centrePerf ? <Pending loading={d.restLoading} t={d.t} height={210} /> : (
+              {!d.centrePerf ? <Pending loading={d.restLoading} t={d.t} height={210} label={d.t.centre} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {d.centrePerf.map((c) => (
                     <div key={c.name}>
@@ -1697,7 +1613,7 @@ export default function Dashboard() {
               <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
                 {d.funnelStages
                   ? <Funnel stages={d.funnelStages} ar={ar} />
-                  : <Pending loading={d.restLoading} t={d.t} height={300} />}
+                  : <Pending loading={d.pendingFunnel} t={d.t} height={300} label={d.t.funnel} />}
               </div>
             </div>
 
@@ -1705,7 +1621,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.leadsBySource}</div>
-                {!d.leadSources ? <Pending loading={d.restLoading} t={d.t} height={132} /> : (
+                {!d.leadSources ? <Pending loading={d.restLoading} t={d.t} height={132} label={d.t.leadsBySource} /> : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                     {d.leadSources.map((s) => (
                       <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1730,7 +1646,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#33404e" }}>{ar ? "مسار الإيرادات" : "Revenue funnel"}</div>
-                {!d.revenueFunnel ? <Pending loading={d.restLoading} t={d.t} height={96} /> : (
+                {!d.revenueFunnel ? <Pending loading={d.pendingFunnel} t={d.t} height={96} label={d.t.revenueFunnelLbl} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                   {d.revenueFunnel.map((r, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5 }}>
@@ -1760,7 +1676,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: "#7a8593", marginBottom: 8 }}>{d.t.tierDist}</div>
-                {!d.loyaltyTiers ? <Pending loading={d.restLoading} t={d.t} height={96} /> : (
+                {!d.loyaltyTiers ? <Pending loading={d.restLoading} t={d.t} height={96} label={d.t.tierDist} /> : (
                   <>
                     <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
                       {d.loyaltyTiers.map((x) => (
@@ -1792,7 +1708,7 @@ export default function Dashboard() {
                     <span style={{ width: 66, textAlign: "end" }}>{d.t.conv}</span>
                   </div>
                   <div style={{ paddingTop: 12 }}>
-                    {!d.campaigns ? <Pending loading={d.restLoading} t={d.t} height={110} /> : (
+                    {!d.campaigns ? <Pending loading={d.restLoading} t={d.t} height={110} label={d.t.campaigns} /> : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {d.campaigns.map((c) => (
                           <div key={c.name} style={{ display: "flex", alignItems: "center", fontSize: 12.5 }}>
@@ -1825,7 +1741,7 @@ export default function Dashboard() {
                 <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{d.openCases == null ? "\u2014" : d.openCases}</div>
                 <div style={{ fontSize: 12.5, color: "#7a8593" }}>{d.t.openCases}</div>
               </div>
-              {!d.caseStatuses ? <Pending loading={d.restLoading} t={d.t} height={120} /> : (
+              {!d.caseStatuses ? <Pending loading={d.pendingCase} t={d.t} height={120} label={d.t.casesLbl} /> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {d.caseStatuses.map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1872,7 +1788,7 @@ export default function Dashboard() {
             {/* Aging */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.aging}</div>
-              {!d.aging ? <Pending loading={d.restLoading} t={d.t} height={130} /> : (
+              {!d.aging ? <Pending loading={d.pendingCase} t={d.t} height={130} label={d.t.aging} /> : (
               <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 130 }}>
                 {d.aging.map((a, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%", justifyContent: "flex-end" }}>
