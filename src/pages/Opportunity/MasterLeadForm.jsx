@@ -1360,16 +1360,6 @@ if (!hasNone) {
                 </div>
 
                 {/* Source / Sub Source / Medium / Sub Medium removed — not applicable to master rule */}
-
-                <div className="field">
-                  <label>Other</label>
-                  <input
-                    className="inp"
-                    name="interestedOther"
-                    value={form.interestedOther}
-                    onChange={onChange}
-                  />
-                </div>
               </div>
             </div>
           </fieldset>

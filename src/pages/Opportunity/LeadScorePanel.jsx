@@ -56,7 +56,10 @@ import LeadScoreHistoryModal from "./LeadScoreHistoryModal";
 const LEAD_SCORE_CSS = `
 .ewOpp .lsRow{
   display:grid;
-  grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr);
+  /* Equal halves. The disposition card was wider on the theory that it holds
+     more fields, but the score card's three-pill rows need the room more, and
+     an even split reads as two peers rather than a main block and an aside. */
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:16px;
   align-items:start;
   width:100%;

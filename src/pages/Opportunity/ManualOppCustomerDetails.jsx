@@ -2172,28 +2172,36 @@ const subMediumName = safe(form.subMedium || "Manual");
               {errors.lastName && <div className="errText">{errors.lastName}</div>}
             </div>
 
-            <div className="field">
-              <label>Country Code</label>
-              <input className="inp" name="countryCode" autoComplete="one-time-code" value={form.countryCode} onChange={onChange} placeholder="Country Code" />
-            </div>
-
+            {/* Country code + mobile share one cell. The code is three or four
+                characters, so a full-width input for it read as a half-empty field and
+                pushed Email down a row. Its label moves to the placeholder and an
+                aria-label — the pair still reads as two inputs to a screen reader. */}
             <div className="field">
               <label>
                 Mobile <span className="req">*</span>
               </label>
-              <input className={`inp ${errors.mobile ? "err" : ""}`} name="mobile" autoComplete="one-time-code" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
-              {errors.mobile && <div className="errText">{errors.mobile}</div>}
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <input
+                  className="inp"
+                  style={{ flex: "0 0 86px", width: 86 }}
+                  name="countryCode" autoComplete="one-time-code"
+                  value={form.countryCode}
+                  onChange={onChange}
+                  placeholder="+966"
+                  aria-label="Country Code"
+                />
+                    <input className={`inp ${errors.mobile ? "err" : ""}`} style={{ flex: "1 1 auto", minWidth: 0 }} name="mobile" autoComplete="one-time-code" value={form.mobile} disabled={!isLead} inputMode="numeric" maxLength={15} onChange={(e) => { const digits = safe(e.target.value).replace(/[^\d]/g, "").slice(0, 15); setForm((p) => ({ ...p, mobile: digits })); }} placeholder="Mobile" />
+              </div>
+            {errors.mobile && <div className="errText">{errors.mobile}</div>}
             </div>
 
+            {/* Email moves up beside the mobile pair — it used to sit alone on
+                its own row with a spacer holding the slot open. */}
             <div className="field">
               <label>Email</label>
               <input className={`inp ${errors.email ? "err" : ""}`} name="email" autoComplete="one-time-code" value={form.email} onChange={onChange} placeholder="Email" />
               {errors.email && <div className="errText">{errors.email}</div>}
             </div>
-
-            {/* Email sat alone on its row in the old layout — this keeps Preferred
-                Language starting a fresh row on the left. */}
-            <div className="fieldSpacer" aria-hidden="true" />
 
             <div className="field">
               <label>Preferred Language</label>
@@ -2281,11 +2289,6 @@ const subMediumName = safe(form.subMedium || "Manual");
                 placeholder={!safe(form.sourceName).trim() ? "Select Source first" : "Type to search subsource..."}
                 onChange={(val) => setForm((p) => ({ ...p, subSourceName: val }))}
               />
-            </div>
-
-            <div className="field">
-              <label>Other</label>
-              <input className="inp" name="interestedOther" value={form.interestedOther} onChange={onChange} />
             </div>
           </div>
 
