@@ -546,6 +546,79 @@ const CENTRE_PARAM = "centre";
    pins them to their own centre server-side no matter what the client asks
    for — see the isEntity branch in invoice.controller.js. */
 const ENTITY_CENTRE = "Centriq Clinics";
+
+/* ────────────────────────────────────────────────────────────────────────────
+   PROGRESSIVE LOADING
+   ---------------------------------------------------------------------------
+   What this replaces: the loader used to `await Promise.all` over nine
+   endpoints and render NOTHING until the slowest one answered, so the entire
+   viewport sat behind the worst request in the batch. The financial tiles were
+   usually ready in well under a second and still waited on the opportunity
+   list, which is the heaviest query on the page.
+
+   WAVE A (critical) — Invoice/HomeDashboard, Invoice/Dashboard,
+     Advance/Dashboard. Between them these carry every figure in section 01,
+     i.e. the top half of the viewport. Fired immediately; each one commits its
+     own slice of state the moment it lands.
+
+   WAVE B (deferred) — the remaining six. Held back until wave A settles OR
+     HEAD_START_MS elapses, whichever comes first. On a congested link this
+     hands the whole pipe to the tiles instead of splitting it nine ways. The
+     timer is the safety valve: a hung wave A must never permanently starve the
+     rest of the page.
+
+   Nothing is awaited as a group any more, so one slow endpoint now delays only
+   the widgets that actually need it.
+   ──────────────────────────────────────────────────────────────────────────── */
+const HEAD_START_MS = 1200;
+
+/* Last good payload per filter combination. A range or centre the user has
+   already looked at this session repaints instantly and then refreshes
+   underneath, which is the difference between a blank skeleton and a full
+   screen of numbers on a weak connection.
+
+   sessionStorage, not localStorage: the cache dies with the tab, so a stale
+   figure can never outlive the visit. Every snapshot carries its own
+   fetchedAt, and that is what the "last refreshed" line reads, so a cached
+   number always shows its true age rather than passing itself off as current. */
+const SNAP_PREFIX = "ew.dash.v1.";
+const SNAP_TTL_MS = 10 * 60 * 1000;
+const snapKey = (range, from, to, centreKey) =>
+  SNAP_PREFIX + [range, from || "", to || "", centreKey || ""].join("|");
+const readSnap = (key) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.fetchedAt || Date.now() - obj.fetchedAt > SNAP_TTL_MS) return null;
+    return obj;
+  } catch { return null; }
+};
+const writeSnap = (key, payload) => {
+  /* Quota, private mode and disabled storage all throw. A cache miss is not
+     worth breaking the page over. */
+  try { sessionStorage.setItem(key, JSON.stringify(payload)); } catch { /* ignore */ }
+};
+
+/* Funnel figures straddle both waves — invoiced comes from Invoice/Dashboard
+   (wave A) while booked/attended/leads come from Appointment and Opportunity
+   (wave B). The raw counts are kept on state under _-prefixed keys and the two
+   composite objects are recomputed after every commit, so the funnel fills in
+   progressively instead of waiting for all three endpoints. */
+const withFunnel = (p) => {
+  const invoiced = p._invoiceCount || 0;
+  const attended = p._attended     || 0;
+  const booked   = p._booked       || 0;
+  const noShows  = p._noShows      || 0;
+  const leads    = p._leads        || 0;
+  const oppOpen  = p._oppOpen      || 0;
+  return {
+    ...p,
+    funnelValues: { leads, contacted: Math.max(0, leads - oppOpen), booked, attended, invoiced },
+    endFunnel:    { shown: attended, invoices: invoiced, noShows, shownNotInvoiced: Math.max(0, attended - invoiced) },
+  };
+};
+
 const sessionUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "null"); }
   catch { return null; }
@@ -557,93 +630,190 @@ const sessionCentreCode = () => {
 };
 
 function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey }) {
-  const [live, setLive] = useState({ loading: true });
+  /* Two independent loading flags instead of one. `topLoading` gates section 01
+     only; `restLoading` gates everything below it. */
+  const [live, setLive] = useState({ topLoading: true, restLoading: true });
   /* Every in-flight load carries a sequence number. Without it, aborting the
-     previous request (which happens on EVERY filter change) resolved all nine
+     previous request (which happens on EVERY filter change) resolved the
      fetches to null through their .catch handlers, hit the "nothing came back"
      branch and painted the red retry panel over the request that was still
      running. That is the error the Today / This Week / This Month buttons
      were producing. */
-  const seqRef = useRef(0);
+  const seqRef  = useRef(0);
+  const snapRef = useRef(null);
 
-  const load = useCallback(async (signal, seq) => {
-    setLive({ loading: true });
+  const load = useCallback((signal, seq) => {
+    const alive  = () => !signal.aborted && seqRef.current === seq;
     const { fromDate, toDate } = periodDates(range, customFrom, customTo);
     const centreQS = centreKey ? `&${CENTRE_PARAM}=${encodeURIComponent(centreKey)}` : "";
+    const qs   = `?fromDate=${fromDate}&toDate=${toDate}${centreQS}`;
     const base = { headers: { "Content-Type": "application/json", ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}) }, credentials: "include", signal };
-    const alive = () => !signal.aborted && seqRef.current === seq;
-    try {
-      const [invB, caseB, apptB, oppB, advB, memB, loyB, ltrB, homeB] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/Invoice/Dashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/CaseOperation/CaseDashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/Appointment/AppDashboard`, { ...base, method: "POST", body: JSON.stringify({ fromDate, toDate, centre: centreKey, centerCode: centreKey }) }).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/Opportunity/LoadOpprotunityList/1`, base).then(okJson).catch(() => null),
-        // NOTE: adjust these three base paths to match your route mounts if different
-        fetch(`${API_BASE_URL}/api/Advance/Dashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/Membership/Dashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/v1/loyalty/dashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        fetch(`${API_BASE_URL}/api/Opportunity/Funnel?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-        // Financial tiles A-O + new customers + 6-month average spend.
-        fetch(`${API_BASE_URL}/api/Invoice/HomeDashboard?fromDate=${fromDate}&toDate=${toDate}${centreQS}`, base).then(okJson).catch(() => null),
-      ]);
-      if (!alive()) return;
-      if (!invB && !caseB && !apptB && !oppB && !homeB) { setLive({ live: false }); return; }
-      const inv = unwrap(invB) || {}, cs = unwrap(caseB) || {}, ap = unwrap(apptB) || {};
-      const oppU = unwrap(oppB);
-      const opp = Array.isArray(oppB) ? oppB : (Array.isArray(oppU) ? oppU : []);
-      const adv = unwrap(advB), mem = unwrap(memB), loy = unwrap(loyB);
-      const ltr = unwrap(ltrB);
-      const home = unwrap(homeB);
-      const N = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const get  = (path, init) => fetch(`${API_BASE_URL}${path}`, init ? { ...base, ...init } : base).then(okJson).catch(() => null);
+    const patch = (fn) => { if (alive()) setLive(fn); };
+    const N = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
-      const salesDaily = Array.isArray(inv.salesDaily) ? inv.salesDaily : [];
-      const periodRev = salesDaily.reduce((a, r) => a + N(r.sales), 0);
-      const oc = inv.openClosed || {};
-      const invoiceCount = (N(oc.openCnt) + N(oc.closedCnt)) || salesDaily.reduce((a, r) => a + N(r.count), 0);
-      const itemAmt = (needle) => (inv.itemType || []).filter((it) => String(it.itemType || "").toLowerCase().includes(needle)).reduce((a, it) => a + N(it.amount), 0);
+    /* Seed from the snapshot for this exact filter so the screen is never blank
+       for something already loaded this session. Live values overwrite it field
+       by field as they land. */
+    const key  = snapKey(range, customFrom, customTo, centreKey);
+    snapRef.current = key;
+    const snap = readSnap(key);
+    setLive(snap
+      ? { ...snap, seeded: true, topLoading: true, restLoading: true }
+      : { topLoading: true, restLoading: true });
 
-      const st = ap.status || {};
-      const attended = N(st.completed), booked = N(st.total), noShows = N(st.noShow);
-      const leads = opp.reduce((a, r) => a + N(r.totalOpportunities), 0);
-      const oppOpen = opp.reduce((a, r) => a + N(r.noOfOpenOpportunities), 0);
+    /* ── WAVE A — everything section 01 needs ───────────────────────────── */
+    let aOk = 0, aDone = 0;
+    const doneA = (ok) => {
+      if (ok) aOk += 1;
+      aDone += 1;
+      if (aDone < 3) return;
+      patch((p) => ({ ...p, topLoading: false, topFailed: aOk === 0 }));
+      startB();
+    };
 
-      setLive({
-        live: true,
-        // When this payload landed. Stamped here rather than in the component
-        // so it tracks the DATA, not a render — a re-render on a language or
-        // Compare toggle must not make stale figures look freshly fetched.
-        fetchedAt: Date.now(),
-        // Home dashboard atoms — null until the endpoint is deployed, in which
-        // case the financial tiles show "awaiting source", never a sample.
-        home: home && home.tiles ? home : null,
-        // Case extras added to the CaseDashboard aggregate.
-        caseSla:        cs.slaCompliancePct     != null ? Number(cs.slaCompliancePct) : null,
-        caseAvgResHrs:  cs.averageResolutionHours != null ? Number(cs.averageResolutionHours) : null,
-        caseAgeing:     cs.ageing || null,
-        periodRev,
-        series: liveBucket(salesDaily),
-        receivables: N(oc.openVal),
-        advanceHeld:     adv ? N(adv.held)     : null,
-        advanceRedeemed: adv ? N(adv.redeemed) : Math.abs(itemAmt("advance")),
-        refunds:         adv ? N(adv.refunded) : Math.abs(itemAmt("refund")),
-        activeMemberships: mem ? N(mem.activeMemberships) : null,
-        membershipRevenue: mem ? N(mem.membershipRevenue) : null,
-        loyaltyMembers:  loy ? N(loy.loyaltyMembers)  : null,
-        newCustomers:    loy ? N(loy.newCustomers)    : null,
-        activeCustomers: loy ? N(loy.activeCustomers)  : null,
-        pointsEarned:    loy ? N(loy.pointsEarned)    : null,
-        pointsRedeemed:  loy ? N(loy.pointsRedeemed)  : null,
-        caseCounts: { open: N(cs.open), wip: N(cs.wip), closed: N(cs.closed) },
-        funnelValues: { leads, contacted: Math.max(0, leads - oppOpen), booked, attended, invoiced: invoiceCount },
-        endFunnel: { shown: attended, invoices: invoiceCount, noShows, shownNotInvoiced: Math.max(0, attended - invoiceCount) },
-        ltr: ltr ? { buckets: ltr.buckets || {}, revenue: ltr.revenue || {}, appointment: ltr.appointment || {}, spend: ltr.spend || {}, badges: ltr.badges || {} } : null,
+    get(`/api/Invoice/HomeDashboard${qs}`).then((raw) => {
+      const home = unwrap(raw);
+      const ok = !!(home && home.tiles);
+      patch((p) => ({
+        ...p,
+        live: p.live || ok,
+        seeded: ok ? false : p.seeded,
+        /* On failure keep whatever the snapshot seeded rather than blanking a
+           tile that was showing a figure a moment ago. */
+        home: ok ? home : (p.seeded ? p.home : null),
+        fetchedAt: ok ? Date.now() : p.fetchedAt,
+      }));
+      doneA(ok);
+    });
+
+    get(`/api/Invoice/Dashboard${qs}`).then((raw) => {
+      const inv = unwrap(raw);
+      const ok = !!inv;
+      patch((p) => {
+        if (!ok) return p;
+        const salesDaily = Array.isArray(inv.salesDaily) ? inv.salesDaily : [];
+        const oc = inv.openClosed || {};
+        const invoiceCount = (N(oc.openCnt) + N(oc.closedCnt)) || salesDaily.reduce((a, r) => a + N(r.count), 0);
+        const itemAmt = (needle) => (inv.itemType || []).filter((it) => String(it.itemType || "").toLowerCase().includes(needle)).reduce((a, it) => a + N(it.amount), 0);
+        return withFunnel({
+          ...p,
+          live: true,
+          seeded: false,
+          fetchedAt: Date.now(),
+          periodRev: salesDaily.reduce((a, r) => a + N(r.sales), 0),
+          series: liveBucket(salesDaily),
+          receivables: N(oc.openVal),
+          _invoiceCount: invoiceCount,
+          /* Item-type fallbacks, used only while Advance/Dashboard is still in
+             flight or if it never answers. Whichever of the two lands second
+             wins, and Advance always wins over the fallback. */
+          advanceRedeemed: p.advanceRedeemed != null ? p.advanceRedeemed : Math.abs(itemAmt("advance")),
+          refunds:         p.refunds         != null ? p.refunds         : Math.abs(itemAmt("refund")),
+        });
       });
-    } catch (err) {
-      /* An AbortError is a cancelled previous request, not a failure. */
-      if (err && err.name === "AbortError") return;
-      if (!alive()) return;
-      setLive({ live: false });
+      doneA(ok);
+    });
+
+    get(`/api/Advance/Dashboard${qs}`).then((raw) => {
+      const adv = unwrap(raw);
+      const ok = !!adv;
+      patch((p) => (!ok ? p : {
+        ...p,
+        live: true,
+        seeded: false,
+        fetchedAt: Date.now(),
+        advanceHeld:     N(adv.held),
+        advanceRedeemed: N(adv.redeemed),
+        refunds:         N(adv.refunded),
+      }));
+      doneA(ok);
+    });
+
+    /* ── WAVE B — everything below the fold ─────────────────────────────── */
+    /* Declared before startB so the clearTimeout inside it can never land in
+       the temporal dead zone, whatever order the promises settle in. */
+    let headStart = null;
+    let bStarted = false, bDone = 0;
+    const doneB = () => { bDone += 1; if (bDone === 6) patch((p) => ({ ...p, restLoading: false })); };
+
+    function startB() {
+      if (bStarted || signal.aborted) return;
+      bStarted = true;
+      clearTimeout(headStart);
+
+      get(`/api/CaseOperation/CaseDashboard${qs}`).then((raw) => {
+        const cs = unwrap(raw);
+        patch((p) => (!cs ? p : {
+          ...p,
+          live: true, seeded: false, fetchedAt: Date.now(),
+          caseSla:       cs.slaCompliancePct       != null ? Number(cs.slaCompliancePct)       : null,
+          caseAvgResHrs: cs.averageResolutionHours != null ? Number(cs.averageResolutionHours) : null,
+          caseAgeing:    cs.ageing || null,
+          caseCounts: { open: N(cs.open), wip: N(cs.wip), closed: N(cs.closed) },
+        }));
+        doneB();
+      });
+
+      get(`/api/Appointment/AppDashboard`, { method: "POST", body: JSON.stringify({ fromDate, toDate, centre: centreKey, centerCode: centreKey }) }).then((raw) => {
+        const ap = unwrap(raw);
+        patch((p) => {
+          if (!ap) return p;
+          const st = ap.status || {};
+          return withFunnel({
+            ...p, live: true, seeded: false, fetchedAt: Date.now(),
+            _attended: N(st.completed), _booked: N(st.total), _noShows: N(st.noShow),
+          });
+        });
+        doneB();
+      });
+
+      get(`/api/Opportunity/LoadOpprotunityList/1`).then((raw) => {
+        const oppU = unwrap(raw);
+        const opp = Array.isArray(raw) ? raw : (Array.isArray(oppU) ? oppU : null);
+        patch((p) => (!opp ? p : withFunnel({
+          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          _leads:   opp.reduce((a, r) => a + N(r.totalOpportunities), 0),
+          _oppOpen: opp.reduce((a, r) => a + N(r.noOfOpenOpportunities), 0),
+        })));
+        doneB();
+      });
+
+      get(`/api/Membership/Dashboard${qs}`).then((raw) => {
+        const mem = unwrap(raw);
+        patch((p) => (!mem ? p : {
+          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          activeMemberships: N(mem.activeMemberships),
+          membershipRevenue: N(mem.membershipRevenue),
+        }));
+        doneB();
+      });
+
+      get(`/api/v1/loyalty/dashboard${qs}`).then((raw) => {
+        const loy = unwrap(raw);
+        patch((p) => (!loy ? p : {
+          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          loyaltyMembers:  N(loy.loyaltyMembers),
+          newCustomers:    N(loy.newCustomers),
+          activeCustomers: N(loy.activeCustomers),
+          pointsEarned:    N(loy.pointsEarned),
+          pointsRedeemed:  N(loy.pointsRedeemed),
+        }));
+        doneB();
+      });
+
+      get(`/api/Opportunity/Funnel${qs}`).then((raw) => {
+        const ltr = unwrap(raw);
+        patch((p) => (!ltr ? p : {
+          ...p, live: true, seeded: false, fetchedAt: Date.now(),
+          ltr: { buckets: ltr.buckets || {}, revenue: ltr.revenue || {}, appointment: ltr.appointment || {}, spend: ltr.spend || {}, badges: ltr.badges || {} },
+        }));
+        doneB();
+      });
     }
+
+    headStart = setTimeout(startB, HEAD_START_MS);
+    signal.addEventListener("abort", () => clearTimeout(headStart));
   }, [range, customFrom, customTo, centreKey]);
 
   useEffect(() => {
@@ -652,6 +822,14 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
     load(c.signal, seq);
     return () => c.abort();
   }, [reloadKey, load]);
+
+  /* Snapshot the finished payload once both waves have settled. */
+  useEffect(() => {
+    if (!live || !live.live || live.topLoading || live.restLoading || !snapRef.current) return;
+    const { topLoading, restLoading, seeded, topFailed, ...rest } = live;
+    writeSnap(snapRef.current, rest);
+  }, [live]);
+
   return live;
 }
 
@@ -965,9 +1143,18 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       showCompare: compare,
 
       lastRefreshed,
-      loading: !!(live && live.loading),
-      /* With demo data on, a failed fetch no longer blanks the page. */
-      loadFailed: !!(live && live.live === false) && !DM,
+      /* Two gates, not one. `topLoading` holds only section 01; `restLoading`
+         holds the blocks below it. The page no longer has a single "loading"
+         state, because that is exactly what made the whole viewport wait for
+         the slowest of nine endpoints. */
+      topLoading:  !!(live && live.topLoading),
+      restLoading: !!(live && live.restLoading),
+      /* True while the figures on screen came from the session snapshot and a
+         refresh is still in flight. */
+      seeded:      !!(live && live.seeded),
+      /* A page-level failure now means wave A produced nothing AND there was no
+         snapshot to paint. A failure below the fold degrades that block only. */
+      loadFailed: !!(live && live.topFailed && !live.live) && !DM,
       isDemo: !!DM,
       hasHome: !!HOME || !!DM,
 
@@ -1019,25 +1206,51 @@ const card = { background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16
    from the shared DashboardLoadingBar module so every EazyWeek dashboard shows
    the same indicator. Only the page-level composition lives here.          */
 
-function DashboardLoading({ t }) {
+/* Section 01 only. The old DashboardLoading covered the WHOLE page and was
+   shown instead of every section at once; now each block carries its own
+   placeholder so the tiles can arrive without the charts. */
+function TileGridSkeleton({ t }) {
   return (
     <div>
       <div style={{ ...card, marginBottom: 16 }}>
         <div style={{ maxWidth: 420 }}><DashboardLoadingBar label={t.loading} /></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1.3fr) repeat(5, minmax(132px, 1fr))", gridAutoRows: "minmax(104px, auto)", gap: 14, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, 1.3fr) repeat(5, minmax(132px, 1fr))", gridAutoRows: "minmax(104px, auto)", gap: 14 }}>
         <div style={{ gridColumn: 1, gridRow: "1 / span 3" }}><TileSkeleton /></div>
         {[1, 2, 3, 4, 5].map((c) => <div key={"r1" + c} style={{ gridColumn: c + 1, gridRow: 1 }}><TileSkeleton /></div>)}
         {[1, 2, 3, 4].map((c) => <div key={"r2" + c} style={{ gridColumn: c + 1, gridRow: 2 }}><TileSkeleton /></div>)}
         {[1, 2, 3, 4, 5].map((c) => <div key={"r3" + c} style={{ gridColumn: c + 1, gridRow: 3 }}><TileSkeleton /></div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-        {["c1", "c2", "c3"].map((k) => (
-          <div key={k} style={card}><ChartLoading height={150} label={null} /></div>
-        ))}
-      </div>
     </div>
   );
+}
+
+/* Below the fold: a block is either still loading (spinner) or has no endpoint
+   at all (awaiting-source card). Previously both read as "awaiting live feed",
+   which made a slow fetch look like a permanently missing one. */
+const Pending = ({ loading, t, height }) =>
+  loading ? <ChartLoading height={height} label={null} /> : <AwaitingFeed title={t.awaiting} height={height} />;
+
+/* Mounts children only once the block is near the viewport. Section 01 is
+   always mounted; everything below it pays its render cost only if the user
+   scrolls there. These charts are hand-rolled SVG with a node per data point,
+   and building all of them during first paint is a measurable slice of the
+   delay on a mid-range phone. Falls back to mounting immediately where
+   IntersectionObserver is unavailable. */
+function LazyMount({ minHeight = 260, children }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (shown) return undefined;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setShown(true); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setShown(true); io.disconnect(); }
+    }, { rootMargin: "400px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [shown]);
+  return <div ref={ref} style={shown ? undefined : { minHeight }}>{shown ? children : null}</div>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1275,7 +1488,7 @@ export default function Dashboard() {
 
       <main style={{ maxWidth: 1680, margin: "0 auto", padding: "24px 26px 60px" }}>
         {/* Data-state strip. No "sample data" state exists any more. */}
-        {!d.loading && !d.loadFailed && (
+        {!d.loadFailed && (!d.topLoading || d.seeded) && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#E6F1EC", color: COLORS.pos }}>{d.t.liveChip}</span>
             {d.lastRefreshed && (
@@ -1305,8 +1518,6 @@ export default function Dashboard() {
               {d.t.selectAll}
             </button>
           </div>
-        ) : d.loading ? (
-          <DashboardLoading t={d.t} />
         ) : d.loadFailed ? (
           <LoadError height={190} message={d.t.loadFailed} retryLabel={d.t.retry} onRetry={() => setReloadKey((k) => k + 1)} />
         ) : (
@@ -1314,7 +1525,9 @@ export default function Dashboard() {
         {/* ===================== 1. FINANCIAL HEALTH ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="01" title={d.t.financial} />
-          {!d.hasHome ? (
+          {d.topLoading && !d.hasHome ? (
+            <TileGridSkeleton t={d.t} />
+          ) : !d.hasHome ? (
             <AwaitingFeed title={d.t.awaiting} height={180} />
           ) : (
           <div
@@ -1382,6 +1595,7 @@ export default function Dashboard() {
         </section>
 
         {/* ===================== 2. CENTRE PERFORMANCE ===================== */}
+        <LazyMount minHeight={320}>
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="02" title={d.t.centre} />
           {can("multiLocation") ? (
@@ -1393,7 +1607,7 @@ export default function Dashboard() {
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{d.t.centre}</div>
               <div style={{ fontSize: 11.5, color: "#8b95a2", marginBottom: 15 }}>{d.t.centreSub}</div>
-              {!d.centrePerf ? <AwaitingFeed title={d.t.awaiting} height={210} /> : (
+              {!d.centrePerf ? <Pending loading={d.restLoading} t={d.t} height={210} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {d.centrePerf.map((c) => (
                     <div key={c.name}>
@@ -1451,8 +1665,10 @@ export default function Dashboard() {
           </div>
           ) : <LockedBlock feature="multiLocation" ar={ar} />}
         </section>
+        </LazyMount>
 
         {/* ===================== 3. GROWTH & PIPELINE ===================== */}
+        <LazyMount minHeight={520}>
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="03" title={d.t.growth} />
           {(can("opportunity") || can("loyalty")) ? (
@@ -1481,7 +1697,7 @@ export default function Dashboard() {
               <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
                 {d.funnelStages
                   ? <Funnel stages={d.funnelStages} ar={ar} />
-                  : <AwaitingFeed title={d.t.awaiting} height={300} />}
+                  : <Pending loading={d.restLoading} t={d.t} height={300} />}
               </div>
             </div>
 
@@ -1489,7 +1705,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.leadsBySource}</div>
-                {!d.leadSources ? <AwaitingFeed title={d.t.awaiting} height={132} /> : (
+                {!d.leadSources ? <Pending loading={d.restLoading} t={d.t} height={132} /> : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                     {d.leadSources.map((s) => (
                       <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1514,7 +1730,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#33404e" }}>{ar ? "مسار الإيرادات" : "Revenue funnel"}</div>
-                {!d.revenueFunnel ? <AwaitingFeed title={d.t.awaiting} height={96} /> : (
+                {!d.revenueFunnel ? <Pending loading={d.restLoading} t={d.t} height={96} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                   {d.revenueFunnel.map((r, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5 }}>
@@ -1544,7 +1760,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: "#7a8593", marginBottom: 8 }}>{d.t.tierDist}</div>
-                {!d.loyaltyTiers ? <AwaitingFeed title={d.t.awaiting} height={96} /> : (
+                {!d.loyaltyTiers ? <Pending loading={d.restLoading} t={d.t} height={96} /> : (
                   <>
                     <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
                       {d.loyaltyTiers.map((x) => (
@@ -1576,7 +1792,7 @@ export default function Dashboard() {
                     <span style={{ width: 66, textAlign: "end" }}>{d.t.conv}</span>
                   </div>
                   <div style={{ paddingTop: 12 }}>
-                    {!d.campaigns ? <AwaitingFeed title={d.t.awaiting} height={110} /> : (
+                    {!d.campaigns ? <Pending loading={d.restLoading} t={d.t} height={110} /> : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {d.campaigns.map((c) => (
                           <div key={c.name} style={{ display: "flex", alignItems: "center", fontSize: 12.5 }}>
@@ -1595,8 +1811,10 @@ export default function Dashboard() {
           </>
           ) : <LockedBlock feature="opportunity" ar={ar} />}
         </section>
+        </LazyMount>
 
         {/* ===================== 4. OPERATIONS ===================== */}
+        <LazyMount minHeight={320}>
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="04" title={d.t.ops} />
           {can("caseManagement") ? (
@@ -1607,7 +1825,7 @@ export default function Dashboard() {
                 <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{d.openCases == null ? "\u2014" : d.openCases}</div>
                 <div style={{ fontSize: 12.5, color: "#7a8593" }}>{d.t.openCases}</div>
               </div>
-              {!d.caseStatuses ? <AwaitingFeed title={d.t.awaiting} height={120} /> : (
+              {!d.caseStatuses ? <Pending loading={d.restLoading} t={d.t} height={120} /> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {d.caseStatuses.map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1654,7 +1872,7 @@ export default function Dashboard() {
             {/* Aging */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.aging}</div>
-              {!d.aging ? <AwaitingFeed title={d.t.awaiting} height={130} /> : (
+              {!d.aging ? <Pending loading={d.restLoading} t={d.t} height={130} /> : (
               <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 130 }}>
                 {d.aging.map((a, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%", justifyContent: "flex-end" }}>
@@ -1669,6 +1887,7 @@ export default function Dashboard() {
           </div>
           ) : <LockedBlock feature="caseManagement" ar={ar} />}
         </section>
+        </LazyMount>
 
         {/* ===================== 5. REVENUE TREND (temporarily hidden) ===================== */}
         <section style={{ display: "none" }}>
