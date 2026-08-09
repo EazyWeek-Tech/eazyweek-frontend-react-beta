@@ -15,6 +15,7 @@
 
 import React, { useEffect, useState } from "react";
 import { fetchLeadScoreHistory, fmtScore, bandColor, bandLabel, LEAD_SOURCE } from "./leadScoreConfig";
+import { useFormConfig } from "../Settings/useFormConfig";
 
 const safe = (v) => (v === null || v === undefined ? "" : String(v));
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -61,6 +62,7 @@ export default function LeadScoreHistoryModal({ open, onClose, leadSource = LEAD
   const [loading, setLoading] = useState(false);
   const [rows, setRows]       = useState([]);
   const [error, setError]     = useState("");
+  const fc = useFormConfig("LEADFORM");
 
   // Refetch on each open — the agent may have scored again since last look.
   useEffect(() => {
@@ -119,11 +121,11 @@ export default function LeadScoreHistoryModal({ open, onClose, leadSource = LEAD
                     <th>Date</th>
                     <th>Lead Score</th>
                     <th>Lead Type</th>
-                    <th>Disposition</th>
-                    <th>Sub-Disposition</th>
-                    <th>Follow Up Date</th>
-                    <th>Follow Up Time</th>
-                    <th>Remarks</th>
+                    <th>{fc.labelOf("dispositionId", "Disposition")}</th>
+                    <th>{fc.labelOf("subDispositionId", "Sub-Disposition")}</th>
+                    <th>{fc.labelOf("followUpDate", "Follow Up Date")}</th>
+                    <th>{fc.labelOf("followUpTime", "Follow Up Time")}</th>
+                    <th>{fc.labelOf("remarks", "Remarks")}</th>
                     <th>Modified By</th>
                   </tr>
                 </thead>

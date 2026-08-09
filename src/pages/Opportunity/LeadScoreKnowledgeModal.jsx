@@ -14,6 +14,7 @@
 
 import React, { useEffect, useState } from "react";
 import { KB_EN, KB_AR } from "./leadScoreConfig";
+import { useFormConfig } from "../Settings/useFormConfig";
 
 const TABS = [
   { id: "en", label: "English", content: KB_EN },
@@ -22,6 +23,17 @@ const TABS = [
 
 export default function LeadScoreKnowledgeModal({ open, onClose }) {
   const [tab, setTab] = useState("en");
+  const fc = useFormConfig("LEADFORM");
+
+  /* A renamed parameter has to read the same here as it does on the panel,
+     otherwise the knowledge base explains a term the agent cannot see. An
+     untouched parameter keeps the tab's own wording, so the Arabic tab stays
+     Arabic unless the client has deliberately renamed it. */
+  const kbName = (row) => {
+    const field = row.key ? fc.field(row.key) : null;
+    if (!field) return row.parameter;
+    return field.label !== field.catalogLabel ? field.label : row.parameter;
+  };
 
   // Always reopen on English, whatever was last picked.
   useEffect(() => { if (open) setTab("en"); }, [open]);
@@ -89,7 +101,7 @@ export default function LeadScoreKnowledgeModal({ open, onClose }) {
                   {kb.rows.map((r) => (
                     <tr key={r.parameter}>
                       <td style={{ fontWeight: 700, whiteSpace: "nowrap", textAlign: rtl ? "right" : "left" }}>
-                        {r.parameter}
+                        {kbName(r)}
                       </td>
                       <td style={{ textAlign: rtl ? "right" : "left" }}>{r.high}</td>
                       <td style={{ textAlign: rtl ? "right" : "left" }}>{r.medium}</td>

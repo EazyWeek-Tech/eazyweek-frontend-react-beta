@@ -108,6 +108,7 @@ import SalesReport from "./pages/Reports/SalesReport";
 import LiabilityReport from "./pages/Reports/LiabilityReport";
 import PaymentReport from "./pages/Reports/PaymentReport";
 import MasterUploader from "./pages/DataMigration/MasterUploader";
+import FormConfiguration from "./pages/Settings/FormConfiguration"; 
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -290,9 +291,16 @@ if (user && showFirstLogin) {
                     element={gate("opportunity", <AddLeadCustomerList />)}
                   />
 
+                  
+
                    <Route
                     path="/masters/packages"
                     element={<PackageMaster />}
+                  />
+
+                  <Route
+                    path="/settings/formconfiguration"
+                    element={<FormConfiguration />}
                   />
 
 

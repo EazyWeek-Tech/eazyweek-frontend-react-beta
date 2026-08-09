@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import Toast from "../../components/Toast";
 import { usePermissions } from "../Settings/usePermissions";
+import { useFormConfig } from "../Settings/useFormConfig";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); } catch { return {}; } };
@@ -10,6 +11,19 @@ const getCenterCode = () => (getUser().centerCode || "").trim();
 const getEmployeeCode = () => { const u = getUser(); return (u.employeeCode || u.userId || "").trim(); };
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
 
+
+const Field = ({ cfg, k, fallback, children }) => {
+  if (!cfg.isVisible(k)) return null;
+  return (
+    <div>
+      <label className="cd-label">
+        {cfg.labelOf(k, fallback)}
+        {cfg.isMandatory(k) && <span className="cd-req">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+};
 
 const CourtesyCallDetails = () => {
   const location = useLocation();
@@ -22,6 +36,7 @@ const CourtesyCallDetails = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const { guard, notifyDenied } = usePermissions();
+  const fc = useFormConfig("CCALL");
   const sessionUserId = getEmployeeCode();
 
   // Keep strings for API fields, except we keep agentRating in UI as number | ""
@@ -149,6 +164,15 @@ const fetchDetails = async () => {
   };
 
   const handleSubmit = async (isDraft) => {
+    // Save (1) is a deliberate partial; required fields apply on Submit (2) only.
+    if (isDraft === 2) {
+      const check = fc.validate(formData);
+      if (!check.ok) {
+        setToast({ type: "error", message: check.message });
+        return;
+      }
+    }
+
     const effectiveUserId = sessionUserId || formData.createdBy || "system";
 
     const payload = {
@@ -223,6 +247,7 @@ const fetchDetails = async () => {
           textarea.cd-inp { min-height:90px; resize:vertical; direction:auto; }
           .cd-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
             letter-spacing:.04em; margin-bottom:6px; display:block; }
+          .cd-req { color:#DD7766; margin-left:4px; }
           .cd-card { background:#fff; border:1px solid #e7ecf4; border-radius:12px;
             padding:20px 24px; margin-bottom:16px; }
           .cd-sec-title { font-size:11px; font-weight:800; color:#334B71; text-transform:uppercase;
@@ -338,21 +363,20 @@ const fetchDetails = async () => {
           <div className="cd-sec-title">Before Call Parameters</div>
           <div className="cd-grid">
             <div>
-              <span className="cd-label">Customer Type</span>
+              <span className="cd-label">{fc.labelOf("customerType", "Customer Type")}</span>
               <div style={{ padding:"9px 12px", background:"#f8fafc", border:"1px solid #e7ecf4",
                 borderRadius:8, fontSize:13, color:"#334B71", fontWeight:600 }}>
                 {details?.customerType || "—"}
               </div>
             </div>
-            <div>
-              <label className="cd-label">Future Appointment Taken</label>
+            <Field cfg={fc} k="futureAppointmentTaken" fallback="Future Appointment Taken">
               <select className="cd-inp" value={formData.futureAppointmentTaken} disabled={loading}
                 onChange={e => handleChange("futureAppointmentTaken", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
                 <option value="2">No</option>
               </select>
-            </div>
+            </Field>
           </div>
         </div>
 
@@ -360,35 +384,31 @@ const fetchDetails = async () => {
         <div className="cd-card">
           <div className="cd-sec-title">After Call Parameters</div>
           <div className="cd-grid">
-            <div>
-              <label className="cd-label">Google Review</label>
+            <Field cfg={fc} k="googleReview" fallback="Google Review">
               <select className="cd-inp" value={formData.googleReview} disabled={loading}
                 onChange={e => handleChange("googleReview", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
                 <option value="2">No</option>
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Received Post Care Communication</label>
+            </Field>
+            <Field cfg={fc} k="receivedPostCareCmmunication" fallback="Received Post Care Communication">
               <select className="cd-inp" value={formData.receivedPostCareCmmunication} disabled={loading}
                 onChange={e => handleChange("receivedPostCareCmmunication", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
                 <option value="2">No</option>
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Received Invoice</label>
+            </Field>
+            <Field cfg={fc} k="receivedInvoice" fallback="Received Invoice">
               <select className="cd-inp" value={formData.receivedInvoice} disabled={loading}
                 onChange={e => handleChange("receivedInvoice", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
                 <option value="2">No</option>
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Customer Feedback</label>
+            </Field>
+            <Field cfg={fc} k="customerFeedback" fallback="Customer Feedback">
               <select className="cd-inp" value={formData.customerFeedback} disabled={loading}
                 onChange={e => handleChange("customerFeedback", e.target.value)}>
                 <option value="">Select</option>
@@ -401,26 +421,23 @@ const fetchDetails = async () => {
                 <option>Not satisfied with employee</option>
                 <option>Not satisfied with service experience</option>
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Overall Satisfied</label>
+            </Field>
+            <Field cfg={fc} k="overallSatisfied" fallback="Overall Satisfied">
               <select className="cd-inp" value={formData.overallSatisfied} disabled={loading}
                 onChange={e => handleChange("overallSatisfied", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
                 <option value="2">No</option>
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Experience Rating (1–5)</label>
+            </Field>
+            <Field cfg={fc} k="experienceRating" fallback="Experience Rating (1–5)">
               <select className="cd-inp" value={formData.experienceRating} disabled={loading}
                 onChange={e => handleChange("experienceRating", e.target.value)}>
                 <option value="">Select</option>
                 {["1","2","3","4","5"].map(s => <option key={s} value={s}>{s} ★</option>)}
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Call Center Agent Rating (1–5)</label>
+            </Field>
+            <Field cfg={fc} k="agentRating" fallback="Call Center Agent Rating (1–5)">
               <select className="cd-inp"
                 value={formData.agentRating === "" ? "" : Number(formData.agentRating)}
                 disabled={loading}
@@ -428,9 +445,8 @@ const fetchDetails = async () => {
                 <option value="">Select</option>
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} ★</option>)}
               </select>
-            </div>
-            <div>
-              <label className="cd-label">Customer Complaint for Service</label>
+            </Field>
+            <Field cfg={fc} k="customerComplaintforService" fallback="Customer Complaint for Service">
               <select className="cd-inp" value={formData.customerComplaintforService} disabled={loading}
                 onChange={e => handleChange("customerComplaintforService", e.target.value)}>
                 {services.length === 0 ? (
@@ -446,23 +462,21 @@ const fetchDetails = async () => {
                   </>
                 )}
               </select>
-            </div>
+            </Field>
           </div>
 
           {/* Remarks — full width row */}
           <div className="cd-grid-2" style={{ marginTop:16 }}>
-            <div>
-              <label className="cd-label">Customer Remarks</label>
+            <Field cfg={fc} k="customerComplaintRemarks" fallback="Customer Remarks">
               <textarea className="cd-inp" value={formData.customerComplaintRemarks} disabled={loading}
                 placeholder="ملاحظات العميل سواء جيدة أو سيئة"
                 onChange={e => handleChange("customerComplaintRemarks", e.target.value)} />
-            </div>
-            <div>
-              <label className="cd-label">Agent Decision</label>
+            </Field>
+            <Field cfg={fc} k="agentdecision" fallback="Agent Decision">
               <textarea className="cd-inp" value={formData.agentdecision} disabled={loading}
                 placeholder="قرارك والدخل المحسبي من ذلك العميل بخصوص الملاحظة"
                 onChange={e => handleChange("agentdecision", e.target.value)} />
-            </div>
+            </Field>
           </div>
         </div>
 

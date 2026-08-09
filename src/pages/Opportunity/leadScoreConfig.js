@@ -134,24 +134,28 @@ export const KB_EN = {
   head: { parameter: "Parameter", high: "High (10 pts)", medium: "Medium (6 pts)", low: "Low (2 pts)" },
   rows: [
     {
+      key: "readinessToBook",
       parameter: "Readiness to Book",
       high: "Wants to book now / within days",
       medium: "Interested, but no firm timeline",
       low: "Just browsing, no urgency",
     },
     {
+      key: "priceComfort",
       parameter: "Price Comfort",
       high: "Comfortable with pricing, no hesitation",
       medium: "Asked about pricing, some hesitation",
       low: "Pushed back on price / said it's a concern",
     },
     {
+      key: "serviceClarity",
       parameter: "Service Clarity",
       high: "Asked for a specific treatment by name",
       medium: "Asked about a general category",
       low: 'Fully vague enquiry (e.g. "what do you offer")',
     },
     {
+      key: "conversationQuality",
       parameter: "Conversation Quality",
       high: "Asked detailed questions, engaged well",
       medium: "Gave short but relevant answers",
@@ -166,24 +170,28 @@ export const KB_AR = {
   head: { parameter: "المعيار", high: "مرتفع (10 نقاط)", medium: "متوسط (6 نقاط)", low: "منخفض (2 نقطة)" },
   rows: [
     {
+      key: "readinessToBook",
       parameter: "الجاهزية للحجز",
       high: "يريد الحجز الآن / خلال أيام",
       medium: "مهتم، لكن دون جدول زمني محدد",
       low: "يستعرض فقط، دون إلحاح",
     },
     {
+      key: "priceComfort",
       parameter: "الارتياح للسعر",
       high: "مرتاح للسعر، دون تردد",
       medium: "استفسر عن السعر، مع بعض التردد",
       low: "تراجع بسبب السعر / اعتبره مصدر قلق",
     },
     {
+      key: "serviceClarity",
       parameter: "وضوح الخدمة",
       high: "طلب علاجاً محدداً بالاسم",
       medium: "استفسر عن فئة عامة",
       low: "استفسار غامض تماماً (مثل «ما الذي تقدمونه»)",
     },
     {
+      key: "conversationQuality",
       parameter: "جودة المحادثة",
       high: "طرح أسئلة مفصلة، وتفاعل بشكل جيد",
       medium: "أجاب بإجابات قصيرة لكن ذات صلة",

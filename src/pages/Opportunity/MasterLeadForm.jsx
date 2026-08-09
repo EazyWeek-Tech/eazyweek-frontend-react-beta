@@ -14,6 +14,12 @@ import { LEAD_SOURCE, saveLeadScoreSafe } from "./leadScoreConfig";
   const safe = (v) => (v === null || v === undefined ? "" : String(v));
   const pad2 = (n) => String(n).padStart(2, "0");
 
+/* Transaction's WIP disposition. R5/R6 read CLINIC_LEADSTATUS WHERE
+   TRANSTYPE='Transaction', where WIP is LS013 — LS004 is the ExternalSource WIP
+   code and matches nothing here, so the previous literal made every save,
+   including a plain WIP save, send oppStatus "2" and close the lead. */
+const TRANS_WIP_CODE = "LS013";
+
   const OPP_TYPE = "Transaction";  // R5/R6: use the same dispositions as transaction rules (CLINIC_LEADSTATUS WHERE TRANSTYPE='Transaction') for now
 
   /** Follow-up belongs to WIP only — any other disposition hides the pair. */
@@ -543,7 +549,7 @@ setSessionCenter(code);
     // hide submit on initial load (kept same logic as your current file)
     useEffect(() => {
       const initialDisp = safe(row?.dispositionCode).trim() || safe(form.dispositionId).trim();
-      const initialOppStatus = initialDisp === "LS004" ? "1" : "2";
+      const initialOppStatus = initialDisp === TRANS_WIP_CODE ? "1" : "2";
       const shouldHide =
         initialOppStatus === "2" && (initialDisp === "LS003" || initialDisp === "LS007");
       setIsSubmitHidden(shouldHide);
@@ -1051,7 +1057,7 @@ if (!hasNone) {
     disposition: safe(form.dispositionId).trim(),
     remarks: safe(form.remarks),
     oppCode: safe(resolvedOppCode).trim(),
-    oppStatus: safe(form.dispositionId).trim() === "LS004" ? "1" : "2",
+    oppStatus: safe(form.dispositionId).trim() === TRANS_WIP_CODE ? "1" : "2",
 
     followUpDate: toApiFollowUpDateISO(form.followUpDate),
     followUpTime: hhmmss,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useFormConfig } from "../../Settings/useFormConfig";
 import { API_BASE_URL } from "../../../config";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -103,6 +104,7 @@ const GeneralTab = ({ customer }) => {
   const [nationalities, setNationalities] = useState([]);
   const [countries, setCountries]         = useState([]);
   const [languages] = useState([{ value: 1, label: "English" }, { value: 2, label: "Arabic" }]);
+  const fc = useFormConfig("CUSTMST");
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -175,6 +177,11 @@ const GeneralTab = ({ customer }) => {
     if (!String(form.firstName   || "").trim()) e.firstName   = "Required";
     if (!String(form.lastName    || "").trim()) e.lastName    = "Required";
     if (!String(form.mobilePhone || "").trim()) e.mobilePhone = "Required";
+
+    // Fields the client has marked mandatory in Form Configuration. The three
+    // checks above stay as a floor so a failed config fetch cannot make the
+    // customer's name and number optional.
+    fc.validate(form).missing.forEach((m) => { e[m.key] = "Required"; });
 
     const email = String(form.email || "").trim();
     if (email) {
@@ -280,23 +287,23 @@ const GeneralTab = ({ customer }) => {
               <Inp name="customerId" value={form.customerId} onChange={handleChange}
                 disabled style={{ background:"#f7f8fc", color:"#6b7280" }} />
             </F>
-            <F label="First Name" required error={errors.firstName}>
+            <F label={fc.labelOf("firstName", "First Name")} required={fc.isMandatory("firstName")} error={errors.firstName}>
               <Inp name="firstName" value={form.firstName} onChange={handleChange} />
             </F>
-            <F label="Middle Name">
+            <F label={fc.labelOf("middleName", "Middle Name")} required={fc.isMandatory("middleName")}>
               <Inp name="middleName" value={form.middleName} onChange={handleChange} />
             </F>
-            <F label="Last Name" required error={errors.lastName}>
+            <F label={fc.labelOf("lastName", "Last Name")} required={fc.isMandatory("lastName")} error={errors.lastName}>
               <Inp name="lastName" value={form.lastName} onChange={handleChange} />
             </F>
-            <F label="Preferred Name">
+            <F label={fc.labelOf("preferredName", "Preferred Name")} required={fc.isMandatory("preferredName")}>
               <Inp name="preferredName" value={form.preferredName} onChange={handleChange} />
             </F>
-            <F label="Email" error={errors.email}>
+            <F label={fc.labelOf("email", "Email")} required={fc.isMandatory("email")} error={errors.email}>
               <Inp name="email" type="email" value={form.email} onChange={handleChange}
                 placeholder="customer@example.com" />
             </F>
-            <F label="Mobile Phone" required error={errors.mobilePhone}>
+            <F label={fc.labelOf("mobilePhone", "Mobile Phone")} required={fc.isMandatory("mobilePhone")} error={errors.mobilePhone}>
               <div style={{ display:"flex", gap:6 }}>
                 <select className="gt-select" name="phoneCode"
                   value={normalizeDialCode(form.phoneCode)} onChange={handleChange}
@@ -308,29 +315,29 @@ const GeneralTab = ({ customer }) => {
                   style={{ flex:1 }} className={errors.mobilePhone?"gt-input gt-error":"gt-input"} />
               </div>
             </F>
-            <F label="Home Phone">
+            <F label={fc.labelOf("homePhone", "Home Phone")} required={fc.isMandatory("homePhone")}>
               <Inp name="homePhone" value={form.homePhone} onChange={handleChange} />
             </F>
-            <F label="Work Phone">
+            <F label={fc.labelOf("workPhone", "Work Phone")} required={fc.isMandatory("workPhone")}>
               <Inp name="workPhone" value={form.workPhone} onChange={handleChange} />
             </F>
-            <F label="Gender" error={errors.gender}>
+            <F label={fc.labelOf("gender", "Gender")} required={fc.isMandatory("gender")} error={errors.gender}>
               <Sel name="gender" value={form.gender} onChange={handleChange} options={GENDERS} />
             </F>
-            <F label="Date of Birth" error={errors.birthDay}>
+            <F label={fc.labelOf("birthDay", "Date of Birth")} required={fc.isMandatory("birthDay")} error={errors.birthDay}>
               <Inp name="birthDay" type="date"
                 value={formatDateForInput(form.birthDay)} onChange={handleChange}
                 max={new Date().toISOString().slice(0,10)} />
             </F>
-            <F label="Anniversary" error={errors.anniversary}>
+            <F label={fc.labelOf("anniversary", "Anniversary")} required={fc.isMandatory("anniversary")} error={errors.anniversary}>
               <Inp name="anniversary" type="date"
                 value={formatDateForInput(form.anniversary)} onChange={handleChange}
                 max={new Date().toISOString().slice(0,10)} />
             </F>
-            <F label="Language">
+            <F label={fc.labelOf("language", "Language")} required={fc.isMandatory("language")}>
               <Sel name="language" value={form.language} onChange={handleChange} options={languages} />
             </F>
-            <F label="Referred By">
+            <F label={fc.labelOf("refBy", "Referred By")} required={fc.isMandatory("refBy")}>
               <Inp name="refBy" value={form.refBy} onChange={handleChange} />
             </F>
 
@@ -353,26 +360,26 @@ const GeneralTab = ({ customer }) => {
         {/* ── Address ────────────────────────────────────────────────────── */}
         <Card icon="" title="Address">
           <div className="gt-grid">
-            <F label="Address 1" span2>
+            <F label={fc.labelOf("address1", "Address 1")} required={fc.isMandatory("address1")} span2>
               <Inp name="address1" value={form.address1} onChange={handleChange} />
             </F>
-            <F label="Address 2" span2>
+            <F label={fc.labelOf("address2", "Address 2")} required={fc.isMandatory("address2")} span2>
               <Inp name="address2" value={form.address2} onChange={handleChange} />
             </F>
-            <F label="City">
+            <F label={fc.labelOf("city", "City")} required={fc.isMandatory("city")}>
               <Inp name="city" value={form.city} onChange={handleChange} />
             </F>
-            <F label="ZIP / Postal Code">
+            <F label={fc.labelOf("zipCode", "ZIP / Postal Code")} required={fc.isMandatory("zipCode")}>
               <Inp name="zipCode" value={form.zipCode} onChange={handleChange} />
             </F>
-            <F label="Nationality" required error={errors.nationalityCode}>
+            <F label={fc.labelOf("nationalityCode", "Nationality")} required={fc.isMandatory("nationalityCode")} error={errors.nationalityCode}>
               <Sel name="nationalityCode" value={Number(form.nationalityCode) || ""}
                 onChange={handleChange} options={nationalities} />
             </F>
-            <F label="Nationality ID / Iqama">
+            <F label={fc.labelOf("nationalityId", "Nationality ID / Iqama")} required={fc.isMandatory("nationalityId")}>
               <Inp name="nationalityId" value={form.nationalityId} onChange={handleChange} />
             </F>
-            <F label="Country">
+            <F label={fc.labelOf("countryCode", "Country")} required={fc.isMandatory("countryCode")}>
               <Sel name="countryCode" value={form.countryCode}
                 onChange={handleChange} options={countryOptions} />
             </F>

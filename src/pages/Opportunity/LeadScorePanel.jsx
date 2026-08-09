@@ -46,6 +46,7 @@ import {
   bandLabel,
   LEAD_SOURCE,
 } from "./leadScoreConfig";
+import { useFormConfig } from "../Settings/useFormConfig";
 import LeadScoreKnowledgeModal from "./LeadScoreKnowledgeModal";
 import LeadScoreHistoryModal from "./LeadScoreHistoryModal";
 
@@ -152,6 +153,7 @@ export default function LeadScorePanel({
   const [last, setLast]       = useState(null);   // previously stored score, if any
   const [kbOpen, setKbOpen]   = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const fc = useFormConfig("LEADFORM");
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -226,10 +228,10 @@ export default function LeadScorePanel({
           <div className="lsItem" key={p.key}>
             <div className="lsNum">{p.n}</div>
             <div className="lsName">
-              {p.label} <span className="req">*</span>
+              {fc.labelOf(p.key, p.label)} <span className="req">*</span>
             </div>
 
-            <div className="lsPills" role="group" aria-label={p.label}>
+            <div className="lsPills" role="group" aria-label={fc.labelOf(p.key, p.label)}>
               {LEVELS.map((lv) => (
                 <button
                   key={lv}

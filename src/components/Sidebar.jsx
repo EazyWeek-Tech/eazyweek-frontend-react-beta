@@ -729,6 +729,7 @@ const NAV_GROUPS = [
         label: "Settings",
         icon: "bx-cog",
         children: [
+          { name: "Form Configuration", icon:"bx-lock", path:"/settings/formconfiguration", feature: "formconfiguartion"}, 
           { name: "Loyalty Setup", icon: "bx-gift", path: "/loyalty", feature: "loyalty" },
           { name: "Security Settings", icon: "bx-lock-alt", path: "/settings/security" },
           { name: "Discount & Promotion", icon: "bx-purchase-tag", path: "/discounts/manage", feature: "discounts" },

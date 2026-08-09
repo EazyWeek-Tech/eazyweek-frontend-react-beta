@@ -4,6 +4,8 @@ import { usePermissions } from "../Settings/usePermissions";
 import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
 import { useNavigate } from "react-router-dom";
 
+import { useFormConfig } from "../Settings/useFormConfig";
+
 const TOKEN       = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authHeaders = () => ({ Authorization: `Bearer ${TOKEN()}` });
 const jsonHeaders = () => ({ Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json" });
@@ -84,9 +86,9 @@ const getCenter    = (r) => r.centerName || "";
 
 const COLUMNS = [
   { label: "Code",       field: "code",      get: getCustCode,  kind: "code" },
-  { label: "First Name", field: "first",     get: getFirst },
-  { label: "Last Name",  field: "last",      get: getLast },
-  { label: "Phone No.",  field: "phone",     get: getPhone },
+  { label: "First Name", field: "first",     get: getFirst,     cfgKey: "firstName" },
+  { label: "Last Name",  field: "last",      get: getLast,      cfgKey: "lastName" },
+  { label: "Phone No.",  field: "phone",     get: getPhone,     cfgKey: "mobilePhone" },
   // sortGet: these two render as dd-mm-yyyy but must sort on the yyyy-mm-dd key
   // the API sends alongside, otherwise the column orders by day of month.
   { label: "Onboarded Date", field: "onboarded", get: getOnboarded, sortGet: (r) => r.onboardedSort || "", muted: true },
@@ -143,6 +145,8 @@ const CustomerMaster = () => {
   // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
   // slow config call never blocks a save that would otherwise be valid.
   const [policy, setPolicy] = useState({ emailOptional: true, allowDuplicateMobile: true, allowDuplicateEmail: true });
+  const fc = useFormConfig("CUSTMST");
+  const L = (k, fallback) => `${fc.labelOf(k, fallback)}${fc.isMandatory(k) ? " *" : ""}`;
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
@@ -258,9 +262,11 @@ const CustomerMaster = () => {
     // Citizen / Expat status from it, and billing stalls without it.
     if (!formData.nationalityCode) { setFormError("Nationality is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
+    const cfgCheck = fc.validate(formData);
+    if (!cfgCheck.ok) { setFormError(cfgCheck.message); return; }
     setFormError(""); setSaving(true);
     try {
-      const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "" };
+      const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "", configFormCode: "CUSTMST" };
       const res    = await fetch(`${API_BASE_URL}/api/Customer/SaveCustomer`, {
         method: "POST", headers: jsonHeaders(), body: JSON.stringify(payload),
       });
@@ -324,7 +330,7 @@ const CustomerMaster = () => {
                     style={{ padding:"11px 14px", textAlign:"left", fontWeight:700, fontSize:11, color:"#fff",
                       borderBottom:"1px solid #e2e8f0", textTransform:"uppercase", letterSpacing:".06em",
                       cursor: col.field ? "pointer" : "default", userSelect:"none", whiteSpace:"nowrap" }}>
-                    {col.label}
+                    {col.cfgKey ? fc.labelOf(col.cfgKey, col.label) : col.label}
                     {col.field && (
                       <span style={{ marginLeft:6, color: sortField === col.field ? "#fff" : "#cbd5e1", fontSize:10 }}>
                         {sortField === col.field ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
@@ -423,35 +429,35 @@ const CustomerMaster = () => {
 
               {/* Basic Information */}
               <Section title="Basic Information">
-                <FormRow label="First Name *">
+                <FormRow label={L("firstName", "First Name")}>
                   <input style={styles.inp} name="firstName" autoComplete="one-time-code" value={formData.firstName} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Middle Name">
+                <FormRow label={L("middleName", "Middle Name")}>
                   <input style={styles.inp} name="middleName" autoComplete="one-time-code" value={formData.middleName} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Last Name *">
+                <FormRow label={L("lastName", "Last Name")}>
                   <input style={styles.inp} name="lastName" autoComplete="one-time-code" value={formData.lastName} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Preferred Name">
+                <FormRow label={L("preferredName", "Preferred Name")}>
                   <input style={styles.inp} name="preferredName" autoComplete="one-time-code" value={formData.preferredName} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Gender">
+                <FormRow label={L("gender", "Gender")}>
                   <select style={styles.sel} name="gender" value={formData.gender} onChange={handleInput}>
                     <option value="">Select</option>
                     <option>Male</option><option>Female</option><option>Other</option>
                   </select>
                 </FormRow>
-                <FormRow label="Date of Birth">
+                <FormRow label={L("birthDay", "Date of Birth")}>
                   <input style={styles.inp} type="date" name="birthDay" autoComplete="one-time-code" value={formData.birthDay} onChange={handleInput} />
                 </FormRow>
-                <FormRow label="Anniversary">
+                <FormRow label={L("anniversary", "Anniversary")}>
                   <input style={styles.inp} type="date" name="anniversary" autoComplete="one-time-code" value={formData.anniversary} onChange={handleInput} />
                 </FormRow>
               </Section>
 
               {/* Contact */}
               <Section title="Contact">
-                <FormRow label="Mobile *">
+                <FormRow label={L("mobilePhone", "Mobile")}>
                   <div style={{ display:"flex", gap:8 }}>
                     <select style={{ ...styles.sel, flex:"0 0 150px" }} name="phoneCode"
                       value={formData.phoneCode || ""} onChange={handleInput}>
@@ -461,7 +467,7 @@ const CustomerMaster = () => {
                     <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" autoComplete="one-time-code" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
                   </div>
                 </FormRow>
-                <FormRow label={policy.emailOptional ? "Email" : "Email *"}>
+                <FormRow label={`${fc.labelOf("email", "Email")}${policy.emailOptional ? "" : " *"}`}>
                   <input style={styles.inp} type="email" name="email" autoComplete="one-time-code"
                     value={formData.email || ""} onChange={handleInput}
                     placeholder="customer@example.com" />
@@ -470,7 +476,7 @@ const CustomerMaster = () => {
 
               {/* Nationality */}
               <Section title="Nationality">
-                <FormRow label="Nationality *">
+                <FormRow label={L("nationalityCode", "Nationality")}>
                   <div style={{ display:"flex", gap:10, alignItems:"center" }}>
                     <select style={{ ...styles.sel, flex:1 }}
                       name="nationalityCode"
@@ -495,7 +501,7 @@ const CustomerMaster = () => {
                     )}
                   </div>
                 </FormRow>
-                <FormRow label="Country *">
+                <FormRow label={L("countryCode", "Country")}>
                   <select style={styles.sel} name="countryCode" value={formData.countryCode || ""} onChange={handleInput}>
                     <option value="">Select Country</option>
                     {countries.map(c => (
@@ -507,21 +513,21 @@ const CustomerMaster = () => {
 
               {/* Other */}
               <Section title="Other">
-                <FormRow label="Language">
+                <FormRow label={L("language", "Language")}>
                   <select style={styles.sel} name="language" value={formData.language} onChange={handleInput}>
                     <option value={0}>Select Language</option>
                     <option value={1}>English</option>
                     <option value={2}>Arabic</option>
                   </select>
                 </FormRow>
-                <FormRow label="Loyalty Program">
+                <FormRow label={L("isLoyaltyEnrolled", "Loyalty Program")}>
                   <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#334b71", cursor:"pointer" }}>
                     <input type="checkbox" checked={!!formData.isLoyaltyEnrolled}
                       onChange={e => setFormData(prev => ({ ...prev, isLoyaltyEnrolled: e.target.checked }))} />
                     Enroll in loyalty program
                   </label>
                 </FormRow>
-                <FormRow label="Referred By">
+                <FormRow label={L("refBy", "Referred By")}>
                   <input style={styles.inp} name="refBy" autoComplete="one-time-code" value={formData.refBy} onChange={handleInput} />
                 </FormRow>
               </Section>
@@ -564,6 +570,8 @@ export function CustomerFormPanel({ onSaved, onClose }) {
   // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
   // slow config call never blocks a save that would otherwise be valid.
   const [policy, setPolicy] = useState({ emailOptional: true, allowDuplicateMobile: true, allowDuplicateEmail: true });
+  const fc = useFormConfig("CUSTMST");
+  const L = (k, fallback) => `${fc.labelOf(k, fallback)}${fc.isMandatory(k) ? " *" : ""}`;
 
   useEffect(() => {
     const cc = getCC();
@@ -614,9 +622,11 @@ export function CustomerFormPanel({ onSaved, onClose }) {
     // Citizen / Expat status from it, and billing stalls without it.
     if (!formData.nationalityCode) { setFormError("Nationality is required."); return; }
     if (!formData.countryCode) { setFormError("Country is required."); return; }
+    const cfgCheck = fc.validate(formData);
+    if (!cfgCheck.ok) { setFormError(cfgCheck.message); return; }
     setFormError(""); setSaving(true);
     try {
-      const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "" };
+      const payload = { ...formData, centerCode: getCC(), customerType: citizenType || "", configFormCode: "CUSTMST" };
       const res    = await fetch(`${API_BASE_URL}/api/Customer/SaveCustomer`, {
         method: "POST", headers: jsonHeaders(), body: JSON.stringify(payload),
       });
@@ -655,21 +665,21 @@ export function CustomerFormPanel({ onSaved, onClose }) {
 
       <div style={styles.panelBody}>
         <Section title="Basic Information">
-          <FormRow label="First Name *"><input style={styles.inp} name="firstName" autoComplete="one-time-code" value={formData.firstName} onChange={handleInput} /></FormRow>
-          <FormRow label="Middle Name"><input style={styles.inp} name="middleName" autoComplete="one-time-code" value={formData.middleName} onChange={handleInput} /></FormRow>
-          <FormRow label="Last Name *"><input style={styles.inp} name="lastName" autoComplete="one-time-code" value={formData.lastName} onChange={handleInput} /></FormRow>
-          <FormRow label="Preferred Name"><input style={styles.inp} name="preferredName" autoComplete="one-time-code" value={formData.preferredName} onChange={handleInput} /></FormRow>
-          <FormRow label="Gender">
+          <FormRow label={L("firstName", "First Name")}><input style={styles.inp} name="firstName" autoComplete="one-time-code" value={formData.firstName} onChange={handleInput} /></FormRow>
+          <FormRow label={L("middleName", "Middle Name")}><input style={styles.inp} name="middleName" autoComplete="one-time-code" value={formData.middleName} onChange={handleInput} /></FormRow>
+          <FormRow label={L("lastName", "Last Name")}><input style={styles.inp} name="lastName" autoComplete="one-time-code" value={formData.lastName} onChange={handleInput} /></FormRow>
+          <FormRow label={L("preferredName", "Preferred Name")}><input style={styles.inp} name="preferredName" autoComplete="one-time-code" value={formData.preferredName} onChange={handleInput} /></FormRow>
+          <FormRow label={L("gender", "Gender")}>
             <select style={styles.sel} name="gender" value={formData.gender} onChange={handleInput}>
               <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
             </select>
           </FormRow>
-          <FormRow label="Date of Birth"><input style={styles.inp} type="date" name="birthDay" autoComplete="one-time-code" value={formData.birthDay} onChange={handleInput} /></FormRow>
-          <FormRow label="Anniversary"><input style={styles.inp} type="date" name="anniversary" autoComplete="one-time-code" value={formData.anniversary} onChange={handleInput} /></FormRow>
+          <FormRow label={L("birthDay", "Date of Birth")}><input style={styles.inp} type="date" name="birthDay" autoComplete="one-time-code" value={formData.birthDay} onChange={handleInput} /></FormRow>
+          <FormRow label={L("anniversary", "Anniversary")}><input style={styles.inp} type="date" name="anniversary" autoComplete="one-time-code" value={formData.anniversary} onChange={handleInput} /></FormRow>
         </Section>
 
         <Section title="Contact">
-          <FormRow label="Mobile *">
+          <FormRow label={L("mobilePhone", "Mobile")}>
             <div style={{ display:"flex", gap:8 }}>
               <select style={{ ...styles.sel, flex:"0 0 150px" }} name="phoneCode"
                 value={formData.phoneCode || ""} onChange={handleInput}>
@@ -679,11 +689,11 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               <input style={{ ...styles.inp, flex:1 }} name="mobilePhone" autoComplete="one-time-code" value={formData.mobilePhone} onChange={handleInput} inputMode="numeric" maxLength={15} />
             </div>
           </FormRow>
-          <FormRow label={policy.emailOptional ? "Email" : "Email *"}><input style={styles.inp} type="email" name="email" autoComplete="one-time-code" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
+          <FormRow label={`${fc.labelOf("email", "Email")}${policy.emailOptional ? "" : " *"}`}><input style={styles.inp} type="email" name="email" autoComplete="one-time-code" value={formData.email || ""} onChange={handleInput} placeholder="customer@example.com" /></FormRow>
         </Section>
 
         <Section title="Nationality">
-          <FormRow label="Nationality *">
+          <FormRow label={L("nationalityCode", "Nationality")}>
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <select style={{ ...styles.sel, flex:1 }} name="nationalityCode" value={formData.nationalityCode || ""} onChange={handleNationalityChange}>
                 <option value="">Select Nationality</option>
@@ -700,7 +710,7 @@ export function CustomerFormPanel({ onSaved, onClose }) {
               )}
             </div>
           </FormRow>
-          <FormRow label="Country *">
+          <FormRow label={L("countryCode", "Country")}>
             <select style={styles.sel} name="countryCode" value={formData.countryCode || ""} onChange={handleInput}>
               <option value="">Select Country</option>
               {countries.map(c => <option key={c.code || c.id} value={c.code || c.id}>{c.name}</option>)}
@@ -709,21 +719,21 @@ export function CustomerFormPanel({ onSaved, onClose }) {
         </Section>
 
         <Section title="Other">
-          <FormRow label="Language">
+          <FormRow label={L("language", "Language")}>
             <select style={styles.sel} name="language" value={formData.language} onChange={handleInput}>
               <option value={0}>Select Language</option>
               <option value={1}>English</option>
               <option value={2}>Arabic</option>
             </select>
           </FormRow>
-          <FormRow label="Loyalty Program">
+          <FormRow label={L("isLoyaltyEnrolled", "Loyalty Program")}>
             <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#334b71", cursor:"pointer" }}>
               <input type="checkbox" checked={!!formData.isLoyaltyEnrolled}
                 onChange={e => setFormData(prev => ({ ...prev, isLoyaltyEnrolled: e.target.checked }))} />
               Enroll in loyalty program
             </label>
           </FormRow>
-          <FormRow label="Referred By"><input style={styles.inp} name="refBy" autoComplete="one-time-code" value={formData.refBy} onChange={handleInput} /></FormRow>
+          <FormRow label={L("refBy", "Referred By")}><input style={styles.inp} name="refBy" autoComplete="one-time-code" value={formData.refBy} onChange={handleInput} /></FormRow>
         </Section>
 
         {formError   && <div style={styles.errBox}> {formError}</div>}
