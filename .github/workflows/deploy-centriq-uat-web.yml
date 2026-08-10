@@ -1,0 +1,41 @@
+name: Deploy Centriq UAT Web
+
+on:
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: eazyweek-centriq-uat-web
+  NODE_VERSION: '22.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---- checkout ----
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---- build ----
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: https://REPLACE-WITH-ACTUAL-API-HOSTNAME
+          VITE_IDLE_MINUTES: 30
+        run: npm run build
+
+      # ---- deploy ----
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_CENTRIQ_UAT_WEB_PUBLISH_PROFILE }}
+          package: ./dist
