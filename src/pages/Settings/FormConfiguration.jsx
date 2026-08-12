@@ -23,9 +23,9 @@ const CSS = `
   .fcfg-inp:focus { border-color:#334B71; box-shadow:0 0 0 3px rgba(51,75,113,.1); }
   .fcfg-inp:disabled { background:#f8fafc; color:#94a3b8; cursor:not-allowed; }
   .fcfg-tbl { width:100%; border-collapse:collapse; font-size:13px; }
-  .fcfg-tbl th { padding:9px 12px; text-align:left; font-weight:700; color:#334B71;
+  .fcfg-tbl th { padding:9px 12px; text-align:left; font-weight:700; color:#fff;
     font-size:11px; text-transform:uppercase; letter-spacing:.04em;
-    background:#f8fafc; border-bottom:1px solid #e7ecf4; white-space:nowrap; }
+    background:#18396E; border-bottom:1px solid #e7ecf4; white-space:nowrap; }
   .fcfg-tbl td { padding:9px 12px; border-bottom:1px solid #f1f5f9; color:#334B71;
     vertical-align:middle; }
   .fcfg-tbl tr:last-child td { border-bottom:none; }
@@ -37,13 +37,12 @@ const CSS = `
     cursor:pointer; font-family:Lato,sans-serif; }
   .fcfg-btn:disabled { opacity:.55; cursor:not-allowed; }
   .fcfg-btn-pri { background:#334B71; color:#fff; }
-  .fcfg-btn-sec { background:#DD7766; color:#fff; border:1px solid #DD7766; }
+  .fcfg-btn-sec { background:#DD7766; color:#fff; }
   .fcfg-chk { width:16px; height:16px; accent-color:#334B71; cursor:pointer; }
   .fcfg-chk:disabled { cursor:not-allowed; }
   .fcfg-locked { display:inline-flex; align-items:center; justify-content:center;
     cursor:help; border-bottom:1px dotted #94a3b8; padding-bottom:1px; outline:none; }
   .fcfg-locked:focus-visible { box-shadow:0 0 0 3px rgba(51,75,113,.15); border-radius:4px; }
-  .fcfg-why { font-size:11px; color:#94a3b8; margin-top:3px; line-height:1.4; }
 `;
 
 /* ==== component ==== */
@@ -229,10 +228,10 @@ const FormConfiguration = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="fcfg-btn fcfg-btn-sec" disabled={busy} onClick={() => guard("SET.EDIT", reset)}>
+          <button className="fcfg-btn fcfg-btn-sec" disabled={busy} onClick={() => guard("SETUP.FORMCONFIG_SAVE", reset)}>
             Reset to defaults
           </button>
-          <button className="fcfg-btn fcfg-btn-pri" disabled={busy} onClick={() => guard("SET.EDIT", submit)}>
+          <button className="fcfg-btn fcfg-btn-pri" disabled={busy} onClick={() => guard("SETUP.FORMCONFIG_SAVE", submit)}>
             {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
@@ -304,9 +303,6 @@ const FormConfiguration = () => {
                           />
                         ) : (
                           <span className="fcfg-lock">{r.label} — label fixed for this form</span>
-                        )}
-                        {r.lockMandatory && r.lockReason && (
-                          <div className="fcfg-why">{r.lockReason}</div>
                         )}
                       </td>
                       <td style={{ textAlign: "center" }}>

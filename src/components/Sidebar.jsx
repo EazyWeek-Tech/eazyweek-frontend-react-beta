@@ -732,6 +732,7 @@ const NAV_GROUPS = [
           { name: "Form Configuration", icon:"bx-lock", path:"/settings/formconfiguration", feature: "formconfiguartion"}, 
           { name: "Loyalty Setup", icon: "bx-gift", path: "/loyalty", feature: "loyalty" },
           { name: "Security Settings", icon: "bx-lock-alt", path: "/settings/security" },
+           { name: "Audit Criteria", icon: "bx-form", path: "/audit/criteria" },
           { name: "Discount & Promotion", icon: "bx-purchase-tag", path: "/discounts/manage", feature: "discounts" },
         ],
       },

@@ -4,13 +4,13 @@ import { API_BASE_URL } from '../../config';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { usePermissions } from '../Settings/usePermissions';
-import {
+/* import {
   STATUS_OPTIONS,
   INVOICE_TYPE_OPTIONS,
   invoiceTypeLabel,
   normStatus,
   statusClass,
-} from './einvoiceUtils';
+} from './einvoiceUtils'; */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    E-INVOICE DETAILED REPORT  (workbook TST-085 → TST-092)

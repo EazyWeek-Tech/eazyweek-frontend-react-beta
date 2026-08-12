@@ -23,7 +23,7 @@ const authPost = async (url, body) => {
   }
 };
 
-const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup","Advance"];
+const TABS = ["General","Address","Contact","Logo","Tax","Numbering","Setup","Advance","Modules","E-Invoice"];
 
 // FRD 4.8.2: Purpose is mandatory on every centre address. Same list the Legal
 // Entity screen uses, so both write the identical values to PURPOSE.
@@ -220,6 +220,8 @@ export default function CentreSetup() {
   const [logoPreview,  setLogoPreview]  = useState("");
   const [logoMimeType, setLogoMimeType] = useState("");
   const [taxItems,     setTaxItems]     = useState([]);
+  const [moduleSource, setModuleSource] = useState([]);
+  const [einvoice,     setEinvoice]     = useState(null);
   const [numbering,    setNumbering]    = useState({
     prefixCustomer:"CUST-", prefixInvoice:"INV-", prefixReturn:"SR-",
     prefixCreditNote:"CN-", prefixAdvance:"ADV-", prefixGiftCard:"GC-",
@@ -279,6 +281,8 @@ export default function CentreSetup() {
         setLogoMimeType(d.logoMimeType || "");
         setTaxItems(d.tax || []);
         if (d.numbering) setNumbering(d.numbering);
+        setModuleSource(d.moduleSource || []);
+        setEinvoice(d.einvoice || null);
         if (d.setup)     setSetup(s => ({
           ...s,
           ...d.setup,
@@ -349,6 +353,17 @@ export default function CentreSetup() {
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveNumbering`, { centerCode: selected, numbering });
       } else if (activeTab === "Setup" || activeTab === "Advance") {
         res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveSetup`, { centerCode: selected, setup });
+      } else if (activeTab === "E-Invoice") {
+        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveEInvoice`, { centerCode: selected, einvoice });
+      } else if (activeTab === "Modules") {
+        res = await authPost(`${API_BASE_URL}/api/Settings/Centre/SaveModuleSource`, {
+          centerCode: selected,
+          modules: moduleSource.map(m => ({
+            moduleCode:  m.moduleCode,
+            sourceMode:  m.sourceMode,
+            cutoverDate: m.cutoverDate || null,
+          })),
+        });
       }
 
       if (res && !res.success) throw new Error(res.message);
@@ -412,7 +427,15 @@ export default function CentreSetup() {
         .add-btn { background:#fff; border:1px solid #e7ecf4; border-radius:8px; padding:7px 14px; font-weight:700; font-size:12px; color:#334b71; cursor:pointer; }
         .del-btn { background:#b91c1c; border:none; color:#fff; cursor:pointer; font-size:10px; font-weight: 600; text-transform: capitalize; border-radius: 4px; padding: 4px; }
         .primary-badge { background:#e6f4ef; color:#2e7d5e; border:1px solid #b3d9cc; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700; }
-        @media(max-width:768px){ .cs-wrap{ grid-template-columns:1fr; } }
+        .ms-table { width:100%; border-collapse:collapse; border:1px solid #e7ecf4; border-radius:10px; overflow:hidden; font-size:13px; }
+        .ms-table thead th { background:#f7f9fc; padding:10px 12px; text-align:left; font-size:11px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase; color:#6d7a8a; border-bottom:1px solid #e7ecf4; }
+        .ms-table tbody td { padding:12px; border-bottom:1px solid #e7ecf4; vertical-align:middle; }
+        .ms-table tbody tr:last-child td { border-bottom:none; }
+        .ms-table tbody tr:hover { background:#fafbfc; }
+        .ms-table input[type=date] { padding:6px 10px; border:1px solid #e7ecf4; border-radius:8px; font-family:inherit; font-size:13px; color:#2b3f73; }
+        .ms-table input[type=date]:focus { outline:none; border-color:#334b71; box-shadow:0 0 0 3px rgba(51,75,113,0.14); }
+        .ms-table input[type=radio]:focus-visible { outline:2px solid #334b71; outline-offset:3px; }
+        @media(max-width:768px){ .cs-wrap{ grid-template-columns:1fr; } .ms-table { display:block; overflow-x:auto; white-space:nowrap; } }
       `}</style>
 
       <div className="cs-wrap">
@@ -758,6 +781,171 @@ export default function CentreSetup() {
                 )}
 
                 {/* ── SETUP TAB ── */}
+                {activeTab === "E-Invoice" && einvoice && (
+                  <>
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:6 }}>Seller details sent to ZATCA</div>
+                      <div style={{ fontSize:13, color:"#6d7a8a", marginBottom:14, maxWidth:660, lineHeight:1.55 }}>
+                        These appear on every e-invoice this centre reports. VAT number, device ID and
+                        the integration centre ID are prefilled from the centre record &mdash; edit them here
+                        only if ZATCA should receive something different.
+                        {!einvoice.configured && (
+                          <span style={{ display:"block", marginTop:8, color:"#8a6516" }}>
+                            Not saved yet. Invoices for this centre cannot be reported until this is saved.
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid-2">
+                        <div className="field">
+                          <label>VAT Number * (15 digits)</label>
+                          <input value={einvoice.vatNumber} maxLength={15} inputMode="numeric"
+                            onChange={e => setEinvoice(p => ({ ...p, vatNumber: e.target.value }))} placeholder="3XXXXXXXXXXXXX3" />
+                        </div>
+                        <div className="field">
+                          <label>Branch CRN</label>
+                          <input value={einvoice.branchCrn}
+                            onChange={e => setEinvoice(p => ({ ...p, branchCrn: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Device ID</label>
+                          <input value={einvoice.deviceId}
+                            onChange={e => setEinvoice(p => ({ ...p, deviceId: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Integration Centre ID</label>
+                          <input value={einvoice.sourceCentreId}
+                            onChange={e => setEinvoice(p => ({ ...p, sourceCentreId: e.target.value }))}
+                            placeholder="Blank if this centre is not on the integration" />
+                        </div>
+                        <div className="field">
+                          <label>Company Name *</label>
+                          <input value={einvoice.companyName}
+                            onChange={e => setEinvoice(p => ({ ...p, companyName: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Company Name (Arabic)</label>
+                          <input dir="rtl" value={einvoice.companyNameAr}
+                            onChange={e => setEinvoice(p => ({ ...p, companyNameAr: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Clinic Name *</label>
+                          <input value={einvoice.clinicName}
+                            onChange={e => setEinvoice(p => ({ ...p, clinicName: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Clinic Name (Arabic)</label>
+                          <input dir="rtl" value={einvoice.clinicNameAr}
+                            onChange={e => setEinvoice(p => ({ ...p, clinicNameAr: e.target.value }))} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}>Registered Address</div>
+                      <div className="grid-2">
+                        {[
+                          { label:"Street",            key:"streetName" },
+                          { label:"Street (Arabic)",   key:"streetNameAr", rtl:true },
+                          { label:"Building Number",   key:"buildingNumber" },
+                          { label:"Postal Code",       key:"postalZone" },
+                          { label:"City",              key:"cityName" },
+                          { label:"City (Arabic)",     key:"cityNameAr", rtl:true },
+                          { label:"District",          key:"citySubdivisionName" },
+                          { label:"District (Arabic)", key:"citySubdivisionNameAr", rtl:true },
+                        ].map(f => (
+                          <div className="field" key={f.key}>
+                            <label>{f.label}</label>
+                            <input dir={f.rtl ? "rtl" : "ltr"} value={einvoice[f.key]}
+                              onChange={e => setEinvoice(p => ({ ...p, [f.key]: e.target.value }))} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="card-inner">
+                      <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:12 }}>Invoice Footnote</div>
+                      <div className="grid-2">
+                        <div className="field">
+                          <label>English</label>
+                          <textarea rows={4} value={einvoice.invoiceNoteEn}
+                            onChange={e => setEinvoice(p => ({ ...p, invoiceNoteEn: e.target.value }))} />
+                        </div>
+                        <div className="field">
+                          <label>Arabic</label>
+                          <textarea rows={4} dir="rtl" value={einvoice.invoiceNoteAr}
+                            onChange={e => setEinvoice(p => ({ ...p, invoiceNoteAr: e.target.value }))} />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "Modules" && (
+                  <div className="card-inner">
+                    <div style={{ fontWeight:800, fontSize:14, color:"#2b3f73", marginBottom:6 }}>Module Source</div>
+                    <div style={{ fontSize:13, color:"#6d7a8a", marginBottom:16, maxWidth:640, lineHeight:1.55 }}>
+                      For each module, choose whether this centre runs on EazyWeek or on the integrated
+                      system. Set a switch-over date if the centre is mid-migration &mdash; records are matched
+                      on their own date, so anything created before that date still comes from the old system.
+                    </div>
+
+                    <table className="ms-table">
+                      <thead>
+                        <tr>
+                          <th>Module</th>
+                          <th style={{ textAlign:"center", width:120 }}>Own</th>
+                          <th style={{ textAlign:"center", width:120 }}>Integration</th>
+                          <th style={{ width:190 }}>Switch-over date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {moduleSource.length === 0 ? (
+                          <tr><td colSpan={4} style={{ padding:"24px 12px", color:"#888" }}>
+                            No modules configured for this centre yet.
+                          </td></tr>
+                        ) : moduleSource.map(m => (
+                          <tr key={m.moduleCode}>
+                            <td>
+                              <div style={{ fontWeight:600 }}>{m.label}</div>
+                              <div style={{ fontSize:12, color:"#6d7a8a", marginTop:3 }}>{m.description}</div>
+                              {!m.configured && (
+                                <span style={{ display:"inline-block", marginTop:6, fontSize:11, color:"#8a6516",
+                                               background:"#fdf8ec", padding:"2px 8px", borderRadius:10 }}>
+                                  Not set &mdash; defaults to Integration
+                                </span>
+                              )}
+                            </td>
+                            {["OWN","INTEGRATION"].map(mode => (
+                              <td key={mode} style={{ textAlign:"center" }}>
+                                <input
+                                  type="radio"
+                                  name={`ms-${m.moduleCode}`}
+                                  value={mode}
+                                  checked={m.sourceMode === mode}
+                                  aria-label={`${m.label} runs on ${mode === "OWN" ? "Own" : "Integration"}`}
+                                  onChange={() => setModuleSource(prev => prev.map(x =>
+                                    x.moduleCode === m.moduleCode ? { ...x, sourceMode: mode } : x))}
+                                  style={{ width:17, height:17, cursor:"pointer", accentColor:"#2b3f73" }}
+                                />
+                              </td>
+                            ))}
+                            <td>
+                              <input
+                                type="date"
+                                value={m.cutoverDate || ""}
+                                aria-label={`${m.label} switch-over date`}
+                                onChange={e => setModuleSource(prev => prev.map(x =>
+                                  x.moduleCode === m.moduleCode ? { ...x, cutoverDate: e.target.value } : x))}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 {activeTab === "Setup" && (
                   <>
                     {/* Gift Card */}

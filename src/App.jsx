@@ -109,6 +109,8 @@ import LiabilityReport from "./pages/Reports/LiabilityReport";
 import PaymentReport from "./pages/Reports/PaymentReport";
 import MasterUploader from "./pages/DataMigration/MasterUploader";
 import FormConfiguration from "./pages/Settings/FormConfiguration"; 
+import EInvoice from "./pages/Einvoice";
+import AuditCriteria from "./pages/Audit/AuditCriteria";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -259,8 +261,7 @@ if (user && showFirstLogin) {
       {/*Add Routes WITH Sidebar + Header */}
       
       
-      
-
+    
 <Route path="/segmentaddform/:employeeCode" element={<SegmentAddForm />} />
 
       <Route
@@ -291,7 +292,7 @@ if (user && showFirstLogin) {
                     element={gate("opportunity", <AddLeadCustomerList />)}
                   />
 
-                  
+                  <Route path="/einvoice" element={<EInvoice />} />
 
                    <Route
                     path="/masters/packages"
@@ -325,6 +326,8 @@ if (user && showFirstLogin) {
 
 <Route path="/emr/forms"           element={<FormList />} />
 <Route path="/emr/builder/:formCode" element={<FormBuilder />} />
+  <Route path="/audit/criteria" element={<AuditCriteria />} />
+
 
 {/* <Route path="/opportunity/external/:fromDate/:toDate/:oppCode" element={<ExternalLeadsTable />} /> */}
 

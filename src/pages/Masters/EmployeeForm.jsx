@@ -114,11 +114,11 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
     workCountryCode:"", workPhone:"",
     address1:"", address2:"", city:"", state:"", postalCode:"", country:"",
     job:"", primaryCentre:"", employmentStartDate:"",
-    history:[], roles:[],
+    history:[], roles:[], auditSegments:[],
   };
 
   const [form,    setForm]    = useState(BLANK);
-  const [tab,     setTab]     = useState(0);   // 0=Profile 1=Employment 2=History 3=Roles
+  const [tab,     setTab]     = useState(0);   // 0=Profile 1=Employment 2=History 3=Roles 4=Audit Segments
   const [errors,  setErrors]  = useState({});
   const [saving,  setSaving]  = useState(null); // null | "save" | "submit"
   const [loading, setLoading] = useState(isEdit);
@@ -130,6 +130,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
   const [jobs,         setJobs]          = useState([]);
   const [cities,       setCities]        = useState([]);
   const [roles,        setRoles]         = useState([]);
+  const [auditSegmentOptions, setAuditSegmentOptions] = useState([]);
   const [isDirty,      setIsDirty]       = useState(false);
 
   const showToast = (msg, type="success") => {
@@ -167,6 +168,9 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
       .catch(() => {});
     authGet(`${API_BASE_URL}/api/master/Roles`)
       .then(d => setRoles(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    authGet(`${API_BASE_URL}/api/employee/AuditSegments`)
+      .then(d => setAuditSegmentOptions(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);
 
@@ -239,6 +243,11 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
           })),
           roles: (d.roles || []).map(r => ({
             id: r.RECID, centreCode: r.CENTERCODE, role: r.ROLE, primaryClinic: !!r.PRIMARYCLINIC,
+          })),
+          auditSegments: (d.auditSegments || []).map(a => ({
+            id: a.RECID,
+            centreCode:   (a.CENTERCODE   || "").trim(),
+            auditSegment: (a.AUDITSEGMENT || "").trim(),
           })),
         });
       })
@@ -317,6 +326,20 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
   const setRoleRow  = (i, field, val) => {
     setForm(p => { const r = [...p.roles]; r[i] = { ...r[i], [field]: val }; return { ...p, roles: r }; });
     setIsDirty(true);
+  };
+
+  /* ---- audit segment mapping ---- */
+  const addAuditSegRow = () => { setForm(p => ({ ...p, auditSegments: [...p.auditSegments, { centreCode:"", auditSegment:"" }] })); setIsDirty(true); };
+  const delAuditSegRow = (i) => { setForm(p => ({ ...p, auditSegments: p.auditSegments.filter((_,idx)=>idx!==i) })); setIsDirty(true); };
+  const setAuditSegRow = (i, field, val) => {
+    setForm(p => { const a = [...p.auditSegments]; a[i] = { ...a[i], [field]: val }; return { ...p, auditSegments: a }; });
+    setIsDirty(true);
+  };
+  const auditSegKey = (r) => `${(r.centreCode||"").trim().toUpperCase()}|${(r.auditSegment||"").trim().toUpperCase()}`;
+  const isDuplicateAuditSeg = (i) => {
+    const row = form.auditSegments[i];
+    if (!row?.centreCode || !row?.auditSegment) return false;
+    return form.auditSegments.findIndex(r => auditSegKey(r) === auditSegKey(row)) !== i;
   };
 
   const handleBack = () => {
@@ -483,7 +506,7 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
 
       {/* Tabs */}
       <div style={{ borderBottom:"1px solid #e7ecf4", marginBottom:20 }}>
-        {["Profile","Employment Details","Employment History","Roles"].map((t,i) => (
+        {["Profile","Employment Details","Employment History","Roles","Audit Segments"].map((t,i) => (
           <button key={t} style={tabStyle(i)} onClick={() => setTab(i)}>{t}</button>
         ))}
       </div>
@@ -802,6 +825,82 @@ const EmployeeForm = ({ employeeCode, isAdmin: isAdminProp, isEntityLevel: isEnt
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab 4: Audit Segments ────────────────────────────────────────────── */}
+      {tab === 4 && (
+        <div style={{ background:"#fff", border:"1px solid #e7ecf4", borderRadius:12, padding:24 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div>
+              <div style={{ fontWeight:800, fontSize:14, color:"#1e293b" }}>Audit Segment Mapping</div>
+              <div style={{ fontSize:11, color:"#94a3b8", marginTop:3 }}>
+                Map this employee to the segments they can be audited under. The Employee
+                dropdown on Audit Creation lists only employees mapped to the selected segment
+                at that centre.
+              </div>
+            </div>
+            {isAdmin && (
+              <button onClick={addAuditSegRow}
+                style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:8,
+                  padding:"7px 14px", fontWeight:700, fontSize:12, cursor:"pointer", whiteSpace:"nowrap" }}>
+                + Add Row
+              </button>
+            )}
+          </div>
+
+          {form.auditSegments.length === 0 ? (
+            <div style={{ textAlign:"center", padding:30, color:"#94a3b8", fontSize:13 }}>
+              No audit segments mapped. {isAdmin ? "Click \"+ Add Row\" to map a centre and segment." : ""}
+            </div>
+          ) : (
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr style={{ background:"#f1f5f9" }}>
+                  {["Centre","Audit Segment",""].map(h => (
+                    <th key={h} style={{ padding:"9px 12px", textAlign:"left",
+                      fontSize:11, fontWeight:700, color:"#475569", borderBottom:"1px solid #e2e8f0",
+                      textTransform:"uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {form.auditSegments.map((a,i) => {
+                  const dup = isDuplicateAuditSeg(i);
+                  return (
+                    <tr key={i} style={{ borderBottom:"1px solid #f1f5f9" }}>
+                      <td style={{ padding:"8px 12px", width:"40%" }}>
+                        <Sel value={a.centreCode} onChange={e => setAuditSegRow(i,"centreCode",e.target.value)} disabled={!isAdmin}>
+                          <option value="">Select centre</option>
+                          {branchCentres.map(c => <option key={c.code||c.CENTERCODE} value={c.code||c.CENTERCODE}>
+                            {c.name||c.CENTERNAME||c.code}
+                          </option>)}
+                        </Sel>
+                      </td>
+                      <td style={{ padding:"8px 12px", width:"45%" }}>
+                        <Sel value={a.auditSegment} onChange={e => setAuditSegRow(i,"auditSegment",e.target.value)} disabled={!isAdmin}>
+                          <option value="">Select segment</option>
+                          {auditSegmentOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                        </Sel>
+                        {dup && (
+                          <div style={{ fontSize:11, color:"#b91c1c", marginTop:3 }}>
+                            Already mapped for this centre — this row will be ignored on save.
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding:"8px 12px" }}>
+                        {isAdmin && (
+                          <button onClick={() => delAuditSegRow(i)}
+                            style={{ background:"#b91c1c", border:"none", color:"#fff",
+                              cursor:"pointer", fontSize:12, padding:"10px", borderRadius:"8px" }} title="Remove">Delete</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

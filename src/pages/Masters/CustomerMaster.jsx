@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { API_BASE_URL } from "../../config";
 import { usePermissions } from "../Settings/usePermissions";
 import { makeRequireAccess, checkAccess } from "../Settings/masterAccess";
@@ -102,9 +102,11 @@ const COLUMNS = [
 // ─────────────────────────────────────────────────────────────────────────────
 const CustomerMaster = () => {
   const [customers,         setCustomers]         = useState([]);
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [totalCustomers,    setTotalCustomers]    = useState(0);
   const [searchTerm,        setSearchTerm]        = useState("");
+  const [searchQuery,       setSearchQuery]       = useState("");
   const [loading,           setLoading]           = useState(true);
+  const [fetching,          setFetching]          = useState(false);
   const [showForm,          setShowForm]          = useState(false);
   const [formData,          setFormData]          = useState(BLANK_FORM);
   const [saving,            setSaving]            = useState(false);
@@ -130,17 +132,37 @@ const CustomerMaster = () => {
   // `silent` refreshes the rows in place without flipping `loading`, so a
   // post-save refresh leaves the existing table on screen instead of replacing
   // it with "Loading customers...".
+  // Paging, search and sort all happen server-side. The page never holds more
+  // than one page of rows, so a 170k-customer centre costs the same as a 200-
+  // customer one. seqRef drops a slow response that a newer request has already
+  // superseded — typing fast used to let an older page overwrite a newer one.
+  const seqRef = useRef(0);
   const fetchCustomers = useCallback(async ({ silent = false } = {}) => {
+    const seq = ++seqRef.current;
     try {
       if (!silent) setLoading(true);
-      const res  = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, { headers: authHeaders() });
+      setFetching(true);
+      const params = new URLSearchParams({
+        search: searchQuery,
+        page:   String(page),
+        limit:  String(pageSize),
+      });
+      if (sortField) { params.set("sortField", sortField); params.set("sortDir", sortDir); }
+      const res  = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers?${params}`, { headers: authHeaders() });
       const json = await res.json();
-      const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+      if (seq !== seqRef.current) return;
+      const payload = json?.data ?? json;
+      const list    = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
       setCustomers(list);
-      setFilteredCustomers(list);
+      setTotalCustomers(Number(payload?.total ?? list.length) || 0);
     } catch { console.error("Failed to fetch customers"); }
-    finally { if (!silent) setLoading(false); }
-  }, []);
+    finally {
+      if (seq === seqRef.current) {
+        setFetching(false);
+        if (!silent) setLoading(false);
+      }
+    }
+  }, [searchQuery, page, pageSize, sortField, sortDir]);
 
   // Legal Entity → Setup rules. Permissive defaults until the fetch lands, so a
   // slow config call never blocks a save that would otherwise be valid.
@@ -167,36 +189,21 @@ const CustomerMaster = () => {
       .then(r => r.json()).then(j => { const d = j?.data ?? j; if (d?.countryId) setCentreCountryId(Number(d.countryId)); }).catch(() => {});
   }, []);
 
-  // ── Search filter ─────────────────────────────────────────────────────────
+  // ── Search (debounced, sent to the server) ────────────────────────────────
   useEffect(() => {
-    const lower = searchTerm.toLowerCase();
-    setFilteredCustomers(customers.filter(c =>
-      [c.firstName, c.lastName, c.custId, c.mobile, c.centerName].join(" ").toLowerCase().includes(lower)
-    ));
-  }, [searchTerm, customers]);
+    const t = setTimeout(() => setSearchQuery(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
-  // ── Column sort + pagination (PackageMaster-style) ─────────────────────────
-  const sortedCustomers = useMemo(() => {
-    if (!sortField) return filteredCustomers;
-    const col = COLUMNS.find((c) => c.field === sortField);
-    if (!col?.get) return filteredCustomers;
-    const accessor = col.sortGet || col.get;
-    const arr = [...filteredCustomers];
-    arr.sort((a, b) => {
-      const va = String(accessor(a) ?? "").toLowerCase();
-      const vb = String(accessor(b) ?? "").toLowerCase();
-      if (va < vb) return sortDir === "asc" ? -1 : 1;
-      if (va > vb) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return arr;
-  }, [filteredCustomers, sortField, sortDir]);
+  // ── Pagination (server-side) ──────────────────────────────────────────────
+  useEffect(() => { setPage(1); }, [searchQuery, pageSize, sortField, sortDir]);
 
-  useEffect(() => { setPage(1); }, [searchTerm, pageSize, sortField, sortDir]);
-
-  const totalPages     = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const totalPages     = Math.max(1, Math.ceil(totalCustomers / pageSize));
   const safePage       = Math.min(page, totalPages);
-  const pagedCustomers = sortedCustomers.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedCustomers = customers;
+  const rangeFrom      = totalCustomers === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const rangeTo        = Math.min(safePage * pageSize, totalCustomers);
+  const fmt            = (n) => Number(n || 0).toLocaleString();
 
   const toggleSort = (field) => {
     if (!field) return;
@@ -299,7 +306,7 @@ const CustomerMaster = () => {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Customer Master</h2>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <button onClick={() => { setSearchTerm(""); fetchCustomers(); }}
+          <button onClick={() => { setSearchTerm(""); setSearchQuery(""); setPage(1); fetchCustomers(); }}
             style={{ height:40, padding:"0 16px", background:"#fff", color:"#334b71", border:"1.5px solid #e2e8f0",
               borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
             ↻ Refresh
@@ -312,16 +319,46 @@ const CustomerMaster = () => {
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:10, marginBottom:18 }}>
+      <div style={{ display:"flex", gap:10, marginBottom:10, alignItems:"center" }}>
         <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search by name, ID, phone, center…"
           style={{ flex:1, height:40, padding:"0 14px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:13 }} />
       </div>
 
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14,
+        fontSize:13, color:"#64748b", minHeight:20 }}>
+        {loading ? "Loading…" : (
+          <>
+            <span>
+              Showing <strong style={{ color:"#334b71" }}>{fmt(rangeFrom)}–{fmt(rangeTo)}</strong>
+              {" of "}
+              <strong style={{ color:"#334b71" }}>{fmt(totalCustomers)}</strong>
+              {searchQuery ? " matching customers" : " customers"}
+            </span>
+            {fetching && (
+              <span style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#94a3b8" }}>
+                <span style={{ width:10, height:10, borderRadius:"50%", border:"2px solid #cbd5e1",
+                  borderTopColor:"#334b71", display:"inline-block", animation:"cmspin .7s linear infinite" }} />
+                Updating…
+              </span>
+            )}
+            {searchQuery && (
+              <button onClick={() => { setSearchTerm(""); setSearchQuery(""); }}
+                style={{ background:"none", border:"none", color:"#334b71", fontSize:12,
+                  fontWeight:700, cursor:"pointer", padding:0 }}>
+                Clear search
+              </button>
+            )}
+          </>
+        )}
+        <style>{"@keyframes cmspin{to{transform:rotate(360deg)}}"}</style>
+      </div>
+
       {loading ? (
         <div style={{ textAlign:"center", padding:40, color:"#64748b" }}>Loading customers…</div>
       ) : (
-        <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff" }}>
+        <div style={{ borderRadius:14, overflow:"hidden", border:"1px solid #e2e8f0", background:"#fff",
+          opacity: fetching ? 0.55 : 1, transition:"opacity .15s" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:"#334b71" }}>
@@ -342,7 +379,9 @@ const CustomerMaster = () => {
             </thead>
             <tbody>
               {pagedCustomers.length === 0 ? (
-                <tr><td colSpan={COLUMNS.length} style={{ textAlign:"center", padding:40, color:"#94a3b8", fontSize:13 }}>No customers found.</td></tr>
+                <tr><td colSpan={COLUMNS.length} style={{ textAlign:"center", padding:40, color:"#94a3b8", fontSize:13 }}>
+                  {searchQuery ? `No customers match "${searchQuery}".` : "No customers found."}
+                </td></tr>
               ) : pagedCustomers.map((row, i) => (
                 <tr key={row.recId || row.custId || i} style={{ borderBottom:"1px solid #f1f5f9" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f8faff")}
@@ -374,7 +413,7 @@ const CustomerMaster = () => {
       )}
 
       {/* Pagination */}
-      {!loading && sortedCustomers.length > 0 && (
+      {!loading && totalCustomers > 0 && (
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14, flexWrap:"wrap", gap:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#64748b" }}>
             <span>Rows per page:</span>
@@ -383,7 +422,7 @@ const CustomerMaster = () => {
               {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <span style={{ marginLeft:8 }}>
-              {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, sortedCustomers.length)} of {sortedCustomers.length}
+              {fmt(rangeFrom)}–{fmt(rangeTo)} of {fmt(totalCustomers)}
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -392,7 +431,7 @@ const CustomerMaster = () => {
                 color: safePage <= 1 ? "#cbd5e1" : "#334b71", fontWeight:700, fontSize:13, cursor: safePage <= 1 ? "not-allowed" : "pointer" }}>
               ‹ Prev
             </button>
-            <span style={{ fontSize:13, color:"#475569", fontWeight:600 }}>Page {safePage} of {totalPages}</span>
+            <span style={{ fontSize:13, color:"#475569", fontWeight:600 }}>Page {fmt(safePage)} of {fmt(totalPages)}</span>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
               style={{ height:32, padding:"0 12px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff",
                 color: safePage >= totalPages ? "#cbd5e1" : "#334b71", fontWeight:700, fontSize:13, cursor: safePage >= totalPages ? "not-allowed" : "pointer" }}>
