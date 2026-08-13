@@ -10,11 +10,48 @@ const authHdr    = () => ({ "Content-Type": "application/json", Authorization: `
 const pad2    = (n) => String(n).padStart(2, "0")
 const todayYMD = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}` }
 
+/* ---- export access ---- */
+const EXPORT_ROLES = ["admin", "administrator", "super admin", "superadmin", "product", "product team"]
+const canExport = () => {
+  const u = getUser()
+  const claims = [u.roleName, u.role, u.roleCode, u.userType, u.designation]
+  if (Array.isArray(u.roles)) claims.push(...u.roles.map(r => (r && (r.roleName || r.name)) || r))
+  return claims.some(v => v && EXPORT_ROLES.includes(String(v).trim().toLowerCase()))
+}
+
 const STATUS_LABEL = { "0": "Pending", "1": "Partially Completed", "2": "Completed" }
 const STATUS_STYLE = {
   "Pending":              { bg: "#FFF8E7", color: "#B45309", dot: "#F59E0B" },
   "Partially Completed":  { bg: "#EFF6FF", color: "#1D4ED8", dot: "#334B71" },
   "Completed":            { bg: "#F0FDF4", color: "#166534", dot: "#22C55E" },
+}
+
+/* ---- csv export ---- */
+const EXPORT_COLUMNS = [
+  ["Reference ID",     r => r.referenceID],
+  ["Appointment Date", r => r.appointmentDate],
+  ["Customer ID",      r => r.customerID],
+  ["Customer Name",    r => r.customerName],
+  ["Mobile",           r => r.mobileNo],
+  ["Clinic",           r => r.clinicName],
+  ["Status",           r => STATUS_LABEL[String(r.status)] || r.status || "Pending"],
+  ["Auditor",          r => r.auditorName || "Unassigned"],
+]
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+const buildCsv = (rows) => [
+  EXPORT_COLUMNS.map(c => csvCell(c[0])).join(","),
+  ...rows.map(r => EXPORT_COLUMNS.map(c => csvCell(c[1](r))).join(",")),
+].join("\r\n")
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement("a")
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 /* ── §4.5 helpers (inline; no external CSS) ────────────────────────────────── */
@@ -186,6 +223,16 @@ export default function CourtesyCallDashboard() {
   const start       = (page - 1) * perPage
   const pageData    = filtered.slice(start, start + perPage)
 
+  const allowExport = useMemo(() => canExport(), [])
+
+  const handleExport = () => {
+    if (!allowExport) { setToast({ message: "You do not have access to export courtesy calls.", type: "error" }); return }
+    if (!filtered.length) { setToast({ message: "Nothing to export for the selected filters.", type: "error" }); return }
+    const centre = (getUser().centerName || getUser().centerCode || "centre").replace(/[^\w-]+/g, "-")
+    downloadCsv(buildCsv(filtered), `courtesy-calls_${centre}_${filters.fromDate}_to_${filters.toDate}.csv`)
+    setToast({ message: `Exported ${filtered.length} record${filtered.length !== 1 ? "s" : ""}.`, type: "success" })
+  }
+
   return (
     <div style={{ fontFamily:"Lato,sans-serif", minHeight:"100vh", padding:"0" }}>
       <style>{`
@@ -333,8 +380,22 @@ export default function CourtesyCallDashboard() {
             </select>
             <span>entries</span>
           </div>
-          <div style={{ fontSize:13, color:"#64748b" }}>
-            {loading ? "Loading…" : `Showing ${filtered.length > 0 ? start+1 : 0}–${Math.min(start+perPage, filtered.length)} of ${filtered.length}`}
+          <div style={{ display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", justifyContent:"flex-end" }}>
+            <div style={{ fontSize:13, color:"#64748b" }}>
+              {loading ? "Loading…" : `Showing ${filtered.length > 0 ? start+1 : 0}–${Math.min(start+perPage, filtered.length)} of ${filtered.length}`}
+            </div>
+            {allowExport && (
+              <button className="cc-btn cc-btn-pri" onClick={handleExport}
+                style={{ padding:"7px 16px", display:"inline-flex", alignItems:"center", gap:7, whiteSpace:"nowrap" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export
+              </button>
+            )}
           </div>
         </div>
 

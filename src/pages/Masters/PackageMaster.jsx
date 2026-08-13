@@ -496,6 +496,29 @@ const EMPTY = {
 };
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+/* ---- csv export ---- */
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const buildCsv = (columns, rows) => [
+  columns.map(c => csvCell(c.label)).join(","),
+  ...rows.map(r => columns.map(c => csvCell(c.value(r))).join(",")),
+].join("\r\n");
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+const exportBtnStyle = (busy) => ({
+  height: 40, padding: "0 16px", background: "#fff", color: "#334b71",
+  border: "1.5px solid #e2e8f0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+  cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1,
+});
 const PackageMaster = () => {
   // ── Access rights ─────────────────────────────────────────────────────────
   const { has, guard, notifyDenied } = usePermissions();
@@ -584,6 +607,21 @@ const PackageMaster = () => {
   const totalPages  = Math.max(1, Math.ceil(sortedPackages.length / pageSize));
   const safePage    = Math.min(page, totalPages);
   const pagedPackages = sortedPackages.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const handleExport = () => {
+    if (!sortedPackages.length) { showToast("Nothing to export.","error"); return; }
+    const columns = [
+      { label:"Package Code", value:(r)=>r.PACKAGECODE },
+      { label:"Package Name", value:(r)=>r.PACKAGENAME },
+      { label:"Category",     value:(r)=>r.CATEGORY },
+      { label:"Sub-Category", value:(r)=>r.SUBCATEGORY },
+      { label:"Centre Name",  value:(r)=>centreNames(r.CENTRES) },
+      { label:"Quick Cart",   value:(r)=>r.ADDTOQUICKCART ? "Yes" : "No" },
+      { label:"Status",       value:(r)=>r.STATUS },
+    ];
+    downloadCsv(buildCsv(columns, sortedPackages), `package-master_${stamp()}.csv`);
+    showToast(`Exported ${sortedPackages.length} packages.`);
+  };
 
   const [formDirty, setFormDirty] = useState(false);
 
@@ -819,7 +857,10 @@ const PackageMaster = () => {
       {toast && <div style={{ marginBottom:14, padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:600, background:toast.type==="success"?"#e6f4ef":"#fdf3f3", border:`1px solid ${toast.type==="success"?"#b3d9cc":"#f0c4c0"}`, color:toast.type==="success"?"#2e7d5e":"#b91c1c" }}>{toast.msg}</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Package Master</h2>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <button onClick={handleExport} style={exportBtnStyle(false)}>⭳ Export</button>
         <button onClick={() => requireAccess("MDM.PACKAGES_CREATE", openCreate)} style={{ height:40, padding:"0 20px", background:"#334b71", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ Create New Package</button>
+        </div>
       </div>
       <div style={{ display:"flex", gap:10, marginBottom:18 }}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by code or name…"

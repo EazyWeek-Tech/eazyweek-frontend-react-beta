@@ -44,6 +44,39 @@ const rolesChips = (roles) => {
   );
 };
 
+/* ---- csv export ---- */
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const buildCsv = (columns, rows) => [
+  columns.map(c => csvCell(c.label)).join(","),
+  ...rows.map(r => columns.map(c => csvCell(c.value(r))).join(",")),
+].join("\r\n");
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+const exportBtnStyle = (busy) => ({
+  height: 40, padding: "0 16px", background: "#fff", color: "#334b71",
+  border: "1.5px solid #e2e8f0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+  cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1,
+});
+const EXPORT_COLUMNS = [
+  { label:"Employee Code", value:(r)=>r.EMPLOYEECODE },
+  { label:"First Name",    value:(r)=>r.FIRSTNAME },
+  { label:"Last Name",     value:(r)=>r.LASTNAME },
+  { label:"Job",           value:(r)=>r.JOB },
+  { label:"Primary Centre",value:(r)=>r.PRIMARYCENTRE },
+  { label:"Roles",         value:(r)=>r.ROLES },
+  { label:"Status",        value:(r)=>r.STATUS },
+];
+
 const EmployeeMaster = () => {
 
 
@@ -63,6 +96,7 @@ const EmployeeMaster = () => {
   const [view,      setView]      = useState("list"); // list | create | edit
   const [editCode,  setEditCode]  = useState(null);
   const [toast,     setToast]     = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const LIMIT      = 10;
   const totalPages = Math.ceil(total / LIMIT);
@@ -91,6 +125,19 @@ const EmployeeMaster = () => {
   }, [search, status, page]);
 
   useEffect(() => { loadList(); }, [loadList]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ search, status, page: 1, limit: 100000 });
+      const res    = await authGet(`${API_BASE_URL}/api/employee/List?${params}`);
+      const rows   = Array.isArray(res) ? res : (res?.data || []);
+      if (!rows.length) { showToast("Nothing to export.", "error"); return; }
+      downloadCsv(buildCsv(EXPORT_COLUMNS, rows), `employee-master_${stamp()}.csv`);
+      showToast(`Exported ${rows.length} employees.`);
+    } catch { showToast("Export failed.", "error"); }
+    finally { setExporting(false); }
+  };
 
   // Debounce search
   const [searchInput, setSearchInput] = useState("");
@@ -133,11 +180,16 @@ const EmployeeMaster = () => {
           </div>
           <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Employees</h2>
         </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <button onClick={handleExport} disabled={exporting} style={exportBtnStyle(exporting)}>
+          {exporting ? "Exporting…" : "⭳ Export"}
+        </button>
         <button onClick={() => requireAccess("MDM.EMPLOYEES_CREATE", () => setView("create"))}
           style={{ background:"#334b71", color:"#fff", border:"none", borderRadius:10,
             padding:"10px 20px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
           + Create New Employee
         </button>
+        </div>
       </div>
 
       {/* Filters */}

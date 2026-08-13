@@ -27,6 +27,31 @@ const COLUMNS = [
   { label: "Actions",      field: null },
 ];
 
+/* ---- csv export ---- */
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const buildCsv = (columns, rows) => [
+  columns.map(c => csvCell(c.label)).join(","),
+  ...rows.map(r => columns.map(c => csvCell(c.value(r))).join(",")),
+].join("\r\n");
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+const exportBtnStyle = (busy) => ({
+  height: 40, padding: "0 16px", background: "#fff", color: "#334b71",
+  border: "1.5px solid #e2e8f0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+  cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1,
+});
+const EXPORT_COLUMNS = COLUMNS.filter(c => c.get).map(c => ({ label: c.label, value: c.get }));
+
 const ServiceMaster = () => {
 
   const { has, guard, notifyDenied } = usePermissions();
@@ -109,6 +134,11 @@ const ServiceMaster = () => {
   const totalPages    = Math.max(1, Math.ceil(sortedServices.length / entriesPerPage));
   const safePage      = Math.min(currentPage, totalPages);
   const pagedServices = sortedServices.slice((safePage - 1) * entriesPerPage, safePage * entriesPerPage);
+
+  const handleExport = () => {
+    if (!sortedServices.length) return;
+    downloadCsv(buildCsv(EXPORT_COLUMNS, sortedServices), `service-master_${stamp()}.csv`);
+  };
 
   const toggleSort = (field) => {
     if (!field) return;
@@ -287,6 +317,10 @@ const ServiceMaster = () => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1e293b" }}>Service Master</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={handleExport} disabled={!sortedServices.length}
+            style={exportBtnStyle(false)}>
+            ⭳ Export
+          </button>
           <button onClick={() => fetchServiceData()}
             style={{ height: 40, padding: "0 16px", background: "#fff", color: "#334b71", border: "1.5px solid #e2e8f0",
               borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>

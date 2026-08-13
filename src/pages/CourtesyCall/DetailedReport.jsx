@@ -73,6 +73,8 @@ const DetailedReport = () => {
   const [auditorOptions, setAuditorOptions] = useState([])
   const [therapistOptions, setTherapistOptions] = useState([])
   const [toast, setToast] = useState(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
@@ -219,6 +221,7 @@ const DetailedReport = () => {
         const normalized = data.map(normalizeRow)
         setReportData(normalized)
         setTotalRecords(normalized.length)
+        setPage(1)
         setShowResults(true)
       } else {
         setToast({ type: "error", message: "Unexpected response format." })
@@ -311,6 +314,7 @@ const DetailedReport = () => {
     setTotalRecords(0)
     setReportData([])
     setShowResults(false)
+    setPage(1)
   }
 
   const handleReferenceClick = (referenceId) => {
@@ -328,6 +332,24 @@ const DetailedReport = () => {
   const futureAppOptions = toOptionList(["Yes", "No"])
   const satisfactionOptions = toOptionList(["Yes", "No"])
   const customerTypeOptions = toOptionList(["New", "Existing"])
+
+  /* ---- pagination ---- */
+  const totalPages = Math.max(1, Math.ceil(reportData.length / perPage))
+  const pageStart  = (Math.min(page, totalPages) - 1) * perPage
+  const pageRows   = reportData.slice(pageStart, pageStart + perPage)
+  const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, i) => (
+    totalPages <= 5 ? i + 1
+      : page <= 3 ? i + 1
+      : page >= totalPages - 2 ? totalPages - 4 + i
+      : page - 2 + i
+  ))
+  const pgBtn = (active, disabled) => ({
+    border: "1px solid #e7ecf4", borderRadius: 6, padding: "6px 11px", fontSize: 13,
+    fontFamily: "Lato,sans-serif", cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.4 : 1, fontWeight: active ? 700 : 400,
+    background: active ? "#334B71" : "#fff", color: active ? "#fff" : "#334B71",
+    borderColor: active ? "#334B71" : "#e7ecf4",
+  })
 
   // View-only report, gated on its Reports permission (FRD 4.10). Without the
   // right the user gets Access Denied instead of the report (TC-040).
@@ -514,6 +536,21 @@ const DetailedReport = () => {
 
       {showResults && reportData.length > 0 && (
         <div className="report-results">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+            flexWrap:"wrap", gap:8, padding:"10px 2px 12px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#64748b", fontFamily:"Lato,sans-serif" }}>
+              <span>Show</span>
+              <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }}
+                style={{ border:"1px solid #e7ecf4", borderRadius:8, padding:"5px 10px", fontSize:13,
+                  color:"#334B71", fontFamily:"Lato,sans-serif", background:"#fff", outline:"none" }}>
+                {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <span>entries</span>
+            </div>
+            <div style={{ fontSize:13, color:"#64748b", fontFamily:"Lato,sans-serif" }}>
+              Showing {reportData.length > 0 ? pageStart + 1 : 0}–{Math.min(pageStart + perPage, reportData.length)} of {reportData.length}
+            </div>
+          </div>
           <div className="table-container">
             <table className="report-table">
               <thead>
@@ -533,8 +570,8 @@ const DetailedReport = () => {
                 </tr>
               </thead>
               <tbody>
-                {reportData.map((row, index) => (
-                  <tr key={index}>
+                {pageRows.map((row, index) => (
+                  <tr key={pageStart + index}>
                     <td>
                       <button className="reference-link" onClick={() => handleReferenceClick(row.referenceId)}>
                         {row.referenceId}
@@ -560,6 +597,24 @@ const DetailedReport = () => {
               </tbody>
             </table>
           </div>
+
+          {totalPages > 1 && (
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+              flexWrap:"wrap", gap:8, padding:"14px 2px 4px" }}>
+              <div style={{ fontSize:13, color:"#64748b", fontFamily:"Lato,sans-serif" }}>
+                Page {page} of {totalPages}
+              </div>
+              <div style={{ display:"flex", gap:4 }}>
+                <button style={pgBtn(false, page === 1)} disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                <button style={pgBtn(false, page === 1)} disabled={page === 1} onClick={() => setPage((p) => p - 1)}>‹</button>
+                {pageNumbers.map((pg) => (
+                  <button key={pg} style={pgBtn(page === pg, false)} onClick={() => setPage(pg)}>{pg}</button>
+                ))}
+                <button style={pgBtn(false, page === totalPages)} disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+                <button style={pgBtn(false, page === totalPages)} disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

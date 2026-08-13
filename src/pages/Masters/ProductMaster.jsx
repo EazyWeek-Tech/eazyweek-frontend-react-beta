@@ -448,7 +448,40 @@ const emptyPricingRow = (code, name) => ({
 });
 
 /* ── MAIN COMPONENT ────────────────────────────────────────────────────────── */
+/* ---- csv export ---- */
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const buildCsv = (columns, rows) => [
+  columns.map(c => csvCell(c.label)).join(","),
+  ...rows.map(r => columns.map(c => csvCell(c.value(r))).join(",")),
+].join("\r\n");
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+const exportBtnStyle = (busy) => ({
+  height: 40, padding: "0 16px", background: "#fff", color: "#334b71",
+  border: "1.5px solid #e2e8f0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+  cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1,
+});
 const ProductMaster = () => {
+  const EXPORT_COLUMNS = [
+    { label:"Code",     value:(r)=>r.PRODUCTCODE },
+    { label:"Name",     value:(r)=>r.PRODUCTNAME },
+    { label:"Category", value:(r)=>r.CATEGORY },
+    { label:"Type",     value:(r)=>r.PRODUCTTYPE },
+    { label:"Barcode",  value:(r)=>r.BARCODE },
+    { label:"Price",    value:(r)=>r.SELLINGPRICE },
+    { label:"Status",   value:(r)=>r.STATUS },
+  ];
+
   const { has: hasPerm, guard, notifyDenied } = usePermissions();
   const requireAccess = makeRequireAccess({ has: hasPerm, guard, notifyDenied });
 
@@ -512,6 +545,12 @@ const ProductMaster = () => {
   const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
   const safePage   = Math.min(page, totalPages);
   const paged      = sortedProducts.slice((safePage-1)*pageSize, safePage*pageSize);
+
+  const handleExport = () => {
+    if (!sortedProducts.length) { showToast("Nothing to export.","error"); return; }
+    downloadCsv(buildCsv(EXPORT_COLUMNS, sortedProducts), `product-master_${stamp()}.csv`);
+    showToast(`Exported ${sortedProducts.length} products.`);
+  };
 
   // Load all branch centres (entity row excluded from pricing), same as Package
   const loadCentres = async () => {
@@ -659,6 +698,7 @@ const ProductMaster = () => {
             <p style={{ fontSize:13, color:"#6b7280", margin:0 }}>{sortedProducts.length} products</p>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={handleExport} style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4", borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>⭳ Export</button>
             <button onClick={loadList} style={{ padding:"9px 14px", background:"#f1f5f9", border:"1px solid #e7ecf4", borderRadius:8, cursor:"pointer", fontSize:13, color:"#334B71", fontWeight:600 }}>↻ Refresh</button>
             <button onClick={() => requireAccess("MDM.PRODUCTS_CREATE", openCreate)} style={{ padding:"10px 20px", background:"#334B71", color:"#fff", border:"none", borderRadius:8, fontWeight:600, cursor:"pointer", fontSize:14 }}>+ Create New Product</button>
           </div>
@@ -700,7 +740,7 @@ const ProductMaster = () => {
                   </td>
                   <td style={{ padding:"11px 14px", textAlign:"right" }}>
                     <button onClick={()=>requireAccess("MDM.PRODUCTS_EDIT", () => openEdit(p.PRODUCTCODE))} style={{ fontSize:13, padding:"5px 12px", borderRadius:6, border:"none", background:"#fef3c7", color:"#92400e", fontWeight:500, cursor:"pointer" }}>
-                      ✏️ Edit
+                      Edit
                     </button>
                   </td>
                 </tr>

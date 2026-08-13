@@ -100,6 +100,31 @@ const COLUMNS = [
 // ─────────────────────────────────────────────────────────────────────────────
 // CustomerMaster page
 // ─────────────────────────────────────────────────────────────────────────────
+/* ---- csv export ---- */
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const buildCsv = (columns, rows) => [
+  columns.map(c => csvCell(c.label)).join(","),
+  ...rows.map(r => columns.map(c => csvCell(c.value(r))).join(",")),
+].join("\r\n");
+const downloadCsv = (csv, filename) => {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+const exportBtnStyle = (busy) => ({
+  height: 40, padding: "0 16px", background: "#fff", color: "#334b71",
+  border: "1.5px solid #e2e8f0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+  cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1,
+});
+const EXPORT_COLUMNS = COLUMNS.filter(c => c.get).map(c => ({ label: c.label, value: c.get }));
+
 const CustomerMaster = () => {
   const [customers,         setCustomers]         = useState([]);
   const [totalCustomers,    setTotalCustomers]    = useState(0);
@@ -125,6 +150,7 @@ const CustomerMaster = () => {
   const [page,              setPage]              = useState(1);
   const [pageSize,          setPageSize]          = useState(10);
   const [listNotice,        setListNotice]        = useState("");
+  const [exporting,         setExporting]         = useState(false);
 
   const navigate = useNavigate();
 
@@ -171,6 +197,23 @@ const CustomerMaster = () => {
   const L = (k, fallback) => `${fc.labelOf(k, fallback)}${fc.isMandatory(k) ? " *" : ""}`;
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ search: searchQuery, all: "1", page: "1", limit: "500" });
+      if (sortField) { params.set("sortField", sortField); params.set("sortDir", sortDir); }
+      const res     = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers?${params}`, { headers: authHeaders() });
+      const json    = await res.json().catch(() => null);
+      if (!res.ok) { setListNotice(`Export failed (${res.status}): ${json?.message || "server error"}`); return; }
+      const payload = json?.data ?? json;
+      const rows    = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      if (!rows.length) { setListNotice("Nothing to export."); return; }
+      downloadCsv(buildCsv(EXPORT_COLUMNS, rows), `customer-master_${stamp()}.csv`);
+      setListNotice(`Exported ${rows.length} of ${totalCustomers} customers.`);
+    } catch { setListNotice("Export failed."); }
+    finally { setExporting(false); }
+  };
 
   // ── Fetch supporting dropdowns ────────────────────────────────────────────
   useEffect(() => {
@@ -306,6 +349,9 @@ const CustomerMaster = () => {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1e293b" }}>Customer Master</h2>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={handleExport} disabled={exporting} style={exportBtnStyle(exporting)}>
+            {exporting ? "Exporting…" : "⭳ Export"}
+          </button>
           <button onClick={() => { setSearchTerm(""); setSearchQuery(""); setPage(1); fetchCustomers(); }}
             style={{ height:40, padding:"0 16px", background:"#fff", color:"#334b71", border:"1.5px solid #e2e8f0",
               borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
