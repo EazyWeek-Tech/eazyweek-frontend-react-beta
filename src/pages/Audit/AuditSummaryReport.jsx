@@ -151,6 +151,7 @@ export default function AuditSummaryReport() {
   const [dateRequired, setDateRequired] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [dateField, setDateField] = useState("submitted");
   const [segmentCodes, setSegmentCodes] = useState([]);
   const [auditorCodes, setAuditorCodes] = useState([]);
   const [employeeCode, setEmployeeCode] = useState("");
@@ -259,6 +260,7 @@ export default function AuditSummaryReport() {
         employee: employeeCode || "",
         auditSubSegment: "",
         dateFlag: (dateRequired && fromDate && toDate) ? "1" : "0",
+        dateField,
         isDigitalInTheList: "",
       };
       const r = await fetch(`${API_BASE_URL}/api/Audit/LoadAuditSummaryReport`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -303,7 +305,7 @@ export default function AuditSummaryReport() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const reset = () => { setFromDate(""); setToDate(""); setSegmentCodes([]); setAuditorCodes([]); setEmployeeCode(""); setAuditMonths([]); setAuditYears([]); setSelectedClinics([]); setRows([]); setSearched(false); setErrors({}); };
+  const reset = () => { setFromDate(""); setToDate(""); setDateField("submitted"); setSegmentCodes([]); setAuditorCodes([]); setEmployeeCode(""); setAuditMonths([]); setAuditYears([]); setSelectedClinics([]); setRows([]); setSearched(false); setErrors({}); };
 
   return (
     <div className="rw">
@@ -321,7 +323,15 @@ export default function AuditSummaryReport() {
             <input type="checkbox" checked={dateRequired} onChange={e => { setDateRequired(e.target.checked); if (!e.target.checked) { setFromDate(""); setToDate(""); setErrors({}); } }} className="dr-chk" />
             <span className="dr-chk-label">Filter by Date Range</span>
           </label>
-          {dateRequired && <span className="fc-note">— Submitted Date</span>}
+          {dateRequired && (
+            <span className="dr-fld-wrap">
+              <span className="fc-note">Filter on</span>
+              <select value={dateField} onChange={e => setDateField(e.target.value)} className="dr-fld">
+                <option value="submitted">Submitted Date</option>
+                <option value="audit">Audit Date</option>
+              </select>
+            </span>
+          )}
         </div>
         {dateRequired && (
           <div className="fg fg-2">
@@ -442,6 +452,9 @@ export default function AuditSummaryReport() {
         .dr-chk-label { font-size:13px; font-weight:700; color:#334b71; }
         .fc-sect { font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#8a94a6; margin-bottom:12px; }
         .fc-note { text-transform:none; letter-spacing:0; font-weight:600; font-size:11px; }
+        .dr-fld-wrap { display:inline-flex; align-items:center; gap:6px; }
+        .dr-fld { height:26px; padding:0 6px; border:1px solid #cfd8e6; border-radius:5px; background:#fff; font-size:12px; font-weight:600; color:#334b71; cursor:pointer; }
+        .dr-fld:focus { outline:none; border-color:#5b7fb8; }
         .req { color:#c0392b; }
         .fg { display:grid; gap:14px 20px; }
         .fg-2 { grid-template-columns:repeat(2,1fr); }
