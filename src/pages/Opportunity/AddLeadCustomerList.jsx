@@ -15,6 +15,16 @@ const authHeaders = () => {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
+// LoadCustomers wraps its rows as { success, message, data: { data: [...], total, page, limit } }
+const pickRows = (payload) => {
+  let node = payload;
+  for (let i = 0; i < 5 && node && typeof node === "object"; i += 1) {
+    if (Array.isArray(node)) return node;
+    node = node.data ?? node.items ?? node.records ?? node.result;
+  }
+  return [];
+};
+
 const AddLeadCustomerList = () => {
   const { oppCode: oppCodeFromParam } = useParams();
   const { state } = useLocation();
@@ -46,20 +56,14 @@ const AddLeadCustomerList = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers`, {
+        // all=1 — the endpoint is server-paged and defaults to 50 rows
+        const res = await fetch(`${API_BASE_URL}/api/Customer/LoadCustomers?all=1`, {
           headers: authHeaders(),
           credentials: "include",
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const arr = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.data)
-          ? data.data
-          : data?.data
-          ? [data.data]
-          : [];
-        setCustomers(arr);
+        setCustomers(pickRows(data));
       } catch (e) {
         console.error(e);
         setError("Failed to load customers.");
@@ -96,23 +100,22 @@ const AddLeadCustomerList = () => {
     }
 
     const H = {
-    custID: row.custId,
-    custName: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
-    custMobileNo: row.mobile,
-    clinicLocation: row.centerName,
-    email: row.email,
-    preferredLanguage: "Arabic",
-  };
+      custID: row.custId,
+      custName: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+      custMobileNo: row.mobile,
+      countryCode: row.countryCode,
+      clinicLocation: row.centerName,
+      email: row.email,
+      preferredLanguage: "Arabic",
+    };
 
-  // code = customer id (clicked)
-  const code = row.custId;
-  const oppcode = resolvedOppCode;
+    // code = customer id (clicked)
+    const code = row.custId;
+    const oppcode = resolvedOppCode;
 
-
-  navigate(`/manuallead/${oppcode}/${code}`, {
-    state: { oppCode: resolvedOppCode, header: H },
-  });
-
+    navigate(`/manuallead/${oppcode}/${code}`, {
+      state: { oppCode: resolvedOppCode, header: H },
+    });
   };
 
   return (
@@ -173,7 +176,7 @@ const AddLeadCustomerList = () => {
               </thead>
               <tbody>
                 {currentRows.map((r) => (
-                  <tr key={r.custId} style={{ borderBottom: "1px solid #f1f3f5" }}>
+                  <tr key={r.recId || r.custId} style={{ borderBottom: "1px solid #f1f3f5" }}>
                     <td style={td}>
                       <button
                         onClick={() => handleOpenCustomer(r)}
