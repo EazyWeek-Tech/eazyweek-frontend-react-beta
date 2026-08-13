@@ -1800,10 +1800,14 @@ export default function CampaignDetails() {
     const today = stamp(new Date());
     const f = stamp(toMidnight(fromDate));
     const t = stamp(toMidnight(toDate));
+    // Only a STATIC campaign has a real end date. Dynamic campaigns report a
+    // rolling to-date, so they must never be judged Ended by it.
+    const isStatic = Number(header.oppRuleType) === 1;
+    const hasEnd   = isStatic && !isNaN(t) && toMidnight(toDate).getFullYear() > 1900;
     if (!isNaN(f) && today < f) return { label:"Scheduled", tone:"warn" };
-    if (!isNaN(t) && today > t) return { label:"Ended",     tone:"off"  };
+    if (hasEnd && today > t)    return { label:"Ended",     tone:"off"  };
     return { label:"Active", tone:"ok" };
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, header.oppRuleType]);
 
   // Campaign's "Appt Booking Mandatory" flag (CLINIC_OPPORTUNITYDETAILS.ApptBookingMandatory,
   // returned by getCampaign as 0/1). Absent while the header loads → treat as Yes,
