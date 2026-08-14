@@ -12,8 +12,8 @@ import {
   apiRequest,
 } from './einvoiceUtils';
 
-const PERM_VIEW = 'MDM.EINV.VIEW';
-const PERM_MANAGE = 'MDM.EINV.MANAGE';
+const PERM_VIEW = 'EINV.VIEW';
+const PERM_MANAGE = 'EINV.MANAGE';
 
 const EInvoiceDetail = ({ recId, onBack, onOpenPrint }) => {
   const perms = usePermissions() || {};

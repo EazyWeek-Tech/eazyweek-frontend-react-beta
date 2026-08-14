@@ -16,8 +16,8 @@ import {
   openPdf,
 } from './einvoiceUtils';
 
-const PERM_VIEW = 'MDM.EINV.VIEW';
-const PERM_MANAGE = 'MDM.EINV.MANAGE';
+const PERM_VIEW = 'EINV.VIEW';
+const PERM_MANAGE = 'EINV.MANAGE';
 
 const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const perms = usePermissions() || {};
@@ -45,7 +45,6 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [loadError, setLoadError] = useState('');
 
   /* ---- actions ---- */
-  const [selected, setSelected] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [resolveFor, setResolveFor] = useState(null);
@@ -74,6 +73,23 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   }, [datePreset, fromDate, toDate]);
 
   /* ---- load ---- */
+  const handleRefresh = async (row) => {
+    setBusy(true);
+    try {
+      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Refresh`, {
+        method: 'POST',
+        body: JSON.stringify({ ids: [row.id] }),
+      });
+      const outcome = (json.data || [])[0] || {};
+      showToast(outcome.message || json.message, outcome.ok ? 'success' : 'error');
+      load();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handlePrint = async (row) => {
     try {
       await openPdf(`${API_BASE_URL}/api/EInvoice/Legacy/Print/${encodeURIComponent(row.id)}`);
@@ -106,7 +122,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
       if (seq !== requestSeq.current) return;
       setRows(Array.isArray(json.data) ? json.data : []);
       setTotal((json.meta && json.meta.total) || 0);
-      setSelected(new Set());
+
     } catch (err) {
       if (seq !== requestSeq.current) return;
       setRows([]);
@@ -133,42 +149,6 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   useEffect(() => {
     setPage(1);
   }, [datePreset, fromDate, toDate, status, docType, centreCode, search, limit]);
-
-  /* ---- selection ---- */
-  const retryable = rows.filter((r) => r.einvoiceStatus !== 'Success');
-  const allSelected = retryable.length > 0 && retryable.every((r) => selected.has(r.id));
-
-  const toggleRow = (id) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(retryable.map((r) => r.id)));
-  };
-
-  /* ---- retry ---- */
-  const handleRetry = async () => {
-    if (selected.size === 0) return;
-    setBusy(true);
-    try {
-      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Retry`, {
-        method: 'POST',
-        body: JSON.stringify({ recIds: Array.from(selected) }),
-      });
-      const failed = (json.data || []).filter((r) => r.status !== 'Success');
-      showToast(json.message, failed.length === 0 ? 'success' : 'error');
-      load();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   /* ---- resolve ---- */
   const openResolve = (row) => {
@@ -321,17 +301,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
             <option value={50}>50 rows</option>
             <option value={100}>100 rows</option>
           </select>
-          {selected.size > 0 && <span className="selection-count">{selected.size} selected</span>}
         </div>
-        {canManage && (
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={selected.size === 0 || busy}
-            onClick={handleRetry}>
-            {busy ? 'Retrying…' : `Retry${selected.size > 0 ? ` (${selected.size})` : ''}`}
-          </button>
-        )}
       </div>
 
       {/* ---- grid ---- */}
@@ -339,15 +309,6 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         <table className="einvoice-table">
           <thead>
             <tr>
-              <th className="col-check">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  disabled={retryable.length === 0}
-                  onChange={toggleAll}
-                  aria-label="Select all retryable rows"
-                />
-              </th>
               <th>Centre</th>
               <th>Invoice date</th>
               <th>Customer</th>
@@ -362,23 +323,14 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={11} className="row-message">Loading e-invoices…</td></tr>
+              <tr><td colSpan={10} className="row-message">Loading e-invoices…</td></tr>
             ) : loadError ? (
-              <tr><td colSpan={11} className="row-message row-error">{loadError}</td></tr>
+              <tr><td colSpan={10} className="row-message row-error">{loadError}</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={11} className="row-message">No e-invoices in this period.</td></tr>
+              <tr><td colSpan={10} className="row-message">No e-invoices in this period.</td></tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.id} className={selected.has(row.id) ? 'row-selected' : ''}>
-                  <td className="col-check">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.id)}
-                      disabled={row.einvoiceStatus === 'Success'}
-                      onChange={() => toggleRow(row.id)}
-                      aria-label={`Select ${row.posInvoiceNo || row.id}`}
-                    />
-                  </td>
+                <tr key={row.id}>
                   <td>{row.clinicName || row.centerCode}</td>
                   <td>{row.invoiceDate || '—'}</td>
                   <td>{row.customerName || '—'}</td>
@@ -400,13 +352,19 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
                       </button>
                     )}
                     {canManage && row.einvoiceStatus === 'Failed' && (
-                      <button type="button" className="btn-link" onClick={() => openResolve(row)}>
-                        Resolve
+                      <button
+                        type="button"
+                        className="btn-link"
+                        disabled={busy}
+                        onClick={() => handleRefresh(row)}>
+                        Refresh
                       </button>
                     )}
-                    <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
-                      Print
-                    </button>
+                    {row.einvoiceStatus === 'Success' && (
+                      <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
+                        Print
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

@@ -29,7 +29,7 @@ import { usePermissions } from '../Settings/usePermissions';
    Invoice Type + Clinic are applied client-side to the returned rows.
    ───────────────────────────────────────────────────────────────────────────── */
 
-const EINVOICE_ACTIVITY = 'MDM.EINV.VIEW';
+const EINVOICE_ACTIVITY = 'EINV.VIEW';
 
 const EInvoiceDetailedReport = () => {
   const perms = usePermissions() || {};
