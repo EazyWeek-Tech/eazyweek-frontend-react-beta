@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { API_BASE_URL } from "../../config"
 import { useNavigate } from "react-router-dom"
 import Toast from "../../components/Toast"
@@ -122,16 +122,21 @@ function CCDonut({ segments, centerValue, size = 176, thickness = 26 }) {
 export default function CourtesyCallDashboard() {
   const [data,         setData]         = useState([])
   const [auditors,     setAuditors]     = useState([])
-  const [loading,      setLoading]      = useState(true)
+  const [loading,      setLoading]      = useState(false)
+
+  const [hasLoaded,    setHasLoaded]    = useState(false)
   const [toast,        setToast]        = useState(null)
   const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() })
   const [range,        setRange]        = useState("Current Month")
   const [search,       setSearch]       = useState("")
   const [page,         setPage]         = useState(1)
   const [perPage,      setPerPage]      = useState(10)
+  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() })
   const navigate = useNavigate()
+  const reqSeq = useRef(0)
 
   const fetchData = async (f) => {
+    const seq = ++reqSeq.current
     setLoading(true)
     try {
       const res  = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
@@ -160,42 +165,63 @@ export default function CourtesyCallDashboard() {
         (createdKey(b) - createdKey(a)) ||
         String(b.referenceID || "").localeCompare(String(a.referenceID || ""), undefined, { numeric: true })
       )
+      if (seq !== reqSeq.current) return
       setData(arr)
-    } catch { setData([]) }
-    finally { setLoading(false) }
+      setHasLoaded(true)
+    } catch {
+      if (seq === reqSeq.current) { setData([]); setHasLoaded(true) }
+    }
+    finally {
+      if (seq === reqSeq.current) setLoading(false)
+    }
   }
-
-  useEffect(() => { fetchData(filters) }, [])
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors`, { headers: { Authorization: `Bearer ${TOKEN()}` } })
       .then(r => r.json()).then(j => { const d = j?.data ?? j; if (Array.isArray(d)) setAuditors(d) }).catch(() => {})
   }, [])
 
-  // Auto-filter on any filter change
   const handleFilter = (field, value) => {
-    const next = { ...filters, [field]: value }
-    setFilters(next)
+    setDraft(prev => ({ ...prev, [field]: value }))
+  }
+
+  const dateRangeInvalid = Boolean(
+    draft.fromDate && draft.toDate && new Date(draft.toDate) < new Date(draft.fromDate)
+  )
+
+  const filtersDirty =
+    draft.status   !== filters.status   ||
+    draft.auditor  !== filters.auditor  ||
+    draft.fromDate !== filters.fromDate ||
+    draft.toDate   !== filters.toDate
+
+  const applyFilters = () => {
+    if (dateRangeInvalid) {
+      setToast({ message: "To Date cannot be earlier than From Date.", type: "error" })
+      return
+    }
+    setFilters(draft)
     setPage(1)
-    fetchData(next)
+    fetchData(draft)
   }
 
   const handleClear = () => {
     const reset = { status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() }
     setFilters(reset)
+    setDraft(reset)
     setSearch("")
     setPage(1)
     setRange("Current Month")
-    fetchData(reset)
+    setData([])
+    setHasLoaded(false)
+    reqSeq.current += 1
   }
 
-  // Period filter drives the existing fromDate/toDate (and refetch)
   const handlePeriod = (r) => {
     setRange(r)
     const b = periodBounds(r)
-    if (!b) return // Custom Range → user edits From/To in the filters card below
-    const next = { ...filters, fromDate: b.fromDate, toDate: b.toDate }
-    setFilters(next); setPage(1); fetchData(next)
+    if (!b) return // Custom Range → user edits From/To below
+    setDraft(prev => ({ ...prev, fromDate: b.fromDate, toDate: b.toDate }))
   }
 
   const filtered = useMemo(() => {
@@ -273,7 +299,7 @@ export default function CourtesyCallDashboard() {
           <div>
             <h1 style={{ fontSize:22, fontWeight:800, color:"#2b3f73", margin:0 }}>Courtesy Call</h1>
             <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>
-              {loading ? "Loading…" : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
+              {loading ? "Loading…" : hasLoaded ? `${filtered.length} record${filtered.length !== 1 ? "s" : ""}` : "Not loaded yet"}
             </div>
           </div>
           <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
@@ -286,14 +312,20 @@ export default function CourtesyCallDashboard() {
       {range === "Custom Range" && (
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap", justifyContent:"flex-end" }}>
           <label style={{ fontSize:13, color:"#64748b", display:"flex", alignItems:"center", gap:6 }}>From
-            <input className="cc-inp" style={{ width:"auto" }} type="date" value={filters.fromDate}
-              onChange={e => handleFilter("fromDate", e.target.value)} />
+            <input className="cc-inp" style={{ width:"auto" }} type="date" value={draft.fromDate}
+              onChange={e => handleFilter("fromDate", e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyFilters() }} />
           </label>
           <label style={{ fontSize:13, color:"#64748b", display:"flex", alignItems:"center", gap:6 }}>To
-            <input className="cc-inp" style={{ width:"auto" }} type="date" value={filters.toDate} min={filters.fromDate || undefined}
-              onChange={e => handleFilter("toDate", e.target.value)} />
+            <input className="cc-inp" style={{ width:"auto" }} type="date" value={draft.toDate} min={draft.fromDate || undefined}
+              onChange={e => handleFilter("toDate", e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyFilters() }} />
           </label>
-          {filters.fromDate && filters.toDate && new Date(filters.toDate) < new Date(filters.fromDate) && (
+          <button className="cc-btn cc-btn-pri" onClick={applyFilters} disabled={loading || dateRangeInvalid}
+            style={{ whiteSpace:"nowrap" }}>
+            Apply
+          </button>
+          {dateRangeInvalid && (
             <span style={{ fontSize:12, color:"#cc6b5c", fontWeight:700 }}>To Date cannot be earlier than From Date.</span>
           )}
         </div>
@@ -311,7 +343,7 @@ export default function CourtesyCallDashboard() {
           ]} />
         ) : (
           <div style={{ minHeight:120, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:13 }}>
-            No courtesy calls in the selected period.
+            {hasLoaded ? "No courtesy calls in the selected period." : "Choose your filters and press Filter to load courtesy calls."}
           </div>
         )}
       </div>
@@ -323,7 +355,7 @@ export default function CourtesyCallDashboard() {
           {/* Status */}
           <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:160 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>Status</label>
-            <select className="cc-inp" value={filters.status} onChange={e => handleFilter("status", e.target.value)}>
+            <select className="cc-inp" value={draft.status} onChange={e => handleFilter("status", e.target.value)}>
               <option value="">All Statuses</option>
               <option value="0">Pending</option>
               <option value="1">Partially Completed</option>
@@ -334,7 +366,7 @@ export default function CourtesyCallDashboard() {
           {/* Auditor */}
           <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:180 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>Auditor</label>
-            <select className="cc-inp" value={filters.auditor} onChange={e => handleFilter("auditor", e.target.value)}>
+            <select className="cc-inp" value={draft.auditor} onChange={e => handleFilter("auditor", e.target.value)}>
               <option value="">All Auditors</option>
               {auditors.map(a => <option key={a.audtiorCode} value={a.audtiorCode}>{a.auditorName}</option>)}
               <option value="unassigned">Unassigned</option>
@@ -344,13 +376,17 @@ export default function CourtesyCallDashboard() {
           {/* From Date */}
           <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:150 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>From Date</label>
-            <input className="cc-inp" type="date" value={filters.fromDate} onChange={e => handleFilter("fromDate", e.target.value)} />
+            <input className="cc-inp" type="date" value={draft.fromDate}
+              onChange={e => handleFilter("fromDate", e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyFilters() }} />
           </div>
 
           {/* To Date */}
           <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:150 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>To Date</label>
-            <input className="cc-inp" type="date" value={filters.toDate} onChange={e => handleFilter("toDate", e.target.value)} />
+            <input className="cc-inp" type="date" value={draft.toDate} min={draft.fromDate || undefined}
+              onChange={e => handleFilter("toDate", e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyFilters() }} />
           </div>
 
           {/* Search */}
@@ -360,11 +396,29 @@ export default function CourtesyCallDashboard() {
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
 
-          {/* Clear */}
-          <button className="cc-btn cc-btn-sec" onClick={handleClear} style={{ whiteSpace:"nowrap", alignSelf:"flex-end" }}>
-            Clear
-          </button>
+          {/* Apply / Clear */}
+          <div style={{ display:"flex", gap:10, alignSelf:"flex-end" }}>
+            <button className="cc-btn cc-btn-pri" onClick={applyFilters} disabled={loading || dateRangeInvalid}
+              style={{ whiteSpace:"nowrap" }}>
+              {loading ? "Loading…" : "Filter"}
+            </button>
+            <button className="cc-btn cc-btn-sec" onClick={handleClear} disabled={loading}
+              style={{ whiteSpace:"nowrap" }}>
+              Clear
+            </button>
+          </div>
         </div>
+
+        {(filtersDirty || dateRangeInvalid || !hasLoaded) && (
+          <div style={{ marginTop:12, fontSize:12, fontWeight:700,
+                        color: dateRangeInvalid ? "#cc6b5c" : "#b45309" }}>
+            {dateRangeInvalid
+              ? "To Date cannot be earlier than From Date."
+              : !hasLoaded
+                ? "Press Filter to load courtesy calls."
+                : "Filters changed — press Filter to load the results."}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -415,7 +469,7 @@ export default function CourtesyCallDashboard() {
                 </td></tr>
               ) : pageData.length === 0 ? (
                 <tr><td colSpan={8} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
-                  No courtesy calls found.
+                  {hasLoaded ? "No courtesy calls found." : "Choose your filters and press Filter to load courtesy calls."}
                 </td></tr>
               ) : pageData.map((item, i) => {
                 const statusStr = STATUS_LABEL[String(item.status)] || item.status || "Pending"
