@@ -720,8 +720,9 @@ const NAV_GROUPS = [
     { name: "Upload - Products",      icon: "bx-box",             path: "/upload/products" },
     { name: "Upload - Packages",      icon: "bx-package",         path: "/upload/packages" },
     { name: "Upload - Practitioners", icon: "bx-user-voice",      path: "/upload/practitioners" },
+    
     { name: "Upload - Customers",     icon: "bx-user",            path: "/upload/customers" },    // TODO
-    { name: "Upload - Liabilities",   icon: "bx-shield",          path: "/upload/liabilities" },  // TODO
+    { name: "Upload - No Show Appointments",   icon: "bx-shield",          path: "/upload/oppuploader" },  // TODO
     { name: "Upload - Centres",       icon: "bx-building-house",  path: "/upload/centres" },      // TODO
   ],
 },

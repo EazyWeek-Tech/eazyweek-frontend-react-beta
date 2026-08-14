@@ -1,4 +1,3 @@
-// src/pages/Opportunity/OppUploader.jsx
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
@@ -7,9 +6,8 @@ import { API_BASE_URL } from "../../config";
 
 const UPLOAD_ENDPOINT = "/api/Opportunity/UploadNoShowExcel";
 
-// Excel headers (case-insensitive; spaces ignored)
 const EXPECTED_HEADERS = [
-  "THERAPISTCODE", // ✅ added
+  "THERAPISTCODE",
   "THERAPISTNAME",
   "SERVICENAME",
   "APPOINTMENTDATETIME",
@@ -20,118 +18,69 @@ const EXPECTED_HEADERS = [
   "OppCode",
 ];
 
+const MAX_ROWS = 5000;
+
+/* ---- value helpers ---- */
 const normHeader = (s) =>
-  (s ?? "")
-    .toString()
-    .trim()
-    .replace(/\s+/g, "")
-    .toLowerCase();
+  (s ?? "").toString().trim().replace(/\s+/g, "").toLowerCase();
 
-const trim = (s) => (s ?? "").toString().trim();
-const isRowEmpty = (obj) =>
-  !Object.values(obj || {}).some((v) => trim(v) !== "");
-
-/** pad 2 digits */
-const pad2 = (n) => String(n).padStart(2, "0");
-
-/** Escape XML/HTML special characters to entities */
-const escapeHtml = (v) => {
+const clean = (v) => {
   if (v === null || v === undefined) return "";
-
-  // keep Date as-is (date handler will format)
-  if (v instanceof Date && !Number.isNaN(+v)) return v;
-
-  // convert numbers/booleans safely
   if (typeof v === "number" || typeof v === "boolean") return String(v);
 
   let s = String(v);
-
-  // remove null bytes
   s = s.replace(/\u0000/g, "");
-
-  // remove unsafe control chars (keep \t \n \r)
   s = s.replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-
-  // escape XML/HTML entities
-  s = s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
+  s = s.replace(/\u00A0/g, " ");
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  s = s.replace(/\s+/g, " ");
   return s.trim();
 };
 
-/** Escape + trim (string output) */
-const escTrim = (v) => {
-  const out = escapeHtml(v);
-  return out instanceof Date ? "" : String(out).trim();
-};
+const isRowEmpty = (obj) =>
+  !Object.values(obj || {}).some((v) => clean(v) !== "");
 
+const pad2 = (n) => String(n).padStart(2, "0");
 
-/** Convert excel date/string -> "YYYY/MM/DD" */
-const toYYYYMMDD = (v) => {
+const toISODate = (v) => {
   if (v === null || v === undefined) return "";
 
-  // Date object (when cellDates:true)
   if (v instanceof Date && !Number.isNaN(+v)) {
-    const y = v.getFullYear();
-    const m = pad2(v.getMonth() + 1);
-    const d = pad2(v.getDate());
-    return `${y}/${m}/${d}`;
+    return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`;
   }
 
-  // Excel serial number
   if (typeof v === "number") {
     const dt = XLSX.SSF.parse_date_code(v);
     if (dt && dt.y && dt.m && dt.d) {
-      const y = dt.y;
-      const m = pad2(dt.m);
-      const d = pad2(dt.d);
-      return `${y}/${m}/${d}`;
+      return `${dt.y}-${pad2(dt.m)}-${pad2(dt.d)}`;
     }
-    // if it's not actually a date, fallback
-    return String(v);
+    return "";
   }
 
-  // String value: try to parse common forms, otherwise return trimmed
-  const s = String(v).trim();
+  const s = clean(v);
   if (!s) return "";
 
-  // yyyy-mm-dd or yyyy/mm/dd -> yyyy/mm/dd
   let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return `${m[1]}/${pad2(m[2])}/${pad2(m[3])}`;
+  if (m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
 
-  // dd/mm/yyyy -> yyyy/mm/dd
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return `${m[3]}/${pad2(m[2])}/${pad2(m[1])}`;
+  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (m) return `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
 
-  // Try native Date parse
   const dt = new Date(s);
   if (!Number.isNaN(+dt)) {
-    const y = dt.getFullYear();
-    const mm = pad2(dt.getMonth() + 1);
-    const dd = pad2(dt.getDate());
-    return `${y}/${mm}/${dd}`;
+    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
   }
 
-  return s;
+  return "";
 };
 
 const validateHeaders = (sheetHeaders = []) => {
   const found = sheetHeaders.map(normHeader);
   const expected = EXPECTED_HEADERS.map(normHeader);
-
-  const missing = [];
-  for (const e of expected) {
-    if (!found.includes(e)) missing.push(e);
-  }
-
+  const missing = expected.filter((e) => !found.includes(e));
   return { ok: missing.length === 0, missing };
 };
 
-/** Convert excel row object -> backend "line" shape */
 const toLine = (rowObj) => {
   const get = (key) => {
     if (rowObj?.[key] !== undefined) return rowObj[key];
@@ -141,19 +90,39 @@ const toLine = (rowObj) => {
   };
 
   return {
-  therapistCode: escTrim(get("THERAPISTCODE")),
-  therapistName: escTrim(get("THERAPISTNAME")),
-  serviceName: escTrim(get("SERVICENAME")),
-  appointmentDate: toYYYYMMDD(get("APPOINTMENTDATETIME")),
-  custID: escTrim(get("CustID")),
-  custName: escTrim(get("CustName")),
-  custMobileNo: escTrim(get("CustMobileNo")),
-  clinicCode: escTrim(get("ClinicCode")),
-  campignCode: escTrim(get("OppCode")), // (spelling as per API)
+    therapistCode: clean(get("THERAPISTCODE")),
+    therapistName: clean(get("THERAPISTNAME")),
+    serviceName: clean(get("SERVICENAME")),
+    appointmentDate: toISODate(get("APPOINTMENTDATETIME")),
+    custID: clean(get("CustID")),
+    custName: clean(get("CustName")),
+    custMobileNo: clean(get("CustMobileNo")),
+    clinicCode: clean(get("ClinicCode")),
+    campignCode: clean(get("OppCode")),
+  };
 };
 
+const authHeaders = () => {
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const token =
+      localStorage.getItem("token") ||
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("token");
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {
+    /* storage unavailable */
+  }
+  return headers;
 };
 
+const statusStyle = (status) => {
+  if (status === "inserted") return { color: "#145a2a", fontWeight: 600 };
+  if (status === "skipped") return { color: "#7a5b1d", fontWeight: 600 };
+  return { color: "#7a1d1d", fontWeight: 600 };
+};
+
+/* ---- component ---- */
 export default function OppUploader() {
   const inputRef = useRef(null);
 
@@ -163,11 +132,11 @@ export default function OppUploader() {
   const [error, setError] = useState("");
   const [parsing, setParsing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
+  const [result, setResult] = useState(null);
 
-  const payloadPreview = useMemo(
-    () => ({ uploadNoShowLinesJson: lines }),
-    [lines]
+  const problemRows = useMemo(
+    () => (result?.rows || []).filter((r) => r.status !== "inserted"),
+    [result]
   );
 
   const resetAll = () => {
@@ -175,7 +144,7 @@ export default function OppUploader() {
     setLines([]);
     setRawHeaders([]);
     setError("");
-    setSuccessMsg("");
+    setResult(null);
     setParsing(false);
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
@@ -183,13 +152,13 @@ export default function OppUploader() {
 
   const handlePick = () => {
     setError("");
-    setSuccessMsg("");
+    setResult(null);
     inputRef.current?.click();
   };
 
   const handleFile = async (e) => {
     setError("");
-    setSuccessMsg("");
+    setResult(null);
     setLines([]);
     setRawHeaders([]);
 
@@ -207,11 +176,7 @@ export default function OppUploader() {
 
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data, {
-        type: "array",
-        cellDates: true,
-        cellText: false,
-      });
+      const wb = XLSX.read(data, { type: "array", cellDates: true, cellText: false });
 
       const sheetName = wb.SheetNames?.[0];
       if (!sheetName) {
@@ -222,7 +187,6 @@ export default function OppUploader() {
 
       const ws = wb.Sheets[sheetName];
 
-      // Validate headers
       const aoa = XLSX.utils.sheet_to_json(ws, {
         header: 1,
         raw: true,
@@ -230,8 +194,7 @@ export default function OppUploader() {
         blankrows: false,
       });
 
-      const headerRow = (aoa?.[0] || []).map((h) => escTrim(h));
-
+      const headerRow = (aoa?.[0] || []).map((h) => clean(h));
       setRawHeaders(headerRow);
 
       const { ok, missing } = validateHeaders(headerRow);
@@ -239,14 +202,11 @@ export default function OppUploader() {
         const missingPretty = EXPECTED_HEADERS.filter((h) =>
           missing.includes(normHeader(h))
         );
-        setError(
-          `Invalid template. Missing headers: ${missingPretty.join(", ")}`
-        );
+        setError(`Invalid template. Missing headers: ${missingPretty.join(", ")}`);
         setParsing(false);
         return;
       }
 
-      // Read rows as objects using sheet headers
       const objects = XLSX.utils.sheet_to_json(ws, {
         header: headerRow,
         raw: true,
@@ -265,6 +225,21 @@ export default function OppUploader() {
         return;
       }
 
+      if (normalizedLines.length > MAX_ROWS) {
+        setError(
+          `This file has ${normalizedLines.length} rows. Please split it into files of ${MAX_ROWS} rows or fewer.`
+        );
+        setParsing(false);
+        return;
+      }
+
+      const badDates = normalizedLines.filter((r) => !r.appointmentDate).length;
+      if (badDates) {
+        setError(
+          `${badDates} row(s) have an unreadable APPOINTMENTDATETIME. They will be rejected by the server; fix them or continue.`
+        );
+      }
+
       setLines(normalizedLines);
       setParsing(false);
     } catch (err) {
@@ -276,7 +251,7 @@ export default function OppUploader() {
 
   const handleUpload = async () => {
     setError("");
-    setSuccessMsg("");
+    setResult(null);
 
     if (!lines.length) {
       setError("Please upload a file first.");
@@ -285,41 +260,29 @@ export default function OppUploader() {
 
     setUploading(true);
     try {
-      const url = `${API_BASE_URL}${UPLOAD_ENDPOINT}`;
-
-      const payload = {
-        uploadNoShowLinesJson: lines,
-      };
-
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}${UPLOAD_ENDPOINT}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ uploadNoShowLinesJson: lines }),
       });
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Upload failed with status ${res.status}`);
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || payload?.success === false) {
+        throw new Error(
+          payload?.message || `Upload failed with status ${res.status}`
+        );
       }
 
-      let msg = "";
-      try {
-        const data = await res.json();
-        msg =
-          data?.message ||
-          data?.Message ||
-          data?.statusMessage ||
-          (typeof data === "string" ? data : JSON.stringify(data));
-      } catch {
-        msg = await res.text().catch(() => "");
-      }
-
-      setSuccessMsg(
-        msg
-          ? `Uploaded ${lines.length} rows successfully. ${msg}`
-          : `Uploaded ${lines.length} rows successfully.`
-      );
+      setResult({
+        message: payload?.message || "Upload complete.",
+        received: payload?.data?.received ?? lines.length,
+        inserted: payload?.data?.inserted ?? 0,
+        skipped: payload?.data?.skipped ?? 0,
+        rejected: payload?.data?.rejected ?? 0,
+        rows: payload?.data?.rows || [],
+      });
       setUploading(false);
     } catch (err) {
       console.error(err);
@@ -347,7 +310,6 @@ export default function OppUploader() {
           accept=".xlsx,.xls,.csv"
           onChange={handleFile}
           style={{ display: "none" }}
-          className="pribtn"
         />
 
         <button
@@ -386,15 +348,12 @@ export default function OppUploader() {
           Reset
         </button>
 
-        {fileName ? (
-          <span style={{ opacity: 0.8 }}>File: {fileName}</span>
-        ) : null}
+        {fileName ? <span style={{ opacity: 0.8 }}>File: {fileName}</span> : null}
       </div>
 
       <div style={{ marginBottom: 10, fontSize: 13, opacity: 0.85 }}>
         <div>
-          Expected headers (Row 1):{" "}
-          <b>{EXPECTED_HEADERS.join(" | ")}</b>
+          Expected headers (Row 1): <b>{EXPECTED_HEADERS.join(" | ")}</b>
         </div>
         {!!rawHeaders.length && (
           <div style={{ marginTop: 6 }}>
@@ -418,18 +377,83 @@ export default function OppUploader() {
         </div>
       ) : null}
 
-      {successMsg ? (
+      {result ? (
         <div
           style={{
-            padding: 10,
-            border: "1px solid #b7f3c4",
-            background: "#f2fff6",
-            color: "#145a2a",
+            padding: 12,
+            border: "1px solid #cbd5e1",
+            background: "#f8fafc",
             borderRadius: 6,
             marginBottom: 12,
           }}
         >
-          {successMsg}
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>{result.message}</div>
+          <div style={{ fontSize: 13 }}>
+            Received {result.received} &middot; Inserted {result.inserted} &middot;
+            Skipped {result.skipped} &middot; Rejected {result.rejected}
+          </div>
+
+          {!!problemRows.length && (
+            <div
+              style={{
+                marginTop: 10,
+                border: "1px solid #e5e7eb",
+                borderRadius: 6,
+                overflow: "auto",
+                maxHeight: 260,
+                background: "#fff",
+              }}
+            >
+              <table
+                style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+              >
+                <thead style={{ position: "sticky", top: 0, background: "#fff" }}>
+                  <tr>
+                    {["Row", "CustID", "OppCode", "Status", "Reason"].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: "left",
+                          padding: 8,
+                          borderBottom: "1px solid #e5e7eb",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {problemRows.map((r, idx) => (
+                    <tr key={`${r.line}-${idx}`}>
+                      <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                        {r.line}
+                      </td>
+                      <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                        {r.custId}
+                      </td>
+                      <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                        {r.oppCode}
+                      </td>
+                      <td
+                        style={{
+                          padding: 8,
+                          borderBottom: "1px solid #f1f5f9",
+                          ...statusStyle(r.status),
+                        }}
+                      >
+                        {r.status}
+                      </td>
+                      <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                        {r.reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -449,11 +473,7 @@ export default function OppUploader() {
             }}
           >
             <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
+              style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
             >
               <thead style={{ position: "sticky", top: 0, background: "#fff" }}>
                 <tr>
@@ -492,30 +512,6 @@ export default function OppUploader() {
               </tbody>
             </table>
           </div>
-
-          <details>
-            <summary style={{ cursor: "pointer" }}>
-              Show JSON payload (first 5 lines)
-            </summary>
-            <pre
-              style={{
-                marginTop: 10,
-                padding: 12,
-                background: "#0b1020",
-                color: "#e6e9ef",
-                borderRadius: 8,
-                overflow: "auto",
-                maxHeight: 320,
-                fontSize: 12,
-              }}
-            >
-              {JSON.stringify(
-                { uploadNoShowLinesJson: lines.slice(0, 5) },
-                null,
-                2
-              )}
-            </pre>
-          </details>
         </>
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
 import Toast from "../../components/Toast";
@@ -10,6 +10,12 @@ const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || 
 const getCenterCode = () => (getUser().centerCode || "").trim();
 const getEmployeeCode = () => { const u = getUser(); return (u.employeeCode || u.userId || "").trim(); };
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
+
+/* ---- completed-call lock ---- */
+const isCompletedStatus = (v) => {
+  const s = String(v ?? "").trim().toLowerCase();
+  return s === "2" || s === "completed";
+};
 
 
 const Field = ({ cfg, k, fallback, children }) => {
@@ -38,6 +44,17 @@ const CourtesyCallDetails = () => {
   const { guard, notifyDenied } = usePermissions();
   const fc = useFormConfig("CCALL");
   const sessionUserId = getEmployeeCode();
+
+  const rowFromList = location.state?.data ?? null;
+  const isCompleted = useMemo(() => {
+    const raw =
+      details?.status ??
+      details?.statusOfCall ??
+      details?.callStatus ??
+      rowFromList?.status;
+    return isCompletedStatus(raw);
+  }, [details, rowFromList]);
+  const readOnly = loading || isCompleted;
 
   // Keep strings for API fields, except we keep agentRating in UI as number | ""
   const [formData, setFormData] = useState({
@@ -285,14 +302,26 @@ const fetchDetails = async () => {
             <h1 style={{ fontSize:22, fontWeight:800, color:"#2b3f73", margin:0 }}>{referenceID}</h1>
             <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>Courtesy Call Details</div>
           </div>
-          <div style={{ display:"flex", gap:8 }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {isCompleted && (
+              <span style={{ display:"inline-flex", alignItems:"center", background:"#F0FDF4",
+                color:"#166534", borderRadius:999, padding:"5px 12px", fontSize:11, fontWeight:700 }}>
+                <span style={{ width:7, height:7, borderRadius:"50%", background:"#22C55E",
+                  display:"inline-block", marginRight:6 }} />
+                Completed
+              </span>
+            )}
             <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>← Back</button>
-            <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
-              {loading ? "Saving…" : "Save"}
-            </button>
-            <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
-              {loading ? "Submitting…" : "Submit"}
-            </button>
+            {!isCompleted && (
+              <>
+                <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
+                  {loading ? "Saving…" : "Save"}
+                </button>
+                <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
+                  {loading ? "Submitting…" : "Submit"}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -370,7 +399,7 @@ const fetchDetails = async () => {
               </div>
             </div>
             <Field cfg={fc} k="futureAppointmentTaken" fallback="Future Appointment Taken">
-              <select className="cd-inp" value={formData.futureAppointmentTaken} disabled={loading}
+              <select className="cd-inp" value={formData.futureAppointmentTaken} disabled={readOnly}
                 onChange={e => handleChange("futureAppointmentTaken", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
@@ -385,7 +414,7 @@ const fetchDetails = async () => {
           <div className="cd-sec-title">After Call Parameters</div>
           <div className="cd-grid">
             <Field cfg={fc} k="googleReview" fallback="Google Review">
-              <select className="cd-inp" value={formData.googleReview} disabled={loading}
+              <select className="cd-inp" value={formData.googleReview} disabled={readOnly}
                 onChange={e => handleChange("googleReview", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
@@ -393,7 +422,7 @@ const fetchDetails = async () => {
               </select>
             </Field>
             <Field cfg={fc} k="receivedPostCareCmmunication" fallback="Received Post Care Communication">
-              <select className="cd-inp" value={formData.receivedPostCareCmmunication} disabled={loading}
+              <select className="cd-inp" value={formData.receivedPostCareCmmunication} disabled={readOnly}
                 onChange={e => handleChange("receivedPostCareCmmunication", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
@@ -401,7 +430,7 @@ const fetchDetails = async () => {
               </select>
             </Field>
             <Field cfg={fc} k="receivedInvoice" fallback="Received Invoice">
-              <select className="cd-inp" value={formData.receivedInvoice} disabled={loading}
+              <select className="cd-inp" value={formData.receivedInvoice} disabled={readOnly}
                 onChange={e => handleChange("receivedInvoice", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
@@ -409,7 +438,7 @@ const fetchDetails = async () => {
               </select>
             </Field>
             <Field cfg={fc} k="customerFeedback" fallback="Customer Feedback">
-              <select className="cd-inp" value={formData.customerFeedback} disabled={loading}
+              <select className="cd-inp" value={formData.customerFeedback} disabled={readOnly}
                 onChange={e => handleChange("customerFeedback", e.target.value)}>
                 <option value="">Select</option>
                 <option>Satisfied client</option>
@@ -423,7 +452,7 @@ const fetchDetails = async () => {
               </select>
             </Field>
             <Field cfg={fc} k="overallSatisfied" fallback="Overall Satisfied">
-              <select className="cd-inp" value={formData.overallSatisfied} disabled={loading}
+              <select className="cd-inp" value={formData.overallSatisfied} disabled={readOnly}
                 onChange={e => handleChange("overallSatisfied", e.target.value)}>
                 <option value="0">Select</option>
                 <option value="1">Yes</option>
@@ -431,7 +460,7 @@ const fetchDetails = async () => {
               </select>
             </Field>
             <Field cfg={fc} k="experienceRating" fallback="Experience Rating (1–5)">
-              <select className="cd-inp" value={formData.experienceRating} disabled={loading}
+              <select className="cd-inp" value={formData.experienceRating} disabled={readOnly}
                 onChange={e => handleChange("experienceRating", e.target.value)}>
                 <option value="">Select</option>
                 {["1","2","3","4","5"].map(s => <option key={s} value={s}>{s} ★</option>)}
@@ -440,14 +469,14 @@ const fetchDetails = async () => {
             <Field cfg={fc} k="agentRating" fallback="Call Center Agent Rating (1–5)">
               <select className="cd-inp"
                 value={formData.agentRating === "" ? "" : Number(formData.agentRating)}
-                disabled={loading}
+                disabled={readOnly}
                 onChange={e => handleChange("agentRating", e.target.value === "" ? "" : Number(e.target.value))}>
                 <option value="">Select</option>
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} ★</option>)}
               </select>
             </Field>
             <Field cfg={fc} k="customerComplaintforService" fallback="Customer Complaint for Service">
-              <select className="cd-inp" value={formData.customerComplaintforService} disabled={loading}
+              <select className="cd-inp" value={formData.customerComplaintforService} disabled={readOnly}
                 onChange={e => handleChange("customerComplaintforService", e.target.value)}>
                 {services.length === 0 ? (
                   <option value="">Loading...</option>
@@ -468,12 +497,12 @@ const fetchDetails = async () => {
           {/* Remarks — full width row */}
           <div className="cd-grid-2" style={{ marginTop:16 }}>
             <Field cfg={fc} k="customerComplaintRemarks" fallback="Customer Remarks">
-              <textarea className="cd-inp" value={formData.customerComplaintRemarks} disabled={loading}
+              <textarea className="cd-inp" value={formData.customerComplaintRemarks} disabled={readOnly}
                 placeholder="ملاحظات العميل سواء جيدة أو سيئة"
                 onChange={e => handleChange("customerComplaintRemarks", e.target.value)} />
             </Field>
             <Field cfg={fc} k="agentdecision" fallback="Agent Decision">
-              <textarea className="cd-inp" value={formData.agentdecision} disabled={loading}
+              <textarea className="cd-inp" value={formData.agentdecision} disabled={readOnly}
                 placeholder="قرارك والدخل المحسبي من ذلك العميل بخصوص الملاحظة"
                 onChange={e => handleChange("agentdecision", e.target.value)} />
             </Field>
@@ -481,14 +510,23 @@ const fetchDetails = async () => {
         </div>
 
         {/* Action buttons — bottom */}
-        <div style={{ display:"flex", gap:10, paddingTop:4 }}>
-          <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
-            {loading ? "Saving…" : "Save"}
-          </button>
-          <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
-            {loading ? "Submitting…" : "Submit"}
-          </button>
+        <div style={{ display:"flex", gap:10, paddingTop:4, alignItems:"center", flexWrap:"wrap" }}>
+          {!isCompleted && (
+            <>
+              <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(1))} disabled={loading}>
+                {loading ? "Saving…" : "Save"}
+              </button>
+              <button className="cd-btn cd-btn-pri" onClick={() => guard("CC.EDIT", () => handleSubmit(2))} disabled={loading}>
+                {loading ? "Submitting…" : "Submit"}
+              </button>
+            </>
+          )}
           <button className="cd-btn cd-btn-sec" onClick={() => navigate(-1)} disabled={loading}>Back</button>
+          {isCompleted && (
+            <span style={{ fontSize:12.5, color:"#64748b", fontWeight:600 }}>
+              This courtesy call is completed and can no longer be edited.
+            </span>
+          )}
         </div>
 
         {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
