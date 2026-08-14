@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { API_BASE_URL } from "../../config";
 
+const TOKEN = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+
 const triggers = [
   {
     id: "sla-escalation",
@@ -10,6 +13,16 @@ const triggers = [
     icon: "bx-alarm-exclamation",
     color: "#1F4E79",
     endpoint: `${API_BASE_URL}/api/CaseOperation/TriggerSLAEscalation`,
+    method: "POST",
+  },
+  {
+    id: "zenoti-appointment-sync",
+    title: "Zenoti Appointment Sync",
+    description:
+      "Manually pull newly received Zenoti appointments into EazyWeek. Resolves the centre and customer for each appointment, creates the appointment record, and generates the courtesy call and its service items. Runs automatically on a schedule - use this if the scheduled run has not picked up recent appointments.",
+    icon: "bx-calendar-check",
+    color: "#1F4E79",
+    endpoint: `${API_BASE_URL}/api/Sync/TriggerZenotiSync`,
     method: "POST",
   },
 ];
@@ -29,7 +42,10 @@ const OnDemandTriggers = () => {
       const res = await fetch(trigger.endpoint, {
         method: trigger.method,
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${TOKEN()}`,
+        },
       });
 
       const data = await res.json();

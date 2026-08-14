@@ -13,6 +13,7 @@ import {
   statusClass,
   formatSAR,
   apiRequest,
+  openPdf,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'MDM.EINV.VIEW';
@@ -73,6 +74,14 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   }, [datePreset, fromDate, toDate]);
 
   /* ---- load ---- */
+  const handlePrint = async (row) => {
+    try {
+      await openPdf(`${API_BASE_URL}/api/EInvoice/Legacy/Print/${encodeURIComponent(row.id)}`);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   const load = useCallback(async () => {
     if (datePreset === 'Custom Days' && (dateError || !fromDate || !toDate)) return;
 
@@ -90,7 +99,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         page,
         limit,
       };
-      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/LoadEInvoice`, {
+      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/List`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -395,7 +404,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
                         Resolve
                       </button>
                     )}
-                    <button type="button" className="btn-link" onClick={() => onOpenPrint(row.id)}>
+                    <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
                       Print
                     </button>
                   </td>

@@ -102,10 +102,17 @@ export function prettyJson(value) {
 }
 
 /* ---- transport ---- */
+const TOKEN = () =>
+  localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+
 export async function apiRequest(url, options = {}) {
   const response = await fetch(url, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${TOKEN()}`,
+      ...(options.headers || {}),
+    },
     ...options,
   });
 
@@ -121,4 +128,33 @@ export async function apiRequest(url, options = {}) {
     throw new Error((body && body.message) || `Request failed (HTTP ${response.status})`);
   }
   return body;
+}
+
+/* ---- binary fetch (ClearTax print) ---- */
+export async function openPdf(url) {
+  const response = await fetch(url, {
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${TOKEN()}` },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `Could not load the print (HTTP ${response.status})`;
+    try {
+      const body = JSON.parse(text);
+      if (body && body.message) message = body.message;
+    } catch (err) {
+      /* non-JSON error body */
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const opened = window.open(objectUrl, '_blank');
+  if (!opened) {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error('The print was blocked by the browser. Allow pop-ups for this site.');
+  }
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 }
