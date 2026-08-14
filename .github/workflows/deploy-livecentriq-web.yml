@@ -1,0 +1,66 @@
+name: Deploy Live Centriq Web
+
+on:
+  workflow_dispatch:
+
+env:
+  APP_NAME: eazyweek-livecentriq-web
+  NODE_VERSION: '22.x'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: livecentriq
+
+    steps:
+      # ---- checkout ----
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- guard ----
+      - name: Verify API URL is configured
+        run: |
+          URL="${{ vars.LIVECENTRIQ_API_URL }}"
+          if [ -z "$URL" ]; then
+            echo "LIVECENTRIQ_API_URL repository variable is not set - aborting"
+            exit 1
+          fi
+          case "$URL" in
+            https://*) ;;
+            *) echo "LIVECENTRIQ_API_URL must start with https:// - got '$URL'"; exit 1 ;;
+          esac
+          case "$URL" in
+            *beta*|*demo*|*testcentriq*|*localhost*|*placeholder*|*example*)
+              echo "LIVECENTRIQ_API_URL points at a non-live host - aborting"; exit 1 ;;
+          esac
+          echo "Building against $URL"
+
+      # ---- build ----
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.LIVECENTRIQ_API_URL }}
+          VITE_IDLE_MINUTES: 30
+
+      - name: Confirm API URL landed in the bundle
+        run: |
+          if ! grep -rq "${{ vars.LIVECENTRIQ_API_URL }}" dist/assets; then
+            echo "API URL not found in built assets - aborting"
+            exit 1
+          fi
+
+      # ---- deploy ----
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_LIVECENTRIQ_WEB_PUBLISH_PROFILE }}
+          package: dist
