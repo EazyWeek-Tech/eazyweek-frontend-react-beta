@@ -122,6 +122,12 @@ export function useFormConfig(formCode) {
     return map;
   }, [config]);
 
+  const bySection = useMemo(() => {
+    const map = new Map();
+    (config?.sections || []).forEach((s) => map.set(s.key, s));
+    return map;
+  }, [config]);
+
   const field = useCallback((key) => byKey.get(key) || null, [byKey]);
 
   const labelOf = useCallback(
@@ -148,6 +154,27 @@ export function useFormConfig(formCode) {
     [byKey]
   );
 
+  /* ---- sections ---- */
+
+  const section = useCallback((sectionKey) => bySection.get(sectionKey) || null, [bySection]);
+
+  const sectionOf = useCallback(
+    (fieldKey) => {
+      const f = byKey.get(fieldKey);
+      return (f && f.section) || "";
+    },
+    [byKey]
+  );
+
+  const isSectionRequired = useCallback(
+    (sectionKey, fallback = true) => {
+      const s = bySection.get(sectionKey);
+      if (!s || s.mandatoryMode !== "section") return fallback;
+      return !!s.mandatory;
+    },
+    [bySection]
+  );
+
   const validate = useCallback(
     (values) => {
       const source = values || {};
@@ -172,6 +199,7 @@ export function useFormConfig(formCode) {
   return {
     config,
     fields: config?.fields || [],
+    sections: config?.sections || [],
     loading,
     error,
     reload: load,
@@ -179,6 +207,9 @@ export function useFormConfig(formCode) {
     labelOf,
     isMandatory,
     isVisible,
+    section,
+    sectionOf,
+    isSectionRequired,
     validate,
   };
 }
