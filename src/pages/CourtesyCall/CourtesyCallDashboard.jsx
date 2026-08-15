@@ -126,12 +126,16 @@ export default function CourtesyCallDashboard() {
 
   const [hasLoaded,    setHasLoaded]    = useState(false)
   const [toast,        setToast]        = useState(null)
-  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() })
-  const [range,        setRange]        = useState("Current Month")
-  const [search,       setSearch]       = useState("")
+  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() })
+  const [range,        setRange]        = useState("Today")
+  const [search,       setSearchRaw]    = useState("")
+  const setSearch = (v) => { setSearchRaw(v); setPage(1) }
   const [page,         setPage]         = useState(1)
   const [perPage,      setPerPage]      = useState(10)
-  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() })
+  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() })
+  // Server-driven now: the grid holds one page, these describe the whole set.
+  const [serverTotal,  setServerTotal]  = useState(0)
+  const [srvCounts,    setSrvCounts]    = useState(null)
   const navigate = useNavigate()
   const reqSeq = useRef(0)
 
@@ -142,11 +146,23 @@ export default function CourtesyCallDashboard() {
       const res  = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
         method: "POST", headers: authHdr(),
         body: JSON.stringify({ status: f.status || "", auditor: f.auditor || "",
-          fromDate: f.fromDate || "2020-01-01", toDate: f.toDate || todayYMD(), dateFlag: "1" }),
+          fromDate: f.fromDate || "2020-01-01", toDate: f.toDate || todayYMD(), dateFlag: "1",
+          // Paging and search both run server-side. Sending them is what makes
+          // the endpoint return an envelope instead of the whole array.
+          page: f.page ?? 1, pageSize: f.pageSize ?? 10,
+          searchTerm: f.searchTerm ?? "" }),
       })
       const json = await res.json()
-      const list = json?.data ?? json
+      const body = json?.data ?? json
+      const list = Array.isArray(body) ? body : (body?.data ?? [])
       const arr  = Array.isArray(list) ? list : []
+      if (!Array.isArray(body)) {
+        setServerTotal(body?.totalCount ?? arr.length)
+        setSrvCounts(body?.statusCounts ?? null)
+      } else {
+        setServerTotal(arr.length)
+        setSrvCounts(null)
+      }
       // Descending by APPOINTMENT DATE (newest visit first), then by creation
       // time, then reference ID. Sorting on createdDate alone gave an arbitrary
       // order because every bulk-generated call shares one CREATEDDATE.
@@ -185,6 +201,17 @@ export default function CourtesyCallDashboard() {
     setDraft(prev => ({ ...prev, [field]: value }))
   }
 
+  /* Load today's first page on mount, then refetch whenever the page, the page
+     size or the search term changes. Search is debounced because it now hits
+     the database rather than filtering rows already in the browser. */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetchData({ ...filters, page, pageSize: perPage, searchTerm: search })
+    }, search ? 350 : 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, perPage, search])
+
   const dateRangeInvalid = Boolean(
     draft.fromDate && draft.toDate && new Date(draft.toDate) < new Date(draft.fromDate)
   )
@@ -202,11 +229,11 @@ export default function CourtesyCallDashboard() {
     }
     setFilters(draft)
     setPage(1)
-    fetchData(draft)
+    fetchData({ ...draft, page: 1, pageSize: perPage, searchTerm: search })
   }
 
   const handleClear = () => {
-    const reset = { status: "", auditor: "", fromDate: monthStartYMD(), toDate: todayYMD() }
+    const reset = { status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() }
     setFilters(reset)
     setDraft(reset)
     setSearch("")
@@ -224,17 +251,24 @@ export default function CourtesyCallDashboard() {
     setDraft(prev => ({ ...prev, fromDate: b.fromDate, toDate: b.toDate }))
   }
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return data
-    const q = search.toLowerCase()
-    return data.filter(r =>
-      [r.referenceID, r.customerID, r.customerName, r.mobileNo, r.clinicName, r.auditorName]
-        .some(v => v?.toString().toLowerCase().includes(q))
-    )
-  }, [data, search])
+  // Search runs in SQL now, so the rows in hand are already the result for
+  // this page. Filtering again here would hide matches that the server found.
+  const filtered = data
 
   // Completion bifurcation counts (FRD §4.5) — from the loaded, period-scoped list
+  /* Whole-set counts come from the server. Counting the rows in hand would
+     only ever describe the current page. */
   const counts = useMemo(() => {
+    if (srvCounts) {
+      let pending = 0, partial = 0, completed = 0
+      Object.entries(srvCounts).forEach(([k, n]) => {
+        const s = STATUS_LABEL[String(k)] || k
+        if (s === "Pending") pending += n
+        else if (s === "Partially Completed") partial += n
+        else if (s === "Completed") completed += n
+      })
+      return { pending, partial, completed, total: pending + partial + completed }
+    }
     let pending = 0, partial = 0, completed = 0
     data.forEach(r => {
       const s = STATUS_LABEL[String(r.status)] || r.status
@@ -243,20 +277,43 @@ export default function CourtesyCallDashboard() {
       else if (s === "Completed") completed++
     })
     return { pending, partial, completed, total: pending + partial + completed }
-  }, [data])
+  }, [data, srvCounts])
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / perPage))
+  const totalPages  = Math.max(1, Math.ceil(serverTotal / perPage))
   const start       = (page - 1) * perPage
-  const pageData    = filtered.slice(start, start + perPage)
+  const pageData    = filtered
 
   const allowExport = useMemo(() => canExport(), [])
 
-  const handleExport = () => {
+  /* Export deliberately re-queries WITHOUT page/pageSize. The endpoint's paging
+     is opt-in, so omitting them returns every matching row and the CSV stays
+     complete even though the grid only holds ten. */
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
     if (!allowExport) { setToast({ message: "You do not have access to export courtesy calls.", type: "error" }); return }
-    if (!filtered.length) { setToast({ message: "Nothing to export for the selected filters.", type: "error" }); return }
-    const centre = (getUser().centerName || getUser().centerCode || "centre").replace(/[^\w-]+/g, "-")
-    downloadCsv(buildCsv(filtered), `courtesy-calls_${centre}_${filters.fromDate}_to_${filters.toDate}.csv`)
-    setToast({ message: `Exported ${filtered.length} record${filtered.length !== 1 ? "s" : ""}.`, type: "success" })
+    if (!serverTotal) { setToast({ message: "Nothing to export for the selected filters.", type: "error" }); return }
+    setExporting(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
+        method: "POST", headers: authHdr(),
+        body: JSON.stringify({
+          status: filters.status || "", auditor: filters.auditor || "",
+          fromDate: filters.fromDate || "2020-01-01", toDate: filters.toDate || todayYMD(),
+          dateFlag: "1", searchTerm: search || "",
+        }),
+      })
+      const json = await res.json()
+      const body = json?.data ?? json
+      const all  = Array.isArray(body) ? body : (body?.data ?? [])
+      if (!all.length) { setToast({ message: "Nothing to export for the selected filters.", type: "error" }); return }
+      const centre = (getUser().centerName || getUser().centerCode || "centre").replace(/[^\w-]+/g, "-")
+      downloadCsv(buildCsv(all), `courtesy-calls_${centre}_${filters.fromDate}_to_${filters.toDate}.csv`)
+      setToast({ message: `Exported ${all.length} record${all.length !== 1 ? "s" : ""}.`, type: "success" })
+    } catch {
+      setToast({ message: "Export failed. Please try again.", type: "error" })
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -299,7 +356,7 @@ export default function CourtesyCallDashboard() {
           <div>
             <h1 style={{ fontSize:22, fontWeight:800, color:"#2b3f73", margin:0 }}>Courtesy Call</h1>
             <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>
-              {loading ? "Loading…" : hasLoaded ? `${filtered.length} record${filtered.length !== 1 ? "s" : ""}` : "Not loaded yet"}
+              {loading ? "Loading…" : hasLoaded ? `${serverTotal} record${serverTotal !== 1 ? "s" : ""}` : "Not loaded yet"}
             </div>
           </div>
           <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
@@ -436,10 +493,10 @@ export default function CourtesyCallDashboard() {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", justifyContent:"flex-end" }}>
             <div style={{ fontSize:13, color:"#64748b" }}>
-              {loading ? "Loading…" : `Showing ${filtered.length > 0 ? start+1 : 0}–${Math.min(start+perPage, filtered.length)} of ${filtered.length}`}
+              {loading ? "Loading…" : `Showing ${serverTotal > 0 ? start+1 : 0}–${Math.min(start+perPage, serverTotal)} of ${serverTotal}`}
             </div>
             {allowExport && (
-              <button className="cc-btn cc-btn-pri" onClick={handleExport}
+              <button className="cc-btn cc-btn-pri" onClick={handleExport} disabled={exporting}
                 style={{ padding:"7px 16px", display:"inline-flex", alignItems:"center", gap:7, whiteSpace:"nowrap" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

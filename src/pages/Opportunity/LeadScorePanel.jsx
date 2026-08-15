@@ -5,8 +5,14 @@
 //
 // The agent picks High / Medium / Low for four parameters while they are on the
 // call; the card weights them, shows the running score out of 100 and names the
-// band (Hot / Warm / Cold). All four are mandatory — the parent form's Submit
-// stays disabled until `complete` comes back true.
+// band (Hot / Warm / Cold).
+//
+// Whether scoring is required at all is a SECTION-level setting in Form
+// Configuration, not four per-parameter flags — a partial score is arithmetic
+// that silently understates and can land the lead in the wrong band, so there
+// is no state in which three of four is acceptable. Required: all four.
+// Not required: all four, or none. `complete` reflects that rule and the parent
+// form's Submit stays disabled until it comes back true.
 //
 // Interaction is deliberately the same as the Audit module's Yes/No scoring
 // rows: a segmented control sitting beside each criterion, and a running total
@@ -133,6 +139,9 @@ const LEAD_SCORE_CSS = `
   font-size:11.5px; font-weight:600; color:#b3543f;
   background:#fdeceb; border:1px solid #f3cdc6; border-radius:4px; padding:6px 10px;
 }
+.ewOpp .lsPending.optional{
+  color:#5b6a7d; background:#f4f7fa; border-color:#dfe6ee;
+}
 .ewOpp .lsNote{ margin-top:8px; font-size:11px; color:#8a99ab; }
 .ewOpp .lsErr{ margin-top:8px; font-size:11.5px; color:#c0392b; }
 `;
@@ -187,24 +196,35 @@ export default function LeadScorePanel({
 
   const calc = computeLeadScore(levels);
 
+  // The section key comes off the field itself rather than a literal, so the
+  // panel keeps working if the catalogue section is ever renamed.
+  const sectionKey = fc.sectionOf(PARAMETERS[0].key) || "leadScore";
+  const required = fc.isSectionRequired(sectionKey, true);
+
+  const answered = PARAMETERS.length - calc.missing.length;
+  const untouched = answered === 0;
+  const gateComplete = required ? calc.complete : calc.complete || untouched;
+
   // Report upward on every change so the form can gate Submit and save on it.
+  // `scored` tells the form whether there is anything to hand saveLeadScoreSafe.
   useEffect(() => {
     onChangeRef.current?.({
       levels,
       score: calc.score,
       band: calc.band,
-      complete: calc.complete,
+      complete: gateComplete,
+      scored: calc.complete,
+      required,
       missing: calc.missing,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [levels, calc.score, calc.band, calc.complete]);
+  }, [levels, calc.score, calc.band, calc.complete, gateComplete, required]);
 
   const pick = (key, level) => {
     if (locked) return;
     setLevels((p) => ({ ...p, [key]: p[key] === level ? "" : level }));
   };
 
-  const answered = PARAMETERS.length - calc.missing.length;
   const band = calc.complete ? calc.band : "";
   const c = bandColor(band || "Cold");
 
@@ -228,7 +248,7 @@ export default function LeadScorePanel({
           <div className="lsItem" key={p.key}>
             <div className="lsNum">{p.n}</div>
             <div className="lsName">
-              {fc.labelOf(p.key, p.label)} <span className="req">*</span>
+              {fc.labelOf(p.key, p.label)} {required && <span className="req">*</span>}
             </div>
 
             <div className="lsPills" role="group" aria-label={fc.labelOf(p.key, p.label)}>
@@ -262,9 +282,17 @@ export default function LeadScorePanel({
           <span className="lsBand" style={{ background: c.bg, color: c.fg }}>
             {bandLabel(band)}
           </span>
-        ) : (
+        ) : required ? (
           <span className="lsPending">
             {answered} of {PARAMETERS.length} answered — all four are required
+          </span>
+        ) : untouched ? (
+          <span className="lsPending optional">
+            Optional — score this lead, or leave the section blank
+          </span>
+        ) : (
+          <span className="lsPending">
+            {answered} of {PARAMETERS.length} answered — answer all four, or clear the section
           </span>
         )}
       </div>

@@ -31,6 +31,8 @@ const CSS = `
   .fcfg-tbl tr:last-child td { border-bottom:none; }
   .fcfg-grp td { background:#f8fafc; font-size:11px; font-weight:800; color:#64748b;
     text-transform:uppercase; letter-spacing:.05em; }
+  .fcfg-grp-note { font-size:10.5px; font-weight:600; color:#94a3b8;
+    text-transform:none; letter-spacing:0; margin-top:3px; }
   .fcfg-key { font-size:11px; color:#94a3b8; margin-top:2px; }
   .fcfg-lock { font-size:11px; color:#94a3b8; font-style:italic; }
   .fcfg-btn { border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:700;
@@ -71,6 +73,7 @@ const FormConfiguration = () => {
   const [formCode, setFormCode] = useState("");
   const [config, setConfig] = useState(null);
   const [rows, setRows] = useState([]);
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -102,6 +105,14 @@ const FormConfiguration = () => {
       const json = await res.json().catch(() => ({}));
       const data = json?.data ?? null;
       setConfig(data);
+      setSections(
+        (data?.sections || []).map((s) => ({
+          key: s.key,
+          name: s.name,
+          mandatoryMode: s.mandatoryMode === "section" ? "section" : "field",
+          mandatory: !!s.mandatory,
+        }))
+      );
       setRows(
         (data?.fields || []).map((f) => ({
           fieldKey: f.key,
@@ -111,6 +122,7 @@ const FormConfiguration = () => {
           visible: !!f.visible,
           section: f.section,
           readOnly: !!f.readOnly,
+          mandatoryFrom: f.mandatoryFrom || "field",
           lockMandatory: !!f.lockMandatory,
           allowLabel: !!f.allowLabel,
           allowHide: !!f.allowHide,
@@ -122,6 +134,7 @@ const FormConfiguration = () => {
       console.error("[formConfig] config load failed:", err?.message || err);
       setConfig(null);
       setRows([]);
+      setSections([]);
       setToast({ type: "error", message: "Could not load this form's configuration." });
     } finally {
       setLoading(false);
@@ -135,18 +148,19 @@ const FormConfiguration = () => {
   const setRow = (key, patch) =>
     setRows((prev) => prev.map((r) => (r.fieldKey === key ? { ...r, ...patch } : r)));
 
+  const setSection = (key, patch) =>
+    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+
   const grouped = useMemo(() => {
-    const sections = config?.sections || [];
-    if (!sections.length) return [{ key: "", name: "", rows }];
+    if (!sections.length) return [{ key: "", name: "", mandatoryMode: "field", rows }];
     const out = sections.map((s) => ({
-      key: s.key,
-      name: s.name,
+      ...s,
       rows: rows.filter((r) => r.section === s.key),
     }));
     const loose = rows.filter((r) => !sections.some((s) => s.key === r.section));
-    if (loose.length) out.push({ key: "", name: "Other", rows: loose });
+    if (loose.length) out.push({ key: "", name: "Other", mandatoryMode: "field", rows: loose });
     return out.filter((g) => g.rows.length);
-  }, [config, rows]);
+  }, [sections, rows]);
 
   const submit = async () => {
     setSaving(true);
@@ -163,6 +177,9 @@ const FormConfiguration = () => {
               mandatory: r.mandatory,
               visible: r.visible,
             })),
+            sections: sections
+              .filter((s) => s.mandatoryMode === "section")
+              .map((s) => ({ sectionKey: s.key, mandatory: s.mandatory })),
           }),
         }
       );
@@ -281,11 +298,34 @@ const FormConfiguration = () => {
             <tbody>
               {grouped.map((g) => (
                 <React.Fragment key={g.key || g.name}>
-                  {g.name && (
+                  {g.name && g.mandatoryMode === "section" && (
+                    <tr className="fcfg-grp">
+                      <td colSpan={2}>
+                        {g.name}
+                        <div className="fcfg-grp-note">
+                          Mandatory is set for the whole section — staff complete every field in it, or none.
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          className="fcfg-chk"
+                          checked={g.mandatory}
+                          disabled={busy}
+                          aria-label={`${g.name} section mandatory`}
+                          onChange={(e) => setSection(g.key, { mandatory: e.target.checked })}
+                        />
+                      </td>
+                      <td />
+                    </tr>
+                  )}
+
+                  {g.name && g.mandatoryMode !== "section" && (
                     <tr className="fcfg-grp">
                       <td colSpan={4}>{g.name}</td>
                     </tr>
                   )}
+
                   {g.rows.map((r) => (
                     <tr key={r.fieldKey}>
                       <td>
@@ -306,15 +346,19 @@ const FormConfiguration = () => {
                         )}
                       </td>
                       <td style={{ textAlign: "center" }}>
-                        <Locked reason={r.lockMandatory ? r.lockReason : ""}>
-                          <input
-                            type="checkbox"
-                            className="fcfg-chk"
-                            checked={r.mandatory}
-                            disabled={busy || r.lockMandatory}
-                            onChange={(e) => setRow(r.fieldKey, { mandatory: e.target.checked })}
-                          />
-                        </Locked>
+                        {g.mandatoryMode === "section" ? (
+                          <span className="fcfg-lock">Set by section</span>
+                        ) : (
+                          <Locked reason={r.lockMandatory ? r.lockReason : ""}>
+                            <input
+                              type="checkbox"
+                              className="fcfg-chk"
+                              checked={r.mandatory}
+                              disabled={busy || r.lockMandatory}
+                              onChange={(e) => setRow(r.fieldKey, { mandatory: e.target.checked })}
+                            />
+                          </Locked>
+                        )}
                       </td>
                       <td style={{ textAlign: "center" }}>
                         <Locked reason={!r.allowHide ? r.hideReason || r.lockReason : ""}>
