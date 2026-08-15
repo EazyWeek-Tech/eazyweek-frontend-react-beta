@@ -1114,26 +1114,45 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       .catch(()=>{});
   },[oppCode]);
 
-  // Fetch page
+  // Fetch every batch. A single pageSize:5000 request silently truncated any
+  // campaign larger than that, so the grid stopped at 5,000 leads with no
+  // indication more existed. Loop on totalCount until the whole set is in.
   useEffect(()=>{
     if(!oppCode) return;
     let alive=true; setLoading(true); setErr("");
-    fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
-      method:"POST", headers:authHeaders(),
-      body:JSON.stringify({
-        oppCode, fromDate, toDate,
-        pageNumber:1, pageSize:5000,   // fetch full set; filter + paginate client-side (like R1-R6)
-        searchTerm:search, statusFilter:status,
-        // Unassigned has no server-side representation — clear the filter and apply it
-        // below, which works because this endpoint returns the whole set anyway.
-        ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
-      }),
-    })
-      .then(r=>r.json())
-      .then(d=>{
-        if(!alive) return;
-        const list=Array.isArray(d?.data)?d.data:Array.isArray(d)?d:[];
-        const total=d?.totalCount??d?.total??list.length;
+
+    const BATCH = 5000;
+    const MAX_BATCHES = 40;          // 200,000 rows, a sane ceiling
+
+    const fetchBatch = (pageNumber) =>
+      fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
+        method:"POST", headers:authHeaders(),
+        body:JSON.stringify({
+          oppCode, fromDate, toDate,
+          pageNumber, pageSize: BATCH,
+          searchTerm:search, statusFilter:status,
+          // Unassigned has no server-side representation — clear the filter and apply it
+          // below, which works because this endpoint returns the whole set anyway.
+          ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
+        }),
+      }).then(r=>r.json());
+
+    (async () => {
+      let list = [];
+      let total = 0;
+      for (let n = 1; n <= MAX_BATCHES; n++) {
+        const d = await fetchBatch(n);
+        if (!alive) return null;
+        const chunk = Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : [];
+        total = d?.totalCount ?? d?.total ?? (list.length + chunk.length);
+        list = list.concat(chunk);
+        if (chunk.length < BATCH || list.length >= total) break;
+      }
+      return { list, total };
+    })()
+      .then(res=>{
+        if(!alive || !res) return;
+        const { list, total } = res;
         setRows(list.map(x=>{
           // followUpDate: mask 1900 placeholder
           const fuDateRaw = x?.followUpDate || "";
