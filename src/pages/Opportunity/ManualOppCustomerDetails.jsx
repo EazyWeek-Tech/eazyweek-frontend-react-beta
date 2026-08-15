@@ -1945,8 +1945,10 @@ const subMediumName = safe(form.subMedium || "Manual");
           // response's flag over the campaign fetch, and keep a local copy — the
           // direct (mandatory) route below runs before setState has flushed.
           const mandatory = (rd?.apptMandatory ?? apptMandatory) !== false;
+          const integration = !!rd?.apptIntegration;
           const ctx = {
             apptMandatory: mandatory,
+            apptIntegration: integration,
             leadSource: "MANUAL",
             leadRecId:  String(numericLeadOppId || ""),
             oppCode:    safe(resolvedOppCode).trim(),
@@ -1979,6 +1981,9 @@ const subMediumName = safe(form.subMedium || "Manual");
             // to the Appointment screen. The conversion only sticks if a booking
             // is saved there; abandoning it reverts the lead to WIP.
             if (mandatory) { goToBooking(cust.custId, ctx); return; }
+
+            // Appointment module = INTEGRATION: no booking screen, no dialog.
+            if (integration) { navigate(-1); return; }
 
             // Case B (FRD 6.3) — booking not mandatory: ask.
             setShowConvertedPopup(true);
@@ -2016,8 +2021,10 @@ const subMediumName = safe(form.subMedium || "Manual");
       if (cd?.convert) {
         // Same as the edit branch: response flag wins, local copy for the direct route.
         const mandatory = (cd?.apptMandatory ?? apptMandatory) !== false;
+        const integration = !!cd?.apptIntegration;
         const ctx = {
           apptMandatory: mandatory,
+          apptIntegration: integration,
           leadSource: "MANUAL",
           leadRecId:  String(cd?.leadOppId || ""),
           oppCode:    safe(resolvedOppCode).trim(),
@@ -2047,6 +2054,9 @@ const subMediumName = safe(form.subMedium || "Manual");
 
           // Case A — booking mandatory: straight to the Appointment screen.
           if (mandatory) { goToBooking(cust.custId, ctx); return; }
+
+          // Appointment module = INTEGRATION: no booking screen, no dialog.
+          if (integration) { navigate(isLead ? -1 : -2); return; }
 
           // Case B — booking not mandatory: ask.
           setShowConvertedPopup(true);

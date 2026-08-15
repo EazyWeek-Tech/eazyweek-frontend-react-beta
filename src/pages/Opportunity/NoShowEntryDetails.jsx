@@ -627,6 +627,15 @@ setForm((p) => ({
           return;
         }
 
+        // Appointment module = INTEGRATION: appointments are owned by the
+        // integrated system, so there is no booking screen to offer and no
+        // dialog to show. The lead stays Converted and the appointment arrives
+        // through the integration.
+        if (saveRes.apptIntegration) {
+          navigate(-1);
+          return;
+        }
+
         // Case B — booking not mandatory: ask. Yes routes to the same screen (and
         // carries the same revert-on-abandon rule); No leaves the lead Converted
         // with Appointment ID = Pending, mapped later from Campaign Details.

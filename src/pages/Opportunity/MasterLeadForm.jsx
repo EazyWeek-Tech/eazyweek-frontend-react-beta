@@ -1140,6 +1140,15 @@ if (!hasNone) {
             return;
           }
 
+          // Appointment module = INTEGRATION: appointments are owned by the
+          // integrated system, so there is no booking screen to offer and no
+          // dialog to show.
+          if (saveRes.apptIntegration) {
+            showToast("Saved successfully");
+            navigate(-1);
+            return;
+          }
+
           // Case B — booking not mandatory: ask. Yes routes to the same screen (and
           // carries the same revert-on-abandon rule); No leaves the lead Converted
           // with Appointment ID = Pending, mapped later from Campaign Details.

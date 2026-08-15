@@ -1064,6 +1064,7 @@ if (!hasNone) {
           // this setState has flushed.
           const ctx = {
             apptMandatory: saveRes.apptMandatory !== false,
+            apptIntegration: !!saveRes.apptIntegration,
             leadSource:    saveRes.leadSource || "EXTERNAL",
             leadRecId:     String(saveRes.leadRecId || recID),
             oppCode:       safe(resolvedOppCode).trim(),
@@ -1092,6 +1093,9 @@ if (!hasNone) {
             // to the Appointment screen. The conversion only sticks if a booking is
             // saved there; abandoning it reverts the lead to WIP.
             if (ctx.apptMandatory) { goToBooking(cust.custId, ctx); return; }
+
+            // Appointment module = INTEGRATION: no booking screen, no dialog.
+            if (ctx.apptIntegration) { navigate(-1); return; }
 
             // Case B (FRD §6.3) — booking not mandatory: ask.
             setShowConvertedPopup(true);
