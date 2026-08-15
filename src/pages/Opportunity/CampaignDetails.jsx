@@ -694,8 +694,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   }, [srchDraft]);
 
   const [serverTotal, setServerTotal] = useState(0);
-  const SERVER_PAGE_SIZE = 100; // rows per server request
-  const [serverPage, setServerPage] = useState(Number(_v.serverPage) || 1);
+  // serverPage/SERVER_PAGE_SIZE are gone - the displayed page IS the server page.
 
   // Fetch current page — ALL filters sent to server
   useEffect(() => {
@@ -706,7 +705,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       method:"POST", headers: authHeaders(),
       body: JSON.stringify({
         oppCode, fromDate, toDate,
-        page: serverPage, pageSize: SERVER_PAGE_SIZE,
+        page, pageSize,
         search, status, owner, disp, therapist, scoreBand,
         apptFrom: showAppt ? apptFrom : "",
         apptTo:   showAppt ? apptTo   : "",
@@ -731,12 +730,12 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       .catch(e=>{ if(alive) setErr(e.message); })
       .finally(()=>{ if(alive) setLoading(false); });
     return()=>{ alive=false; };
-  }, [oppCode, fromDate, toDate, serverPage, search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
+  }, [oppCode, fromDate, toDate, page, pageSize, search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo, churnKey]);
 
   // Reset to page 1 when server-side filters change — but NOT on mount, which would
   // discard the page number we just restored.
-  useEffect(()=>{ if (!mountedRef.current) return; setServerPage(1); setPage(1); },
+  useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
     [search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
   // Reset display page when client filters change
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
@@ -748,11 +747,11 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       status, owner, disp, therapist, scoreBand, search, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo,
       fuMode, fuFrom, fuTo, fuTFrom, fuTTo,
-      sort, page, pageSize, serverPage,
+      sort, page, pageSize,
     });
   }, [oppCode, status, owner, disp, therapist, scoreBand, search, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo,
-      fuMode, fuFrom, fuTo, fuTFrom, fuTTo, sort, page, pageSize, serverPage]);
+      fuMode, fuFrom, fuTo, fuTFrom, fuTTo, sort, page, pageSize]);
 
   useViewScroll("trans", oppCode, !loading && rows.length > 0);
 
@@ -846,10 +845,13 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   }, [rows,search,status,owner,disp,therapist,showAppt,apptFrom,apptTo,fuDateRange,filterTFrom,filterTTo,sort,
       createdFrom,createdTo,modFrom,modTo,createdBad,modBad]);
 
-  // Server drives total count; client pages within returned batch
-  const totalPages = Math.max(1, Math.ceil(serverTotal/SERVER_PAGE_SIZE));
-  const clientTotalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
-  const paged = useMemo(()=>filtered.slice((page-1)*pageSize, page*pageSize), [filtered,page,pageSize]);
+  // ONE level of paging. The server already applies every filter and returns
+  // exactly one page, so the rows in hand ARE the page - slicing them again
+  // produced the old two-level "batch N of M" behaviour and meant a campaign
+  // with 120,000 leads tried to walk 5,000-row batches until it timed out.
+  const clientTotalPages = Math.max(1, Math.ceil(serverTotal/pageSize));
+  const totalPages = clientTotalPages;
+  const paged = filtered;
 
   /* Backstop for the whole pattern above: every filter is supposed to reset the
      page, but that relies on a hand-maintained dependency list, and one filter
@@ -1026,23 +1028,12 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
           </div>
         ) : <EmptyNote />
       )}
-      {/* Batch navigation for large campaigns */}
       <div className="cd-server-pager">
         <span className="cd-count">
-          {filtered.length>0
-            ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,filtered.length).toLocaleString()}</b> of {filtered.length.toLocaleString()}</>
+          {serverTotal>0
+            ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,serverTotal).toLocaleString()}</b> of {serverTotal.toLocaleString()} records</>
             : "no records"}
-          {serverTotal>SERVER_PAGE_SIZE && <> · batch {serverPage}/{Math.ceil(serverTotal/SERVER_PAGE_SIZE)} ({serverTotal.toLocaleString()} loaded)</>}
         </span>
-        {serverTotal > SERVER_PAGE_SIZE && (<>
-          <button className="cd-pgbtn" disabled={serverPage<=1}
-            onClick={()=>setServerPage(p=>p-1)}>← Prev</button>
-          <span style={{fontSize:13,color:"#475569"}}>
-            Page {serverPage} / {Math.ceil(serverTotal/SERVER_PAGE_SIZE)}
-          </span>
-          <button className="cd-pgbtn" disabled={serverPage>=Math.ceil(serverTotal/SERVER_PAGE_SIZE)}
-            onClick={()=>setServerPage(p=>p+1)}>Next →</button>
-        </>)}
       </div>
       <Pager page={page} totalPages={clientTotalPages} onPage={setPage}
         pageSize={pageSize} onPageSize={setPageSize} />
@@ -1114,45 +1105,35 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       .catch(()=>{});
   },[oppCode]);
 
-  // Fetch every batch. A single pageSize:5000 request silently truncated any
-  // campaign larger than that, so the grid stopped at 5,000 leads with no
-  // indication more existed. Loop on totalCount until the whole set is in.
+  // ONE page per request. Loading the whole campaign - first as a single
+  // pageSize:5000 call, then as a loop of 5,000-row batches - worked while
+  // campaigns were small but times out on the 120,000-lead ones. The server
+  // applies search, status, owner and disposition, so the page in hand is the
+  // page to show.
+  //
+  // TRADE-OFF, worth knowing: the follow-up date/time filters and the
+  // "unassigned" owner option are applied client-side below and the endpoint
+  // has no equivalent, so they now narrow only the current page. Making them
+  // whole-campaign filters needs LoadExternalOppDetails to accept them.
   useEffect(()=>{
     if(!oppCode) return;
     let alive=true; setLoading(true); setErr("");
 
-    const BATCH = 5000;
-    const MAX_BATCHES = 40;          // 200,000 rows, a sane ceiling
-
-    const fetchBatch = (pageNumber) =>
-      fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
-        method:"POST", headers:authHeaders(),
-        body:JSON.stringify({
-          oppCode, fromDate, toDate,
-          pageNumber, pageSize: BATCH,
-          searchTerm:search, statusFilter:status,
-          // Unassigned has no server-side representation — clear the filter and apply it
-          // below, which works because this endpoint returns the whole set anyway.
-          ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
-        }),
-      }).then(r=>r.json());
-
-    (async () => {
-      let list = [];
-      let total = 0;
-      for (let n = 1; n <= MAX_BATCHES; n++) {
-        const d = await fetchBatch(n);
-        if (!alive) return null;
-        const chunk = Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : [];
-        total = d?.totalCount ?? d?.total ?? (list.length + chunk.length);
-        list = list.concat(chunk);
-        if (chunk.length < BATCH || list.length >= total) break;
-      }
-      return { list, total };
-    })()
-      .then(res=>{
-        if(!alive || !res) return;
-        const { list, total } = res;
+    fetch(`${API_BASE_URL}/api/Opportunity/LoadExternalOppDetails`, {
+      method:"POST", headers:authHeaders(),
+      body:JSON.stringify({
+        oppCode, fromDate, toDate,
+        pageNumber: page, pageSize,
+        searchTerm:search, statusFilter:status,
+        ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
+      }),
+    })
+      .then(r=>r.json())
+      .then(d=>{
+        if(!alive) return;
+        const list  = Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : [];
+        const total = d?.totalCount ?? d?.total ?? list.length;
+        setServerTotal(total);
         setRows(list.map(x=>{
           // followUpDate: mask 1900 placeholder
           const fuDateRaw = x?.followUpDate || "";
@@ -1204,12 +1185,11 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
             })(),
           };
         }));
-        setServerTotal(total);
       })
       .catch(e=>{if(alive)setErr(e.message);})
       .finally(()=>{if(alive)setLoading(false);});
     return()=>{alive=false;};
-  },[oppCode,fromDate,toDate,search,status,owner,disp,churnKey]);
+  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
     [search,status,owner,disp,scoreBand,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
@@ -1260,15 +1240,11 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     return list;
   },[rows,owner,scoreBand,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
-  const paged = filtered.slice((page-1)*pageSize, page*pageSize);
-
-  /* Backstop for the whole pattern above: every filter is supposed to reset the
-     page, but that relies on a hand-maintained dependency list, and one filter
-     was missed the moment a new one was added. This catches it structurally —
-     if the current page no longer exists after filtering, go back to page 1. */
-  useEffect(() => { if (page > totalPages) setPage(1); }, [page, totalPages]);
-
+  // The server returns one page and reports the campaign total, so paging is
+  // driven by serverTotal. `filtered` still applies the client-only follow-up
+  // and score filters, which narrow the visible page rather than the campaign.
+  const totalPages = Math.max(1, Math.ceil(serverTotal/pageSize));
+  const paged = filtered;
 
   const activeCount = [status,owner,disp,scoreBand,search,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
@@ -1336,8 +1312,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       </FilterPanel>
 
       <div className="cd-searchrow">
-        <span className="cd-count">{filtered.length>0
-          ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,filtered.length).toLocaleString()}</b> of {filtered.length.toLocaleString()}</>
+        <span className="cd-count">{serverTotal>0
+          ? <>showing <b>{((page-1)*pageSize+1).toLocaleString()}–{Math.min(page*pageSize,serverTotal).toLocaleString()}</b> of {serverTotal.toLocaleString()} records</>
           : "0 records"}</span>
         <div className="cd-searchwrap">
           <span className="cd-searchicon">⌕</span>
