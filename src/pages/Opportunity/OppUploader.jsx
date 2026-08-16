@@ -281,6 +281,7 @@ export default function OppUploader() {
         inserted: payload?.data?.inserted ?? 0,
         skipped: payload?.data?.skipped ?? 0,
         rejected: payload?.data?.rejected ?? 0,
+        byCentre: payload?.data?.byCentre || {},
         rows: payload?.data?.rows || [],
       });
       setUploading(false);
@@ -393,6 +394,16 @@ export default function OppUploader() {
             Skipped {result.skipped} &middot; Rejected {result.rejected}
           </div>
 
+          {!!Object.keys(result.byCentre || {}).length && (
+            <div style={{ fontSize: 13, marginTop: 6, opacity: 0.9 }}>
+              {Object.entries(result.byCentre).map(([centre, c]) => (
+                <div key={centre}>
+                  {centre}: {c.inserted} inserted, {c.skipped} skipped, {c.rejected} rejected
+                </div>
+              ))}
+            </div>
+          )}
+
           {!!problemRows.length && (
             <div
               style={{
@@ -409,7 +420,7 @@ export default function OppUploader() {
               >
                 <thead style={{ position: "sticky", top: 0, background: "#fff" }}>
                   <tr>
-                    {["Row", "CustID", "OppCode", "Status", "Reason"].map((h) => (
+                    {["Row", "CustID", "OppCode", "Centre", "Status", "Reason"].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -435,6 +446,9 @@ export default function OppUploader() {
                       </td>
                       <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
                         {r.oppCode}
+                      </td>
+                      <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                        {r.centerCode}
                       </td>
                       <td
                         style={{
