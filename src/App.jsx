@@ -111,6 +111,10 @@ import MasterUploader from "./pages/DataMigration/MasterUploader";
 import FormConfiguration from "./pages/Settings/FormConfiguration"; 
 import EInvoice from "./pages/Einvoice";
 import AuditCriteria from "./pages/Audit/AuditCriteria";
+import { ModuleSourceProvider, SourceGate } from "./components/ModuleSource";
+import * as appConfig from "./config";
+
+const API_BASE = appConfig.API_BASE_URL || appConfig.default?.API_BASE_URL || "";
 
 // 🔹 NEW: helper to bootstrap user from storage OR from ?token=
 const getInitialUser = () => {
@@ -227,12 +231,18 @@ if (user && showFirstLogin) {
     <FeatureGate feature={feature} currentUser={user}>{element}</FeatureGate>
   );
 
+  // Source gate helper — centres whose module is not OWN are redirected with a toast
+  const source = (moduleCode, element) => (
+    <SourceGate module={moduleCode}>{element}</SourceGate>
+  );
+
   return (
     <PermissionProvider>
+    <ModuleSourceProvider currentUser={user} apiBase={API_BASE}>
     <Routes>
       {/* Add Routes WITHOUT Sidebar + Header */}
-      <Route path="/appointment" element={<Appointment />} />
-      <Route path="/invoice" element={<Invoice />} />
+      <Route path="/appointment" element={source("APPOINTMENT", <Appointment />)} />
+      <Route path="/invoice" element={source("INVOICE", <Invoice />)} />
       <Route path="/customer" element={<Customer />} />
       <Route path="/consultation" element={<ConsultationForm />} />
       <Route path="/history" element={<GuestConsentForm />} />
@@ -270,7 +280,7 @@ if (user && showFirstLogin) {
           <div
             className={`ot-wrapper ${isSidebarCollapsed ? "collapsed" : ""}`}
           >
-            <Sidebar collapsed={isSidebarCollapsed} />
+            <Sidebar currentUser={user} />
             <section className="rhs-sect">
               <Header onToggleSidebar={toggleSidebar} onLogout={handleLogout} />
               <div className="">
@@ -307,10 +317,19 @@ if (user && showFirstLogin) {
 
                   <Route path="/on-demand" element={<OnDemandTriggers />} />
 
-                  <Route path="/appointment/dashboard" element={<AppointmentDashboard />} />
+                  <Route
+                    path="/appointment/dashboard"
+                    element={source("APPOINTMENT", <AppointmentDashboard />)}
+                  />
 
-                  <Route path="/invoice/dashboard" element={<InvoiceDashboard />} />
-                  <Route path="/invoice/cash-management" element={<CashManagement />} />
+                  <Route
+                    path="/invoice/dashboard"
+                    element={source("INVOICE", <InvoiceDashboard />)}
+                  />
+                  <Route
+                    path="/invoice/cash-management"
+                    element={source("INVOICE", <CashManagement />)}
+                  />
                   <Route
   path="/manuallead/:oppCode"
   element={gate("opportunity", <ManualOppCustomerDetails />)}
@@ -573,6 +592,7 @@ if (user && showFirstLogin) {
         }
       />
     </Routes>
+    </ModuleSourceProvider>
     </PermissionProvider>
   );
 }

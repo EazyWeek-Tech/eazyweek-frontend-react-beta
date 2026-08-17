@@ -1856,7 +1856,7 @@ export default function Dashboard() {
           position: "absolute", inset: 0, zIndex: 100,
           display: "flex", alignItems: "flex-start", justifyContent: "center",
           padding: 24,
-          background: "rgba(234,239,238,0.55)",
+          background: "rgba(234,239,238,0.78)",
         }}
       >
         <div
