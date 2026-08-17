@@ -5,25 +5,46 @@ import { usePermissions } from '../Settings/usePermissions';
 import {
   DATE_PRESETS,
   STATUS_OPTIONS,
-  DOC_TYPE_OPTIONS,
+  INVOICE_TYPE_OPTIONS,
   presetRange,
   validateRange,
-  docTypeLabel,
+  invoiceTypeLabel,
   docTypeClass,
   statusClass,
   formatSAR,
   apiRequest,
   openPdf,
+  getCurrentCentreCode,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'EINV.VIEW';
 const PERM_MANAGE = 'EINV.MANAGE';
+const REFRESH_ROLES = ['admin', 'manager'];
+const REFRESH_BATCH_SIZE = 50;
+
+function refreshRoleAllowed(perms) {
+  const names = [];
+  if (perms.role) names.push(perms.role);
+  if (perms.roleName) names.push(perms.roleName);
+  if (perms.roleCode) names.push(perms.roleCode);
+  if (Array.isArray(perms.roles)) {
+    perms.roles.forEach((r) => {
+      if (typeof r === 'string') names.push(r);
+      else if (r) names.push(r.ROLENAME || r.roleName || r.name || r.ROLECODE || r.roleCode);
+    });
+  }
+  const flat = names.filter(Boolean).map((v) => String(v).toLowerCase());
+  if (flat.length === 0) return null;
+  return flat.some((n) => REFRESH_ROLES.some((allowed) => n.indexOf(allowed) !== -1));
+}
 
 const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const perms = usePermissions() || {};
   const hasPerm = perms.hasPermission;
   const canView = typeof hasPerm === 'function' ? hasPerm(PERM_VIEW) : true;
   const canManage = typeof hasPerm === 'function' ? hasPerm(PERM_MANAGE) : true;
+  const roleAllowed = refreshRoleAllowed(perms);
+  const canRefresh = canManage && (roleAllowed === null ? true : roleAllowed);
 
   /* ---- filters ---- */
   const [datePreset, setDatePreset] = useState('Past 1 Month');
@@ -31,7 +52,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [toDate, setToDate] = useState('');
   const [status, setStatus] = useState('');
   const [docType, setDocType] = useState('');
-  const [centreCode, setCentreCode] = useState('');
+  const [centreCode, setCentreCode] = useState(getCurrentCentreCode());
   const [search, setSearch] = useState('');
   const [dateError, setDateError] = useState('');
 
@@ -47,6 +68,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   /* ---- actions ---- */
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [resolveFor, setResolveFor] = useState(null);
   const [resolveNo, setResolveNo] = useState('');
   const [resolveRemarks, setResolveRemarks] = useState('');
@@ -73,28 +96,11 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   }, [datePreset, fromDate, toDate]);
 
   /* ---- load ---- */
-  const handleRefresh = async (row) => {
-    setBusy(true);
-    try {
-      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Refresh`, {
-        method: 'POST',
-        body: JSON.stringify({ ids: [row.id] }),
-      });
-      const outcome = (json.data || [])[0] || {};
-      showToast(outcome.message || json.message, outcome.ok ? 'success' : 'error');
-      load();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handlePrint = async (row) => {
     try {
       await openPdf(`${API_BASE_URL}/api/EInvoice/Legacy/Print/${encodeURIComponent(row.id)}`);
     } catch (err) {
-      showToast(err.message, "error");
+      showToast(err.message, 'error');
     }
   };
 
@@ -147,8 +153,85 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   }, [canView]);
 
   useEffect(() => {
+    if (centreCode || centres.length === 0) return;
+    const current = getCurrentCentreCode();
+    if (!current) return;
+    const match = centres.find(
+      (c) => String(c.CENTERCODE || '').trim().toUpperCase() === current.trim().toUpperCase()
+    );
+    if (match) setCentreCode(match.CENTERCODE);
+  }, [centres, centreCode]);
+
+  useEffect(() => {
     setPage(1);
   }, [datePreset, fromDate, toDate, status, docType, centreCode, search, limit]);
+
+  /* ---- selection ---- */
+  const refreshableIds = useMemo(
+    () => rows.filter((r) => r.einvoiceStatus === 'Failed').map((r) => r.id),
+    [rows]
+  );
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => refreshableIds.indexOf(id) !== -1));
+  }, [refreshableIds]);
+
+  const allSelected = refreshableIds.length > 0 && selectedIds.length === refreshableIds.length;
+
+  const toggleRow = (id) =>
+    setSelectedIds((prev) => (prev.indexOf(id) === -1 ? prev.concat(id) : prev.filter((v) => v !== id)));
+
+  const toggleAll = () => setSelectedIds(allSelected ? [] : refreshableIds.slice());
+
+  /* ---- refresh ---- */
+  const runRefresh = async () => {
+    setConfirmRefresh(false);
+    if (selectedIds.length === 0) return;
+
+    const batches = [];
+    for (let i = 0; i < selectedIds.length; i += REFRESH_BATCH_SIZE) {
+      batches.push(selectedIds.slice(i, i + REFRESH_BATCH_SIZE));
+    }
+
+    setBusy(true);
+    let sent = 0;
+    let failed = 0;
+    let firstError = '';
+
+    try {
+      for (let b = 0; b < batches.length; b += 1) {
+        const batch = batches[b];
+        try {
+          const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Refresh`, {
+            method: 'POST',
+            body: JSON.stringify({ ids: batch }),
+          });
+          const results = Array.isArray(json.data) ? json.data : [];
+          results.forEach((r) => {
+            if (r.ok) sent += 1;
+            else {
+              failed += 1;
+              if (!firstError) firstError = r.message || '';
+            }
+          });
+          if (results.length === 0) {
+            sent += batch.length;
+          }
+        } catch (err) {
+          failed += batch.length;
+          if (!firstError) firstError = err.message || '';
+        }
+      }
+
+      const summary = `${sent} of ${sent + failed} invoice${sent + failed === 1 ? '' : 's'} sent for refresh`;
+      const kind = sent === 0 ? 'error' : failed > 0 ? 'info' : 'success';
+      showToast(firstError ? `${summary}. ${firstError}` : summary, kind);
+      setSelectedIds([]);
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   /* ---- resolve ---- */
   const openResolve = (row) => {
@@ -193,7 +276,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const startIdx = total === 0 ? 0 : (page - 1) * limit + 1;
   const endIdx = Math.min(page * limit, total);
-  const failedCount = rows.filter((r) => r.einvoiceStatus === 'Failed').length;
+  const failedCount = refreshableIds.length;
 
   return (
     <div className="einvoice-page">
@@ -207,8 +290,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
       {failedCount > 0 && (
         <div className="einvoice-banner">
-          {failedCount} document{failedCount === 1 ? '' : 's'} on this page did not reach ZATCA. Select
-          and retry, or open one to see what ClearTax returned.
+          {failedCount} document{failedCount === 1 ? '' : 's'} on this page did not reach ZATCA. Tick
+          the ones to resend and use Refresh, or open one to see what ClearTax returned.
         </div>
       )}
 
@@ -259,10 +342,10 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         </div>
 
         <div className="fld">
-          <label htmlFor="einv-type">Document type</label>
+          <label htmlFor="einv-type">Invoice Type</label>
           <select id="einv-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
             <option value="">All</option>
-            {DOC_TYPE_OPTIONS.map((o) => (
+            {INVOICE_TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -284,10 +367,22 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
             id="einv-search"
             type="text"
             value={search}
-            placeholder="Invoice number, ZATCA number, customer"
+            placeholder="Invoice no, ZATCA no, customer, invoice type, status"
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
+        {canRefresh && (
+          <div className="fld fld-action">
+            <button
+              type="button"
+              className="btn-refresh"
+              disabled={selectedIds.length === 0 || busy}
+              onClick={() => setConfirmRefresh(true)}>
+              {busy ? 'Refreshing…' : `Refresh${selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}`}
+            </button>
+          </div>
+        )}
       </div>
 
       {dateError && <p className="einvoice-error">{dateError}</p>}
@@ -309,12 +404,22 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         <table className="einvoice-table">
           <thead>
             <tr>
+              <th className="col-check">
+                <input
+                  type="checkbox"
+                  aria-label="Select all failed invoices"
+                  checked={allSelected}
+                  disabled={!canRefresh || refreshableIds.length === 0}
+                  onChange={toggleAll}
+                />
+              </th>
               <th>Centre</th>
               <th>Invoice date</th>
               <th>Customer</th>
               <th>Invoice no</th>
               <th>ZATCA no</th>
-              <th>Type</th>
+              <th>Resolved invoice no</th>
+              <th>Invoice Type</th>
               <th className="col-amount">Amount</th>
               <th>Status</th>
               <th>Details</th>
@@ -323,51 +428,55 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="row-message">Loading e-invoices…</td></tr>
+              <tr><td colSpan={12} className="row-message">Loading e-invoices…</td></tr>
             ) : loadError ? (
-              <tr><td colSpan={10} className="row-message row-error">{loadError}</td></tr>
+              <tr><td colSpan={12} className="row-message row-error">{loadError}</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={10} className="row-message">No e-invoices in this period.</td></tr>
+              <tr><td colSpan={12} className="row-message">No e-invoices in this period.</td></tr>
             ) : (
-              rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.clinicName || row.centerCode}</td>
-                  <td>{row.invoiceDate || '—'}</td>
-                  <td>{row.customerName || '—'}</td>
-                  <td>{row.posInvoiceNo || '—'}</td>
-                  <td>{row.zakatInvoiceNo || '—'}</td>
-                  <td>
-                    <span className={`type-badge ${docTypeClass(row.dType)}`}>{docTypeLabel(row.dType)}</span>
-                  </td>
-                  <td className="col-amount">{formatSAR(row.amount)}</td>
-                  <td>
-                    <span className={`status ${statusClass(row.einvoiceStatus)}`}>{row.einvoiceStatus}</span>
-                    {row.attempts > 1 && <span className="attempts" style={{display:'none'}}>{row.attempts} attempts</span>}
-                  </td>
-                  <td className="col-remarks" title={row.remarks || ''}>{row.remarks || '—'}</td>
-                  <td className="col-actions">
-                    {canManage && (
-                      <button type="button" className="btn-link" onClick={() => onOpenDetail(row.id)} style={{display: 'none'}}>
-                        Open
-                      </button>
-                    )}
-                    {canManage && row.einvoiceStatus === 'Failed' && (
-                      <button
-                        type="button"
-                        className="btn-link"
-                        disabled={busy}
-                        onClick={() => handleRefresh(row)}>
-                        Refresh
-                      </button>
-                    )}
-                    {row.einvoiceStatus === 'Success' && (
-                      <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
-                        Print
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
+              rows.map((row) => {
+                const selectable = canRefresh && row.einvoiceStatus === 'Failed';
+                return (
+                  <tr key={row.id} className={selectedIds.indexOf(row.id) !== -1 ? 'row-selected' : ''}>
+                    <td className="col-check">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select invoice ${row.posInvoiceNo || row.id}`}
+                        checked={selectedIds.indexOf(row.id) !== -1}
+                        disabled={!selectable || busy}
+                        onChange={() => toggleRow(row.id)}
+                      />
+                    </td>
+                    <td>{row.clinicName || row.centerCode}</td>
+                    <td>{row.invoiceDate || '—'}</td>
+                    <td>{row.customerName || '—'}</td>
+                    <td>{row.posInvoiceNo || '—'}</td>
+                    <td>{row.zakatInvoiceNo || '—'}</td>
+                    <td>{row.resolvedInvoiceNo || '—'}</td>
+                    <td>
+                      <span className={`type-badge ${docTypeClass(row.dType)}`}>{invoiceTypeLabel(row)}</span>
+                    </td>
+                    <td className="col-amount">{formatSAR(row.amount)}</td>
+                    <td>
+                      <span className={`status ${statusClass(row.einvoiceStatus)}`}>{row.einvoiceStatus}</span>
+                      {row.attempts > 1 && <span className="attempts" style={{display:'none'}}>{row.attempts} attempts</span>}
+                    </td>
+                    <td className="col-remarks" title={row.remarks || ''}>{row.remarks || '—'}</td>
+                    <td className="col-actions">
+                      {canManage && (
+                        <button type="button" className="btn-link" onClick={() => onOpenDetail(row.id)} style={{display: 'none'}}>
+                          Open
+                        </button>
+                      )}
+                      {row.einvoiceStatus === 'Success' && (
+                        <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
+                          Print
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -391,6 +500,25 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           <button type="button" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>Last</button>
         </div>
       </div>
+
+      {/* ---- refresh confirmation ---- */}
+      {confirmRefresh && (
+        <div className="einvoice-overlay" role="dialog" aria-modal="true" aria-label="Refresh selected invoices">
+          <div className="einvoice-dialog">
+            <h2>Refresh selected invoices</h2>
+            <p className="dialog-note">
+              {selectedIds.length} failed invoice{selectedIds.length === 1 ? '' : 's'} will be sent to
+              ZATCA again. Statuses update once ClearTax answers.
+            </p>
+            <div className="dialog-actions">
+              <button type="button" className="btn-ghost" onClick={() => setConfirmRefresh(false)}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={busy} onClick={runRefresh}>
+                Refresh now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---- resolve dialog ---- */}
       {resolveFor && (

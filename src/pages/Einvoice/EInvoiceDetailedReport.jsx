@@ -1,33 +1,20 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './EInvoiceDashboard.css';
 import { API_BASE_URL } from '../../config';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { usePermissions } from '../Settings/usePermissions';
-/* import {
+import {
   STATUS_OPTIONS,
   INVOICE_TYPE_OPTIONS,
+  invoiceTypeCode,
   invoiceTypeLabel,
   normStatus,
   statusClass,
-} from './einvoiceUtils'; */
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   E-INVOICE DETAILED REPORT  (workbook TST-085 → TST-092)
-
-   Filters (TST-089): From Date | To Date | Status | Invoice Type | Clinic Name
-   Actions (TST-086): View | Export | Reset
-   Date is MANDATORY — grid populates only after a valid date + View (TST-090).
-   Columns (TST-087): Clinic | Created By | Invoice Date | Invoice Type |
-                      Invoice No | Zakat Invoice No | Resolved Invoice No |
-                      Status | Remarks
-
-   API (integration team):
-     POST /api/EInvoice/EInvoiceReport
-       body: { fromDate, toDate, status, dateFlag:'1' }
-       → { success, message, data: EInvoice[] }   (raw array tolerated)
-   Invoice Type + Clinic are applied client-side to the returned rows.
-   ───────────────────────────────────────────────────────────────────────────── */
+  apiRequest,
+  getCurrentCentreCode,
+  isEntityCentre,
+} from './einvoiceUtils';
 
 const EINVOICE_ACTIVITY = 'EINV.VIEW';
 
@@ -36,13 +23,18 @@ const EInvoiceDetailedReport = () => {
   const canView =
     typeof perms.hasPermission === 'function' ? perms.hasPermission(EINVOICE_ACTIVITY) : true;
 
+  const sessionCentre = useMemo(() => getCurrentCentreCode(), []);
+  const entityLevel = !sessionCentre || isEntityCentre(sessionCentre);
+
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [clinicFilter, setClinicFilter] = useState('');
 
-  const [rows, setRows] = useState([]);         // server result
+  const [centres, setCentres] = useState([]);
+  const [selectedCentres, setSelectedCentres] = useState(entityLevel ? [] : [sessionCentre]);
+
+  const [rows, setRows] = useState([]);
   const [hasViewed, setHasViewed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,47 +43,63 @@ const EInvoiceDetailedReport = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Clinic options come from the loaded rows (post-View).
-  const clinicOptions = useMemo(() => {
-    const set = new Set(rows.map((r) => r.clinicName).filter(Boolean));
-    return Array.from(set).sort();
-  }, [rows]);
+  useEffect(() => {
+    if (!canView) return;
+    apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
+      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
+      .catch(() => setCentres([]));
+  }, [canView]);
 
-  // Date mandatory (TST-090).
+  const sessionCentreName = useMemo(() => {
+    if (!sessionCentre) return '';
+    const match = centres.find(
+      (c) => String(c.CENTERCODE || '').trim().toUpperCase() === sessionCentre.trim().toUpperCase()
+    );
+    return (match && (match.CLINICNAME || match.CENTERCODE)) || sessionCentre;
+  }, [centres, sessionCentre]);
+
+  const selectableCentres = useMemo(
+    () => centres.filter((c) => !isEntityCentre(c.CENTERCODE)),
+    [centres]
+  );
+
   const dateValid = Boolean(fromDate && toDate) && new Date(toDate) >= new Date(fromDate);
 
   const handleView = useCallback(async () => {
-    if (!fromDate || !toDate) { setError('Please select both From Date and To Date.'); return; }
-    if (new Date(toDate) < new Date(fromDate)) { setError('To Date must be after From Date.'); return; }
+    if (!fromDate || !toDate) { setError('From Date and To Date are both required.'); return; }
+    if (new Date(toDate) < new Date(fromDate)) { setError('To Date must be on or after From Date.'); return; }
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/EInvoice/EInvoiceReport`, {
+      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ fromDate, toDate, status: statusFilter, dateFlag: '1' }),
+        body: JSON.stringify({
+          fromDate,
+          toDate,
+          dateFlag: '1',
+          status: statusFilter || null,
+          docType: typeFilter || null,
+          centreCodes: selectedCentres,
+        }),
       });
-      const json = await res.json();
-      const data = json?.data ?? json;
-      setRows(Array.isArray(data) ? data : data ? [data] : []);
+      setRows(Array.isArray(json.data) ? json.data : []);
       setHasViewed(true);
       setCurrentPage(1);
     } catch (err) {
-      console.error('Failed to load report:', err);
-      setError('Failed to load report. Please try again.');
+      setError(err.message || 'Failed to load the report. Please try again.');
       setRows([]);
+      setHasViewed(true);
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, statusFilter]);
+  }, [fromDate, toDate, statusFilter, typeFilter, selectedCentres]);
 
   const handleReset = () => {
     setFromDate('');
     setToDate('');
     setStatusFilter('');
     setTypeFilter('');
-    setClinicFilter('');
+    setSelectedCentres(entityLevel ? [] : [sessionCentre]);
     setRows([]);
     setHasViewed(false);
     setError('');
@@ -99,15 +107,19 @@ const EInvoiceDetailedReport = () => {
     setSortConfig({ key: null, direction: 'asc' });
   };
 
-  // Client-side status/type/clinic narrowing of the loaded rows.
+  const handleCentreSelect = (e) => {
+    const picked = Array.from(e.target.selectedOptions).map((o) => o.value).filter(Boolean);
+    setSelectedCentres(picked);
+    setCurrentPage(1);
+  };
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (statusFilter && normStatus(r) !== statusFilter) return false;
-      if (typeFilter && invoiceTypeLabel(r) !== typeFilter) return false;
-      if (clinicFilter && r.clinicName !== clinicFilter) return false;
+      if (typeFilter && invoiceTypeCode(r) !== typeFilter) return false;
       return true;
     });
-  }, [rows, statusFilter, typeFilter, clinicFilter]);
+  }, [rows, statusFilter, typeFilter]);
 
   const sorted = useMemo(() => {
     if (!sortConfig.key) return filtered;
@@ -115,6 +127,10 @@ const EInvoiceDetailedReport = () => {
     const val = (r) => {
       if (sortConfig.key === 'invoiceType') return invoiceTypeLabel(r);
       if (sortConfig.key === 'status') return normStatus(r);
+      if (sortConfig.key === 'invoiceDate') {
+        const t = r.invoiceDateValue ? new Date(r.invoiceDateValue).getTime() : NaN;
+        return Number.isNaN(t) ? 0 : t;
+      }
       return (r[sortConfig.key] ?? '').toString().toLowerCase();
     };
     return [...filtered].sort((a, b) => {
@@ -199,43 +215,78 @@ const EInvoiceDetailedReport = () => {
         <h1>E-Invoice Report</h1>
       </div>
 
-      {/* Filters (TST-089) */}
+      {/* ---- filters ---- */}
       <div className="einvoice-filters">
         <div className="fltdiv">
-          <label>From Date</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <label htmlFor="rpt-from">From Date <span className="req">*</span></label>
+          <input
+            id="rpt-from"
+            type="date"
+            value={fromDate}
+            className={error && !fromDate ? 'input-error' : ''}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
         </div>
         <div className="fltdiv">
-          <label>To Date</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <label htmlFor="rpt-to">To Date <span className="req">*</span></label>
+          <input
+            id="rpt-to"
+            type="date"
+            value={toDate}
+            className={error && !toDate ? 'input-error' : ''}
+            onChange={(e) => setToDate(e.target.value)}
+          />
         </div>
         <div className="fltdiv">
-          <label>Status</label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <label htmlFor="rpt-status">Status</label>
+          <select id="rpt-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div className="fltdiv">
-          <label>Invoice Type</label>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <label htmlFor="rpt-type">Invoice Type</label>
+          <select id="rpt-type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">All</option>
             {INVOICE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
-        <div className="fltdiv">
-          <label>Clinic Name</label>
-          <select value={clinicFilter} onChange={(e) => setClinicFilter(e.target.value)} disabled={clinicOptions.length === 0}>
-            <option value="">All</option>
-            {clinicOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+
+        {entityLevel ? (
+          <div className="fltdiv fltdiv-multi">
+            <label htmlFor="rpt-centres">Clinic Name</label>
+            <select
+              id="rpt-centres"
+              multiple
+              size={4}
+              value={selectedCentres}
+              onChange={handleCentreSelect}>
+              {selectableCentres.map((c) => (
+                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
+              ))}
+            </select>
+            <span className="fltdiv-hint">
+              {selectedCentres.length === 0
+                ? 'All clinics'
+                : `${selectedCentres.length} clinic${selectedCentres.length === 1 ? '' : 's'} selected`}
+            </span>
+          </div>
+        ) : (
+          <div className="fltdiv">
+            <label htmlFor="rpt-centre">Clinic Name</label>
+            <select id="rpt-centre" value={sessionCentre} disabled>
+              <option value={sessionCentre}>{sessionCentreName}</option>
+            </select>
+          </div>
+        )}
 
         <div className="report-actions">
           <button className="btn-primary" onClick={handleView} disabled={!dateValid || loading}>
             {loading ? 'Loading…' : 'View'}
           </button>
-          <button className="btn-primary" onClick={handleExport} disabled={filtered.length === 0}>Export</button>
+          <button className="btn-primary" onClick={handleExport} disabled={!hasViewed || filtered.length === 0}>
+            Export
+          </button>
           <button className="btn-secondary" onClick={handleReset}>Reset</button>
         </div>
       </div>
@@ -282,15 +333,15 @@ const EInvoiceDetailedReport = () => {
                   const status = normStatus(r);
                   return (
                     <tr key={r.id || r.posInvoiceNo || idx}>
-                      <td>{r.clinicName}</td>
-                      <td>{r.createdBy}</td>
-                      <td>{r.invoiceDate}</td>
+                      <td>{r.clinicName || '—'}</td>
+                      <td>{r.createdBy || '—'}</td>
+                      <td>{r.invoiceDate || '—'}</td>
                       <td>{invoiceTypeLabel(r)}</td>
-                      <td>{r.posInvoiceNo}</td>
-                      <td>{r.zakatInvoiceNo}</td>
+                      <td>{r.posInvoiceNo || '—'}</td>
+                      <td>{r.zakatInvoiceNo || '—'}</td>
                       <td>{status === 'Resolved' ? (r.resolvedInvoiceNo || '—') : '—'}</td>
                       <td><span className={`status ${statusClass(status)}`}>{status}</span></td>
-                      <td className="col-remarks">{r.remarks}</td>
+                      <td className="col-remarks" title={r.remarks || ''}>{r.remarks || '—'}</td>
                     </tr>
                   );
                 })
@@ -300,18 +351,20 @@ const EInvoiceDetailedReport = () => {
         </div>
       )}
 
-      <div className="pagination-container">
-        <div className="pagination-info">
-          Showing {startIdx} to {endIdx} of {sorted.length} entries
+      {hasViewed && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            Showing {startIdx} to {endIdx} of {sorted.length} entries
+          </div>
+          <div className="pagination-controls">
+            <button className="pagination-btn" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>&lt;&lt;</button>
+            <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1}>&lt;</button>
+            {renderPaginationNumbers()}
+            <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>&gt;</button>
+            <button className="pagination-btn" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>&gt;&gt;</button>
+          </div>
         </div>
-        <div className="pagination-controls">
-          <button className="pagination-btn" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>&lt;&lt;</button>
-          <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1}>&lt;</button>
-          {renderPaginationNumbers()}
-          <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>&gt;</button>
-          <button className="pagination-btn" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>&gt;&gt;</button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
