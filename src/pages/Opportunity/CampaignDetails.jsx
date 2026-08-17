@@ -434,25 +434,40 @@ function SearchableSelect({ options=[], value, onChange, placeholder="All", labe
 
 // ── From/To date range control (Created, Modified, Appointment, Follow Up) ────
 // allowClear={false} keeps a range mandatory — used where the server needs dates.
-function RangeField({ label, from, to, onFrom, onTo, presets=true, allowClear=true, hint="", span=2 }) {
-  const bad    = rangeInvalid(from, to);
-  const active = !!(from || to);
+const NA_NOTE = "NA — no such column in the table below.";
+
+function RangeField({ label, from, to, onFrom, onTo, presets=true, allowClear=true, hint="", span=2,
+                      disabled=false, na=false, offNote="" }) {
+  const off    = disabled || na;
+  const bad    = !off && rangeInvalid(from, to);
+  const active = !off && !!(from || to);
   const apply  = (key) => { const r = presetRange(key); onFrom(r.from); onTo(r.to); };
   return (
-    <div className={`cd-fg cd-range ${active?"cd-range-on":""} ${bad?"cd-range-bad":""}`} style={{gridColumn:`span ${span}`}}>
+    <div className={`cd-fg cd-range ${active?"cd-range-on":""} ${bad?"cd-range-bad":""} ${off?"cd-fg-off":""}`} style={{gridColumn:`span ${span}`}}>
       <div className="cd-range-head">
         <label>{label}</label>
+        {na && <span className="cd-natag">NA</span>}
         {active && allowClear && (
           <button type="button" className="cd-linkbtn cd-linkbtn-sm" title={`Clear ${label}`}
             onClick={()=>{ onFrom(""); onTo(""); }}>Clear</button>
         )}
       </div>
       <div className="cd-range-body">
-        <input type="date" aria-label={`${label} from`} value={from} onChange={e=>onFrom(e.target.value)} />
-        <span className="cd-range-sep">→</span>
-        <input type="date" aria-label={`${label} to`}   value={to}   onChange={e=>onTo(e.target.value)} />
+        {na ? (
+          <>
+            <input type="text" value="NA" readOnly disabled aria-label={`${label} not applicable`} />
+            <span className="cd-range-sep">→</span>
+            <input type="text" value="NA" readOnly disabled aria-label={`${label} not applicable`} />
+          </>
+        ) : (
+          <>
+            <input type="date" aria-label={`${label} from`} value={from} disabled={disabled} onChange={e=>onFrom(e.target.value)} />
+            <span className="cd-range-sep">→</span>
+            <input type="date" aria-label={`${label} to`}   value={to}   disabled={disabled} onChange={e=>onTo(e.target.value)} />
+          </>
+        )}
       </div>
-      {presets && (
+      {presets && !off && (
         <div className="cd-chiprow">
           {RANGE_PRESETS.map(p => {
             const r  = presetRange(p.key);
@@ -468,6 +483,7 @@ function RangeField({ label, from, to, onFrom, onTo, presets=true, allowClear=tr
       )}
       {bad
         ? <span className="cd-fgnote cd-fgnote-err">“From” is after “To” — nothing will match.</span>
+        : off ? <span className="cd-fgnote cd-fgnote-off">{offNote || NA_NOTE}</span>
         : hint ? <span className="cd-fgnote">{hint}</span> : null}
     </div>
   );
@@ -573,6 +589,21 @@ const useCampaignHeader = (oppCode) => {
 // ─── TRANSACTION table (R1-R6) ────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 
+/* Export walks the same endpoint the grid uses, in bigger pages, until the
+   campaign total is reached. The cap is a runaway guard, not a business rule. */
+const EXPORT_PAGE_SIZE = 2000;
+const EXPORT_MAX_PAGES = 100;
+
+const mapTransRow = (r) => ({
+  ...r,
+  __therapist: (r?.therapistname||r?.therapistName||r?.THERAPISTNAME||"").toString().trim(),
+  __apptStamp: stamp(toMidnight(r?.appointmentdatetime||r?.appointmentDateTime||"")),
+  __fuStamp:   stamp(toMidnight(r?.followUpDate||r?.followupdate||"")),
+  __fuMin:     (()=>{const raw=(r?.followUptime||r?.followUpTime||"").toString().trim();const m=raw.match(/^(\d{1,2}):(\d{2})/);if(!m)return NaN;let h=Number(m[1])%12;if((r?.followUpAMPM||r?.followupampm||"").toString().trim().toUpperCase()==="PM")h+=12;return h*60+Number(m[2]);})(),
+  __q: [r?.custID,r?.custName,r?.custMobileNo,r?.oppStatus,ownerLabel(r?.salesOwner),r?.disposition,
+        r?.therapistname,r?.therapistName].map(x=>(x??"").toString().toLowerCase()).join("|"),
+});
+
 /* ── Per-campaign, per-section view state ───────────────────────────────────────
    An agent working a campaign opens a lead, converts it, books, and comes back.
    The section remounts and previously reset to page 1 with every filter cleared,
@@ -650,6 +681,8 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   }, [rows]);
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
 
   // Filters — seeded from the remembered view so returning from a lead lands the
   // agent back on the same filtered page.
@@ -696,42 +729,39 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const [serverTotal, setServerTotal] = useState(0);
   // serverPage/SERVER_PAGE_SIZE are gone - the displayed page IS the server page.
 
+  const serverFilterBody = () => ({
+    oppCode, fromDate, toDate,
+    search, status, owner, disp, therapist, scoreBand,
+    apptFrom: showAppt ? apptFrom : "",
+    apptTo:   showAppt ? apptTo   : "",
+    createdFrom, createdTo, modifiedFrom: modFrom, modifiedTo: modTo,
+  });
+
   // Fetch current page — ALL filters sent to server
   useEffect(() => {
     if (!oppCode||!fromDate||!toDate) return;
     let alive = true;
-    setLoading(true); setErr("");
+    setLoading(true); setErr(""); setExportMsg("");
     fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
       method:"POST", headers: authHeaders(),
-      body: JSON.stringify({
-        oppCode, fromDate, toDate,
-        page, pageSize,
-        search, status, owner, disp, therapist, scoreBand,
-        apptFrom: showAppt ? apptFrom : "",
-        apptTo:   showAppt ? apptTo   : "",
-        createdFrom, createdTo, modifiedFrom: modFrom, modifiedTo: modTo,
-      }),
+      body: JSON.stringify({ ...serverFilterBody(), page, pageSize }),
     })
       .then(r=>r.json())
       .then(d => {
         if (!alive) return;
         const arr = Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : [];
         setServerTotal(d?.totalCount ?? arr.length);
-        setRows(arr.map(r => ({
-          ...r,
-          __therapist: (r?.therapistname||r?.therapistName||r?.THERAPISTNAME||"").toString().trim(),
-          __apptStamp: stamp(toMidnight(r?.appointmentdatetime||r?.appointmentDateTime||"")),
-          __fuStamp:   stamp(toMidnight(r?.followUpDate||r?.followupdate||"")),
-          __fuMin:     (()=>{const raw=(r?.followUptime||r?.followUpTime||"").toString().trim();const m=raw.match(/^(\d{1,2}):(\d{2})/);if(!m)return NaN;let h=Number(m[1])%12;if((r?.followUpAMPM||r?.followupampm||"").toString().trim().toUpperCase()==="PM")h+=12;return h*60+Number(m[2]);})(),
-          __q: [r?.custID,r?.custName,r?.custMobileNo,r?.oppStatus,ownerLabel(r?.salesOwner),r?.disposition,
-                r?.therapistname,r?.therapistName].map(x=>(x??"").toString().toLowerCase()).join("|"),
-        })));
+        setRows(arr.map(mapTransRow));
       })
       .catch(e=>{ if(alive) setErr(e.message); })
       .finally(()=>{ if(alive) setLoading(false); });
     return()=>{ alive=false; };
   }, [oppCode, fromDate, toDate, page, pageSize, search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
       createdFrom, createdTo, modFrom, modTo, churnKey]);
+
+  useEffect(() => {
+    if (!showAppt && (apptFrom || apptTo)) { setApptFrom(""); setApptTo(""); }
+  }, [showAppt, apptFrom, apptTo]);
 
   // Reset to page 1 when server-side filters change — but NOT on mount, which would
   // discard the page number we just restored.
@@ -806,8 +836,8 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const createdBad = rangeInvalid(createdFrom, createdTo);
   const modBad     = rangeInvalid(modFrom,     modTo);
 
-  const filtered = useMemo(()=>{
-    let list = rows.slice();
+  const narrowClient = (input) => {
+    let list = input.slice();
     // apptDate is server-side for R3/R4; followUp date/time remain client-side
     if (fuDateRange?.invalid) return [];   // FU From date after To date → no records
     if (createdBad || modBad) return [];   // Created / Modified From after To → no records
@@ -828,6 +858,11 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
         return true;
       });
     }
+    return list;
+  };
+
+  const filtered = useMemo(()=>{
+    let list = narrowClient(rows);
     if (sort.key) {
       const dir=sort.dir==="asc"?1:-1;
       const numericKey = sort.key==="recid" || sort.key==="leadScore";
@@ -861,7 +896,9 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
 
 
   // Filter summary for the panel header
-  const activeCount = [status,owner,disp,scoreBand,therapist,search,apptFrom,apptTo,fuMode,fuFrom,fuTo,
+  const activeCount = [status,owner,disp,scoreBand,therapist,search,
+    showAppt?apptFrom:"", showAppt?apptTo:"", fuMode,
+    fuMode==="2"?fuFrom:"", fuMode==="2"?fuTo:"",
     fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
     setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setTherapist("");
@@ -883,20 +920,59 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
     navigate(`/opportunity/master/${oppCode}/lead/${row.custID}`,{state:{row,header,oppCode}});
   };
 
-  const exportCSV = () => {
-    const hdrs=["ProspectID","CustID","CustName","Mobile","Status","Disposition","LeadScore","LeadType","Therapist",
+  const buildCSV = (list) => {
+    const hdrs=["ProspectID","CustID","CustName","Mobile","Status","Disposition","LeadScore","LeadType","Doctor/Therapist",
       showAppt?"ApptDate":"","Remarks","SalesOwner","ModifiedBy","ModifiedDate","CreatedDate"].filter(Boolean);
     const esc=(v)=>{const s=String(v??"");return (s.includes(",")||s.includes('"'))?`"${s.replace(/"/g,'""')}"`:s;};
-    const lines=[hdrs.join(","),...filtered.map(r=>[
+    return [hdrs.join(","),...list.map(r=>[
       fmtProspectId(r.recid),r.custID,r.custName,r.custMobileNo,r.oppStatus,r.disposition,
       r.leadScore ?? "", r.scoreBand ?? "",
       r.__therapist, ...(showAppt?[fmtDate(r.appointmentdatetime)]:[] ),
       r.remarks,ownerLabel(r.salesOwner),r.modifiedBy,fmtDate(r.modifieddate),fmtDate(r.createddate),
-    ].map(esc).join(","))];
-    const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a"); a.href=url; a.download=`${oppCode}-details.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    ].map(esc).join(","))].join("\n");
+  };
+
+  const fetchExportPage = async (p) => {
+    const res = await fetch(`${API_BASE_URL}/api/Opportunity/LoadOppDetails`, {
+      method:"POST", headers: authHeaders(),
+      body: JSON.stringify({ ...serverFilterBody(), page: p, pageSize: EXPORT_PAGE_SIZE }),
+    });
+    const d = await res.json();
+    return {
+      rows:  (Array.isArray(d?.data) ? d.data : Array.isArray(d) ? d : []).map(mapTransRow),
+      total: Number(d?.totalCount ?? 0),
+    };
+  };
+
+  const exportCSV = async () => {
+    if (exporting) return;
+    setExporting(true); setExportMsg("");
+    try {
+      const all = [];
+      let total = 0, truncated = false, p = 1;
+      for (;;) {
+        const batch = await fetchExportPage(p);
+        if (p === 1) total = batch.total;
+        all.push(...batch.rows);
+        if (batch.rows.length < EXPORT_PAGE_SIZE) break;
+        if (total && all.length >= total) break;
+        if (p >= EXPORT_MAX_PAGES) { truncated = true; break; }
+        p += 1;
+      }
+      const list  = narrowClient(all);
+      if (!list.length) { setExportMsg("Nothing to export — no records match these filters."); return; }
+      const blob  = new Blob([buildCSV(list)],{type:"text/csv;charset=utf-8"});
+      const url   = URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=url; a.download=`${oppCode}-details.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      setExportMsg(truncated
+        ? `Exported the first ${list.length.toLocaleString()} records — the campaign has more than this export can pull in one go.`
+        : `Exported ${list.length.toLocaleString()} record${list.length===1?"":"s"}.`);
+    } catch (e) {
+      setExportMsg(`Export failed: ${e.message}. Narrow the filters and try again.`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -925,7 +1001,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
         </div>
         <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
-          <label>Therapist</label>
+          <label>Doctor/Therapist</label>
           <select value={therapist} onChange={e=>setTherapist(e.target.value)}>
             {therapistOpts.map((t,i)=><option key={i} value={t}>{t||"All"}</option>)}
           </select>
@@ -952,14 +1028,12 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
             </select>
           </div>
         </div>
-        {fuMode==="2" && (
-          <RangeField label="Follow Up Date Range" presets={false}
-            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
-        )}
-        {showAppt && (
-          <RangeField label="Appointment Date" presets={false}
-            from={apptFrom} to={apptTo} onFrom={setApptFrom} onTo={setApptTo} />
-        )}
+        <RangeField label="Follow Up Date Range" presets={false}
+          disabled={fuMode!=="2"} offNote="Set Follow Up Date to “Date Range” to use this."
+          from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        <RangeField label="Appointment Date" presets={false}
+          na={!showAppt} offNote="NA — this campaign type has no appointment date."
+          from={apptFrom} to={apptTo} onFrom={setApptFrom} onTo={setApptTo} />
         <RangeField label="Created Date"
           from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
         <RangeField label="Modified Date"
@@ -974,7 +1048,10 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
             value={srchDraft} onChange={e=>setSrchDraft(e.target.value)} />
           {srchDraft && <button className="cd-searchx" title="Clear search" onClick={()=>setSrchDraft("")}>✕</button>}
         </div>
-        <button className="cd-btn-sec" onClick={exportCSV}>⭳ Export CSV</button>
+        <button className="cd-btn-sec" onClick={exportCSV} disabled={exporting}>
+          {exporting ? "Exporting…" : "⭳ Export CSV"}
+        </button>
+        {exportMsg && <span className="cd-fgnote cd-exportmsg">{exportMsg}</span>}
       </div>
 
       {loading && <Skeleton cols={showAppt?15:14} />}
@@ -992,7 +1069,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
                 <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th>
                 <th onClick={()=>onSort("leadScore")}>Lead Score {sortArrow("leadScore")}</th>
                 <th>Appointment ID</th>
-                <th onClick={()=>onSort("__therapist")}>Therapist {sortArrow("__therapist")}</th>
+                <th onClick={()=>onSort("__therapist")}>Doctor/Therapist {sortArrow("__therapist")}</th>
                 {showAppt && <th onClick={()=>onSort("appointmentdatetime")}>Appt Date {sortArrow("appointmentdatetime")}</th>}
                 <th>Remarks</th>
                 <th onClick={()=>onSort("salesOwner")}>Sales Owner {sortArrow("salesOwner")}</th>
@@ -1067,6 +1144,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   // Lead Score band. Client-side here: the page already pulls the whole campaign
   // and filters it in the browser, so the band goes through the same path.
   const [scoreBand,  setScoreBand]  = useState(_sf.scoreBand ?? "");
+  const [doctorFilter, setDoctorFilter] = useState(_sf.doctorFilter ?? "");
   const [srchDraft,  setSrchDraft]  = useState(_sf.search   ?? "");
   const [search,     setSearch]     = useState(_sf.search   ?? "");
   const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());   // Created From (server-side)
@@ -1159,6 +1237,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
             recid:      String(x?.recid || ""),
             oppStatus:  oppStatusLabel,
             custName:   bestName,
+            doctor:     String(x?.doctorName || x?.doctor || x?.Doctor
+                            || x?.therapistName || x?.therapistname || "").trim(),
             followUpDate: fuDateClean,
             __fuStamp:  fuDateClean ? stamp(toMidnight(fuDateClean)) : NaN,
             __fuMin:    (() => {
@@ -1192,7 +1272,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [search,status,owner,disp,scoreBand,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
+    [search,status,owner,disp,scoreBand,doctorFilter,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
 
   const fuDateRange = useMemo(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
@@ -1216,6 +1296,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const filterTFrom = to24h(fuTFrom);
   const filterTTo   = to24h(fuTTo);
 
+  const doctorOpts = useMemo(()=>["", ...new Set(rows.map(r=>r?.doctor).filter(Boolean))],[rows]);
+
   const createdBad = rangeInvalid(fromDate, toDate);
   const modBad     = rangeInvalid(modFrom,  modTo);
 
@@ -1224,6 +1306,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     if(createdBad||modBad) return [];   // Created / Modified From after To → no records
     if(owner === UNASSIGNED_VALUE) list=list.filter(r=>isUnassignedOwner(r?.salesOwner));
     if(scoreBand) list=list.filter(r=>matchesScoreBand(r, scoreBand));
+    if(doctorFilter) list=list.filter(r=>norm(r?.doctor)===norm(doctorFilter));
     if(modFrom||modTo) list=list.filter(r=>inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
@@ -1238,7 +1321,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       return true;
     });
     return list;
-  },[rows,owner,scoreBand,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
+  },[rows,owner,scoreBand,doctorFilter,fuDateRange,filterTFrom,filterTTo,modFrom,modTo,createdBad,modBad]);
 
   // The server returns one page and reports the campaign total, so paging is
   // driven by serverTotal. `filtered` still applies the client-only follow-up
@@ -1246,16 +1329,18 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const totalPages = Math.max(1, Math.ceil(serverTotal/pageSize));
   const paged = filtered;
 
-  const activeCount = [status,owner,disp,scoreBand,search,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
+  const activeCount = [status,owner,disp,scoreBand,doctorFilter,search,fuMode,
+    fuMode==="2"?fuFrom:"", fuMode==="2"?fuTo:"",
+    fuTFrom,fuTTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
-    setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setSrchDraft(""); setSearch("");
+    setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setDoctorFilter(""); setSrchDraft(""); setSearch("");
     setFuMode(""); setFuFrom(""); setFuTo(""); setFuTFrom(""); setFuTTo("");
     setModFrom(""); setModTo("");
   };
   const fuTimeError = !isNaN(timeToMin(filterTFrom)) && !isNaN(timeToMin(filterTTo)) && timeToMin(filterTFrom) > timeToMin(filterTTo);
   useEffect(() => {
-    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, scoreBand, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
-  }, [oppCode, status, owner, disp, scoreBand, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
+    try { sessionStorage.setItem(`cd:extF:${oppCode}`, JSON.stringify({ status, owner, disp, scoreBand, doctorFilter, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo })); } catch {}
+  }, [oppCode, status, owner, disp, scoreBand, doctorFilter, search, fromDate, toDate, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo]);
 
   return (
     <div>
@@ -1279,6 +1364,12 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         </div>
         <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
+          <label>Doctor/Therapist</label>
+          <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
+            {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+          </select>
+        </div>
+        <div className="cd-fg">
           <label>Follow Up Date</label>
           <select value={fuMode} onChange={e=>setFuMode(e.target.value)}>
             <option value="">All</option>
@@ -1299,10 +1390,11 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
           </div>
           {fuTimeError && <span className="cd-fgnote cd-fgnote-err">“To” is earlier than “From”.</span>}
         </div>
-        {fuMode==="2" && (
-          <RangeField label="Follow Up Date Range" presets={false}
-            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
-        )}
+        <RangeField label="Follow Up Date Range" presets={false}
+          disabled={fuMode!=="2"} offNote="Set Follow Up Date to “Date Range” to use this."
+          from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        <RangeField label="Appointment Date" presets={false} na
+          from="" to="" onFrom={()=>{}} onTo={()=>{}} />
         {/* Created range is applied by the server (LoadExternalOppDetails) and is
             always populated — clearing it would send empty dates. */}
         <RangeField label="Created Date" allowClear={false}
@@ -1323,14 +1415,14 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         </div>
       </div>
 
-      {loading && <Skeleton cols={15} />}
+      {loading && <Skeleton cols={16} />}
       {err     && <ErrMsg msg={err} />}
       {!loading && !err && (
         filtered.length ? (
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th>Lead ID</th><th>Cust ID</th><th>Lead Name</th><th>Mobile</th>
+                <th>Lead ID</th><th>Cust ID</th><th>Lead Name</th><th>Mobile</th><th>Doctor/Therapist</th>
                 <th>Status</th><th>Disposition</th><th>Lead Score</th><th>Appointment ID</th>
                 <th>Follow Up Date</th><th>Follow Up Time</th>
                 <th>Remarks</th><th>Sales Owner</th>
@@ -1357,6 +1449,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
                     </td>
                     <td>{safe(r.custName)}</td>
                     <td>{safe(r.custMobileNo)}</td>
+                    <td>{safe(r.doctor)}</td>
                     <td><Pill v={r.oppStatus} /></td>
                     <td><Pill v={r.disposition} /></td>
                     <td><ScoreCell row={r} /></td>
@@ -1577,7 +1670,8 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   useEffect(() => { if (page > totalPages) setPage(1); }, [page, totalPages]);
 
 
-  const activeCount = [status,owner,disp,scoreBand,doctorFilter,search,fuMode,fuFrom,fuTo,fuTime,
+  const activeCount = [status,owner,disp,scoreBand,doctorFilter,search,fuMode,
+    fuMode==="2"?fuFrom:"", fuMode==="2"?fuTo:"", fuTime,
     createdFrom,createdTo,modFrom,modTo].filter(Boolean).length;
   const clearAll = () => {
     setStatus(""); setOwner(""); setDisp(""); setScoreBand(""); setDoctorFilter("");
@@ -1618,7 +1712,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
         </div>
         <ScoreFilter value={scoreBand} onChange={setScoreBand} />
         <div className="cd-fg">
-          <label>Doctor</label>
+          <label>Doctor/Therapist</label>
           <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
             {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
           </select>
@@ -1637,10 +1731,11 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
             {HALF_HOURS_12.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-        {fuMode==="2" && (
-          <RangeField label="Follow Up Date Range" presets={false}
-            from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
-        )}
+        <RangeField label="Follow Up Date Range" presets={false}
+          disabled={fuMode!=="2"} offNote="Set Follow Up Date to “Date Range” to use this."
+          from={fuFrom} to={fuTo} onFrom={setFuFrom} onTo={setFuTo} />
+        <RangeField label="Appointment Date" presets={false} na
+          from="" to="" onFrom={()=>{}} onTo={()=>{}} />
         <RangeField label="Created Date"
           from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
         <RangeField label="Modified Date"
@@ -1664,7 +1759,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
           <div className="cd-tablewrap">
             <table className="cd-table">
               <thead><tr>
-                <th onClick={()=>onSort("id")}>Prospect ID {sortArrow("id")}</th><th onClick={()=>onSort("prospectType")}>Prospect Type {sortArrow("prospectType")}</th><th onClick={()=>onSort("custID")}>Cust ID {sortArrow("custID")}</th><th onClick={()=>onSort("name")}>Name {sortArrow("name")}</th><th onClick={()=>onSort("mobile")}>Mobile {sortArrow("mobile")}</th><th onClick={()=>onSort("doctor")}>Doctor {sortArrow("doctor")}</th>
+                <th onClick={()=>onSort("id")}>Prospect ID {sortArrow("id")}</th><th onClick={()=>onSort("prospectType")}>Prospect Type {sortArrow("prospectType")}</th><th onClick={()=>onSort("custID")}>Cust ID {sortArrow("custID")}</th><th onClick={()=>onSort("name")}>Name {sortArrow("name")}</th><th onClick={()=>onSort("mobile")}>Mobile {sortArrow("mobile")}</th><th onClick={()=>onSort("doctor")}>Doctor/Therapist {sortArrow("doctor")}</th>
                 <th onClick={()=>onSort("status")}>Status {sortArrow("status")}</th><th onClick={()=>onSort("fuDate")}>Follow Up Date {sortArrow("fuDate")}</th><th onClick={()=>onSort("fuTimeLabel")}>Follow Up Time {sortArrow("fuTimeLabel")}</th>
                 <th onClick={()=>onSort("disposition")}>Disposition {sortArrow("disposition")}</th><th onClick={()=>onSort("leadScore")}>Lead Score {sortArrow("leadScore")}</th><th>Appointment ID</th><th onClick={()=>onSort("remark")}>Remarks {sortArrow("remark")}</th><th onClick={()=>onSort("owner")}>Sales Owner {sortArrow("owner")}</th>
                 <th onClick={()=>onSort("modifiedBy")}>Modified By {sortArrow("modifiedBy")}</th><th onClick={()=>onSort("modifiedDate")}>Modified Date {sortArrow("modifiedDate")}</th><th onClick={()=>onSort("createdDate")}>Created Date {sortArrow("createdDate")}</th>
@@ -1970,6 +2065,17 @@ export default function CampaignDetails() {
         .cd-chip-on { background:#18396E; border-color:#18396E; color:#fff; }
         .cd-fgnote { display:block; margin-top:6px; font-size:11px; color:#7b8798; }
         .cd-fgnote-err { color:#c0392b; font-weight:700; }
+        .cd-fgnote-off { color:#98a4b6; font-style:italic; }
+        .cd-exportmsg { margin-top:0; flex-basis:100%; }
+        .cd-btn-sec:disabled { opacity:.6; cursor:progress; }
+
+        /* Inert / NA filter slots */
+        .cd-fg-off { opacity:.75; }
+        .cd-fg-off label { color:#8b97a8; }
+        .cd-fg input:disabled, .cd-fg select:disabled { background:#f3f6fb; border-color:#e6eaf2;
+          color:#98a4b6; cursor:not-allowed; }
+        .cd-natag { display:inline-flex; align-items:center; height:15px; padding:0 5px; border-radius:4px;
+          background:#eef1f7; color:#8b97a8; font-size:9.5px; font-weight:800; letter-spacing:.5px; }
 
         /* Search row */
         .cd-searchrow { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
