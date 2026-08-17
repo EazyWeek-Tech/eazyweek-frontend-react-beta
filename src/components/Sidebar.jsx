@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { getFeatureSet } from "../config/licenseConfig";
+import { useModuleSource } from "./ModuleSource";
 
 /**
  * EazyWeek navigation -- built to EazyWeek_Nav_Prototype.html.
@@ -36,6 +37,15 @@ const STYLE_ID = "ez-sidebar-styles";
 const HOVER_OPEN_MS = 90;
 const HOVER_SWITCH_MS = 220;
 const HOVER_CLOSE_MS = 320;
+
+/* ---- licence gating switch ---- */
+const USE_LICENSE_GATING = false;
+
+/* ---- integration-sourced modules ---- */
+const MODULE_SOURCE_BY_LABEL = {
+  Appointment: "APPOINTMENT",
+  Invoice: "INVOICE",
+};
 
 const SIDEBAR_CSS = `
 /* ==========================================================================
@@ -480,6 +490,15 @@ const SIDEBAR_CSS = `
   box-shadow: none;
 }
 
+/* ---------- rows rendered as buttons ---------- */
+.ez-nav button.ez-link {
+  width: 100%;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ez-nav *,
   .ez-panel,
@@ -831,15 +850,37 @@ const Sidebar = ({ currentUser }) => {
   const location = useLocation();
   const searchRef = useRef(null);
 
+  /* The rail is driven by the centre's module source, not by the licence
+     tier — flip USE_LICENSE_GATING once the custom licence settings exist. */
   const groups = useMemo(() => {
+    if (!USE_LICENSE_GATING) return NAV_GROUPS;
     if (!currentUser?.licenseTier) return NAV_GROUPS;
+
     const features = getFeatureSet(currentUser);
-    return NAV_GROUPS.map((g) => ({ ...g, items: pruneByFeatures(g.items, features) })).filter(
-      (g) => g.items.length
-    );
+    if (!features || !Object.values(features).some(Boolean)) return NAV_GROUPS;
+
+    const pruned = NAV_GROUPS.map((g) => ({
+      ...g,
+      items: pruneByFeatures(g.items, features),
+    })).filter((g) => g.items.length);
+
+    return pruned.length ? pruned : NAV_GROUPS;
   }, [currentUser]);
 
   const pages = useMemo(() => flattenPages(groups), [groups]);
+
+  /* ---- source-mode lock ---- */
+  const { isLocked, notifyLocked } = useModuleSource();
+  const lockedModules = useMemo(() => {
+    const out = new Set();
+    groups.forEach((group, gi) => {
+      group.items.forEach((item, ii) => {
+        const code = MODULE_SOURCE_BY_LABEL[item.label];
+        if (code && isLocked(code)) out.add(nodeKey(`g${gi}`, item, ii));
+      });
+    });
+    return out;
+  }, [groups, isLocked]);
 
   // Which module's panel is showing, and its data.
   const [openItem, setOpenItem] = useState(null); // { key, item }
@@ -961,26 +1002,49 @@ const Sidebar = ({ currentUser }) => {
   const panelTitle = searching ? "Results" : openItem?.item.label;
 
   /* One row inside the panel. */
-  const renderLink = (node, key, moduleKey, i, indent, crumb) => (
-    <li key={key}>
-      <NavLink
-        to={node.path}
-        style={{ "--i": i }}
-        className={`ez-link ${indent ? "ez-sub-indent" : ""} ${
-          key === active.key ? "is-active" : ""
-        }`}
-        onClick={() => openPage(key, moduleKey, node.path)}
-      >
-        {node.icon ? (
-          <i className={`bx ${node.icon} ez-subicon`} />
-        ) : (
-          <span className="ez-dot" />
-        )}
-        <span className="ez-label">{node.name || node.label}</span>
-        {crumb ? <span className="ez-crumb">{crumb}</span> : null}
-      </NavLink>
-    </li>
-  );
+  const renderLink = (node, key, moduleKey, i, indent, crumb) => {
+    if (lockedModules.has(moduleKey)) {
+      return (
+        <li key={key}>
+          <button
+            type="button"
+            style={{ "--i": i }}
+            className={`ez-link ${indent ? "ez-sub-indent" : ""}`}
+            onClick={() => notifyLocked()}
+          >
+            {node.icon ? (
+              <i className={`bx ${node.icon} ez-subicon`} />
+            ) : (
+              <span className="ez-dot" />
+            )}
+            <span className="ez-label">{node.name || node.label}</span>
+            {crumb ? <span className="ez-crumb">{crumb}</span> : null}
+          </button>
+        </li>
+      );
+    }
+
+    return (
+      <li key={key}>
+        <NavLink
+          to={node.path}
+          style={{ "--i": i }}
+          className={`ez-link ${indent ? "ez-sub-indent" : ""} ${
+            key === active.key ? "is-active" : ""
+          }`}
+          onClick={() => openPage(key, moduleKey, node.path)}
+        >
+          {node.icon ? (
+            <i className={`bx ${node.icon} ez-subicon`} />
+          ) : (
+            <span className="ez-dot" />
+          )}
+          <span className="ez-label">{node.name || node.label}</span>
+          {crumb ? <span className="ez-crumb">{crumb}</span> : null}
+        </NavLink>
+      </li>
+    );
+  };
 
   /* Panel body: either search results, or the open module's children with any
      nested group rendered as a labelled section rather than a submenu. */
@@ -1080,6 +1144,29 @@ const Sidebar = ({ currentUser }) => {
                   const key = nodeKey(`g${gi}`, item, ii);
                   const isCurrent = key === active.moduleKey;
                   const menuOpen = openItem?.key === key;
+
+                  // Module sourced from the integration for this centre: the
+                  // row renders as normal, the click is intercepted.
+                  if (lockedModules.has(key)) {
+                    return (
+                      <li className={`ez-item ${isCurrent ? "is-current" : ""}`} key={key}>
+                        <button
+                          type="button"
+                          className="ez-head"
+                          onMouseEnter={hoverLeafRow}
+                          onClick={() => {
+                            stopTimers();
+                            setOpenItem(null);
+                            notifyLocked();
+                          }}
+                        >
+                          <i className={`bx ${item.icon} ez-icon`} />
+                          <span className="ez-label">{item.label}</span>
+                          {item.children ? <i className="bx bx-chevron-right ez-chev" /> : null}
+                        </button>
+                      </li>
+                    );
+                  }
 
                   // Module with no submenu (Customer 360, Custom API).
                   if (!item.children) {
