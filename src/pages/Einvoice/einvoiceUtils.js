@@ -171,6 +171,17 @@ export function isEntityCentre(code) {
   return ENTITY_CENTRE_CODES.indexOf(value) !== -1;
 }
 
+export function findCentre(centres, code) {
+  const key = String(code || '').trim().toUpperCase();
+  if (!key || !Array.isArray(centres)) return null;
+  const fields = ['CENTERCODE', 'CLINICNAME', 'CNAME', 'BRANCH'];
+  return (
+    centres.find((c) =>
+      fields.some((f) => String((c && c[f]) || '').trim().toUpperCase() === key)
+    ) || null
+  );
+}
+
 /* ---- session centre ---- */
 const CENTRE_KEYS = [
   'centerCode',

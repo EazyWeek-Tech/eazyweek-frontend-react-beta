@@ -15,12 +15,15 @@ import {
   apiRequest,
   openPdf,
   getCurrentCentreCode,
+  isEntityCentre,
+  findCentre,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'EINV.VIEW';
 const PERM_MANAGE = 'EINV.MANAGE';
 const REFRESH_ROLES = ['admin', 'manager'];
 const REFRESH_BATCH_SIZE = 50;
+const DEFAULT_PERIOD = 'Current Date';
 
 function refreshRoleAllowed(perms) {
   const names = [];
@@ -47,12 +50,12 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const canRefresh = canManage && (roleAllowed === null ? true : roleAllowed);
 
   /* ---- filters ---- */
-  const [datePreset, setDatePreset] = useState('Past 1 Month');
+  const [datePreset, setDatePreset] = useState(DEFAULT_PERIOD);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [status, setStatus] = useState('');
   const [docType, setDocType] = useState('');
-  const [centreCode, setCentreCode] = useState(getCurrentCentreCode());
+  const [centreCode, setCentreCode] = useState('');
   const [search, setSearch] = useState('');
   const [dateError, setDateError] = useState('');
 
@@ -75,11 +78,25 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [resolveRemarks, setResolveRemarks] = useState('');
 
   const requestSeq = useRef(0);
+  const sessionCentre = useMemo(() => getCurrentCentreCode(), []);
+  const entityLevel = !sessionCentre || isEntityCentre(sessionCentre);
 
   const showToast = useCallback((message, kind = 'info') => {
     setToast({ message, kind });
     setTimeout(() => setToast(null), 4000);
   }, []);
+
+  /* ---- effective centre ---- */
+  const sessionCentreMatch = useMemo(
+    () => (entityLevel ? null : findCentre(centres, sessionCentre)),
+    [centres, sessionCentre, entityLevel]
+  );
+  const effectiveCentre = entityLevel
+    ? centreCode
+    : (sessionCentreMatch ? sessionCentreMatch.CENTERCODE : sessionCentre);
+  const sessionCentreName = sessionCentreMatch
+    ? (sessionCentreMatch.CLINICNAME || sessionCentreMatch.CENTERCODE)
+    : sessionCentre;
 
   /* ---- effective date range ---- */
   const range = useMemo(
@@ -116,7 +133,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         toDate: range ? range.to : null,
         status: status || null,
         docType: docType || null,
-        centreCode: centreCode || null,
+        centreCode: effectiveCentre || null,
         search: search.trim() || null,
         page,
         limit,
@@ -137,7 +154,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [datePreset, dateError, fromDate, toDate, range, status, docType, centreCode, search, page, limit]);
+  }, [datePreset, dateError, fromDate, toDate, range, status, docType, effectiveCentre, search, page, limit]);
 
   useEffect(() => {
     if (!canView) return undefined;
@@ -152,19 +169,23 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
       .catch(() => setCentres([]));
   }, [canView]);
 
-  useEffect(() => {
-    if (centreCode || centres.length === 0) return;
-    const current = getCurrentCentreCode();
-    if (!current) return;
-    const match = centres.find(
-      (c) => String(c.CENTERCODE || '').trim().toUpperCase() === current.trim().toUpperCase()
-    );
-    if (match) setCentreCode(match.CENTERCODE);
-  }, [centres, centreCode]);
 
   useEffect(() => {
     setPage(1);
-  }, [datePreset, fromDate, toDate, status, docType, centreCode, search, limit]);
+  }, [datePreset, fromDate, toDate, status, docType, effectiveCentre, search, limit]);
+
+  const handleResetFilters = () => {
+    setDatePreset(DEFAULT_PERIOD);
+    setFromDate('');
+    setToDate('');
+    setStatus('');
+    setDocType('');
+    setSearch('');
+    setDateError('');
+    setSelectedIds([]);
+    setPage(1);
+    setCentreCode('');
+  };
 
   /* ---- selection ---- */
   const refreshableIds = useMemo(
@@ -353,12 +374,18 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
         <div className="fld">
           <label htmlFor="einv-centre">Centre</label>
-          <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
-            <option value="">All</option>
-            {centres.map((c) => (
-              <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-            ))}
-          </select>
+          {entityLevel ? (
+            <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
+              <option value="">All</option>
+              {centres.map((c) => (
+                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
+              ))}
+            </select>
+          ) : (
+            <select id="einv-centre" value={effectiveCentre} disabled>
+              <option value={effectiveCentre}>{sessionCentreName}</option>
+            </select>
+          )}
         </div>
 
         <div className="fld fld-grow">
@@ -372,8 +399,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           />
         </div>
 
-        {canRefresh && (
-          <div className="fld fld-action">
+        <div className="fld fld-action">
+          {canRefresh && (
             <button
               type="button"
               className="btn-refresh"
@@ -381,8 +408,15 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
               onClick={() => setConfirmRefresh(true)}>
               {busy ? 'Refreshing…' : `Refresh${selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}`}
             </button>
-          </div>
-        )}
+          )}
+         
+        </div>
+
+        <div className='fld'>
+           <button type="button" className="btn-ghost" onClick={handleResetFilters} disabled={busy}>
+            Reset Filter
+          </button>
+        </div>
       </div>
 
       {dateError && <p className="einvoice-error">{dateError}</p>}
