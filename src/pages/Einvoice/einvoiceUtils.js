@@ -1,19 +1,25 @@
 /* ---- filter options ---- */
 export const DATE_PRESETS = [
+  'Current Date',
   'Past 1 Day',
   'Past 1 Week',
   'Past 1 Month',
   'Past 3 Months',
+  'Active Financial Year',
   'Custom Days',
 ];
 
-export const STATUS_OPTIONS = ['Success', 'Failed', 'Pending', 'Resolved', 'Skipped'];
+export const FY_START_MONTH = 1;
+
+export const STATUS_OPTIONS = ['Success', 'Failed', 'Resolved'];
 
 export const DOC_TYPE_OPTIONS = [
   { value: 'INVOICE', label: 'Tax Invoice' },
   { value: 'RETURN', label: 'Credit Note' },
   { value: 'ADVANCE', label: 'Advance Payment' },
 ];
+
+export const INVOICE_TYPE_OPTIONS = DOC_TYPE_OPTIONS;
 
 export const SOURCE_OPTIONS = [
   { value: 'ZENOTI', label: 'Zenoti' },
@@ -27,9 +33,23 @@ export function toInputDate(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export function financialYearStart(today = new Date()) {
+  const startMonthIndex = Math.min(12, Math.max(1, Number(FY_START_MONTH) || 1)) - 1;
+  const start = new Date(today.getFullYear(), startMonthIndex, 1);
+  if (start > today) start.setFullYear(start.getFullYear() - 1);
+  return start;
+}
+
 export function presetRange(preset) {
   if (!preset || preset === 'Custom Days') return null;
   const to = new Date();
+  if (preset === 'Current Date') {
+    const today = toInputDate(to);
+    return { from: today, to: today };
+  }
+  if (preset === 'Active Financial Year') {
+    return { from: toInputDate(financialYearStart(to)), to: toInputDate(to) };
+  }
   const from = new Date(to);
   if (preset === 'Past 1 Day') from.setDate(from.getDate() - 1);
   else if (preset === 'Past 1 Week') from.setDate(from.getDate() - 7);
@@ -75,6 +95,47 @@ export function docTypeClass(value) {
   return '';
 }
 
+const ZAKAT_TYPE_TO_CODE = {
+  invoice: 'INVOICE',
+  advance: 'ADVANCE',
+  return: 'RETURN',
+};
+
+export function invoiceTypeCode(input) {
+  if (!input) return '';
+  if (typeof input === 'string') {
+    const direct = String(input).trim();
+    const upper = direct.toUpperCase();
+    if (DOC_TYPE_OPTIONS.some((o) => o.value === upper)) return upper;
+    return ZAKAT_TYPE_TO_CODE[direct.toLowerCase()] || '';
+  }
+  return (
+    invoiceTypeCode(input.dType) ||
+    invoiceTypeCode(input.invoiceType) ||
+    invoiceTypeCode(input.zakatInvoiceType) ||
+    ''
+  );
+}
+
+export function invoiceTypeLabel(input) {
+  const code = invoiceTypeCode(input);
+  if (code) return docTypeLabel(code);
+  if (typeof input === 'string') return input || '—';
+  return (input && (input.zakatInvoiceType || input.invoiceType)) || '—';
+}
+
+export function normStatus(input) {
+  if (!input) return '';
+  const raw =
+    typeof input === 'string'
+      ? input
+      : input.einvoiceStatus || input.status || input.zakatStatusText || '';
+  const value = String(raw).trim();
+  if (!value) return '';
+  const match = STATUS_OPTIONS.find((s) => s.toLowerCase() === value.toLowerCase());
+  return match || value;
+}
+
 export function statusClass(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'success') return 'success';
@@ -99,6 +160,85 @@ export function prettyJson(value) {
   } catch (err) {
     return String(value);
   }
+}
+
+/* ---- entity vs centre ---- */
+export const ENTITY_CENTRE_CODES = ['CENTRIQ CLINICS'];
+
+export function isEntityCentre(code) {
+  const value = String(code || '').trim().toUpperCase();
+  if (!value) return false;
+  return ENTITY_CENTRE_CODES.indexOf(value) !== -1;
+}
+
+export function findCentre(centres, code) {
+  const key = String(code || '').trim().toUpperCase();
+  if (!key || !Array.isArray(centres)) return null;
+  const fields = ['CENTERCODE', 'CLINICNAME', 'CNAME', 'BRANCH'];
+  return (
+    centres.find((c) =>
+      fields.some((f) => String((c && c[f]) || '').trim().toUpperCase() === key)
+    ) || null
+  );
+}
+
+/* ---- session centre ---- */
+const CENTRE_KEYS = [
+  'centerCode',
+  'centreCode',
+  'CENTERCODE',
+  'activeCenterCode',
+  'activeCentreCode',
+  'currentCenterCode',
+  'centercode',
+];
+
+const SESSION_USER_KEYS = ['user', 'userDetails', 'loginUser', 'authUser', 'userInfo'];
+
+function readableStores() {
+  const stores = [];
+  try {
+    if (typeof sessionStorage !== 'undefined') stores.push(sessionStorage);
+  } catch (err) {}
+  try {
+    if (typeof localStorage !== 'undefined') stores.push(localStorage);
+  } catch (err) {}
+  return stores;
+}
+
+function usableValue(value) {
+  const v = value === null || value === undefined ? '' : String(value).trim();
+  if (!v || v === 'null' || v === 'undefined') return '';
+  return v;
+}
+
+export function getCurrentCentreCode() {
+  const stores = readableStores();
+
+  for (let i = 0; i < stores.length; i += 1) {
+    for (let k = 0; k < CENTRE_KEYS.length; k += 1) {
+      const found = usableValue(stores[i].getItem(CENTRE_KEYS[k]));
+      if (found) return found;
+    }
+  }
+
+  for (let i = 0; i < stores.length; i += 1) {
+    for (let u = 0; u < SESSION_USER_KEYS.length; u += 1) {
+      const raw = stores[i].getItem(SESSION_USER_KEYS[u]);
+      if (!raw) continue;
+      try {
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj === 'object') {
+          for (let k = 0; k < CENTRE_KEYS.length; k += 1) {
+            const found = usableValue(obj[CENTRE_KEYS[k]]);
+            if (found) return found;
+          }
+        }
+      } catch (err) {}
+    }
+  }
+
+  return '';
 }
 
 /* ---- transport ---- */

@@ -5,28 +5,139 @@ import { usePermissions } from '../Settings/usePermissions';
 import {
   DATE_PRESETS,
   STATUS_OPTIONS,
-  DOC_TYPE_OPTIONS,
+  INVOICE_TYPE_OPTIONS,
   presetRange,
   validateRange,
-  docTypeLabel,
+  invoiceTypeLabel,
   docTypeClass,
   statusClass,
   formatSAR,
   apiRequest,
   openPdf,
+  getCurrentCentreCode,
+  isEntityCentre,
+  findCentre,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'EINV.VIEW';
 const PERM_MANAGE = 'EINV.MANAGE';
+const REFRESH_ROLES = ['admin', 'manager'];
+const REFRESH_BATCH_SIZE = 50;
+const DEFAULT_PERIOD = 'Current Date';
+
+/* ---- centre name resolution ---- */
+const CENTRE_CODE_KEYS = ['CENTERCODE', 'CENTRECODE', 'centerCode', 'centreCode', 'CenterCode', 'CentreCode', 'code'];
+const CENTRE_NAME_KEYS = ['CLINICNAME', 'CENTRENAME', 'CENTERNAME', 'CENTREDESC', 'clinicName', 'centreName', 'centerName', 'name'];
+const CENTRE_NAME_STORAGE_KEYS = [
+  'centreName', 'centrename', 'CentreName', 'CENTRENAME',
+  'centerName', 'CENTERNAME', 'clinicName', 'CLINICNAME',
+  'currentCentreName', 'selectedCentreName', 'centreDisplayName', 'LoginCentreName',
+];
+
+const pickField = (obj, keys) => {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+};
+
+const centreCodeOf = (c) => pickField(c, CENTRE_CODE_KEYS);
+const centreNameOf = (c) => pickField(c, CENTRE_NAME_KEYS);
+
+const sameCode = (a, b) =>
+  Boolean(a) && Boolean(b) && String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+
+const findCentreByCode = (list, code) =>
+  (Array.isArray(list) ? list : []).find((c) => sameCode(centreCodeOf(c), code)) || null;
+
+const safeGet = (fn) => {
+  try { return fn(); } catch (e) { return null; }
+};
+
+const webStores = () =>
+  [safeGet(() => window.sessionStorage), safeGet(() => window.localStorage)].filter(Boolean);
+
+const scanForCentreName = (node, code, depth) => {
+  if (!node || depth > 4) return '';
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = scanForCentreName(item, code, depth + 1);
+      if (hit) return hit;
+    }
+    return '';
+  }
+  if (typeof node !== 'object') return '';
+  if (sameCode(centreCodeOf(node), code)) {
+    const name = centreNameOf(node);
+    if (name && !sameCode(name, code)) return name;
+  }
+  for (const key of Object.keys(node)) {
+    const hit = scanForCentreName(node[key], code, depth + 1);
+    if (hit) return hit;
+  }
+  return '';
+};
+
+const storedCentreName = (code) => {
+  if (!code) return '';
+  for (const store of webStores()) {
+    for (const key of CENTRE_NAME_STORAGE_KEYS) {
+      const value = safeGet(() => store.getItem(key));
+      if (value && value.trim() && !sameCode(value, code)) return value.trim();
+    }
+  }
+  for (const store of webStores()) {
+    const count = safeGet(() => store.length) || 0;
+    for (let i = 0; i < count; i += 1) {
+      const raw = safeGet(() => store.getItem(store.key(i)));
+      if (!raw) continue;
+      const head = raw.trim().charAt(0);
+      if (head !== '{' && head !== '[') continue;
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch (e) { continue; }
+      const hit = scanForCentreName(parsed, code, 0);
+      if (hit) return hit;
+    }
+  }
+  return '';
+};
+
+const resolveCentreName = (list, code) => {
+  if (!code) return '';
+  const match = findCentreByCode(list, code);
+  const fromList = match ? centreNameOf(match) : '';
+  if (fromList && !sameCode(fromList, code)) return fromList;
+  return storedCentreName(code) || code;
+};
+
+function refreshRoleAllowed(perms) {
+  const names = [];
+  if (perms.role) names.push(perms.role);
+  if (perms.roleName) names.push(perms.roleName);
+  if (perms.roleCode) names.push(perms.roleCode);
+  if (Array.isArray(perms.roles)) {
+    perms.roles.forEach((r) => {
+      if (typeof r === 'string') names.push(r);
+      else if (r) names.push(r.ROLENAME || r.roleName || r.name || r.ROLECODE || r.roleCode);
+    });
+  }
+  const flat = names.filter(Boolean).map((v) => String(v).toLowerCase());
+  if (flat.length === 0) return null;
+  return flat.some((n) => REFRESH_ROLES.some((allowed) => n.indexOf(allowed) !== -1));
+}
 
 const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const perms = usePermissions() || {};
   const hasPerm = perms.hasPermission;
   const canView = typeof hasPerm === 'function' ? hasPerm(PERM_VIEW) : true;
   const canManage = typeof hasPerm === 'function' ? hasPerm(PERM_MANAGE) : true;
+  const roleAllowed = refreshRoleAllowed(perms);
+  const canRefresh = canManage && (roleAllowed === null ? true : roleAllowed);
 
   /* ---- filters ---- */
-  const [datePreset, setDatePreset] = useState('Past 1 Month');
+  const [datePreset, setDatePreset] = useState(DEFAULT_PERIOD);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [status, setStatus] = useState('');
@@ -47,16 +158,38 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   /* ---- actions ---- */
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [resolveFor, setResolveFor] = useState(null);
   const [resolveNo, setResolveNo] = useState('');
   const [resolveRemarks, setResolveRemarks] = useState('');
 
   const requestSeq = useRef(0);
+  const sessionCentre = useMemo(() => getCurrentCentreCode(), []);
+  const entityLevel = !sessionCentre || isEntityCentre(sessionCentre);
 
   const showToast = useCallback((message, kind = 'info') => {
     setToast({ message, kind });
     setTimeout(() => setToast(null), 4000);
   }, []);
+
+  /* ---- effective centre ---- */
+  const sessionCentreMatch = useMemo(
+    () => (entityLevel ? null : findCentre(centres, sessionCentre) || findCentreByCode(centres, sessionCentre)),
+    [centres, sessionCentre, entityLevel]
+  );
+  const effectiveCentre = entityLevel
+    ? centreCode
+    : (centreCodeOf(sessionCentreMatch) || sessionCentre);
+  const sessionCentreName = useMemo(
+    () => (entityLevel ? '' : resolveCentreName(centres, sessionCentre)),
+    [centres, sessionCentre, entityLevel]
+  );
+
+  const centreNameByCode = useCallback(
+    (code) => (code ? resolveCentreName(centres, code) : ''),
+    [centres]
+  );
 
   /* ---- effective date range ---- */
   const range = useMemo(
@@ -73,28 +206,11 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   }, [datePreset, fromDate, toDate]);
 
   /* ---- load ---- */
-  const handleRefresh = async (row) => {
-    setBusy(true);
-    try {
-      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Refresh`, {
-        method: 'POST',
-        body: JSON.stringify({ ids: [row.id] }),
-      });
-      const outcome = (json.data || [])[0] || {};
-      showToast(outcome.message || json.message, outcome.ok ? 'success' : 'error');
-      load();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handlePrint = async (row) => {
     try {
       await openPdf(`${API_BASE_URL}/api/EInvoice/Legacy/Print/${encodeURIComponent(row.id)}`);
     } catch (err) {
-      showToast(err.message, "error");
+      showToast(err.message, 'error');
     }
   };
 
@@ -110,7 +226,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         toDate: range ? range.to : null,
         status: status || null,
         docType: docType || null,
-        centreCode: centreCode || null,
+        centreCode: effectiveCentre || null,
         search: search.trim() || null,
         page,
         limit,
@@ -131,7 +247,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [datePreset, dateError, fromDate, toDate, range, status, docType, centreCode, search, page, limit]);
+  }, [datePreset, dateError, fromDate, toDate, range, status, docType, effectiveCentre, search, page, limit]);
 
   useEffect(() => {
     if (!canView) return undefined;
@@ -142,13 +258,100 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   useEffect(() => {
     if (!canView) return;
     apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
-      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
-      .catch(() => setCentres([]));
+      .then((json) => {
+        const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setCentres(list);
+      })
+      .catch((err) => {
+        console.warn('E-Invoice centre list unavailable:', err && err.message);
+        setCentres([]);
+      });
   }, [canView]);
+
 
   useEffect(() => {
     setPage(1);
-  }, [datePreset, fromDate, toDate, status, docType, centreCode, search, limit]);
+  }, [datePreset, fromDate, toDate, status, docType, effectiveCentre, search, limit]);
+
+  const handleResetFilters = () => {
+    setDatePreset(DEFAULT_PERIOD);
+    setFromDate('');
+    setToDate('');
+    setStatus('');
+    setDocType('');
+    setSearch('');
+    setDateError('');
+    setSelectedIds([]);
+    setPage(1);
+    setCentreCode('');
+  };
+
+  /* ---- selection ---- */
+  const refreshableIds = useMemo(
+    () => rows.filter((r) => r.einvoiceStatus === 'Failed').map((r) => r.id),
+    [rows]
+  );
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => refreshableIds.indexOf(id) !== -1));
+  }, [refreshableIds]);
+
+  const allSelected = refreshableIds.length > 0 && selectedIds.length === refreshableIds.length;
+
+  const toggleRow = (id) =>
+    setSelectedIds((prev) => (prev.indexOf(id) === -1 ? prev.concat(id) : prev.filter((v) => v !== id)));
+
+  const toggleAll = () => setSelectedIds(allSelected ? [] : refreshableIds.slice());
+
+  /* ---- refresh ---- */
+  const runRefresh = async () => {
+    setConfirmRefresh(false);
+    if (selectedIds.length === 0) return;
+
+    const batches = [];
+    for (let i = 0; i < selectedIds.length; i += REFRESH_BATCH_SIZE) {
+      batches.push(selectedIds.slice(i, i + REFRESH_BATCH_SIZE));
+    }
+
+    setBusy(true);
+    let sent = 0;
+    let failed = 0;
+    let firstError = '';
+
+    try {
+      for (let b = 0; b < batches.length; b += 1) {
+        const batch = batches[b];
+        try {
+          const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Refresh`, {
+            method: 'POST',
+            body: JSON.stringify({ ids: batch }),
+          });
+          const results = Array.isArray(json.data) ? json.data : [];
+          results.forEach((r) => {
+            if (r.ok) sent += 1;
+            else {
+              failed += 1;
+              if (!firstError) firstError = r.message || '';
+            }
+          });
+          if (results.length === 0) {
+            sent += batch.length;
+          }
+        } catch (err) {
+          failed += batch.length;
+          if (!firstError) firstError = err.message || '';
+        }
+      }
+
+      const summary = `${sent} of ${sent + failed} invoice${sent + failed === 1 ? '' : 's'} sent for refresh`;
+      const kind = sent === 0 ? 'error' : failed > 0 ? 'info' : 'success';
+      showToast(firstError ? `${summary}. ${firstError}` : summary, kind);
+      setSelectedIds([]);
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   /* ---- resolve ---- */
   const openResolve = (row) => {
@@ -193,7 +396,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const startIdx = total === 0 ? 0 : (page - 1) * limit + 1;
   const endIdx = Math.min(page * limit, total);
-  const failedCount = rows.filter((r) => r.einvoiceStatus === 'Failed').length;
+  const failedCount = refreshableIds.length;
 
   return (
     <div className="einvoice-page">
@@ -207,8 +410,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
       {failedCount > 0 && (
         <div className="einvoice-banner">
-          {failedCount} document{failedCount === 1 ? '' : 's'} on this page did not reach ZATCA. Select
-          and retry, or open one to see what ClearTax returned.
+          {failedCount} document{failedCount === 1 ? '' : 's'} on this page did not reach ZATCA. Tick
+          the ones to resend and use Refresh, or open one to see what ClearTax returned.
         </div>
       )}
 
@@ -259,10 +462,10 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         </div>
 
         <div className="fld">
-          <label htmlFor="einv-type">Document type</label>
+          <label htmlFor="einv-type">Invoice Type</label>
           <select id="einv-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
             <option value="">All</option>
-            {DOC_TYPE_OPTIONS.map((o) => (
+            {INVOICE_TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -270,12 +473,19 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
         <div className="fld">
           <label htmlFor="einv-centre">Centre</label>
-          <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
-            <option value="">All</option>
-            {centres.map((c) => (
-              <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-            ))}
-          </select>
+          {entityLevel ? (
+            <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
+              <option value="">All</option>
+              {centres.map((c) => {
+                const code = centreCodeOf(c);
+                return <option key={code} value={code}>{centreNameOf(c) || code}</option>;
+              })}
+            </select>
+          ) : (
+            <select id="einv-centre" value={effectiveCentre} disabled>
+              <option value={effectiveCentre}>{sessionCentreName}</option>
+            </select>
+          )}
         </div>
 
         <div className="fld fld-grow">
@@ -284,9 +494,28 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
             id="einv-search"
             type="text"
             value={search}
-            placeholder="Invoice number, ZATCA number, customer"
+            placeholder="Invoice no, ZATCA no, customer, invoice type, status"
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+
+        <div className="fld fld-action">
+          {canRefresh && (
+            <button
+              type="button"
+              className="btn-refresh"
+              disabled={selectedIds.length === 0 || busy}
+              onClick={() => setConfirmRefresh(true)}>
+              {busy ? 'Refreshing…' : `Refresh${selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}`}
+            </button>
+          )}
+         
+        </div>
+
+        <div className='fld'>
+           <button type="button" className="btn-ghost" onClick={handleResetFilters} disabled={busy}>
+            Reset Filter
+          </button>
         </div>
       </div>
 
@@ -309,12 +538,22 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         <table className="einvoice-table">
           <thead>
             <tr>
+              <th className="col-check">
+                <input
+                  type="checkbox"
+                  aria-label="Select all failed invoices"
+                  checked={allSelected}
+                  disabled={!canRefresh || refreshableIds.length === 0}
+                  onChange={toggleAll}
+                />
+              </th>
               <th>Centre</th>
               <th>Invoice date</th>
               <th>Customer</th>
               <th>Invoice no</th>
               <th>ZATCA no</th>
-              <th>Type</th>
+              <th>Resolved invoice no</th>
+              <th>Invoice Type</th>
               <th className="col-amount">Amount</th>
               <th>Status</th>
               <th>Details</th>
@@ -323,51 +562,55 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="row-message">Loading e-invoices…</td></tr>
+              <tr><td colSpan={12} className="row-message">Loading e-invoices…</td></tr>
             ) : loadError ? (
-              <tr><td colSpan={10} className="row-message row-error">{loadError}</td></tr>
+              <tr><td colSpan={12} className="row-message row-error">{loadError}</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={10} className="row-message">No e-invoices in this period.</td></tr>
+              <tr><td colSpan={12} className="row-message">No e-invoices in this period.</td></tr>
             ) : (
-              rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.clinicName || row.centerCode}</td>
-                  <td>{row.invoiceDate || '—'}</td>
-                  <td>{row.customerName || '—'}</td>
-                  <td>{row.posInvoiceNo || '—'}</td>
-                  <td>{row.zakatInvoiceNo || '—'}</td>
-                  <td>
-                    <span className={`type-badge ${docTypeClass(row.dType)}`}>{docTypeLabel(row.dType)}</span>
-                  </td>
-                  <td className="col-amount">{formatSAR(row.amount)}</td>
-                  <td>
-                    <span className={`status ${statusClass(row.einvoiceStatus)}`}>{row.einvoiceStatus}</span>
-                    {row.attempts > 1 && <span className="attempts" style={{display:'none'}}>{row.attempts} attempts</span>}
-                  </td>
-                  <td className="col-remarks" title={row.remarks || ''}>{row.remarks || '—'}</td>
-                  <td className="col-actions">
-                    {canManage && (
-                      <button type="button" className="btn-link" onClick={() => onOpenDetail(row.id)} style={{display: 'none'}}>
-                        Open
-                      </button>
-                    )}
-                    {canManage && row.einvoiceStatus === 'Failed' && (
-                      <button
-                        type="button"
-                        className="btn-link"
-                        disabled={busy}
-                        onClick={() => handleRefresh(row)}>
-                        Refresh
-                      </button>
-                    )}
-                    {row.einvoiceStatus === 'Success' && (
-                      <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
-                        Print
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
+              rows.map((row) => {
+                const selectable = canRefresh && row.einvoiceStatus === 'Failed';
+                return (
+                  <tr key={row.id} className={selectedIds.indexOf(row.id) !== -1 ? 'row-selected' : ''}>
+                    <td className="col-check">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select invoice ${row.posInvoiceNo || row.id}`}
+                        checked={selectedIds.indexOf(row.id) !== -1}
+                        disabled={!selectable || busy}
+                        onChange={() => toggleRow(row.id)}
+                      />
+                    </td>
+                    <td>{row.clinicName || centreNameByCode(row.centerCode) || row.centerCode || '—'}</td>
+                    <td>{row.invoiceDate || '—'}</td>
+                    <td>{row.customerName || '—'}</td>
+                    <td>{row.posInvoiceNo || '—'}</td>
+                    <td>{row.zakatInvoiceNo || '—'}</td>
+                    <td>{row.resolvedInvoiceNo || '—'}</td>
+                    <td>
+                      <span className={`type-badge ${docTypeClass(row.dType)}`}>{invoiceTypeLabel(row)}</span>
+                    </td>
+                    <td className="col-amount">{formatSAR(row.amount)}</td>
+                    <td>
+                      <span className={`status ${statusClass(row.einvoiceStatus)}`}>{row.einvoiceStatus}</span>
+                      {row.attempts > 1 && <span className="attempts" style={{display:'none'}}>{row.attempts} attempts</span>}
+                    </td>
+                    <td className="col-remarks" title={row.remarks || ''}>{row.remarks || '—'}</td>
+                    <td className="col-actions">
+                      {canManage && (
+                        <button type="button" className="btn-link" onClick={() => onOpenDetail(row.id)} style={{display: 'none'}}>
+                          Open
+                        </button>
+                      )}
+                      {row.einvoiceStatus === 'Success' && (
+                        <button type="button" className="btn-link" onClick={() => handlePrint(row)}>
+                          Print
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -391,6 +634,25 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           <button type="button" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>Last</button>
         </div>
       </div>
+
+      {/* ---- refresh confirmation ---- */}
+      {confirmRefresh && (
+        <div className="einvoice-overlay" role="dialog" aria-modal="true" aria-label="Refresh selected invoices">
+          <div className="einvoice-dialog">
+            <h2>Refresh selected invoices</h2>
+            <p className="dialog-note">
+              {selectedIds.length} failed invoice{selectedIds.length === 1 ? '' : 's'} will be sent to
+              ZATCA again. Statuses update once ClearTax answers.
+            </p>
+            <div className="dialog-actions">
+              <button type="button" className="btn-ghost" onClick={() => setConfirmRefresh(false)}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={busy} onClick={runRefresh}>
+                Refresh now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---- resolve dialog ---- */}
       {resolveFor && (

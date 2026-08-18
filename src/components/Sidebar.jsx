@@ -608,7 +608,7 @@ const NAV_GROUPS = [
         feature: "billing",
         children: [
           { name: "E-Invoices List Page", icon: "bx-list-ul", path: "/einvoice" },
-          { name: "E-Invoice Dashboard", icon: "bx-grid-alt", path: "/einvoice/detailed" }, // TODO confirm dashboard vs detailed
+          { name: "E-Invoice Detailed Report", icon: "bx-grid-alt", path: "/einvoice/detailed" }, // TODO confirm dashboard vs detailed
         ],
       },
     ],

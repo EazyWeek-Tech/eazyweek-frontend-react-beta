@@ -1,5 +1,6 @@
 /* ==== TOKENS ==== */
-.einvoice-page {
+.einvoice-page,
+.einvoice-dashboard {
   --navy: #334B71;
   --coral: #cc6b5c;
   --gold: #d4a853;
@@ -51,6 +52,7 @@
 .field-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
 .fld { display: flex; flex-direction: column; min-width: 170px; }
 .fld-grow { flex: 1 1 240px; }
+.fld-action { min-width: 0; flex: 0 0 auto; }
 .fld label {
   font-size: 12px;
   font-weight: 700;
@@ -111,6 +113,35 @@
 }
 .btn-link:hover { color: var(--coral); }
 
+/* ==== REFRESH ==== */
+.btn-refresh {
+  min-width: 128px;
+  padding: 9px 20px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #3d5680 0%, var(--navy) 55%, #2a3e5e 100%);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(51, 75, 113, 0.24);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.btn-refresh:hover:not(:disabled) {
+  background: linear-gradient(135deg, #48628d 0%, #2f456a 55%, #223451 100%);
+  box-shadow: 0 4px 12px rgba(51, 75, 113, 0.3);
+}
+.btn-refresh:active:not(:disabled) { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22); }
+.btn-refresh:disabled {
+  background: #eef0f3;
+  color: #9aa5b5;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 :where(button, a, input, select, textarea):focus-visible {
   outline: 2px solid var(--navy);
   outline-offset: 2px;
@@ -162,7 +193,9 @@
 .einvoice-table tbody tr:last-child td { border-bottom: none; }
 .einvoice-table tbody tr:hover { background: #fafbfc; }
 .einvoice-table tbody tr.row-selected { background: #eef2f8; }
-.col-check { width: 38px; text-align: center; }
+.col-check { width: 38px; text-align: center; padding-left: 8px; padding-right: 8px; }
+.col-check input[type='checkbox'] { width: 15px; height: 15px; accent-color: var(--navy); cursor: pointer; }
+.col-check input[type='checkbox']:disabled { cursor: not-allowed; opacity: 0.3; }
 .col-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .col-remarks {
   max-width: 260px;
@@ -411,9 +444,139 @@
 .einvoice-toast.success { background: var(--green); }
 .einvoice-toast.error { background: var(--coral); }
 
+/* ==== DETAILED REPORT ==== */
+.breadcrumb { font-size: 13px; margin-bottom: 14px; }
+.breadcrumb-link { color: var(--navy); font-weight: 700; text-decoration: none; }
+.breadcrumb-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.breadcrumb-separator { color: var(--slate); padding: 0 2px; }
+.breadcrumb-current { color: var(--muted); }
+
+.dashboard-header { margin-bottom: 18px; }
+.dashboard-header h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: 0.2px; }
+
+.fltdiv { display: flex; flex-direction: column; min-width: 170px; }
+.fltdiv label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+.fltdiv select,
+.fltdiv input {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+.fltdiv select:focus,
+.fltdiv input:focus {
+  outline: none;
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(51, 75, 113, 0.14);
+}
+.fltdiv select:disabled,
+.fltdiv input:disabled { background: #f2f4f7; color: var(--muted); }
+
+.btn-secondary {
+  padding: 8px 18px;
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--navy);
+  border: 1px solid var(--line);
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--navy); }
+.btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.einvoice-date-error { color: var(--coral); font-size: 13px; font-weight: 600; margin: 8px 0 0; }
+
+.dashboard-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 10px;
+}
+.entries-control { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.entries-control select {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.table-container {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.table-container .einvoice-table th { cursor: pointer; user-select: none; }
+.table-container .einvoice-table th:last-child { cursor: default; }
+.no-records { text-align: center; padding: 36px 10px; color: var(--muted); }
+
+.loader-wrapper { display: flex; justify-content: center; padding: 48px 0; }
+.loader {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--line);
+  border-top-color: var(--navy);
+  border-radius: 50%;
+  animation: einv-spin 0.8s linear infinite;
+}
+@keyframes einv-spin { to { transform: rotate(360deg); } }
+
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.pagination-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pagination-btn {
+  min-width: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.pagination-btn:hover:not(:disabled):not(.active) { border-color: var(--navy); }
+.pagination-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; font-weight: 700; }
+.pagination-btn.dots { border-color: transparent; background: none; cursor: default; }
+.pagination-btn:disabled:not(.active) { opacity: 0.4; cursor: not-allowed; }
+
+.einvoice-denied {
+  text-align: center;
+  padding: 56px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.einvoice-denied h2 { font-size: 17px; margin: 0 0 8px; }
+.einvoice-denied p { color: var(--muted); font-size: 14px; margin: 0; }
+
 /* ==== RESPONSIVE ==== */
 @media (max-width: 900px) {
   .settings-layout { grid-template-columns: 1fr; }
+  .report-actions { flex-wrap: wrap; }
   .einvoice-table { min-width: 900px; }
   .detail-card dl { grid-template-columns: 1fr; gap: 2px 0; }
   .detail-card dd { text-align: left; margin-bottom: 8px; }

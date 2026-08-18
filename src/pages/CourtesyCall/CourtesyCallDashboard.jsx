@@ -9,6 +9,7 @@ const authHdr    = () => ({ "Content-Type": "application/json", Authorization: `
 
 const pad2    = (n) => String(n).padStart(2, "0")
 const todayYMD = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}` }
+const yesterdayYMD = () => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}` }
 
 /* ---- export access ---- */
 const EXPORT_ROLES = ["admin", "administrator", "super admin", "superadmin", "product", "product team"]
@@ -54,16 +55,21 @@ const downloadCsv = (csv, filename) => {
   URL.revokeObjectURL(url)
 }
 
-/* ── §4.5 helpers (inline; no external CSS) ────────────────────────────────── */
+/* ---- period + donut helpers ---- */
 const pad2b = (n) => String(n).padStart(2, "0")
 const ymd   = (d) => `${d.getFullYear()}-${pad2b(d.getMonth()+1)}-${pad2b(d.getDate())}`
 const monthStartYMD = () => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth(), 1)) }
-const RANGES = ["Current Date", "Current Week", "Current Month", "Custom Range"]
+const RANGES = ["Previous Date", "Current Date", "Current Week", "Current Month", "Custom Range"]
 const periodBounds = (range) => {
-  const today = new Date(); const start = new Date(today)
+  const today = new Date()
+  if (range === "Previous Date") {
+    const y = new Date(today); y.setDate(today.getDate() - 1)
+    return { fromDate: ymd(y), toDate: ymd(y) }
+  }
+  const start = new Date(today)
   if (range === "Current Week")  start.setDate(today.getDate() - today.getDay())
   else if (range === "Current Month") start.setDate(1)
-  else if (range === "Custom Range") return null // user sets From/To in the filters card
+  else if (range === "Custom Range") return null
   return { fromDate: ymd(start), toDate: ymd(today) }
 }
 
@@ -126,14 +132,13 @@ export default function CourtesyCallDashboard() {
 
   const [hasLoaded,    setHasLoaded]    = useState(false)
   const [toast,        setToast]        = useState(null)
-  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() })
-  const [range,        setRange]        = useState("Today")
+  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() })
+  const [range,        setRange]        = useState("Previous Date")
   const [search,       setSearchRaw]    = useState("")
   const setSearch = (v) => { setSearchRaw(v); setPage(1) }
   const [page,         setPage]         = useState(1)
   const [perPage,      setPerPage]      = useState(10)
-  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() })
-  // Server-driven now: the grid holds one page, these describe the whole set.
+  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() })
   const [serverTotal,  setServerTotal]  = useState(0)
   const [srvCounts,    setSrvCounts]    = useState(null)
   const navigate = useNavigate()
@@ -147,8 +152,6 @@ export default function CourtesyCallDashboard() {
         method: "POST", headers: authHdr(),
         body: JSON.stringify({ status: f.status || "", auditor: f.auditor || "",
           fromDate: f.fromDate || "2020-01-01", toDate: f.toDate || todayYMD(), dateFlag: "1",
-          // Paging and search both run server-side. Sending them is what makes
-          // the endpoint return an envelope instead of the whole array.
           page: f.page ?? 1, pageSize: f.pageSize ?? 10,
           searchTerm: f.searchTerm ?? "" }),
       })
@@ -163,9 +166,6 @@ export default function CourtesyCallDashboard() {
         setServerTotal(arr.length)
         setSrvCounts(null)
       }
-      // Descending by APPOINTMENT DATE (newest visit first), then by creation
-      // time, then reference ID. Sorting on createdDate alone gave an arbitrary
-      // order because every bulk-generated call shares one CREATEDDATE.
       const parseAppt = (s) => {
         if (!s) return 0
         const [d, m, y] = s.split("/")
@@ -201,9 +201,7 @@ export default function CourtesyCallDashboard() {
     setDraft(prev => ({ ...prev, [field]: value }))
   }
 
-  /* Load today's first page on mount, then refetch whenever the page, the page
-     size or the search term changes. Search is debounced because it now hits
-     the database rather than filtering rows already in the browser. */
+  /* ---- initial + paged load ---- */
   useEffect(() => {
     const t = setTimeout(() => {
       fetchData({ ...filters, page, pageSize: perPage, searchTerm: search })
@@ -233,31 +231,25 @@ export default function CourtesyCallDashboard() {
   }
 
   const handleClear = () => {
-    const reset = { status: "", auditor: "", fromDate: todayYMD(), toDate: todayYMD() }
+    const reset = { status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() }
     setFilters(reset)
     setDraft(reset)
-    setSearch("")
+    setSearchRaw("")
     setPage(1)
-    setRange("Current Month")
-    setData([])
-    setHasLoaded(false)
-    reqSeq.current += 1
+    setRange("Previous Date")
+    fetchData({ ...reset, page: 1, pageSize: perPage, searchTerm: "" })
   }
 
   const handlePeriod = (r) => {
     setRange(r)
     const b = periodBounds(r)
-    if (!b) return // Custom Range → user edits From/To below
+    if (!b) return
     setDraft(prev => ({ ...prev, fromDate: b.fromDate, toDate: b.toDate }))
   }
 
-  // Search runs in SQL now, so the rows in hand are already the result for
-  // this page. Filtering again here would hide matches that the server found.
   const filtered = data
 
-  // Completion bifurcation counts (FRD §4.5) — from the loaded, period-scoped list
-  /* Whole-set counts come from the server. Counting the rows in hand would
-     only ever describe the current page. */
+  /* ---- completion bifurcation counts ---- */
   const counts = useMemo(() => {
     if (srvCounts) {
       let pending = 0, partial = 0, completed = 0
@@ -285,9 +277,7 @@ export default function CourtesyCallDashboard() {
 
   const allowExport = useMemo(() => canExport(), [])
 
-  /* Export deliberately re-queries WITHOUT page/pageSize. The endpoint's paging
-     is opt-in, so omitting them returns every matching row and the CSV stays
-     complete even though the grid only holds ten. */
+  /* ---- export ---- */
   const [exporting, setExporting] = useState(false)
   const handleExport = async () => {
     if (!allowExport) { setToast({ message: "You do not have access to export courtesy calls.", type: "error" }); return }
@@ -400,7 +390,7 @@ export default function CourtesyCallDashboard() {
           ]} />
         ) : (
           <div style={{ minHeight:120, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:13 }}>
-            {hasLoaded ? "No courtesy calls in the selected period." : "Choose your filters and press Filter to load courtesy calls."}
+            {loading ? "Loading…" : "No courtesy calls in the selected period."}
           </div>
         )}
       </div>
@@ -466,14 +456,12 @@ export default function CourtesyCallDashboard() {
           </div>
         </div>
 
-        {(filtersDirty || dateRangeInvalid || !hasLoaded) && (
+        {(filtersDirty || dateRangeInvalid) && (
           <div style={{ marginTop:12, fontSize:12, fontWeight:700,
                         color: dateRangeInvalid ? "#cc6b5c" : "#b45309" }}>
             {dateRangeInvalid
               ? "To Date cannot be earlier than From Date."
-              : !hasLoaded
-                ? "Press Filter to load courtesy calls."
-                : "Filters changed — press Filter to load the results."}
+              : "Filters changed — press Filter to load the results."}
           </div>
         )}
       </div>
@@ -526,7 +514,7 @@ export default function CourtesyCallDashboard() {
                 </td></tr>
               ) : pageData.length === 0 ? (
                 <tr><td colSpan={8} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
-                  {hasLoaded ? "No courtesy calls found." : "Choose your filters and press Filter to load courtesy calls."}
+                  No courtesy calls found.
                 </td></tr>
               ) : pageData.map((item, i) => {
                 const statusStr = STATUS_LABEL[String(item.status)] || item.status || "Pending"
