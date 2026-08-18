@@ -83,6 +83,92 @@ const TIME_SLOTS = [...Array(144)].map((_, i) => {
   return `${dh}:${String(m).padStart(2,"0")} ${per}`;
 });
 
+/* ---- shift availability (Shift Management FRD 5.4) ---- */
+// Wording is fixed by FR-19 — do not reword it.
+const SHIFT_UNAVAILABLE_MSG = "The selected practitioner is not available in the time period selected.";
+
+// Reads both clock formats: "09:00" from the shift master, "10:00 AM" from here.
+const parseClock = (v) => {
+  const s = String(v == null ? "" : v).trim().toUpperCase().replace(/\s+/g, " ");
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/);
+  if (!m) return NaN;
+  let h = +m[1];
+  const mi = +m[2];
+  const per = m[4];
+  if (mi > 59) return NaN;
+  if (per) {
+    if (h < 1 || h > 12) return NaN;
+    if (per === "PM" && h !== 12) h += 12;
+    if (per === "AM" && h === 12) h = 0;
+  } else if (h > 23) return NaN;
+  return h * 60 + mi;
+};
+
+// BR-05: one shift window must cover the whole appointment.
+const coversWindow = (windows, start, end) =>
+  (windows || []).some(w => {
+    const s = parseClock(w.startTime), e = parseClock(w.endTime);
+    return Number.isFinite(s) && Number.isFinite(e) && start >= s && end <= e;
+  });
+
+// Mirrors the server: a booking overlapping a break is not bookable (TC-SM-016).
+const overlapsBreak = (info, start, end) =>
+  (info?.shifts || []).some(sh => (sh.breaks || []).some(b => {
+    const bs = parseClock(b.breakStart);
+    const be = Number.isFinite(bs) ? bs + (b.durationMin || 0) : NaN;
+    return Number.isFinite(bs) && Number.isFinite(be) && start < be && end > bs;
+  }));
+
+const windowLabel = (windows) =>
+  (windows || [])
+    .map(w => {
+      const s = parseClock(w.startTime), e = parseClock(w.endTime);
+      return Number.isFinite(s) && Number.isFinite(e) ? `${fromMins(s)} – ${fromMins(e)}` : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+
+
+/* ---- customer suggestion parsing ---- */
+// Accepts a bare array or any of the envelope shapes the customer endpoints have
+// used, so a paging or wrapper change cannot silently empty the autocomplete.
+const pickRows = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  for (const k of ["data", "rows", "recordset", "customers", "result"]) {
+    if (Array.isArray(payload?.[k])) return payload[k];
+  }
+  if (Array.isArray(payload?.data?.data)) return payload.data.data;
+  return [];
+};
+
+// One canonical row shape. Both the label and selectSugg read these names, so a
+// column spelling that does not match no longer renders a blank row.
+const normCust = (r) => ({
+  custId:        r.custId ?? r.custid ?? r.CUSTID ?? r.customerCode ?? r.CUSTOMERCODE ?? r.id ?? "",
+  mobile:  String(r.mobile ?? r.mobileNo ?? r.number ?? r.MOBILE ?? r.MOBILENO ?? r.NUMBER ?? ""),
+  firstName: String(r.firstName ?? r.firstname ?? r.FIRSTNAME ?? r.FIRST_NAME ?? ""),
+  lastName:  String(r.lastName  ?? r.lastname  ?? r.LASTNAME  ?? r.LAST_NAME  ?? ""),
+  email:         r.email  ?? r.EMAIL  ?? r.EMAILID ?? "",
+  gender:        r.gender ?? r.GENDER ?? r.GENDER_NAME ?? "",
+  nationalityId: r.nationalityId ?? r.nationalityCode ?? r.NATIONALITYID ?? "",
+});
+
+const digitsOnly = (s) => String(s ?? "").replace(/\D/g, "");
+// Master data carries double spaces, NBSPs and trailing padding, so compare flat.
+const flatText = (s) => String(s ?? "").replace(/\u00a0/g, " ").toLowerCase().replace(/\s+/g, " ").trim();
+
+// Contains, not startsWith: the server matches a mobile anywhere in the number,
+// and a stored country code made every prefix comparison fail.
+const suggMatches = (type, row, val) => {
+  if (type === "number") {
+    const d = digitsOnly(val);
+    return !d || digitsOnly(row.mobile).includes(d);
+  }
+  const v = flatText(val);
+  if (!v) return true;
+  return flatText(type === "firstname" ? row.firstName : row.lastName).includes(v);
+};
+
 // Suggestion rows show the FULL name plus the mobile, so two customers sharing a
 // first name (or a household sharing a surname) can be told apart before picking.
 const custLabel = (i) => {
@@ -101,7 +187,10 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
   const [nmSugg,  setNmSugg]  = useState([]);
   const [lnSugg,  setLnSugg]  = useState([]);
 
-  const debounce   = useRef(null);
+  // One timer per field: a shared ref meant typing in Last Name cancelled the
+  // First Name lookup that was still pending.
+  const debounce   = useRef({});
+  const suggSeq    = useRef(0);
   const prevCustid = useRef("__init__");
   const formWrapRef = useRef(null);
 
@@ -147,13 +236,22 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
   const fetchSugg = async (type, val) => {
     const user = getUser();
     if (!val || val.length < 2 || !user.centerCode) return;
+    const seq = ++suggSeq.current;
     try {
       const data = await authGet(`${API_BASE_URL}/api/Master/GetCustomerBySearchKey/${encodeURIComponent(val)}/${user.centerCode}`);
-      const arr  = Array.isArray(data) ? data : [];
-      if (type === "number")    setMobSugg(arr.filter(i => (i.mobile||"").startsWith(val)));
-      if (type === "firstname") setNmSugg(arr.filter(i => (i.firstName||"").toLowerCase().includes(val.toLowerCase())));
-      if (type === "lastname")  setLnSugg(arr.filter(i => (i.lastName ||"").toLowerCase().includes(val.toLowerCase())));
+      if (seq !== suggSeq.current) return;
+      const rows = pickRows(data).map(normCust);
+      const hit  = rows.filter(r => suggMatches(type, r, val));
+      // The server already decided these rows match the search key. If the
+      // field-specific pass drops everything — a mobile matched mid-number, a
+      // first name that lives in the surname column — show what came back
+      // rather than an empty list.
+      const shown = hit.length ? hit : rows;
+      if (type === "number")    setMobSugg(shown);
+      if (type === "firstname") setNmSugg(shown);
+      if (type === "lastname")  setLnSugg(shown);
     } catch {
+      if (seq !== suggSeq.current) return;
       if      (type === "number")   setMobSugg([]);
       else if (type === "lastname") setLnSugg([]);
       else                          setNmSugg([]);
@@ -168,21 +266,21 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
     if (id === "number") {
       const digits = sanitizeDigits(value).slice(0,10);
       sync({ ...form, number: digits, custid: "" });
-      if (digits.length >= 3) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("number", digits), 300); }
+      if (digits.length >= 3) { clearTimeout(debounce.current.number); debounce.current.number = setTimeout(() => fetchSugg("number", digits), 300); }
       else setMobSugg([]);
       return;
     }
     if (id === "firstname") {
       const clean = sanitizeName(value);
       sync({ ...form, firstname: clean, custid: "" });
-      if (clean.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("firstname", clean), 300); }
+      if (clean.length >= 2) { clearTimeout(debounce.current.firstname); debounce.current.firstname = setTimeout(() => fetchSugg("firstname", clean), 300); }
       else setNmSugg([]);
       return;
     }
     if (id === "lastname") {
       const clean = sanitizeName(value);
       sync({ ...form, lastname: clean, custid: "" });
-      if (clean.length >= 2) { clearTimeout(debounce.current); debounce.current = setTimeout(() => fetchSugg("lastname", clean), 300); }
+      if (clean.length >= 2) { clearTimeout(debounce.current.lastname); debounce.current.lastname = setTimeout(() => fetchSugg("lastname", clean), 300); }
       else setLnSugg([]);
       return;
     }
@@ -269,7 +367,7 @@ const CustomerForm = ({ prefill, onChange, lockIdentity = false }) => {
   );
 };
 
-const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, selectedDoctor, selectedTime }) => {
+const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, selectedDoctor, selectedTime, bookingDate, onNotify }) => {
   const INIT = { servicename:"", servicecode:"", preference:"any", practitioner:"", practitionerName:"",
     startTime:"10:00 AM", duration:"5", endTime:"10:05 AM", room:"", note:"", equipment:"N/A" };
 
@@ -279,6 +377,8 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
   const [practitioners, setPractitioners] = useState([]);
   const [rooms,         setRooms]         = useState([]);
   const [showNote,      setShowNote]      = useState(false);
+  const [shiftInfo,     setShiftInfo]     = useState(null);
+  const [shiftLoading,  setShiftLoading]  = useState(false);
   const debounce = useRef(null);
 
   useEffect(() => {
@@ -325,6 +425,59 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
       setPractitioners([]);
     }
   }, [resetKey, initialData, lastEndTime, selectedDoctor, selectedTime]);
+
+  /* The selected practitioner's shift for the day being booked. Refetches when
+     either changes; the date can move after a service is queued, which is why the
+     drawer re-checks the whole list again on save. Failing to load is silent — the
+     server enforces the rule either way, and a blocked lookup must not stop a
+     receptionist from booking. */
+  useEffect(() => {
+    const code = form.practitioner;
+    if (!code || !bookingDate) { setShiftInfo(null); setShiftLoading(false); return; }
+    let cancelled = false;
+    setShiftLoading(true);
+    authGet(`${API_BASE_URL}/api/Workforce/Shift/Availability?date=${encodeURIComponent(bookingDate)}&employeeCode=${encodeURIComponent(code)}`)
+      .then(d => { if (!cancelled) setShiftInfo((d && d[code]) || null); })
+      .catch(() => { if (!cancelled) setShiftInfo(null); })
+      .finally(() => { if (!cancelled) setShiftLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.practitioner, bookingDate]);
+
+  const apptStart = parseClock(form.startTime);
+  const apptEnd   = parseClock(form.endTime);
+  const timesReadable = Number.isFinite(apptStart) && Number.isFinite(apptEnd);
+  const inShift  = !!shiftInfo && shiftInfo.status !== "WeekOff" && timesReadable
+                   && coversWindow(shiftInfo.windows, apptStart, apptEnd);
+  const onBreak  = !!shiftInfo && timesReadable && overlapsBreak(shiftInfo, apptStart, apptEnd);
+  const shiftCovers = !shiftInfo ? true : (inShift && shiftInfo.status !== "Busy" && !onBreak);
+  const shiftBlocked = !!shiftInfo && !shiftCovers;
+
+  const shiftNotice = (() => {
+    if (!form.practitioner || shiftLoading || !shiftInfo) return null;
+    if (shiftInfo.status === "WeekOff")
+      return { type:"error",   text:`Week Off on ${bookingDate} — no active shift. ${SHIFT_UNAVAILABLE_MSG}` };
+    if (shiftInfo.status === "Busy")
+      return { type:"error",   text:`Marked Busy${shiftInfo.remark ? ` — ${shiftInfo.remark}` : ""}. ${SHIFT_UNAVAILABLE_MSG}` };
+    if (onBreak)
+      return { type:"error",   text:`That slot falls on a break. ${SHIFT_UNAVAILABLE_MSG}` };
+    if (!shiftCovers)
+      return { type:"error",   text:`Shift ${windowLabel(shiftInfo.windows)} — ${SHIFT_UNAVAILABLE_MSG}` };
+    return { type:"info", text:`Shift ${windowLabel(shiftInfo.windows)}` };
+  })();
+
+  /* Announced through the drawer's toast rather than rendered under the dropdown:
+     an inline banner reflowed the whole form every time the practitioner or time
+     changed. Keyed on the message text, so it fires when the picture actually
+     changes and stays quiet while the practitioner keeps the same shift. */
+  const lastNotice = useRef("");
+  const noticeText = shiftNotice ? shiftNotice.text : "";
+  const noticeType = shiftNotice ? shiftNotice.type : "";
+  useEffect(() => {
+    if (!noticeText) { lastNotice.current = ""; return; }
+    if (noticeText === lastNotice.current) return;
+    lastNotice.current = noticeText;
+    onNotify?.(noticeText, noticeType);
+  }, [noticeText, noticeType, onNotify]);
 
   const fetchPractitioners = async (serviceCode, preselect) => {
     const user = getUser();
@@ -388,6 +541,7 @@ const ServiceRequestForm = ({ onAddService, resetKey, initialData, lastEndTime, 
     e.preventDefault();
     if (!form.servicename) { setErrors({ servicename: "Service is required." }); return; }
     if (!form.practitioner) { setErrors({ practitioner: "Please select a practitioner." }); return; }
+    if (shiftBlocked) { onNotify?.(SHIFT_UNAVAILABLE_MSG, "error"); return; }
     setErrors({});
     const pract = practitioners.find(p => String(p.id) === String(form.practitioner));
     onAddService?.({
@@ -589,6 +743,9 @@ const AppointmentDrawer = ({
   // ── Booking notes popup ──────────────────────────────────────────────────
   const { NotePopup: BookingNotePopup, checkNotes: checkBookingNotes } = useCustomerNotes();
 
+  // Stable so the service form's notice effect does not refire on every render.
+  const notify = useCallback((message, type = "info") => setToast({ message, type }), []);
+
   useEffect(() => {
     if (drawerRef.current) {
       if (isOpen) { drawerRef.current.classList.add("expand"); setResetKey(Date.now()); }
@@ -665,6 +822,26 @@ const AppointmentDrawer = ({
     onClose?.();
   }, [editAppointment, onClose]);
 
+  /* Every queued line re-validated against the roster for the date actually being
+     saved. The per-service badge checks one line at the moment it is added; this
+     catches the case where the appointment date moved afterwards. Advisory only —
+     the same rule is enforced in the SaveAppointment/Reschedule service layer. */
+  const shiftPreCheck = async (dateValue) => {
+    try {
+      return await authPost(`${API_BASE_URL}/api/Workforce/Shift/CheckBooking`, {
+        date: dateValue,
+        lines: serviceList.map((e, i) => ({
+          lineNo:       i + 1,
+          practitioner: e.service.practitioner,
+          startTime:    e.service.start,
+          endTime:      e.service.end,
+          duration:     e.service.duration,
+          serviceName:  e.service.servicename,
+        })),
+      });
+    } catch { return null; }
+  };
+
   const handleSubmit = async () => {
     if (submitting) return;
     if (!customerData || !serviceList.length) { setToast({ message:"Missing customer or service data.", type:"error" }); return; }
@@ -675,6 +852,20 @@ const AppointmentDrawer = ({
     const isBookingPast = bookingDateValue < today;
 
     setSubmitting(true);
+
+    const check = await shiftPreCheck(bookingDateValue);
+    if (check && check.ok === false && check.enforcement === "on") {
+      const first = (check.blocked && check.blocked[0]) || {};
+      const who = first.practitionerName || first.practitioner || "";
+      setToast({
+        message: who
+          ? `${SHIFT_UNAVAILABLE_MSG} (${who}, ${first.startTime}–${first.endTime})`
+          : SHIFT_UNAVAILABLE_MSG,
+        type: "error",
+      });
+      setSubmitting(false);
+      return;
+    }
 
     const user = getUser();
 
@@ -883,6 +1074,8 @@ const AppointmentDrawer = ({
             <ServiceRequestForm key={`sf-${resetKey}`}
               onAddService={handleAddService} resetKey={resetKey}
               initialData={editingSvc} lastEndTime={lastEndTime}
+              bookingDate={editAppointment?.isReschedule ? rescheduleDate : bookingDate}
+              onNotify={notify}
               selectedDoctor={doctor} selectedTime={timeSlot} />
             <ServiceList data={serviceList} onDelete={i => setServiceList(p => p.filter((_,idx) => idx !== i))} />
           </div>

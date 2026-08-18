@@ -1429,6 +1429,78 @@ const FilterHeader = ({ countsOverride = {}, activeFilter = "", onFilterChange }
   );
 };
 
+/* ---- shift overlay on the board (Shift Management FRD 5.4 / §6 legend) ---- */
+const SHIFT_FILL = {
+  off:  "repeating-linear-gradient(45deg, rgba(245,158,11,.13) 0 7px, rgba(245,158,11,.03) 7px 14px)",
+  busy: "repeating-linear-gradient(45deg, rgba(220,38,38,.13) 0 7px, rgba(220,38,38,.03) 7px 14px)",
+  brk:  "repeating-linear-gradient(45deg, rgba(100,116,139,.18) 0 5px, rgba(100,116,139,.04) 5px 10px)",
+};
+const SHIFT_EDGE = { off:"rgba(245,158,11,.35)", busy:"rgba(220,38,38,.35)", brk:"rgba(100,116,139,.35)" };
+
+// The availability endpoint speaks "HH:mm"; the board speaks "10:00 AM".
+const shiftMins = (v) => {
+  const m = String(v ?? "").trim().toUpperCase().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/);
+  if (!m) return NaN;
+  let h = +m[1]; const mi = +m[2]; const per = m[3];
+  if (mi > 59) return NaN;
+  if (per) { if (h < 1 || h > 12) return NaN; if (per === "PM" && h !== 12) h += 12; if (per === "AM" && h === 12) h = 0; }
+  else if (h > 23) return NaN;
+  return h * 60 + mi;
+};
+
+// Everything on the board that the practitioner is NOT bookable for: the gaps
+// before, between and after their shift windows, plus each configured break.
+// A Week Off day collapses to one segment spanning the whole board (BR-01).
+const buildShiftSegments = (a, dayStart, dayEnd) => {
+  if (!a) return [];
+  if (a.status === "WeekOff")
+    return [{ from: dayStart, to: dayEnd, kind: "off", label: "Not available" }];
+
+  const segs = [];
+  const wins = (a.windows || [])
+    .map(w => ({ s: shiftMins(w.startTime), e: shiftMins(w.endTime) }))
+    .filter(w => Number.isFinite(w.s) && Number.isFinite(w.e))
+    .sort((x, y) => x.s - y.s);
+
+  let cursor = dayStart;
+  for (const w of wins) {
+    if (w.s > cursor) segs.push({ from: cursor, to: w.s, kind: "off", label: "Off shift" });
+    cursor = Math.max(cursor, w.e);
+  }
+  if (cursor < dayEnd) segs.push({ from: cursor, to: dayEnd, kind: "off", label: "Off shift" });
+
+  for (const sh of (a.shifts || [])) {
+    for (const b of (sh.breaks || [])) {
+      const bs = shiftMins(b.breakStart);
+      if (!Number.isFinite(bs)) continue;
+      segs.push({ from: bs, to: bs + (b.durationMin || 0), kind: "brk",
+                  label: `Break` });
+    }
+  }
+
+  return segs
+    .map(g => ({ ...g, from: Math.max(g.from, dayStart), to: Math.min(g.to, dayEnd) }))
+    .filter(g => g.to > g.from);
+};
+
+// Pill next to the practitioner name on both axes.
+const ShiftPill = ({ a }) => {
+  if (!a) return null;
+  const tone = a.status === "WeekOff"
+    ? { t:"Not available", bg:"#fff4e5", c:"#b45309", b:"#f5d9a8" }
+    : a.status === "Busy"
+      ? { t:"Busy", bg:"#fdecec", c:"#b91c1c", b:"#f0c4c0" }
+      : null;
+  if (!tone) return null;
+  return (
+    <span title={a.remark || tone.t} style={{
+      display:"inline-block", marginLeft:6, padding:"1px 7px", borderRadius:999,
+      fontSize:9.5, fontWeight:700, whiteSpace:"nowrap", verticalAlign:"middle",
+      background:tone.bg, color:tone.c, border:`1px solid ${tone.b}`,
+    }}>{tone.t}</span>
+  );
+};
+
 const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const ltrLocation = useLocation();
   const ltrNavigate = useNavigate();
@@ -1458,6 +1530,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   const [selectedTimeSlot,    setSelectedTimeSlot]   = useState(null);
   const [selectedDoctor,      setSelectedDoctor]     = useState(null);
   const [doctors,             setDoctors]            = useState([]);
+  const [shiftMap,            setShiftMap]           = useState({});
   const [appointments,        setAppointments]       = useState([]);
   const [selectedAppointment, setSelectedAppointment]= useState(null);
   const [editData,            setEditData]           = useState(null);
@@ -1624,6 +1697,19 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
   };
 
   useEffect(() => { fetchDoctors(); fetchAppointments(selectedDate); }, [selectedDate]);
+
+  /* Roster for every practitioner on the board, for the day being shown. Failing
+     to load leaves the board exactly as it was — an overlay is a hint, and the
+     booking guard is what actually enforces the rule. */
+  useEffect(() => {
+    const codes = doctors.map(d => d.id).filter(Boolean);
+    if (!codes.length || !selectedDate) { setShiftMap({}); return undefined; }
+    let cancelled = false;
+    authGet(`${API_BASE_URL}/api/Workforce/Shift/Availability?date=${encodeURIComponent(selectedDate)}&employeeCode=${encodeURIComponent(codes.join(","))}`)
+      .then(d => { if (!cancelled) setShiftMap(d && typeof d === "object" && !Array.isArray(d) ? d : {}); })
+      .catch(() => { if (!cancelled) setShiftMap({}); });
+    return () => { cancelled = true; };
+  }, [doctors, selectedDate]);
 
   const fetchSuggestions = async (query) => {
     if (!query || query.length < 2) { setSuggestions([]); return; }
@@ -1867,7 +1953,9 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
 
             return (
               <tr key={di} className="doc-row">
-                <td className="doc-label-cell" style={{ height:rowH }}>{doc.name || doc}</td>
+                <td className="doc-label-cell" style={{ height:rowH }}>
+                  {doc.name || doc}<ShiftPill a={shiftMap[doc.id]} />
+                </td>
                 {/* Single td spanning ALL time columns — appointments rendered inside absolutely */}
                 <td colSpan={timeSlots.length}
                   style={{ position:"relative", padding:0, height:rowH, verticalAlign:"top" }}
@@ -1896,6 +1984,31 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                       }} />
                     ))}
                   </div>
+
+                  {/* Shift overlay — off-shift and break bands (FRD 5.4) */}
+                  {(() => {
+                    const dayStart = toMins(timeSlots[0]);
+                    const dayEnd   = dayStart + timeSlots.length * 5;
+                    return buildShiftSegments(shiftMap[doc.id], dayStart, dayEnd).map((g, gi) => (
+                      <div key={`sg${gi}`} title={g.label} style={{
+                        position:"absolute", top:0, height:"100%",
+                        left:  ((g.from - dayStart) / 5) * SLOT_W,
+                        width: ((g.to   - g.from)   / 5) * SLOT_W,
+                        background:SHIFT_FILL[g.kind],
+                        borderLeft:`1px solid ${SHIFT_EDGE[g.kind]}`,
+                        borderRight:`1px solid ${SHIFT_EDGE[g.kind]}`,
+                        pointerEvents:"none", zIndex:1,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}>
+                        <span style={{
+                          fontSize:10, fontWeight:700, letterSpacing:".3px", opacity:.75,
+                          color: g.kind === "brk" ? "#475569" : "#b45309",
+                          transform: ((g.to - g.from) / 5) * SLOT_W < 90 ? "rotate(-90deg)" : "none",
+                          whiteSpace:"nowrap",
+                        }}>{g.label}</span>
+                      </div>
+                    ));
+                  })()}
 
                   {/* Appointment blocks — stacked vertically when overlapping */}
                   {(() => {
@@ -2016,6 +2129,7 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
               {doctors.map((doc, di) => (
                 <th key={di} className="doc-header-cell">
                   <div className="doc-name">{doc.name || doc}</div>
+                  <ShiftPill a={shiftMap[doc.id]} />
                 </th>
               ))}
             </tr>
@@ -2082,6 +2196,25 @@ const SchedulerGrid = ({ onAddCustomer, newCustomer }) => {
                         }} />
                       ))}
                     </div>
+
+                    {/* Shift overlay — off-shift and break bands (FRD 5.4) */}
+                    {buildShiftSegments(shiftMap[doc.id], baseMins, baseMins + timeSlots.length * 5).map((g, gi) => (
+                      <div key={`sg${gi}`} title={g.label} style={{
+                        position:"absolute", left:0, width:"100%",
+                        top:    ((g.from - baseMins) / 5) * SLOT_H,
+                        height: ((g.to   - g.from)   / 5) * SLOT_H,
+                        background:SHIFT_FILL[g.kind],
+                        borderTop:`1px solid ${SHIFT_EDGE[g.kind]}`,
+                        borderBottom:`1px solid ${SHIFT_EDGE[g.kind]}`,
+                        pointerEvents:"none", zIndex:1,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}>
+                        <span style={{
+                          fontSize:10, fontWeight:700, letterSpacing:".3px", opacity:.75,
+                          color: g.kind === "brk" ? "#475569" : "#b45309",
+                        }}>{g.label}</span>
+                      </div>
+                    ))}
 
                     {/* Appointment blocks */}
                     {sorted.map((appt, idx) => {
