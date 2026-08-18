@@ -25,6 +25,93 @@ const REFRESH_ROLES = ['admin', 'manager'];
 const REFRESH_BATCH_SIZE = 50;
 const DEFAULT_PERIOD = 'Current Date';
 
+/* ---- centre name resolution ---- */
+const CENTRE_CODE_KEYS = ['CENTERCODE', 'CENTRECODE', 'centerCode', 'centreCode', 'CenterCode', 'CentreCode', 'code'];
+const CENTRE_NAME_KEYS = ['CLINICNAME', 'CENTRENAME', 'CENTERNAME', 'CENTREDESC', 'clinicName', 'centreName', 'centerName', 'name'];
+const CENTRE_NAME_STORAGE_KEYS = [
+  'centreName', 'centrename', 'CentreName', 'CENTRENAME',
+  'centerName', 'CENTERNAME', 'clinicName', 'CLINICNAME',
+  'currentCentreName', 'selectedCentreName', 'centreDisplayName', 'LoginCentreName',
+];
+
+const pickField = (obj, keys) => {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+};
+
+const centreCodeOf = (c) => pickField(c, CENTRE_CODE_KEYS);
+const centreNameOf = (c) => pickField(c, CENTRE_NAME_KEYS);
+
+const sameCode = (a, b) =>
+  Boolean(a) && Boolean(b) && String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+
+const findCentreByCode = (list, code) =>
+  (Array.isArray(list) ? list : []).find((c) => sameCode(centreCodeOf(c), code)) || null;
+
+const safeGet = (fn) => {
+  try { return fn(); } catch (e) { return null; }
+};
+
+const webStores = () =>
+  [safeGet(() => window.sessionStorage), safeGet(() => window.localStorage)].filter(Boolean);
+
+const scanForCentreName = (node, code, depth) => {
+  if (!node || depth > 4) return '';
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = scanForCentreName(item, code, depth + 1);
+      if (hit) return hit;
+    }
+    return '';
+  }
+  if (typeof node !== 'object') return '';
+  if (sameCode(centreCodeOf(node), code)) {
+    const name = centreNameOf(node);
+    if (name && !sameCode(name, code)) return name;
+  }
+  for (const key of Object.keys(node)) {
+    const hit = scanForCentreName(node[key], code, depth + 1);
+    if (hit) return hit;
+  }
+  return '';
+};
+
+const storedCentreName = (code) => {
+  if (!code) return '';
+  for (const store of webStores()) {
+    for (const key of CENTRE_NAME_STORAGE_KEYS) {
+      const value = safeGet(() => store.getItem(key));
+      if (value && value.trim() && !sameCode(value, code)) return value.trim();
+    }
+  }
+  for (const store of webStores()) {
+    const count = safeGet(() => store.length) || 0;
+    for (let i = 0; i < count; i += 1) {
+      const raw = safeGet(() => store.getItem(store.key(i)));
+      if (!raw) continue;
+      const head = raw.trim().charAt(0);
+      if (head !== '{' && head !== '[') continue;
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch (e) { continue; }
+      const hit = scanForCentreName(parsed, code, 0);
+      if (hit) return hit;
+    }
+  }
+  return '';
+};
+
+const resolveCentreName = (list, code) => {
+  if (!code) return '';
+  const match = findCentreByCode(list, code);
+  const fromList = match ? centreNameOf(match) : '';
+  if (fromList && !sameCode(fromList, code)) return fromList;
+  return storedCentreName(code) || code;
+};
+
 function refreshRoleAllowed(perms) {
   const names = [];
   if (perms.role) names.push(perms.role);
@@ -88,15 +175,21 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   /* ---- effective centre ---- */
   const sessionCentreMatch = useMemo(
-    () => (entityLevel ? null : findCentre(centres, sessionCentre)),
+    () => (entityLevel ? null : findCentre(centres, sessionCentre) || findCentreByCode(centres, sessionCentre)),
     [centres, sessionCentre, entityLevel]
   );
   const effectiveCentre = entityLevel
     ? centreCode
-    : (sessionCentreMatch ? sessionCentreMatch.CENTERCODE : sessionCentre);
-  const sessionCentreName = sessionCentreMatch
-    ? (sessionCentreMatch.CLINICNAME || sessionCentreMatch.CENTERCODE)
-    : sessionCentre;
+    : (centreCodeOf(sessionCentreMatch) || sessionCentre);
+  const sessionCentreName = useMemo(
+    () => (entityLevel ? '' : resolveCentreName(centres, sessionCentre)),
+    [centres, sessionCentre, entityLevel]
+  );
+
+  const centreNameByCode = useCallback(
+    (code) => (code ? resolveCentreName(centres, code) : ''),
+    [centres]
+  );
 
   /* ---- effective date range ---- */
   const range = useMemo(
@@ -165,8 +258,14 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   useEffect(() => {
     if (!canView) return;
     apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
-      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
-      .catch(() => setCentres([]));
+      .then((json) => {
+        const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setCentres(list);
+      })
+      .catch((err) => {
+        console.warn('E-Invoice centre list unavailable:', err && err.message);
+        setCentres([]);
+      });
   }, [canView]);
 
 
@@ -377,9 +476,10 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           {entityLevel ? (
             <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
               <option value="">All</option>
-              {centres.map((c) => (
-                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-              ))}
+              {centres.map((c) => {
+                const code = centreCodeOf(c);
+                return <option key={code} value={code}>{centreNameOf(c) || code}</option>;
+              })}
             </select>
           ) : (
             <select id="einv-centre" value={effectiveCentre} disabled>
@@ -481,7 +581,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
                         onChange={() => toggleRow(row.id)}
                       />
                     </td>
-                    <td>{row.clinicName || row.centerCode}</td>
+                    <td>{row.clinicName || centreNameByCode(row.centerCode) || row.centerCode || '—'}</td>
                     <td>{row.invoiceDate || '—'}</td>
                     <td>{row.customerName || '—'}</td>
                     <td>{row.posInvoiceNo || '—'}</td>

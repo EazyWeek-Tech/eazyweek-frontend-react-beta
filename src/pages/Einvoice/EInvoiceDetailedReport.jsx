@@ -18,6 +18,93 @@ import {
 
 const EINVOICE_ACTIVITY = 'EINV.VIEW';
 
+/* ---- centre name resolution ---- */
+const CENTRE_CODE_KEYS = ['CENTERCODE', 'CENTRECODE', 'centerCode', 'centreCode', 'CenterCode', 'CentreCode', 'code'];
+const CENTRE_NAME_KEYS = ['CLINICNAME', 'CENTRENAME', 'CENTERNAME', 'CENTREDESC', 'clinicName', 'centreName', 'centerName', 'name'];
+const CENTRE_NAME_STORAGE_KEYS = [
+  'centreName', 'centrename', 'CentreName', 'CENTRENAME',
+  'centerName', 'CENTERNAME', 'clinicName', 'CLINICNAME',
+  'currentCentreName', 'selectedCentreName', 'centreDisplayName', 'LoginCentreName',
+];
+
+const pickField = (obj, keys) => {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+};
+
+const centreCodeOf = (c) => pickField(c, CENTRE_CODE_KEYS);
+const centreNameOf = (c) => pickField(c, CENTRE_NAME_KEYS);
+
+const sameCode = (a, b) =>
+  Boolean(a) && Boolean(b) && String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+
+const findCentreByCode = (list, code) =>
+  (Array.isArray(list) ? list : []).find((c) => sameCode(centreCodeOf(c), code)) || null;
+
+const safeGet = (fn) => {
+  try { return fn(); } catch (e) { return null; }
+};
+
+const webStores = () =>
+  [safeGet(() => window.sessionStorage), safeGet(() => window.localStorage)].filter(Boolean);
+
+const scanForCentreName = (node, code, depth) => {
+  if (!node || depth > 4) return '';
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = scanForCentreName(item, code, depth + 1);
+      if (hit) return hit;
+    }
+    return '';
+  }
+  if (typeof node !== 'object') return '';
+  if (sameCode(centreCodeOf(node), code)) {
+    const name = centreNameOf(node);
+    if (name && !sameCode(name, code)) return name;
+  }
+  for (const key of Object.keys(node)) {
+    const hit = scanForCentreName(node[key], code, depth + 1);
+    if (hit) return hit;
+  }
+  return '';
+};
+
+const storedCentreName = (code) => {
+  if (!code) return '';
+  for (const store of webStores()) {
+    for (const key of CENTRE_NAME_STORAGE_KEYS) {
+      const value = safeGet(() => store.getItem(key));
+      if (value && value.trim() && !sameCode(value, code)) return value.trim();
+    }
+  }
+  for (const store of webStores()) {
+    const count = safeGet(() => store.length) || 0;
+    for (let i = 0; i < count; i += 1) {
+      const raw = safeGet(() => store.getItem(store.key(i)));
+      if (!raw) continue;
+      const head = raw.trim().charAt(0);
+      if (head !== '{' && head !== '[') continue;
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch (e) { continue; }
+      const hit = scanForCentreName(parsed, code, 0);
+      if (hit) return hit;
+    }
+  }
+  return '';
+};
+
+const resolveCentreName = (list, code) => {
+  if (!code) return '';
+  const match = findCentreByCode(list, code);
+  const fromList = match ? centreNameOf(match) : '';
+  if (fromList && !sameCode(fromList, code)) return fromList;
+  return storedCentreName(code) || code;
+};
+
 const EInvoiceDetailedReport = () => {
   const perms = usePermissions() || {};
   const canView =
@@ -46,20 +133,28 @@ const EInvoiceDetailedReport = () => {
   useEffect(() => {
     if (!canView) return;
     apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
-      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
-      .catch(() => setCentres([]));
+      .then((json) => {
+        const list = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        setCentres(list);
+      })
+      .catch((err) => {
+        console.warn('E-Invoice centre list unavailable:', err && err.message);
+        setCentres([]);
+      });
   }, [canView]);
 
-  const sessionCentreName = useMemo(() => {
-    if (!sessionCentre) return '';
-    const match = centres.find(
-      (c) => String(c.CENTERCODE || '').trim().toUpperCase() === sessionCentre.trim().toUpperCase()
-    );
-    return (match && (match.CLINICNAME || match.CENTERCODE)) || sessionCentre;
-  }, [centres, sessionCentre]);
+  const sessionCentreName = useMemo(
+    () => resolveCentreName(centres, sessionCentre),
+    [centres, sessionCentre]
+  );
+
+  const centreNameByCode = useCallback(
+    (code) => (code ? resolveCentreName(centres, code) : ''),
+    [centres]
+  );
 
   const selectableCentres = useMemo(
-    () => centres.filter((c) => !isEntityCentre(c.CENTERCODE)),
+    () => centres.filter((c) => !isEntityCentre(centreCodeOf(c))),
     [centres]
   );
 
@@ -152,7 +247,7 @@ const EInvoiceDetailedReport = () => {
 
   const handleExport = () => {
     const exportData = filtered.map((r) => ({
-      Clinic: r.clinicName,
+      Clinic: r.clinicName || centreNameByCode(r.centerCode || r.CENTERCODE) || '',
       'Created By': r.createdBy,
       'Invoice Date': r.invoiceDate,
       'Invoice Type': invoiceTypeLabel(r),
@@ -261,9 +356,10 @@ const EInvoiceDetailedReport = () => {
               size={4}
               value={selectedCentres}
               onChange={handleCentreSelect}>
-              {selectableCentres.map((c) => (
-                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-              ))}
+              {selectableCentres.map((c) => {
+                const code = centreCodeOf(c);
+                return <option key={code} value={code}>{centreNameOf(c) || code}</option>;
+              })}
             </select>
             <span className="fltdiv-hint">
               {selectedCentres.length === 0
@@ -333,7 +429,7 @@ const EInvoiceDetailedReport = () => {
                   const status = normStatus(r);
                   return (
                     <tr key={r.id || r.posInvoiceNo || idx}>
-                      <td>{r.clinicName || '—'}</td>
+                      <td>{r.clinicName || centreNameByCode(r.centerCode || r.CENTERCODE) || '—'}</td>
                       <td>{r.createdBy || '—'}</td>
                       <td>{r.invoiceDate || '—'}</td>
                       <td>{invoiceTypeLabel(r)}</td>
