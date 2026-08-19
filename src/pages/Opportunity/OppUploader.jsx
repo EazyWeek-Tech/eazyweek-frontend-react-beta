@@ -282,6 +282,7 @@ export default function OppUploader() {
         skipped: payload?.data?.skipped ?? 0,
         rejected: payload?.data?.rejected ?? 0,
         byCentre: payload?.data?.byCentre || {},
+        matchedExistingRows: payload?.data?.matchedExistingRows ?? 0,
         rows: payload?.data?.rows || [],
       });
       setUploading(false);
@@ -393,6 +394,25 @@ export default function OppUploader() {
             Received {result.received} &middot; Inserted {result.inserted} &middot;
             Skipped {result.skipped} &middot; Rejected {result.rejected}
           </div>
+
+          {result.matchedExistingRows > 0 && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 8,
+                border: "1px solid #f0d9a0",
+                background: "#fffaf0",
+                color: "#7a5b1d",
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              {result.matchedExistingRows} row(s) match an appointment already in
+              the system for the same customer, date, therapist and service. They
+              were inserted as requested — check this file has not been uploaded
+              before.
+            </div>
+          )}
 
           {!!Object.keys(result.byCentre || {}).length && (
             <div style={{ fontSize: 13, marginTop: 6, opacity: 0.9 }}>

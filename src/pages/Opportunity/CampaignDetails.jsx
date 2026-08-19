@@ -1532,7 +1532,9 @@ const fetchManualPages = async (campaignId) => {
     const rest = await Promise.all(Array.from({length:totalPages-1},(_,i)=>fetchPage(i+2)));
     rest.forEach(d=>{ if(Array.isArray(d?.data)) items.push(...d.data); });
   }
-  return items;
+  // The Disposition master rides along on page 1 so the filter can list every
+  // disposition, not just the ones this campaign happens to contain.
+  return { items, dispositions: Array.isArray(first?.dispositions) ? first.dispositions : [] };
 };
 
 function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
@@ -1543,6 +1545,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   );
 
   const [rows,    setRows]    = useState([]);
+  const [masterDispOpts, setMasterDispOpts] = useState([]);
   const [apptMap, setApptMap] = useState({});   // LTR: id → { appointmentId, apptStatus }
   useEffect(() => {
     const ids = (rows || []).map(r => r && r.id).filter(Boolean);
@@ -1598,8 +1601,9 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
     if(!campaignRecId) return;
     let alive=true; setLoading(true); setErr("");
     fetchManualPages(campaignRecId)
-      .then(data=>{
+      .then(({ items: data, dispositions })=>{
         if(!alive) return;
+        setMasterDispOpts(dispositions);
         setRows(data.map(x=>{
           const _id     = Number(x?.leadOpp_ID||0);
           const _custID = (x?.custID||x?.custId||"").toString();
@@ -1641,7 +1645,9 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   },[campaignRecId, churnKey]);
 
   const ownerOpts = useMemo(()=>withAllAndUnassigned(rows.map(r=>r.owner)),[rows]);
-  const dispOpts  = useMemo(()=>["", ...new Set(rows.map(r=>r.disposition).filter(Boolean))],[rows]);
+  const dispOpts  = useMemo(
+    ()=>["", ...new Set([...masterDispOpts, ...rows.map(r=>r.disposition)].filter(Boolean))],
+    [masterDispOpts, rows]);
   const doctorOpts= useMemo(()=>["", ...new Set(rows.map(r=>r.doctor).filter(Boolean))],[rows]);
 
   const HALF_HOURS_12 = useMemo(()=>Array.from({length:24},(_,h)=>
