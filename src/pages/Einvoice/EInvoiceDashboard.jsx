@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import './EInvoiceDashboard.css';
 import { API_BASE_URL } from '../../config';
 import { usePermissions } from '../Settings/usePermissions';
+import SearchableDropdown from './SearchableDropdown';
 import {
   DATE_PRESETS,
   STATUS_OPTIONS,
@@ -16,7 +17,12 @@ import {
   openPdf,
   getCurrentCentreCode,
   isEntityCentre,
-  findCentre,
+  findCentreByCode,
+  centreCodeOf,
+  centreNameOf,
+  resolveCentreName,
+  fetchCentreOptions,
+  sameCode,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'EINV.VIEW';
@@ -60,7 +66,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [toDate, setToDate] = useState('');
   const [status, setStatus] = useState('');
   const [docType, setDocType] = useState('');
-  const [centreCode, setCentreCode] = useState('');
+  const [selectedCentres, setSelectedCentres] = useState([]);
   const [search, setSearch] = useState('');
   const [dateError, setDateError] = useState('');
 
@@ -68,6 +74,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [centres, setCentres] = useState([]);
+  const [centreError, setCentreError] = useState('');
+  const [entityCode, setEntityCode] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(false);
@@ -84,7 +92,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   const requestSeq = useRef(0);
   const sessionCentre = useMemo(() => getCurrentCentreCode(), []);
-  const entityLevel = !sessionCentre || isEntityCentre(sessionCentre);
+  const entityLevel =
+    !sessionCentre || isEntityCentre(sessionCentre) || sameCode(entityCode, sessionCentre);
 
   const showToast = useCallback((message, kind = 'info') => {
     setToast({ message, kind });
@@ -93,15 +102,49 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   /* ---- effective centre ---- */
   const sessionCentreMatch = useMemo(
-    () => (entityLevel ? null : findCentre(centres, sessionCentre)),
+    () => (entityLevel ? null : findCentreByCode(centres, sessionCentre)),
     [centres, sessionCentre, entityLevel]
   );
-  const effectiveCentre = entityLevel
-    ? centreCode
-    : (sessionCentreMatch ? sessionCentreMatch.CENTERCODE : sessionCentre);
-  const sessionCentreName = sessionCentreMatch
-    ? (sessionCentreMatch.CLINICNAME || sessionCentreMatch.CENTERCODE)
+  const effectiveCentre = sessionCentreMatch
+    ? centreCodeOf(sessionCentreMatch)
     : sessionCentre;
+  const sessionCentreName = useMemo(
+    () => resolveCentreName(centres, sessionCentre),
+    [centres, sessionCentre]
+  );
+  const rowCentres = useMemo(() => {
+    const seen = new Map();
+    rows.forEach((r) => {
+      const code = String(r.centerCode || '').trim();
+      if (!code) return;
+      const key = code.toUpperCase();
+      if (!seen.has(key)) seen.set(key, { CENTERCODE: code, CLINICNAME: r.clinicName || code });
+    });
+    return Array.from(seen.values());
+  }, [rows]);
+
+  const centreOptions = centres.length > 0 ? centres : rowCentres;
+
+  const selectableCentres = useMemo(
+    () =>
+      centreOptions.filter(
+        (c) => !isEntityCentre(centreCodeOf(c)) && !sameCode(entityCode, centreCodeOf(c))
+      ),
+    [centreOptions, entityCode]
+  );
+
+  const centreDropdownOptions = useMemo(
+    () =>
+      selectableCentres.map((c) => {
+        const code = centreCodeOf(c);
+        return { value: code, label: centreNameOf(c) || code };
+      }),
+    [selectableCentres]
+  );
+  const centreCodes = useMemo(
+    () => (entityLevel ? selectedCentres : [effectiveCentre].filter(Boolean)),
+    [entityLevel, selectedCentres, effectiveCentre]
+  );
 
   /* ---- effective date range ---- */
   const range = useMemo(
@@ -138,7 +181,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         toDate: range ? range.to : null,
         status: status || null,
         docType: docType || null,
-        centreCode: effectiveCentre || null,
+        centreCodes,
         search: search.trim() || null,
         page,
         limit,
@@ -159,7 +202,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [datePreset, dateError, fromDate, toDate, range, status, docType, effectiveCentre, search, page, limit]);
+  }, [datePreset, dateError, fromDate, toDate, range, status, docType, centreCodes, search, page, limit]);
 
   useEffect(() => {
     if (!canView) return undefined;
@@ -169,15 +212,27 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   useEffect(() => {
     if (!canView) return;
-    apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
-      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
-      .catch(() => setCentres([]));
+    fetchCentreOptions(API_BASE_URL)
+      .then((result) => {
+        setCentres(result.centres);
+        setEntityCode(result.entityCode || '');
+        setCentreError(result.centres.length ? '' : 'The clinic list came back empty.');
+      })
+      .catch((err) => {
+        setCentres([]);
+        setCentreError(err.message || 'Could not load the clinic list.');
+      });
   }, [canView]);
 
 
   useEffect(() => {
     setPage(1);
-  }, [datePreset, fromDate, toDate, status, docType, effectiveCentre, search, limit]);
+  }, [datePreset, fromDate, toDate, status, docType, centreCodes, search, limit]);
+
+  const handleCentreSelect = (values) => {
+    setSelectedCentres(Array.isArray(values) ? values : []);
+    setPage(1);
+  };
 
   const handleResetFilters = () => {
     setDatePreset(DEFAULT_PERIOD);
@@ -189,7 +244,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     setDateError('');
     setSelectedIds([]);
     setPage(1);
-    setCentreCode('');
+    setSelectedCentres([]);
   };
 
   /* ---- selection ---- */
@@ -380,19 +435,28 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           </select>
         </div>
 
-        <div className="fld">
+        <div className={entityLevel ? 'fld fld-multi' : 'fld'}>
           <label htmlFor="einv-centre">Centre</label>
           {entityLevel ? (
-            <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
-              <option value="">All</option>
-              {centres.map((c) => (
-                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-              ))}
-            </select>
+            <>
+              <SearchableDropdown
+                options={centreDropdownOptions}
+                value={selectedCentres}
+                onChange={handleCentreSelect}
+                multiple
+                placeholder="All clinics"
+              />
+              {centreError && selectableCentres.length === 0 && (
+                <span className="fld-hint hint-error">{centreError}</span>
+              )}
+            </>
           ) : (
-            <select id="einv-centre" value={effectiveCentre} disabled>
-              <option value={effectiveCentre}>{sessionCentreName}</option>
-            </select>
+            <SearchableDropdown
+              options={[{ value: effectiveCentre, label: sessionCentreName || effectiveCentre }]}
+              value={effectiveCentre}
+              onChange={() => {}}
+              disabled
+            />
           )}
         </div>
 

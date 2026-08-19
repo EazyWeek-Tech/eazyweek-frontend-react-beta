@@ -52,7 +52,13 @@
 .field-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
 .fld { display: flex; flex-direction: column; min-width: 170px; }
 .fld-grow { flex: 1 1 240px; }
-.fld-action { min-width: 0; flex: 0 0 auto; }
+.fld-action {
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
 .fld label {
   font-size: 12px;
   font-weight: 700;
@@ -480,6 +486,24 @@
 }
 .fltdiv select:disabled,
 .fltdiv input:disabled { background: #f2f4f7; color: var(--muted); }
+.fltdiv label .req { color: var(--coral); font-weight: 700; }
+.fltdiv-multi,
+.fld-multi { min-width: 210px; }
+.fltdiv-multi select[multiple],
+.fld-multi select[multiple] {
+  padding: 4px;
+  min-height: 92px;
+  overflow-y: auto;
+}
+.fltdiv-multi select[multiple] option,
+.fld-multi select[multiple] option { padding: 4px 7px; border-radius: 3px; }
+.fltdiv-multi select[multiple] option:checked,
+.fld-multi select[multiple] option:checked {
+  background: var(--navy) linear-gradient(0deg, var(--navy) 0%, var(--navy) 100%);
+  color: #fff;
+}
+.fltdiv-hint,
+.fld-hint { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: 0.2px; }
 
 .btn-secondary {
   padding: 8px 18px;
