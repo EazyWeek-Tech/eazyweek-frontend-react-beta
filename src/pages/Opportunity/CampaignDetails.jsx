@@ -594,6 +594,25 @@ const PAGE_SIZE = 10;
 const EXPORT_PAGE_SIZE = 2000;
 const EXPORT_MAX_PAGES = 100;
 
+/* Grid sort key -> the column the server orders by. Anything not listed here is
+   sent as an empty sortKey and falls back to the server's default order. */
+const TRANS_SORT_COLUMNS = {
+  recid:               "recid",
+  custID:              "custID",
+  custName:            "custName",
+  custMobileNo:        "custMobileNo",
+  oppStatus:           "oppStatus",
+  disposition:         "disposition",
+  leadScore:           "leadScore",
+  __therapist:         "therapist",
+  appointmentdatetime: "appointmentDate",
+  remarks:             "remarks",
+  salesOwner:          "salesOwner",
+  modifiedBy:          "modifiedBy",
+  modifieddate:        "modifiedDate",
+  createddate:         "createdDate",
+};
+
 const mapTransRow = (r) => ({
   ...r,
   __therapist: (r?.therapistname||r?.therapistName||r?.THERAPISTNAME||"").toString().trim(),
@@ -729,12 +748,25 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   const [serverTotal, setServerTotal] = useState(0);
   // serverPage/SERVER_PAGE_SIZE are gone - the displayed page IS the server page.
 
+  /* Every filter on the panel is sent here. The follow-up date/time pair and the
+     sort used to be applied to the loaded page only, which meant a filtered grid
+     showed the server's unfiltered total in the pager. narrowClient still runs
+     over whatever comes back, so results stay correct either way. */
   const serverFilterBody = () => ({
     oppCode, fromDate, toDate,
     search, status, owner, disp, therapist, scoreBand,
     apptFrom: showAppt ? apptFrom : "",
     apptTo:   showAppt ? apptTo   : "",
     createdFrom, createdTo, modifiedFrom: modFrom, modifiedTo: modTo,
+    fuMode,
+    fuFrom:       fuMode === "2" ? fuFrom : "",
+    fuTo:         fuMode === "2" ? fuTo   : "",
+    fuTimeFrom:   fuTFrom,
+    fuTimeTo:     fuTTo,
+    fuTimeFromMin: Number.isNaN(timeToMin(fuTFrom)) ? null : timeToMin(fuTFrom),
+    fuTimeToMin:   Number.isNaN(timeToMin(fuTTo))   ? null : timeToMin(fuTTo),
+    sortKey: TRANS_SORT_COLUMNS[sort.key] || "",
+    sortDir: sort.dir === "desc" ? "desc" : "asc",
   });
 
   // Fetch current page — ALL filters sent to server
@@ -757,19 +789,17 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
       .finally(()=>{ if(alive) setLoading(false); });
     return()=>{ alive=false; };
   }, [oppCode, fromDate, toDate, page, pageSize, search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
-      createdFrom, createdTo, modFrom, modTo, churnKey]);
+      createdFrom, createdTo, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo, sort, churnKey]);
 
   useEffect(() => {
     if (!showAppt && (apptFrom || apptTo)) { setApptFrom(""); setApptTo(""); }
   }, [showAppt, apptFrom, apptTo]);
 
-  // Reset to page 1 when server-side filters change — but NOT on mount, which would
+  // Reset to page 1 when any filter changes — but NOT on mount, which would
   // discard the page number we just restored.
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo, createdFrom, createdTo, modFrom, modTo]);
-  // Reset display page when client filters change
-  useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
-    [disp,scoreBand,therapist,apptFrom,apptTo,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,createdFrom,createdTo,modFrom,modTo,pageSize]);
+    [search, status, owner, disp, therapist, scoreBand, apptFrom, apptTo,
+     createdFrom, createdTo, modFrom, modTo, fuMode, fuFrom, fuTo, fuTFrom, fuTTo, pageSize]);
 
   // Remember the view for the trip to a lead and back.
   useEffect(() => {
@@ -1160,6 +1190,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
 
   const [ownerOpts,  setOwnerOpts]  = useState([]);
   const [dispOpts,   setDispOpts]   = useState([]);
+  const [allDoctorOpts, setAllDoctorOpts] = useState([]);
   const [pageSize,   setPageSize]   = useState(Number(_v.pageSize) || PAGE_SIZE);
 
   const navigate = useNavigate();
@@ -1179,7 +1210,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     fetch(`${API_BASE_URL}/api/Opportunity/GetExternalOppFilterOptions/${encodeURIComponent(oppCode)}`,
       {headers:authHeaders()})
       .then(r=>r.json())
-      .then(d=>{setOwnerOpts(d?.owners||[]);setDispOpts(d?.dispositions||[]);})
+      .then(d=>{setOwnerOpts(d?.owners||[]);setDispOpts(d?.dispositions||[]);
+                setAllDoctorOpts(d?.doctors||[]);})
       .catch(()=>{});
   },[oppCode]);
 
@@ -1204,6 +1236,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         pageNumber: page, pageSize,
         searchTerm:search, statusFilter:status,
         ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
+        doctorFilter,
       }),
     })
       .then(r=>r.json())
@@ -1269,7 +1302,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       .catch(e=>{if(alive)setErr(e.message);})
       .finally(()=>{if(alive)setLoading(false);});
     return()=>{alive=false;};
-  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,churnKey]);
+  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,doctorFilter,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
     [search,status,owner,disp,scoreBand,doctorFilter,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
@@ -1296,7 +1329,14 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   const filterTFrom = to24h(fuTFrom);
   const filterTTo   = to24h(fuTTo);
 
-  const doctorOpts = useMemo(()=>["", ...new Set(rows.map(r=>r?.doctor).filter(Boolean))],[rows]);
+  /* Built from GetExternalOppFilterOptions so every doctor in the campaign is
+     listed, not just the ones that happen to be on the loaded page. The row
+     scan stays as a fallback for when that call has not returned yet. */
+  const doctorOpts = useMemo(
+    () => allDoctorOpts.length
+      ? ["", ...allDoctorOpts]
+      : ["", ...new Set(rows.map(r=>r?.doctor).filter(Boolean))],
+    [allDoctorOpts, rows]);
 
   const createdBad = rangeInvalid(fromDate, toDate);
   const modBad     = rangeInvalid(modFrom,  modTo);
@@ -1492,7 +1532,9 @@ const fetchManualPages = async (campaignId) => {
     const rest = await Promise.all(Array.from({length:totalPages-1},(_,i)=>fetchPage(i+2)));
     rest.forEach(d=>{ if(Array.isArray(d?.data)) items.push(...d.data); });
   }
-  return items;
+  // The Disposition master rides along on page 1 so the filter can list every
+  // disposition, not just the ones this campaign happens to contain.
+  return { items, dispositions: Array.isArray(first?.dispositions) ? first.dispositions : [] };
 };
 
 function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
@@ -1503,6 +1545,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   );
 
   const [rows,    setRows]    = useState([]);
+  const [masterDispOpts, setMasterDispOpts] = useState([]);
   const [apptMap, setApptMap] = useState({});   // LTR: id → { appointmentId, apptStatus }
   useEffect(() => {
     const ids = (rows || []).map(r => r && r.id).filter(Boolean);
@@ -1558,8 +1601,9 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
     if(!campaignRecId) return;
     let alive=true; setLoading(true); setErr("");
     fetchManualPages(campaignRecId)
-      .then(data=>{
+      .then(({ items: data, dispositions })=>{
         if(!alive) return;
+        setMasterDispOpts(dispositions);
         setRows(data.map(x=>{
           const _id     = Number(x?.leadOpp_ID||0);
           const _custID = (x?.custID||x?.custId||"").toString();
@@ -1601,7 +1645,9 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   },[campaignRecId, churnKey]);
 
   const ownerOpts = useMemo(()=>withAllAndUnassigned(rows.map(r=>r.owner)),[rows]);
-  const dispOpts  = useMemo(()=>["", ...new Set(rows.map(r=>r.disposition).filter(Boolean))],[rows]);
+  const dispOpts  = useMemo(
+    ()=>["", ...new Set([...masterDispOpts, ...rows.map(r=>r.disposition)].filter(Boolean))],
+    [masterDispOpts, rows]);
   const doctorOpts= useMemo(()=>["", ...new Set(rows.map(r=>r.doctor).filter(Boolean))],[rows]);
 
   const HALF_HOURS_12 = useMemo(()=>Array.from({length:24},(_,h)=>

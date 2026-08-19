@@ -42,6 +42,8 @@ export default function RosterView() {
   const [toast, setToast]     = useState(null);
   const [busyFor, setBusyFor] = useState(null);   // { employeeCode, employeeName } | null
   const [remark, setRemark]   = useState("");
+  const [conflict, setConflict] = useState(null); // { row, action, remark, onDate, later } | null
+  const [checking, setChecking] = useState(false);
   const [working, setWorking] = useState(false);
 
   // Filters + pagination (client-side over the centre/day roster)
@@ -112,20 +114,45 @@ export default function RosterView() {
     finally { setHistLoading(false); }
   };
 
-  const postStatus = async (employeeCode, action, rmk = "") => {
+  const postStatus = async (employeeCode, action, rmk = "", acknowledged = false) => {
     setWorking(true);
     try {
       await api(`/api/Workforce/Shift/Status`, {
         method: "POST",
-        body: JSON.stringify({ employeeCode, date, action, remark: rmk }),
+        body: JSON.stringify({ employeeCode, date, action, remark: rmk, acknowledged }),
       });
       await loadRoster();
     } catch (e) { showToast(e.message, "error"); }
     finally { setWorking(false); }
   };
 
+  /* Taking someone off the roster does not move or cancel what is already booked,
+     so anything on their calendar is shown first and the manager decides. The day
+     being marked is the real conflict; the following week is context. A failed
+     lookup must not block the status change — it falls through to the write. */
+  const requestStatus = async (row, action, rmk = "") => {
+    setChecking(true);
+    try {
+      const q = new URLSearchParams({ employeeCode: row.employeeCode, date, days: "7" });
+      const j = await api(`/api/Workforce/Shift/PractitionerAppointments?${q.toString()}`);
+      const d = j.data || {};
+      if ((d.total || 0) > 0) {
+        setConflict({ row, action, remark: rmk, onDate: d.onDate || [], later: d.later || [] });
+        return;
+      }
+    } catch (e) { console.warn("[Roster] appointment check skipped:", e.message); }
+    finally { setChecking(false); }
+    await postStatus(row.employeeCode, action, rmk);
+  };
+
+  const proceedConflict = async () => {
+    const c = conflict;
+    setConflict(null);
+    await postStatus(c.row.employeeCode, c.action, c.remark, true);
+  };
+
   const openBusy = (row) => { setBusyFor(row); setRemark(""); };
-  const confirmBusy = async () => { const r = busyFor; setBusyFor(null); await postStatus(r.employeeCode, "Busy", remark); };
+  const confirmBusy = async () => { const r = busyFor; setBusyFor(null); await requestStatus(r, "Busy", remark); };
 
   return (
     <div style={sx.page}>
@@ -229,10 +256,10 @@ export default function RosterView() {
                     {canManage && (
                       <td style={{ ...sx.td, whiteSpace: "nowrap" }}>
                         {r.hasShift && r.status !== "Busy" && (
-                          <button style={sx.actBtn} disabled={working} onClick={() => openBusy(r)}>Mark Busy</button>
+                          <button style={sx.actBtn} disabled={working || checking} onClick={() => openBusy(r)}>Mark Busy</button>
                         )}
                         {r.hasShift && r.status !== "WeekOff" && (
-                          <button style={{ ...sx.actBtn, marginLeft: 6 }} disabled={working} onClick={() => postStatus(r.employeeCode, "WeekOff")}>Week Off</button>
+                          <button style={{ ...sx.actBtn, marginLeft: 6 }} disabled={working || checking} onClick={() => requestStatus(r, "WeekOff")}>Week Off</button>
                         )}
                         {r.manualStatus && (
                           <button style={{ ...sx.actBtn, marginLeft: 6, borderColor: "#16a34a", color: "#166534" }} disabled={working} onClick={() => postStatus(r.employeeCode, "Available")}>Revert</button>
@@ -277,6 +304,62 @@ export default function RosterView() {
           </div>
         </div>
       )}
+
+      {/* Existing-appointment warning before a status change */}
+      {conflict && (() => {
+        const label = conflict.action === "Busy" ? "Mark Busy" : "Mark Week Off";
+        const all = [...conflict.onDate, ...conflict.later];
+        const Row = ({ a }) => (
+          <tr>
+            <td style={sx.td}>{a.date}</td>
+            <td style={sx.td}>{a.startTime}{a.endTime ? ` – ${a.endTime}` : ""}</td>
+            <td style={sx.td}>{a.customerName || "—"}{a.mobile ? <div style={{ fontSize: 11, color: "#94a3b8" }}>{a.mobile}</div> : null}</td>
+            <td style={sx.td}>{a.serviceName || "—"}</td>
+            <td style={{ ...sx.td, color: "#64748b" }}>{a.status}</td>
+          </tr>
+        );
+        return (
+          <div style={sx.overlay} onMouseDown={(e) => { if (e.target === e.currentTarget) setConflict(null); }}>
+            <div style={{ ...sx.modal, maxWidth: 720 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: "#b45309", marginBottom: 4 }}>
+                {conflict.row.employeeName} has booked appointments
+              </div>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
+                {conflict.onDate.length > 0
+                  ? `${conflict.onDate.length} appointment(s) on ${date}`
+                  : `No appointments on ${date}`}
+                {conflict.later.length > 0 && ` · ${conflict.later.length} more in the following 7 days`}
+              </div>
+
+              <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12.5, lineHeight: 1.5,
+                background: "#fff4e5", color: "#b45309", border: "1px solid #f5d9a8", marginBottom: 14 }}>
+                {label} does not cancel or reassign these bookings — they stay on the board and on the
+                customer's record. Reschedule them separately if the practitioner will not be in.
+              </div>
+
+              <div style={{ maxHeight: 300, overflow: "auto", border: "1px solid #eef2f7", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Date", "Time", "Customer", "Service", "Status"].map((h, i) => (
+                        <th key={i} style={{ ...sx.th, position: "sticky", top: 0, background: "#f8fafc" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>{all.map((a, i) => <Row key={i} a={a} />)}</tbody>
+                </table>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+                <button style={sx.cancelBtn} onClick={() => setConflict(null)}>Cancel</button>
+                <button style={sx.priBtn} disabled={working} onClick={proceedConflict}>
+                  {working ? "Saving…" : `${label} anyway`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Status history modal */}
       {histFor && (
