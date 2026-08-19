@@ -19,6 +19,7 @@
 // a retry panel. Every figure here comes from an endpoint or is not rendered.
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { API_BASE_URL } from "../../config";
+import DashboardGate, { DASHBOARD_VIEW } from "../../components/DashboardGate"; // adjust path if needed
 // Shared EazyWeek loading indicators (same module Dashboard.jsx uses).
 // This file assumes src/pages/Audit/ -> src/pages/Dashboard/; adjust if it moves.
 import { DashboardLoadingBar, TileSkeleton, ChartLoading, LoadError } from "../Dashboard/DashboardLoadingBar";
@@ -414,4 +415,10 @@ const AuditDashboard = () => {
   );
 };
 
-export default AuditDashboard;
+export default function AuditDashboardGated() {
+  return (
+    <DashboardGate code={DASHBOARD_VIEW.AUDIT_DASHBOARD}>
+      <AuditDashboard />
+    </DashboardGate>
+  );
+}

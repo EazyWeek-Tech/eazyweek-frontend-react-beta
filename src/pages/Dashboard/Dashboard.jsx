@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { API_BASE_URL } from "../../config"; // adjust path to match this file's location
 import { resolveFeatures, getFeatureMeta, minimumTierFor, getTierLabel } from "../../config/licenseConfig"; // license helpers (adjust path if needed)
+import { resolveDashboardAccess, DASHBOARD_VIEW } from "../../components/DashboardGate"; // DASH.* view permissions (adjust path if needed)
 // Shared EazyWeek loading indicators. Place DashboardLoadingBar.jsx beside this
 // file (src/pages/Dashboard/) or adjust this path to wherever it lives.
 import { DashboardLoadingBar, TileSkeleton, AwaitingFeed, LoadError } from "./DashboardLoadingBar";
@@ -1091,6 +1092,39 @@ const SectionHeading = ({ num, title, sub }) => (
 
 const card = { background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16, padding: "20px 22px" };
 
+/* ---- role-permission block (DASH.* view denied) ---- */
+const RestrictedBlock = ({ ar, height = 220 }) => (
+  <div style={{ ...card, minHeight: height, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, textAlign: "center" }}>
+    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#13294B" }}>
+      {ar ? "لا تملك صلاحية عرض هذه اللوحة" : "You don't have permission to view this dashboard"}
+    </div>
+    <div style={{ fontSize: 12, color: "#7a8593", maxWidth: 320, lineHeight: 1.5 }}>
+      {ar
+        ? "اطلب من المسؤول منحك صلاحية العرض من إعدادات الأدوار والصلاحيات"
+        : "Ask an administrator to grant View access from Role Master & Security."}
+    </div>
+  </div>
+);
+
+/* ---- license block (feature not in the tenant's plan) ---- */
+const LockedBlock = ({ feature, ar, height = 220 }) => {
+  const meta = getFeatureMeta(feature) || {};
+  const tierLabel = getTierLabel(minimumTierFor(feature)) || "";
+  const name = (ar ? meta.labelAr : meta.label) || meta.label || meta.name || feature;
+  return (
+    <div style={{ ...card, minHeight: height, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, textAlign: "center", background: "#F7F9FB" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "#13294B" }}>
+        {ar ? "هذه الميزة غير مشمولة في باقتك" : "Not included in your plan"}
+      </div>
+      <div style={{ fontSize: 12, color: "#7a8593", maxWidth: 320, lineHeight: 1.5 }}>
+        {ar
+          ? `${name} متاحة في باقة ${tierLabel} وما فوق. تواصل معنا للترقية.`
+          : `${name} is available on the ${tierLabel} plan and above. Contact us to upgrade.`}
+      </div>
+    </div>
+  );
+};
+
 /* ------------------------------------------------------------------ */
 /* Loading / empty states — shown INSTEAD of sample figures            */
 /* ------------------------------------------------------------------ */
@@ -1243,6 +1277,15 @@ export default function Dashboard() {
 
   const d = useDashboardData({ range, compare, overlayPrev, lang, selected, live, centres: activeCentres, sample });
   const ar = d.ar;
+
+  /* ---- dashboard view permissions (DASH.*) ---- */
+  const [dashPerms, setDashPerms] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    resolveDashboardAccess().then((p) => { if (alive) setDashPerms(p); });
+    return () => { alive = false; };
+  }, []);
+  const canDash = (code) => !dashPerms || dashPerms.isSuper || dashPerms.codes.has(code);
 
   // License-based block visibility — read the tenant's plan from the logged-in user.
   const licenseUser = useMemo(() => {
@@ -1442,7 +1485,9 @@ export default function Dashboard() {
         {/* ===================== 1. FINANCIAL HEALTH ===================== */}
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="01" title={d.t.financial} />
-          {d.topLoading && !d.hasHome ? (
+          {!canDash(DASHBOARD_VIEW.FINANCIAL) ? (
+            <RestrictedBlock ar={ar} height={220} />
+          ) : d.topLoading && !d.hasHome ? (
             <TileGridSkeleton t={d.t} />
           ) : !d.hasHome ? (
             <AwaitingFeed title={d.t.awaiting} height={180} />
@@ -1515,7 +1560,9 @@ export default function Dashboard() {
         <LazyMount minHeight={320}>
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="02" title={d.t.centre} />
-          {can("multiLocation") ? (
+          {!canDash(DASHBOARD_VIEW.CENTRE_PERFORMANCE) ? (
+            <RestrictedBlock ar={ar} height={220} />
+          ) : can("multiLocation") ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
             {/* Target vs actual. Both the ranked bars AND the top/bottom performer
                 badges needed a per-centre period figure against a monthly target;
@@ -1590,6 +1637,9 @@ export default function Dashboard() {
           <SectionHeading num="03" title={d.t.growth} />
           {(can("opportunity") || can("loyalty")) ? (
           <>
+          {!canDash(DASHBOARD_VIEW.GROWTH_KPIS) ? (
+            <div style={{ marginBottom: 16 }}><RestrictedBlock ar={ar} height={110} /></div>
+          ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 16 }}>
             {d.growthKpis.map((k, i) => (
               <div key={i} style={{ ...card, borderRadius: 14, padding: "16px 18px" }}>
@@ -1601,9 +1651,13 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 16, alignItems: "stretch" }}>
             {/* Col 1: Funnel */}
+            {!canDash(DASHBOARD_VIEW.LTR_FUNNEL) ? (
+              <RestrictedBlock ar={ar} height={360} />
+            ) : (
             <div style={{ ...card, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{d.t.funnel}</div>
@@ -1617,9 +1671,13 @@ export default function Dashboard() {
                   : <Pending loading={d.pendingFunnel} t={d.t} height={300} label={d.t.funnel} />}
               </div>
             </div>
+            )}
 
             {/* Col 2: Leads by source + End-of-funnel */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {!canDash(DASHBOARD_VIEW.LEADS_BY_SOURCE) ? (
+                <RestrictedBlock ar={ar} height={170} />
+              ) : (
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.leadsBySource}</div>
                 {!d.leadSources ? <Pending loading={d.restLoading} t={d.t} height={132} label={d.t.leadsBySource} /> : (
@@ -1636,6 +1694,10 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+              )}
+              {!canDash(DASHBOARD_VIEW.LTR_FUNNEL) ? (
+                <RestrictedBlock ar={ar} height={230} />
+              ) : (
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{d.t.endFunnel}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1658,12 +1720,15 @@ export default function Dashboard() {
                 </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Col 3: Loyalty + Campaigns */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Loyalty */}
-              {can("loyalty") ? (
+              {!canDash(DASHBOARD_VIEW.LOYALTY) ? (
+                <RestrictedBlock ar={ar} height={170} />
+              ) : can("loyalty") ? (
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{d.t.loyalty}</div>
                 <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -1700,6 +1765,9 @@ export default function Dashboard() {
               ) : <LockedBlock feature="loyalty" ar={ar} />}
 
               {/* Campaigns */}
+              {!canDash(DASHBOARD_VIEW.CAMPAIGNS) ? (
+                <RestrictedBlock ar={ar} height={170} />
+              ) : (
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{d.t.campaigns}</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
@@ -1723,6 +1791,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
           </>
@@ -1734,7 +1803,9 @@ export default function Dashboard() {
         <LazyMount minHeight={320}>
         <section style={{ marginBottom: 30 }}>
           <SectionHeading num="04" title={d.t.ops} />
-          {can("caseManagement") ? (
+          {!canDash(DASHBOARD_VIEW.CASE_OPS) ? (
+            <RestrictedBlock ar={ar} height={220} />
+          ) : can("caseManagement") ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* Cases by status */}
             <div style={card}>

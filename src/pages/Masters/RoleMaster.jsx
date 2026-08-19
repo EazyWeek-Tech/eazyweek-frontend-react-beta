@@ -503,7 +503,6 @@ export default function RoleMaster() {
         <section style={sx.matrixPane}>
           {!selected && !matrixLoading && (
             <div style={sx.empty}>
-              <div style={{ fontSize: 34, marginBottom: 8 }}>🛡️</div>
               <div style={{ fontWeight: 700, color: C.navy }}>Select a role</div>
               <div style={{ color: C.sub, fontSize: 13 }}>
                 Choose a role on the left to view and edit its permissions.
