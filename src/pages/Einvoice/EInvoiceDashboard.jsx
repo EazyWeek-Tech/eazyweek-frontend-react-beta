@@ -81,6 +81,12 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
 
+  /* ---- KPI summary (counts + amounts, generated in the selected period) ---- */
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const summarySeq = useRef(0);
+
   /* ---- actions ---- */
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
@@ -209,6 +215,38 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [canView, load]);
+
+  /* ---- KPI summary fetch: period + centre scope only ---- */
+  const loadSummary = useCallback(async () => {
+    if (datePreset === 'Custom Days' && (dateError || !fromDate || !toDate)) return;
+    const seq = ++summarySeq.current;
+    setSummaryLoading(true);
+    setSummaryError('');
+    try {
+      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Summary`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fromDate: range ? range.from : null,
+          toDate: range ? range.to : null,
+          centreCodes,
+        }),
+      });
+      if (seq !== summarySeq.current) return;
+      setSummary(json.data || null);
+    } catch (err) {
+      if (seq !== summarySeq.current) return;
+      setSummary(null);
+      setSummaryError(err.message);
+    } finally {
+      if (seq === summarySeq.current) setSummaryLoading(false);
+    }
+  }, [datePreset, dateError, fromDate, toDate, range, centreCodes]);
+
+  useEffect(() => {
+    if (!canView) return undefined;
+    const timer = setTimeout(loadSummary, 300);
+    return () => clearTimeout(timer);
+  }, [canView, loadSummary]);
 
   useEffect(() => {
     if (!canView) return;
@@ -492,6 +530,37 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
       </div>
 
       {dateError && <p className="einvoice-error">{dateError}</p>}
+
+      {/* ---- KPI summary: e-invoices generated in the selected period ---- */}
+      <div className="einv-kpis">
+        <div className="einv-kpi-note">
+          Counts and amounts cover e-invoices generated in the selected period only.
+          {summaryError ? ` Summary not loaded: ${summaryError}` : ''}
+        </div>
+        <div className="einv-kpi-grid">
+          {[
+            { label: 'Total E-Invoices', value: summary ? summary.total : null, tone: 'navy' },
+            { label: 'Successful', value: summary ? summary.successful : null, tone: 'green' },
+            { label: 'Failed', value: summary ? summary.failed : null, tone: 'coral' },
+            { label: 'Resolved', value: summary ? summary.resolved : null, tone: 'gold' },
+          ].map((k) => (
+            <div key={k.label} className={`einv-kpi-card tone-${k.tone}`}>
+              <div className="einv-kpi-value">{summaryLoading ? '…' : k.value == null ? '—' : k.value.toLocaleString('en-US')}</div>
+              <div className="einv-kpi-label">{k.label}</div>
+            </div>
+          ))}
+          {[
+            { label: 'Total Amount without VAT', value: summary ? summary.amountWithoutVat : null },
+            { label: 'VAT', value: summary ? summary.vatAmount : null },
+            { label: 'Total Amount with VAT', value: summary ? summary.amountWithVat : null },
+          ].map((k) => (
+            <div key={k.label} className="einv-kpi-card tone-amount">
+              <div className="einv-kpi-value">{summaryLoading ? '…' : k.value == null ? '—' : formatSAR(k.value)}</div>
+              <div className="einv-kpi-label">{k.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ---- toolbar ---- */}
       <div className="einvoice-toolbar">
