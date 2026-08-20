@@ -1258,8 +1258,14 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         oppCode, fromDate, toDate,
         pageNumber: page, pageSize,
         searchTerm:search, statusFilter:status,
-        ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
-        doctorFilter,
+        ownerFilter: owner, dispFilter:disp,
+        doctorFilter, scoreBand,
+        fuMode,
+        fuFrom: fuMode === "2" ? fuFrom : "",
+        fuTo:   fuMode === "2" ? fuTo   : "",
+        fuTimeFromMin: Number.isNaN(timeToMin(fuTFrom)) ? null : timeToMin(fuTFrom),
+        fuTimeToMin:   Number.isNaN(timeToMin(fuTTo))   ? null : timeToMin(fuTTo),
+        modifiedFrom: modFrom, modifiedTo: modTo,
       }),
     })
       .then(r=>r.json())
@@ -1325,7 +1331,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       .catch(e=>{if(alive)setErr(e.message);})
       .finally(()=>{if(alive)setLoading(false);});
     return()=>{alive=false;};
-  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,doctorFilter,churnKey]);
+  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,doctorFilter,scoreBand,
+     fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
     [search,status,owner,disp,scoreBand,doctorFilter,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
