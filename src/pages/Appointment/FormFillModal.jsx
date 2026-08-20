@@ -346,7 +346,7 @@ const AnnotationPad = ({ assetCode, value, onChange }) => {
 // ─── Single Field Renderer (fillable) ─────────────────────────────────────────
 // Memoised: without this every keystroke re-renders every field in the form,
 // which is visible lag on an iPad and can drop characters on long forms.
-const FieldRenderer = React.memo(({ component, value, onChange, conditions, allValues, allComponents = [] }) => {
+const FieldRenderer = React.memo(({ component, value, onChange, onChildChange, conditions, allValues, allComponents = [], errors = {} }) => {
   const { componentType, label, isMandatory, config = {}, componentId } = component;
 
   // Apply conditional visibility
@@ -721,32 +721,39 @@ const FieldRenderer = React.memo(({ component, value, onChange, conditions, allV
       );
     }
 
-    case "languagetoggle":
+    case "columnlayout": {
+      const colCount = config.columns || 2;
+      const children = allComponents
+        .filter(c => c.parentId === componentId)
+        .sort((a, b) => (a.columnIndex ?? 0) - (b.columnIndex ?? 0));
       return (
-        <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:4 }}>
-          <div style={{ display:"inline-flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:3 }}>
-            {[
-              { code:"en", flag:"🇬🇧", label:"English" },
-              { code:"ar", flag:"🇸🇦", label:"العربية" },
-            ].map(lang => {
-              const isActive = (value || "en") === lang.code;
-              return (
-                <div key={lang.code} onClick={() => onChange(lang.code)}
-                  style={{
-                    padding:"6px 18px", borderRadius:8, cursor:"pointer",
-                    background: isActive ? "#334b71" : "transparent",
-                    color:      isActive ? "#fff"    : "#64748b",
-                    fontWeight: isActive ? 800       : 700,
-                    fontSize:13, transition:"all .15s",
-                    fontFamily: lang.code === "ar" ? "'Noto Sans Arabic', Arial, sans-serif" : "inherit",
-                  }}>
-                  {lang.flag} {lang.label}
-                </div>
-              );
-            })}
-          </div>
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${colCount}, 1fr)`, gap:12 }}>
+          {Array.from({ length: colCount }).map((_, colIdx) => {
+            const child = children.find(c => c.columnIndex === colIdx);
+            if (!child) return <div key={colIdx} />;
+            return (
+              <div key={colIdx}>
+                <FieldRenderer
+                  component={child}
+                  value={allValues[child.componentId]}
+                  onChange={val => onChildChange && onChildChange(child.componentId, val)}
+                  onChildChange={onChildChange}
+                  conditions={conditions}
+                  allValues={allValues}
+                  allComponents={allComponents}
+                  errors={errors}
+                />
+                {errors[child.componentId] && (
+                  <div style={{ color:"#b91c1c", fontSize:11, marginTop:4 }}>
+                     {errors[child.componentId]}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       );
+    }
 
     case "languagetoggle":
       return (
@@ -1248,9 +1255,6 @@ export default function FormFillModal({
     for (const comp of formDef.components || []) {
       if (!comp.isMandatory) continue;
       if (SKIP_TYPES.has(comp.componentType)) continue;
-      // Skip children inside columnlayout — their values are stored at top level
-      // but we validate them individually when they appear as top-level components
-      if (comp.parentId) continue;
       // Skip fields not shown in the current language / condition state
       if (!isVisible(comp)) continue;
       const val = values[comp.componentId];
@@ -1405,15 +1409,17 @@ export default function FormFillModal({
         <div className="popfrm" ref={scrollRef} style={{ flex:1, overflowY:"auto" }}>
           {formDef ? (
             <div>
-              {(formDef.components || []).map(comp => (
+              {(formDef.components || []).filter(comp => !comp.parentId).map(comp => (
                 <div key={comp.componentId} style={{ marginBottom:18 }}>
                   <FieldRenderer
                     component={comp}
                     value={values[comp.componentId]}
                     onChange={val => updateValue(comp.componentId, val)}
+                    onChildChange={updateValue}
                     conditions={formDef.conditions || []}
                     allValues={values}
                     allComponents={formDef.components || []}
+                    errors={errors}
                   />
                   {errors[comp.componentId] && (
                     <div style={{ color:"#b91c1c", fontSize:11, marginTop:4 }}>
