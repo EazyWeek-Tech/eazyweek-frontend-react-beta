@@ -1,7 +1,7 @@
 /* ---- filter options ---- */
 export const DATE_PRESETS = [
   'Current Date',
-  'Past 1 Day',
+  'Yesterday',
   'Past 1 Week',
   'Past 1 Month',
   'Past 3 Months',
