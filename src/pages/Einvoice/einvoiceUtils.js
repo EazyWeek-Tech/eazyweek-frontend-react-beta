@@ -83,7 +83,10 @@ export function presetRange(preset) {
   const to = ksaDateKey();
   if (preset === 'Current Date') return { from: to, to };
   if (preset === 'Active Financial Year') return { from: financialYearStartKey(to), to };
-  if (preset === 'Past 1 Day') return { from: shiftDateKey(to, { days: -1 }), to };
+  if (preset === 'Past 1 Day') {
+    const yesterday = shiftDateKey(to, { days: -1 });
+    return { from: yesterday, to: yesterday };
+  }
   if (preset === 'Past 1 Week') return { from: shiftDateKey(to, { days: -7 }), to };
   if (preset === 'Past 1 Month') return { from: shiftDateKey(to, { months: -1 }), to };
   if (preset === 'Past 3 Months') return { from: shiftDateKey(to, { months: -3 }), to };
