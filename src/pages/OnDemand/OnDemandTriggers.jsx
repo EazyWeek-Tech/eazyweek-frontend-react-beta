@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { API_BASE_URL } from "../../config";
+import EInvoiceStatusUpload from "../Einvoice/EInvoiceStatusUpload";
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -31,6 +32,7 @@ const OnDemandTriggers = () => {
   const [states, setStates] = useState(
     Object.fromEntries(triggers.map((t) => [t.id, { running: false, result: null }]))
   );
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const runTrigger = async (trigger) => {
     setStates((prev) => ({
@@ -165,7 +167,53 @@ const OnDemandTriggers = () => {
             </div>
           );
         })}
+
+        {/* ===== E-INVOICE EXCEL UPLOAD CARD ===== */}
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            padding: 24,
+            width: 340,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: "#EEF3FB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <i className="bx bx-spreadsheet" style={{ fontSize: 22, color: "#1F4E79" }} />
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#1F4E79" }}>
+              E-Invoice Failed Status Excel Upload
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
+            Upload the ZATCA correction sheet. Rows with an INVOICENO mark that e-invoice as
+            Success; rows with a POS INVOICENO and RESOLVED INVOICENO mark the failed invoice as
+            Resolved under the new number. Preview first, then Publish.
+          </p>
+          <button
+            className="pribtn"
+            style={{ width: "100%" }}
+            onClick={() => setUploadOpen((v) => !v)}
+          >
+            <i className={`bx ${uploadOpen ? "bx-chevron-up" : "bx-upload"}`} style={{ marginRight: 6 }} />
+            {uploadOpen ? "Hide Upload" : "Open Upload"}
+          </button>
+        </div>
       </div>
+
+      {uploadOpen && <EInvoiceStatusUpload onClose={() => setUploadOpen(false)} />}
     </section>
   );
 };
