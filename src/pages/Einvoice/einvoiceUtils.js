@@ -27,53 +27,82 @@ export const SOURCE_OPTIONS = [
   { value: 'BOTH', label: 'Both (parallel run)' },
 ];
 
-/* ---- dates ---- */
-export function toInputDate(date) {
-  const pad = (v) => String(v).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+/* ---- dates (KSA clock) ---- */
+export const KSA_TIME_ZONE = 'Asia/Riyadh';
+
+const KSA_PARTS = new Intl.DateTimeFormat('en-CA', {
+  timeZone: KSA_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function ksaDateKey(value) {
+  const date = value instanceof Date ? value : value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = KSA_PARTS.formatToParts(date);
+  const pick = (type) => {
+    const found = parts.find((p) => p.type === type);
+    return found ? found.value : '';
+  };
+  return `${pick('year')}-${pick('month')}-${pick('day')}`;
 }
 
-export function financialYearStart(today = new Date()) {
-  const startMonthIndex = Math.min(12, Math.max(1, Number(FY_START_MONTH) || 1)) - 1;
-  const start = new Date(today.getFullYear(), startMonthIndex, 1);
-  if (start > today) start.setFullYear(start.getFullYear() - 1);
-  return start;
+export function toInputDate(date) {
+  return ksaDateKey(date);
+}
+
+function keyToUtc(key) {
+  const [y, m, d] = String(key || '').split('-').map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+}
+
+function utcToKey(date) {
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+export function shiftDateKey(key, { days = 0, months = 0 } = {}) {
+  const date = keyToUtc(key);
+  if (months) date.setUTCMonth(date.getUTCMonth() + months);
+  if (days) date.setUTCDate(date.getUTCDate() + days);
+  return utcToKey(date);
+}
+
+export function financialYearStartKey(todayKey) {
+  const key = todayKey || ksaDateKey();
+  const startMonth = Math.min(12, Math.max(1, Number(FY_START_MONTH) || 1));
+  const [year, month] = key.split('-').map(Number);
+  const fyYear = month >= startMonth ? year : year - 1;
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${fyYear}-${pad(startMonth)}-01`;
 }
 
 export function presetRange(preset) {
   if (!preset || preset === 'Custom Days') return null;
-  const to = new Date();
-  if (preset === 'Current Date') {
-    const today = toInputDate(to);
-    return { from: today, to: today };
-  }
-  if (preset === 'Active Financial Year') {
-    return { from: toInputDate(financialYearStart(to)), to: toInputDate(to) };
-  }
-  const from = new Date(to);
-  if (preset === 'Past 1 Day') from.setDate(from.getDate() - 1);
-  else if (preset === 'Past 1 Week') from.setDate(from.getDate() - 7);
-  else if (preset === 'Past 1 Month') from.setMonth(from.getMonth() - 1);
-  else if (preset === 'Past 3 Months') from.setMonth(from.getMonth() - 3);
-  else return null;
-  return { from: toInputDate(from), to: toInputDate(to) };
+  const to = ksaDateKey();
+  if (preset === 'Current Date') return { from: to, to };
+  if (preset === 'Active Financial Year') return { from: financialYearStartKey(to), to };
+  if (preset === 'Past 1 Day') return { from: shiftDateKey(to, { days: -1 }), to };
+  if (preset === 'Past 1 Week') return { from: shiftDateKey(to, { days: -7 }), to };
+  if (preset === 'Past 1 Month') return { from: shiftDateKey(to, { months: -1 }), to };
+  if (preset === 'Past 3 Months') return { from: shiftDateKey(to, { months: -3 }), to };
+  return null;
 }
 
 export function validateRange(fromStr, toStr) {
   if (!fromStr || !toStr) return 'Select both a from and a to date';
-  const from = new Date(fromStr);
-  const to = new Date(toStr);
-  const today = new Date(toInputDate(new Date()));
-  if (from > today || to > today) return 'Dates cannot be in the future';
-  if (to < from) return 'The to date must be on or after the from date';
+  const today = ksaDateKey();
+  if (fromStr > today || toStr > today) return 'Dates cannot be in the future';
+  if (toStr < fromStr) return 'The to date must be on or after the from date';
   return '';
 }
-
 export function formatDateTime(value) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString('en-GB', {
+    timeZone: KSA_TIME_ZONE,
     day: '2-digit',
     month: 'short',
     year: 'numeric',
