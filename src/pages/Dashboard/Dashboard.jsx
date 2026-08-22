@@ -1331,6 +1331,17 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
+      {/* ===================== COMING SOON WRAPPER ===================== */}
+      <div
+        aria-hidden="true"
+        inert=""
+        style={{
+          filter: "blur(7px)",
+          pointerEvents: "none",
+          userSelect: "none",
+          opacity: 0.65,
+        }}
+      >
       {/* ===================== TOP BAR ===================== */}
       <header style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(255,255,255,0.86)", backdropFilter: "blur(14px)", borderBottom: "1px solid #e2e6ec" }}>
         <div style={{ maxWidth: 1680, margin: "0 auto", padding: "12px 26px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
@@ -1907,6 +1918,51 @@ export default function Dashboard() {
         </>
         )}
       </main>
+      </div>
+
+      {/* ===================== COMING SOON OVERLAY ===================== */}
+      <div
+        style={{
+          position: "absolute", inset: 0, zIndex: 100,
+          background: "rgba(234,239,238,0.55)",
+        }}
+      />
+      <div
+        role="status"
+        style={{
+          position: "fixed", inset: 0, zIndex: 101,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 24,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e6ec",
+            borderRadius: 18,
+            boxShadow: "0 24px 60px rgba(20,30,45,0.18)",
+            padding: "34px 48px",
+            textAlign: "center",
+            maxWidth: 520,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11, fontWeight: 800, letterSpacing: ".14em",
+              textTransform: "uppercase", color: COLORS.coral, marginBottom: 10,
+            }}
+          >
+            EazyWeek
+          </div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary, lineHeight: 1.2 }}>
+            Dashboard — Coming Soon!!!
+          </div>
+          <div style={{ marginTop: 12, fontSize: 13.5, color: "#6b7684", lineHeight: 1.5 }}>
+            We're putting the finishing touches on this page. It will be back shortly.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
