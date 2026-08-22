@@ -14,6 +14,7 @@
 // shows a retry panel. Every number on the page comes from the response.
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import DashboardGate, { DASHBOARD_VIEW } from "../../components/DashboardGate"; // adjust path if needed
 // Shared loading indicators (src/pages/Dashboard/DashboardLoadingBar.jsx).
 import { DashboardLoadingBar, TileSkeleton, ChartLoading, LoadError } from "../Dashboard/DashboardLoadingBar";
 
@@ -255,7 +256,7 @@ const CardShell = ({ title, sub, children }) => (
 );
 const Empty = ({ text }) => (<div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:160, color:"#9aa4b1", fontSize:13 }}>{text}</div>);
 
-export default function InvoiceDashboard() {
+function InvoiceDashboard() {
   const [range, setRange] = useState("Current Month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -332,5 +333,12 @@ export default function InvoiceDashboard() {
         </CardShell>
       </div>
     </div>
+  );
+}
+export default function InvoiceDashboardGated() {
+  return (
+    <DashboardGate code={DASHBOARD_VIEW.INVOICE_DASHBOARD}>
+      <InvoiceDashboard />
+    </DashboardGate>
   );
 }

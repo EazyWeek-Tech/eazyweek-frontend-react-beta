@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import './EInvoiceDashboard.css';
 import { API_BASE_URL } from '../../config';
 import { usePermissions } from '../Settings/usePermissions';
+import SearchableDropdown from './SearchableDropdown';
 import {
   DATE_PRESETS,
   STATUS_OPTIONS,
@@ -16,7 +17,12 @@ import {
   openPdf,
   getCurrentCentreCode,
   isEntityCentre,
-  findCentre,
+  findCentreByCode,
+  centreCodeOf,
+  centreNameOf,
+  resolveCentreName,
+  fetchCentreOptions,
+  sameCode,
 } from './einvoiceUtils';
 
 const PERM_VIEW = 'EINV.VIEW';
@@ -60,7 +66,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [toDate, setToDate] = useState('');
   const [status, setStatus] = useState('');
   const [docType, setDocType] = useState('');
-  const [centreCode, setCentreCode] = useState('');
+  const [selectedCentres, setSelectedCentres] = useState([]);
   const [search, setSearch] = useState('');
   const [dateError, setDateError] = useState('');
 
@@ -68,10 +74,18 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [centres, setCentres] = useState([]);
+  const [centreError, setCentreError] = useState('');
+  const [entityCode, setEntityCode] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+
+  /* ---- KPI summary (counts + amounts, generated in the selected period) ---- */
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const summarySeq = useRef(0);
 
   /* ---- actions ---- */
   const [busy, setBusy] = useState(false);
@@ -84,7 +98,8 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   const requestSeq = useRef(0);
   const sessionCentre = useMemo(() => getCurrentCentreCode(), []);
-  const entityLevel = !sessionCentre || isEntityCentre(sessionCentre);
+  const entityLevel =
+    !sessionCentre || isEntityCentre(sessionCentre) || sameCode(entityCode, sessionCentre);
 
   const showToast = useCallback((message, kind = 'info') => {
     setToast({ message, kind });
@@ -93,15 +108,49 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
 
   /* ---- effective centre ---- */
   const sessionCentreMatch = useMemo(
-    () => (entityLevel ? null : findCentre(centres, sessionCentre)),
+    () => (entityLevel ? null : findCentreByCode(centres, sessionCentre)),
     [centres, sessionCentre, entityLevel]
   );
-  const effectiveCentre = entityLevel
-    ? centreCode
-    : (sessionCentreMatch ? sessionCentreMatch.CENTERCODE : sessionCentre);
-  const sessionCentreName = sessionCentreMatch
-    ? (sessionCentreMatch.CLINICNAME || sessionCentreMatch.CENTERCODE)
+  const effectiveCentre = sessionCentreMatch
+    ? centreCodeOf(sessionCentreMatch)
     : sessionCentre;
+  const sessionCentreName = useMemo(
+    () => resolveCentreName(centres, sessionCentre),
+    [centres, sessionCentre]
+  );
+  const rowCentres = useMemo(() => {
+    const seen = new Map();
+    rows.forEach((r) => {
+      const code = String(r.centerCode || '').trim();
+      if (!code) return;
+      const key = code.toUpperCase();
+      if (!seen.has(key)) seen.set(key, { CENTERCODE: code, CLINICNAME: r.clinicName || code });
+    });
+    return Array.from(seen.values());
+  }, [rows]);
+
+  const centreOptions = centres.length > 0 ? centres : rowCentres;
+
+  const selectableCentres = useMemo(
+    () =>
+      centreOptions.filter(
+        (c) => !isEntityCentre(centreCodeOf(c)) && !sameCode(entityCode, centreCodeOf(c))
+      ),
+    [centreOptions, entityCode]
+  );
+
+  const centreDropdownOptions = useMemo(
+    () =>
+      selectableCentres.map((c) => {
+        const code = centreCodeOf(c);
+        return { value: code, label: centreNameOf(c) || code };
+      }),
+    [selectableCentres]
+  );
+  const centreCodes = useMemo(
+    () => (entityLevel ? selectedCentres : [effectiveCentre].filter(Boolean)),
+    [entityLevel, selectedCentres, effectiveCentre]
+  );
 
   /* ---- effective date range ---- */
   const range = useMemo(
@@ -138,7 +187,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         toDate: range ? range.to : null,
         status: status || null,
         docType: docType || null,
-        centreCode: effectiveCentre || null,
+        centreCodes,
         search: search.trim() || null,
         page,
         limit,
@@ -159,7 +208,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [datePreset, dateError, fromDate, toDate, range, status, docType, effectiveCentre, search, page, limit]);
+  }, [datePreset, dateError, fromDate, toDate, range, status, docType, centreCodes, search, page, limit]);
 
   useEffect(() => {
     if (!canView) return undefined;
@@ -167,17 +216,61 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     return () => clearTimeout(timer);
   }, [canView, load]);
 
+  /* ---- KPI summary fetch: period + centre scope only ---- */
+  const loadSummary = useCallback(async () => {
+    if (datePreset === 'Custom Days' && (dateError || !fromDate || !toDate)) return;
+    const seq = ++summarySeq.current;
+    setSummaryLoading(true);
+    setSummaryError('');
+    try {
+      const json = await apiRequest(`${API_BASE_URL}/api/EInvoice/Legacy/Summary`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fromDate: range ? range.from : null,
+          toDate: range ? range.to : null,
+          centreCodes,
+        }),
+      });
+      if (seq !== summarySeq.current) return;
+      setSummary(json.data || null);
+    } catch (err) {
+      if (seq !== summarySeq.current) return;
+      setSummary(null);
+      setSummaryError(err.message);
+    } finally {
+      if (seq === summarySeq.current) setSummaryLoading(false);
+    }
+  }, [datePreset, dateError, fromDate, toDate, range, centreCodes]);
+
+  useEffect(() => {
+    if (!canView) return undefined;
+    const timer = setTimeout(loadSummary, 300);
+    return () => clearTimeout(timer);
+  }, [canView, loadSummary]);
+
   useEffect(() => {
     if (!canView) return;
-    apiRequest(`${API_BASE_URL}/api/EInvoice/Centre`)
-      .then((json) => setCentres(Array.isArray(json.data) ? json.data : []))
-      .catch(() => setCentres([]));
+    fetchCentreOptions(API_BASE_URL)
+      .then((result) => {
+        setCentres(result.centres);
+        setEntityCode(result.entityCode || '');
+        setCentreError(result.centres.length ? '' : 'The clinic list came back empty.');
+      })
+      .catch((err) => {
+        setCentres([]);
+        setCentreError(err.message || 'Could not load the clinic list.');
+      });
   }, [canView]);
 
 
   useEffect(() => {
     setPage(1);
-  }, [datePreset, fromDate, toDate, status, docType, effectiveCentre, search, limit]);
+  }, [datePreset, fromDate, toDate, status, docType, centreCodes, search, limit]);
+
+  const handleCentreSelect = (values) => {
+    setSelectedCentres(Array.isArray(values) ? values : []);
+    setPage(1);
+  };
 
   const handleResetFilters = () => {
     setDatePreset(DEFAULT_PERIOD);
@@ -189,7 +282,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     setDateError('');
     setSelectedIds([]);
     setPage(1);
-    setCentreCode('');
+    setSelectedCentres([]);
   };
 
   /* ---- selection ---- */
@@ -380,19 +473,28 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
           </select>
         </div>
 
-        <div className="fld">
+        <div className={entityLevel ? 'fld fld-multi' : 'fld'}>
           <label htmlFor="einv-centre">Centre</label>
           {entityLevel ? (
-            <select id="einv-centre" value={centreCode} onChange={(e) => setCentreCode(e.target.value)}>
-              <option value="">All</option>
-              {centres.map((c) => (
-                <option key={c.CENTERCODE} value={c.CENTERCODE}>{c.CLINICNAME || c.CENTERCODE}</option>
-              ))}
-            </select>
+            <>
+              <SearchableDropdown
+                options={centreDropdownOptions}
+                value={selectedCentres}
+                onChange={handleCentreSelect}
+                multiple
+                placeholder="All clinics"
+              />
+              {centreError && selectableCentres.length === 0 && (
+                <span className="fld-hint hint-error">{centreError}</span>
+              )}
+            </>
           ) : (
-            <select id="einv-centre" value={effectiveCentre} disabled>
-              <option value={effectiveCentre}>{sessionCentreName}</option>
-            </select>
+            <SearchableDropdown
+              options={[{ value: effectiveCentre, label: sessionCentreName || effectiveCentre }]}
+              value={effectiveCentre}
+              onChange={() => {}}
+              disabled
+            />
           )}
         </div>
 
@@ -428,6 +530,37 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
       </div>
 
       {dateError && <p className="einvoice-error">{dateError}</p>}
+
+      {/* ---- KPI summary: e-invoices generated in the selected period ---- */}
+      <div className="einv-kpis">
+        <div className="einv-kpi-note">
+          Counts and amounts cover e-invoices generated in the selected period only.
+          {summaryError ? ` Summary not loaded: ${summaryError}` : ''}
+        </div>
+        <div className="einv-kpi-grid">
+          {[
+            { label: 'Total E-Invoices', value: summary ? summary.total : null, tone: 'navy' },
+            { label: 'Successful', value: summary ? summary.successful : null, tone: 'green' },
+            { label: 'Failed', value: summary ? summary.failed : null, tone: 'coral' },
+            { label: 'Resolved', value: summary ? summary.resolved : null, tone: 'gold' },
+          ].map((k) => (
+            <div key={k.label} className={`einv-kpi-card tone-${k.tone}`}>
+              <div className="einv-kpi-value">{summaryLoading ? '…' : k.value == null ? '—' : k.value.toLocaleString('en-US')}</div>
+              <div className="einv-kpi-label">{k.label}</div>
+            </div>
+          ))}
+          {[
+            { label: 'Total Amount without VAT', value: summary ? summary.amountWithoutVat : null },
+            { label: 'VAT', value: summary ? summary.vatAmount : null },
+            { label: 'Total Amount with VAT', value: summary ? summary.amountWithVat : null },
+          ].map((k) => (
+            <div key={k.label} className="einv-kpi-card tone-amount">
+              <div className="einv-kpi-value">{summaryLoading ? '…' : k.value == null ? '—' : formatSAR(k.value)}</div>
+              <div className="einv-kpi-label">{k.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ---- toolbar ---- */}
       <div className="einvoice-toolbar">

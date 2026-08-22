@@ -52,7 +52,13 @@
 .field-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
 .fld { display: flex; flex-direction: column; min-width: 170px; }
 .fld-grow { flex: 1 1 240px; }
-.fld-action { min-width: 0; flex: 0 0 auto; }
+.fld-action {
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
 .fld label {
   font-size: 12px;
   font-weight: 700;
@@ -480,6 +486,24 @@
 }
 .fltdiv select:disabled,
 .fltdiv input:disabled { background: #f2f4f7; color: var(--muted); }
+.fltdiv label .req { color: var(--coral); font-weight: 700; }
+.fltdiv-multi,
+.fld-multi { min-width: 210px; }
+.fltdiv-multi select[multiple],
+.fld-multi select[multiple] {
+  padding: 4px;
+  min-height: 92px;
+  overflow-y: auto;
+}
+.fltdiv-multi select[multiple] option,
+.fld-multi select[multiple] option { padding: 4px 7px; border-radius: 3px; }
+.fltdiv-multi select[multiple] option:checked,
+.fld-multi select[multiple] option:checked {
+  background: var(--navy) linear-gradient(0deg, var(--navy) 0%, var(--navy) 100%);
+  color: #fff;
+}
+.fltdiv-hint,
+.fld-hint { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: 0.2px; }
 
 .btn-secondary {
   padding: 8px 18px;
@@ -639,4 +663,29 @@
   .zatca-lines { page-break-inside:auto; }
   .zatca-lines tr { page-break-inside:avoid; }
   @page { size:A4; margin:12mm; }
+}
+/* ==== KPI SUMMARY ==== */
+.einv-kpis { margin: 4px 0 16px; }
+.einv-kpi-note { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+.einv-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.einv-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.einv-kpi-value { font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.15; }
+.einv-kpi-label { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.einv-kpi-card.tone-navy  .einv-kpi-value { color: var(--navy); }
+.einv-kpi-card.tone-green .einv-kpi-value { color: var(--green); }
+.einv-kpi-card.tone-coral .einv-kpi-value { color: var(--coral); }
+.einv-kpi-card.tone-gold  .einv-kpi-value { color: var(--gold); }
+.einv-kpi-card.tone-amount .einv-kpi-value { color: var(--navy); font-size: 20px; }
+
+@media (max-width: 768px) {
+  .einv-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 }

@@ -230,6 +230,29 @@ const withUnassigned     = (opts) =>
 // ["", UNASSIGNED, ...real owners] — for a native <select>, where "" is the All row
 const withAllAndUnassigned = (opts) => ["", ...withUnassigned(opts)];
 
+/* Doctor/Therapist. Two states are distinct and both need to be selectable:
+   NA   — nothing was ever picked, so the cell is blank
+   None — "None" was picked deliberately, which is a real answer, not a gap
+   Sentinels keep them apart from an employee whose name is literally None. */
+const DOC_NA_VALUE   = "__NO_DOCTOR__";
+const DOC_NONE_VALUE = "__DOCTOR_NONE__";
+const DOC_NA_LABEL   = "NA (no doctor)";
+const DOC_NONE_LABEL = "None";
+const isDocNone      = (v) => norm(v) === "none";
+const docOptionLabel = (v, allLabel="All") =>
+  v === DOC_NA_VALUE   ? DOC_NA_LABEL   :
+  v === DOC_NONE_VALUE ? DOC_NONE_LABEL : (v || allLabel);
+/* Real "None" values are dropped from the list because the sentinel already
+   covers them — otherwise the option appears twice. */
+const withDoctorSentinels = (opts) => ["", DOC_NA_VALUE, DOC_NONE_VALUE,
+  ...new Set((opts||[]).map(o=>String(o??"").trim()).filter(v=>v && !isDocNone(v)))];
+const matchesDoctor = (val, sel) => {
+  if (!sel) return true;
+  if (sel === DOC_NA_VALUE)   return !norm(val);
+  if (sel === DOC_NONE_VALUE) return isDocNone(val);
+  return norm(val) === norm(sel);
+};
+
 const fmtProspectId = (n, prefix="LD") => {
   const x = Number(n);
   if (!Number.isFinite(x)||x<=0) return "—";
@@ -839,7 +862,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   // Fall back to page rows if options endpoint not yet loaded
   const ownerOpts    = withAllAndUnassigned(allOwnerOpts.length > 1 ? allOwnerOpts : rows.map(r=>r?.salesOwner));
   const dispOpts     = allDispOpts.length     > 1 ? allDispOpts     : ["", ...new Set(rows.map(r=>r?.disposition||"").filter(Boolean))];
-  const therapistOpts= allTherapistOpts.length> 1 ? allTherapistOpts: ["", ...new Set(rows.map(r=>r?.__therapist||"").filter(Boolean))];
+  const therapistOpts= withDoctorSentinels(allTherapistOpts.length> 1 ? allTherapistOpts: rows.map(r=>r?.__therapist||""));
 
   const fuDateRange = useMemo(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
@@ -1033,7 +1056,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
         <div className="cd-fg">
           <label>Doctor/Therapist</label>
           <select value={therapist} onChange={e=>setTherapist(e.target.value)}>
-            {therapistOpts.map((t,i)=><option key={i} value={t}>{t||"All"}</option>)}
+            {therapistOpts.map((t,i)=><option key={i} value={t}>{docOptionLabel(t)}</option>)}
           </select>
         </div>
         <div className="cd-fg">
@@ -1235,8 +1258,14 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         oppCode, fromDate, toDate,
         pageNumber: page, pageSize,
         searchTerm:search, statusFilter:status,
-        ownerFilter: owner === UNASSIGNED_VALUE ? "" : owner, dispFilter:disp,
-        doctorFilter,
+        ownerFilter: owner, dispFilter:disp,
+        doctorFilter, scoreBand,
+        fuMode,
+        fuFrom: fuMode === "2" ? fuFrom : "",
+        fuTo:   fuMode === "2" ? fuTo   : "",
+        fuTimeFromMin: Number.isNaN(timeToMin(fuTFrom)) ? null : timeToMin(fuTFrom),
+        fuTimeToMin:   Number.isNaN(timeToMin(fuTTo))   ? null : timeToMin(fuTTo),
+        modifiedFrom: modFrom, modifiedTo: modTo,
       }),
     })
       .then(r=>r.json())
@@ -1302,7 +1331,8 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
       .catch(e=>{if(alive)setErr(e.message);})
       .finally(()=>{if(alive)setLoading(false);});
     return()=>{alive=false;};
-  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,doctorFilter,churnKey]);
+  },[oppCode,fromDate,toDate,page,pageSize,search,status,owner,disp,doctorFilter,scoreBand,
+     fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,churnKey]);
 
   useEffect(()=>{ if (!mountedRef.current) return; setPage(1); },
     [search,status,owner,disp,scoreBand,doctorFilter,fromDate,toDate,fuMode,fuFrom,fuTo,fuTFrom,fuTTo,modFrom,modTo,pageSize]);
@@ -1333,9 +1363,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
      listed, not just the ones that happen to be on the loaded page. The row
      scan stays as a fallback for when that call has not returned yet. */
   const doctorOpts = useMemo(
-    () => allDoctorOpts.length
-      ? ["", ...allDoctorOpts]
-      : ["", ...new Set(rows.map(r=>r?.doctor).filter(Boolean))],
+    () => withDoctorSentinels(allDoctorOpts.length ? allDoctorOpts : rows.map(r=>r?.doctor)),
     [allDoctorOpts, rows]);
 
   const createdBad = rangeInvalid(fromDate, toDate);
@@ -1346,7 +1374,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
     if(createdBad||modBad) return [];   // Created / Modified From after To → no records
     if(owner === UNASSIGNED_VALUE) list=list.filter(r=>isUnassignedOwner(r?.salesOwner));
     if(scoreBand) list=list.filter(r=>matchesScoreBand(r, scoreBand));
-    if(doctorFilter) list=list.filter(r=>norm(r?.doctor)===norm(doctorFilter));
+    if(doctorFilter) list=list.filter(r=>matchesDoctor(r?.doctor, doctorFilter));
     if(modFrom||modTo) list=list.filter(r=>inDateRange(r?.modifieddate ?? r?.modifiedDate, modFrom, modTo));
     if(fuDateRange) list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
@@ -1406,7 +1434,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
         <div className="cd-fg">
           <label>Doctor/Therapist</label>
           <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
-            {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+            {doctorOpts.map((d,i)=><option key={i} value={d}>{docOptionLabel(d)}</option>)}
           </select>
         </div>
         <div className="cd-fg">
@@ -1648,7 +1676,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   const dispOpts  = useMemo(
     ()=>["", ...new Set([...masterDispOpts, ...rows.map(r=>r.disposition)].filter(Boolean))],
     [masterDispOpts, rows]);
-  const doctorOpts= useMemo(()=>["", ...new Set(rows.map(r=>r.doctor).filter(Boolean))],[rows]);
+  const doctorOpts= useMemo(()=>withDoctorSentinels(rows.map(r=>r.doctor)),[rows]);
 
   const HALF_HOURS_12 = useMemo(()=>Array.from({length:24},(_,h)=>
     [0,30].map(m=>{ const h12=((h+11)%12)+1; const ap=h<12?"AM":"PM"; return `${String(h12).padStart(2,"0")}:${String(m).padStart(2,"0")} ${ap}`; })
@@ -1686,7 +1714,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
       : norm(r.owner)===norm(owner));
     if(disp)  list=list.filter(r=>norm(r.disposition)===norm(disp));
     if(scoreBand) list=list.filter(r=>matchesScoreBand(r, scoreBand));
-    if(doctorFilter) list=list.filter(r=>norm(r.doctor)===norm(doctorFilter));
+    if(doctorFilter) list=list.filter(r=>matchesDoctor(r.doctor, doctorFilter));
     if(fuDateRange)list=list.filter(r=>{
       const s=r.__fuStamp; if(isNaN(s)) return false;
       return s>=fuDateRange.from&&s<=fuDateRange.to;
@@ -1760,7 +1788,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
         <div className="cd-fg">
           <label>Doctor/Therapist</label>
           <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)}>
-            {doctorOpts.map((d,i)=><option key={i} value={d}>{d||"All"}</option>)}
+            {doctorOpts.map((d,i)=><option key={i} value={d}>{docOptionLabel(d)}</option>)}
           </select>
         </div>
         <div className="cd-fg">

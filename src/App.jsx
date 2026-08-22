@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
-import { useSessionTimeout } from "./hooks/useSessionTimeout";
+import SessionGuard from "./components/SessionGuard";
 
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
@@ -185,21 +185,24 @@ const firstLoginCode = localStorage.getItem("firstLoginEmployeeCode") || "";
     setIsSidebarCollapsed((prev) => !prev);
   };
 
-  const handleLogout = () => {
+  const handleLogout = (reason) => {
+    if (typeof reason === "string" && reason) {
+      sessionStorage.setItem("sessionMessage", reason);
+    }
     setUser(null);
     sessionStorage.removeItem("user");
 sessionStorage.removeItem("userSession");
 sessionStorage.removeItem("ssoToken");
+sessionStorage.removeItem("token");
 
 localStorage.removeItem("user");
 localStorage.removeItem("userSession");
 localStorage.removeItem("ssoToken");
+localStorage.removeItem("token");
 localStorage.removeItem("remember");
 
     navigate("/login", { replace: true });
   };
-
-  useSessionTimeout(handleLogout);
 
   // If still no user after storage / token check → show login routes
   if (!user) {
@@ -239,6 +242,7 @@ if (user && showFirstLogin) {
   return (
     <PermissionProvider>
     <ModuleSourceProvider currentUser={user} apiBase={API_BASE}>
+    <SessionGuard onLogout={handleLogout} />
     <Routes>
       {/* Add Routes WITHOUT Sidebar + Header */}
       <Route path="/appointment" element={source("APPOINTMENT", <Appointment />)} />

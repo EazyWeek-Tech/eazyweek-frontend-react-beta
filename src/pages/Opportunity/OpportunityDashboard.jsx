@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
+import { useDashboardAccess, DASHBOARD_VIEW } from "../../components/DashboardGate"; // adjust path if needed
 import { usePermissions } from "../Settings/usePermissions";
 import {
   ResponsiveContainer, BarChart, Bar, ComposedChart, Line,
@@ -295,6 +296,9 @@ const OpportunityDashboard = () => {
   const [loading,             setLoading]             = useState(false);
   // Manage actions are driven by the Role master (matrix), not a hardcoded role.
   const { guard } = usePermissions();
+  /* ---- OPP.DASHBOARD_VIEW gates the graphs only; the table always shows ---- */
+  const dashAccess = useDashboardAccess(DASHBOARD_VIEW.OPPORTUNITY_DASHBOARD);
+  const canViewDashboard = dashAccess.loading || dashAccess.allowed;
   // Period filter (FRD §2)
   const [range,      setRange]      = useState("Current Month");
   const [customFrom, setCustomFrom] = useState("");
@@ -546,7 +550,8 @@ const OpportunityDashboard = () => {
       {/* KPI bar */}
       <KPIBar data={scopedData} />
 
-      {/* Analytics — FRD §4.1 */}
+      {/* Analytics — FRD §4.1 — hidden without OPP.DASHBOARD_VIEW */}
+      {canViewDashboard && (
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(420px,1fr))", gap:16, marginBottom:24 }}>
 
         <DashCard title="Rule-wise status" sub="Pending · WIP · Converted · Not Converted">
@@ -625,6 +630,7 @@ const OpportunityDashboard = () => {
         </DashCard>
 
       </div>
+      )}
 
       {/* Table card */}
       <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:12,

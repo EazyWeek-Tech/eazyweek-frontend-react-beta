@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
 
@@ -7,61 +7,24 @@ const Login = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  const commonHeaders = {
-    "Content-Type": "application/json",
-  };
-
-  const headersFor = (method = "GET") => {
-    if (String(method).toUpperCase() === "GET") {
-      const { ["Content-Type"]: _, ...rest } = commonHeaders;
-      return rest;
+  useEffect(() => {
+    const msg = sessionStorage.getItem("sessionMessage");
+    if (msg) {
+      setNotice(msg);
+      sessionStorage.removeItem("sessionMessage");
     }
-    return commonHeaders;
-  };
-
-  const getSessionFromApi = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/session/get`, {
-        method: "GET",
-        credentials: "include",
-        headers: headersFor("GET"),
-      });
-      if (!response.ok) throw new Error("Failed to fetch session info");
-      const data = await response.json();
-      localStorage.setItem("userSession", JSON.stringify(data));
-    } catch (error) {
-      console.error("Error fetching session:", error);
-    }
-  };
-
-  const setSessionToApi = async ({ user }) => {
-    try {
-      const centerCode = user?.centerCode || user?.CenterCode || user?.center_code || user?.CENTERCODE || "";
-      const payload = {
-        LoginCode: centerCode,
-        TopCode:   centerCode,
-        userID:    user?.employeeCode || "",
-      };
-      const response = await fetch(`${API_BASE_URL}/api/session/set`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error(`Failed to set session: ${response.status}`);
-    } catch (error) {
-      console.error("Error setting session:", error);
-    }
-  };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setUserInfo(null);
     setLoading(true);
 
@@ -72,7 +35,6 @@ const Login = ({ onLoginSuccess }) => {
     }
 
     try {
-      // 1. Login
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,7 +42,6 @@ const Login = ({ onLoginSuccess }) => {
       });
 
       const data = await response.json();
-      console.log("Login API Response:", data);
 
       if (!response.ok || !data.success) {
         setError(data.message || "Invalid credentials.");
@@ -90,34 +51,24 @@ const Login = ({ onLoginSuccess }) => {
 
       const { user, token } = data.data;
 
-      // 2. Store token and user
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
       localStorage.setItem("remember", remember ? "1" : "0");
 
-      // 3. Set session
       const centerCode = user?.centerCode || "";
-      await fetch(`${API_BASE_URL}/api/session/set`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          LoginCode: centerCode,
-          TopCode:   centerCode,
-          userID:    user?.employeeCode || "",
-        }),
-        credentials: "include",
-      });
-
-      // 4. Get session confirmation
-      const sessionRes  = await fetch(`${API_BASE_URL}/api/session/get`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
-      const sessionData = await sessionRes.json();
-      localStorage.setItem("userSession", JSON.stringify(sessionData));
-
-      // 5. Check first login
+      localStorage.setItem(
+        "userSession",
+        JSON.stringify({
+          success: true,
+          message: "",
+          data: {
+            sessionId: "jwt",
+            loginCode: centerCode,
+            topCode:   centerCode,
+            userID:    user?.employeeCode || "",
+          },
+        })
+      );
       let isFirstLogin = false;
       try {
         const firstLoginRes  = await fetch(
@@ -173,6 +124,22 @@ const Login = ({ onLoginSuccess }) => {
                 </div>
                 <p className="subtitle">Sign in to continue to your account</p>
 
+                {notice && (
+                  <div
+                    className="message info"
+                    style={{
+                      background: "#EEF4FF",
+                      color: "#18396E",
+                      border: "1px solid #C7D7F2",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      marginBottom: 12,
+                      fontSize: 13,
+                    }}
+                  >
+                    {notice}
+                  </div>
+                )}
                 {error && <div className="message error">{error}</div>}
                 {userInfo && (
                   <div className="message success">
