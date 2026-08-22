@@ -109,6 +109,14 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors, isAdmin = true }
           onChange={e => { setForm(p=>({...p,packageName:e.target.value})); setErrors(p=>({...p,packageName:undefined})); }}
           placeholder="Package name" />
       </Field>
+      <Field label="Arabic Name" error={errors.arabicName}>
+        <input type="text" value={form.arabicName||""} dir="rtl" lang="ar"
+          onChange={e => { setForm(p=>({...p,arabicName:e.target.value})); setErrors(p=>({...p,arabicName:undefined})); }}
+          placeholder="اسم الباقة"
+          style={{ width:"100%", height:38, padding:"0 10px", border:"1.5px solid #e2e8f0", borderRadius:8,
+            fontSize:13, boxSizing:"border-box", background:"#fff", color:"#1e293b", textAlign:"right" }} />
+      </Field>
+      <div />
 
       <Field label="Category" required error={errors.category}>
         <select value={form.categoryCode||""} onChange={handleCategoryChange}
@@ -484,7 +492,7 @@ const MiscTab = ({ form, setForm }) => (
 
 // ── EMPTY FORM STATE ──────────────────────────────────────────────────────────
 const EMPTY = {
-  packageCode:"", packageName:"",
+  packageCode:"", packageName:"", arabicName:"",
   categoryCode:"", category:"",
   subCategoryCode:"", subCategory:"",
   tag:"", status:"Draft",
@@ -660,6 +668,7 @@ const PackageMaster = () => {
         ...EMPTY,
         packageCode:        data.PACKAGECODE,
         packageName:        data.PACKAGENAME,
+        arabicName:         data.ARABICPACKAGENAME || "",
         category:           data.CATEGORY        || "",
         categoryCode:       data.CATEGORYCODE     || data.CATEGORY || "",
         subCategory:        data.SUBCATEGORY      || "",
