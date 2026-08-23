@@ -78,8 +78,37 @@ export function financialYearStartKey(todayKey) {
   return `${fyYear}-${pad(startMonth)}-01`;
 }
 
-export function presetRange(preset) {
-  if (!preset || preset === 'Custom Days') return null;
+const PRESET_ALIASES = {
+  'current date': 'Current Date',
+  'today': 'Current Date',
+  'yesterday': 'Past 1 Day',
+  'past 1 day': 'Past 1 Day',
+  'previous day': 'Past 1 Day',
+  'last 1 day': 'Past 1 Day',
+  'past 1 week': 'Past 1 Week',
+  'last 1 week': 'Past 1 Week',
+  'past 1 month': 'Past 1 Month',
+  'last 1 month': 'Past 1 Month',
+  'past 3 months': 'Past 3 Months',
+  'last 3 months': 'Past 3 Months',
+  'active financial year': 'Active Financial Year',
+  'financial year': 'Active Financial Year',
+  'custom days': 'Custom Days',
+  'custom': 'Custom Days',
+};
+
+export function normalizePreset(preset) {
+  const key = String(preset || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return PRESET_ALIASES[key] || '';
+}
+
+export function presetRange(rawPreset) {
+  const preset = normalizePreset(rawPreset);
+  if (normalizePreset(rawPreset) === 'Custom Days') return null;
+  if (!preset) {
+    const today = ksaDateKey();
+    return { from: today, to: today };
+  }
   const to = ksaDateKey();
   if (preset === 'Current Date') return { from: to, to };
   if (preset === 'Active Financial Year') return { from: financialYearStartKey(to), to };
