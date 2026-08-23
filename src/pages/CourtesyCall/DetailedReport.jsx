@@ -422,7 +422,18 @@ const DetailedReport = () => {
     { value: "2", label: "Completed" },
   ]
   const ratingOptions = toOptionList(["1", "2", "3", "4", "5"])
-  const feedbackOptions = toOptionList(["Very Satisfied", "Satisfied", "Neutral", "Dissatisfied", "Very Dissatisfied"])
+  // Mirrors the Customer Feedback select on CourtesyCallDetails.jsx - the
+  // saved value lands in ComplaintDetails, which is what the report filters.
+  const feedbackOptions = toOptionList([
+    "Satisfied client",
+    "Price Conscious",
+    "Process related complaints",
+    "Infrastructure",
+    "Adverse reaction of service",
+    "Waiting Time",
+    "Not satisfied with employee",
+    "Not satisfied with service experience",
+  ])
   const futureAppOptions = toOptionList(["Yes", "No"])
   const satisfactionOptions = toOptionList(["Yes", "No"])
   const customerTypeOptions = toOptionList(["New", "Existing"])
