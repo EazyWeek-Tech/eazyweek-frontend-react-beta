@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { API_BASE_URL } from "../../config";
 import EInvoiceStatusUpload from "../Einvoice/EInvoiceStatusUpload";
+import CourtesyCallUpload from "../CourtesyCall/CourtesyCallUpload";
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -33,6 +34,7 @@ const OnDemandTriggers = () => {
     Object.fromEntries(triggers.map((t) => [t.id, { running: false, result: null }]))
   );
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [ccUploadOpen, setCcUploadOpen] = useState(false);
 
   const runTrigger = async (trigger) => {
     setStates((prev) => ({
@@ -211,9 +213,54 @@ const OnDemandTriggers = () => {
             {uploadOpen ? "Hide Upload" : "Open Upload"}
           </button>
         </div>
+
+        {/* ===== COURTESY CALL EXCEL UPLOAD CARD ===== */}
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            padding: 24,
+            width: 340,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: "#EEF3FB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <i className="bx bx-phone-call" style={{ fontSize: 22, color: "#1F4E79" }} />
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#1F4E79" }}>
+              Courtesy Call Excel Upload
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
+            Upload the Zenoti completed-appointments sheet. One courtesy call is created per
+            patient per centre per appointment date, with each row as a service item. Completed
+            calls are left untouched. Preview first, then Publish.
+          </p>
+          <button
+            className="pribtn"
+            style={{ width: "100%" }}
+            onClick={() => setCcUploadOpen((v) => !v)}
+          >
+            <i className={`bx ${ccUploadOpen ? "bx-chevron-up" : "bx-upload"}`} style={{ marginRight: 6 }} />
+            {ccUploadOpen ? "Hide Upload" : "Open Upload"}
+          </button>
+        </div>
       </div>
 
       {uploadOpen && <EInvoiceStatusUpload onClose={() => setUploadOpen(false)} />}
+      {ccUploadOpen && <CourtesyCallUpload onClose={() => setCcUploadOpen(false)} />}
     </section>
   );
 };
