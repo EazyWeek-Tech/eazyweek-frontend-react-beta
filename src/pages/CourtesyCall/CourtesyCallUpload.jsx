@@ -17,12 +17,6 @@ const post = async (path, body) => {
   return data.data ?? data;
 };
 
-const toIso = (v) => {
-  if (v instanceof Date && !isNaN(v)) {
-    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
-  }
-  return v == null ? "" : String(v);
-};
 
 const CourtesyCallUpload = ({ onClose }) => {
   const [fileName, setFileName] = useState("");
@@ -42,14 +36,14 @@ const CourtesyCallUpload = ({ onClose }) => {
     setBusy(true);
     try {
       const buf = await file.arrayBuffer();
-      const wb  = XLSX.read(buf, { type: "array", cellDates: true });
+      const wb  = XLSX.read(buf, { type: "array", cellDates: false });
       const ws  = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
       const out = json.map((r, i) => {
         const o = { __rowNum__: r.__rowNum__ ?? i + 1 };
         for (const k of Object.keys(r)) {
           if (k === "__rowNum__") continue;
-          o[k] = toIso(r[k]);
+          o[k] = r[k] == null ? "" : r[k];
         }
         return o;
       });
