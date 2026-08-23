@@ -77,6 +77,10 @@ const asArray = (d) => {
 };
 const safeNum = v => Number.isFinite(+v) ? +v : 0;
 
+/* WIP applies only to No Show (R3) campaigns — external (R7) and manual
+   campaigns (and all other rules) contribute 0 to WIP. */
+const wipOf = (r) => detectRuleKey(r) === RULE_KEYS.NO_SHOW ? safeNum(r?.noOfWIPOpp) : 0;
+
 /* ════════════════════════════════════════════════════════════════════════════
    MODULE-LEVEL COMPONENTS — defined outside any parent component
    Never define components with inputs/state inside another component's render.
@@ -200,7 +204,7 @@ function KPIBar({ data }) {
   const total     = data.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
   const closed    = data.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
   const converted = data.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
-  const wip       = data.reduce((s,r)=>s+safeNum(r.noOfWIPOpp),0);
+  const wip       = data.reduce((s,r)=>s+wipOf(r),0);
   const open      = Math.max(0, total - closed - wip);
   return (
     <div style={{ display:"flex", gap:12, marginBottom:22, flexWrap:"wrap" }}>
@@ -371,7 +375,7 @@ const OpportunityDashboard = () => {
     const total=rows.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
     const closed=rows.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
     const converted=rows.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
-    const wip=rows.reduce((s,r)=>s+safeNum(r.noOfWIPOpp),0);
+    const wip=rows.reduce((s,r)=>s+wipOf(r),0);
     const open=Math.max(0,total-closed-wip);
     return [
       {label:"Total",value:total,fill:C.navy},{label:"Open",value:open,fill:C.open},
@@ -403,7 +407,7 @@ const OpportunityDashboard = () => {
       const closed    = rows.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
       const converted = rows.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
       const withoutOwner = rows.reduce((s,r)=>s+safeNum(r.recordswithoutSalesOwner),0);
-      const wip  = rows.reduce((s,r)=>s+safeNum(r.noOfWIPOpp),0);
+      const wip  = rows.reduce((s,r)=>s+wipOf(r),0);
       const open = Math.max(0, total - closed - wip);
       const notConverted = Math.max(0, closed - converted);
       return { key, rule:label, total, open, wip, closed, converted, notConverted,

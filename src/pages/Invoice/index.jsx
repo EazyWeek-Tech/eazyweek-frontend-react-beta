@@ -15,6 +15,7 @@ import PackageBalanceChecker from './components/PackageBalanceChecker';
 import PromotionModal from './components/PromotionModal';
 import AdvancePayment from './components/AdvancePayment';
 import { useCustomerNotes } from '../../pages/Customer/CustomerDetails/CustomerNotePopup';
+import { usePermissions } from '../Settings/usePermissions';
 import './styles/InvoicePage.css';
 
 // ── Customer recId ───────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ const computeLineAmounts = (price, discount, qty, ratePct, taxIncluded, isCitize
 };
 
 const InvoicePage = () => {
+  const { has, guard, notifyDenied } = usePermissions();
   const [items, setItems] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [formResetKey, setFormResetKey] = useState(0);
@@ -317,8 +319,8 @@ const InvoicePage = () => {
   }, [items]);
 
   const handlePriceChange    = (index, value) => { const u = [...items]; u[index].price    = value; setItems(u); };
-  const handleDiscountChange = (index, value) => { const u = [...items]; u[index].discount  = value; u[index]._manualDiscount = parseFloat(value) > 0; setItems(u); };
-  const handleRemove         = (index) => setItems(items.filter((_, idx) => idx !== index));
+  const handleDiscountChange = (index, value) => { if (!has('INV.MANUAL_DISCOUNT')) { notifyDenied(); return; } const u = [...items]; u[index].discount  = value; u[index]._manualDiscount = parseFloat(value) > 0; setItems(u); };
+  const handleRemove         = (index) => { if (!has('INV.DELETE_ITEM')) { notifyDenied(); return; } setItems(items.filter((_, idx) => idx !== index)); };
   const handleCopyItem       = (index) => setItems(prev => {
     const original = prev[index];
     if (!original) return prev;
@@ -332,6 +334,7 @@ const InvoicePage = () => {
   });
   const handleAddItem        = () => setItems([...items, { name: 'New Item', price: '', discount: '' }]);
   const handleAddFormItem    = async (newItem) => {
+    if (!has('INV.ADD_ITEM')) { notifyDenied(); return; }
     // Membership invoices can't mix with other items, and only one membership
     // per invoice (FRD 5.3 rules 3 & 9).
     const isMember      = (newItem.type || newItem.itemType) === 'membership';
@@ -362,7 +365,7 @@ const InvoicePage = () => {
     }
     setItems(prev => [...prev, toAdd]); setFormResetKey(prev => prev + 1);
   };
-  const handleManualDiscount = (updatedItems) => setItems(updatedItems.map(item => ({ ...item, _manualDiscount: parseFloat(item.discount) > 0 })));
+  const handleManualDiscount = (updatedItems) => { if (!has('INV.MANUAL_DISCOUNT')) { notifyDenied(); return; } setItems(updatedItems.map(item => ({ ...item, _manualDiscount: parseFloat(item.discount) > 0 }))); };
   const handleSuspendCart    = () => {
     if (items.length === 0) return;
     const suspended = JSON.parse(localStorage.getItem('suspendedCarts') || '[]');
@@ -382,7 +385,7 @@ const InvoicePage = () => {
   const handlePromotionApply        = (result) => { if (result.updatedItems?.length) setItems(result.updatedItems); if (result.applied?.length) setAppliedPromotions(prev => [...prev, ...result.applied]); setShowPromotion(false); };
   const handlePackageRedeem         = ({ packageInfo, serviceCode }) => { setPackageRedemption(packageInfo); setItems(prev => prev.map(item => (item.code === serviceCode || item.servicecode === serviceCode) ? { ...item, _origPrice: item.price, price: 0, discount: 0, _redeemed: true, _packageCode: packageInfo.packageCode, _packageName: packageInfo.packageName } : item)); setShowPkgBalance(false); setToast({ message: `Package ${packageInfo.packageCode} applied — service set to SAR 0`, type: "success" }); };
   const handleRemovePackage         = (idx) => { setItems(prev => prev.map((item, i) => { if (i !== idx) return item; const { _redeemed, _packageCode, _packageName, _origPrice, ...rest } = item; return { ...rest, price: _origPrice != null ? _origPrice : (item.originalPrice != null ? item.originalPrice : item.price) }; })); setPackageRedemption(null); setToast({ message: "Package removed — normal payment applies", type: "info" }); };
-  const handleApplyPriceOverride    = (updatedItems) => setItems(updatedItems);
+  const handleApplyPriceOverride    = (updatedItems) => { if (!has('INV.PRICE_OVERRIDE')) { notifyDenied(); return; } setItems(updatedItems); };
 
   const isCitizen = selectedCustomer?.status === 'Citizen';
   const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
@@ -540,9 +543,10 @@ const total = Math.max(0, grossTotal + roundoff - invoicePromoDiscount);
               onRemovePackage={handleRemovePackage} />
 
             <InvoiceSummary showPopup={showPopup} setShowPopup={setShowPopup}
-              onRecallInvoice={() => setShowReturn(true)} onCheckPackageBalance={() => setShowPkgBalance(true)}
-              onPromotion={() => setShowPromotion(true)}
-              onCollectAdvance={() => setShowAdvance(true)}
+              onRecallInvoice={() => guard('INV.RETURN_INVOICE', () => setShowReturn(true))}
+              onCheckPackageBalance={() => guard(['INV.CHECK_PACKAGE_BALANCE', 'INV.CHECK_PKG_BALANCE'], () => setShowPkgBalance(true))}
+              onPromotion={() => guard('INV.PROMOTION', () => setShowPromotion(true))}
+              onCollectAdvance={() => guard('INV.COLLECT_ADVANCE', () => setShowAdvance(true))}
               disablePackageBalance={items.some(i => i.type === 'package' || i.itemType === 'package')}
               onManualDiscount={handleManualDiscount} onClearCart={handleClearCart}
               onSuspendCart={handleSuspendCart} onRecallCartById={handleRecallCartById}
