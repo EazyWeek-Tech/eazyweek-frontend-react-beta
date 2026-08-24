@@ -705,7 +705,7 @@ const DetailedReport = () => {
                 {pageRows.map((row, index) => (
                   <tr key={pageStart + index}>
                     <td>
-                      <button className="reference-link" onClick={() => handleReferenceClick(row.referenceId)}>
+                      <button className="reference-link">
                         {row.referenceId}
                       </button>
                     </td>
