@@ -384,6 +384,8 @@ if (user && showFirstLogin) {
 <Route path="/upload/products"      element={<MasterUploader />} />
 <Route path="/upload/packages"      element={<MasterUploader />} />
 <Route path="/upload/practitioners" element={<MasterUploader />} />
+<Route path="/upload/einvoice-packages" element={<MasterUploader />} />
+
 
 
 <Route path="/masters/disposition" element={gate("opportunity", <DispositionMaster />)} />

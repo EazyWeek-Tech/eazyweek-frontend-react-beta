@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import Select, { components } from "react-select"
 import "./DetailedReport.css"
@@ -11,15 +11,57 @@ const getUser = () => { try { return JSON.parse(localStorage.getItem("user") || 
 const getCenterCode = () => (getUser().centerCode || "").trim();
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${TOKEN()}` });
 
-// Compact multi-select rendering: show "N selected" instead of one chip per
-// value, so the control never overflows or stacks tall when many options are
-// picked. Spread {...compactMulti} into each <Select isMulti>.
+/* ---- react-select theming ---- */
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 38,
+    borderRadius: 8,
+    fontFamily: "Lato, sans-serif",
+    fontSize: 14,
+    background: state.isDisabled ? "#f8fafc" : "#fff",
+    borderColor: state.isFocused ? "#334B71" : "#e7ecf4",
+    boxShadow: "none",
+    flexWrap: "nowrap",
+    "&:hover": { borderColor: "#334B71" },
+  }),
+  valueContainer: (base) => ({ ...base, flexWrap: "nowrap", overflow: "hidden" }),
+  placeholder: (base) => ({ ...base, color: "#94a3b8", fontSize: 14 }),
+  singleValue: (base) => ({ ...base, color: "#334B71" }),
+  option: (base, state) => ({
+    ...base,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontFamily: "Lato, sans-serif",
+    fontSize: 14,
+    background: state.isFocused ? "#eef2f8" : "#fff",
+    color: "#334B71",
+    cursor: "pointer",
+  }),
+  menu: (base) => ({ ...base, zIndex: 30 }),
+  indicatorSeparator: () => ({ display: "none" }),
+}
+
+const CheckboxOption = (props) => (
+  <components.Option {...props}>
+    <input
+      type="checkbox"
+      checked={props.isSelected}
+      onChange={() => {}}
+      style={{ accentColor: "#334B71", width: 15, height: 15, margin: 0, flex: "0 0 auto" }}
+    />
+    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.label}</span>
+  </components.Option>
+)
+
 const CountMultiValue = (props) => {
-  if (props.index > 0) return null            // render the summary only once
+  if (props.index > 0) return null
   const count = props.getValue().length
   return (
     <div style={{
-      maxWidth: "100%", padding: "2px 4px", fontSize: 14, color: "#374151",
+      maxWidth: "100%", padding: "2px 4px", fontSize: 14, color: "#334B71",
+      fontFamily: "Lato, sans-serif",
       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
     }}>
       {count} selected
@@ -29,15 +71,11 @@ const CountMultiValue = (props) => {
 const compactMulti = {
   closeMenuOnSelect: false,
   hideSelectedOptions: false,
-  components: { MultiValue: CountMultiValue },
-  styles: {
-    control:        (base) => ({ ...base, flexWrap: "nowrap" }),
-    valueContainer: (base) => ({ ...base, flexWrap: "nowrap", overflow: "hidden" }),
-  },
+  components: { MultiValue: CountMultiValue, Option: CheckboxOption },
+  styles: selectStyles,
 };
 
-
-// --- helpers ---
+/* ---- helpers ---- */
 const ymd = (d) => {
   const dt = d instanceof Date ? d : new Date(d)
   const yyyy = dt.getFullYear()
@@ -47,24 +85,29 @@ const ymd = (d) => {
 }
 const iso = (yyyy_mm_dd) => (yyyy_mm_dd ? new Date(yyyy_mm_dd).toISOString() : "")
 
-// Invisible defaults for the API (NOT shown in UI)
 const INVISIBLE_FROM_DEFAULT = "1999-01-01"
-const INVISIBLE_TO_DEFAULT   = ymd(new Date()) // today
+const INVISIBLE_TO_DEFAULT   = ymd(new Date())
 
 const DetailedReport = () => {
-  const { has } = usePermissions();
+  const perms = usePermissions() || {};
+  const has = typeof perms.has === "function" ? perms.has : () => false;
+  const permsPending =
+    perms.loading === true || perms.isLoading === true ||
+    perms.ready === false  || perms.loaded === false   ||
+    perms.permissions === null;
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
-    fromDate: "",                  // UI stays empty unless user picks
+    fromDate: "",
     toDate: "",
+    centres: [],
     therapistDoctors: [],
     experienceRating: [],
     customerFeedback: [],
     overallSatisfied: [],
     futureAppTaken: [],
     customerType: [],
-    status: [],                    // [{ value: "0"|"1"|"2", label }]
-    auditor: [],                   // [{ value: "<code>", label: "<name>" }]
+    status: [],
+    auditor: [],
   })
 
   const [totalRecords, setTotalRecords] = useState(0)
@@ -72,6 +115,9 @@ const DetailedReport = () => {
   const [showResults, setShowResults] = useState(false)
   const [auditorOptions, setAuditorOptions] = useState([])
   const [therapistOptions, setTherapistOptions] = useState([])
+  const [centreOptions, setCentreOptions] = useState([])
+  const [isEntity, setIsEntity] = useState(null)
+  const [sessionCentreName, setSessionCentreName] = useState(getCenterCode())
   const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
@@ -82,7 +128,13 @@ const DetailedReport = () => {
 
   const toOptionList = (arr) => arr.map((v) => ({ value: v, label: v }))
 
-  // ----- Normalizers for API → UI table -----
+  const selectedCentreCodes = useMemo(() => {
+    if (isEntity === true) return (filters.centres || []).map((c) => c.value)
+    const cc = getCenterCode()
+    return cc ? [cc] : []
+  }, [isEntity, filters.centres])
+
+  /* ---- normalizers ---- */
   const toYesNoLabel = (v) => {
     const t = String(v ?? "").trim().toUpperCase()
     if (t === "1" || t === "YES" || t === "TRUE") return "Yes"
@@ -90,20 +142,17 @@ const DetailedReport = () => {
     return ""
   }
 
-  // Robustly map courtesyStatus (handles "Partialy Completed" typo)
   const normalizeCourtesyStatus = (raw) => {
     if (!raw) return ""
     const t = String(raw).trim().toLowerCase()
     if (t.includes("pending")) return "Pending"
     if (t.includes("complete")) {
-      // "partially completed", "partialy completed", "completed"
       if (t.startsWith("part")) return "Partially Completed"
       return "Completed"
     }
     return ""
   }
 
-  // Fallback when courtesyStatus is absent/unknown
   const deriveStatus = (row) => {
     const fields = [
       row.googleReview,
@@ -123,7 +172,6 @@ const DetailedReport = () => {
     return "Partially Completed"
   }
 
-  // Shape each API row for the table (prefer courtesyStatus)
   const normalizeRow = (x) => {
     const courtesy = normalizeCourtesyStatus(x.courtesyStatus)
     const finalStatus = courtesy || deriveStatus(x)
@@ -143,34 +191,77 @@ const DetailedReport = () => {
       status: finalStatus,
     }
   }
-  // ------------------------------------------
 
-  // Load Therapist/Doctors options from API using centerCode
+  /* ---- centre hierarchy ---- */
   useEffect(() => {
-    const centerCode = getCenterCode()
-    if (!centerCode) return
-    const loadPractitioners = async () => {
+    const loadHierarchy = async () => {
+      const session = getCenterCode()
       try {
-        const url = `${API_BASE_URL}/api/Master/LoadAllPractioner/${encodeURIComponent(centerCode)}`
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN()}` } })
+        const res = await fetch(`${API_BASE_URL}/api/Settings/Centre/Hierarchy`, {
+          headers: { Authorization: `Bearer ${TOKEN()}` },
+        })
         const json = await res.json()
-        const data = json?.data ?? json   // unwrap { success, data } envelope
-        const list = Array.isArray(data) ? data : (data ? [data] : [])
+        const data = json?.data ?? json
+        const seen = new Set()
+        const opts = []
+        ;(data?.zones || []).forEach((z) => (z?.clinics || []).forEach((c) => {
+          if (!c || c.isEntity) return
+          const code = String(c.code || "").trim()
+          if (!code || seen.has(code)) return
+          seen.add(code)
+          opts.push({ value: code, label: String(c.name || code).trim() })
+        }))
+        setCentreOptions(opts)
+        const entityCode = String(data?.entity?.code || "").trim()
+        const entity = !session || (entityCode && session === entityCode)
+        setIsEntity(entity)
+        if (!entity) {
+          const match = opts.find((o) => o.value === session)
+          setSessionCentreName(match ? match.label : session)
+        }
+      } catch (err) {
+        console.error("Failed to load centre hierarchy:", err)
+        setCentreOptions([])
+        setIsEntity(!session ? true : false)
+        setSessionCentreName(session)
+      }
+    }
+    loadHierarchy()
+  }, [])
+
+  /* ---- doctors with appointments ---- */
+  useEffect(() => {
+    if (isEntity === null) return
+    const loadDoctors = async () => {
+      try {
+        const scope = selectedCentreCodes.join(",")
+        const qs = scope ? `?centres=${encodeURIComponent(scope)}` : ""
+        const res = await fetch(`${API_BASE_URL}/api/Courtesy/ReportDoctors${qs}`, {
+          headers: { Authorization: `Bearer ${TOKEN()}` },
+        })
+        const json = await res.json()
+        const data = json?.data ?? json
+        const list = Array.isArray(data) ? data : []
         const options = list
-          .filter(x => x && (x.id || x.name))
-          .map(x => ({ value: x.id ?? x.code ?? x.name, label: x.name ?? x.id }))
+          .map((x) => {
+            if (typeof x === "string") return { value: x, label: x }
+            const name = x.name ?? x.doctorName ?? x.label ?? ""
+            const value = x.value ?? name
+            return value ? { value, label: name || value } : null
+          })
+          .filter(Boolean)
         setTherapistOptions(options)
       } catch (err) {
-        console.error("Failed to load practitioners:", err)
+        console.error("Failed to load report doctors:", err)
         setTherapistOptions([])
       }
     }
-    loadPractitioners()
+    loadDoctors()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isEntity, selectedCentreCodes.join(",")])
 
+  /* ---- view ---- */
   const handleView = async () => {
-    // Date range is mandatory for this report.
     if (!filters.fromDate || !filters.toDate) {
       setToast({ type: "error", message: "Please select both From Date and To Date." })
       return
@@ -180,29 +271,25 @@ const DetailedReport = () => {
       return
     }
     try {
-      // User-entered (visible) values
       const userFrom = filters.fromDate
       const userTo   = filters.toDate
 
-      // Effective values to SEND (invisible defaults when not selected)
       const effFrom = userFrom || INVISIBLE_FROM_DEFAULT
       const effTo   = userTo   || INVISIBLE_TO_DEFAULT
 
-      // dateFlag indicates whether the user explicitly set any date filter
       const dateFlag = (userFrom || userTo) ? "1" : "0"
 
       const payload = {
         fromDate: iso(effFrom),
         todate:   iso(effTo),
+        centres:                selectedCentreCodes.join(","),
         therapist:              (filters.therapistDoctors?.map(t => t.value) || []).join(","),
         experienceRating:       (filters.experienceRating?.map(r => r.value) || []).join(","),
         customerFeedback:       (filters.customerFeedback?.map(f => f.value) || []).join(","),
         overallSatisfied:       (filters.overallSatisfied?.map(o => o.value) || []).join(","),
         futureAppointmentTaken: (filters.futureAppTaken?.map(f => f.value) || []).join(","),
         customerType:           (filters.customerType?.map(c => c.value) || []).join(","),
-        // numeric status codes 0/1/2
         status:                 (filters.status?.map(s => s.value) || []).join(","),
-        // CODES ONLY for auditors (handles audtiorCode typo, auditorCode, or code)
         auditor:                (filters.auditor?.map(a => a.value) || []).join(","),
         dateFlag,
         isPendingStatus:
@@ -232,15 +319,18 @@ const DetailedReport = () => {
     }
   }
 
-  // Load auditors
+  /* ---- auditors ---- */
   useEffect(() => {
+    if (isEntity === null) return
     const fetchAuditors = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors`, {
+        const scope = selectedCentreCodes.join(",")
+        const qs = scope ? `?centres=${encodeURIComponent(scope)}` : ""
+        const res = await fetch(`${API_BASE_URL}/api/Courtesy/LoadCourtesyAuditors${qs}`, {
           headers: { Authorization: `Bearer ${TOKEN()}` },
         })
         const json = await res.json()
-        const data = json?.data ?? json   // unwrap { success, data } envelope
+        const data = json?.data ?? json
         if (Array.isArray(data)) {
           setAuditorOptions(data)
         } else {
@@ -251,11 +341,13 @@ const DetailedReport = () => {
       }
     }
     fetchAuditors()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEntity, selectedCentreCodes.join(",")])
 
+  /* ---- export ---- */
   const handleExport = () => {
     if (reportData.length === 0) {
-  if (reportData.length === 0) { setToast({ type: "error", message: "No data to export." }); return; }
+      setToast({ type: "error", message: "No data to export." })
       return
     }
     const headers = [
@@ -298,10 +390,12 @@ const DetailedReport = () => {
     window.URL.revokeObjectURL(url)
   }
 
+  /* ---- clear ---- */
   const handleClearFilters = () => {
     setFilters({
-      fromDate: "",   // UI stays empty
+      fromDate: "",
       toDate: "",
+      centres: [],
       therapistDoctors: [],
       experienceRating: [],
       customerFeedback: [],
@@ -321,14 +415,25 @@ const DetailedReport = () => {
     navigate(`/courtesy-call/details?referenceID=${referenceId}`)
   }
 
-  // Select options (status uses numeric codes)
+  /* ---- select options ---- */
   const statusOptions = [
     { value: "0", label: "Pending" },
     { value: "1", label: "Partially Completed" },
     { value: "2", label: "Completed" },
   ]
   const ratingOptions = toOptionList(["1", "2", "3", "4", "5"])
-  const feedbackOptions = toOptionList(["Very Satisfied", "Satisfied", "Neutral", "Dissatisfied", "Very Dissatisfied"])
+  // Mirrors the Customer Feedback select on CourtesyCallDetails.jsx - the
+  // saved value lands in ComplaintDetails, which is what the report filters.
+  const feedbackOptions = toOptionList([
+    "Satisfied client",
+    "Price Conscious",
+    "Process related complaints",
+    "Infrastructure",
+    "Adverse reaction of service",
+    "Waiting Time",
+    "Not satisfied with employee",
+    "Not satisfied with service experience",
+  ])
   const futureAppOptions = toOptionList(["Yes", "No"])
   const satisfactionOptions = toOptionList(["Yes", "No"])
   const customerTypeOptions = toOptionList(["New", "Existing"])
@@ -351,8 +456,13 @@ const DetailedReport = () => {
     borderColor: active ? "#334B71" : "#e7ecf4",
   })
 
-  // View-only report, gated on its Reports permission (FRD 4.10). Without the
-  // right the user gets Access Denied instead of the report (TC-040).
+  if (permsPending) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"60vh",
+      fontFamily:"Lato,sans-serif", fontSize:13, color:"#64748b" }}>
+      Loading&hellip;
+    </div>
+  );
+
   if (!has("RPT.COURTESY_CALL_DETAILED")) return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", fontFamily:"Lato,sans-serif", gap:12 }}>
       <div style={{ fontSize:18, fontWeight:800, color:"#b91c1c" }}>Access Denied</div>
@@ -371,160 +481,181 @@ const DetailedReport = () => {
           <span className="breadcrumb-current">Detailed Report</span>
         </div>
 
-        {/* Header */}
+        {/* ===== HEADER ===== */}
         <div className="report-header">
           <h1 className="page-title">Courtesy Call - Detailed Report</h1>
         </div>
 
-        <div className="dtfltrwrp">
-          <div className="filter-group">
-            <label htmlFor="fromDate">From Date <span style={{ color: "#dc2626" }}>*</span></label>
-            <input
-              type="date"
-              id="fromDate"
-              value={filters.fromDate} // stays empty until user picks
-              onChange={(e) => handleFilterChange("fromDate", e.target.value)}
-              className="filter-input"
-            />
-          </div>
+        {/* ===== FILTERS ===== */}
+        <div className="filters-container">
+          <div className="dtfltrwrp">
+            <div className="filter-group">
+              <label htmlFor="fromDate">From Date <span style={{ color: "#dc2626" }}>*</span></label>
+              <input
+                type="date"
+                id="fromDate"
+                value={filters.fromDate}
+                onChange={(e) => handleFilterChange("fromDate", e.target.value)}
+                className="filter-input"
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="toDate">To Date: <span style={{ color: "#dc2626" }}>*</span></label>
-            <input
-              type="date"
-              id="toDate"
-              value={filters.toDate} // stays empty until user picks
-              onChange={(e) => handleFilterChange("toDate", e.target.value)}
-              className="filter-input"
-            />
-          </div>
+            <div className="filter-group">
+              <label htmlFor="toDate">To Date <span style={{ color: "#dc2626" }}>*</span></label>
+              <input
+                type="date"
+                id="toDate"
+                value={filters.toDate}
+                onChange={(e) => handleFilterChange("toDate", e.target.value)}
+                className="filter-input"
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="therapistDoctors">Therapist/ Doctors :</label>
-            <Select
-              isMulti
+            <div className="filter-group">
+              <label htmlFor="centres">Clinic Name :</label>
+              {isEntity === true ? (
+                <Select
+                  isMulti
+                  {...compactMulti}
+                  id="centres"
+                  className="filter-select"
+                  options={centreOptions}
+                  value={filters.centres}
+                  onChange={(selected) => handleFilterChange("centres", selected || [])}
+                  placeholder="All clinics"
+                />
+              ) : (
+                <Select
+                  id="centres"
+                  className="filter-select"
+                  styles={selectStyles}
+                  options={[{ value: getCenterCode(), label: sessionCentreName || getCenterCode() }]}
+                  value={{ value: getCenterCode(), label: sessionCentreName || getCenterCode() }}
+                  onChange={() => {}}
+                  isDisabled
+                />
+              )}
+            </div>
 
-              {...compactMulti}
-              id="therapistDoctors"
-              className="filter-select"
-              options={therapistOptions}
-              value={filters.therapistDoctors}
-              onChange={(selected) => handleFilterChange("therapistDoctors", selected || [])}
-              placeholder="Select therapist(s)…"
-            />
-          </div>
+            <div className="filter-group">
+              <label htmlFor="therapistDoctors">Therapist/ Doctors :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="therapistDoctors"
+                className="filter-select"
+                options={therapistOptions}
+                value={filters.therapistDoctors}
+                onChange={(selected) => handleFilterChange("therapistDoctors", selected || [])}
+                placeholder="Select therapist(s)…"
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="experienceRating">Experience Rating :</label>
-            <Select
-              isMulti
+            <div className="filter-group">
+              <label htmlFor="experienceRating">Experience Rating :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="experienceRating"
+                className="filter-select"
+                options={ratingOptions}
+                value={filters.experienceRating}
+                onChange={(selected) => handleFilterChange("experienceRating", selected || [])}
+              />
+            </div>
 
-              {...compactMulti}
-              id="experienceRating"
-              className="filter-select"
-              options={ratingOptions}
-              value={filters.experienceRating}
-              onChange={(selected) => handleFilterChange("experienceRating", selected || [])}
-            />
-          </div>
+            <div className="filter-group">
+              <label htmlFor="customerFeedback">Customer Feedback :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="customerFeedback"
+                className="filter-select"
+                options={feedbackOptions}
+                value={filters.customerFeedback}
+                onChange={(selected) => handleFilterChange("customerFeedback", selected || [])}
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="customerFeedback">Customer Feedback :</label>
-            <Select
-              isMulti
+            <div className="filter-group">
+              <label htmlFor="overallSatisfied">Overall Satisfied :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="overallSatisfied"
+                className="filter-select"
+                options={satisfactionOptions}
+                value={filters.overallSatisfied}
+                onChange={(selected) => handleFilterChange("overallSatisfied", selected || [])}
+              />
+            </div>
 
-              {...compactMulti}
-              id="customerFeedback"
-              className="filter-select"
-              options={feedbackOptions}
-              value={filters.customerFeedback}
-              onChange={(selected) => handleFilterChange("customerFeedback", selected || [])}
-            />
-          </div>
+            <div className="filter-group">
+              <label htmlFor="futureAppTaken">Future App Taken :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="futureAppTaken"
+                className="filter-select"
+                options={futureAppOptions}
+                value={filters.futureAppTaken}
+                onChange={(selected) => handleFilterChange("futureAppTaken", selected || [])}
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="overallSatisfied">Overall Satisfied :</label>
-            <Select
-              isMulti
+            <div className="filter-group">
+              <label htmlFor="customerType">Customer Type :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="customerType"
+                className="filter-select"
+                options={customerTypeOptions}
+                value={filters.customerType}
+                onChange={(selected) => handleFilterChange("customerType", selected || [])}
+              />
+            </div>
 
-              {...compactMulti}
-              id="overallSatisfied"
-              className="filter-select"
-              options={satisfactionOptions}
-              value={filters.overallSatisfied}
-              onChange={(selected) => handleFilterChange("overallSatisfied", selected || [])}
-            />
-          </div>
+            <div className="filter-group">
+              <label htmlFor="status">Status :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="status"
+                className="filter-select"
+                options={statusOptions}
+                value={filters.status}
+                onChange={(selected) => handleFilterChange("status", selected || [])}
+              />
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="futureAppTaken">Future App Taken :</label>
-            <Select
-              isMulti
+            <div className="filter-group">
+              <label htmlFor="auditor">Auditor :</label>
+              <Select
+                isMulti
+                {...compactMulti}
+                id="auditor"
+                className="filter-select"
+                options={auditorOptions.map((a) => ({
+                  value: a.audtiorCode || a.auditorCode || a.code || "",
+                  label: a.auditorName || a.name || (a.code ?? ""),
+                }))}
+                value={filters.auditor}
+                onChange={(selected) => handleFilterChange("auditor", selected || [])}
+              />
+            </div>
 
-              {...compactMulti}
-              id="futureAppTaken"
-              className="filter-select"
-              options={futureAppOptions}
-              value={filters.futureAppTaken}
-              onChange={(selected) => handleFilterChange("futureAppTaken", selected || [])}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label htmlFor="customerType">Customer Type :</label>
-            <Select
-              isMulti
-
-              {...compactMulti}
-              id="customerType"
-              className="filter-select"
-              options={customerTypeOptions}
-              value={filters.customerType}
-              onChange={(selected) => handleFilterChange("customerType", selected || [])}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label htmlFor="status">Status :</label>
-            <Select
-              isMulti
-
-              {...compactMulti}
-              id="status"
-              className="filter-select"
-              options={statusOptions}
-              value={filters.status}
-              onChange={(selected) => handleFilterChange("status", selected || [])}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label htmlFor="auditor">Auditor</label>
-            <Select
-              isMulti
-
-              {...compactMulti}
-              id="auditor"
-              className="filter-select"
-              options={auditorOptions.map((a) => ({
-                value: a.audtiorCode || a.auditorCode || a.code || "", // <-- pass CODE
-                label: a.auditorName || a.name || (a.code ?? ""),      // <-- show NAME
-              }))}
-              value={filters.auditor}
-              onChange={(selected) => handleFilterChange("auditor", selected || [])}
-            />
-          </div>
-
-          <div className="filter-actions">
-            <button className="view-btn" onClick={handleView}>
-              View
-            </button>
-            <button className="export-btn" onClick={handleExport}>
-              Export
-            </button>
-            <button className="clear-btn" onClick={handleClearFilters}>
-              Clear
-            </button>
+            <div className="filter-actions">
+              <button className="view-btn" onClick={handleView}>
+                View
+              </button>
+              <button className="export-btn" onClick={handleExport}>
+                Export
+              </button>
+              <button className="clear-btn" onClick={handleClearFilters}>
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -534,6 +665,7 @@ const DetailedReport = () => {
         <span className="total-count">{totalRecords}</span>
       </div>
 
+      {/* ===== RESULTS ===== */}
       {showResults && reportData.length > 0 && (
         <div className="report-results">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",

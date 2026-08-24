@@ -738,6 +738,7 @@ const NAV_GROUPS = [
     { name: "Upload - Services",      icon: "bx-spa",             path: "/upload/services" },
     { name: "Upload - Products",      icon: "bx-box",             path: "/upload/products" },
     { name: "Upload - Packages",      icon: "bx-package",         path: "/upload/packages" },
+        { name: "Upload - E-Invoice Packages", icon: "bx-receipt",    path: "/upload/einvoice-packages" },
     { name: "Upload - Practitioners", icon: "bx-user-voice",      path: "/upload/practitioners" },
     
     { name: "Upload - Customers",     icon: "bx-user",            path: "/upload/customers" },    // TODO

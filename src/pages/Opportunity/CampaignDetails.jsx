@@ -230,26 +230,25 @@ const withUnassigned     = (opts) =>
 // ["", UNASSIGNED, ...real owners] — for a native <select>, where "" is the All row
 const withAllAndUnassigned = (opts) => ["", ...withUnassigned(opts)];
 
-/* Doctor/Therapist. Two states are distinct and both need to be selectable:
-   NA   — nothing was ever picked, so the cell is blank
-   None — "None" was picked deliberately, which is a real answer, not a gap
-   Sentinels keep them apart from an employee whose name is literally None. */
-const DOC_NA_VALUE   = "__NO_DOCTOR__";
+/* Doctor/Therapist. "None" covers both empty-ish states: nothing ever picked
+   (the cell is blank) and "None" picked deliberately. The sentinel keeps the
+   option apart from an employee whose name is literally None. The old NA
+   sentinel is kept only so a view saved by the previous build restores as
+   None instead of a dead value. */
+const DOC_NA_VALUE   = "__NO_DOCTOR__";   // legacy — no longer offered
 const DOC_NONE_VALUE = "__DOCTOR_NONE__";
-const DOC_NA_LABEL   = "NA (no doctor)";
 const DOC_NONE_LABEL = "None";
 const isDocNone      = (v) => norm(v) === "none";
+const normDocSel     = (v) => (v === DOC_NA_VALUE ? DOC_NONE_VALUE : (v ?? ""));
 const docOptionLabel = (v, allLabel="All") =>
-  v === DOC_NA_VALUE   ? DOC_NA_LABEL   :
   v === DOC_NONE_VALUE ? DOC_NONE_LABEL : (v || allLabel);
 /* Real "None" values are dropped from the list because the sentinel already
    covers them — otherwise the option appears twice. */
-const withDoctorSentinels = (opts) => ["", DOC_NA_VALUE, DOC_NONE_VALUE,
+const withDoctorSentinels = (opts) => ["", DOC_NONE_VALUE,
   ...new Set((opts||[]).map(o=>String(o??"").trim()).filter(v=>v && !isDocNone(v)))];
 const matchesDoctor = (val, sel) => {
   if (!sel) return true;
-  if (sel === DOC_NA_VALUE)   return !norm(val);
-  if (sel === DOC_NONE_VALUE) return isDocNone(val);
+  if (sel === DOC_NONE_VALUE || sel === DOC_NA_VALUE) return !norm(val) || isDocNone(val);
   return norm(val) === norm(sel);
 };
 
@@ -735,7 +734,7 @@ function TransactionSection({ oppCode, header, fromDate, toDate, churnKey=0, app
   // Lead Score band. Sent to the server: this grid is server-paged, so filtering
   // it here would only filter the batch on screen rather than the campaign.
   const [scoreBand, setScoreBand] = useState(_v.scoreBand ?? "");
-  const [therapist,setTherapist] = useState(_v.therapist ?? "");
+  const [therapist,setTherapist] = useState(normDocSel(_v.therapist));
   const [search,  setSearch]  = useState(_v.search    ?? "");
   const [srchDraft,setSrchDraft] = useState(_v.search ?? "");
 
@@ -1197,7 +1196,7 @@ function ExternalSection({ oppCode, churnKey=0, apptMandatory=true }) {
   // Lead Score band. Client-side here: the page already pulls the whole campaign
   // and filters it in the browser, so the band goes through the same path.
   const [scoreBand,  setScoreBand]  = useState(_sf.scoreBand ?? "");
-  const [doctorFilter, setDoctorFilter] = useState(_sf.doctorFilter ?? "");
+  const [doctorFilter, setDoctorFilter] = useState(normDocSel(_sf.doctorFilter));
   const [srchDraft,  setSrchDraft]  = useState(_sf.search   ?? "");
   const [search,     setSearch]     = useState(_sf.search   ?? "");
   const [fromDate,   setFromDate]   = useState(_sf.fromDate ?? todayISO());   // Created From (server-side)
@@ -1592,7 +1591,7 @@ function ManualSection({ oppCode, header, churnKey=0, apptMandatory=true }) {
   const [disp,    setDisp]    = useState(_v.disp   ?? "");
   // Lead Score band. Client-side: this grid fetches every page up front.
   const [scoreBand, setScoreBand] = useState(_v.scoreBand ?? "");
-  const [doctorFilter, setDoctorFilter] = useState(_v.doctorFilter ?? "");
+  const [doctorFilter, setDoctorFilter] = useState(normDocSel(_v.doctorFilter));
   const [fuMode,  setFuMode]  = useState(_v.fuMode ?? "");
   const [fuFrom,  setFuFrom]  = useState(_v.fuFrom ?? "");
   const [fuTo,    setFuTo]    = useState(_v.fuTo   ?? "");

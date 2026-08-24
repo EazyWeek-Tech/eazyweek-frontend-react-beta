@@ -51,7 +51,37 @@ const ROUTE_TO_MASTER = {
   services: "service",
   products: "product",
   packages: "package",
+  "einvoice-packages": "einvoicepackage",
   practitioners: "practitioner",
+};
+
+/* ---- flat workbook reader ---- */
+const readFlatWorkbook = (wb, anchorCol) => {
+  const rows = [];
+  const tabs = [];
+  for (const tab of wb.SheetNames) {
+    const ws = wb.Sheets[tab];
+    const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+    const hdrIdx = grid.findIndex((r) =>
+      r.some((c) => String(c).replace(/[^a-z0-9]/gi, "").toLowerCase() === anchorCol)
+    );
+    if (hdrIdx < 0) continue;
+    const headers = grid[hdrIdx].map((h) => String(h).trim());
+    const hasCentre = headers.some((h) => /^center\s*code$/i.test(h));
+    let n = 0;
+    for (const r of grid.slice(hdrIdx + 1)) {
+      if (r.every((c) => String(c).trim() === "")) continue;
+      const obj = {};
+      headers.forEach((h, i) => {
+        if (h) obj[h] = r[i] ?? "";
+      });
+      if (!hasCentre) obj.CENTERCODE = tab.trim();
+      rows.push(obj);
+      n++;
+    }
+    tabs.push(`${tab}: ${n}`);
+  }
+  return { rows, tabs };
 };
 
 export default function MasterUploader() {
@@ -117,6 +147,19 @@ export default function MasterUploader() {
         // cellDates keeps real dates as Date objects; the server also accepts
         // Excel serial numbers, so an unformatted date column still works.
         const wb = XLSX.read(buf, { type: "array", cellDates: true });
+        if (master?.flat) {
+          const { rows, tabs } = readFlatWorkbook(wb, "packagecode");
+          if (!rows.length) {
+            say("No tab with a PackageCode header was found in this file.", "error");
+            setBusy("");
+            return;
+          }
+          say(`Read ${tabs.join(", ")}`, "info");
+          setSkipped([]);
+          setFile(f);
+          setSheets({ [master.sheets[0].name]: rows });
+          return;
+        }
         const expected = (master?.sheets || []).map((s) => s.name);
         // Match tabs loosely — ignore case, spaces, underscores and hyphens —
         // so "Employee Roles" still resolves to the Employee_Roles sheet. A
@@ -279,7 +322,11 @@ export default function MasterUploader() {
             <p className="mu-drop-name">Drop the filled template here</p>
             <p className="mu-drop-meta">
               or <button className="mu-link" type="button" onClick={() => fileRef.current?.click()}>browse for it</button>
-              {master ? ` — expects the tabs ${master.sheets.map((s) => s.name).join(", ")}` : ""}
+              {master
+                ? master.flat
+                  ? " — every tab with a PackageCode header is read; add a CENTERCODE column or name the tab with the centre code"
+                  : ` — expects the tabs ${master.sheets.map((s) => s.name).join(", ")}`
+                : ""}
             </p>
           </>
         )}

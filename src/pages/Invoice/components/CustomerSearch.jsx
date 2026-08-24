@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../../config';
-// NOTE: adjust this relative path to wherever CustomerMaster.jsx lives in your tree.
 import { CustomerFormPanel } from '../../Masters/CustomerMaster';
+import { usePermissions } from "../../Settings/usePermissions";
+
 
 // ── Customer recId ───────────────────────────────────────────────────────
 // The numeric customer key arrives under different spellings depending on which
@@ -34,6 +35,7 @@ const CustomerSearch = ({
   // { isMember, programName } from /api/Membership/CustomerStatus, or null.
   membership = null,
 }) => {
+  const { guard } = usePermissions();
   const [searchText,       setSearchText]       = useState('');
   const [suggestions,      setSuggestions]      = useState([]);
   const [searching,        setSearching]        = useState(false);
@@ -416,7 +418,7 @@ const CustomerSearch = ({
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {!isSelected && (
             <button type="button" disabled={lockedCustomer}
-              onClick={() => { if (!lockedCustomer) setShowAddCustomer(true); }}
+              onClick={() => { if (!lockedCustomer) guard('INV.ADD_CUSTOMER', () => setShowAddCustomer(true)); }}
               title={lockedCustomer
                 ? 'This invoice belongs to an appointment — its customer cannot be changed here. Add new customers from the Customer screen.'
                 : 'Add a new customer'}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { API_BASE_URL } from '../../../config';
-// CreditNoteRedemption modal removed — CN selection is now inline in tab content
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { usePermissions } from "../../Settings/usePermissions";
 
 // ── Customer recId ───────────────────────────────────────────────────────
 // The numeric customer key arrives under different spellings depending on which
@@ -189,6 +189,7 @@ const PaymentBlock = ({
     .reduce((sum, p) => sum + parseFloat(p.discountAmount || 0), 0);
   const parsedTotalAmount = Math.max(0, _rawTotal - _invoiceLevelDiscount);
 
+  const { has, notifyDenied } = usePermissions();
   const [activeTab, setActiveTab] = useState('cash');
   const [amount, setAmount] = useState(parsedTotalAmount.toString());
   const [payments, setPayments] = useState([]);
@@ -769,6 +770,7 @@ const PaymentBlock = ({
   };
 
   const handleAddPayment = async () => {
+    if (!has('INV.ADD_PAYMENT')) { notifyDenied(); return; }
     if (!validateForm()) return;
 
     // Loyalty tab — user enters the SAR amount to redeem; points are computed from it.
@@ -1054,6 +1056,7 @@ const PaymentBlock = ({
   };
 
   const handleDelete = (id) => {
+    if (!has('INV.REMOVE_PAYMENT')) { notifyDenied(); return; }
     const removedPayment  = payments.find(p => p.id === id);
     const updatedPayments = payments.filter(p => p.id !== id);
     setPayments(updatedPayments);
@@ -1185,6 +1188,7 @@ const PaymentBlock = ({
   };
 
   const handleSubmitInvoice = async () => {
+    if (!has('INV.CREATE')) { notifyDenied(); return; }
     // Already created an invoice in this session — never submit again (the popup
     // may have been dismissed without resetting). Re-open the success popup instead.
     if (generatedInvoiceNumber) {

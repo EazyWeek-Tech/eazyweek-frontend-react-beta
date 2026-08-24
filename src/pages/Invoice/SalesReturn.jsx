@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config";
+import { usePermissions } from "../Settings/usePermissions";
 
 const TOKEN = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 const authGet  = async (url) => {
@@ -835,6 +836,7 @@ const ReturnSuccess = ({ returnInvoiceNum, creditNoteNum, onClose, returnData, s
 // return flow against one already-chosen invoice. When supplied we skip the
 // Recall Invoice list entirely and open on item selection. Shape: { invoiceNum, custId }.
 const SalesReturn = ({ onClose, custId, initialInvoice = null }) => {
+  const { has, notifyDenied } = usePermissions();
   const [step,        setStep]        = useState(initialInvoice ? "items" : "search");
   const [selectedInv, setSelectedInv] = useState(initialInvoice);
   const [returnData,  setReturnData]  = useState(null);
@@ -861,6 +863,7 @@ const SalesReturn = ({ onClose, custId, initialInvoice = null }) => {
   const handleItemsNext = (data) => { setReturnData(data); setStep("refund"); };
 
   const handleFinalize = async (refundMethods) => {
+    if (!has('INV.RETURN_INVOICE')) { notifyDenied(); return; }
     setProcessing(true); setError("");
     try {
       const user = getUser();

@@ -173,7 +173,7 @@ const T_EN = {
   financialSub: "Revenue, tax & receivables",
   centre: "Centre performance", centreSub: "Ranking & trend",
   growth: "Growth & pipeline", growthSub: "Acquisition, loyalty & campaigns",
-  ops: "Operations & service quality", opsSub: "Cases & SLA", trend: "Revenue trend",
+  ops: "Operations & service quality", opsSub: "Cases, SLA & audits", trend: "Revenue trend",
   leadsBySource: "Leads by source", endFunnel: "End-of-funnel summary",
   compare: "Compare", allCentres: "All Centres", totalRevenue: "Total revenue", vsPrev: "vs. previous period",
   vsPrevShort: "vs prev", citizenExpat: "Revenue by customer type", citizen: "Citizen", expat: "Expat",
@@ -182,6 +182,12 @@ const T_EN = {
   loyalty: "Loyalty engagement", pointsEarned: "Points earned", pointsRedeemed: "Points redeemed",
   tierDist: "Tier distribution", campaigns: "Campaign performance", campaign: "Campaign", leads: "Leads",
   conv: "Conv.", openCases: "open cases", sla: "SLA compliance", target: "target",
+  audits: "Audits", auditsSubmitted: "submitted audits", auditAvg: "avg. score",
+  auditTrendSub: "Audit trend — avg. score by segment",
+  auditNone: "No submitted audits in this period",
+  centreCompare: "Centre comparison", centreCompareSub: "Current vs previous period",
+  colCentre: "Centre", colCases: "Cases", colAudits: "Audits", colScore: "Avg. audit score",
+  prevShort: "prev", noCompare: "No cases or audits in either period",
   avgResolution: "avg. resolution time", aging: "Case queue aging", currentPeriod: "Current period",
   previousPeriod: "Previous period", overlayPrev: "Overlay previous period",
   loading: "Fetching live data\u2026", loadFailed: "Live data could not be loaded.",
@@ -207,7 +213,7 @@ const T_AR = {
   tagline: "التحليلات التنفيذية", financial: "الأداء المالي", financialSub: "الإيرادات والضرائب والذمم",
   centre: "أداء المراكز", centreSub: "الترتيب والاتجاه",
   growth: "النمو والفرص", growthSub: "الاستقطاب والولاء والحملات",
-  ops: "العمليات وجودة الخدمة", opsSub: "الحالات والاتفاقيات", trend: "اتجاه الإيرادات",
+  ops: "العمليات وجودة الخدمة", opsSub: "الحالات والاتفاقيات والتدقيقات", trend: "اتجاه الإيرادات",
   leadsBySource: "العملاء حسب المصدر", endFunnel: "ملخص نهاية المسار",
   compare: "مقارنة", allCentres: "كل المراكز", totalRevenue: "إجمالي الإيرادات", vsPrev: "مقارنة بالفترة السابقة",
   vsPrevShort: "عن السابق", citizenExpat: "الإيرادات حسب نوع العميل", citizen: "مواطن", expat: "مقيم",
@@ -216,6 +222,12 @@ const T_AR = {
   loyalty: "تفاعل الولاء", pointsEarned: "النقاط المكتسبة", pointsRedeemed: "النقاط المستبدلة", tierDist: "توزيع الفئات",
   campaigns: "أداء الحملات", campaign: "الحملة", leads: "العملاء", conv: "التحويل", openCases: "حالات مفتوحة",
   sla: "الالتزام بالاتفاقية", target: "الهدف", avgResolution: "متوسط وقت الحل", aging: "أعمار قائمة الحالات",
+  audits: "التدقيقات", auditsSubmitted: "تدقيقات مُرسلة", auditAvg: "متوسط الدرجة",
+  auditTrendSub: "اتجاه التدقيق — متوسط الدرجات حسب القسم",
+  auditNone: "لا توجد تدقيقات مُرسلة في هذه الفترة",
+  centreCompare: "مقارنة المراكز", centreCompareSub: "الفترة الحالية مقابل السابقة",
+  colCentre: "المركز", colCases: "الحالات", colAudits: "التدقيقات", colScore: "متوسط درجة التدقيق",
+  prevShort: "السابق", noCompare: "لا توجد حالات أو تدقيقات في أي من الفترتين",
   currentPeriod: "الفترة الحالية", previousPeriod: "الفترة السابقة", overlayPrev: "إظهار الفترة السابقة",
   loading: "جارٍ تحميل البيانات\u2026", loadFailed: "تعذّر تحميل البيانات.",
   loadingBlock: "جارٍ التحميل",
@@ -425,6 +437,46 @@ function periodDates(range, customFrom, customTo) {
   start.setHours(0, 0, 0, 0);
   return spanOf(start, today);
 }
+/* Previous window for the centre-wise comparison ("Comparision Centre wise
+   current and past period — year/month/quater" in the calc sheet). Calendar
+   ranges compare like-for-like elapsed spans — This Month = same day-count of
+   the previous month, QTD = same elapsed days of the previous quarter, YTD =
+   Jan 1 to the same date last year. Today / This Week / Custom take the
+   Week shifts back seven days so the same weekdays compare; Today / Custom
+   take the same-length window immediately before. All local-parts math — the
+   toISOString UTC rollback bug must not come back through here. */
+function prevPeriodDates(range, fromDate, toDate) {
+  const f = parseYmd(fromDate);
+  const t = parseYmd(toDate);
+  if (!f || !t) return null;
+  const clampDay = (y, m, day) => new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
+  if (range === "This Week") {
+    return spanOf(
+      new Date(f.getFullYear(), f.getMonth(), f.getDate() - 7),
+      new Date(t.getFullYear(), t.getMonth(), t.getDate() - 7)
+    );
+  }
+  if (range === "This Month") {
+    const start = new Date(f.getFullYear(), f.getMonth() - 1, 1);
+    return spanOf(start, clampDay(start.getFullYear(), start.getMonth(), t.getDate()));
+  }
+  if (range === "QTD") {
+    const q0 = Math.floor(f.getMonth() / 3) * 3;
+    const start = new Date(f.getFullYear(), q0 - 3, 1);
+    const elapsed = Math.round((t - f) / 86400000);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + elapsed);
+    const qEnd = new Date(f.getFullYear(), q0, 0);
+    return spanOf(start, end > qEnd ? qEnd : end);
+  }
+  if (range === "YTD") {
+    const start = new Date(f.getFullYear() - 1, 0, 1);
+    return spanOf(start, clampDay(t.getFullYear() - 1, t.getMonth(), t.getDate()));
+  }
+  const len = Math.round((t - f) / 86400000);
+  const prevTo = new Date(f.getFullYear(), f.getMonth(), f.getDate() - 1);
+  const prevFrom = new Date(prevTo.getFullYear(), prevTo.getMonth(), prevTo.getDate() - len);
+  return spanOf(prevFrom, prevTo);
+}
 const okJson = (r) => (r && r.ok ? r.json() : Promise.reject(new Error("http")));
 const unwrap = (b) => (b && b.data !== undefined ? b.data : b);
 function liveBucket(daily, max = 12) {
@@ -469,7 +521,7 @@ const ENTITY_CENTRE = "Centriq Clinics";
      i.e. the top half of the viewport. Fired immediately; each one commits its
      own slice of state the moment it lands.
 
-   WAVE B (deferred) — the remaining six. Held back until wave A settles OR
+   WAVE B (deferred) — the remaining eight. Held back until wave A settles OR
      HEAD_START_MS elapses, whichever comes first. On a congested link this
      hands the whole pipe to the tiles instead of splitting it nine ways. The
      timer is the safety valve: a hung wave A must never permanently starve the
@@ -483,7 +535,7 @@ const HEAD_START_MS = 1200;
 /* One flag per wave-B endpoint. `ltr` (GET /api/Opportunity/Funnel) feeds BOTH
    the funnel trapezoid and the Revenue funnel rows, and is measurably the
    slowest of the six, so keeping it separate matters more than the rest. */
-const PENDING_ALL = { cs: true, ap: true, opp: true, mem: true, loy: true, ltr: true };
+const PENDING_ALL = { cs: true, ap: true, opp: true, mem: true, loy: true, ltr: true, aud: true, cmp: true };
 /* Marks one slice done without disturbing the others. */
 const settle = (p, key) => ({ ...p, pending: { ...(p.pending || PENDING_ALL), [key]: false } });
 
@@ -543,6 +595,8 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
   const load = useCallback((signal, seq) => {
     const alive  = () => !signal.aborted && seqRef.current === seq;
     const { fromDate, toDate } = periodDates(range, customFrom, customTo);
+    const prev = prevPeriodDates(range, fromDate, toDate);
+    const prevQS = prev ? `&prevFrom=${prev.fromDate}&prevTo=${prev.toDate}` : "";
     const centreQS = centreKey ? `&${CENTRE_PARAM}=${encodeURIComponent(centreKey)}` : "";
     const qs   = `?fromDate=${fromDate}&toDate=${toDate}${centreQS}`;
     const base = { headers: { "Content-Type": "application/json", ...(TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}) }, credentials: "include", signal };
@@ -552,7 +606,12 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
 
     /* Straight back to the loader. Nothing carries over from the previous
        filter, so a figure on screen is always a figure this request returned. */
-    setLive({ topLoading: true, restLoading: true, pending: PENDING_ALL });
+    setLive({
+      topLoading: true, restLoading: true, pending: PENDING_ALL,
+      /* Derived from the filter, not fetched — safe to seed before any
+         response so the comparison card can label its "previous" column. */
+      comparePeriod: prev ? { fromDate: prev.fromDate, toDate: prev.toDate } : null,
+    });
 
     /* ── WAVE A — everything section 01 needs ───────────────────────────── */
     let aOk = 0, aDone = 0;
@@ -623,9 +682,9 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
     let headStart = null;
     let bStarted = false, bDone = 0;
     /* `key` is the slice this response belongs to. restLoading still flips when
-       all six are in, for anything that wants a whole-page signal. */
+       all eight are in, for anything that wants a whole-page signal. */
     const doneB = (key) => {
-      patch((p) => (bDone + 1 === 6 ? { ...settle(p, key), restLoading: false } : settle(p, key)));
+      patch((p) => (bDone + 1 === 8 ? { ...settle(p, key), restLoading: false } : settle(p, key)));
       bDone += 1;
     };
 
@@ -645,6 +704,35 @@ function useLiveDashboard({ range, customFrom, customTo, centreKey, reloadKey })
           caseCounts: { open: N(cs.open), wip: N(cs.wip), closed: N(cs.closed) },
         }));
         doneB("cs");
+      });
+
+      /* Audits — the two "New" Case-Insights widgets in the revised calc
+         sheet: submitted-audit count for the period and average score per
+         segment (Audit Trend). */
+      get(`/api/Audit/HomeDashboard${qs}${prevQS}`).then((raw) => {
+        const aud = unwrap(raw);
+        patch((p) => (!aud ? p : {
+          ...p,
+          live: true, fetchedAt: Date.now(),
+          auditSubmitted: N(aud.submittedAudits),
+          auditAvgScore:  aud.avgScore != null ? Number(aud.avgScore) : null,
+          auditTrend:     Array.isArray(aud.bySegment) ? aud.bySegment : [],
+          auditByCentre:  Array.isArray(aud.byCentre)  ? aud.byCentre  : [],
+        }));
+        doneB("aud");
+      });
+
+      /* Centre-wise comparison — case volume per centre, current vs previous
+         period. The audit half of the same card rides the byCentre block of
+         the Audit/HomeDashboard response above. */
+      get(`/api/CaseOperation/CaseCentreComparison${qs}${prevQS}`).then((raw) => {
+        const cmp = unwrap(raw);
+        patch((p) => (!cmp ? p : {
+          ...p,
+          live: true, fetchedAt: Date.now(),
+          caseByCentre: Array.isArray(cmp.rows) ? cmp.rows : [],
+        }));
+        doneB("cmp");
       });
 
       get(`/api/Appointment/AppDashboard`, { method: "POST", body: JSON.stringify({ fromDate, toDate, centre: centreKey, centerCode: centreKey }) }).then((raw) => {
@@ -1008,6 +1096,78 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       return defs.map((x, i) => ({ label: x[0], count: Number(x[1]) || 0, pct: (((Number(x[1]) || 0) / mx) * 100).toFixed(0), color: cols[i] }));
     })();
 
+    /* Audits — null until /api/Audit/HomeDashboard answers; an empty array
+       afterwards means "answered, nothing submitted in the period" and gets
+       its own quiet state rather than a spinner. Scores are averaged out of
+       100 by the audit engine; the bar cap stretches only if a segment ever
+       exceeds that. */
+    const auditSubmitted = L && L.auditSubmitted != null ? L.auditSubmitted : null;
+    const auditAvgScore  = L && L.auditAvgScore  != null ? Number(L.auditAvgScore) : null;
+    const auditTrend = (() => {
+      const raw = L && Array.isArray(L.auditTrend) ? L.auditTrend : null;
+      if (!raw) return null;
+      const cap = Math.max(100, ...raw.map((s) => Number(s.avgScore) || 0));
+      return raw.map((s) => ({
+        label: s.segment || "—",
+        audits: Number(s.audits) || 0,
+        score: s.avgScore == null ? null : Number(s.avgScore),
+        pct: Math.max(2, Math.round(((Number(s.avgScore) || 0) / cap) * 100)),
+      }));
+    })();
+
+    /* Centre-wise comparison — one row per centre seen in either half. Null
+       until BOTH sources have answered (each half arrives on its own slice),
+       so the table never renders with a silently missing column. */
+    const fmtDMY = (s) => {
+      if (!s || String(s).length < 10) return "";
+      const day = Number(String(s).slice(8, 10));
+      const mi  = Number(String(s).slice(5, 7)) - 1;
+      const mon = (ar ? MON_AR : MON3)[mi] || "";
+      return day + " " + mon + " " + String(s).slice(0, 4);
+    };
+    const comparePeriodLabel = (L && L.comparePeriod)
+      ? fmtDMY(L.comparePeriod.fromDate) + " – " + fmtDMY(L.comparePeriod.toDate)
+      : "";
+    const centreCompare = (() => {
+      const cases  = L && Array.isArray(L.caseByCentre)  ? L.caseByCentre  : null;
+      const audits = L && Array.isArray(L.auditByCentre) ? L.auditByCentre : null;
+      if (!cases || !audits) return null;
+      const byCode = new Map();
+      const rowFor = (code, name) => {
+        const key = String(code || "").trim();
+        if (!byCode.has(key)) byCode.set(key, {
+          centre: key, name: name || key,
+          cases:  { cur: 0, prev: 0 },
+          audits: { cur: 0, prev: 0 },
+          score:  { cur: null, prev: null },
+        });
+        const row = byCode.get(key);
+        if (name && row.name === key) row.name = name;
+        return row;
+      };
+      cases.forEach((c) => {
+        const row = rowFor(c.centre, c.centreName);
+        row.cases.cur  = Number(c.current  && c.current.total)  || 0;
+        row.cases.prev = Number(c.previous && c.previous.total) || 0;
+      });
+      audits.forEach((a) => {
+        const row = rowFor(a.centre, a.centreName);
+        row.audits.cur  = Number(a.current  && a.current.audits)  || 0;
+        row.audits.prev = Number(a.previous && a.previous.audits) || 0;
+        row.score.cur   = a.current  && a.current.avgScore  != null ? Number(a.current.avgScore)  : null;
+        row.score.prev  = a.previous && a.previous.avgScore != null ? Number(a.previous.avgScore) : null;
+      });
+      const delta = (cur, prev) => (cur == null || prev == null ? null : Number((cur - prev).toFixed(1)));
+      return [...byCode.values()]
+        .sort((x, y) => x.name.localeCompare(y.name))
+        .map((row) => ({
+          ...row,
+          casesDelta:  row.cases.cur  - row.cases.prev,
+          auditsDelta: row.audits.cur - row.audits.prev,
+          scoreDelta:  delta(row.score.cur, row.score.prev),
+        }));
+    })();
+
     /* ---- Revenue trend (section 05, currently hidden) ------------------- */
     const series = dailySeries.map((x) => ({ label: String(x.date).slice(5), value: Number(x.sales) || 0 }));
 
@@ -1046,6 +1206,8 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
       /* Both the funnel trapezoid and the Revenue funnel rows come from this
          one endpoint — the slowest on the page. */
       pendingFunnel: !!(live && live.pending && live.pending.ltr),
+      pendingAudit:  !!(live && live.pending && live.pending.aud),
+      pendingCompare:!!(live && live.pending && (live.pending.aud || live.pending.cmp)),
       /* A page-level failure now means wave A produced nothing AND there was no
          snapshot to paint. A failure below the fold degrades that block only. */
       loadFailed: !!(live && live.topFailed && !live.live),
@@ -1066,6 +1228,8 @@ function useDashboardData({ range, compare, overlayPrev, lang, selected, live, c
 
       // Operations
       openCases, caseStatuses, sla, slaTarget,
+      auditSubmitted, auditAvgScore, auditTrend,
+      centreCompare, comparePeriodLabel,
       slaTag: sla == null ? null : atRisk ? (ar ? "تحت الخطر" : "At risk") : ar ? "ضمن الهدف" : "On target",
       slaTagBg: atRisk ? "#F6EBD9" : "#E6F1EC",
       slaTagColor: atRisk ? "#B07C28" : COLORS.pos,
@@ -1091,6 +1255,27 @@ const SectionHeading = ({ num, title, sub }) => (
 );
 
 const card = { background: "#fff", border: "1px solid #e5e9ee", borderRadius: 16, padding: "20px 22px" };
+
+/* One metric of the centre-comparison table: current figure, previous beneath,
+   signed delta beside it. Counts stay neutral (more cases is not "good");
+   colorDelta turns the delta green/red for score, where direction has a sign. */
+const CompareCell = ({ cur, prev, delta, t, colorDelta = false }) => {
+  const DASHC = "\u2014";
+  const deltaColor = !colorDelta || delta == null || delta === 0
+    ? "#8b95a2"
+    : delta > 0 ? COLORS.pos : COLORS.neg;
+  return (
+    <span style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ fontWeight: 700, color: "#13294B" }}>{cur == null ? DASHC : cur}</span>
+      {delta != null && delta !== 0 && (
+        <span style={{ fontSize: 11, fontWeight: 700, color: deltaColor, marginInlineStart: 6 }}>
+          {delta > 0 ? "\u25B2" : "\u25BC"}{Math.abs(delta)}
+        </span>
+      )}
+      <span style={{ display: "block", fontSize: 10.5, color: "#9aa4b1" }}>{t.prevShort}: {prev == null ? DASHC : prev}</span>
+    </span>
+  );
+};
 
 /* ---- role-permission block (DASH.* view denied) ---- */
 const RestrictedBlock = ({ ar, height = 220 }) => (
@@ -1331,17 +1516,6 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
-      {/* ===================== COMING SOON WRAPPER ===================== */}
-      <div
-        aria-hidden="true"
-        inert=""
-        style={{
-          filter: "blur(7px)",
-          pointerEvents: "none",
-          userSelect: "none",
-          opacity: 0.65,
-        }}
-      >
       {/* ===================== TOP BAR ===================== */}
       <header style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(255,255,255,0.86)", backdropFilter: "blur(14px)", borderBottom: "1px solid #e2e6ec" }}>
         <div style={{ maxWidth: 1680, margin: "0 auto", padding: "12px 26px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
@@ -1817,6 +1991,7 @@ export default function Dashboard() {
           {!canDash(DASHBOARD_VIEW.CASE_OPS) ? (
             <RestrictedBlock ar={ar} height={220} />
           ) : can("caseManagement") ? (
+          <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* Cases by status */}
             <div style={card}>
@@ -1883,7 +2058,70 @@ export default function Dashboard() {
               </div>
               )}
             </div>
+
+            {/* Audits — submitted count + avg. score by segment (Audit Trend) */}
+            <div style={card}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
+                <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: d.auditSubmitted == null ? "#b8c0cb" : undefined }}>{d.auditSubmitted == null ? "\u2014" : d.auditSubmitted}</div>
+                <div style={{ fontSize: 12.5, color: "#7a8593" }}>{d.t.auditsSubmitted}</div>
+                {d.auditAvgScore != null && (
+                  <div style={{ marginInlineStart: "auto", fontSize: 12, color: "#7a8593" }}>{d.t.auditAvg} <span style={{ fontWeight: 700, color: "#13294B", fontSize: 14, fontVariantNumeric: "tabular-nums" }}>{d.auditAvgScore}</span></div>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 12px", color: "#33404e" }}>{d.t.auditTrendSub}</div>
+              {!d.auditTrend ? (
+                <Pending loading={d.pendingAudit} t={d.t} height={120} label={d.t.audits} />
+              ) : d.auditTrend.length === 0 ? (
+                <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#9aa4b1" }}>{d.t.auditNone}</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                  {d.auditTrend.map((s) => (
+                    <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 96, fontSize: 11.5, color: "#33404e", flex: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.label}>{s.label}</div>
+                      <div style={{ flex: 1, height: 13, background: "#f2f4f7", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${s.pct}%`, height: "100%", background: COLORS.primary, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ width: 40, textAlign: "end", fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", flex: "none" }}>{s.score == null ? "\u2014" : s.score}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Centre comparison — current vs previous period (year/month/quarter),
+              cases + audits per centre. Full-width row under the four cards. */}
+          <div style={{ ...card, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{d.t.centreCompare}</div>
+              <div style={{ fontSize: 11.5, color: "#8b95a2" }}>{d.t.centreCompareSub}{d.comparePeriodLabel ? " — " + d.t.prevShort + ": " + d.comparePeriodLabel : ""}</div>
+            </div>
+            {!d.centreCompare ? (
+              <Pending loading={d.pendingCompare} t={d.t} height={120} label={d.t.centreCompare} />
+            ) : d.centreCompare.length === 0 ? (
+              <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#9aa4b1" }}>{d.t.noCompare}</div>
+            ) : (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(110px, 1.1fr) repeat(3, minmax(120px, 1fr))", gap: 8, fontSize: 10.5, color: "#9aa4b1", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", paddingBottom: 8, borderBottom: "1px solid #edf0f3" }}>
+                  <span>{d.t.colCentre}</span>
+                  <span style={{ textAlign: "end" }}>{d.t.colCases}</span>
+                  <span style={{ textAlign: "end" }}>{d.t.colAudits}</span>
+                  <span style={{ textAlign: "end" }}>{d.t.colScore}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {d.centreCompare.map((row) => (
+                    <div key={row.centre} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 1.1fr) repeat(3, minmax(120px, 1fr))", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f4f6f8", fontSize: 12.5 }}>
+                      <span style={{ fontWeight: 600, color: "#33404e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.centre}>{row.name}</span>
+                      <CompareCell cur={row.cases.cur} prev={row.cases.prev} delta={row.casesDelta} t={d.t} />
+                      <CompareCell cur={row.audits.cur} prev={row.audits.prev} delta={row.auditsDelta} t={d.t} />
+                      <CompareCell cur={row.score.cur} prev={row.score.prev} delta={row.scoreDelta} t={d.t} colorDelta />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          </>
           ) : <LockedBlock feature="caseManagement" ar={ar} />}
         </section>
         </LazyMount>
@@ -1918,51 +2156,6 @@ export default function Dashboard() {
         </>
         )}
       </main>
-      </div>
-
-      {/* ===================== COMING SOON OVERLAY ===================== */}
-      <div
-        style={{
-          position: "absolute", inset: 0, zIndex: 100,
-          background: "rgba(234,239,238,0.55)",
-        }}
-      />
-      <div
-        role="status"
-        style={{
-          position: "fixed", inset: 0, zIndex: 101,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 24,
-          pointerEvents: "none",
-        }}
-      >
-        <div
-          style={{
-            background: "#fff",
-            border: "1px solid #e2e6ec",
-            borderRadius: 18,
-            boxShadow: "0 24px 60px rgba(20,30,45,0.18)",
-            padding: "34px 48px",
-            textAlign: "center",
-            maxWidth: 520,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11, fontWeight: 800, letterSpacing: ".14em",
-              textTransform: "uppercase", color: COLORS.coral, marginBottom: 10,
-            }}
-          >
-            EazyWeek
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.primary, lineHeight: 1.2 }}>
-            Dashboard — Coming Soon!!!
-          </div>
-          <div style={{ marginTop: 12, fontSize: 13.5, color: "#6b7684", lineHeight: 1.5 }}>
-            We're putting the finishing touches on this page. It will be back shortly.
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

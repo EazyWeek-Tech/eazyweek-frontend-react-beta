@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE_URL } from "../../../config";
-// Place this file at src/pages/Invoice/AdvancePayment.jsx (sibling of index.jsx).
 import CustomerSearch from "./CustomerSearch";
+import { usePermissions } from "../../Settings/usePermissions";
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -51,6 +51,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const blankRow = () => ({ paymentMode: "Cash", paidAmount: "", reference: "", bankName: "" });
 
 const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
+  const { has, notifyDenied } = usePermissions();
   const [customer,   setCustomer]   = useState(initialCustomer);
   const [searchMode, setSearchMode] = useState(!(initialCustomer && initialCustomer.custId));
   const [amount,     setAmount]     = useState("");
@@ -117,6 +118,7 @@ const AdvancePayment = ({ initialCustomer = null, onClose = null }) => {
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   const handleCollect = async () => {
+    if (!has('INV.COLLECT_ADVANCE')) { notifyDenied(); return; }
     if (!canCollect) return;
     const centerCode = getCenterCode();
     setSaving(true);

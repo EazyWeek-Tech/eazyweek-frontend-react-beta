@@ -77,6 +77,10 @@ const asArray = (d) => {
 };
 const safeNum = v => Number.isFinite(+v) ? +v : 0;
 
+/* WIP applies only to No Show (R3) campaigns — external (R7) and manual
+   campaigns (and all other rules) contribute 0 to WIP. */
+const wipOf = (r) => detectRuleKey(r) === RULE_KEYS.NO_SHOW ? safeNum(r?.noOfWIPOpp) : 0;
+
 /* ════════════════════════════════════════════════════════════════════════════
    MODULE-LEVEL COMPONENTS — defined outside any parent component
    Never define components with inputs/state inside another component's render.
@@ -198,10 +202,10 @@ function ChartCard({ title, dataset }) {
 
 function KPIBar({ data }) {
   const total     = data.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
-  const open      = data.reduce((s,r)=>s+safeNum(r.noOfOpenOpportunities),0);
   const closed    = data.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
   const converted = data.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
-  const wip       = Math.max(0, total - open - closed);
+  const wip       = data.reduce((s,r)=>s+wipOf(r),0);
+  const open      = Math.max(0, total - closed - wip);
   return (
     <div style={{ display:"flex", gap:12, marginBottom:22, flexWrap:"wrap" }}>
       {[{l:"Total",v:total,c:C.navy},{l:"Open",v:open,c:C.open},{l:"WIP",v:wip,c:C.wip},
@@ -369,12 +373,13 @@ const OpportunityDashboard = () => {
   /* Chart data */
   const summarize = (rows) => {
     const total=rows.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
-    const open=rows.reduce((s,r)=>s+safeNum(r.noOfOpenOpportunities),0);
     const closed=rows.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
     const converted=rows.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
+    const wip=rows.reduce((s,r)=>s+wipOf(r),0);
+    const open=Math.max(0,total-closed-wip);
     return [
       {label:"Total",value:total,fill:C.navy},{label:"Open",value:open,fill:C.open},
-      {label:"WIP",value:Math.max(0,total-open-closed),fill:C.wip},
+      {label:"WIP",value:wip,fill:C.wip},
       {label:"Closed",value:closed,fill:C.closed},{label:"Converted",value:converted,fill:C.cvt},
     ];
   };
@@ -399,11 +404,11 @@ const OpportunityDashboard = () => {
     return RULE_ORDER.map(([key, label]) => {
       const rows = g[key];
       const total     = rows.reduce((s,r)=>s+safeNum(r.totalOpportunities),0);
-      const open      = rows.reduce((s,r)=>s+safeNum(r.noOfOpenOpportunities),0);
       const closed    = rows.reduce((s,r)=>s+safeNum(r.noOfClosedOpportunities),0);
       const converted = rows.reduce((s,r)=>s+safeNum(r.noOfConvertedOutOfClosed),0);
       const withoutOwner = rows.reduce((s,r)=>s+safeNum(r.recordswithoutSalesOwner),0);
-      const wip = Math.max(0, total - open - closed);
+      const wip  = rows.reduce((s,r)=>s+wipOf(r),0);
+      const open = Math.max(0, total - closed - wip);
       const notConverted = Math.max(0, closed - converted);
       return { key, rule:label, total, open, wip, closed, converted, notConverted,
         withoutOwner, withOwner: Math.max(0, open - withoutOwner),

@@ -185,6 +185,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
       const body = {
         fromDate: range ? range.from : null,
         toDate: range ? range.to : null,
+        dateFlag: range && range.from && range.to ? '1' : '0',
         status: status || null,
         docType: docType || null,
         centreCodes,
@@ -216,7 +217,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     return () => clearTimeout(timer);
   }, [canView, load]);
 
-  /* ---- KPI summary fetch: period + centre scope only ---- */
+  /* ---- KPI summary fetch: same filters as the grid ---- */
   const loadSummary = useCallback(async () => {
     if (datePreset === 'Custom Days' && (dateError || !fromDate || !toDate)) return;
     const seq = ++summarySeq.current;
@@ -228,6 +229,10 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
         body: JSON.stringify({
           fromDate: range ? range.from : null,
           toDate: range ? range.to : null,
+          dateFlag: range && range.from && range.to ? '1' : '0',
+          status: status || null,
+          docType: docType || null,
+          search: search.trim() || null,
           centreCodes,
         }),
       });
@@ -240,7 +245,7 @@ const EInvoiceDashboard = ({ onOpenDetail, onOpenPrint }) => {
     } finally {
       if (seq === summarySeq.current) setSummaryLoading(false);
     }
-  }, [datePreset, dateError, fromDate, toDate, range, centreCodes]);
+  }, [datePreset, dateError, fromDate, toDate, range, status, docType, search, centreCodes]);
 
   useEffect(() => {
     if (!canView) return undefined;
