@@ -322,6 +322,7 @@ const RULE_LABELS = {
   R5: "Customer Special Day",
   R6: "Customer Type",
   R7: "External Source",
+  R8: "Customer Behaviour",
   "MANUAL LEAD": "Manual Lead",
 };
 

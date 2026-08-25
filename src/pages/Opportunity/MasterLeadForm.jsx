@@ -416,6 +416,14 @@ const getCenterFromStorage = () => {
 
     const [fuOpen, setFuOpen] = useState(false);   // follow-up history modal
 
+    /* ---- R8 Customer Behaviour detection + context card ---- */
+    const headerRuleCode = safe(state?.header?.oRuleCode || state?.header?.ruleCode || "")
+      .trim().toUpperCase();
+    const [campaignRule, setCampaignRule] = useState(headerRuleCode);
+    const isCB = campaignRule === "R8";
+    const [cbCtx, setCbCtx] = useState(null);
+    const [cbCtxErr, setCbCtxErr] = useState("");
+
     // LTR Case B (FRD §6.3) — booking not mandatory: hold the ready-built
     // Appointment-screen navigate state while the agent answers the dialog.
     const [pendingBooking, setPendingBooking] = useState(null);
@@ -586,6 +594,46 @@ setSessionCenter(code);
       })();
       return () => { alive = false; };
     }, []);
+
+    /* ---- Resolve the campaign rule when the row was opened without header state ---- */
+    useEffect(() => {
+      if (campaignRule || !safe(resolvedOppCode).trim()) return;
+      let alive = true;
+      fetchJson(`${API_BASE_URL}/api/LeadOpp/getCampaign/${encodeURIComponent(safe(resolvedOppCode).trim())}`)
+        .then((d) => {
+          if (!alive) return;
+          setCampaignRule(safe(d?.data?.oRuleCode || d?.oRuleCode).trim().toUpperCase());
+        })
+        .catch(() => {});
+      return () => { alive = false; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaignRule, resolvedOppCode]);
+
+    /* ---- R8: load the behaviour context for this customer ---- */
+    useEffect(() => {
+      if (!isCB) return;
+      const oc = safe(resolvedOppCode).trim();
+      const cu = safe(resolvedCustID).trim();
+      if (!oc || !cu) return;
+      let alive = true;
+      setCbCtxErr("");
+      fetchJson(`${API_BASE_URL}/api/Opportunity/CbLeadContext/${encodeURIComponent(oc)}/${encodeURIComponent(cu)}`)
+        .then((d) => { if (alive) setCbCtx(d?.data || null); })
+        .catch((e) => {
+          if (!alive) return;
+          console.error("CbLeadContext failed", e);
+          setCbCtxErr("Could not load behaviour details.");
+        });
+      return () => { alive = false; };
+    }, [isCB, resolvedOppCode, resolvedCustID]);
+
+    /* ---- R8: the centre is the logged-in centre, not the row's ---- */
+    useEffect(() => {
+      if (!isCB) return;
+      const cc = safe(sessionCenter).trim();
+      if (!cc) return;
+      setForm((p) => (safe(p.centerCode).trim() === cc ? p : { ...p, centerCode: cc }));
+    }, [isCB, sessionCenter]);
 
     /** ---------------- Load Sources ---------------- */
   useEffect(() => {
@@ -975,14 +1023,17 @@ if (!hasNone) {
 
     const validate = () => {
       const e = {};
-      if (!form.mobile.trim()) e.mobile = "Mobile is required.";
-      if (!form.firstName.trim()) e.firstName = "First name is required.";
-      if (!form.lastName.trim()) e.lastName = "Last name is required.";
+      // R8: identity comes locked from the churned customer — never block on it.
+      if (!isCB) {
+        if (!form.mobile.trim()) e.mobile = "Mobile is required.";
+        if (!form.firstName.trim()) e.firstName = "First name is required.";
+        if (!form.lastName.trim()) e.lastName = "Last name is required.";
+      }
 
       if (!form.centerCode) e.centerCode = "Centre is required.";
       if (!form.doctor) e.doctor = "Doctor/Therapist is required.";
       if (!form.interestedVerticalCode) e.interestedVerticalCode = "Interested in is required.";
-      if (!isValidEmail(form.email)) e.email = "Please enter a valid email.";
+      if (!isCB && !isValidEmail(form.email)) e.email = "Please enter a valid email.";
 
       if (!safe(form.dispositionId).trim()) e.dispositionId = "Disposition is required.";
       if (!safe(form.subDispositionId).trim()) e.subDispositionId = "Sub-Disposition is required.";
@@ -1177,7 +1228,7 @@ if (!hasNone) {
         <div className="pageWrap">
           <div className="pageHeader">
             <div className="titleBlock">
-              <div className="pageTitle">Customer Lead Details</div>
+              <div className="pageTitle">{isCB ? "Customer Behaviour Lead Details" : "Customer Lead Details"}</div>
               <div className="subTitle">
                 OppCode: <strong>{safe(resolvedOppCode) || "—"}</strong> &nbsp;|&nbsp; LeadOppId:{" "}
                 <strong>{safe(resolvedLeadOppId) || "—"}</strong> &nbsp;|&nbsp; recID:{" "}
@@ -1187,7 +1238,7 @@ if (!hasNone) {
           </div>
 
           <fieldset className="fs">
-            <legend>Lead Details</legend>
+            <legend>{isCB ? "Details of Customer" : "Lead Details"}</legend>
           <div>
               {/* <CallButton
         firstNumber={loggedInMobile}
@@ -1199,6 +1250,103 @@ if (!hasNone) {
           </div>
             
 
+            {isCB ? (
+            <div>
+              <div className="grid">
+                <div className="col">
+                  <div className="pair">
+                    <span className="lab">Customer ID :</span>{" "}
+                    <span className="val">{resolvedCustID || "—"}</span>
+                  </div>
+                  <div className="pair">
+                    <span className="lab">Customer Name :</span>{" "}
+                    <span className="val">{`${safe(form.firstName)} ${safe(form.lastName)}`.trim() || "—"}</span>
+                  </div>
+                  <div className="pair">
+                    <span className="lab">Mobile No :</span>{" "}
+                    <span className="val">{[safe(form.countryCode).trim(), safe(form.mobile).trim()].filter(Boolean).join(" ") || "—"}</span>
+                  </div>
+                </div>
+                <div className="col">
+                  <div className="pair">
+                    <span className="lab">Email :</span>{" "}
+                    <span className="val">{safe(form.email).trim() || "—"}</span>
+                  </div>
+                  <div className="pair">
+                    <span className="lab">Preferred Language :</span>{" "}
+                    <span className="val">{safe(form.preferredLanguage) || "—"}</span>
+                  </div>
+                  <div className="pair">
+                    <span className="lab">Centre :</span>{" "}
+                    <span className="val">{centerOptions.find((o) => o.value === form.centerCode)?.label || form.centerCode || "—"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 18, paddingTop: 16, borderTop: "1px solid #e6ecf2" }}>
+                <div className="field" style={{ margin: 0 }}>
+                  <label>
+                    Interested In <span className="req">*</span>
+                  </label>
+                  <select
+                    className={`inp ${errors.interestedVerticalCode ? "err" : ""}`}
+                    name="interestedVerticalCode"
+                    value={form.interestedVerticalCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const opt = verticalOptions.find((x) => x.value === code);
+                      setForm((p) => ({
+                        ...p,
+                        interestedVerticalCode: code,
+                        interestedVerticalName: opt?.label || "",
+                      }));
+                      setErrors((prev) => {
+                        if (!prev.interestedVerticalCode) return prev;
+                        const { interestedVerticalCode: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                  >
+                    {verticalOptions.map((o) => (
+                      <option key={o.value || o.label} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  {errors.interestedVerticalCode && (
+                    <div className="errText">{errors.interestedVerticalCode}</div>
+                  )}
+                </div>
+                <div className="field" style={{ margin: 0 }}>
+                  <label>
+                    Doctor / Therapist <span className="req">*</span>
+                  </label>
+                  <select
+                    className={`inp ${errors.doctor ? "err" : ""}`}
+                    name="doctor"
+                    value={form.doctor}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const opt = doctorOptions.find((x) => x.value === code);
+                      setForm((p) => ({
+                        ...p,
+                        doctor: code,
+                        doctorName: opt?.label || "",
+                      }));
+                      setErrors((prev) => {
+                        if (!prev.doctor) return prev;
+                        const { doctor: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                  >
+                    {doctorOptions.map((d) => (
+                      <option key={d.value || d.label} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                  {errors.doctor && <div className="errText">{errors.doctor}</div>}
+                </div>
+              </div>
+            </div>
+            ) : (
             <div className="formGrid3">
               <div className="col">
                 <div className="field">
@@ -1377,7 +1525,41 @@ if (!hasNone) {
                 {/* Source / Sub Source / Medium / Sub Medium removed — not applicable to master rule */}
               </div>
             </div>
+            )}
           </fieldset>
+
+          {/* ==== R8 — Customer Behaviour context ==== */}
+          {isCB && (
+            <fieldset className="fs">
+              <legend>Customer Behaviour{cbCtx?.areaLabel ? ` — ${cbCtx.areaLabel}` : ""}</legend>
+              {cbCtx ? (
+                <div className="grid">
+                  <div className="col">
+                    {(cbCtx.items || []).filter((_, i) => i % 2 === 0).map((it) => (
+                      <div className="pair" key={it.label}>
+                        <span className="lab">{it.label} :</span>{" "}
+                        <span className="val">{safe(it.value) || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="col">
+                    {(cbCtx.items || []).filter((_, i) => i % 2 === 1).map((it) => (
+                      <div className="pair" key={it.label}>
+                        <span className="lab">{it.label} :</span>{" "}
+                        <span className="val">{safe(it.value) || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : cbCtxErr ? (
+                <div className="errText">{cbCtxErr}</div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: "#8a99ab", padding: "4px 2px" }}>
+                  Loading behaviour details…
+                </div>
+              )}
+            </fieldset>
+          )}
 
           {/* Lead Disposition and Lead Score sit side by side. .lsRow ships with
               LeadScorePanel and collapses to one column below 1100px. */}
