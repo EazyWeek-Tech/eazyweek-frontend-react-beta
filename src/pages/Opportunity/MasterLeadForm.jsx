@@ -534,6 +534,48 @@ const getCenterFromStorage = () => {
       };
     });
 
+    /* ---- edit-mode rehydration ---- */
+    // The row from navigation state is a grid projection and goes stale the
+    // moment the lead is edited — reopening then showed blank follow-up and
+    // disposition fields even though the save landed. On mount, fetch the
+    // authoritative record (OpportunityMoreDetails) and merge it over the
+    // row-based defaults; the row remains the instant first paint.
+    useEffect(() => {
+      if (!recID) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const oc = safe(resolvedOppCode).trim() || safe(row?.oppCode).trim();
+          if (!oc) return;
+          const d = await postJson(
+            `${API_BASE_URL}/api/Opportunity/OpportunityMoreDetails/${encodeURIComponent(oc)}/${recID}`,
+            {}
+          );
+          if (cancelled || !d) return;
+          setForm((f) => ({
+            ...f,
+            dispositionId:    safe(d.distpositionCode) || f.dispositionId,
+            subDispositionId: safe(d.subDistpositionCode) || f.subDispositionId,
+            remarks:          d.remarts != null && String(d.remarts).trim() !== "" ? d.remarts : f.remarks,
+            mobile:           safe(d.mobileNo) || f.mobile,
+            firstName:        f.firstName || safe(d.custName).split(" ")[0] || "",
+            lastName:         f.lastName || safe(d.custName).split(" ").slice(1).join(" ") || "",
+            followUpDate: (() => {
+              const x = toInputDate(d.followUpDate);
+              return x && !x.startsWith("1900") && !x.startsWith("0001") ? x : "";
+            })(),
+            followUpTime: d.followUpTime
+              ? toUiTimeLabel(d.followUpTime, d.followUpTimeAmPM)
+              : f.followUpTime,
+          }));
+        } catch (e) {
+          console.warn("OpportunityMoreDetails rehydrate failed", e);
+        }
+      })();
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [recID, resolvedOppCode]);
+
     // Follow-up date/time are shown only while the lead is still WIP; for WIP they
     // are mandatory. Any other disposition hides them (and clears them on change).
     const isWipSelected = useMemo(() => {
