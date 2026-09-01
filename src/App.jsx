@@ -112,6 +112,7 @@ import FormConfiguration from "./pages/Settings/FormConfiguration";
 import EInvoice from "./pages/Einvoice";
 import AuditCriteria from "./pages/Audit/AuditCriteria";
 import { ModuleSourceProvider, SourceGate } from "./components/ModuleSource";
+import TopServicesReport from "./pages/Reports/TopServicesReport";
 import * as appConfig from "./config";
 
 const API_BASE = appConfig.API_BASE_URL || appConfig.default?.API_BASE_URL || "";
@@ -403,6 +404,8 @@ if (user && showFirstLogin) {
                     path="/case-detailed-report"
                     element={gate("caseManagement", <CaseDetailedReport />)}
                   />
+                  <Route path="/reports/top-services" element={<TopServicesReport />} />
+
                   <Route
                     path="/masters/practitioners"
                     element={<DoctorMaster />}

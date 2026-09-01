@@ -598,6 +598,8 @@ const NAV_GROUPS = [
               { name: "Itemised Sales Report", icon: "bx-list-ul", path: "/reports/itemised-report" },
               { name: "Liability Report", icon: "bx-shield", path: "/reports/liability-report" },
               { name: "Payment Report", icon: "bx-credit-card", path: "/reports/payment-report" },
+              { name: "Top Performing Services", icon: "bx-trending-up", path: "/reports/top-services" },
+
             ],
           },
         ],
@@ -678,6 +680,8 @@ const NAV_GROUPS = [
           { name: "Audit Report - Detailed", icon: "bx-file", path: "/audit/detailed" },
           { name: "Audit Report - Summary", icon: "bx-bar-chart-alt-2", path: "/audit/summary" },
           { name: "Courtesy Call Report - Detailed", icon: "bx-file", path: "/courtesy-call/report" },
+          { name: "Top Performing Services", icon: "bx-trending-up", path: "/reports/top-services" },
+ 
         ],
       },
     ],
