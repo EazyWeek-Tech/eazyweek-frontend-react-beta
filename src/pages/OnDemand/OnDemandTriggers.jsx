@@ -245,8 +245,10 @@ const OnDemandTriggers = () => {
           </div>
           <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
             Upload the Zenoti completed-appointments sheet. One courtesy call is created per
-            patient per centre per appointment date, with each row as a service item. Completed
-            calls are left untouched. Preview first, then Publish.
+            patient per centre per appointment date, with each row as a service item. First Visit
+            = Yes marks the customer New, No marks Existing; existing pending calls get missing
+            items added and their customer type corrected. Completed calls are left untouched.
+            Preview first, then Publish.
           </p>
           <button
             className="pribtn"

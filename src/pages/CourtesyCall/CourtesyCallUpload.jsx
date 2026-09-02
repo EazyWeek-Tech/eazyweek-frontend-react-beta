@@ -60,7 +60,7 @@ const CourtesyCallUpload = ({ onClose }) => {
 
   const publish = async () => {
     if (!rows.length) return;
-    if (!window.confirm(`Create ${preview?.callsToCreate ?? 0} courtesy call(s) and append to ${preview?.callsToAppend ?? 0}? This cannot be undone.`)) return;
+    if (!window.confirm(`Create ${preview?.callsToCreate ?? 0} courtesy call(s) and update ${preview?.callsToUpdate ?? 0} existing (${preview?.typeUpdates ?? 0} customer-type change(s))? This cannot be undone.`)) return;
     setBusy(true);
     setError("");
     try {
@@ -94,9 +94,12 @@ const CourtesyCallUpload = ({ onClose }) => {
 
       <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
         Columns expected: Appointment Date, Patient Code, Patient Name, Service Code, Service Name,
-        Therapists Code, Therapist, Service Category, Service Subcategory, Center Name.
-        One courtesy call is created per patient per centre per appointment date; each row becomes a
-        service item under it. Completed calls are never touched; rows already present are skipped.
+        Therapists Code, Therapist, Service Category, Service Subcategory, Center Name, First Visit.
+        First Visit = Yes marks the customer as New, No as Existing; when the column is blank the
+        type falls back to the customer's visit history. One courtesy call is created per patient
+        per centre per appointment date; each row becomes a service item under it. Existing pending
+        calls are updated — missing service items are added and the customer type is corrected from
+        First Visit. Completed calls are never touched; rows already present are skipped.
       </p>
 
       {/* ===== FILE ===== */}
@@ -123,7 +126,8 @@ const CourtesyCallUpload = ({ onClose }) => {
             <Stat label="Rows read" value={summary.rowsRead} />
             <Stat label="Rows skipped" value={summary.rowsSkipped} tone={summary.rowsSkipped ? "#fffbeb" : undefined} />
             <Stat label={result ? "Calls created" : "Calls to create"} value={result ? result.created : summary.callsToCreate} tone="#f0fdf4" />
-            <Stat label={result ? "Calls appended" : "Calls to append"} value={result ? result.appended : summary.callsToAppend} />
+            <Stat label={result ? "Calls updated" : "Calls to update"} value={result ? result.updated : summary.callsToUpdate} />
+            <Stat label={result ? "Type changes" : "Type changes due"} value={result ? result.typeUpdated : summary.typeUpdates} tone={summary.typeUpdates || result?.typeUpdated ? "#eef3fb" : undefined} />
             <Stat label="Completed (untouched)" value={summary.skippedCompleted} />
             <Stat label="Already present" value={summary.skippedDuplicate} />
             <Stat label={result ? "Items inserted" : "Items to insert"} value={result ? result.itemsInserted : summary.itemsToInsert} />
@@ -141,7 +145,7 @@ const CourtesyCallUpload = ({ onClose }) => {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["Centre", "Create", "Append", "Completed", "Already present", "Items", "Patients not in master"].map((h) => (
+                  {["Centre", "Create", "Update", "Type changes", "Completed", "Already present", "Items", "Patients not in master"].map((h) => (
                     <th key={h} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1px solid #e5e7eb", color: "#374151" }}>{h}</th>
                   ))}
                 </tr>
@@ -151,7 +155,8 @@ const CourtesyCallUpload = ({ onClose }) => {
                   <tr key={c.centre}>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6", fontWeight: 600 }}>{c.centre}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.create}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.append}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.update}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.typeChanges}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.skipCompleted}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.skipDuplicate}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.items}</td>
@@ -189,7 +194,7 @@ const CourtesyCallUpload = ({ onClose }) => {
             <button
               className="pribtn"
               onClick={publish}
-              disabled={busy || !preview || (preview.callsToCreate + preview.callsToAppend) === 0}
+              disabled={busy || !preview || (preview.callsToCreate + preview.callsToUpdate) === 0}
             >
               <i className="bx bx-check-circle" style={{ marginRight: 6 }} />
               Publish
