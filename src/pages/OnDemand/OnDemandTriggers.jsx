@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { API_BASE_URL } from "../../config";
 import EInvoiceStatusUpload from "../Einvoice/EInvoiceStatusUpload";
 import CourtesyCallUpload from "../CourtesyCall/CourtesyCallUpload";
+import CustomerTypeUpload from "../CourtesyCall/CustomerTypeUpload";
 
 const TOKEN = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -35,6 +36,7 @@ const OnDemandTriggers = () => {
   );
   const [uploadOpen, setUploadOpen] = useState(false);
   const [ccUploadOpen, setCcUploadOpen] = useState(false);
+  const [ctUploadOpen, setCtUploadOpen] = useState(false);
 
   const runTrigger = async (trigger) => {
     setStates((prev) => ({
@@ -245,8 +247,10 @@ const OnDemandTriggers = () => {
           </div>
           <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
             Upload the Zenoti completed-appointments sheet. One courtesy call is created per
-            patient per centre per appointment date, with each row as a service item. Completed
-            calls are left untouched. Preview first, then Publish.
+            patient per centre per appointment date, with each row as a service item. First Visit
+            = Yes marks the customer New, No marks Existing; existing pending calls get missing
+            items added and their customer type corrected. Completed calls are left untouched.
+            Preview first, then Publish.
           </p>
           <button
             className="pribtn"
@@ -257,10 +261,55 @@ const OnDemandTriggers = () => {
             {ccUploadOpen ? "Hide Upload" : "Open Upload"}
           </button>
         </div>
+
+        {/* ===== CUSTOMER TYPE EXCEL UPDATE CARD ===== */}
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            padding: 24,
+            width: 340,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: "#EEF3FB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <i className="bx bx-user-check" style={{ fontSize: 22, color: "#1F4E79" }} />
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#1F4E79" }}>
+              Customer Type Excel Update
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
+            Upload a sheet of patients with their correct type (First Visit Yes = New, No =
+            Existing; blank = New) to fix the customer type on existing courtesy calls. No calls
+            or items are created. Completed calls are left untouched. Preview first, then Publish.
+          </p>
+          <button
+            className="pribtn"
+            style={{ width: "100%" }}
+            onClick={() => setCtUploadOpen((v) => !v)}
+          >
+            <i className={`bx ${ctUploadOpen ? "bx-chevron-up" : "bx-upload"}`} style={{ marginRight: 6 }} />
+            {ctUploadOpen ? "Hide Upload" : "Open Upload"}
+          </button>
+        </div>
       </div>
 
       {uploadOpen && <EInvoiceStatusUpload onClose={() => setUploadOpen(false)} />}
       {ccUploadOpen && <CourtesyCallUpload onClose={() => setCcUploadOpen(false)} />}
+      {ctUploadOpen && <CustomerTypeUpload onClose={() => setCtUploadOpen(false)} />}
     </section>
   );
 };

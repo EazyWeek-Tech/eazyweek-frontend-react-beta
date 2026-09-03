@@ -69,7 +69,7 @@ const GeneralTab = ({ form, setForm, errors, isEdit, setErrors, isAdmin = true }
   useEffect(() => {
     if (!form.categoryCode) { setSubCategories([]); return; }
     setSubLoading(true);
-    authGet(`${API_BASE_URL}/api/Master/SubCategories/${encodeURIComponent(form.categoryCode)}`)
+    authGet(`${API_BASE_URL}/api/Master/SubCategories`)
       .then(data => setSubCategories(Array.isArray(data) ? data : []))
       .catch(() => setSubCategories([]))
       .finally(() => setSubLoading(false));
@@ -690,7 +690,7 @@ const PackageMaster = () => {
         addField4:          data.ADDFIELD4          || "",
         addField5:          data.ADDFIELD5          || "",
         items: (data.items||[]).map(i=>({ itemType:i.ITEMTYPE, itemCode:i.ITEMCODE, itemName:i.ITEMNAME, quantity:i.QUANTITY })),
-        pricing: (data.pricing||[]).map(p=>({ centerCode:p.CENTERCODE, centerName:p.CENTERNAME||p.CENTERCODE, price:p.PRICE, taxIncluded:p.TAXINCLUDED||"No", taxPercent:p.TAXPERCENT||"", releasedToCentre:!!p.RELEASEDTOCENTRE, memberPrice:p.MEMBERPRICE!=null?String(p.MEMBERPRICE):"", memberDiscount:p.MEMBERDISCOUNT!=null?String(p.MEMBERDISCOUNT):"" })),
+        pricing: (data.pricing||[]).map(p=>({ centerCode:p.CENTERCODE, centerName:p.CENTERNAME||p.CENTERCODE, price:p.PRICE, taxIncluded:p.TAXINCLUDED||"No", taxPercent:p.TAXPERCENT!=null?String(p.TAXPERCENT):"", releasedToCentre:!!p.RELEASEDTOCENTRE, memberPrice:p.MEMBERPRICE!=null?String(p.MEMBERPRICE):"", memberDiscount:p.MEMBERDISCOUNT!=null?String(p.MEMBERDISCOUNT):"" })),
       });
       setEditCode(code); setActiveTab(0); setErrors({}); setView("form");
     } catch { showToast("Failed to load package","error"); }
@@ -752,7 +752,7 @@ const PackageMaster = () => {
           if (isNaN(tax) || tax < 0)
             e[`pricing_tax_${i}`] = `${centre}: Tax % must be a non-negative number.`;
         }
-        if (p.taxIncluded === "Yes" && parseFloat(p.taxPercent) !== 0)
+        if (p.taxIncluded === "Yes" && p.taxPercent !== "" && p.taxPercent != null && parseFloat(p.taxPercent) !== 0)
           e[`pricing_taxincl_${i}`] = `${centre}: Tax % must be 0 when Tax Included is Yes.`;
       });
     }
