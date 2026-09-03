@@ -9,7 +9,16 @@ const authHdr    = () => ({ "Content-Type": "application/json", Authorization: `
 
 const pad2    = (n) => String(n).padStart(2, "0")
 const todayYMD = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}` }
-const yesterdayYMD = () => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}` }
+/* ---- filter persistence ---- */
+const STATE_KEY = "cc:dashFilters"
+const DEFAULT_FILTERS = () => ({ status: "", auditor: "", customerType: "", fromDate: todayYMD(), toDate: todayYMD() })
+const loadSavedState = () => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(STATE_KEY) || "null")
+    if (!s || typeof s !== "object" || !s.filters) return null
+    return { ...s, filters: { ...DEFAULT_FILTERS(), ...s.filters } }
+  } catch { return null }
+}
 
 /* ---- export access ---- */
 const EXPORT_ROLES = ["admin", "administrator", "super admin", "superadmin", "product", "product team"]
@@ -33,6 +42,7 @@ const EXPORT_COLUMNS = [
   ["Appointment Date", r => r.appointmentDate],
   ["Customer ID",      r => r.customerID],
   ["Customer Name",    r => r.customerName],
+  ["Customer Type",    r => r.customerType || ""],
   ["Mobile",           r => r.mobileNo],
   ["Clinic",           r => r.clinicName],
   ["Status",           r => STATUS_LABEL[String(r.status)] || r.status || "Pending"],
@@ -132,13 +142,14 @@ export default function CourtesyCallDashboard() {
 
   const [hasLoaded,    setHasLoaded]    = useState(false)
   const [toast,        setToast]        = useState(null)
-  const [filters,      setFilters]      = useState({ status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() })
-  const [range,        setRange]        = useState("Previous Date")
-  const [search,       setSearchRaw]    = useState("")
+  const [saved]                        = useState(loadSavedState)
+  const [filters,      setFilters]      = useState(saved?.filters ?? DEFAULT_FILTERS())
+  const [range,        setRange]        = useState(saved?.range ?? "Current Date")
+  const [search,       setSearchRaw]    = useState(saved?.search ?? "")
   const setSearch = (v) => { setSearchRaw(v); setPage(1) }
-  const [page,         setPage]         = useState(1)
-  const [perPage,      setPerPage]      = useState(10)
-  const [draft,        setDraft]        = useState({ status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() })
+  const [page,         setPage]         = useState(saved?.page ?? 1)
+  const [perPage,      setPerPage]      = useState(saved?.perPage ?? 10)
+  const [draft,        setDraft]        = useState(saved?.filters ?? DEFAULT_FILTERS())
   const [serverTotal,  setServerTotal]  = useState(0)
   const [srvCounts,    setSrvCounts]    = useState(null)
   const navigate = useNavigate()
@@ -151,6 +162,7 @@ export default function CourtesyCallDashboard() {
       const res  = await fetch(`${API_BASE_URL}/api/Courtesy/CourtesyViewList`, {
         method: "POST", headers: authHdr(),
         body: JSON.stringify({ status: f.status || "", auditor: f.auditor || "",
+          customerType: f.customerType || "",
           fromDate: f.fromDate || "2020-01-01", toDate: f.toDate || todayYMD(), dateFlag: "1",
           page: f.page ?? 1, pageSize: f.pageSize ?? 10,
           searchTerm: f.searchTerm ?? "" }),
@@ -210,13 +222,19 @@ export default function CourtesyCallDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage, search])
 
+  /* ---- persist filters across navigation ---- */
+  useEffect(() => {
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({ filters, range, search, page, perPage })) } catch {}
+  }, [filters, range, search, page, perPage])
+
   const dateRangeInvalid = Boolean(
     draft.fromDate && draft.toDate && new Date(draft.toDate) < new Date(draft.fromDate)
   )
 
   const filtersDirty =
-    draft.status   !== filters.status   ||
-    draft.auditor  !== filters.auditor  ||
+    draft.status       !== filters.status       ||
+    draft.auditor      !== filters.auditor      ||
+    draft.customerType !== filters.customerType ||
     draft.fromDate !== filters.fromDate ||
     draft.toDate   !== filters.toDate
 
@@ -231,12 +249,12 @@ export default function CourtesyCallDashboard() {
   }
 
   const handleClear = () => {
-    const reset = { status: "", auditor: "", fromDate: yesterdayYMD(), toDate: yesterdayYMD() }
+    const reset = DEFAULT_FILTERS()
     setFilters(reset)
     setDraft(reset)
     setSearchRaw("")
     setPage(1)
-    setRange("Previous Date")
+    setRange("Current Date")
     fetchData({ ...reset, page: 1, pageSize: perPage, searchTerm: "" })
   }
 
@@ -288,6 +306,7 @@ export default function CourtesyCallDashboard() {
         method: "POST", headers: authHdr(),
         body: JSON.stringify({
           status: filters.status || "", auditor: filters.auditor || "",
+          customerType: filters.customerType || "",
           fromDate: filters.fromDate || "2020-01-01", toDate: filters.toDate || todayYMD(),
           dateFlag: "1", searchTerm: search || "",
         }),
@@ -420,6 +439,16 @@ export default function CourtesyCallDashboard() {
             </select>
           </div>
 
+          {/* Customer Type */}
+          <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:150 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>Customer Type</label>
+            <select className="cc-inp" value={draft.customerType} onChange={e => handleFilter("customerType", e.target.value)}>
+              <option value="">All Types</option>
+              <option value="New">New</option>
+              <option value="Existing">Existing</option>
+            </select>
+          </div>
+
           {/* From Date */}
           <div style={{ display:"flex", flexDirection:"column", gap:5, minWidth:150 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".04em" }}>From Date</label>
@@ -502,18 +531,18 @@ export default function CourtesyCallDashboard() {
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr>
-                {["Reference ID","Appointment Date","Customer ID","Customer Name","Mobile","Clinic","Status","Auditor"].map(h => (
+                {["Reference ID","Appointment Date","Customer ID","Customer Name","Customer Type","Mobile","Clinic","Status","Auditor"].map(h => (
                   <th key={h} className="cc-th">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
+                <tr><td colSpan={9} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
                   Loading courtesy calls…
                 </td></tr>
               ) : pageData.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
+                <tr><td colSpan={9} style={{ padding:"48px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>
                   No courtesy calls found.
                 </td></tr>
               ) : pageData.map((item, i) => {
@@ -529,6 +558,15 @@ export default function CourtesyCallDashboard() {
                     <td className="cc-td" style={{ whiteSpace:"nowrap" }}>{item.appointmentDate || "—"}</td>
                     <td className="cc-td" style={{ fontWeight:600, color:"#2b3f73" }}>{item.customerID || "—"}</td>
                     <td className="cc-td">{item.customerName || "—"}</td>
+                    <td className="cc-td">
+                      {item.customerType ? (
+                        <span style={{ display:"inline-flex", alignItems:"center",
+                          background: item.customerType === "New" ? "#EEF3FB" : "#f1f5f9",
+                          color:"#334B71", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+                          {item.customerType}
+                        </span>
+                      ) : "—"}
+                    </td>
                     <td className="cc-td" style={{ whiteSpace:"nowrap" }}>{item.mobileNo || "—"}</td>
                     <td className="cc-td">{item.clinicName || "—"}</td>
                     <td className="cc-td">
