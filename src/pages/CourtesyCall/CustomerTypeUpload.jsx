@@ -18,20 +18,20 @@ const post = async (path, body) => {
 };
 
 
-const CourtesyCallUpload = ({ onClose }) => {
+const CustomerTypeUpload = ({ onClose }) => {
   const [fileName, setFileName] = useState("");
   const [rows, setRows]         = useState([]);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate]     = useState("");
   const [preview, setPreview]   = useState(null);
   const [result, setResult]     = useState(null);
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState("");
 
-  const reset = () => { setRows([]); setPreview(null); setResult(null); setError(""); };
-
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    reset();
+    setRows([]); setPreview(null); setResult(null); setError("");
     setFileName(file.name);
     setBusy(true);
     try {
@@ -48,8 +48,6 @@ const CourtesyCallUpload = ({ onClose }) => {
         return o;
       });
       setRows(out);
-      const p = await post("UploadPreview", { rows: out });
-      setPreview(p);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,13 +56,29 @@ const CourtesyCallUpload = ({ onClose }) => {
     }
   };
 
-  const publish = async () => {
+  const runPreview = async () => {
     if (!rows.length) return;
-    if (!window.confirm(`Create ${preview?.callsToCreate ?? 0} courtesy call(s) and update ${preview?.callsToUpdate ?? 0} existing (${preview?.typeUpdates ?? 0} customer-type change(s))? This cannot be undone.`)) return;
+    setBusy(true);
+    setError("");
+    setPreview(null);
+    setResult(null);
+    try {
+      const p = await post("TypeUpdatePreview", { rows, fromDate, toDate });
+      setPreview(p);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publish = async () => {
+    if (!rows.length || !preview) return;
+    if (!window.confirm(`Update customer type on ${preview.callsToUpdate ?? 0} courtesy call(s) (${preview.toNew ?? 0} to New, ${preview.toExisting ?? 0} to Existing)? This cannot be undone.`)) return;
     setBusy(true);
     setError("");
     try {
-      const r = await post("UploadPublish", { rows });
+      const r = await post("TypeUpdatePublish", { rows, fromDate, toDate });
       setResult(r);
     } catch (err) {
       setError(err.message);
@@ -86,30 +100,36 @@ const CourtesyCallUpload = ({ onClose }) => {
     <div style={{ marginTop: 24, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
       {/* ===== HEADER ===== */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: "#1F4E79" }}>Courtesy Call Excel Upload</div>
+        <div style={{ fontWeight: 700, fontSize: 16, color: "#1F4E79" }}>Customer Type Excel Update</div>
         <button className="pribtn" onClick={onClose} style={{ padding: "6px 12px" }}>
           <i className="bx bx-x" />
         </button>
       </div>
 
       <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 16 }}>
-        Columns expected: Appointment Date, Patient Code, Patient Name, Service Code, Service Name,
-        Therapists Code, Therapist, Service Category, Service Subcategory, Center Name, First Visit.
-        First Visit = Yes marks the customer as New, No as Existing; when the column is blank the
-        type falls back to the customer's visit history. One courtesy call is created per patient
-        per centre per appointment date; each row becomes a service item under it. Existing pending
-        calls are updated — missing service items are added and the customer type is corrected from
-        First Visit. Completed calls are never touched; rows already present are skipped.
+        Corrects the customer type on existing courtesy calls without creating or touching anything
+        else. Columns: Patient Code (required); Appointment Date (optional — with it, only that
+        day's call is changed); First Visit or Customer Type (optional — Yes/New or No/Existing;
+        blank means New). Rows without a date apply to every call for that patient inside the
+        From/To range below. Completed calls are never changed.
       </p>
 
-      {/* ===== FILE ===== */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      {/* ===== FILE + RANGE ===== */}
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <label className="pribtn" style={{ cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
           <i className="bx bx-upload" style={{ marginRight: 6 }} />
           Choose Excel
           <input type="file" accept=".xlsx,.xls" onChange={onFile} disabled={busy} style={{ display: "none" }} />
         </label>
         {fileName && <span style={{ fontSize: 13, color: "#374151" }}>{fileName}</span>}
+        <span style={{ fontSize: 13, color: "#374151" }}>From</span>
+        <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPreview(null); setResult(null); }} disabled={busy} />
+        <span style={{ fontSize: 13, color: "#374151" }}>To</span>
+        <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPreview(null); setResult(null); }} disabled={busy} />
+        <button className="pribtn" onClick={runPreview} disabled={busy || !rows.length}>
+          <i className="bx bx-search-alt" style={{ marginRight: 6 }} />
+          Preview
+        </button>
         {busy && <i className="bx bx-loader-alt bx-spin" style={{ fontSize: 18, color: "#1F4E79" }} />}
       </div>
 
@@ -125,18 +145,18 @@ const CourtesyCallUpload = ({ onClose }) => {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
             <Stat label="Rows read" value={summary.rowsRead} />
             <Stat label="Rows skipped" value={summary.rowsSkipped} tone={summary.rowsSkipped ? "#fffbeb" : undefined} />
-            <Stat label={result ? "Calls created" : "Calls to create"} value={result ? result.created : summary.callsToCreate} tone="#f0fdf4" />
-            <Stat label={result ? "Calls updated" : "Calls to update"} value={result ? result.updated : summary.callsToUpdate} />
-            <Stat label={result ? "Type changes" : "Type changes due"} value={result ? result.typeUpdated : summary.typeUpdates} tone={summary.typeUpdates || result?.typeUpdated ? "#eef3fb" : undefined} />
+            <Stat label="Customers in sheet" value={summary.customersInSheet} />
+            <Stat label="Calls matched" value={summary.callsMatched} />
+            <Stat label={result ? "Calls updated" : "Calls to update"} value={result ? result.updated : summary.callsToUpdate} tone="#f0fdf4" />
+            <Stat label="To New" value={summary.toNew} />
+            <Stat label="To Existing" value={summary.toExisting} />
+            <Stat label="Already correct" value={summary.alreadyCorrect} />
             <Stat label="Completed (untouched)" value={summary.skippedCompleted} />
-            <Stat label="Already present" value={summary.skippedDuplicate} />
-            <Stat label={result ? "Items inserted" : "Items to insert"} value={result ? result.itemsInserted : summary.itemsToInsert} />
           </div>
 
           {summary.dateFrom && (
             <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>
-              Appointment dates {summary.dateFrom} to {summary.dateTo}
-              {result?.firstReference && <> · references {result.firstReference} to {result.lastReference}</>}
+              Scope {summary.dateFrom} to {summary.dateTo}
             </div>
           )}
 
@@ -145,7 +165,7 @@ const CourtesyCallUpload = ({ onClose }) => {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["Centre", "Create", "Update", "Type changes", "Completed", "Already present", "Items", "Patients not in master"].map((h) => (
+                  {["Centre", "Update", "Already correct", "Completed"].map((h) => (
                     <th key={h} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1px solid #e5e7eb", color: "#374151" }}>{h}</th>
                   ))}
                 </tr>
@@ -154,24 +174,25 @@ const CourtesyCallUpload = ({ onClose }) => {
                 {summary.perCentre.map((c) => (
                   <tr key={c.centre}>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6", fontWeight: 600 }}>{c.centre}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.create}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.update}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.typeChanges}</td>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.alreadyCorrect}</td>
                     <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.skipCompleted}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.skipDuplicate}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6" }}>{c.items}</td>
-                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f3f4f6", color: c.customersNotFound ? "#b45309" : "#6b7280" }}>{c.customersNotFound}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
 
-          {summary.unresolvedCentres?.length > 0 && (
-            <div style={{ padding: "8px 12px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", fontSize: 13, marginBottom: 12 }}>
-              Rows skipped because the centre could not be resolved:{" "}
-              {summary.unresolvedCentres.map((u) => `${u.centreName || "(blank)"} (${u.rows})`).join(", ")}
-            </div>
+          {summary.customersNoCallsCount > 0 && (
+            <details style={{ marginBottom: 16 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, color: "#92400e" }}>
+                {summary.customersNoCallsCount} customer(s) in the sheet have no matching courtesy call in scope — show
+              </summary>
+              <div style={{ maxHeight: 180, overflow: "auto", marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+                {summary.customersNoCalls.map((c, i) => (<div key={i}>{c}</div>))}
+                {summary.customersNoCallsCount > summary.customersNoCalls.length && <div>… {summary.customersNoCallsCount - summary.customersNoCalls.length} more</div>}
+              </div>
+            </details>
           )}
 
           {/* ===== SKIPPED ROWS ===== */}
@@ -194,7 +215,7 @@ const CourtesyCallUpload = ({ onClose }) => {
             <button
               className="pribtn"
               onClick={publish}
-              disabled={busy || !preview || (preview.callsToCreate + preview.callsToUpdate) === 0}
+              disabled={busy || !preview || (preview.callsToUpdate ?? 0) === 0}
             >
               <i className="bx bx-check-circle" style={{ marginRight: 6 }} />
               Publish
@@ -212,4 +233,4 @@ const CourtesyCallUpload = ({ onClose }) => {
   );
 };
 
-export default CourtesyCallUpload;
+export default CustomerTypeUpload;
