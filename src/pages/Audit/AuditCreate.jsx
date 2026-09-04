@@ -106,7 +106,7 @@ export default function AuditCreate() {
   const [clinicCode, setClinicCode] = useState(state?.clinicCode || "");
   const [month, setMonth] = useState(() => toMonthNumber(state?.month));
   const [year, setYear] = useState(state?.year || "");
-  const [auditDate, setAuditDate] = useState(state?.auditDate || todayISO());
+  const [auditDate] = useState(todayISO());
   const [employeeCode, setEmployeeCode] = useState(state?.employeeCode || "");
   const [doctorCode, setDoctorCode] = useState(state?.doctorCode || "");
   const [departmentCode, setDepartmentCode] = useState(state?.departmentCode || "");
@@ -355,7 +355,7 @@ export default function AuditCreate() {
                   </select>
                 </Field>
                 <Field label="Audit Date">
-                  <input type="date" value={auditDateISO} onChange={(e) => setAuditDate(e.target.value)} />
+                  <input type="date" value={auditDateISO} disabled readOnly />
                 </Field>
               </div>
 
@@ -595,6 +595,11 @@ export default function AuditCreate() {
           background: #f7f9fc;
           color: #4b5668;
           cursor: default;
+        }
+        .field-control input[type="date"]:disabled {
+          background: #f7f9fc;
+          color: #4b5668;
+          cursor: not-allowed;
         }
         .loading-select { opacity: 0.6; }
 

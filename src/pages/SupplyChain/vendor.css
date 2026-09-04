@@ -21,11 +21,10 @@
   --vm-grey-fg: #7d8790;
   --vm-blue-bg: #e7effa;
   --vm-radius: 10px;
-  background: var(--vm-page);
   color: var(--vm-text);
-  font-family: "Poppins", "Segoe UI", system-ui, sans-serif;
+  font-family: "Lato", "Segoe UI", system-ui, sans-serif;
   min-height: 100%;
-  padding: 22px 26px 40px;
+  padding: 22px 0 40px;
   box-sizing: border-box;
 }
 
@@ -604,10 +603,10 @@
 .vm-search .vm-search-icon {
   position: absolute;
   left: 12px;
-  top: 50%;
+  top: 42%;
   transform: translateY(-50%);
   color: var(--vm-muted);
-  font-size: 12px;
+  font-size: 30px;
   pointer-events: none;
 }
 
