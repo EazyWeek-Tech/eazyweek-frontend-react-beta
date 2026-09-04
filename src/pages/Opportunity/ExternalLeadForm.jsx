@@ -1252,6 +1252,7 @@ if (!hasNone) {
                   name="centerCode"
                   value={form.centerCode}
                   onChange={onChange}
+                  disabled
                 >
                   {centerOptions.map((o) => (
                     <option key={o.value || o.label} value={o.value}>

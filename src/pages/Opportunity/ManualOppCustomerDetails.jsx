@@ -2228,7 +2228,7 @@ const subMediumName = safe(form.subMedium || "Manual");
               <label>
                 Centre <span className="req">*</span>
               </label>
-              <select className={`inp ${errors.centerCode ? "err" : ""}`} name="centerCode" value={form.centerCode} onChange={onChange} disabled={centerLoading}>
+              <select className={`inp ${errors.centerCode ? "err" : ""}`} name="centerCode" value={form.centerCode} onChange={onChange} disabled>
                 {centerOptions.map((o) => (
                   <option key={o.value || o.label} value={o.value}>
                     {o.label}

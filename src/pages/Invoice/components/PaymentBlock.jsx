@@ -183,11 +183,11 @@ const PaymentBlock = ({
 
   // ---------- Derived state ----------
   const _rawTotal = typeof totalAmount === 'string' ? parseFloat(totalAmount) : totalAmount;
-  // Subtract invoice-level promotion discounts so payment total reflects the actual amount due
-  const _invoiceLevelDiscount = appliedPromotions
-    .filter(p => p.applicationLevel === "Invoice Level")
-    .reduce((sum, p) => sum + parseFloat(p.discountAmount || 0), 0);
-  const parsedTotalAmount = Math.max(0, _rawTotal - _invoiceLevelDiscount);
+  // totalAmount arrives from the invoice page with invoice-level promotions
+  // ALREADY subtracted (index.jsx: total = grossTotal - invoicePromoDiscount).
+  // Subtracting them again here double-counted the promo and made the payment
+  // default land short of the invoice total. The parent total is authoritative.
+  const parsedTotalAmount = Math.max(0, _rawTotal);
 
   const { has, notifyDenied } = usePermissions();
   const [activeTab, setActiveTab] = useState('cash');

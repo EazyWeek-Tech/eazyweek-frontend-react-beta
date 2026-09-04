@@ -106,7 +106,7 @@ export default function AuditCreate() {
   const [clinicCode, setClinicCode] = useState(state?.clinicCode || "");
   const [month, setMonth] = useState(() => toMonthNumber(state?.month));
   const [year, setYear] = useState(state?.year || "");
-  const [auditDate, setAuditDate] = useState(state?.auditDate || todayISO());
+  const [auditDate] = useState(todayISO());
   const [employeeCode, setEmployeeCode] = useState(state?.employeeCode || "");
   const [doctorCode, setDoctorCode] = useState(state?.doctorCode || "");
   const [departmentCode, setDepartmentCode] = useState(state?.departmentCode || "");
@@ -258,7 +258,7 @@ export default function AuditCreate() {
   async function duplicateCheck(payload) {
     try {
       const r = await fetch(`${API_BASE_URL}/api/Audit/AuditCreationDupicateCheck`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${TOKEN()}` }, body: JSON.stringify(payload) });
-      if (r.ok) return await r.json();
+      if (r.ok) { const j = await r.json(); return j?.data ?? j; }
       throw new Error(`HTTP ${r.status}`);
     } catch { showToast("Duplicate check failed. Please try again."); return null; }
   }
@@ -280,7 +280,7 @@ export default function AuditCreate() {
     const dupResp = await duplicateCheck({ employeeCode: isDigitalSeg ? doctorCode : employeeCode, auditSegment: segmentCode || segmentName, auditDate: toMidnightUtc(auditDateISO), auditMonth: auditMonthStr, auditYear: String(year || "") });
     setCheckingDup(false);
     if (!dupResp) return;
-    if (dupResp.success !== true) return showToast(dupResp.message || "Audit already exists for the selected date/person");
+    if (dupResp.success !== true) return showToast(dupResp.message || "Audit already exists for the selected date/person", "error", 4500);
     const employeeNameSel = !isDigitalSeg ? employees.find((e) => e.employeeCode === employeeCode)?.employeeName || "" : "";
     const doctorNameSel = isDigitalSeg ? doctors.find((d) => (d.code ?? d.name) === doctorCode)?.name || "" : "";
     const qs = new URLSearchParams({ segment: segmentCode || segmentName, clinicCode: clinicCode || "", clinicName: clinicName || "", auditMonth: auditMonthStr, year: String(year || ""), auditDate: auditDateISO, mode: isDigitalSeg ? "digital" : "standard", ...(isDigitalSeg ? { doctorCode, doctorName: doctorNameSel, departmentCode, managerCode } : { employeeCode, employeeName: employeeNameSel }) }).toString();
@@ -355,7 +355,7 @@ export default function AuditCreate() {
                   </select>
                 </Field>
                 <Field label="Audit Date">
-                  <input type="date" value={auditDateISO} onChange={(e) => setAuditDate(e.target.value)} />
+                  <input type="date" value={auditDateISO} disabled readOnly />
                 </Field>
               </div>
 
@@ -595,6 +595,11 @@ export default function AuditCreate() {
           background: #f7f9fc;
           color: #4b5668;
           cursor: default;
+        }
+        .field-control input[type="date"]:disabled {
+          background: #f7f9fc;
+          color: #4b5668;
+          cursor: not-allowed;
         }
         .loading-select { opacity: 0.6; }
 

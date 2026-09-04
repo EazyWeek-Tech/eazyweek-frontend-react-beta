@@ -598,6 +598,8 @@ const NAV_GROUPS = [
               { name: "Itemised Sales Report", icon: "bx-list-ul", path: "/reports/itemised-report" },
               { name: "Liability Report", icon: "bx-shield", path: "/reports/liability-report" },
               { name: "Payment Report", icon: "bx-credit-card", path: "/reports/payment-report" },
+              { name: "Top Performing Services", icon: "bx-trending-up", path: "/reports/top-services" },
+
             ],
           },
         ],
@@ -609,6 +611,32 @@ const NAV_GROUPS = [
         children: [
           { name: "E-Invoices List Page", icon: "bx-list-ul", path: "/einvoice" },
           { name: "E-Invoice Detailed Report", icon: "bx-grid-alt", path: "/einvoice/detailed" }, // TODO confirm dashboard vs detailed
+        ],
+      },
+    ],
+  },
+  {
+    group: "Supply Chain",
+    items: [
+      { label: "Vendor Management", icon: "bx-store", path: "/supply-chain/vendors" },
+      { label: "Vendor Agreement", icon: "bx-notepad", path: "/supply-chain/vendor-agreements" }, // TODO not built yet
+      {
+        label: "Procure to Pay",
+        icon: "bx-cart",
+        children: [
+          { name: "Purchase Order Creation", icon: "bx-plus-circle", path: "/supply-chain/purchase-orders/new" }, // TODO not built yet
+          { name: "Purchase Order Receiving", icon: "bx-download", path: "/supply-chain/purchase-orders/receiving" }, // TODO not built yet
+          { name: "PO Invoicing", icon: "bx-receipt", path: "/supply-chain/purchase-orders/invoicing" }, // TODO not built yet
+        ],
+      },
+      {
+        label: "Inventory Management",
+        icon: "bx-cube",
+        children: [
+          { name: "Transfer Order Creation", icon: "bx-transfer", path: "/inventory/transfer-orders/new" }, // TODO not built yet
+          { name: "Transfer Order Receiving", icon: "bx-download", path: "/inventory/transfer-orders/receiving" }, // TODO not built yet
+          { name: "Stock Counting", icon: "bx-list-check", path: "/inventory/stock-count" }, // TODO not built yet
+          { name: "Inventory Report", icon: "bx-bar-chart-alt-2", path: "/inventory/report" }, // TODO not built yet
         ],
       },
     ],
@@ -678,6 +706,8 @@ const NAV_GROUPS = [
           { name: "Audit Report - Detailed", icon: "bx-file", path: "/audit/detailed" },
           { name: "Audit Report - Summary", icon: "bx-bar-chart-alt-2", path: "/audit/summary" },
           { name: "Courtesy Call Report - Detailed", icon: "bx-file", path: "/courtesy-call/report" },
+          { name: "Top Performing Services", icon: "bx-trending-up", path: "/reports/top-services" },
+ 
         ],
       },
     ],
@@ -753,8 +783,9 @@ const NAV_GROUPS = [
           { name: "Form Configuration", icon:"bx-lock", path:"/settings/formconfiguration", feature: "formconfiguartion"}, 
           { name: "Loyalty Setup", icon: "bx-gift", path: "/loyalty", feature: "loyalty" },
           { name: "Security Settings", icon: "bx-lock-alt", path: "/settings/security" },
-           { name: "Audit Criteria", icon: "bx-form", path: "/audit/criteria" },
+          { name: "Audit Criteria", icon: "bx-clipboard", path: "/audit/criteria" },
           { name: "Discount & Promotion", icon: "bx-purchase-tag", path: "/discounts/manage", feature: "discounts" },
+          { name: "Vendor Group Master", icon: "bx-category", path: "/settings/supply-chain/vendor-groups" },
         ],
       },
     ],

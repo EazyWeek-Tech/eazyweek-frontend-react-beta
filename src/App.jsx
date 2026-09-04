@@ -112,6 +112,11 @@ import FormConfiguration from "./pages/Settings/FormConfiguration";
 import EInvoice from "./pages/Einvoice";
 import AuditCriteria from "./pages/Audit/AuditCriteria";
 import { ModuleSourceProvider, SourceGate } from "./components/ModuleSource";
+import TopServicesReport from "./pages/Reports/TopServicesReport";
+import VendorList from "./pages/SupplyChain/VendorList";
+import VendorMaster from "./pages/SupplyChain/VendorMaster";
+import VendorRecord from "./pages/SupplyChain/VendorRecord";
+import VendorGroupMaster from "./pages/SupplyChain/VendorGroupMaster";
 import * as appConfig from "./config";
 
 const API_BASE = appConfig.API_BASE_URL || appConfig.default?.API_BASE_URL || "";
@@ -403,6 +408,8 @@ if (user && showFirstLogin) {
                     path="/case-detailed-report"
                     element={gate("caseManagement", <CaseDetailedReport />)}
                   />
+                  <Route path="/reports/top-services" element={<TopServicesReport />} />
+
                   <Route
                     path="/masters/practitioners"
                     element={<DoctorMaster />}
@@ -436,6 +443,12 @@ if (user && showFirstLogin) {
                     path="/masters/item-category"
                     element={<ItemCategoryMaster />}
                   />
+
+                  <Route path="/supply-chain/vendors" element={<VendorList />} />
+<Route path="/supply-chain/vendors/new" element={<VendorMaster />} />
+<Route path="/supply-chain/vendors/:vendorCode" element={<VendorRecord />} />
+<Route path="/supply-chain/vendors/:vendorCode/edit" element={<VendorMaster />} />
+<Route path="/settings/supply-chain/vendor-groups" element={<VendorGroupMaster />} />
                   <Route
                     path="/masters/purchase-category"
                     element={<PurchaseCategoryMaster />}
