@@ -615,7 +615,7 @@ const NAV_GROUPS = [
       },
     ],
   },
-  {
+  /* {
     group: "Supply Chain",
     items: [
       { label: "Vendor Management", icon: "bx-store", path: "/supply-chain/vendors" },
@@ -640,7 +640,7 @@ const NAV_GROUPS = [
         ],
       },
     ],
-  },
+  }, */
   {
     group: "Customer Care",
     items: [
