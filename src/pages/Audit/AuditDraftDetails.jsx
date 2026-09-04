@@ -314,7 +314,7 @@ export default function AuditDraftDetails() {
               <div className="summary-item"><span className="summary-label">Audit No</span><span className="summary-value highlight"><Txt>{header?.auditNo}</Txt></span></div>
               <div className="summary-item"><span className="summary-label">Segment</span><span className="summary-value"><Txt>{header?.auditSegment}</Txt></span></div>
               <div className="summary-item"><span className="summary-label">Clinic</span><span className="summary-value"><Txt>{header?.clinicName || clinicFromUrl || "—"}</Txt></span></div>
-              <div className="summary-item"><span className="summary-label">Period</span><span className="summary-value"><Txt>{header?.auditMonth || "—"}</Txt></span></div>
+              <div className="summary-item"><span className="summary-label">Period</span><span className="summary-value"><Txt>{header?.auditMonth ? (header?.auditYear && !String(header.auditMonth).includes(String(header.auditYear)) ? `${header.auditMonth} / ${header.auditYear}` : header.auditMonth) : "—"}</Txt></span></div>
               <div className="summary-item"><span className="summary-label">Audit Date</span><span className="summary-value"><Txt>{header?.auditDateDMY || "—"}</Txt></span></div>
               <div className="summary-item"><span className="summary-label">Manager</span><span className="summary-value"><Txt>{header?.managerName || "—"}</Txt></span></div>
               <div className="summary-item"><span className="summary-label">Employee / Doctor</span><span className="summary-value"><Txt>{displayEmployeeName || displayEmployeeCode || "—"}</Txt></span></div>
